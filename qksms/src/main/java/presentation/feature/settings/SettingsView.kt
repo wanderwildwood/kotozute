@@ -18,7 +18,6 @@
  */
 package presentation.feature.settings
 
-import android.net.Uri
 import io.reactivex.Observable
 import io.reactivex.subjects.Subject
 import presentation.common.base.QkView
@@ -31,7 +30,6 @@ interface SettingsView : QkView<SettingsState> {
     val viewQksmsPlusIntent: Subject<Unit>
     val startTimeSelectedIntent: Subject<Pair<Int, Int>>
     val endTimeSelectedIntent: Subject<Pair<Int, Int>>
-    val ringtoneSelectedIntent: Observable<String>
     val mmsSizeSelectedIntent: Observable<Int>
 
     fun showNightModeDialog()
@@ -39,7 +37,6 @@ interface SettingsView : QkView<SettingsState> {
     fun showQksmsPlusSnackbar()
     fun showStartTimePicker(hour: Int, minute: Int)
     fun showEndTimePicker(hour: Int, minute: Int)
-    fun showRingtonePicker(default: Uri)
     fun showMmsSizePicker()
     fun dismissMmsSizePicker()
 }

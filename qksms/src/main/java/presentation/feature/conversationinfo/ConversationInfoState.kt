@@ -18,10 +18,12 @@
  */
 package presentation.feature.conversationinfo
 
+import data.model.MmsPart
 import data.model.Recipient
 
 data class ConversationInfoState(
         val recipients: List<Recipient> = listOf(),
         val archived: Boolean = false,
+        val media: List<MmsPart> = ArrayList(),
         val hasError: Boolean = false
 )

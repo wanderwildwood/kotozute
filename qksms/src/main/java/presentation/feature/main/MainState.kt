@@ -46,7 +46,3 @@ data class Archived(
 data class Scheduled(
         val data: Any? = null,
         val empty: Boolean = false) : MainPage()
-
-data class Blocked(
-        val data: Flowable<List<Conversation>>? = null,
-        val empty: Boolean = false) : MainPage()

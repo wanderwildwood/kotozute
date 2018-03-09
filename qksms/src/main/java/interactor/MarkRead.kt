@@ -25,13 +25,15 @@ import javax.inject.Inject
 
 class MarkRead @Inject constructor(
         private val messageRepo: MessageRepository,
-        private val notificationManager: NotificationManager
+        private val notificationManager: NotificationManager,
+        private val updateBadge: UpdateBadge
 ) : Interactor<Long>() {
 
-    override fun buildObservable(params: Long): Flowable<Unit> {
+    override fun buildObservable(params: Long): Flowable<*> {
         return Flowable.just(Unit)
                 .doOnNext { messageRepo.markRead(params) }
                 .doOnNext { notificationManager.update(params) }
+                .flatMap { updateBadge.buildObservable(Unit) } // Update the badge
     }
 
 }

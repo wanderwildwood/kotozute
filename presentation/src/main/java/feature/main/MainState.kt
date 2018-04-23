@@ -24,7 +24,8 @@ import model.Conversation
 data class MainState(
         val page: MainPage = Inbox(),
         val drawerOpen: Boolean = false,
-        val syncing: Boolean = false
+        val syncing: Boolean = false,
+        val showRating: Boolean = false
 )
 
 sealed class MainPage

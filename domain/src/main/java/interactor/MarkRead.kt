@@ -27,13 +27,13 @@ class MarkRead @Inject constructor(
         private val messageRepo: MessageRepository,
         private val notificationManager: NotificationManager,
         private val updateBadge: UpdateBadge
-) : Interactor<Long>() {
+) : Interactor<List<Long>>() {
 
-    override fun buildObservable(params: Long): Flowable<*> {
-        return Flowable.just(Unit)
-                .doOnNext { messageRepo.markRead(params) }
-                .doOnNext { messageRepo.updateConversations(params) } // Update the conversation
-                .doOnNext { notificationManager.update(params) }
+    override fun buildObservable(params: List<Long>): Flowable<*> {
+        return Flowable.just(params.toLongArray())
+                .doOnNext { threadIds -> messageRepo.markRead(*threadIds) }
+                .doOnNext { threadIds -> messageRepo.updateConversations(*threadIds) } // Update the conversation
+                .doOnNext { threadIds -> threadIds.forEach(notificationManager::update) }
                 .flatMap { updateBadge.buildObservable(Unit) } // Update the badge
     }
 

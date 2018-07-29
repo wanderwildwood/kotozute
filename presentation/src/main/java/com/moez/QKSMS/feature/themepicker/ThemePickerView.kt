@@ -18,17 +18,16 @@
  */
 package com.moez.QKSMS.feature.themepicker
 
-import com.moez.QKSMS.common.base.QkView
+import com.moez.QKSMS.common.base.QkViewContract
 import io.reactivex.Observable
-import io.reactivex.subjects.Subject
 
-interface ThemePickerView : QkView<ThemePickerState> {
+interface ThemePickerView : QkViewContract<ThemePickerState> {
 
-    val themeSelectedIntent: Observable<Int>
-    val hsvThemeSelectedIntent: Observable<Int>
-    val hsvThemeClearedIntent: Observable<*>
-    val hsvThemeAppliedIntent: Observable<*>
-    val viewQksmsPlusIntent: Subject<Unit>
+    fun themeSelected(): Observable<Int>
+    fun hsvThemeSelected(): Observable<Int>
+    fun clearHsvThemeClicks(): Observable<*>
+    fun applyHsvThemeClicks(): Observable<*>
+    fun viewQksmsPlusClicks(): Observable<*>
 
     fun setCurrentTheme(color: Int)
     fun showQksmsPlusSnackbar()

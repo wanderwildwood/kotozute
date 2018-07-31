@@ -18,21 +18,22 @@
  */
 package com.moez.QKSMS.feature.conversationinfo
 
-import com.moez.QKSMS.common.base.QkView
+import com.moez.QKSMS.common.base.QkViewContract
 import io.reactivex.Observable
 
-interface ConversationInfoView : QkView<ConversationInfoState> {
+interface ConversationInfoView : QkViewContract<ConversationInfoState> {
 
-    val nameIntent: Observable<*>
-    val nameChangedIntent: Observable<String>
-    val notificationsIntent: Observable<Unit>
-    val themeIntent: Observable<Unit>
-    val archiveIntent: Observable<Unit>
-    val blockIntent: Observable<Unit>
-    val deleteIntent: Observable<Unit>
-    val confirmDeleteIntent: Observable<Unit>
+    fun nameClicks(): Observable<*>
+    fun nameChanges(): Observable<String>
+    fun notificationClicks(): Observable<*>
+    fun themeClicks(): Observable<*>
+    fun archiveClicks(): Observable<*>
+    fun blockClicks(): Observable<*>
+    fun deleteClicks(): Observable<*>
+    fun confirmDelete(): Observable<*>
 
     fun showNameDialog(name: String)
+    fun showThemePicker(threadId: Long)
     fun showDeleteDialog()
 
 }

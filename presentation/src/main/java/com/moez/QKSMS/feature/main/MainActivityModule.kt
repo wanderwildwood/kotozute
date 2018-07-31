@@ -18,6 +18,7 @@
  */
 package com.moez.QKSMS.feature.main
 
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import com.moez.QKSMS.injection.ViewModelKey
 import dagger.Module
@@ -26,6 +27,9 @@ import dagger.multibindings.IntoMap
 
 @Module
 class MainActivityModule {
+
+    @Provides
+    fun provideLifecycle(activity: MainActivity): Lifecycle = activity.lifecycle
 
     @Provides
     @IntoMap

@@ -36,7 +36,7 @@ class AnalyticsManagerImpl @Inject constructor() : AnalyticsManager {
     }
 
     override fun setUserProperty(key: String, value: Any) {
-        // Do nothing
+        Timber.v("$key: $value")
     }
 
 }

@@ -18,21 +18,20 @@
  */
 package com.moez.QKSMS.interactor
 
+import com.moez.QKSMS.manager.ShortcutManager
 import com.moez.QKSMS.manager.WidgetManager
-import com.moez.QKSMS.repository.MessageRepository
 import io.reactivex.Flowable
 import javax.inject.Inject
 
 class UpdateBadge @Inject constructor(
-        private val messageRepo: MessageRepository,
+        private val shortcutManager: ShortcutManager,
         private val widgetManager: WidgetManager
 ) : Interactor<Unit>() {
 
     override fun buildObservable(params: Unit): Flowable<*> {
         return Flowable.just(params)
-                .map { messageRepo.getUnreadCount() }
-                .map { count -> count.toInt() }
-                .doOnNext { count -> widgetManager.updateUnreadCount(count) }
+                .doOnNext { shortcutManager.updateBadge() }
+                .doOnNext { widgetManager.updateUnreadCount() }
     }
 
 }

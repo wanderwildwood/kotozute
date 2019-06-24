@@ -32,7 +32,9 @@ import com.moez.QKSMS.common.util.extensions.setVisible
 import com.moez.QKSMS.injection.appComponent
 import kotlinx.android.synthetic.main.preference_view.view.*
 
-class PreferenceView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : LinearLayoutCompat(context, attrs) {
+class PreferenceView @JvmOverloads constructor(
+    context: Context, attrs: AttributeSet? = null
+) : LinearLayoutCompat(context, attrs) {
 
     var title: String? = null
         set(value) {

@@ -29,4 +29,5 @@ interface BlockingView : QkViewContract<BlockingState> {
     val conversationClicks: Observable<Long>
 
     fun openBlockingManager()
+    fun openBlockedNumbers()
 }

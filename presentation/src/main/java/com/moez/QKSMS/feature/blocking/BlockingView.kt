@@ -24,8 +24,9 @@ import io.reactivex.Observable
 interface BlockingView : QkViewContract<BlockingState> {
 
     val blockingManagerIntent: Observable<*>
+    val blockedMessagesIntent: Observable<*>
     val dropClickedIntent: Observable<*>
-    val conversationClicks: Observable<Long>
 
     fun openBlockingManager()
+    fun openBlockedMessages()
 }

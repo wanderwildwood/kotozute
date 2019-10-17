@@ -61,7 +61,7 @@ class VCardBinder(
         val uri = ContentUris.withAppendedId(CursorToPartImpl.CONTENT_URI, part.id)
         val bubble = BubbleUtils.getBubble(false, canGroupWithPrevious, canGroupWithNext, message.isMe())
 
-        view.setOnClickListener { navigator.saveVcard(uri) }
+        view.setOnClickListener { navigator.openFile(uri, part.type) }
         view.vCardBackground.setBackgroundResource(bubble)
 
         Observable.just(uri)

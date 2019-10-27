@@ -26,5 +26,6 @@ open class Contact(
     @PrimaryKey var lookupKey: String = "",
     var numbers: RealmList<PhoneNumber> = RealmList(),
     var name: String = "",
+    var starred: Boolean = false,
     var lastUpdate: Long = 0
 ) : RealmObject()

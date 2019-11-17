@@ -31,6 +31,8 @@ interface ContactRepository {
 
     fun getContacts(): RealmResults<Contact>
 
+    fun getUnmanagedContact(lookupKey: String): Contact?
+
     fun getUnmanagedContacts(starred: Boolean = false): Observable<List<Contact>>
 
     fun getUnmanagedContactGroups(): Observable<List<ContactGroup>>

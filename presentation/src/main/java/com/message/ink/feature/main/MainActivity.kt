@@ -57,10 +57,8 @@ import com.message.ink.common.util.extensions.setTint
 import com.message.ink.common.util.extensions.setVisible
 import com.message.ink.common.widget.TextInputDialog
 import com.message.ink.feature.blocking.BlockingDialog
-import com.message.ink.feature.changelog.ChangelogDialog
 import com.message.ink.feature.conversations.ConversationItemTouchCallback
 import com.message.ink.feature.conversations.ConversationsAdapter
-import com.message.ink.manager.ChangelogManager
 import com.message.ink.repository.SyncRepository
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -111,7 +109,6 @@ class MainActivity : QkThemedActivity(), MainView {
     override val confirmDeleteIntent: Subject<List<Long>> = PublishSubject.create()
     override val renameConversationIntent: Subject<String> = PublishSubject.create()
     override val swipeConversationIntent by lazy { itemTouchCallback.swipes }
-    override val changelogMoreIntent by lazy { changelogDialog.moreClicks }
     override val undoArchiveIntent: Subject<Unit> = PublishSubject.create()
     override val snackbarButtonIntent: Subject<Unit> = PublishSubject.create()
 
@@ -131,7 +128,6 @@ class MainActivity : QkThemedActivity(), MainView {
     private val progressAnimator by lazy {
         ObjectAnimator.ofInt(syncingProgress, "progress", 0, 0)
     }
-    private val changelogDialog by lazy { ChangelogDialog(this) }
     private val snackbar by lazy { findViewById<View>(R.id.snackbar) }
     private val syncing by lazy { findViewById<View>(R.id.syncing) }
     private val backPressedSubject: Subject<NavItem> = PublishSubject.create()
@@ -530,9 +526,6 @@ class MainActivity : QkThemedActivity(), MainView {
         )
             .setText(conversationName)
             .show()
-
-    override fun showChangelog(changelog: ChangelogManager.CumulativeChangelog) =
-        changelogDialog.show(changelog)
 
     override fun showArchivedSnackbar(countConversationsArchived: Int, isArchiving: Boolean) =
         Snackbar.make(

@@ -40,6 +40,7 @@ class DesktopSyncService : Service() {
         private const val CHANNEL_ID = "desktop_sync"
         private const val ACTION_START = "ACTION_START"
         private const val ACTION_STOP = "ACTION_STOP"
+        private const val ACTION_RESET_TOKEN = "ACTION_RESET_TOKEN"
 
         /**
          * Whether the relay is actually serving right now. Runtime-only on purpose:
@@ -71,6 +72,20 @@ class DesktopSyncService : Service() {
             // trip ForegroundServiceDidNotStartInTimeException.
             val intent = Intent(context, DesktopSyncService::class.java)
                 .setAction("${context.packageName}.$ACTION_STOP")
+            runCatching { context.startService(intent) }
+        }
+
+        /**
+         * Throw away the current token and mint a new one, rebinding the relay so the
+         * new token takes effect immediately. Every existing bookmark and open browser
+         * tab stops working until it is reopened on the new URL — which is the point.
+         */
+        fun resetToken(context: Context) {
+            val intent = Intent(context, DesktopSyncService::class.java)
+                .setAction("${context.packageName}.$ACTION_RESET_TOKEN")
+            // Plain startService: this never promises a startForeground() we don't make.
+            // If the relay is running it is already foreground; if it isn't, the handler
+            // just rewrites the token and shuts back down.
             runCatching { context.startService(intent) }
         }
 
@@ -130,6 +145,7 @@ class DesktopSyncService : Service() {
         when (intent?.action) {
             "$packageName.$ACTION_START" -> startRelay()
             "$packageName.$ACTION_STOP" -> stopRelay()
+            "$packageName.$ACTION_RESET_TOKEN" -> resetToken()
             // A null intent means Android restarted us itself after a process kill
             // (START_STICKY). Come back up only if the relay was left switched on.
             null -> if (prefs.desktopSyncEnabled.get()) startRelay() else stopRelay()
@@ -187,6 +203,23 @@ class DesktopSyncService : Service() {
                 Timber.i("Desktop Sync: conversations changed -> pushing to ${newServer.socketCount()} client(s)")
                 newServer.notifyChanged()
             }, Timber::w)
+    }
+
+    private fun resetToken() {
+        prefs.desktopSyncToken.set(generateToken())
+        if (server == null) {
+            // Nothing bound, so the new token will simply be picked up on next start.
+            // Don't leave an idle service behind.
+            stopSelf()
+            return
+        }
+        // startRelay() bails out early when a server already exists, so tear the old
+        // one down first — otherwise it would keep serving the old token.
+        disposables.clear()
+        server?.stop()
+        server = null
+        isRunning = false
+        startRelay()
     }
 
     private fun stopRelay() {

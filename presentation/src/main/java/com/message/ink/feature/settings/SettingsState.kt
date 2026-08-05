@@ -53,5 +53,6 @@ data class SettingsState(
     val messageLinkHandlingId: Int = 2,
     val disableScreenshotsEnabled: Boolean = false,
     val syncProgress: SyncRepository.SyncProgress = SyncRepository.SyncProgress.Idle,
-    val desktopSyncSummary: String = ""
+    val desktopSyncSummary: String = "",
+    val desktopSyncEnabled: Boolean = false
 )

@@ -45,8 +45,6 @@ import com.message.ink.manager.ActiveConversationManagerImpl
 import com.message.ink.manager.AlarmManager
 import com.message.ink.manager.AlarmManagerImpl
 import com.message.ink.manager.BillingManager
-import com.message.ink.manager.ChangelogManager
-import com.message.ink.manager.ChangelogManagerImpl
 import com.message.ink.manager.KeyManager
 import com.message.ink.manager.KeyManagerImpl
 import com.message.ink.manager.NotificationManager
@@ -147,9 +145,6 @@ class AppModule(private var application: Application) {
 
     @Provides
     fun blockingClient(manager: BlockingManager): BlockingClient = manager
-
-    @Provides
-    fun changelogManager(manager: ChangelogManagerImpl): ChangelogManager = manager
 
     @Provides
     fun provideKeyManager(manager: KeyManagerImpl): KeyManager = manager

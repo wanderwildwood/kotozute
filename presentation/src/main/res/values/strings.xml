@@ -339,6 +339,11 @@
 
     <string name="settings_desktop_sync_title">Desktop Sync</string>
     <string name="settings_desktop_sync_summary_off">Off — tap to read and reply to texts in a web browser on your computer. Requires Tailscale (or same Wi-Fi).</string>
+    <string name="settings_desktop_sync_reset_title">Reset Desktop Sync link</string>
+    <string name="settings_desktop_sync_reset_summary">Replace the secret token in the address. Use this if the link has been shared or seen by someone else. Existing bookmarks and open tabs stop working.</string>
+    <string name="settings_desktop_sync_reset_dialog">Replace the secret token in your Desktop Sync address?\n\nAny bookmark or open browser tab using the old link will stop working. The new address appears in Settings straight away.</string>
+    <string name="settings_desktop_sync_reset_confirm">Reset link</string>
+    <string name="settings_desktop_sync_reset_done">New Desktop Sync link generated</string>
     <string name="settings_about_title">About eInkMessage+</string>
     <string name="settings_version">Version %s</string>
     <string name="settings_logging_enabled">Debug logging enabled</string>
@@ -454,21 +459,13 @@
     <string name="theme_hex">HEX</string>
     <string name="theme_apply">Apply</string>
 
-    <string name="about_developer" translatable="false">Marcos Jones</string>
-    <string name="about_source" translatable="false">https://github.com/octoshrimpy/quik</string>
-    <string name="about_changelog" translatable="false">https://github.com/octoshrimpy/quik/releases</string>
-    <string name="about_contact" translatable="false">quik@octo.sh</string>
+    <string name="about_developer" translatable="false">wander wildwood</string>
+    <string name="about_source" translatable="false">https://github.com/wanderwildwood/einkmessage-plus</string>
+    <string name="about_changelog" translatable="false">https://github.com/wanderwildwood/einkmessage-plus/releases</string>
+    <string name="about_contact" translatable="false">github.com/wanderwildwood/einkmessage-plus/issues</string>
     <string name="about_license" translatable="false">GNU General Public License v3.0</string>
     <string name="about_copyright" translatable="false">© 2014–2025</string>
 
-    <string name="changelog_title" translatable="false">New in eInkMessage+</string>
-    <string name="changelog_version" translatable="false">Version %s</string>
-    <string name="changelog_added" translatable="false">Added</string>
-    <string name="changelog_improved" translatable="false">Improved</string>
-    <string name="changelog_fixed" translatable="false">Fixed</string>
-    <string name="changelog_removed" translatable="false">Removed</string>
-    <string name="changelog_more" translatable="false">More</string>
-    <string name="changelog_dismiss" translatable="false">Dismiss</string>
 
     <string-array name="notification_actions">
         <item>None</item>

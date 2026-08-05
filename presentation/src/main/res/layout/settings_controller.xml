@@ -302,6 +302,16 @@
             app:summary="@string/settings_desktop_sync_summary_off"
             app:title="@string/settings_desktop_sync_title" />
 
+        <!-- Only shown while Desktop Sync is on; see SettingsController.render(). -->
+        <com.message.ink.common.widget.PreferenceView
+            android:id="@+id/desktopSyncReset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:icon="@drawable/ic_sync_black_24dp"
+            app:summary="@string/settings_desktop_sync_reset_summary"
+            app:title="@string/settings_desktop_sync_reset_title" />
+
         <ProgressBar
             android:id="@+id/syncingProgress"
             style="@style/Widget.AppCompat.ProgressBar.Horizontal"

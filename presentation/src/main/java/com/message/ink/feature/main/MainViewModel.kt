@@ -39,7 +39,6 @@ import com.message.ink.interactor.SyncContacts
 import com.message.ink.interactor.SyncMessages
 import com.message.ink.listener.ContactAddedListener
 import com.message.ink.manager.BillingManager
-import com.message.ink.manager.ChangelogManager
 import com.message.ink.manager.PermissionManager
 import com.message.ink.manager.RatingManager
 import com.message.ink.model.Conversation
@@ -55,10 +54,6 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.plusAssign
 import io.reactivex.schedulers.Schedulers
 import io.realm.Realm
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -68,7 +63,6 @@ class MainViewModel @Inject constructor(
     markAllSeen: MarkAllSeen,
     migratePreferences: MigratePreferences,
     syncRepository: SyncRepository,
-    private val changelogManager: ChangelogManager,
     private val conversationRepo: ConversationRepository,
     private val messageRepo: MessageRepository,
     private val deleteConversations: DeleteConversations,
@@ -245,25 +239,6 @@ class MainViewModel @Inject constructor(
                         }
                     }
                 }
-
-        // Show changelog
-        if (changelogManager.didUpdate()) {
-            if (Locale.getDefault().language.startsWith("en")) {
-                GlobalScope.launch(Dispatchers.Main) {
-                    val changelog = changelogManager.getChangelog()
-                    changelogManager.markChangelogSeen()
-                    view.showChangelog(changelog)
-                }
-            } else {
-                changelogManager.markChangelogSeen()
-            }
-        } else {
-            changelogManager.markChangelogSeen()
-        }
-
-        view.changelogMoreIntent
-                .autoDisposable(view.scope())
-                .subscribe { navigator.showChangelog() }
 
         view.queryChangedIntent
                 .debounce(200, TimeUnit.MILLISECONDS)

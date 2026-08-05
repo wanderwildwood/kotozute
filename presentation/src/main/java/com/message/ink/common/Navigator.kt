@@ -28,7 +28,6 @@ import android.os.Build
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.provider.Telephony
-import com.message.ink.BuildConfig
 import com.message.ink.compat.TelephonyCompat
 import com.message.ink.extensions.resourceExists
 import com.message.ink.feature.backup.BackupActivity
@@ -41,7 +40,6 @@ import com.message.ink.feature.notificationprefs.NotificationPrefsActivity
 import com.message.ink.feature.plus.PlusActivity
 import com.message.ink.feature.scheduled.ScheduledActivity
 import com.message.ink.feature.settings.SettingsActivity
-import com.message.ink.manager.BillingManager
 import com.message.ink.manager.NotificationManager
 import com.message.ink.manager.PermissionManager
 import com.message.ink.model.ScheduledMessage
@@ -49,9 +47,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+// This fork's own repo. Upstream QUIK/QKSMS attribution lives in the README credits,
+// not in links that send users somewhere that can't help them with this app.
+private const val REPO_URL = "https://github.com/wanderwildwood/einkmessage-plus"
+
 class Navigator @Inject constructor(
     private val context: Context,
-    private val billingManager: BillingManager,
     private val notificationManager: NotificationManager,
     private val permissions: PermissionManager
 ) {
@@ -185,22 +186,22 @@ class Navigator @Inject constructor(
     }
 
     fun showDeveloper() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/octoshrimpy"))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/wanderwildwood"))
         startActivityExternal(intent)
     }
 
     fun showSourceCode() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/octoshrimpy/quik"))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(REPO_URL))
         startActivityExternal(intent)
     }
 
     fun showChangelog() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/octoshrimpy/quik/releases"))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$REPO_URL/releases"))
         startActivityExternal(intent)
     }
 
     fun showLicense() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/octoshrimpy/quik/blob/master/LICENSE"))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$REPO_URL/blob/master/LICENSE"))
         startActivityExternal(intent)
     }
 
@@ -215,13 +216,8 @@ class Navigator @Inject constructor(
         startActivityExternal(intent)
     }
 
-    fun showDonation() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/octoshrimpy/quik"))
-        startActivityExternal(intent)
-    }
-
     fun showRating() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/octoshrimpy/quik"))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(REPO_URL))
                 .addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY
                         or Intent.FLAG_ACTIVITY_NEW_DOCUMENT
                         or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
@@ -229,7 +225,7 @@ class Navigator @Inject constructor(
         try {
             startActivityExternal(intent)
         } catch (e: ActivityNotFoundException) {
-            val url = "https://github.com/octoshrimpy/quik"
+            val url = REPO_URL
             startActivityExternal(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         }
     }
@@ -262,26 +258,15 @@ class Navigator @Inject constructor(
     }
 
     fun showSupport() {
-        val intent = Intent(Intent.ACTION_SENDTO)
-        intent.data = Uri.parse("mailto:")
-        intent.putExtra(Intent.EXTRA_EMAIL, arrayOf("quik@octo.sh"))
-        intent.putExtra(Intent.EXTRA_SUBJECT, "eInkMessage+ Support")
-        intent.putExtra(Intent.EXTRA_TEXT, StringBuilder("\n\n")
-                .append("\n\n--- Please write your message above this line ---\n\n")
-                .append("Package: ${context.packageName}\n")
-                .append("Version: ${BuildConfig.VERSION_NAME}\n")
-                .append("Device: ${Build.BRAND} ${Build.MODEL}\n")
-                .append("SDK: ${Build.VERSION.SDK_INT}\n")
-                .append("Upgraded"
-                        .takeIf { billingManager.upgradeStatus.blockingFirst() } ?: "")
-                .toString())
+        // Was a mailto: to upstream QUIK's maintainer, who can't help with this fork.
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$REPO_URL/issues"))
         startActivityExternal(intent)
     }
 
     fun showInvite() {
         Intent(Intent.ACTION_SEND)
                 .setType("text/plain")
-                .putExtra(Intent.EXTRA_TEXT, "https://github.com/octoshrimpy/quik/releases/latest")
+                .putExtra(Intent.EXTRA_TEXT, "$REPO_URL/releases/latest")
                 .let { Intent.createChooser(it, null) }
                 .let(::startActivityExternal)
     }

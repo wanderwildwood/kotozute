@@ -99,7 +99,17 @@ class SettingsPresenter @Inject constructor(
             .subscribe { enabled -> newState { copy(deliveryEnabled = enabled) } }
 
         disposables += prefs.desktopSyncEnabled.asObservable()
-            .subscribe { enabled -> newState { copy(desktopSyncSummary = desktopSyncSummary(enabled)) } }
+            .subscribe { enabled ->
+                newState {
+                    copy(desktopSyncSummary = desktopSyncSummary(enabled), desktopSyncEnabled = enabled)
+                }
+            }
+
+        // The URL embeds the token, so a new token means a new summary to display.
+        disposables += prefs.desktopSyncToken.asObservable()
+            .subscribe {
+                newState { copy(desktopSyncSummary = desktopSyncSummary(prefs.desktopSyncEnabled.get())) }
+            }
 
         disposables += prefs.unreadAtTop.asObservable()
             .subscribe { enabled -> newState { copy(unreadAtTopEnabled = enabled) } }
@@ -215,6 +225,8 @@ class SettingsPresenter @Inject constructor(
                                 DesktopSyncService.start(context)
                             }
                         }
+
+                        R.id.desktopSyncReset -> view.showDesktopSyncResetDialog()
 
                         R.id.unreadAtTop -> prefs.unreadAtTop.set(!prefs.unreadAtTop.get())
 
@@ -342,6 +354,10 @@ class SettingsPresenter @Inject constructor(
         view.messageLinkHandlingSelected()
             .autoDisposable(view.scope())
             .subscribe(prefs.messageLinkHandling::set)
+
+        view.desktopSyncResetConfirmed()
+            .autoDisposable(view.scope())
+            .subscribe { DesktopSyncService.resetToken(context) }
     }
 
     private fun desktopSyncSummary(enabled: Boolean): String {

@@ -305,7 +305,9 @@ class MainActivity : QkThemedActivity(), MainView {
 
         searchContainer.setVisible(searchVisible)
         toolbarContent.setVisible(!searchVisible)
-        toolbarTitle.setVisible(false)
+
+        // toolbarTitle's visibility is decided after the `when (state.page)` block below,
+        // which is what actually populates the title.
 
         // Show/hide filter tabs - only visible on Inbox page when not searching and no selection
         val showFilterTabs = state.page is Inbox && !searchVisible && selectedConversations == 0
@@ -379,10 +381,11 @@ class MainActivity : QkThemedActivity(), MainView {
 
             is Archived -> {
                 showBackButton(state.page.selected > 0)
-                // Only show title when items are selected, otherwise no title
+                // Unlike Inbox, Archived has no filter pill of its own, so it keeps a
+                // title when nothing is selected to say where you are.
                 title = when (state.page.selected != 0) {
                     true -> getString(R.string.main_title_selected, state.page.selected)
-                    false -> ""
+                    false -> getString(R.string.title_archived)
                 }
                 if (recyclerView.adapter !== conversationsAdapter)
                     recyclerView.adapter = conversationsAdapter
@@ -393,6 +396,12 @@ class MainActivity : QkThemedActivity(), MainView {
 
             else -> {}
         }
+
+        // Only take up toolbar space when there's actually a title to show — the view is
+        // weighted, so leaving it VISIBLE-but-empty would shove the filter pills rightwards.
+        // Never write toolbarTitle.text directly: QkActivity owns that view and mirrors the
+        // Activity `title` into it, re-applying on layout, so direct writes get clobbered.
+        toolbarTitle.setVisible(!searchVisible && !title.isNullOrEmpty())
 
         inbox.isActivated = state.page is Inbox
         archived.isActivated = state.page is Archived

@@ -52,5 +52,6 @@ data class SettingsState(
     val messageLinkHandlingSummary: String = "Ask before opening",
     val messageLinkHandlingId: Int = 2,
     val disableScreenshotsEnabled: Boolean = false,
-    val syncProgress: SyncRepository.SyncProgress = SyncRepository.SyncProgress.Idle
+    val syncProgress: SyncRepository.SyncProgress = SyncRepository.SyncProgress.Idle,
+    val desktopSyncSummary: String = ""
 )

@@ -37,6 +37,7 @@
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:layout_gravity="top"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
@@ -51,6 +52,7 @@
         android:layout_marginEnd="16dp"
         android:ellipsize="end"
         android:lines="1"
+        android:textStyle="bold"
         app:layout_constrainedWidth="true"
         app:layout_constraintBottom_toTopOf="@id/snippet"
         app:layout_constraintEnd_toStartOf="@id/date"
@@ -126,5 +128,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="100"
         tools:text="Oct 11" />
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

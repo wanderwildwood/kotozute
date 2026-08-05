@@ -120,3 +120,8 @@
 -keep class androidx.activity.result.** { *; }
 -keep class com.message.ink.** { *; }
 
+
+# NanoHTTPD / NanoWSD — powers the Desktop Sync relay. Added for this fork;
+# upstream had no rules because it didn't bundle an embedded server.
+-dontwarn fi.iki.elonen.**
+-keep class fi.iki.elonen.** { *; }

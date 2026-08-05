@@ -171,6 +171,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         sendDelayDialog.adapter.selectedItem = state.sendDelayId
 
         delivery.checkbox.isChecked = state.deliveryEnabled
+        desktopSync.summary = state.desktopSyncSummary
 
         unreadAtTop.checkbox.isChecked = state.unreadAtTopEnabled
 

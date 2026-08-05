@@ -52,10 +52,8 @@ class ConversationInfoAdapter @Inject constructor(
                     true
                 }
 
-                theme.setOnClickListener {
-                    val item = getItem(adapterPosition) as? ConversationInfoRecipient
-                    item?.value?.id?.run(themeClicks::onNext)
-                }
+                // Theme picker click removed: every color now resolves to black
+                // (e-ink can't render color), so "picking a color" here was a dead end.
             }
 
             1 -> QkViewHolder(inflater.inflate(R.layout.conversation_info_settings, parent, false)).apply {

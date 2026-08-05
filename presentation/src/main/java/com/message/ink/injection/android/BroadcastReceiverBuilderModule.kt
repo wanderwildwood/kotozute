@@ -54,6 +54,10 @@ abstract class BroadcastReceiverBuilderModule {
 
     @ActivityScope
     @ContributesAndroidInjector
+    abstract fun bindDesktopSyncBootReceiver(): com.message.ink.feature.desktopsync.DesktopSyncBootReceiver
+
+    @ActivityScope
+    @ContributesAndroidInjector
     abstract fun bindDefaultSmsChangedReceiver(): DefaultSmsChangedReceiver
 
     @ActivityScope

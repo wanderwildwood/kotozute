@@ -31,11 +31,15 @@
     <color name="backgroundLight">#FFFFFF</color>
     <color name="backgroundDark">#192025</color>
 
-    <color name="textPrimary">#49555F</color>
-    <color name="textPrimaryDisabled">#4C49555F</color>
-    <color name="textSecondary">#70808D</color>
-    <color name="textSecondaryDisabled">#4C70808D</color>
-    <color name="textTertiary">#B7B9C0</color>
+    <!-- Stock Kompakt eInk look is strictly black/white: hierarchy comes from
+         font weight/size, not gray tones (confirmed by pixel-sampling the
+         stock SMS app's ink — every "gray-looking" pixel is pure black at
+         full opacity, softened only by anti-aliasing/thin strokes). -->
+    <color name="textPrimary">#000000</color>
+    <color name="textPrimaryDisabled">#4C000000</color>
+    <color name="textSecondary">#000000</color>
+    <color name="textSecondaryDisabled">#4C000000</color>
+    <color name="textTertiary">#000000</color>
 
     <color name="textPrimaryDark">#FFFFFFFF</color>
     <color name="textPrimaryDisabledDark">#7FFFFFFF</color>

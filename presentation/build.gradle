@@ -26,17 +26,28 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.message.ink'
+        applicationId 'com.wanderwildwood.einkmessageplus'
         minSdkVersion 23
         targetSdkVersion 33
-        versionCode 4
-        versionName '0.0.4'
-        setProperty("archivesBaseName", "InkMessage-v${versionName}")
+        // Reset to 1.0.0 for this fork's first release (upstream InkMessage was at 0.0.4).
+        versionCode 5
+        versionName '1.0.0'
+        setProperty("archivesBaseName", "eInkMessagePlus-v${versionName}")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
-        debug // Uses the default debug keystore.
+        // Checked-in keystore (same approach as the other Kompakt forks) so every
+        // build — here or in CI — is signed with the same key and releases install
+        // as in-place upgrades instead of "app not installed" signature conflicts.
+        // Credentials are intentionally public: this is a sideloaded personal app,
+        // not a Play Store listing.
+        debug {
+            storeFile file('einkmessageplus.keystore')
+            storePassword 'android'
+            keyAlias 'einkmessageplus'
+            keyPassword 'android'
+        }
 //        release {
 //            def keystoreProps = new Properties()
 //            def keystorePropsFile = rootProject.file('./.gradle/.gradlerc')
@@ -69,7 +80,7 @@ android {
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
-            resValue("string", "app_name", "InkMessage-Debug")
+            resValue("string", "app_name", "eInkMessage+ Debug")
             resValue("string", "application_id", defaultConfig.applicationId)
             signingConfig signingConfigs.debug
         }
@@ -135,6 +146,10 @@ dependencies {
     // conductor
     implementation "com.bluelinelabs:conductor:$conductor_version"
     implementation "com.bluelinelabs:conductor-archlifecycle:$conductor_version"
+
+    // embedded server for the Desktop Sync relay
+    implementation "org.nanohttpd:nanohttpd:2.3.1"
+    implementation "org.nanohttpd:nanohttpd-websocket:2.3.1"
 
     // glide
     implementation "com.github.bumptech.glide:glide:$glide_version"

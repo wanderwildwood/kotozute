@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.message.ink.R
 import com.message.ink.interactor.MarkRead
+import com.message.ink.interactor.SendNewMessage
 import com.message.ink.repository.ContactRepository
 import com.message.ink.repository.ConversationRepository
 import com.message.ink.repository.MessageRepository
@@ -129,6 +130,7 @@ class DesktopSyncService : Service() {
     @Inject lateinit var messageRepository: MessageRepository
     @Inject lateinit var contactRepository: ContactRepository
     @Inject lateinit var markRead: MarkRead
+    @Inject lateinit var sendNewMessage: SendNewMessage
     @Inject lateinit var prefs: Preferences
 
     private val disposables = CompositeDisposable()
@@ -176,6 +178,7 @@ class DesktopSyncService : Service() {
             messageRepository = messageRepository,
             contactRepository = contactRepository,
             markRead = markRead,
+            sendNewMessage = sendNewMessage,
         )
 
         // Timeout 0 = no socket read timeout. A push WebSocket sits idle by design,

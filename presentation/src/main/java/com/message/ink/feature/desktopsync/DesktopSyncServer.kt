@@ -14,6 +14,7 @@ import android.content.Context
 import com.message.ink.model.Conversation
 import com.message.ink.model.Message
 import com.message.ink.interactor.MarkRead
+import com.message.ink.interactor.SendNewMessage
 import com.message.ink.repository.ContactRepository
 import com.message.ink.repository.ConversationRepository
 import com.message.ink.repository.MessageRepository
@@ -36,6 +37,7 @@ class DesktopSyncServer(
     private val messageRepository: MessageRepository,
     private val contactRepository: ContactRepository,
     private val markRead: MarkRead,
+    private val sendNewMessage: SendNewMessage,
 ) : NanoWSD(port) {
 
     private companion object {
@@ -217,14 +219,7 @@ class DesktopSyncServer(
             ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "no such thread"))
 
         val addresses = conversation.recipients.map { it.address }
-        messageRepository.sendNewMessages(
-            subId = -1,
-            toAddresses = addresses,
-            body = body,
-            attachments = emptyList(),
-            sendAsGroup = conversation.sendAsGroup,
-        )
-        notifyChanged()
+        sendAndWait(conversation.id, addresses, conversation.sendAsGroup, body)
         return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
     }
 
@@ -329,23 +324,51 @@ class DesktopSyncServer(
             return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "missing recipient"))
         }
 
-        val sent = messageRepository.sendNewMessages(
-            subId = -1,
-            toAddresses = addresses,
-            body = body,
-            attachments = emptyList(),
-            sendAsGroup = addresses.size > 1,
-        )
+        // Resolve the conversation up front so its id can be handed back to the browser,
+        // which then jumps straight into the thread. The interactor resolves the same
+        // conversation from the same addresses.
+        val sendAsGroup = addresses.size > 1
+        val threadId = runCatching {
+            conversationRepository.getOrCreateConversation(addresses)?.id
+        }.getOrNull()
 
-        // Hand the new thread's id back so the browser can jump straight into it.
-        // Wrapped because these are Realm-managed objects whose lifetime isn't ours.
-        val threadId = runCatching { sent.firstOrNull()?.threadId }.getOrNull()
+        sendAndWait(threadId ?: 0L, addresses, sendAsGroup, body)
 
-        notifyChanged()
         return jsonResponse(Response.Status.OK, JSONObject().apply {
             put("ok", true)
             if (threadId != null && threadId != 0L) put("threadId", threadId)
         })
+    }
+
+    /**
+     * Send through the SendNewMessage interactor, NOT messageRepository.sendNewMessages()
+     * directly. The message transmits either way, but only the interactor also runs
+     * conversationRepo.updateConversations()/markUnarchived() — and without that, the
+     * conversation LIST keeps showing the previous message and timestamp, on the phone as
+     * well as in the browser, since both read the same Realm Conversation objects. Same
+     * lesson as read-state going through MarkRead rather than the repository.
+     */
+    private fun sendAndWait(
+        threadId: Long,
+        addresses: List<String>,
+        sendAsGroup: Boolean,
+        body: String,
+    ) {
+        val done = java.util.concurrent.CountDownLatch(1)
+        sendNewMessage.execute(
+            SendNewMessage.Params(
+                subId = -1,
+                threadId = threadId,
+                addresses = addresses,
+                body = body,
+                sendAsGroup = sendAsGroup,
+            )
+        ) { done.countDown() }
+        // Bounded wait: the interactor is asynchronous, and returning before it finishes
+        // would have the browser reload a database that hasn't been written yet. Capped so
+        // a stalled send can't hold the HTTP response open indefinitely.
+        runCatching { done.await(10, java.util.concurrent.TimeUnit.SECONDS) }
+        notifyChanged()
     }
 
     private fun conversationJson(conversation: Conversation) = JSONObject().apply {

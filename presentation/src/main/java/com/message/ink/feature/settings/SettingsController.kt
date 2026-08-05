@@ -24,6 +24,7 @@ import android.content.Context
 import android.os.Build
 import android.text.format.DateFormat
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import com.bluelinelabs.conductor.RouterTransaction
@@ -88,6 +89,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val endTimeSelectedSubject: Subject<Pair<Int, Int>> = PublishSubject.create()
     private val signatureSubject: Subject<String> = PublishSubject.create()
     private val autoDeleteSubject: Subject<Int> = PublishSubject.create()
+    private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
 
     private val progressAnimator by lazy { ObjectAnimator.ofInt(syncingProgress, "progress", 0, 0) }
 
@@ -133,6 +135,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun aboutLongClicks(): Observable<*> = about.longClicks()
 
+    override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
+
     override fun viewQksmsPlusClicks(): Observable<*> = viewQksmsPlusSubject
 
     override fun nightModeSelected(): Observable<Int> = nightModeDialog.adapter.menuItemClicks
@@ -172,6 +176,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
         delivery.checkbox.isChecked = state.deliveryEnabled
         desktopSync.summary = state.desktopSyncSummary
+        // Nothing to reset until there's a link to reset.
+        desktopSyncReset.setVisible(state.desktopSyncEnabled)
 
         unreadAtTop.checkbox.isChecked = state.unreadAtTopEnabled
 
@@ -266,6 +272,18 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun showMmsSizePicker() = mmsSizeDialog.show(activity!!)
 
     override fun showMessageLinkHandlingDialogPicker() = messageLinkHandlingDialog.show(activity!!)
+
+    override fun showDesktopSyncResetDialog() {
+        AlertDialog.Builder(activity!!)
+                .setTitle(R.string.settings_desktop_sync_reset_title)
+                .setMessage(R.string.settings_desktop_sync_reset_dialog)
+                .setPositiveButton(R.string.settings_desktop_sync_reset_confirm) { _, _ ->
+                    desktopSyncResetSubject.onNext(Unit)
+                    Toast.makeText(activity, R.string.settings_desktop_sync_reset_done, Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton(R.string.button_cancel, null)
+                .show()
+    }
 
     override fun showSwipeActions() {
         router.pushController(RouterTransaction.with(SwipeActionsController())

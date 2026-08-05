@@ -35,6 +35,7 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun autoDeleteChanged(): Observable<Int>
     fun mmsSizeSelected(): Observable<Int>
     fun messageLinkHandlingSelected(): Observable<Int>
+    fun desktopSyncResetConfirmed(): Observable<*>
 
     fun showQksmsPlusSnackbar()
     fun showNightModeDialog()
@@ -47,6 +48,7 @@ interface SettingsView : QkViewContract<SettingsState> {
     suspend fun showAutoDeleteWarningDialog(messages: Int): Boolean
     fun showMmsSizePicker()
     fun showMessageLinkHandlingDialogPicker()
+    fun showDesktopSyncResetDialog()
     fun showSwipeActions()
     fun showThemePicker()
     fun showAbout()

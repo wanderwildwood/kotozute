@@ -1,0 +1,58 @@
+name: Release on tag
+
+# Pushing a v* tag builds the release APK and attaches it to a GitHub Release.
+# Pushing to master alone does NOT produce a release — tag explicitly, e.g.:
+#   git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-on-tag
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 17, NOT 21: this project's Kotlin/kapt toolchain dies on 21 with
+      # "IllegalAccessError ... com.sun.tools.javac".
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Signed with the committed keystore (see presentation/build.gradle), so CI
+      # releases upgrade in place over locally built ones.
+      - name: Build release APK
+        run: ./gradlew :presentation:assembleRelease
+
+      - name: Rename APK and generate checksum
+        run: |
+          apk_name="einkmessage-plus-${GITHUB_REF_NAME}.apk"
+          apk_path=$(find presentation/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -1)
+          cp "$apk_path" "$apk_name"
+          sha256sum "$apk_name" > "${apk_name}.sha256"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            einkmessage-plus-*.apk
+            einkmessage-plus-*.apk.sha256
+          generate_release_notes: true

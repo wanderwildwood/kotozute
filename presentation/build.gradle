@@ -30,8 +30,8 @@ android {
         minSdkVersion 23
         targetSdkVersion 33
         // Reset to 1.0.0 for this fork's first release (upstream InkMessage was at 0.0.4).
-        versionCode 5
-        versionName '1.0.0'
+        versionCode 6
+        versionName '1.0.1'
         setProperty("archivesBaseName", "eInkMessagePlus-v${versionName}")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

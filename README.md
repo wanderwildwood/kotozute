@@ -31,13 +31,15 @@ An HTTP + WebSocket server runs *inside the app on the phone* and serves its own
 - MMS pictures display inline
 - Reading a thread in the browser marks it read on the phone and clears its notification
 - Live updates over a WebSocket, with polling as a fallback
+- The access link can be reset if it leaks
 
 **Setup**
 
 1. In the app: **Settings → Desktop Sync**, and tap it.
 2. It shows one or two URLs — a [Tailscale](https://tailscale.com/) address that works from anywhere, and a local Wi-Fi address for when you're at home.
-3. Open either in a browser on your computer. Bookmark it: the address and its token stay the same.
+3. Open either in a browser on your computer. Bookmark it: the address and its token are stable.
 4. Tap the row again (or **Stop** on the notification) to turn it off. It is off by default and never starts on its own.
+5. If the link is ever shared or seen by someone else, **Settings → Reset Desktop Sync link** mints a new token. Existing bookmarks and open tabs stop working immediately.
 
 **Access control.** Every request requires a random token generated on first run, so simply being on the same network isn't enough. That said, the server listens on all interfaces, so anything on your LAN can reach the port *if it knows the token*. This is built for a private network — ideally a Tailscale tailnet. Don't port-forward it.
 

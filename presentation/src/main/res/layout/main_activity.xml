@@ -56,6 +56,19 @@
                     android:contentDescription="@string/drawer_settings"
                     app:tint="#000000" />
 
+                <!-- Page title. Must live INSIDE toolbarContent: as a direct child of
+                     the Toolbar it was a sibling of toolbarContent (match_parent), which
+                     consumed the full width and left the title measuring 0px wide. -->
+                <com.message.ink.common.widget.QkTextView
+                    android:id="@+id/toolbarTitle"
+                    style="@style/ToolbarText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:visibility="gone"
+                    android:text="@string/title_conversations" />
+
                 <!-- Filter Tabs with Search and Compose -->
                 <LinearLayout
                     android:id="@+id/filterTabs"
@@ -140,15 +153,6 @@
                 </LinearLayout>
 
             </LinearLayout>
-
-            <!-- Hidden elements for search mode -->
-            <com.message.ink.common.widget.QkTextView
-                android:id="@+id/toolbarTitle"
-                style="@style/ToolbarText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                android:text="@string/title_conversations" />
 
             <!-- Search input container - takes over entire toolbar when active -->
             <LinearLayout

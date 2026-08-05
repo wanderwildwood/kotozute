@@ -137,6 +137,10 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- Updating the app kills the process, and START_STICKY doesn't bring a
+                     service back across a package replace — without this the relay stays
+                     down until someone opens the app. -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
         <receiver

@@ -17,8 +17,30 @@
   ~ You should have received a copy of the GNU General Public License
   ~ along with QKSMS.  If not, see <http://www.gnu.org/licenses/>.
   -->
-<font-family xmlns:app="http://schemas.android.com/apk/res-auto"
-    app:fontProviderAuthority="com.google.android.gms.fonts"
-    app:fontProviderCerts="@array/com_google_android_gms_fonts_certs"
-    app:fontProviderPackage="com.google.android.gms"
-    app:fontProviderQuery="Lato" />
+<!--
+  Bundled statically (not via the Google Play Services downloadable-fonts
+  provider) so Lato actually renders on a degoogled device with no GMS,
+  e.g. the Mudita Kompakt. Matches the weights MMD ships.
+-->
+<font-family xmlns:app="http://schemas.android.com/apk/res-auto">
+    <font
+        app:font="@font/lato_thin"
+        app:fontStyle="normal"
+        app:fontWeight="100" />
+    <font
+        app:font="@font/lato_light"
+        app:fontStyle="normal"
+        app:fontWeight="300" />
+    <font
+        app:font="@font/lato_regular"
+        app:fontStyle="normal"
+        app:fontWeight="400" />
+    <font
+        app:font="@font/lato_bold"
+        app:fontStyle="normal"
+        app:fontWeight="700" />
+    <font
+        app:font="@font/lato_black"
+        app:fontStyle="normal"
+        app:fontWeight="900" />
+</font-family>

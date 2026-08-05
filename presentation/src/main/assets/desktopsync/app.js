@@ -1,0 +1,479 @@
+// Desktop Sync dashboard. Talks to the DesktopSyncServer running on the
+// Kompakt; the pairing token comes in via ?token= on the page URL and is
+// reused for every API call and the WebSocket upgrade.
+
+const token = new URLSearchParams(location.search).get('token') || '';
+const threadsEl = document.getElementById('threads');
+const messagesEl = document.getElementById('messages');
+const paneTitleEl = document.getElementById('paneTitle');
+const statusEl = document.getElementById('status');
+const bodyEl = document.getElementById('body');
+const sendEl = document.getElementById('send');
+const newBtnEl = document.getElementById('newBtn');
+const toWrapEl = document.getElementById('toWrap');
+const toFieldEl = document.getElementById('toField');
+const suggestionsEl = document.getElementById('suggestions');
+const searchFieldEl = document.getElementById('searchField');
+
+let activeThreadId = null;
+let activeThreadTitle = '';
+let composeMode = false;
+// The number actually sent to. Set when a suggestion is picked, so the visible
+// field can show a friendly name while we still send to the real address.
+let chosenAddress = null;
+let suggestions = [];
+let selIndex = -1;
+let lookupTimer = null;
+let lastThreads = [];
+let lastMessagesSig = '';
+let lastThreadsSig = '';
+let filterQuery = '';
+// How many of the active thread's messages we're currently showing. Grows when the
+// reader asks for older history.
+let messageLimit = 300;
+let hasMoreMessages = false;
+
+function clearSuggestions() {
+  suggestions = [];
+  selIndex = -1;
+  suggestionsEl.innerHTML = '';
+}
+
+function renderSuggestions() {
+  suggestionsEl.innerHTML = '';
+  suggestions.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'suggestion' + (i === selIndex ? ' sel' : '');
+    const n = document.createElement('div');
+    n.className = 'sName';
+    n.textContent = s.name || s.address;
+    const a = document.createElement('div');
+    a.className = 'sNum';
+    a.textContent = s.address;
+    row.append(n, a);
+    row.addEventListener('mousedown', e => {
+      e.preventDefault(); // keep focus so the composer stays usable
+      pickSuggestion(i);
+    });
+    suggestionsEl.append(row);
+  });
+}
+
+async function pickSuggestion(i) {
+  const s = suggestions[i];
+  if (!s) return;
+  chosenAddress = s.address;
+  toFieldEl.value = s.name ? s.name + ' <' + s.address + '>' : s.address;
+  clearSuggestions();
+
+  // If we've already got a conversation with this person, open it (with history)
+  // rather than leaving them staring at an empty "New conversation" pane.
+  try {
+    const res = await api('/api/thread-for?address=' + encodeURIComponent(s.address));
+    if (res.ok) {
+      const info = await res.json();
+      if (info.found && info.threadId) {
+        await selectThread(info.threadId, info.title || s.name);
+        bodyEl.focus();
+        return;
+      }
+    }
+  } catch (e) {
+    // Not fatal — fall through and let them compose a new thread
+    console.warn('thread lookup failed', e);
+  }
+  bodyEl.focus();
+}
+
+async function lookupContacts(q) {
+  const res = await api('/api/contacts?q=' + encodeURIComponent(q));
+  if (!res.ok) return;
+  suggestions = await res.json().catch(() => []);
+  selIndex = -1;
+  renderSuggestions();
+}
+
+toFieldEl.addEventListener('input', () => {
+  // Typing invalidates any previously picked contact
+  chosenAddress = null;
+  const q = toFieldEl.value.trim();
+  clearTimeout(lookupTimer);
+  if (q.length < 2) {
+    clearSuggestions();
+    return;
+  }
+  lookupTimer = setTimeout(() => lookupContacts(q), 180);
+});
+
+toFieldEl.addEventListener('keydown', e => {
+  if (!suggestions.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    selIndex = (selIndex + 1) % suggestions.length;
+    renderSuggestions();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    selIndex = (selIndex - 1 + suggestions.length) % suggestions.length;
+    renderSuggestions();
+  } else if (e.key === 'Enter') {
+    if (selIndex >= 0) {
+      e.preventDefault();
+      pickSuggestion(selIndex);
+    }
+  } else if (e.key === 'Escape') {
+    clearSuggestions();
+  }
+});
+
+/** What to actually send to: the picked contact's number, else whatever was typed. */
+function resolveRecipient() {
+  if (chosenAddress) return chosenAddress;
+  const raw = toFieldEl.value.trim();
+  // Accept a pasted "Name <number>" form too
+  const m = raw.match(/<([^>]+)>\s*$/);
+  return m ? m[1].trim() : raw;
+}
+
+function enterComposeMode() {
+  composeMode = true;
+  activeThreadId = null;
+  activeThreadTitle = '';
+  paneTitleEl.textContent = 'To:';
+  toWrapEl.hidden = false;
+  toFieldEl.value = '';
+  chosenAddress = null;
+  clearSuggestions();
+  messagesEl.innerHTML = '<div id="empty">New conversation</div>';
+  bodyEl.disabled = false;
+  sendEl.disabled = false;
+  bodyEl.value = '';
+  toFieldEl.focus();
+  // Drop the highlight from whatever thread was selected
+  Array.from(threadsEl.children).forEach(el => el.classList.remove('active'));
+}
+
+function exitComposeMode() {
+  composeMode = false;
+  toWrapEl.hidden = true;
+  toFieldEl.value = '';
+  chosenAddress = null;
+  clearSuggestions();
+}
+
+newBtnEl.addEventListener('click', enterComposeMode);
+
+searchFieldEl.addEventListener('input', () => {
+  filterQuery = searchFieldEl.value;
+  renderThreads();
+});
+
+searchFieldEl.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    searchFieldEl.value = '';
+    filterQuery = '';
+    renderThreads();
+  }
+});
+
+function api(path, options) {
+  const opts = options || {};
+  opts.headers = Object.assign({ 'Authorization': 'Bearer ' + token }, opts.headers || {});
+  return fetch(path, opts);
+}
+
+function formatTime(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) {
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+async function loadThreads() {
+  const res = await api('/api/threads');
+  if (!res.ok) {
+    statusEl.textContent = res.status === 401 ? 'bad token' : 'error';
+    statusEl.classList.remove('live');
+    return;
+  }
+  const threads = await res.json();
+  lastThreads = threads;
+
+  // Same reasoning as loadMessages: don't rebuild the list (and lose its scroll
+  // position) on every poll tick when nothing changed. The filter text is part of
+  // the signature so typing in the search box re-renders immediately.
+  const sig = threads.map(t => t.id + ':' + t.date + ':' + (t.unread ? 'u' : 'r')).join('|') +
+    '#' + activeThreadId + '#' + filterQuery;
+  if (sig === lastThreadsSig) return;
+  lastThreadsSig = sig;
+  renderThreads();
+}
+
+/** Draw the (optionally filtered) conversation list from whatever we last fetched. */
+function renderThreads() {
+  const prevScroll = threadsEl.scrollTop;
+  const q = filterQuery.trim().toLowerCase();
+  const threads = !q ? lastThreads : lastThreads.filter(t =>
+    (t.title || '').toLowerCase().includes(q) || (t.snippet || '').toLowerCase().includes(q));
+
+  threadsEl.innerHTML = '';
+  if (!threads.length) {
+    const none = document.createElement('div');
+    none.id = 'noMatches';
+    none.textContent = q ? 'No conversations match “' + filterQuery.trim() + '”' : 'No conversations yet';
+    threadsEl.append(none);
+    return;
+  }
+  threads.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'thread' + (t.unread ? ' unread' : '') + (t.id === activeThreadId ? ' active' : '');
+    const row = document.createElement('div');
+    row.className = 'row';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = t.title || '(no name)';
+    const when = document.createElement('span');
+    when.className = 'when';
+    when.textContent = formatTime(t.date);
+    row.append(name, when);
+    const snippet = document.createElement('div');
+    snippet.className = 'snippet';
+    snippet.textContent = t.snippet || '';
+    div.append(row, snippet);
+    div.addEventListener('click', () => selectThread(t.id, t.title));
+    threadsEl.append(div);
+  });
+  threadsEl.scrollTop = prevScroll;
+}
+
+async function selectThread(id, title) {
+  exitComposeMode();
+  lastMessagesSig = ''; // force a fresh render for the newly opened thread
+  messageLimit = 300;    // start each thread at the most recent page
+  hasMoreMessages = false;
+  activeThreadId = id;
+  activeThreadTitle = title || '';
+  paneTitleEl.textContent = activeThreadTitle || 'Conversation';
+  bodyEl.disabled = false;
+  sendEl.disabled = false;
+  await loadMessages();
+  // Reading it here should clear the unread dot and notification on the phone too
+  await markThreadRead(id);
+  await loadThreads();
+}
+
+/** Tell the phone this thread has been read (clears its notification + badge). */
+async function markThreadRead(id) {
+  if (id === null || id === undefined) return;
+  try {
+    await api('/api/threads/' + id + '/read', { method: 'POST' });
+  } catch (e) {
+    console.warn('mark read failed', e);
+  }
+}
+
+async function loadMessages() {
+  if (activeThreadId === null) return;
+  const res = await api('/api/threads/' + activeThreadId + '/messages?limit=' + messageLimit);
+  if (!res.ok) return;
+  const payload = await res.json();
+  // Response used to be a bare array; it's now {total, hasMore, messages}
+  const messages = Array.isArray(payload) ? payload : (payload.messages || []);
+  hasMoreMessages = Array.isArray(payload) ? false : !!payload.hasMore;
+
+  // The poll runs every few seconds. Rebuilding the DOM each time would throw away
+  // the reader's scroll position (and any in-flight image loads), so bail out when
+  // nothing has actually changed.
+  const sig = activeThreadId + ':' + messageLimit + ':' + messages.length + ':' +
+    (messages.length ? messages[messages.length - 1].id + ':' + messages[messages.length - 1].date : '');
+  if (sig === lastMessagesSig) return;
+  const isNewThread = !lastMessagesSig.startsWith(activeThreadId + ':');
+  lastMessagesSig = sig;
+
+  // Only auto-scroll if they're already reading the bottom (or just opened the
+  // thread) — otherwise scrolling up to read history gets yanked back down.
+  const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 120;
+
+  messagesEl.innerHTML = '';
+
+  // Let the reader reach history older than the current page
+  if (hasMoreMessages) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.id = 'loadMore';
+    more.textContent = 'Load earlier messages';
+    more.addEventListener('click', async () => {
+      more.disabled = true;
+      more.textContent = 'Loading…';
+      // Anchor on distance-from-bottom: prepending older messages changes
+      // scrollHeight, so keeping scrollTop would visibly jump the view.
+      const fromBottom = messagesEl.scrollHeight - messagesEl.scrollTop;
+      messageLimit += 300;
+      await loadMessages();
+      messagesEl.scrollTop = messagesEl.scrollHeight - fromBottom;
+    });
+    messagesEl.append(more);
+  }
+
+  messages.forEach(m => {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg' + (m.isMe ? ' me' : '');
+    const inner = document.createElement('div');
+    inner.className = 'stack';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    const text = (m.body || '').trim();
+    if (text) bubble.textContent = text;
+
+    // MMS attachments — without these a picture message is just an empty bubble.
+    (m.attachments || []).forEach(att => {
+        if (att.isImage) {
+          const img = document.createElement('img');
+          img.className = 'attach';
+          // Deliberately NOT loading="lazy": the bubble starts at zero height, so the
+          // lazy heuristic never fires and the image sits at complete=false forever.
+          img.alt = att.label || 'Picture';
+          // Token goes in the query string: <img src> can't send an auth header.
+          img.src = '/api/parts/' + att.id + '?token=' + encodeURIComponent(token);
+          // If it genuinely fails, fall back to a link rather than showing nothing
+          img.addEventListener('error', () => {
+            const a = document.createElement('a');
+            a.className = 'attachLink';
+            a.href = img.src;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.textContent = '📎 ' + (att.label || 'Picture');
+            img.replaceWith(a);
+          });
+          bubble.append(img);
+        } else {
+          const link = document.createElement('a');
+          link.className = 'attachLink';
+          link.href = '/api/parts/' + att.id + '?token=' + encodeURIComponent(token);
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.textContent = '📎 ' + (att.label || att.type);
+          bubble.append(link);
+        }
+      });
+
+    if (!text && !(m.attachments || []).length) bubble.textContent = '';
+    const stamp = document.createElement('div');
+    stamp.className = 'stamp';
+    stamp.textContent = formatTime(m.date);
+    inner.append(bubble, stamp);
+    wrap.append(inner);
+    messagesEl.append(wrap);
+  });
+  if (isNewThread || nearBottom) {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+}
+
+document.getElementById('composer').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = bodyEl.value.trim();
+  if (!text) return;
+
+  if (composeMode) {
+    const to = resolveRecipient();
+    if (!to) {
+      toFieldEl.focus();
+      return;
+    }
+    sendEl.disabled = true;
+    const res = await api('/api/compose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: to, body: text })
+    });
+    sendEl.disabled = false;
+    if (!res.ok) {
+      statusEl.textContent = 'send failed';
+      return;
+    }
+    const result = await res.json().catch(() => ({}));
+    bodyEl.value = '';
+    exitComposeMode();
+    await loadThreads();
+    // Jump into the conversation that was just created, if the phone told us which.
+    if (result.threadId) {
+      await selectThread(result.threadId, to);
+    } else {
+      paneTitleEl.textContent = 'Sent';
+    }
+    return;
+  }
+
+  if (activeThreadId === null) return;
+  sendEl.disabled = true;
+  const res = await api('/api/threads/' + activeThreadId + '/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body: text })
+  });
+  sendEl.disabled = false;
+  if (res.ok) {
+    bodyEl.value = '';
+    await loadMessages();
+    await loadThreads();
+  } else {
+    statusEl.textContent = 'send failed';
+  }
+});
+
+function connectSocket() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(proto + '//' + location.host + '/?token=' + encodeURIComponent(token));
+
+  ws.addEventListener('open', () => {
+    statusEl.textContent = 'live';
+    statusEl.classList.add('live');
+  });
+
+  // MUST catch: loadThreads/loadMessages reject if the phone is briefly
+  // unreachable, and an uncaught rejection inside an async listener is silent —
+  // which made pushes look like they were being ignored entirely.
+  ws.addEventListener('message', () => { refresh(); });
+
+  ws.addEventListener('close', () => {
+    statusEl.textContent = 'reconnecting…';
+    statusEl.classList.remove('live');
+    setTimeout(connectSocket, 3000);
+  });
+
+  ws.addEventListener('error', () => ws.close());
+}
+
+/** Pull the latest view. Safe to call any time; no-ops the message pane if nothing is open. */
+async function refresh() {
+  try {
+    await loadThreads();
+    await loadMessages();
+    // If a new message landed in the thread we're already looking at, clear it on
+    // the phone too — but only when there's actually something unread, so we're not
+    // firing a write + notification update every poll tick.
+    if (activeThreadId !== null) {
+      const open = lastThreads.find(t => t.id === activeThreadId);
+      if (open && open.unread) {
+        await markThreadRead(activeThreadId);
+        await loadThreads();
+      }
+    }
+  } catch (e) {
+    // Never let a transient fetch error kill the refresh loop
+    console.warn('refresh failed', e);
+  }
+}
+
+loadThreads();
+connectSocket();
+
+// Belt-and-braces polling alongside the WebSocket. The socket makes updates
+// near-instant when it's healthy, but it can go quiet after laptop sleep, a
+// network switch, or a dropped push — polling guarantees the view still catches
+// up on its own without a manual reload.
+setInterval(refresh, 5000);

@@ -21,6 +21,7 @@ package com.message.ink.injection.android
 import dagger.Module
 import dagger.android.ContributesAndroidInjector
 import com.message.ink.feature.backup.RestoreBackupService
+import com.message.ink.feature.desktopsync.DesktopSyncService
 import com.message.ink.injection.scope.ActivityScope
 import com.message.ink.service.HeadlessSmsSendService
 import com.message.ink.service.AutoDeleteService
@@ -39,5 +40,9 @@ abstract class ServiceBuilderModule {
     @ActivityScope
     @ContributesAndroidInjector
     abstract fun bindRestoreBackupService(): RestoreBackupService
+
+    @ActivityScope
+    @ContributesAndroidInjector
+    abstract fun bindDesktopSyncService(): DesktopSyncService
 
 }

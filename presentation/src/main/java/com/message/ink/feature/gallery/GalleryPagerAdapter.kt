@@ -114,7 +114,7 @@ class GalleryPagerAdapter @Inject constructor(private val context: Context) : Qk
                 holder.video.player = exoPlayer
                 exoPlayers.add(exoPlayer)
 
-                val dataSourceFactory = DefaultDataSourceFactory(context, Util.getUserAgent(context, "QUIK"))
+                val dataSourceFactory = DefaultDataSourceFactory(context, Util.getUserAgent(context, "eInkMessage+"))
                 val videoSource = ExtractorMediaSource.Factory(dataSourceFactory).createMediaSource(part.getUri())
                 exoPlayer?.prepare(videoSource)
             }

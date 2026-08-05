@@ -78,12 +78,17 @@ class PreferenceView @JvmOverloads constructor(
         gravity = Gravity.CENTER_VERTICAL
 
         layout.icon.imageTintList = context.resolveThemeColorStateList(android.R.attr.textColorSecondary)
+        layout.chevron.imageTintList = context.resolveThemeColorStateList(android.R.attr.textColorSecondary)
 
         context.obtainStyledAttributes(attrs, R.styleable.PreferenceView).run {
             title = getString(R.styleable.PreferenceView_title)
             summary = getString(R.styleable.PreferenceView_summary)
 
-            // If there's a custom view used for the preference's widget, inflate it
+            // If there's a custom view used for the preference's widget, inflate it.
+            // Rows with no custom widget (e.g. a Switch) are plain navigation, so they
+            // get a chevron to signal that, matching the stock Kompakt SMS app.
+            val hasWidget = getResourceId(R.styleable.PreferenceView_widget, -1) != -1
+            layout.chevron.setVisible(!hasWidget)
             getResourceId(R.styleable.PreferenceView_widget, -1).takeIf { it != -1 }?.let { id ->
                 View.inflate(context, id, layout.widgetFrame)
             }

@@ -70,6 +70,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     @Inject lateinit var realmMigration: QkRealmMigration
     @Inject lateinit var referralManager: ReferralManager
     @Inject lateinit var workerFactory: WorkerFactory
+    @Inject lateinit var prefs: com.message.ink.util.Preferences
 
     override fun onCreate() {
         super.onCreate()
@@ -88,6 +89,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
                 .build())
 
         qkMigration.performMigration()
+
+        // The relay can't survive process death, so bring it back if it was left on.
+        // This is what makes the desktop URL keep working across reboots and app
+        // updates without having to re-toggle anything.
+        com.message.ink.feature.desktopsync.DesktopSyncService.restoreIfEnabled(this, prefs)
 
         GlobalScope.launch(Dispatchers.IO) {
             referralManager.trackReferrer()

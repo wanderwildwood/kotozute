@@ -309,10 +309,10 @@ class MessagesAdapter @Inject constructor(
 
         // Bind the avatar and bubble colour
         if (!message.isMe()) {
-            holder.avatar.apply {
-                setRecipient(contactCache[message.address])
-                setVisible(!canGroup(message, next), View.INVISIBLE)
-            }
+            // Stock Kompakt SMS relies on the top-bar contact name only; no
+            // per-message avatar. Always GONE (not just XML-default) since
+            // this used to be toggled visible/invisible per grouping here.
+            holder.avatar.visibility = View.GONE
 
             holder.body.apply {
                 setTextColor(android.graphics.Color.BLACK)

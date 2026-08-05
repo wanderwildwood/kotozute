@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eInkMessage+ — Desktop Sync</title>
+<!-- Favicon mirrors the app's launcher icon (speech bubble + pencil). Inlined as a
+     data URI so it needs no extra server route and no unauthenticated /favicon.ico. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='3' width='28' height='20' rx='5' fill='%23000'/><path d='M20 22h6l-5 7z' fill='%23000'/><path d='M20.5 7l3.5 3.5-9 9-4.6 1.1 1.1-4.6z' fill='%23fff'/></svg>">
+<style>
+  :root {
+    --ink: #000;
+    --paper: #fff;
+    --muted: #666;
+    --line: #e5e5e5;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    font-family: Lato, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink); background: var(--paper);
+  }
+  body { display: flex; flex-direction: column; }
+
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 3px solid var(--ink);
+    flex: 0 0 auto;
+  }
+  header h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+  /* Floating compose button, bottom-left over the conversation list. Fixed rather
+     than inside #threads so it stays put while the list scrolls. */
+  #newBtn {
+    position: fixed; left: 20px; bottom: 20px; z-index: 10;
+    width: 44px; height: 44px; padding: 0;
+    border: none; border-radius: 4px;
+    background: var(--ink); color: var(--paper);
+    font-size: 26px; line-height: 1; font-weight: 400;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.28);
+    cursor: pointer;
+  }
+  #newBtn:hover { opacity: 0.8; background: var(--ink); color: var(--paper); }
+  #status { margin-left: auto; font-size: 13px; color: var(--muted); }
+  #status.live::before {
+    content: ""; display: inline-block;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ink); margin-right: 6px; vertical-align: middle;
+  }
+
+  main { display: flex; flex: 1 1 auto; min-height: 0; }
+
+  /* Left column = fixed-height search box above a scrolling list */
+  #leftPane {
+    width: 320px; flex: 0 0 320px;
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  #searchWrap { flex: 0 0 auto; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  #searchField {
+    width: 100%; padding: 8px 12px; font: inherit; font-size: 14px;
+    border: 1px solid var(--ink); border-radius: 18px;
+    outline: none; background: var(--paper); color: var(--ink);
+  }
+  #threads {
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
+  #noMatches { padding: 16px; font-size: 13px; color: var(--muted); }
+  #loadMore {
+    display: block; margin: 0 auto 18px; padding: 8px 18px;
+    font: inherit; font-size: 13px; font-weight: 700;
+    border: 2px solid var(--ink); border-radius: 8px;
+    background: var(--paper); color: var(--ink); cursor: pointer;
+  }
+  #loadMore:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+  #loadMore:disabled { opacity: 0.5; cursor: default; }
+  .thread {
+    padding: 12px 16px; cursor: pointer;
+    border-bottom: 1px solid var(--line);
+  }
+  .thread:hover { background: #fafafa; }
+  .thread.active { background: #f0f0f0; }
+  .thread .row { display: flex; align-items: baseline; gap: 8px; }
+  .thread .name { font-weight: 700; font-size: 15px; }
+  .thread .when { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .thread .snippet {
+    font-size: 13px; color: var(--muted); margin-top: 3px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .thread.unread .name, .thread.unread .snippet { font-weight: 700; color: var(--ink); }
+
+  #pane { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+  #paneHeader {
+    padding: 12px 20px; border-bottom: 1px solid var(--line);
+    font-weight: 700; flex: 0 0 auto;
+    display: flex; align-items: center; gap: 10px;
+  }
+  #toWrap { position: relative; flex: 1 1 auto; max-width: 340px; }
+  #toField {
+    width: 100%;
+    padding: 7px 12px; font: inherit; font-size: 15px; font-weight: 400;
+    border: 1px solid var(--ink); border-radius: 18px;
+    outline: none; background: var(--paper); color: var(--ink);
+  }
+  #suggestions {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+    background: var(--paper); border: 2px solid var(--ink); border-radius: 8px;
+    max-height: 240px; overflow-y: auto;
+  }
+  #suggestions:empty { display: none; }
+  .suggestion { padding: 9px 12px; cursor: pointer; font-weight: 400; }
+  .suggestion + .suggestion { border-top: 1px solid var(--line); }
+  .suggestion:hover, .suggestion.sel { background: #f0f0f0; }
+  .suggestion .sName { font-weight: 700; font-size: 14px; }
+  .suggestion .sNum { font-size: 13px; color: var(--muted); }
+  #messages { flex: 1 1 auto; overflow-y: auto; padding: 20px; }
+  #empty {
+    margin: auto; color: var(--muted); font-size: 14px;
+    display: flex; height: 100%; align-items: center; justify-content: center;
+  }
+
+  .msg { display: flex; margin-bottom: 14px; }
+  /* The width cap lives on the flex item, NOT the bubble: a percentage width on
+     the bubble would resolve against its own shrink-to-fit parent, which collapses
+     the bubble to one word per line. */
+  .msg .stack { max-width: 68%; min-width: 0; }
+  .msg .bubble {
+    padding: 9px 13px;
+    border: 1px solid var(--ink); border-radius: 18px;
+    background: var(--paper);
+    white-space: pre-wrap; overflow-wrap: break-word;
+    font-size: 15px; line-height: 1.4;
+  }
+  .msg .bubble img.attach {
+    display: block; max-width: 100%; max-height: 340px;
+    width: auto; height: auto; border-radius: 10px;
+  }
+  /* Space the image away from any text in the same bubble */
+  .msg .bubble img.attach:not(:first-child),
+  .msg .bubble .attachLink:not(:first-child) { margin-top: 8px; }
+  .msg .bubble .attachLink { display: inline-block; color: var(--ink); }
+  .msg.me { justify-content: flex-end; }
+  .msg.me .bubble { border-width: 3px; }
+  .msg .stamp { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .msg.me .stamp { text-align: right; }
+
+  form {
+    display: flex; gap: 10px; padding: 14px 20px;
+    border-top: 3px solid var(--ink); flex: 0 0 auto;
+  }
+  input[type=text] {
+    flex: 1 1 auto; padding: 11px 14px; font: inherit; font-size: 15px;
+    border: 1px solid var(--ink); border-radius: 22px; outline: none;
+    background: var(--paper); color: var(--ink);
+  }
+  button {
+    padding: 11px 22px; font: inherit; font-weight: 700; font-size: 15px;
+    border: 2px solid var(--ink); border-radius: 10px;
+    background: var(--paper); color: var(--ink); cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+  button:disabled { opacity: 0.4; cursor: default; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>eInkMessage+</h1>
+    <span id="status">connecting…</span>
+  </header>
+  <main>
+    <aside id="leftPane">
+      <div id="searchWrap">
+        <input type="text" id="searchField" placeholder="Search conversations" autocomplete="off">
+      </div>
+      <div id="threads"></div>
+    </aside>
+    <button type="button" id="newBtn" title="New conversation" aria-label="New conversation">+</button>
+    <section id="pane">
+      <div id="paneHeader">
+        <span id="paneTitle">Select a conversation</span>
+        <span id="toWrap" hidden>
+          <input type="text" id="toField" placeholder="Name or number" autocomplete="off">
+          <div id="suggestions"></div>
+        </span>
+      </div>
+      <div id="messages"><div id="empty">Nothing selected</div></div>
+      <form id="composer">
+        <input type="text" id="body" placeholder="Write a message…" autocomplete="off" disabled>
+        <button type="submit" id="send" disabled>Send</button>
+      </form>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

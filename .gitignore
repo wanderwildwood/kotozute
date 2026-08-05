@@ -61,3 +61,7 @@ android-keystore/keystore.b64
 *.keystore
 key.properties
 .gradlerc
+
+# ...but DO track this project's signing keystore, so CI and other machines
+# produce upgrade-compatible builds (see signingConfigs in presentation/build.gradle)
+!presentation/einkmessageplus.keystore

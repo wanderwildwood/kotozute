@@ -51,14 +51,14 @@
             android:id="@+id/blocking"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:icon="@drawable/ic_block_white_24dp"
+            app:icon="@drawable/ic_cancel_black_24dp"
             app:title="@string/drawer_blocking" />
 
         <com.message.ink.common.widget.PreferenceView
             android:id="@+id/backup"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:icon="@drawable/ic_import_export_black_24dp"
+            app:icon="@drawable/ic_backup_black_24dp"
             app:title="@string/backup_title" />
 
         <View
@@ -293,6 +293,14 @@
             app:icon="@drawable/ic_sync_black_24dp"
             app:summary="@string/settings_sync_summary"
             app:title="@string/settings_sync_title" />
+
+        <com.message.ink.common.widget.PreferenceView
+            android:id="@+id/desktopSync"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:icon="@drawable/ic_send_black_24dp"
+            app:summary="@string/settings_desktop_sync_summary_off"
+            app:title="@string/settings_desktop_sync_title" />
 
         <ProgressBar
             android:id="@+id/syncingProgress"

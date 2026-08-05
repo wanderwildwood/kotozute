@@ -27,6 +27,7 @@ import com.message.ink.common.base.QkPresenter
 import com.message.ink.common.util.Colors
 import com.message.ink.common.util.DateFormatter
 import com.message.ink.common.util.extensions.makeToast
+import com.message.ink.feature.desktopsync.DesktopSyncService
 import com.message.ink.interactor.DeleteOldMessages
 import com.message.ink.interactor.SyncMessages
 import com.message.ink.manager.BillingManager
@@ -96,6 +97,9 @@ class SettingsPresenter @Inject constructor(
 
         disposables += prefs.delivery.asObservable()
             .subscribe { enabled -> newState { copy(deliveryEnabled = enabled) } }
+
+        disposables += prefs.desktopSyncEnabled.asObservable()
+            .subscribe { enabled -> newState { copy(desktopSyncSummary = desktopSyncSummary(enabled)) } }
 
         disposables += prefs.unreadAtTop.asObservable()
             .subscribe { enabled -> newState { copy(unreadAtTopEnabled = enabled) } }
@@ -203,6 +207,14 @@ class SettingsPresenter @Inject constructor(
                         R.id.delayed -> view.showDelayDurationDialog()
 
                         R.id.delivery -> prefs.delivery.set(!prefs.delivery.get())
+
+                        R.id.desktopSync -> {
+                            if (prefs.desktopSyncEnabled.get()) {
+                                DesktopSyncService.stop(context)
+                            } else {
+                                DesktopSyncService.start(context)
+                            }
+                        }
 
                         R.id.unreadAtTop -> prefs.unreadAtTop.set(!prefs.unreadAtTop.get())
 
@@ -330,6 +342,37 @@ class SettingsPresenter @Inject constructor(
         view.messageLinkHandlingSelected()
             .autoDisposable(view.scope())
             .subscribe(prefs.messageLinkHandling::set)
+    }
+
+    private fun desktopSyncSummary(enabled: Boolean): String {
+        if (!enabled) {
+            return context.getString(R.string.settings_desktop_sync_summary_off)
+        }
+        // "enabled" is the persisted intent; isRunning is whether a server is really
+        // bound. They differ briefly during auto-restore, so report honestly.
+        if (!DesktopSyncService.isRunning) {
+            return "Starting…"
+        }
+        val token = prefs.desktopSyncToken.get()
+        val port = DesktopSyncService.PORT
+        val tailscale = DesktopSyncService.findTailscaleAddress()
+        val lan = DesktopSyncService.findLanAddress()
+
+        val sb = StringBuilder("On. Open one of these in a browser on your computer:\n")
+        if (tailscale != null) {
+            sb.append("\nAnywhere (Tailscale):\nhttp://$tailscale:$port?token=$token\n")
+        }
+        if (lan != null) {
+            sb.append("\nAt home (same Wi-Fi):\nhttp://$lan:$port?token=$token\n")
+        }
+        if (tailscale == null && lan == null) {
+            return "On, but this phone has no network connection yet.\n\nTap to turn off."
+        }
+        if (tailscale == null) {
+            sb.append("\nConnect Tailscale to also reach this from away from home.\n")
+        }
+        sb.append("\nBookmark it — the address stays the same.\n\nTap to turn off.")
+        return sb.toString()
     }
 
 }

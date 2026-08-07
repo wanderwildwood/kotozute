@@ -160,7 +160,62 @@ function resolveRecipient() {
   return m ? m[1].trim() : raw;
 }
 
+/* ── Per-conversation drafts ───────────────────────────────────────────────────
+ * Unsent text belongs to the conversation it was typed in. Switching threads
+ * stashes it against the thread being left and opens the new one with its own
+ * draft (usually nothing, so a fresh box); coming back restores it.
+ *
+ * Held in memory only, by design — NOT localStorage. Closing or reloading the tab
+ * discards drafts, which is the intended lifetime: this is message content, and it
+ * has no business persisting in browser storage on a dashboard whose only gate is
+ * a URL token. It also means no stale drafts pile up for threads long gone. */
+const drafts = {};
+
+/**
+ * Save whatever is in the composer against the thread that's currently open.
+ * Compose mode deliberately gets no draft slot: coming back to a "+" pane holding
+ * old text with an empty recipient reads as a bug rather than a saved draft.
+ */
+function stashDraft() {
+  if (composeMode || activeThreadId === null) return;
+  const key = String(activeThreadId);
+  const text = bodyEl.value;
+  if (text.trim()) drafts[key] = text;
+  else delete drafts[key]; // don't accumulate empties for every thread ever opened
+  refreshDraftRow(activeThreadId);
+}
+
+function clearDraft(id) {
+  delete drafts[String(id)];
+  refreshDraftRow(id);
+}
+
+/**
+ * Shared by the full render and the per-keystroke update, so both stay in step.
+ * The italics alone mark a draft — no "Draft:" label; it just ate snippet width.
+ */
+function applySnippet(el, thread, draft) {
+  el.className = draft ? 'snippet draft' : 'snippet';
+  el.textContent = draft || (thread && thread.snippet) || '';
+}
+
+/**
+ * Update one conversation's snippet in place. This runs on every keystroke, so it
+ * deliberately does NOT call renderThreads() — that rebuilds all 300+ rows, which is
+ * far too much work per character typed.
+ */
+function refreshDraftRow(id) {
+  const row = threadsEl.querySelector('.thread[data-id="' + id + '"]');
+  const snippet = row && row.querySelector('.snippet');
+  if (!snippet) return; // filtered out of the list right now, or not rendered yet
+  applySnippet(snippet, lastThreads.find(t => t.id === id), drafts[String(id)]);
+}
+
+// Keep the stashed draft current as they type, so switching away never loses a keystroke
+bodyEl.addEventListener('input', stashDraft);
+
 function enterComposeMode() {
+  stashDraft(); // must run before composeMode/activeThreadId change out from under it
   composeMode = true;
   activeThreadId = null;
   activeThreadTitle = '';
@@ -266,8 +321,8 @@ function renderThreads() {
     when.textContent = formatTime(t.date);
     row.append(name, when);
     const snippet = document.createElement('div');
-    snippet.className = 'snippet';
-    snippet.textContent = t.snippet || '';
+    applySnippet(snippet, t, drafts[String(t.id)]);
+    div.dataset.id = t.id; // lets a keystroke update just this row, see refreshDraftRow
     div.append(row, snippet);
     div.addEventListener('click', () => selectThread(t.id, t.title));
     threadsEl.append(div);
@@ -276,6 +331,7 @@ function renderThreads() {
 }
 
 async function selectThread(id, title) {
+  stashDraft(); // capture unsent text for the thread we're leaving, before it changes
   exitComposeMode();
   lastMessagesSig = ''; // force a fresh render for the newly opened thread
   messageLimit = 300;    // start each thread at the most recent page
@@ -285,6 +341,8 @@ async function selectThread(id, title) {
   paneTitleEl.textContent = activeThreadTitle || 'Conversation';
   bodyEl.disabled = false;
   sendEl.disabled = false;
+  // Restore before the awaits below so the box is right immediately, not a beat later
+  bodyEl.value = drafts[String(id)] || '';
   await loadMessages();
   // Reading it here should clear the unread dot and notification on the phone too
   await markThreadRead(id);
@@ -475,15 +533,21 @@ document.getElementById('composer').addEventListener('submit', async e => {
   }
 
   if (activeThreadId === null) return;
+  // Pin the thread for the duration of the request: they can switch conversations
+  // while it's in flight, and the draft that gets cleared must be the one that was
+  // actually sent, not whatever is on screen when the response lands.
+  const sentThreadId = activeThreadId;
   sendEl.disabled = true;
-  const res = await api('/api/threads/' + activeThreadId + '/send', {
+  const res = await api('/api/threads/' + sentThreadId + '/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body: text })
   });
   sendEl.disabled = false;
   if (res.ok) {
-    bodyEl.value = '';
+    clearDraft(sentThreadId);
+    // Only blank the box if they're still looking at the thread they sent from
+    if (activeThreadId === sentThreadId) bodyEl.value = '';
     await loadMessages();
     await loadThreads();
   } else {

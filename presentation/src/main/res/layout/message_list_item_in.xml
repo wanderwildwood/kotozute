@@ -169,12 +169,19 @@
 
         </LinearLayout>
 
+        <!-- Sits below the bubble, but its text lines up with the message text inside
+             the bubble: 12dp (outer row) + 12dp (body wrapper margin) + 4dp (that
+             wrapper's paddingStart) = 28dp to the bubble's visible edge, + 12dp for
+             the bubble drawable's own left padding = 40dp. All four incoming bubble
+             variants (only/first/middle/last) use the same 12dp, so this holds however
+             messages group. Was 72dp, sized for the avatar gutter the MMD restyle
+             removed. -->
         <com.message.ink.common.widget.QkTextView
             android:id="@+id/status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="start"
-            android:layout_marginStart="72dp"
+            android:layout_marginStart="40dp"
             android:layout_marginTop="4dp"
             android:layout_marginBottom="4dp"
             android:textColor="?android:attr/textColorSecondary"

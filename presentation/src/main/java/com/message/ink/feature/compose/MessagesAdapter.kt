@@ -505,9 +505,11 @@ class MessagesAdapter @Inject constructor(
                 message.isFailedMessage() -> context.getString(R.string.message_status_failed)
                 bodyTextTruncated -> context.getString(R.string.message_body_too_long_to_display)
                 (!message.isMe() && (conversation?.recipients?.size ?: 0) > 1) ->
-                    // incoming group message
-                    "${contactCache[message.address]?.getDisplayName()} • ${
-                        dateFormatter.getTimestamp(message.date)}"
+                    // Incoming group message: sender name only. The time already appears in
+                    // the timestamp header above the group, so repeating it here was noise —
+                    // most visible on short messages like "Liked an image", where the status
+                    // line ended up longer than the message itself.
+                    contactCache[message.address]?.getDisplayName() ?: message.address
                 else -> dateFormatter.getTimestamp(message.date)
             }
 

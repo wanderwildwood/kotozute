@@ -18,7 +18,6 @@
  */
 package com.message.ink.common.util.extensions
 
-import android.animation.LayoutTransition
 import android.content.Context
 import android.content.res.ColorStateList
 import android.view.GestureDetector
@@ -35,10 +34,18 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager.widget.ViewPager
 
+/**
+ * Layout transitions are disabled outright on this fork: the Kompakt's e-ink panel
+ * redraws far too slowly for them, and an animated reflow smears into visible ghosting
+ * rather than reading as motion. Neutralised here at the shared setter rather than at
+ * the five call sites, the same way Colors.theme() forces black in one place instead of
+ * patching every consumer. The XML android:animateLayoutChanges attributes are a
+ * separate mechanism handled by the framework, and are set false individually.
+ */
 var ViewGroup.animateLayoutChanges: Boolean
     get() = layoutTransition != null
-    set(value) {
-        layoutTransition = if (value) LayoutTransition() else null
+    set(@Suppress("UNUSED_PARAMETER") value) {
+        layoutTransition = null
     }
 
 fun EditText.showKeyboard() {

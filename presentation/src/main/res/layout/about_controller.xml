@@ -28,7 +28,7 @@
         android:id="@+id/preferences"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:animateLayoutChanges="true"
+        android:animateLayoutChanges="false"
         android:orientation="vertical"
         android:paddingTop="8dp"
         android:paddingBottom="8dp">

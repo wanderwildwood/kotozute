@@ -55,7 +55,7 @@
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:animateLayoutChanges="true">
+            android:animateLayoutChanges="false">
 
             <com.message.ink.common.widget.QkEditText
                 android:id="@+id/search"

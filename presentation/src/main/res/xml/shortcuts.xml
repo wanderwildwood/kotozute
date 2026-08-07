@@ -28,9 +28,9 @@
         android:shortcutShortLabel="@string/shortcut_compose_short_label">
 
         <intent
-            android:action="com.wanderwildwood.einkmessageplus.START"
+            android:action="com.wanderwildwood.inkmessageplus.START"
             android:targetClass="com.message.ink.feature.compose.ComposeActivity"
-            android:targetPackage="com.wanderwildwood.einkmessageplus" />
+            android:targetPackage="com.wanderwildwood.inkmessageplus" />
 
         <categories android:name="android.shortcut.conversation" />
 

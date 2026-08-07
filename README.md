@@ -1,6 +1,6 @@
 <img src="icon.png" width="100" />
 
-# eInkMessage+
+# inkMessage+
 
 An SMS/MMS app for the **[Mudita Kompakt](https://mudita.com/products/kompakt/)** e-ink phone, restyled to match the phone's native look — plus **Desktop Sync**, which lets you read and reply to your texts from a web browser on your computer.
 
@@ -56,7 +56,7 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 
 The APK lands in `presentation/build/outputs/apk/release/`.
 
-Builds are signed with the keystore committed at `presentation/einkmessageplus.keystore`. Its credentials are **intentionally public**, so that any build — local or CI — installs as an in-place upgrade over a previous one. It is not a secret and shouldn't be treated as one.
+Builds are signed with the keystore committed at `presentation/inkmessageplus.keystore`. Its credentials are **intentionally public**, so that any build — local or CI — installs as an in-place upgrade over a previous one. It is not a secret and shouldn't be treated as one.
 
 ## Installing
 

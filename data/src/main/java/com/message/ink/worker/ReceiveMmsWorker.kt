@@ -49,7 +49,9 @@ import com.message.ink.manager.ActiveConversationManager
 import com.message.ink.manager.NotificationManager
 import com.message.ink.manager.ShortcutManager
 import com.message.ink.receiver.MessageSentReceiver
+import com.message.ink.repository.ContactRepository
 import com.message.ink.repository.ConversationRepository
+import com.message.ink.repository.MessageContentFilterRepository
 import com.message.ink.repository.MessageRepository
 import com.message.ink.repository.SyncRepository
 import com.message.ink.util.Preferences
@@ -84,6 +86,8 @@ class ReceiveMmsWorker(appContext: Context, workerParams: WorkerParameters)
     @Inject lateinit var notificationManager: NotificationManager
     @Inject lateinit var updateBadge: UpdateBadge
     @Inject lateinit var shortcutManager: ShortcutManager
+    @Inject lateinit var filterRepo: MessageContentFilterRepository
+    @Inject lateinit var contactsRepo: ContactRepository
 
     override fun doWork(): Result {
         Timber.v("started")
@@ -181,6 +185,13 @@ class ReceiveMmsWorker(appContext: Context, workerParams: WorkerParameters)
                                 conversationRepo.markUnblocked(message.threadId)
 
                             else -> Unit
+                        }
+
+                        // See ReceiveSmsWorker: filters were never being applied.
+                        if (filterRepo.isBlocked(message.getText(), message.address, contactsRepo)) {
+                            Timber.v("message dropped based on content filters")
+                            messageRepo.deleteMessages(listOf(message.id))
+                            return Result.failure(inputData)
                         }
 
                         // update the conversation

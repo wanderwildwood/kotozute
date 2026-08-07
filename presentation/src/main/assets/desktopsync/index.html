@@ -143,6 +143,9 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .thread.unread .name, .thread.unread .snippet { font-weight: 700; color: var(--ink); }
+  /* A conversation holding unsent text shows that text instead of the last message,
+     italicised so it's obviously yours-and-unsent rather than something that arrived. */
+  .thread .snippet.draft { font-style: italic; }
 
   #pane { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
   #paneHeader {

@@ -52,6 +52,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProviders
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.flexbox.FlexboxLayoutManager
 import com.google.android.material.snackbar.Snackbar
 import com.jakewharton.rxbinding2.view.clicks
@@ -250,6 +251,15 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             messageList.setItemViewCacheSize(20)
             (messageList.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)?.supportsChangeAnimations = false
             messageList.adapter = messageAdapter
+
+            // NOTE: switching the panel to EinkDisplayMode.FAST while this list scrolls was
+            // tried and deliberately REVERTED (2026-08-07). The meink service does accept a
+            // non-privileged caller and the mode really does apply — but it bought no
+            // measurable improvement (jank across five samples was indistinguishable from
+            // AUTO), and the fast waveform's ghosting made it visibly worse to read. The
+            // scroll is blocked in dequeueBuffer waiting on the panel, and a cheaper
+            // waveform doesn't change how long the panel needs. EinkDisplayMode is kept for
+            // its reverse-engineering notes and in case a future need justifies it.
 
             messageAttachments.adapter = composeAttachmentAdapter
 

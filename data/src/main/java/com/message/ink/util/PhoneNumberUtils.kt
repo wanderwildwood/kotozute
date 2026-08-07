@@ -68,9 +68,10 @@ class PhoneNumberUtils @Inject constructor(context: Context) {
         return PhoneNumberUtils.formatNumber(number.toString(), countryCode) ?: number.toString()
     }
 
-    fun normalizeNumber(number: String): String {
-        return PhoneNumberUtils.stripSeparators(number)
-    }
+    // Android's stripSeparators() removes letters too, so alphanumeric sender IDs
+    // collapsed together and different senders compared as equal.
+    fun normalizeNumber(number: String): String =
+        number.filter { it.isLetterOrDigit() || it in "+*#" }
 
     private fun parse(number: CharSequence): Phonenumber.PhoneNumber? {
         return tryOrNull(false) { phoneNumberUtil.parse(number, countryCode) }

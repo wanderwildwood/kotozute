@@ -28,7 +28,9 @@ import com.message.ink.interactor.UpdateBadge
 import com.message.ink.manager.ActiveConversationManager
 import com.message.ink.manager.NotificationManager
 import com.message.ink.manager.ShortcutManager
+import com.message.ink.repository.ContactRepository
 import com.message.ink.repository.ConversationRepository
+import com.message.ink.repository.MessageContentFilterRepository
 import com.message.ink.repository.MessageRepository
 import com.message.ink.repository.ScheduledMessageRepository
 import com.message.ink.repository.SyncRepository
@@ -46,6 +48,8 @@ class InjectionWorkerFactory @Inject constructor(
     private val notificationManager: NotificationManager,
     private val activeConversationManager: ActiveConversationManager,
     private val syncRepo: SyncRepository,
+    private val filterRepo: MessageContentFilterRepository,
+    private val contactRepo: ContactRepository,
 
 ) : WorkerFactory() {
     override fun createWorker(
@@ -70,6 +74,8 @@ class InjectionWorkerFactory @Inject constructor(
                 instance.shortcutManager = shortcutManager
                 instance.notificationManager = notificationManager
                 instance.updateBadge =  updateBadge
+                instance.filterRepo = filterRepo
+                instance.contactsRepo = contactRepo
             }
             is ReceiveMmsWorker -> {
                 instance.syncRepo = syncRepo
@@ -81,6 +87,8 @@ class InjectionWorkerFactory @Inject constructor(
                 instance.shortcutManager = shortcutManager
                 instance.notificationManager = notificationManager
                 instance.updateBadge = updateBadge
+                instance.filterRepo = filterRepo
+                instance.contactsRepo = contactRepo
             }
         }
 

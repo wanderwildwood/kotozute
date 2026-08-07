@@ -24,7 +24,6 @@ import com.message.ink.compat.TelephonyCompat
 import com.message.ink.extensions.anyOf
 import com.message.ink.extensions.asObservable
 import com.message.ink.extensions.map
-import com.message.ink.extensions.removeAccents
 import com.message.ink.filter.ConversationFilter
 import com.message.ink.mapper.CursorToConversation
 import com.message.ink.mapper.CursorToRecipient
@@ -162,7 +161,9 @@ class ConversationRepositoryImpl @Inject constructor(
     override fun searchConversations(query: CharSequence): List<SearchResult> {
         val realm = Realm.getDefaultInstance()
 
-        val normalizedQuery = query.removeAccents()
+        // The query itself doesn't need normalizing; stripping accents made searches
+        // for accented or special characters fail to match their own text.
+        val searchQuery = query.toString()
         val conversations = realm.copyFromRealm(realm
             .where(Conversation::class.java)
             .notEqualTo("id", 0L)
@@ -175,24 +176,24 @@ class ConversationRepositoryImpl @Inject constructor(
         val messagesByConversation = realm.copyFromRealm(realm
             .where(Message::class.java)
             .beginGroup()
-            .contains("body", normalizedQuery, Case.INSENSITIVE)
+            .contains("body", searchQuery, Case.INSENSITIVE)
             .or()
-            .contains("parts.text", normalizedQuery, Case.INSENSITIVE)
+            .contains("parts.text", searchQuery, Case.INSENSITIVE)
             .endGroup()
             .findAll())
             .groupBy { message -> message.threadId }
             .filter { (threadId, _) -> conversations.firstOrNull { it.id == threadId } != null }
             .map { (threadId, messages) -> Pair(conversations.first { it.id == threadId }, messages.size) }
-            .map { (conversation, messages) -> SearchResult(normalizedQuery, conversation, messages) }
+            .map { (conversation, messages) -> SearchResult(searchQuery, conversation, messages) }
             .sortedByDescending { result -> result.messages }
             .toList()
 
         realm.close()
 
         return conversations
-            .filter { conversation -> conversationFilter.filter(conversation, normalizedQuery) }
+            .filter { conversation -> conversationFilter.filter(conversation, searchQuery) }
             .map {
-                    conversation -> SearchResult(normalizedQuery, conversation, 0)
+                    conversation -> SearchResult(searchQuery, conversation, 0)
             } + messagesByConversation
     }
 

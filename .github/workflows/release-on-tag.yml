@@ -44,7 +44,7 @@ jobs:
 
       - name: Rename APK and generate checksum
         run: |
-          apk_name="einkmessage-plus-${GITHUB_REF_NAME}.apk"
+          apk_name="inkmessage-plus-${GITHUB_REF_NAME}.apk"
           apk_path=$(find presentation/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -1)
           cp "$apk_path" "$apk_name"
           sha256sum "$apk_name" > "${apk_name}.sha256"
@@ -53,6 +53,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            einkmessage-plus-*.apk
-            einkmessage-plus-*.apk.sha256
+            inkmessage-plus-*.apk
+            inkmessage-plus-*.apk.sha256
           generate_release_notes: true

@@ -18,7 +18,7 @@
   -->
 <resources>
 
-    <string name="app_name" translatable="false">eInkMessage+</string>
+    <string name="app_name" translatable="false">inkMessage+</string>
 
     <string name="shortcut_compose_long_label">New conversation</string>
     <string name="shortcut_compose_short_label">Compose</string>
@@ -73,12 +73,12 @@
     <string name="archived_empty_text">Your archived conversations will appear here</string>
     <string name="main_fab_cd">Start new conversation</string>
     <string name="main_default_sms_title">Set as default</string>
-    <string name="main_default_sms_message">eInkMessage+ needs to be your default SMS app to send and receive texts</string>
+    <string name="main_default_sms_message">inkMessage+ needs to be your default SMS app to send and receive texts</string>
     <string name="main_default_sms_change">Change</string>
     <string name="main_permission_required">Permission required</string>
-    <string name="main_permission_sms">eInkMessage+ needs permission to send and view SMS messages</string>
-    <string name="main_permission_contacts">eInkMessage+ needs permission to view your contacts</string>
-    <string name="main_permission_notifications">eInkMessage+ needs permission to display notifications</string>
+    <string name="main_permission_sms">inkMessage+ needs permission to send and view SMS messages</string>
+    <string name="main_permission_contacts">inkMessage+ needs permission to view your contacts</string>
+    <string name="main_permission_notifications">inkMessage+ needs permission to display notifications</string>
     <string name="main_permission_allow">Allow</string>
 
     <string name="scheduled_menu_send_now">Send now</string>
@@ -96,7 +96,7 @@
     <string name="drawer_plus_banner_title" translatable="false">DEPRECATED - drawer_plus_banner_title</string>
     <string name="drawer_plus_banner_summary">Unlock amazing new features, and support development</string>
 
-    <string name="rate_title">Enjoying eInkMessage+?</string>
+    <string name="rate_title">Enjoying inkMessage+?</string>
     <string name="rate_summary">Share some love and leave us a Star on GitHub!</string>
     <string name="rate_okay">OKAY!</string>
     <string name="rate_dismiss">DISMISS</string>
@@ -233,7 +233,7 @@
     <string name="backup_selected_backup_error_message">Couldn\'t read backup file</string>
     <string name="backup_selected_backup_details_title">Backup details</string>
     <string name="backup_restore_dialog_title">Backups</string>
-    <string name="backup_restore_dialog_summary" translatable="false">/eInkMessage+/Backups</string>
+    <string name="backup_restore_dialog_summary" translatable="false">/inkMessage+/Backups</string>
     <string name="backup_restore_dialog_empty">No backups found</string>
     <string name="backup_disclaimer">Currently, only SMS is supported by Backup and Restore. MMS support and scheduled backups will be coming soon!</string>
     <string name="backup_now">Backup now</string>
@@ -344,7 +344,7 @@
     <string name="settings_desktop_sync_reset_dialog">Replace the secret token in your Desktop Sync address?\n\nAny bookmark or open browser tab using the old link will stop working. The new address appears in Settings straight away.</string>
     <string name="settings_desktop_sync_reset_confirm">Reset link</string>
     <string name="settings_desktop_sync_reset_done">New Desktop Sync link generated</string>
-    <string name="settings_about_title">About eInkMessage+</string>
+    <string name="settings_about_title">About inkMessage+</string>
     <string name="settings_version">Version %s</string>
     <string name="settings_logging_enabled">Debug logging enabled</string>
     <string name="settings_logging_disabled">Debug logging disabled</string>
@@ -357,7 +357,7 @@
     <string name="blocking_conversations">Blocked conversations</string>
 
     <string name="blocking_manager_title">Blocking Manager</string>
-    <string name="blocking_manager_qksms_summary">Built-in blocking functionality in eInkMessage+</string>
+    <string name="blocking_manager_qksms_summary">Built-in blocking functionality in inkMessage+</string>
     <string name="blocking_manager_call_blocker_title" translatable="false">Call Blocker - Incoming/Outgoing</string>
     <string name="blocking_manager_call_blocker_summary">Block spam messages, numbers &amp; unknown calls with blacklist &amp; Schedule</string>
     <string name="blocking_manager_call_control_title" translatable="false">Call Control</string>
@@ -416,7 +416,7 @@
     <string name="qksms_plus_upgrade_d" translatable="false">One-time purchase of %1$s %2$s</string>
     <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
     <string name="qksms_plus_upgrade_donate">Unlock + donate for %1$s %2$s</string>
-    <string name="qksms_plus_thanks_title">Thank you for supporting eInkMessage+!</string>
+    <string name="qksms_plus_thanks_title">Thank you for supporting inkMessage+!</string>
     <string name="qksms_plus_thanks_summary">You now have access to all features</string>
     <string name="qksms_plus_error">An error has occurred, please try again</string>
     <string name="qksms_plus_free_title">All features are free! If you\'d like to support development, a donation would be highly appreciated.</string>
@@ -441,7 +441,7 @@
     <string name="qksms_plus_respond_title">Auto-respond</string>
     <string name="qksms_plus_respond_summary">Automatically respond to incoming messages with a preset response</string>
     <string name="qksms_plus_more_title">More</string>
-    <string name="qksms_plus_more_summary">eInkMessage+ is under active development.</string>
+    <string name="qksms_plus_more_summary">inkMessage+ is under active development.</string>
 
     <string name="widget_loading">Loading…</string>
     <string name="widget_more">View more conversations</string>
@@ -460,9 +460,9 @@
     <string name="theme_apply">Apply</string>
 
     <string name="about_developer" translatable="false">wander wildwood</string>
-    <string name="about_source" translatable="false">https://github.com/wanderwildwood/einkmessage-plus</string>
-    <string name="about_changelog" translatable="false">https://github.com/wanderwildwood/einkmessage-plus/releases</string>
-    <string name="about_contact" translatable="false">github.com/wanderwildwood/einkmessage-plus/issues</string>
+    <string name="about_source" translatable="false">https://github.com/wanderwildwood/inkmessage-plus</string>
+    <string name="about_changelog" translatable="false">https://github.com/wanderwildwood/inkmessage-plus/releases</string>
+    <string name="about_contact" translatable="false">github.com/wanderwildwood/inkmessage-plus/issues</string>
     <string name="about_license" translatable="false">GNU General Public License v3.0</string>
     <string name="about_copyright" translatable="false">© 2014–2025</string>
 

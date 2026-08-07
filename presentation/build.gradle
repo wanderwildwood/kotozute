@@ -26,13 +26,13 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.wanderwildwood.einkmessageplus'
+        applicationId 'com.wanderwildwood.inkmessageplus'
         minSdkVersion 23
         targetSdkVersion 33
         // Reset to 1.0.0 for this fork's first release (upstream InkMessage was at 0.0.4).
-        versionCode 11
-        versionName '1.0.6'
-        setProperty("archivesBaseName", "eInkMessagePlus-v${versionName}")
+        versionCode 1
+        versionName '1.0.0'
+        setProperty("archivesBaseName", "inkMessagePlus-v${versionName}")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -43,9 +43,9 @@ android {
         // Credentials are intentionally public: this is a sideloaded personal app,
         // not a Play Store listing.
         debug {
-            storeFile file('einkmessageplus.keystore')
+            storeFile file('inkmessageplus.keystore')
             storePassword 'android'
-            keyAlias 'einkmessageplus'
+            keyAlias 'inkmessageplus'
             keyPassword 'android'
         }
 //        release {
@@ -80,7 +80,7 @@ android {
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
-            resValue("string", "app_name", "eInkMessage+ Debug")
+            resValue("string", "app_name", "inkMessage+ Debug")
             resValue("string", "application_id", defaultConfig.applicationId)
             signingConfig signingConfigs.debug
         }

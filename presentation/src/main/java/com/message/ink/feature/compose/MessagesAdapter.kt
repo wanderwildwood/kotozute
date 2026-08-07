@@ -139,7 +139,18 @@ class MessagesAdapter @Inject constructor(
 
     private val contactCache = ContactCache()
     private val expanded = HashMap<Long, Boolean>()
-    private val textCache = HashMap<Long, CharSequence>()
+    /**
+     * The per-message text work that's worth doing only once: walking the Realm parts to
+     * get the body, truncating it, running Linkify, and testing whether it's emoji-only.
+     * Invalidated wholesale with [textCache] whenever [data] is replaced.
+     */
+    private data class RenderedBody(
+        val spans: CharSequence,
+        val emojiOnly: Boolean,
+        val truncated: Boolean
+    )
+
+    private val textCache = HashMap<Long, RenderedBody>()
     private val subs = subscriptionManager.activeSubscriptionInfoList
 
     var theme: Colors.Theme = colors.theme()
@@ -249,38 +260,28 @@ class MessagesAdapter @Inject constructor(
         holder.resendIcon?.let { resendIcon ->
             if (message.isFailedMessage()) {
                 resendIcon.visibility = View.VISIBLE
-                resendIcon.clicks().subscribe {
+                // A plain click listener, not clicks().subscribe {}: the Rx version added a
+                // fresh, undisposed subscription on every bind, so a failed message that got
+                // scrolled past repeatedly would fire resendClicks once per accumulated
+                // subscription. setOnClickListener simply replaces the previous one.
+                resendIcon.setOnClickListener {
                     resendClicks.onNext(message.id)
                     resendIcon.visibility = View.GONE
                 }
-            } else
+            } else {
                 resendIcon.visibility = View.GONE
+                resendIcon.setOnClickListener(null)
+            }
         }
 
-        val subject = message.getCleansedSubject()
-
-        var isMsgTextTruncated = false
-
-        // get message text to display, which may need to be truncated
-        val displayText = subject.joinTo(message.getText(false), "\n").let {
-            isMsgTextTruncated = (it.length > MAX_MESSAGE_DISPLAY_LENGTH)
-
-            // make subject sub-string bold, if subject is not blank
-            if (subject.isNotBlank())
-                SpannableString(it.truncateWithEllipses(MAX_MESSAGE_DISPLAY_LENGTH)).apply {
-                    setSpan(
-                        StyleSpan(Typeface.BOLD),
-                        0,
-                        subject.length,
-                        Spannable.SPAN_INCLUSIVE_EXCLUSIVE
-                    )
-                }
-            else
-                it.truncateWithEllipses(MAX_MESSAGE_DISPLAY_LENGTH)
-        }
+        // Everything derived from the body text is built once per message and cached.
+        // It walks the Realm parts (getText), truncates, and runs Linkify, none of which
+        // changes between binds. This used to be rebuilt on every single bind and then
+        // thrown away whenever the cache already held the spannable.
+        val rendered = textCache.getOrPut(message.id) { renderBody(message) }
 
         // Bind the message status
-        bindStatus(holder, isMsgTextTruncated, message, next)
+        bindStatus(holder, rendered.truncated, message, next)
 
         // Bind the timestamp
         val subscription = subs.find { it.subscriptionId == message.subId }
@@ -335,7 +336,7 @@ class MessagesAdapter @Inject constructor(
             }
 
         // Bind the body text
-        val emojiOnly = displayText.isEmojiOnly()
+        val emojiOnly = rendered.emojiOnly
         textViewStyler.setTextSize(
             holder.body,
             when (emojiOnly) {
@@ -344,31 +345,7 @@ class MessagesAdapter @Inject constructor(
             }
         )
 
-        // Use cached text if available, otherwise process and cache
-        val spanString = textCache.getOrPut(message.id) {
-            val span = SpannableStringBuilder(displayText)
-            when (prefs.messageLinkHandling.get()) {
-                Preferences.MESSAGE_LINK_HANDLING_ASK -> {
-                    Linkify.addLinks(span, Linkify.WEB_URLS or Linkify.EMAIL_ADDRESSES or Linkify.PHONE_NUMBERS)
-                    span.apply {
-                        for (urlSpan in getSpans(0, length, URLSpan::class.java)) {
-                            setSpan(
-                                object : ClickableSpan() {
-                                    override fun onClick(widget: View) {
-                                        messageLinkClicks.onNext(urlSpan.url.toUri())
-                                    }
-                                },
-                                getSpanStart(urlSpan),
-                                getSpanEnd(urlSpan),
-                                getSpanFlags(urlSpan)
-                            )
-                            removeSpan(urlSpan)
-                        }
-                    }
-                }
-            }
-            span
-        }
+        val spanString = rendered.spans
 
         when (prefs.messageLinkHandling.get()) {
             Preferences.MESSAGE_LINK_HANDLING_BLOCK -> holder.body.autoLinkMask = 0
@@ -398,15 +375,76 @@ class MessagesAdapter @Inject constructor(
             )
         }
 
-        // Bind the parts
-        holder.parts.adapter = partsAdapterProvider.get().apply {
-            this.theme = theme
-            setData(message, previous, next, holder, audioState)
-            contextMenuValue = message.id
-            clicks.subscribe(partClicks)    // part clicks gets passed back to compose view model
-        }
+        // Bind the parts.
+        //
+        // The adapter is created once per view holder and then reused. Assigning a *new*
+        // adapter to a RecyclerView throws away its entire recycled view pool and forces a
+        // full re-layout of that nested list — and this runs on every bind of every row,
+        // including plain SMS with no parts at all, so it was landing on the UI thread
+        // continuously while scrolling. Reusing it means a bind is just a DiffUtil pass
+        // over the parts list (trivially empty for an SMS).
+        //
+        // Subscribing to `clicks` also has to happen once here, not per bind: the old code
+        // added an undisposed subscription every single time a row was bound, so they piled
+        // up for as long as the thread stayed open and each part click fired N times.
+        val partsAdapter = (holder.parts.adapter as? PartsAdapter)
+            ?: partsAdapterProvider.get().also { adapter ->
+                adapter.clicks.subscribe(partClicks) // passed back to the compose view model
+                holder.parts.adapter = adapter
+            }
+        partsAdapter.theme = theme
+        partsAdapter.setData(message, previous, next, holder, audioState)
+        partsAdapter.contextMenuValue = message.id
 
         showEmojiReactions(holder, message)
+    }
+
+    /** Builds the cached [RenderedBody] for a message. Only runs on a cache miss. */
+    private fun renderBody(message: Message): RenderedBody {
+        val subject = message.getCleansedSubject()
+        var truncated = false
+
+        // get message text to display, which may need to be truncated
+        val displayText = subject.joinTo(message.getText(false), "\n").let {
+            truncated = (it.length > MAX_MESSAGE_DISPLAY_LENGTH)
+
+            // make subject sub-string bold, if subject is not blank
+            if (subject.isNotBlank())
+                SpannableString(it.truncateWithEllipses(MAX_MESSAGE_DISPLAY_LENGTH)).apply {
+                    setSpan(
+                        StyleSpan(Typeface.BOLD),
+                        0,
+                        subject.length,
+                        Spannable.SPAN_INCLUSIVE_EXCLUSIVE
+                    )
+                }
+            else
+                it.truncateWithEllipses(MAX_MESSAGE_DISPLAY_LENGTH)
+        }
+
+        val span = SpannableStringBuilder(displayText)
+        when (prefs.messageLinkHandling.get()) {
+            Preferences.MESSAGE_LINK_HANDLING_ASK -> {
+                Linkify.addLinks(span, Linkify.WEB_URLS or Linkify.EMAIL_ADDRESSES or Linkify.PHONE_NUMBERS)
+                span.apply {
+                    for (urlSpan in getSpans(0, length, URLSpan::class.java)) {
+                        setSpan(
+                            object : ClickableSpan() {
+                                override fun onClick(widget: View) {
+                                    messageLinkClicks.onNext(urlSpan.url.toUri())
+                                }
+                            },
+                            getSpanStart(urlSpan),
+                            getSpanEnd(urlSpan),
+                            getSpanFlags(urlSpan)
+                        )
+                        removeSpan(urlSpan)
+                    }
+                }
+            }
+        }
+
+        return RenderedBody(span, displayText.isEmojiOnly(), truncated)
     }
 
     private fun showEmojiReactions(holder: QkViewHolder, message: Message) {

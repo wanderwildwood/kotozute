@@ -2,6 +2,32 @@
 // Kompakt; the pairing token comes in via ?token= on the page URL and is
 // reused for every API call and the WebSocket upgrade.
 
+/* ── Theme ─────────────────────────────────────────────────────────────────────
+ * auto | light | dark, persisted per browser. "auto" is resolved to a concrete
+ * value here rather than left to a CSS media query, so an explicit choice always
+ * beats the system setting without needing a specificity fight in the stylesheet. */
+const THEMES = ['auto', 'light', 'dark'];
+const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+let themePref = localStorage.getItem('theme') || 'auto';
+if (!THEMES.includes(themePref)) themePref = 'auto';
+
+function applyTheme() {
+  const resolved = themePref === 'auto' ? (darkQuery.matches ? 'dark' : 'light') : themePref;
+  document.documentElement.dataset.theme = resolved;
+  const btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = themePref === 'auto' ? 'Auto' : (themePref === 'dark' ? 'Dark' : 'Light');
+}
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  themePref = THEMES[(THEMES.indexOf(themePref) + 1) % THEMES.length];
+  localStorage.setItem('theme', themePref);
+  applyTheme();
+});
+
+// Follow the OS live, but only while the preference actually is "auto"
+darkQuery.addEventListener('change', () => { if (themePref === 'auto') applyTheme(); });
+applyTheme();
+
 const token = new URLSearchParams(location.search).get('token') || '';
 const threadsEl = document.getElementById('threads');
 const messagesEl = document.getElementById('messages');
@@ -372,6 +398,46 @@ async function loadMessages() {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 }
+
+/* ── Picture viewer ────────────────────────────────────────────────────────────
+ * Click any MMS image to see it at full size. The handler is delegated off
+ * #messages rather than bound per-<img>, so it keeps working across the poll's
+ * DOM rebuilds and the "Load earlier messages" paging without any rebinding. */
+const lightboxEl = document.getElementById('lightbox');
+const lbImgEl = document.getElementById('lbImg');
+const lbOpenEl = document.getElementById('lbOpen');
+
+function openLightbox(src, alt) {
+  lbImgEl.src = src;
+  lbImgEl.alt = alt || '';
+  lbOpenEl.href = src;
+  lightboxEl.hidden = false;
+}
+
+function closeLightbox() {
+  lightboxEl.hidden = true;
+  // Drop the src so a large picture isn't kept decoded behind an invisible overlay
+  lbImgEl.removeAttribute('src');
+}
+
+messagesEl.addEventListener('click', e => {
+  const img = e.target.closest('img.attach');
+  if (img) openLightbox(img.src, img.alt);
+});
+
+lightboxEl.addEventListener('click', e => {
+  // Let the "open full size" link do its job; a click anywhere else dismisses.
+  if (!e.target.closest('#lbOpen')) closeLightbox();
+});
+
+// Capture phase + stopPropagation so Escape closes the viewer instead of also
+// reaching the search/recipient fields' own Escape handlers underneath it.
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !lightboxEl.hidden) {
+    e.stopPropagation();
+    closeLightbox();
+  }
+}, true);
 
 document.getElementById('composer').addEventListener('submit', async e => {
   e.preventDefault();

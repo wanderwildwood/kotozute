@@ -8,12 +8,59 @@
      data URI so it needs no extra server route and no unauthenticated /favicon.ico. -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='3' width='28' height='20' rx='5' fill='%23000'/><path d='M20 22h6l-5 7z' fill='%23000'/><path d='M20.5 7l3.5 3.5-9 9-4.6 1.1 1.1-4.6z' fill='%23fff'/></svg>">
 <style>
-  :root {
+  /* The phone is strictly black-on-white because e-ink can't do anything else, but this
+     dashboard is viewed on a real display — so it gets a proper dark theme. Every colour
+     goes through a variable; `data-theme` on <html> is always resolved to a concrete
+     light/dark by app.js (an "auto" preference is resolved against prefers-color-scheme
+     there rather than in a media query, so the explicit override can win cleanly). */
+  :root, :root[data-theme="light"] {
     --ink: #000;
     --paper: #fff;
     --muted: #666;
     --line: #e5e5e5;
+    --hover: #fafafa;
+    --active: #f0f0f0;
+    --shadow: rgba(0,0,0,0.28);
   }
+  :root[data-theme="dark"] {
+    --ink: #e6e6e6;
+    --paper: #0d0d0d;
+    --muted: #8c8c8c;
+    --line: #2b2b2b;
+    --hover: #171717;
+    --active: #212121;
+    --shadow: rgba(0,0,0,0.6);
+  }
+  /* Before app.js runs, follow the system so there's no light flash on a dark desktop. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      --ink: #e6e6e6;
+      --paper: #0d0d0d;
+      --muted: #8c8c8c;
+      --line: #2b2b2b;
+      --hover: #171717;
+      --active: #212121;
+      --shadow: rgba(0,0,0,0.6);
+    }
+  }
+  /* Scrollbars and native form controls follow the theme. `color-scheme` is what actually
+     switches the browser's built-in widgets; the explicit rules below then style the
+     scrollbar itself, since the default dark one is heavier than this design wants. */
+  :root, :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) { color-scheme: dark; }
+  }
+  * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line); border-radius: 6px;
+    border: 3px solid var(--paper); background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: padding-box; }
+  ::-webkit-scrollbar-corner { background: transparent; }
+
   * { box-sizing: border-box; }
   html, body {
     margin: 0; height: 100%;
@@ -38,11 +85,17 @@
     background: var(--ink); color: var(--paper);
     font-size: 26px; line-height: 1; font-weight: 400;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.28);
+    box-shadow: 0 2px 10px var(--shadow);
     cursor: pointer;
   }
   #newBtn:hover { opacity: 0.8; background: var(--ink); color: var(--paper); }
   #status { margin-left: auto; font-size: 13px; color: var(--muted); }
+  #themeBtn {
+    padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 700;
+    border: 1px solid var(--line); border-radius: 14px;
+    background: var(--paper); color: var(--muted); cursor: pointer;
+  }
+  #themeBtn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
   #status.live::before {
     content: ""; display: inline-block;
     width: 8px; height: 8px; border-radius: 50%;
@@ -80,8 +133,8 @@
     padding: 12px 16px; cursor: pointer;
     border-bottom: 1px solid var(--line);
   }
-  .thread:hover { background: #fafafa; }
-  .thread.active { background: #f0f0f0; }
+  .thread:hover { background: var(--hover); }
+  .thread.active { background: var(--active); }
   .thread .row { display: flex; align-items: baseline; gap: 8px; }
   .thread .name { font-weight: 700; font-size: 15px; }
   .thread .when { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -112,7 +165,7 @@
   #suggestions:empty { display: none; }
   .suggestion { padding: 9px 12px; cursor: pointer; font-weight: 400; }
   .suggestion + .suggestion { border-top: 1px solid var(--line); }
-  .suggestion:hover, .suggestion.sel { background: #f0f0f0; }
+  .suggestion:hover, .suggestion.sel { background: var(--active); }
   .suggestion .sName { font-weight: 700; font-size: 14px; }
   .suggestion .sNum { font-size: 13px; color: var(--muted); }
   #messages { flex: 1 1 auto; overflow-y: auto; padding: 20px; }
@@ -136,6 +189,7 @@
   .msg .bubble img.attach {
     display: block; max-width: 100%; max-height: 340px;
     width: auto; height: auto; border-radius: 10px;
+    cursor: zoom-in;
   }
   /* Space the image away from any text in the same bubble */
   .msg .bubble img.attach:not(:first-child),
@@ -162,12 +216,46 @@
   }
   button:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
   button:disabled { opacity: 0.4; cursor: default; }
+
+  /* Full-size viewer for picture messages. This browser is the only place these
+     render in colour — the Kompakt's e-ink screen dithers them to grey — so the
+     340px bubble cap shouldn't be the largest anyone ever sees them. Lives outside
+     #messages so the poll's DOM rebuild can't tear it down while it's open. */
+  #lightbox {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.9);
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px;
+    cursor: zoom-out;
+  }
+  /* `hidden` alone loses to the display:flex above — it needs restating. */
+  #lightbox[hidden] { display: none; }
+  #lightbox img {
+    max-width: 100%; max-height: 100%;
+    width: auto; height: auto;
+    object-fit: contain;
+    border-radius: 4px;
+    background: var(--paper);
+  }
+  #lbClose {
+    position: absolute; top: 16px; right: 20px;
+    width: 40px; height: 40px; padding: 0;
+    font-size: 26px; line-height: 1; font-weight: 400;
+    border: 2px solid var(--paper); border-radius: 8px;
+    background: transparent; color: var(--paper);
+  }
+  #lbClose:hover { background: var(--paper); color: var(--ink); }
+  #lbOpen {
+    position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: var(--paper); cursor: pointer;
+  }
 </style>
 </head>
 <body>
   <header>
     <h1>eInkMessage+</h1>
     <span id="status">connecting…</span>
+    <button type="button" id="themeBtn" title="Switch theme (auto / light / dark)">Auto</button>
   </header>
   <main>
     <aside id="leftPane">
@@ -192,6 +280,11 @@
       </form>
     </section>
   </main>
+  <div id="lightbox" hidden>
+    <button type="button" id="lbClose" title="Close (Esc)" aria-label="Close">&times;</button>
+    <img id="lbImg" alt="">
+    <a id="lbOpen" target="_blank" rel="noopener">Open full size in a new tab &#8599;</a>
+  </div>
   <script src="app.js"></script>
 </body>
 </html>

@@ -46,6 +46,18 @@ class DesktopSyncServer(
 
         /** Ceiling on an explicit ?limit=, so one request can't try to serialize everything. */
         const val MESSAGE_MAX_LIMIT = 5000
+
+        /** How often we ping connected browsers. */
+        const val PING_INTERVAL_SECONDS = 30L
+
+        /**
+         * Drop a socket that hasn't answered a ping in this long (3 missed pings plus
+         * slack). Without this a half-open connection lives forever: if the peer vanishes
+         * without a FIN — browser killed, laptop slept, network switched — our ping still
+         * "succeeds" into the local send buffer for minutes, so nothing ever detects it,
+         * and NanoWSD's reader thread stays parked on a read that has no timeout.
+         */
+        const val DEAD_PEER_TIMEOUT_MS = 95_000L
     }
 
     private val openSockets = Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<PushSocket, Boolean>())
@@ -61,17 +73,28 @@ class DesktopSyncServer(
     }
 
     private val keepAlive = java.util.concurrent.Executors.newSingleThreadScheduledExecutor().apply {
-        // Idle WebSockets can be dropped by the network in between messages; a
-        // periodic ping keeps them (and any NAT/Tailscale state) alive.
+        // Idle WebSockets can be dropped by the network in between messages; a periodic
+        // ping keeps them (and any NAT/Tailscale state) alive. The same pass doubles as
+        // dead-peer detection — see DEAD_PEER_TIMEOUT_MS for why a ping succeeding is not
+        // evidence that anyone is still listening.
         scheduleWithFixedDelay({
+            val now = System.currentTimeMillis()
             openSockets.toList().forEach { socket ->
-                if (socket.isOpen) {
-                    runCatching { socket.ping(byteArrayOf()) }.onFailure { openSockets.remove(socket) }
-                } else {
+                if (!socket.isOpen) {
                     openSockets.remove(socket)
+                    return@forEach
                 }
+                if (now - socket.lastPongAt > DEAD_PEER_TIMEOUT_MS) {
+                    Timber.i("Desktop Sync: dropping unresponsive WebSocket (no pong in " +
+                            "${(now - socket.lastPongAt) / 1000}s)")
+                    // Closing releases the parked reader thread and the socket with it.
+                    runCatching { socket.close(CloseCode.GoingAway, "no pong", false) }
+                    openSockets.remove(socket)
+                    return@forEach
+                }
+                runCatching { socket.ping(byteArrayOf()) }.onFailure { openSockets.remove(socket) }
             }
-        }, 30, 30, java.util.concurrent.TimeUnit.SECONDS)
+        }, PING_INTERVAL_SECONDS, PING_INTERVAL_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
     }
 
     /** How many browsers are currently listening for push updates. */
@@ -95,6 +118,10 @@ class DesktopSyncServer(
     }
 
     private inner class PushSocket(handshake: IHTTPSession) : WebSocket(handshake) {
+
+        /** Last time this peer proved it's still there. Read from the keep-alive thread. */
+        @Volatile var lastPongAt = System.currentTimeMillis()
+
         override fun onOpen() {
             val authed = handshakeRequest.parameters["token"]?.firstOrNull() == token
             if (!authed) {
@@ -102,6 +129,7 @@ class DesktopSyncServer(
                 runCatching { close(CloseCode.PolicyViolation, "bad token", false) }
                 return
             }
+            lastPongAt = System.currentTimeMillis()
             openSockets.add(this)
             Timber.i("Desktop Sync: WebSocket connected (${openSockets.size} total)")
         }
@@ -114,7 +142,10 @@ class DesktopSyncServer(
             // Clients don't send anything meaningful; this is a push-only channel.
         }
 
-        override fun onPong(pong: WebSocketFrame) {}
+        override fun onPong(pong: WebSocketFrame) {
+            // The only proof we get that the far end is still alive.
+            lastPongAt = System.currentTimeMillis()
+        }
 
         override fun onException(exception: IOException) {
             Timber.w(exception, "Desktop Sync WebSocket error")

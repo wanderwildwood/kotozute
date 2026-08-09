@@ -136,6 +136,13 @@ class DesktopSyncService : Service() {
     private val disposables = CompositeDisposable()
     private var server: DesktopSyncServer? = null
 
+    /**
+     * Text of the notification as currently posted, so a re-post with identical content can be
+     * skipped. Every re-post is a fresh onNotificationPosted() to any notification listener, and
+     * a launcher that badges from those (inkOS does) reads it as new mail for this app.
+     */
+    private var postedNotificationText: String? = null
+
     override fun onCreate() {
         AndroidInjection.inject(this)
         super.onCreate()
@@ -159,8 +166,9 @@ class DesktopSyncService : Service() {
         // Android gives a startForegroundService() only a few seconds to call
         // startForeground(), so do it FIRST — before binding the port, which can
         // fail — or the platform kills us with
-        // ForegroundServiceDidNotStartInTimeException.
-        startForeground(NOTIFICATION_ID, buildNotification())
+        // ForegroundServiceDidNotStartInTimeException. This one is unconditional:
+        // the platform requires the call, whatever the notification already says.
+        postNotification(force = true)
 
         if (server != null) return // already running
 
@@ -188,6 +196,7 @@ class DesktopSyncService : Service() {
             Timber.e(started.exceptionOrNull(), "Desktop Sync failed to start")
             prefs.desktopSyncEnabled.set(false)
             stopForeground(STOP_FOREGROUND_REMOVE)
+            postedNotificationText = null
             stopSelf()
             return
         }
@@ -195,8 +204,9 @@ class DesktopSyncService : Service() {
         server = newServer
         isRunning = true
         prefs.desktopSyncEnabled.set(true)
-        // Refresh the notification now that the port is bound and the address is known.
-        startForeground(NOTIFICATION_ID, buildNotification())
+        // Refresh the notification now that the port is bound and the address is known —
+        // but only if that actually changed the text.
+        postNotification()
 
         // getUnmanagedConversations() already applies subscribeOn(mainThread) (required:
         // Realm's findAllAsync change listener needs a Looper) and observeOn(io), and the
@@ -232,6 +242,7 @@ class DesktopSyncService : Service() {
         isRunning = false
         prefs.desktopSyncEnabled.set(false)
         stopForeground(STOP_FOREGROUND_REMOVE)
+        postedNotificationText = null
         stopSelf()
     }
 
@@ -252,7 +263,24 @@ class DesktopSyncService : Service() {
         return android.util.Base64.encodeToString(bytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING)
     }
 
-    private fun buildNotification(): Notification {
+    /**
+     * Posts the ongoing notification, skipping the post entirely when the text is unchanged.
+     * [force] is for the startForeground() the platform demands right after a start, which has
+     * to happen even when the content is identical to what is already showing.
+     */
+    private fun postNotification(force: Boolean = false) {
+        val text = notificationText()
+        if (!force && text == postedNotificationText) return
+        startForeground(NOTIFICATION_ID, buildNotification(text))
+        postedNotificationText = text
+    }
+
+    private fun notificationText(): String {
+        val address = findTailscaleAddress() ?: findLanAddress()
+        return if (address != null) "Listening on $address:$PORT" else "Waiting for a network…"
+    }
+
+    private fun buildNotification(contentText: String): Notification {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(CHANNEL_ID, "Desktop Sync", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -265,9 +293,6 @@ class DesktopSyncService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val address = findTailscaleAddress() ?: findLanAddress()
-        val contentText = if (address != null) "Listening on $address:$PORT" else "Waiting for a network…"
-
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Desktop Sync running")
             .setContentText(contentText)
@@ -275,6 +300,12 @@ class DesktopSyncService : Service() {
             .setColor(android.graphics.Color.BLACK)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            // Never alert again on a re-post, and don't carry a timestamp that makes each
+            // restart look like something that just arrived.
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setWhen(0)
+            .setSilent(true)
             .addAction(0, "Stop", stopPendingIntent)
             .build()
     }

@@ -726,12 +726,22 @@ open class MessageRepositoryImpl @Inject constructor(
     : Message {
         val threadId = TelephonyCompat.getOrCreateThreadId(context, address)
 
+        // A message that lands while its conversation is already on screen has been read the
+        // moment it arrives. Realm records that below, and the provider has to be told the same
+        // thing here: nothing marks this row read later (markRead only runs when a conversation
+        // is opened, and this one never gets opened "again"), so it would otherwise stay unread
+        // in the system database forever and keep any unread badge lit. The MMS path avoids this
+        // by calling markRead, which writes both stores.
+        val alreadyRead = activeConversationManager.getActiveConversation() == threadId
+
         // insert the message to the native content provider
         val values = contentValuesOf(
             Sms.ADDRESS to address,
             Sms.BODY to body,
             Sms.DATE_SENT to sentTime,
-            Sms.THREAD_ID to threadId
+            Sms.THREAD_ID to threadId,
+            Sms.READ to if (alreadyRead) 1 else 0,
+            Sms.SEEN to if (alreadyRead) 1 else 0
         )
 
         if (prefs.canUseSubId.get())
@@ -756,7 +766,8 @@ open class MessageRepositoryImpl @Inject constructor(
             contentId = providerContentId
             boxId = Sms.MESSAGE_TYPE_INBOX
             type = TYPE_SMS
-            read = (activeConversationManager.getActiveConversation() == threadId)
+            read = alreadyRead
+            seen = alreadyRead
         }
 
         Realm.getDefaultInstance().use { realm ->

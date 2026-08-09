@@ -29,9 +29,13 @@ android {
         applicationId 'com.wanderwildwood.inkmessageplus'
         minSdkVersion 23
         targetSdkVersion 33
-        // Reset to 1.0.0 for this fork's first release (upstream InkMessage was at 0.0.4).
-        versionCode 2
-        versionName '1.0.1'
+        // Released builds take their version from the git tag: the release workflow derives
+        // both values from it and passes them in. Hand-editing this file was a release step
+        // that got skipped once, shipping tag v1.0.2 as an APK still labelled 1.0.1.
+        // The literals are the local-build fallback only, and never ship.
+        // (Reset to 1.0.0 for this fork's first release; upstream InkMessage was at 0.0.4.)
+        versionCode project.findProperty('inkVersionCode')?.toInteger() ?: 2
+        versionName project.findProperty('inkVersionName') ?: '1.0.1'
         setProperty("archivesBaseName", "inkMessagePlus-v${versionName}")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

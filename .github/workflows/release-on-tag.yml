@@ -39,8 +39,24 @@ jobs:
 
       # Signed with the committed keystore (see presentation/build.gradle), so CI
       # releases upgrade in place over locally built ones.
+      # The tag is the single source of truth for the version. versionCode is derived from
+      # it rather than from the run number so it stays monotonic and reproducible: v1.2.3
+      # becomes 10203. A workflow_dispatch run has a branch name here, not a version, so it
+      # falls through to the defaults in presentation/build.gradle.
       - name: Build release APK
-        run: ./gradlew :presentation:assembleRelease
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            version_name="${GITHUB_REF_NAME#v}"
+            IFS=. read -r major minor patch <<< "$version_name"
+            version_code=$(( major * 10000 + minor * 100 + patch ))
+            echo "Building $version_name (versionCode $version_code)"
+            ./gradlew :presentation:assembleRelease \
+              -PinkVersionName="$version_name" \
+              -PinkVersionCode="$version_code"
+          else
+            echo "Ref '$GITHUB_REF_NAME' is not a vX.Y.Z tag; using the versions in build.gradle"
+            ./gradlew :presentation:assembleRelease
+          fi
 
       - name: Rename APK and generate checksum
         run: |

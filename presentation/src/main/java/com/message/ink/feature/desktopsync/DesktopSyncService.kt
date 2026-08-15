@@ -38,7 +38,16 @@ class DesktopSyncService : Service() {
     companion object {
         const val PORT = 8420
         private const val NOTIFICATION_ID = 20260805
-        private const val CHANNEL_ID = "desktop_sync"
+
+        /**
+         * Bumped from "desktop_sync" to turn its badge off. A channel's behaviour is
+         * frozen at creation — createNotificationChannel() on an existing id updates
+         * only the name and description, so adding setShowBadge(false) to the old id
+         * would have changed nothing on any device that had already run the relay.
+         * The only way to alter it is a new channel, so the old one is deleted below.
+         */
+        private const val CHANNEL_ID = "desktop_sync_v2"
+        private const val LEGACY_CHANNEL_ID = "desktop_sync"
         private const val ACTION_START = "ACTION_START"
         private const val ACTION_STOP = "ACTION_STOP"
         private const val ACTION_RESET_TOKEN = "ACTION_RESET_TOKEN"
@@ -283,7 +292,10 @@ class DesktopSyncService : Service() {
     private fun buildNotification(contentText: String): Notification {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(CHANNEL_ID, "Desktop Sync", NotificationManager.IMPORTANCE_LOW)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+                .apply { setShowBadge(false) }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+            manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
         }
 
         val stopIntent = Intent(this, DesktopSyncService::class.java)
@@ -300,6 +312,13 @@ class DesktopSyncService : Service() {
             .setColor(android.graphics.Color.BLACK)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            // This is a running server, not mail. inkOS badges the launcher icon from a
+            // NotificationListenerService, and a listener that never consults
+            // Ranking.canShowBadge() has to be talked out of counting this some other
+            // way: CATEGORY_SERVICE says what it is, and an explicit count of 0 stops
+            // anything reading Notification.number from finding a 1 in it.
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setNumber(0)
             // Never alert again on a re-post, and don't carry a timestamp that makes each
             // restart look like something that just arrived.
             .setOnlyAlertOnce(true)

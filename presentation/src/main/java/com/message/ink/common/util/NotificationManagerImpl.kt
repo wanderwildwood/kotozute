@@ -79,7 +79,11 @@ class NotificationManagerImpl @Inject constructor(
 
     companion object {
         const val DEFAULT_CHANNEL_ID = "notifications_default"
-        const val BACKUP_RESTORE_CHANNEL_ID = "notifications_backup_restore"
+        // Bumped to turn its badge off — see DesktopSyncService.CHANNEL_ID for why an
+        // id change is the only way to alter an already-created channel. A backup in
+        // progress is not unread mail and shouldn't mark the launcher icon.
+        const val BACKUP_RESTORE_CHANNEL_ID = "notifications_backup_restore_v2"
+        private const val LEGACY_BACKUP_RESTORE_CHANNEL_ID = "notifications_backup_restore"
 
         val VIBRATE_PATTERN = longArrayOf(0, 200, 0, 200)
 
@@ -548,11 +552,14 @@ class NotificationManagerImpl @Inject constructor(
             val name = context.getString(R.string.backup_notification_channel_name)
             val importance = NotificationManager.IMPORTANCE_LOW
             val channel = NotificationChannel(BACKUP_RESTORE_CHANNEL_ID, name, importance)
+                    .apply { setShowBadge(false) }
             val notificationManager = context.getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
+            notificationManager.deleteNotificationChannel(LEGACY_BACKUP_RESTORE_CHANNEL_ID)
         }
 
         return NotificationCompat.Builder(context, BACKUP_RESTORE_CHANNEL_ID)
+                .setNumber(0)
                 .setContentTitle(context.getString(R.string.backup_restoring))
                 .setShowWhen(false)
                 .setWhen(System.currentTimeMillis()) // Set this anyway in case it's shown

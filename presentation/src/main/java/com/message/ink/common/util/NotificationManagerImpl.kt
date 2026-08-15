@@ -79,6 +79,7 @@ class NotificationManagerImpl @Inject constructor(
 
     companion object {
         const val DEFAULT_CHANNEL_ID = "notifications_default"
+        const val RECEIVING_WORKER_CHANNEL_ID = "notifications_receiving_worker"
         // Bumped to turn its badge off — see DesktopSyncService.CHANNEL_ID for why an
         // id change is the only way to alter an already-created channel. A backup in
         // progress is not unread mail and shouldn't mark the launcher icon.
@@ -106,9 +107,12 @@ class NotificationManagerImpl @Inject constructor(
     private fun MessageMarkReceiver.MarkType.getRequestCode(threadId: Long): Int =
         threadId.toInt() * MARK_TYPE_COUNT + ordinal
 
+    // Required for running workers on Android 12 and older
     override fun getForegroundNotificationForWorkersOnOlderAndroids() =
-        NotificationCompat.Builder(context, DEFAULT_CHANNEL_ID)
-            .setContentTitle(context.getString(R.string.notification_foreground_worker_text))
+        NotificationCompat.Builder(context, RECEIVING_WORKER_CHANNEL_ID)
+            .setContentTitle(context.getString(R.string.notification_foreground_worker_title))
+            .setContentText(context.getString(R.string.notification_foreground_worker_text))
+            .setSilent(true)
             .setShowWhen(false)
             .setWhen(System.currentTimeMillis())
             .setSmallIcon(R.drawable.ic_notification)
@@ -474,25 +478,46 @@ class NotificationManagerImpl @Inject constructor(
      */
     override fun createNotificationChannel(threadId: Long) {
 
-        // Only proceed if the android version supports notification channels, and the channel hasn't
-        // already been created
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || getNotificationChannel(threadId) != null) {
+        // Only proceed if the android version supports notification channels
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return
         }
 
-        val channel = when (threadId) {
-            0L -> NotificationChannel(DEFAULT_CHANNEL_ID, "Default", NotificationManager.IMPORTANCE_HIGH).apply {
-                enableLights(true)
-                lightColor = Color.WHITE
-                enableVibration(true)
-                vibrationPattern = VIBRATE_PATTERN
-            }
+        val channels: List<NotificationChannel> = when (threadId) {
+            0L -> listOf(
+                NotificationChannel(DEFAULT_CHANNEL_ID, "Default", NotificationManager.IMPORTANCE_HIGH).apply {
+                    enableLights(true)
+                    lightColor = Color.WHITE
+                    enableVibration(true)
+                    vibrationPattern = VIBRATE_PATTERN
+                },
+
+                // The receive worker's foreground notification used to sit on the default
+                // channel, alongside actual messages — which meant it inherited their
+                // badge, so every incoming SMS briefly marked the launcher icon as if
+                // something were unread. Its own quiet, non-badging channel instead.
+                // (Ported from QUIK 35d170b8; the badge flag is ours.)
+                NotificationChannel(
+                    RECEIVING_WORKER_CHANNEL_ID,
+                    context.getString(R.string.notification_foreground_worker_channel_name),
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    enableLights(false)
+                    enableVibration(false)
+                    setShowBadge(false)
+                }
+            )
 
             else -> {
+                // Per-conversation channels are only ever created once. The default and
+                // worker channels above are cheap to re-declare, so this check belongs
+                // here rather than guarding the whole method — otherwise an existing
+                // default channel would stop the worker channel from ever being made.
+                if (getNotificationChannel(threadId) != null) return
                 val conversation = conversationRepo.getConversation(threadId) ?: return
                 val channelId = buildNotificationChannelId(threadId)
                 val title = conversation.getTitle()
-                NotificationChannel(channelId, title, NotificationManager.IMPORTANCE_HIGH).apply {
+                listOf(NotificationChannel(channelId, title, NotificationManager.IMPORTANCE_HIGH).apply {
                     enableLights(true)
                     lightColor = Color.WHITE
                     enableVibration(true)
@@ -502,11 +527,11 @@ class NotificationManagerImpl @Inject constructor(
                             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                             .build())
-                }
+                })
             }
         }
 
-        notificationManager.createNotificationChannel(channel)
+        channels.forEach(notificationManager::createNotificationChannel)
     }
 
     /**

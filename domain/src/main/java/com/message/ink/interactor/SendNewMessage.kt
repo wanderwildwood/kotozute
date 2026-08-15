@@ -24,6 +24,7 @@ import com.message.ink.model.Attachment
 import com.message.ink.repository.ConversationRepository
 import com.message.ink.repository.MessageRepository
 import io.reactivex.Flowable
+import io.reactivex.android.schedulers.AndroidSchedulers
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -70,7 +71,13 @@ class SendNewMessage @Inject constructor(
             conversationRepo.updateConversations(threadIds)
             conversationRepo.markUnarchived(threadIds)
 
-            threadIds.forEach { threadId -> shortcutManager.reportShortcutUsed(threadId) }
+            // doOnNext runs on io, and ShortcutManager expects the main thread.
+            // (Ported from QUIK 1eddae81. QUIK also added an observeOn(mainThread)
+            // here; skipped, because Interactor.execute() already applies one before
+            // subscribing -- the only stage left on io is this block.)
+            AndroidSchedulers.mainThread().scheduleDirect {
+                threadIds.forEach { shortcutManager.reportShortcutUsed(it) }
+            }
 
             // delete attachment local files, if any, because they're saved to mms db by now
             params.attachments.forEach { it.removeCacheFile() }

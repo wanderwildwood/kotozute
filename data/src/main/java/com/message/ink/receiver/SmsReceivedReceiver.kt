@@ -42,8 +42,15 @@ class SmsReceivedReceiver : BroadcastReceiver() {
         AndroidInjection.inject(this, context)
 
         Sms.Intents.getMessagesFromIntent(intent)?.let { messages ->
+            // blockingGet() here parked the main thread on a database write for every
+            // single incoming SMS -- a broadcast receiver gets ~10 seconds before the
+            // system declares an ANR, and this one was spending it waiting on Realm.
+            // goAsync() keeps the receiver alive while the work runs on io instead.
+            // (Ported from QUIK 7edea6d0.)
+            val pendingResult = goAsync()
+
             // reduce list of messages to single message and save in db
-            val messageId = Single.just(messages)
+            Single.just(messages)
                 .observeOn(Schedulers.io())
                 .map {
                     Timber.v("onReceive() new sms")  // here so runs on io thread
@@ -55,15 +62,21 @@ class SmsReceivedReceiver : BroadcastReceiver() {
                         messages[0].timestampMillis
                     ).id
                 }
-                .blockingGet()
-
-            // start worker with message id as param
-            WorkManager.getInstance(context).enqueue(
-                OneTimeWorkRequestBuilder<ReceiveSmsWorker>()
-                    .setInputData(workDataOf(INPUT_DATA_KEY_MESSAGE_ID to messageId))
-                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                    .build()
-            )
+                .subscribe({ messageId ->
+                    // start worker with message id as param
+                    WorkManager.getInstance(context).enqueue(
+                        OneTimeWorkRequestBuilder<ReceiveSmsWorker>()
+                            .setInputData(workDataOf(INPUT_DATA_KEY_MESSAGE_ID to messageId))
+                            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                            .build()
+                    )
+                    pendingResult.finish()
+                }, { error ->
+                    // finish() on both paths, or the receiver is held open until the
+                    // system times it out.
+                    Timber.e(error, "error receiving new sms")
+                    pendingResult.finish()
+                })
         }
     }
 

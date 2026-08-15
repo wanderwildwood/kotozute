@@ -182,10 +182,18 @@ class ComposeViewModel @Inject constructor(
                 // monitors convos and triggers when wanted convo is present
                 conversationRepo.getConversations(false)
                     .asObservable()
-                    .filter { conversations -> conversations.isLoaded }
+                    // isValid as well as isLoaded: a Realm results handle can be loaded
+                    // but already invalidated, and reading it then throws.
+                    .filter { conversations -> conversations.isLoaded && conversations.isValid }
                     .mapNotNull { conversationRepo.getConversation(addresses) }
                     .doOnNext { newState { copy(loading = false) } }
-                }
+            }
+            .doOnError { e ->
+                // Without this the stream dies silently and compose is stuck on a
+                // spinner forever. (Ported from QUIK 5687ec1f.)
+                Timber.e(e, "Error while resolving conversation")
+                newState { copy(loading = false) }
+            }
 
         // Merges two potential conversation sources (constructor threadId and contact selection)
         // into a single stream of conversations. If the conversation was deleted, notify the

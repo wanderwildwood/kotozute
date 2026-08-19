@@ -206,11 +206,21 @@
   form {
     display: flex; gap: 10px; padding: 14px 20px;
     border-top: 3px solid var(--ink); flex: 0 0 auto;
+    /* Bottom-align so the Send button stays level with the last line as the
+       composer grows for a multi-line message. */
+    align-items: flex-end;
   }
-  input[type=text] {
+  input[type=text], #body {
     flex: 1 1 auto; padding: 11px 14px; font: inherit; font-size: 15px;
     border: 1px solid var(--ink); border-radius: 22px; outline: none;
     background: var(--paper); color: var(--ink);
+  }
+  /* Shift+Enter inserts a newline, so the composer is a textarea. It's sized by JS
+     to fit its content (see autoGrow in app.js) and capped here — past that it
+     scrolls rather than swallowing the conversation. */
+  #body {
+    resize: none; overflow-y: auto;
+    line-height: 1.4; max-height: 8.4em; /* ~6 lines */
   }
   button {
     padding: 11px 22px; font: inherit; font-weight: 700; font-size: 15px;
@@ -278,7 +288,7 @@
       </div>
       <div id="messages"><div id="empty">Nothing selected</div></div>
       <form id="composer">
-        <input type="text" id="body" placeholder="Write a message…" autocomplete="off" disabled>
+        <textarea id="body" rows="1" placeholder="Write a message…" autocomplete="off" disabled></textarea>
         <button type="submit" id="send" disabled>Send</button>
       </form>
     </section>

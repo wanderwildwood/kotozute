@@ -34,6 +34,7 @@ const messagesEl = document.getElementById('messages');
 const paneTitleEl = document.getElementById('paneTitle');
 const statusEl = document.getElementById('status');
 const bodyEl = document.getElementById('body');
+const composerEl = document.getElementById('composer');
 const sendEl = document.getElementById('send');
 const newBtnEl = document.getElementById('newBtn');
 const toWrapEl = document.getElementById('toWrap');
@@ -211,8 +212,31 @@ function refreshDraftRow(id) {
   applySnippet(snippet, lastThreads.find(t => t.id === id), drafts[String(id)]);
 }
 
+/**
+ * Size the composer to its content. The textarea starts at one row, so height has to
+ * be reset before measuring or scrollHeight only ever ratchets upwards as text is
+ * deleted. The CSS max-height caps it and takes over with a scrollbar past that.
+ */
+function autoGrow() {
+  bodyEl.style.height = 'auto';
+  bodyEl.style.height = bodyEl.scrollHeight + 'px';
+}
+
 // Keep the stashed draft current as they type, so switching away never loses a keystroke
-bodyEl.addEventListener('input', stashDraft);
+bodyEl.addEventListener('input', () => {
+  stashDraft();
+  autoGrow();
+});
+
+// Enter sends; Shift+Enter (and the other modifiers) fall through to the textarea's
+// own newline. isComposing guards IME candidate selection, where Enter commits a word
+// rather than ending the message.
+bodyEl.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+  if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+  e.preventDefault();
+  if (!sendEl.disabled) composerEl.requestSubmit();
+});
 
 function enterComposeMode() {
   stashDraft(); // must run before composeMode/activeThreadId change out from under it
@@ -228,6 +252,7 @@ function enterComposeMode() {
   bodyEl.disabled = false;
   sendEl.disabled = false;
   bodyEl.value = '';
+  autoGrow();
   toFieldEl.focus();
   // Drop the highlight from whatever thread was selected
   Array.from(threadsEl.children).forEach(el => el.classList.remove('active'));
@@ -343,6 +368,7 @@ async function selectThread(id, title) {
   sendEl.disabled = false;
   // Restore before the awaits below so the box is right immediately, not a beat later
   bodyEl.value = drafts[String(id)] || '';
+  autoGrow();
   await loadMessages();
   // Reading it here should clear the unread dot and notification on the phone too
   await markThreadRead(id);
@@ -497,7 +523,7 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 
-document.getElementById('composer').addEventListener('submit', async e => {
+composerEl.addEventListener('submit', async e => {
   e.preventDefault();
   const text = bodyEl.value.trim();
   if (!text) return;
@@ -521,6 +547,7 @@ document.getElementById('composer').addEventListener('submit', async e => {
     }
     const result = await res.json().catch(() => ({}));
     bodyEl.value = '';
+    autoGrow();
     exitComposeMode();
     await loadThreads();
     // Jump into the conversation that was just created, if the phone told us which.
@@ -548,6 +575,7 @@ document.getElementById('composer').addEventListener('submit', async e => {
     clearDraft(sentThreadId);
     // Only blank the box if they're still looking at the thread they sent from
     if (activeThreadId === sentThreadId) bodyEl.value = '';
+    autoGrow();
     await loadMessages();
     await loadThreads();
   } else {

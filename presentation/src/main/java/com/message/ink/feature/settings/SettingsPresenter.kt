@@ -204,7 +204,6 @@ class SettingsPresenter @Inject constructor(
                             view.showEndTimePicker(date.get(Calendar.HOUR_OF_DAY), date.get(Calendar.MINUTE))
                         }
 
-                        // R.id.black -> prefs.black.set(!prefs.black.get())
 
                         R.id.autoEmoji -> prefs.autoEmoji.set(!prefs.autoEmoji.get())
 
@@ -237,9 +236,6 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.textSize -> view.showTextSizePicker()
 
-                        // R.id.autoColor -> {
-                        //     prefs.autoColor.set(!prefs.autoColor.get())
-                        // }
 
                         R.id.systemFont -> prefs.systemFont.set(!prefs.systemFont.get())
 

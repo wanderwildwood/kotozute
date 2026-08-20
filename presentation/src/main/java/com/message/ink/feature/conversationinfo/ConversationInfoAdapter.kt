@@ -28,7 +28,6 @@ class ConversationInfoAdapter @Inject constructor(
 
     val recipientClicks: Subject<Long> = PublishSubject.create()
     val recipientLongClicks: Subject<Long> = PublishSubject.create()
-    val themeClicks: Subject<Long> = PublishSubject.create()
     val nameClicks: Subject<Unit> = PublishSubject.create()
     val notificationClicks: Subject<Unit> = PublishSubject.create()
     val markUnreadClicks: Subject<Unit> = PublishSubject.create()
@@ -89,8 +88,6 @@ class ConversationInfoAdapter @Inject constructor(
 
                 holder.add.setVisible(recipient.contact == null)
 
-                val theme = colors.theme(recipient)
-                holder.theme.setTint(theme.theme)
             }
 
             is ConversationInfoSettings -> {

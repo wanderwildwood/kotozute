@@ -32,7 +32,6 @@ import com.message.ink.common.util.extensions.scrapViews
 import com.message.ink.common.widget.TextInputDialog
 import com.message.ink.feature.blocking.BlockingDialog
 import com.message.ink.feature.conversationinfo.injection.ConversationInfoModule
-import com.message.ink.feature.themepicker.ThemePickerController
 import com.message.ink.injection.appComponent
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
@@ -98,7 +97,6 @@ class ConversationInfoController(
 
     override fun recipientClicks(): Observable<Long> = adapter.recipientClicks
     override fun recipientLongClicks(): Observable<Long> = adapter.recipientLongClicks
-    override fun themeClicks(): Observable<Long> = adapter.themeClicks
     override fun nameClicks(): Observable<*> = adapter.nameClicks
     override fun nameChanges(): Observable<String> = nameChangeSubject
     override fun notificationClicks(): Observable<*> = adapter.notificationClicks
@@ -110,12 +108,6 @@ class ConversationInfoController(
     override fun mediaClicks(): Observable<Long> = adapter.mediaClicks
 
     override fun showNameDialog(name: String) = nameDialog.setText(name).show()
-
-    override fun showThemePicker(recipientId: Long) {
-        router.pushController(RouterTransaction.with(ThemePickerController(recipientId))
-                .pushChangeHandler(QkChangeHandler())
-                .popChangeHandler(QkChangeHandler()))
-    }
 
     override fun showBlockingDialog(conversations: List<Long>, block: Boolean) {
         blockingDialog.show(activity!!, conversations, block)

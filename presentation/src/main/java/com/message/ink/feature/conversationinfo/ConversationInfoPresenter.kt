@@ -131,11 +131,6 @@ class ConversationInfoPresenter @Inject constructor(
                     context.makeToast(R.string.info_copied_address)
                 }
 
-        // Show the theme settings for the conversation
-        view.themeClicks()
-                .autoDisposable(view.scope())
-                .subscribe(view::showThemePicker)
-
         // Show the conversation title dialog
         view.nameClicks()
                 .withLatestFrom(conversation) { _, conversation -> conversation }

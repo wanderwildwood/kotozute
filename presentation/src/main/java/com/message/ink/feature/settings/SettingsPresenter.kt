@@ -24,7 +24,6 @@ import com.uber.autodispose.autoDisposable
 import com.message.ink.R
 import com.message.ink.common.Navigator
 import com.message.ink.common.base.QkPresenter
-import com.message.ink.common.util.Colors
 import com.message.ink.common.util.DateFormatter
 import com.message.ink.common.util.extensions.makeToast
 import com.message.ink.feature.desktopsync.DesktopSyncService
@@ -45,7 +44,6 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class SettingsPresenter @Inject constructor(
-    colors: Colors,
     syncRepo: SyncRepository,
     private val context: Context,
     private val billingManager: BillingManager,
@@ -61,9 +59,6 @@ class SettingsPresenter @Inject constructor(
 )) {
 
     init {
-        disposables += colors.themeObservable()
-                .subscribe { theme -> newState { copy(theme = theme.theme) } }
-
         val nightModeLabels = context.resources.getStringArray(R.array.night_modes)
         disposables += prefs.nightMode.asObservable()
                 .subscribe { nightMode ->
@@ -201,8 +196,6 @@ class SettingsPresenter @Inject constructor(
                         R.id.blocking -> navigator.showBlockedConversations()
 
                         R.id.backup -> navigator.showBackup()
-
-                        R.id.theme -> view.showThemePicker()
 
                         R.id.night -> view.showNightModeDialog()
 

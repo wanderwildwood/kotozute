@@ -73,15 +73,6 @@
             android:text="@string/settings_category_appearance" />
 
         <com.message.ink.common.widget.PreferenceView
-            android:id="@+id/theme"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            app:icon="@drawable/ic_color_lens_black_24dp"
-            app:title="@string/settings_theme_title"
-            app:widget="@layout/settings_theme_widget" />
-
-        <com.message.ink.common.widget.PreferenceView
             android:id="@+id/night"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

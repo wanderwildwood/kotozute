@@ -338,7 +338,9 @@
     <string name="settings_sync_summary">Re-sync your messages with the native Android SMS database</string>
 
     <string name="settings_desktop_sync_title">Desktop Sync</string>
-    <string name="settings_desktop_sync_summary_off">Off — tap to read and reply to texts in a web browser on your computer. Requires Tailscale (or same Wi-Fi).</string>
+    <string name="settings_desktop_sync_summary_off">Off — tap to read and reply to texts in a web browser on your computer. Requires Tailscale.</string>
+    <string name="settings_desktop_sync_tailscale_only_title">Tailscale only</string>
+    <string name="settings_desktop_sync_tailscale_only_summary">Accept connections only from your own Tailscale network, so nothing else on your Wi-Fi can reach your messages even with the link. Turn off to also use it over home Wi-Fi — handy right after a reboot, when Tailscale hasn\'t started yet.</string>
     <string name="settings_desktop_sync_reset_title">Reset Desktop Sync link</string>
     <string name="settings_desktop_sync_reset_summary">Replace the secret token in the address. Use this if the link has been shared or seen by someone else. Existing bookmarks and open tabs stop working.</string>
     <string name="settings_desktop_sync_reset_dialog">Replace the secret token in your Desktop Sync address?\n\nAny bookmark or open browser tab using the old link will stop working. The new address appears in Settings straight away.</string>

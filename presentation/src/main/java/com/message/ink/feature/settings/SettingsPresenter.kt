@@ -111,6 +111,16 @@ class SettingsPresenter @Inject constructor(
                 newState { copy(desktopSyncSummary = desktopSyncSummary(prefs.desktopSyncEnabled.get())) }
             }
 
+        disposables += prefs.desktopSyncTailscaleOnly.asObservable()
+            .subscribe { enabled ->
+                newState {
+                    copy(
+                        desktopSyncTailscaleOnly = enabled,
+                        desktopSyncSummary = desktopSyncSummary(prefs.desktopSyncEnabled.get()),
+                    )
+                }
+            }
+
         disposables += prefs.unreadAtTop.asObservable()
             .subscribe { enabled -> newState { copy(unreadAtTopEnabled = enabled) } }
 
@@ -225,6 +235,9 @@ class SettingsPresenter @Inject constructor(
                                 DesktopSyncService.start(context)
                             }
                         }
+
+                        R.id.desktopSyncTailscaleOnly ->
+                            prefs.desktopSyncTailscaleOnly.set(!prefs.desktopSyncTailscaleOnly.get())
 
                         R.id.desktopSyncReset -> view.showDesktopSyncResetDialog()
 
@@ -372,7 +385,11 @@ class SettingsPresenter @Inject constructor(
         val token = prefs.desktopSyncToken.get()
         val port = DesktopSyncService.PORT
         val tailscale = DesktopSyncService.findTailscaleAddress()
-        val lan = DesktopSyncService.findLanAddress()
+        // Only offer the Wi-Fi address when it would actually answer. With the
+        // restriction on, the relay refuses everything off the tailnet, so printing a
+        // LAN URL here would just hand out a link that returns 403.
+        val restricted = prefs.desktopSyncTailscaleOnly.get()
+        val lan = DesktopSyncService.findLanAddress().takeUnless { restricted }
 
         val sb = StringBuilder("On. Open one of these in a browser on your computer:\n")
         if (tailscale != null) {
@@ -382,7 +399,13 @@ class SettingsPresenter @Inject constructor(
             sb.append("\nAt home (same Wi-Fi):\nhttp://$lan:$port?token=$token\n")
         }
         if (tailscale == null && lan == null) {
-            return "On, but this phone has no network connection yet.\n\nTap to turn off."
+            return if (restricted) {
+                "On, but Tailscale isn't connected — and Desktop Sync is set to accept only " +
+                    "tailnet connections. Start Tailscale, or turn off \"Tailscale only\" below." +
+                    "\n\nTap to turn off."
+            } else {
+                "On, but this phone has no network connection yet.\n\nTap to turn off."
+            }
         }
         if (tailscale == null) {
             sb.append("\nConnect Tailscale to also reach this from away from home.\n")

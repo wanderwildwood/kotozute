@@ -67,7 +67,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     @Inject lateinit var context: Context
     @Inject lateinit var colors: Colors
-    @Inject lateinit var nightModeDialog: QkDialog
     @Inject lateinit var textSizeDialog: QkDialog
     @Inject lateinit var sendDelayDialog: QkDialog
     @Inject lateinit var mmsSizeDialog: QkDialog
@@ -82,8 +81,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         AutoDeleteDialog(activity!!, autoDeleteSubject::onNext)
     }
 
-    private val startTimeSelectedSubject: Subject<Pair<Int, Int>> = PublishSubject.create()
-    private val endTimeSelectedSubject: Subject<Pair<Int, Int>> = PublishSubject.create()
     private val signatureSubject: Subject<String> = PublishSubject.create()
     private val autoDeleteSubject: Subject<Int> = PublishSubject.create()
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
@@ -102,13 +99,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun onViewCreated() {
         preferences.postDelayed({ preferences?.animateLayoutChanges = true }, 100)
-
-        when (Build.VERSION.SDK_INT >= 29) {
-            true -> nightModeDialog.adapter.setData(R.array.night_modes)
-            false -> nightModeDialog.adapter.data = context.resources.getStringArray(R.array.night_modes)
-                    .mapIndexed { index, title -> MenuItem(title, index) }
-                    .drop(1)
-        }
         textSizeDialog.adapter.setData(R.array.text_sizes)
         sendDelayDialog.adapter.setData(R.array.delayed_sending_labels)
         mmsSizeDialog.adapter.setData(R.array.mms_sizes, R.array.mms_sizes_ids)
@@ -135,11 +125,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
 
 
-    override fun nightModeSelected(): Observable<Int> = nightModeDialog.adapter.menuItemClicks
 
-    override fun nightStartSelected(): Observable<Pair<Int, Int>> = startTimeSelectedSubject
 
-    override fun nightEndSelected(): Observable<Pair<Int, Int>> = endTimeSelectedSubject
 
     override fun textSizeSelected(): Observable<Int> = textSizeDialog.adapter.menuItemClicks
 
@@ -154,16 +141,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun messageLinkHandlingSelected(): Observable<Int> = messageLinkHandlingDialog.adapter.menuItemClicks
 
     override fun render(state: SettingsState) {
-        night.summary = state.nightModeSummary
-        nightModeDialog.adapter.selectedItem = state.nightModeId
-        nightStart.setVisible(state.nightModeId == Preferences.NIGHT_MODE_AUTO)
-        nightStart.summary = state.nightStart
-        nightEnd.setVisible(state.nightModeId == Preferences.NIGHT_MODE_AUTO)
-        nightEnd.summary = state.nightEnd
 
-        // black.setVisible(state.nightModeId != Preferences.NIGHT_MODE_OFF)
 
-        autoEmoji.checkbox.isChecked = state.autoEmojiEnabled
 
         delayed.summary = state.sendDelaySummary
         sendDelayDialog.adapter.selectedItem = state.sendDelayId
@@ -186,7 +165,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         textSizeDialog.adapter.selectedItem = state.textSizeId
 
 
-        systemFont.checkbox.isChecked = state.systemFontEnabled
 
 
         unicode.checkbox.isChecked = state.stripUnicodeEnabled
@@ -218,21 +196,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 syncingProgress.isIndeterminate = state.syncProgress.indeterminate
             }
         }
-    }
-
-    // TODO change this to a PopupWindow
-    override fun showNightModeDialog() = nightModeDialog.show(activity!!)
-
-    override fun showStartTimePicker(hour: Int, minute: Int) {
-        TimePickerDialog(activity, { _, newHour, newMinute ->
-            startTimeSelectedSubject.onNext(Pair(newHour, newMinute))
-        }, hour, minute, DateFormat.is24HourFormat(activity)).show()
-    }
-
-    override fun showEndTimePicker(hour: Int, minute: Int) {
-        TimePickerDialog(activity, { _, newHour, newMinute ->
-            endTimeSelectedSubject.onNext(Pair(newHour, newMinute))
-        }, hour, minute, DateFormat.is24HourFormat(activity)).show()
     }
 
     override fun showTextSizePicker() = textSizeDialog.show(activity!!)

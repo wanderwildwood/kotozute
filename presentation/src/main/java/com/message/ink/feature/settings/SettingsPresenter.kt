@@ -24,7 +24,6 @@ import com.uber.autodispose.autoDisposable
 import com.message.ink.R
 import com.message.ink.common.Navigator
 import com.message.ink.common.base.QkPresenter
-import com.message.ink.common.util.DateFormatter
 import com.message.ink.common.util.extensions.makeToast
 import com.message.ink.feature.desktopsync.DesktopSyncService
 import com.message.ink.interactor.DeleteOldMessages
@@ -32,57 +31,30 @@ import com.message.ink.interactor.SyncMessages
 import com.message.ink.repository.MessageRepository
 import com.message.ink.repository.SyncRepository
 import com.message.ink.service.AutoDeleteService
-import com.message.ink.util.NightModeManager
 import com.message.ink.util.Preferences
 import io.reactivex.rxkotlin.plusAssign
 import io.reactivex.schedulers.Schedulers
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
-import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class SettingsPresenter @Inject constructor(
     syncRepo: SyncRepository,
     private val context: Context,
-    private val dateFormatter: DateFormatter,
     private val deleteOldMessages: DeleteOldMessages,
     private val messageRepo: MessageRepository,
     private val navigator: Navigator,
-    private val nightModeManager: NightModeManager,
     private val prefs: Preferences,
     private val syncMessages: SyncMessages
-) : QkPresenter<SettingsView, SettingsState>(SettingsState(
-        nightModeId = prefs.nightMode.get()
-)) {
+) : QkPresenter<SettingsView, SettingsState>(SettingsState()) {
 
     init {
-        val nightModeLabels = context.resources.getStringArray(R.array.night_modes)
-        disposables += prefs.nightMode.asObservable()
-                .subscribe { nightMode ->
-                    newState { copy(nightModeSummary = nightModeLabels[nightMode], nightModeId = nightMode) }
-                }
-
-        disposables += prefs.nightStart.asObservable()
-                .map { time -> nightModeManager.parseTime(time) }
-                .map { calendar -> calendar.timeInMillis }
-                .map { millis -> dateFormatter.getTimestamp(millis) }
-                .subscribe { nightStart -> newState { copy(nightStart = nightStart) } }
-
-        disposables += prefs.nightEnd.asObservable()
-                .map { time -> nightModeManager.parseTime(time) }
-                .map { calendar -> calendar.timeInMillis }
-                .map { millis -> dateFormatter.getTimestamp(millis) }
-                .subscribe { nightEnd -> newState { copy(nightEnd = nightEnd) } }
-
         disposables += prefs.black.asObservable()
                 .subscribe { black -> newState { copy(black = black) } }
 
         disposables += prefs.notifications().asObservable()
                 .subscribe { enabled -> newState { copy(notificationsEnabled = enabled) } }
-
-        disposables += prefs.autoEmoji.asObservable()
-                .subscribe { enabled -> newState { copy(autoEmojiEnabled = enabled) } }
 
         val delayedSendingLabels = context.resources.getStringArray(R.array.delayed_sending_labels)
         disposables += prefs.sendDelay.asObservable()
@@ -128,9 +100,6 @@ class SettingsPresenter @Inject constructor(
 
         disposables += prefs.autoColor.asObservable()
                 .subscribe { autoColor -> newState { copy(autoColor = autoColor) } }
-
-        disposables += prefs.systemFont.asObservable()
-            .subscribe { enabled -> newState { copy(systemFontEnabled = enabled) } }
 
         disposables += prefs.unicode.asObservable()
                 .subscribe { enabled -> newState { copy(stripUnicodeEnabled = enabled) } }
@@ -192,20 +161,6 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.backup -> navigator.showBackup()
 
-                        R.id.night -> view.showNightModeDialog()
-
-                        R.id.nightStart -> {
-                            val date = nightModeManager.parseTime(prefs.nightStart.get())
-                            view.showStartTimePicker(date.get(Calendar.HOUR_OF_DAY), date.get(Calendar.MINUTE))
-                        }
-
-                        R.id.nightEnd -> {
-                            val date = nightModeManager.parseTime(prefs.nightEnd.get())
-                            view.showEndTimePicker(date.get(Calendar.HOUR_OF_DAY), date.get(Calendar.MINUTE))
-                        }
-
-
-                        R.id.autoEmoji -> prefs.autoEmoji.set(!prefs.autoEmoji.get())
 
                         R.id.notifications -> navigator.showNotificationSettings()
 
@@ -236,8 +191,6 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.textSize -> view.showTextSizePicker()
 
-
-                        R.id.systemFont -> prefs.systemFont.set(!prefs.systemFont.get())
 
 
                         R.id.unicode -> prefs.unicode.set(!prefs.unicode.get())
@@ -270,18 +223,6 @@ class SettingsPresenter @Inject constructor(
                         false -> R.string.settings_logging_disabled
                     })
                 }
-
-        view.nightModeSelected()
-                .autoDisposable(view.scope())
-                .subscribe { mode -> nightModeManager.updateNightMode(mode) }
-
-        view.nightStartSelected()
-                .autoDisposable(view.scope())
-                .subscribe { nightModeManager.setNightStart(it.first, it.second) }
-
-        view.nightEndSelected()
-                .autoDisposable(view.scope())
-                .subscribe { nightModeManager.setNightEnd(it.first, it.second) }
 
         view.textSizeSelected()
                 .autoDisposable(view.scope())

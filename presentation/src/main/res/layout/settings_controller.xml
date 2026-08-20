@@ -294,34 +294,6 @@
             app:summary="@string/settings_sync_summary"
             app:title="@string/settings_sync_title" />
 
-        <com.message.ink.common.widget.PreferenceView
-            android:id="@+id/desktopSync"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:icon="@drawable/ic_send_black_24dp"
-            app:summary="@string/settings_desktop_sync_summary_off"
-            app:title="@string/settings_desktop_sync_title" />
-
-        <!-- Only shown while Desktop Sync is on; see SettingsController.render(). -->
-        <com.message.ink.common.widget.PreferenceView
-            android:id="@+id/desktopSyncTailscaleOnly"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            app:summary="@string/settings_desktop_sync_tailscale_only_summary"
-            app:title="@string/settings_desktop_sync_tailscale_only_title"
-            app:widget="@layout/settings_switch_widget" />
-
-        <!-- Only shown while Desktop Sync is on; see SettingsController.render(). -->
-        <com.message.ink.common.widget.PreferenceView
-            android:id="@+id/desktopSyncReset"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            app:icon="@drawable/ic_sync_black_24dp"
-            app:summary="@string/settings_desktop_sync_reset_summary"
-            app:title="@string/settings_desktop_sync_reset_title" />
-
         <ProgressBar
             android:id="@+id/syncingProgress"
             style="@style/Widget.AppCompat.ProgressBar.Horizontal"
@@ -332,6 +304,60 @@
             android:layout_marginBottom="16dp"
             android:indeterminate="true"
             app:layout_constraintBottom_toBottomOf="parent" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:background="?android:attr/divider" />
+
+        <com.message.ink.common.widget.QkTextView
+            style="@style/PreferenceCategory"
+            android:text="@string/settings_category_desktop_sync" />
+
+        <com.message.ink.common.widget.PreferenceView
+            android:id="@+id/desktopSync"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:icon="@drawable/ic_send_black_24dp"
+            app:summary="@string/settings_desktop_sync_summary_off"
+            app:title="@string/settings_desktop_sync_title"
+            app:widget="@layout/settings_switch_widget" />
+
+        <!-- The three below are only shown while Desktop Sync is on; see SettingsController.render(). -->
+        <com.message.ink.common.widget.PreferenceView
+            android:id="@+id/desktopSyncLink"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:summary="@string/settings_desktop_sync_link_summary"
+            app:title="@string/settings_desktop_sync_link_title" />
+
+        <com.message.ink.common.widget.PreferenceView
+            android:id="@+id/desktopSyncTailscaleOnly"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:summary="@string/settings_desktop_sync_tailscale_only_summary"
+            app:title="@string/settings_desktop_sync_tailscale_only_title"
+            app:widget="@layout/settings_switch_widget" />
+
+        <com.message.ink.common.widget.PreferenceView
+            android:id="@+id/desktopSyncReset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:icon="@drawable/ic_sync_black_24dp"
+            app:summary="@string/settings_desktop_sync_reset_summary"
+            app:title="@string/settings_desktop_sync_reset_title" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:background="?android:attr/divider" />
 
         <com.message.ink.common.widget.PreferenceView
             android:id="@+id/about"

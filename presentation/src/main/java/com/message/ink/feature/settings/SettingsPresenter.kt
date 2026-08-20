@@ -236,6 +236,8 @@ class SettingsPresenter @Inject constructor(
                             }
                         }
 
+                        R.id.desktopSyncLink -> view.showDesktopSyncLinkDialog(desktopSyncUrl())
+
                         R.id.desktopSyncTailscaleOnly ->
                             prefs.desktopSyncTailscaleOnly.set(!prefs.desktopSyncTailscaleOnly.get())
 
@@ -373,6 +375,11 @@ class SettingsPresenter @Inject constructor(
             .subscribe { DesktopSyncService.resetToken(context) }
     }
 
+    /**
+     * One line, not a paragraph. The address moved into its own row + dialog: it only
+     * matters while you're setting the dashboard up, and printing a URL with a secret
+     * token in it on every visit to Settings is noise the rest of the time.
+     */
     private fun desktopSyncSummary(enabled: Boolean): String {
         if (!enabled) {
             return context.getString(R.string.settings_desktop_sync_summary_off)
@@ -382,36 +389,26 @@ class SettingsPresenter @Inject constructor(
         if (!DesktopSyncService.isRunning) {
             return "Starting…"
         }
-        val token = prefs.desktopSyncToken.get()
-        val port = DesktopSyncService.PORT
         val tailscale = DesktopSyncService.findTailscaleAddress()
-        // Only offer the Wi-Fi address when it would actually answer. With the
-        // restriction on, the relay refuses everything off the tailnet, so printing a
-        // LAN URL here would just hand out a link that returns 403.
-        val restricted = prefs.desktopSyncTailscaleOnly.get()
-        val lan = DesktopSyncService.findLanAddress().takeUnless { restricted }
+        if (prefs.desktopSyncTailscaleOnly.get() && tailscale == null) {
+            return "On, but Tailscale isn't connected"
+        }
+        if (tailscale == null && DesktopSyncService.findLanAddress() == null) {
+            return "On, but this phone has no network yet"
+        }
+        return "On"
+    }
 
-        val sb = StringBuilder("On. Open one of these in a browser on your computer:\n")
-        if (tailscale != null) {
-            sb.append("\nAnywhere (Tailscale):\nhttp://$tailscale:$port?token=$token\n")
-        }
-        if (lan != null) {
-            sb.append("\nAt home (same Wi-Fi):\nhttp://$lan:$port?token=$token\n")
-        }
-        if (tailscale == null && lan == null) {
-            return if (restricted) {
-                "On, but Tailscale isn't connected — and Desktop Sync is set to accept only " +
-                    "tailnet connections. Start Tailscale, or turn off \"Tailscale only\" below." +
-                    "\n\nTap to turn off."
-            } else {
-                "On, but this phone has no network connection yet.\n\nTap to turn off."
-            }
-        }
-        if (tailscale == null) {
-            sb.append("\nConnect Tailscale to also reach this from away from home.\n")
-        }
-        sb.append("\nBookmark it — the address stays the same.\n\nTap to turn off.")
-        return sb.toString()
+    /**
+     * The address to open on the computer, or null if nothing can reach us right now.
+     * Only offers the Wi-Fi address when the tailnet restriction is off, since otherwise
+     * that address answers 403.
+     */
+    private fun desktopSyncUrl(): String? {
+        val host = DesktopSyncService.findTailscaleAddress()
+            ?: DesktopSyncService.findLanAddress().takeUnless { prefs.desktopSyncTailscaleOnly.get() }
+            ?: return null
+        return "http://$host:${DesktopSyncService.PORT}?token=${prefs.desktopSyncToken.get()}"
     }
 
 }

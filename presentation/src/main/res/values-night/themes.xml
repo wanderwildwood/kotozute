@@ -43,6 +43,8 @@
         <item name="switchTrackEnabled">@color/switchTrackEnabledDark</item>
         <item name="switchTrackDisabled">@color/switchTrackDisabledDark</item>
         <item name="windowActionBar">false</item>
+        <item name="colorAccent">@color/white</item>
+        <item name="colorControlActivated">@color/white</item>
     </style>
 
     <style name="AppThemeDialog" parent="Theme.AppCompat.Dialog">
@@ -56,6 +58,8 @@
         <item name="colorPrimaryDark">@color/backgroundDark</item>
         <item name="selectableItemBackground">@drawable/ripple_dark</item>
         <item name="windowActionBar">false</item>
+        <item name="colorAccent">@color/white</item>
+        <item name="colorControlActivated">@color/white</item>
     </style>
 
     <style name="PopupTheme" parent="ThemeOverlay.AppCompat">

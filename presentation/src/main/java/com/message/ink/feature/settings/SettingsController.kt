@@ -177,6 +177,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         delivery.checkbox.isChecked = state.deliveryEnabled
         desktopSync.summary = state.desktopSyncSummary
         // Nothing to reset until there's a link to reset.
+        desktopSync.checkbox.isChecked = state.desktopSyncEnabled
+        desktopSyncLink.setVisible(state.desktopSyncEnabled)
         desktopSyncTailscaleOnly.setVisible(state.desktopSyncEnabled)
         desktopSyncTailscaleOnly.checkbox.isChecked = state.desktopSyncTailscaleOnly
         desktopSyncReset.setVisible(state.desktopSyncEnabled)
@@ -274,6 +276,19 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun showMmsSizePicker() = mmsSizeDialog.show(activity!!)
 
     override fun showMessageLinkHandlingDialogPicker() = messageLinkHandlingDialog.show(activity!!)
+
+    override fun showDesktopSyncLinkDialog(url: String?) {
+        val message = if (url == null) {
+            activity!!.getString(R.string.settings_desktop_sync_link_none)
+        } else {
+            url + "\n\n" + activity!!.getString(R.string.settings_desktop_sync_link_bookmark)
+        }
+        AlertDialog.Builder(activity!!)
+                .setTitle(R.string.settings_desktop_sync_link_title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+    }
 
     override fun showDesktopSyncResetDialog() {
         AlertDialog.Builder(activity!!)

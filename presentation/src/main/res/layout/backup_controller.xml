@@ -176,7 +176,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
-            android:text="@string/title_qksms_plus"
+            android:text="@string/backup_now"
             android:textColor="@color/textPrimaryDark"
             android:textStyle="bold"
             app:textSize="primary" />

@@ -82,7 +82,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         AutoDeleteDialog(activity!!, autoDeleteSubject::onNext)
     }
 
-    private val viewQksmsPlusSubject: Subject<Unit> = PublishSubject.create()
     private val startTimeSelectedSubject: Subject<Pair<Int, Int>> = PublishSubject.create()
     private val endTimeSelectedSubject: Subject<Pair<Int, Int>> = PublishSubject.create()
     private val signatureSubject: Subject<String> = PublishSubject.create()
@@ -135,7 +134,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
 
-    override fun viewQksmsPlusClicks(): Observable<*> = viewQksmsPlusSubject
 
     override fun nightModeSelected(): Observable<Int> = nightModeDialog.adapter.menuItemClicks
 
@@ -221,16 +219,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 syncingProgress.max = state.syncProgress.max
                 progressAnimator.apply { setIntValues(syncingProgress.progress, state.syncProgress.progress) }.start()
                 syncingProgress.isIndeterminate = state.syncProgress.indeterminate
-            }
-        }
-    }
-
-    override fun showQksmsPlusSnackbar() {
-        view?.run {
-            Snackbar.make(contentView, R.string.toast_qksms_plus, Snackbar.LENGTH_LONG).run {
-                setAction(R.string.button_more) { viewQksmsPlusSubject.onNext(Unit) }
-                setActionTextColor(colors.theme().theme)
-                show()
             }
         }
     }

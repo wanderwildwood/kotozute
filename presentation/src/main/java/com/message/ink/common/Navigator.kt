@@ -37,7 +37,6 @@ import com.message.ink.feature.conversationinfo.ConversationInfoActivity
 import com.message.ink.feature.gallery.GalleryActivity
 import com.message.ink.feature.main.MainActivity
 import com.message.ink.feature.notificationprefs.NotificationPrefsActivity
-import com.message.ink.feature.plus.PlusActivity
 import com.message.ink.feature.scheduled.ScheduledActivity
 import com.message.ink.feature.settings.SettingsActivity
 import com.message.ink.manager.NotificationManager
@@ -74,11 +73,6 @@ class Navigator @Inject constructor(
      * @param source String to indicate where this QKSMS+ screen was launched from. This should be
      * one of [main_menu, compose_schedule, settings_night, settings_theme]
      */
-    fun showQksmsPlusActivity(source: String) {
-        val intent = Intent(context, PlusActivity::class.java)
-        startActivity(intent)
-    }
-
     /**
      * This won't work unless we use startActivityForResult
      */

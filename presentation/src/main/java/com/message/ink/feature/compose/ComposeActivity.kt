@@ -185,7 +185,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override val changeSimIntent by lazy { sim.clicks() }
     override val scheduleCancelIntent by lazy { scheduledCancel.clicks() }
     override val sendIntent by lazy {  Observable.merge(send.clicks(), scheduledSend.clicks()) }
-    override val viewQksmsPlusIntent: Subject<Unit> = PublishSubject.create()
     override val backPressedIntent: Subject<Unit> = PublishSubject.create()
     override val confirmDeleteIntent: Subject<List<Long>> = PublishSubject.create()
     override val clearCurrentMessageIntent: Subject<Boolean> = PublishSubject.create()
@@ -767,14 +766,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             ?.indexOfLast { message -> message.id == id }
             ?.takeIf { position -> position != -1 }
             ?.let(messageList::scrollToPosition)
-    }
-
-    override fun showQksmsPlusSnackbar(message: Int) {
-        Snackbar.make(contentView, message, Snackbar.LENGTH_LONG).run {
-            setAction(R.string.button_more) { viewQksmsPlusIntent.onNext(Unit) }
-            setActionTextColor(colors.theme().theme)
-            show()
-        }
     }
 
     override fun showDeleteDialog(messages: List<Long>) {

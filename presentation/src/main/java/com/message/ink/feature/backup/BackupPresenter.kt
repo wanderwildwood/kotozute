@@ -27,7 +27,6 @@ import com.message.ink.common.base.QkPresenter
 import com.message.ink.common.util.DateFormatter
 import com.message.ink.common.util.extensions.makeToast
 import com.message.ink.interactor.PerformBackup
-import com.message.ink.manager.BillingManager
 import com.message.ink.repository.BackupRepository
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.plusAssign
@@ -37,7 +36,6 @@ import javax.inject.Inject
 
 class BackupPresenter @Inject constructor(
     private val backupRepo: BackupRepository,
-    private val billingManager: BillingManager,
     private val context: Context,
     private val dateFormatter: DateFormatter,
     private val navigator: Navigator,
@@ -54,9 +52,6 @@ class BackupPresenter @Inject constructor(
                 .sample(16, TimeUnit.MILLISECONDS)
                 .distinctUntilChanged()
                 .subscribe { progress -> newState { copy(restoreProgress = progress) } }
-
-        disposables += billingManager.upgradeStatus
-                .subscribe { upgraded -> newState { copy(upgraded = upgraded) } }
     }
 
     override fun bindIntents(view: BackupView) {
@@ -70,11 +65,9 @@ class BackupPresenter @Inject constructor(
         view.restoreClicks()
                 .withLatestFrom(
                         backupRepo.getBackupProgress(),
-                        backupRepo.getRestoreProgress(),
-                        billingManager.upgradeStatus)
-                { _, backupProgress, restoreProgress, upgraded ->
+                        backupRepo.getRestoreProgress())
+                { _, backupProgress, restoreProgress ->
                     when {
-                        !upgraded -> context.makeToast(R.string.backup_restore_error_plus)
                         backupProgress.running -> context.makeToast(R.string.backup_restore_error_backup)
                         restoreProgress.running -> context.makeToast(R.string.backup_restore_error_restore)
                         else -> view.selectFile(backupRepo.getBackupPathUriForPicker())
@@ -84,15 +77,11 @@ class BackupPresenter @Inject constructor(
                 .subscribe()
 
         view.backupClicks()
-                .withLatestFrom(billingManager.upgradeStatus) { _, upgraded -> upgraded }
                 .autoDisposable(view.scope())
-                .subscribe { upgraded ->
-                    when {
-                        backupRepo.getBackupDocumentTree() == null -> {
-                            newState { copy(showLocationRationale = true) }
-                        }
-                        !upgraded -> navigator.showQksmsPlusActivity("backup_fab")
-                        upgraded -> performBackup.execute(Unit)
+                .subscribe {
+                    when (backupRepo.getBackupDocumentTree()) {
+                        null -> newState { copy(showLocationRationale = true) }
+                        else -> performBackup.execute(Unit)
                     }
                 }
 

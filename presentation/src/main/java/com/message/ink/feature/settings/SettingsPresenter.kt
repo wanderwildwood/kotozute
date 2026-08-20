@@ -29,7 +29,6 @@ import com.message.ink.common.util.extensions.makeToast
 import com.message.ink.feature.desktopsync.DesktopSyncService
 import com.message.ink.interactor.DeleteOldMessages
 import com.message.ink.interactor.SyncMessages
-import com.message.ink.manager.BillingManager
 import com.message.ink.repository.MessageRepository
 import com.message.ink.repository.SyncRepository
 import com.message.ink.service.AutoDeleteService
@@ -46,7 +45,6 @@ import javax.inject.Inject
 class SettingsPresenter @Inject constructor(
     syncRepo: SyncRepository,
     private val context: Context,
-    private val billingManager: BillingManager,
     private val dateFormatter: DateFormatter,
     private val deleteOldMessages: DeleteOldMessages,
     private val messageRepo: MessageRepository,
@@ -286,19 +284,8 @@ class SettingsPresenter @Inject constructor(
                 }
 
         view.nightModeSelected()
-                .withLatestFrom(billingManager.upgradeStatus) { mode, upgraded ->
-//                    if (!upgraded && mode == Preferences.NIGHT_MODE_AUTO) {
-//                        view.showQksmsPlusSnackbar()
-//                    } else {
-                        nightModeManager.updateNightMode(mode)
-//                    }
-                }
                 .autoDisposable(view.scope())
-                .subscribe()
-
-        view.viewQksmsPlusClicks()
-                .autoDisposable(view.scope())
-                .subscribe { navigator.showQksmsPlusActivity("settings_night") }
+                .subscribe { mode -> nightModeManager.updateNightMode(mode) }
 
         view.nightStartSelected()
                 .autoDisposable(view.scope())
@@ -313,15 +300,8 @@ class SettingsPresenter @Inject constructor(
                 .subscribe(prefs.textSize::set)
 
         view.sendDelaySelected()
-                .withLatestFrom(billingManager.upgradeStatus) { duration, upgraded ->
-//                    if (!upgraded && duration != 0) {
-//                        view.showQksmsPlusSnackbar()
-//                    } else {
-                        prefs.sendDelay.set(duration)
-//                    }
-                }
                 .autoDisposable(view.scope())
-                .subscribe()
+                .subscribe(prefs.sendDelay::set)
 
         view.signatureChanged()
                 .doOnNext(prefs.signature::set)

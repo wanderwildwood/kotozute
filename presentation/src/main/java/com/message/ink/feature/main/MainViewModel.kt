@@ -38,7 +38,6 @@ import com.message.ink.interactor.SpeakThreads
 import com.message.ink.interactor.SyncContacts
 import com.message.ink.interactor.SyncMessages
 import com.message.ink.listener.ContactAddedListener
-import com.message.ink.manager.BillingManager
 import com.message.ink.manager.PermissionManager
 import com.message.ink.manager.RatingManager
 import com.message.ink.model.Conversation
@@ -58,7 +57,6 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class MainViewModel @Inject constructor(
-    billingManager: BillingManager,
     contactAddedListener: ContactAddedListener,
     markAllSeen: MarkAllSeen,
     migratePreferences: MigratePreferences,
@@ -103,10 +101,6 @@ class MainViewModel @Inject constructor(
                 .sample(16, TimeUnit.MILLISECONDS)
                 .distinctUntilChanged()
                 .subscribe { syncing -> newState { copy(syncing = syncing) } }
-
-        // Update the upgraded status
-        disposables += billingManager.upgradeStatus
-                .subscribe { upgraded -> newState { copy(upgraded = upgraded) } }
 
         // Show the rating UI
         disposables += ratingManager.shouldShowRating
@@ -336,7 +330,6 @@ class MainViewModel @Inject constructor(
                         NavItem.SCHEDULED -> navigator.showScheduled(null)
                         NavItem.BLOCKING -> navigator.showBlockedConversations()
                         NavItem.SETTINGS -> navigator.showSettings()
-//                        NavItem.PLUS -> navigator.showQksmsPlusActivity("main_menu")
 //                        NavItem.HELP -> navigator.showSupport()
                         NavItem.INVITE -> navigator.showInvite()
                         else -> Unit
@@ -456,11 +449,9 @@ class MainViewModel @Inject constructor(
             .autoDisposable(view.scope())
             .subscribe { conversation -> view.showRenameDialog(conversation.name) }
 
-//        view.plusBannerIntent
 //                .autoDisposable(view.scope())
 //                .subscribe {
 //                    newState { copy(drawerOpen = false) }
-//                    navigator.showQksmsPlusActivity("main_banner")
 //                }
 
         view.rateIntent

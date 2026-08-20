@@ -60,7 +60,6 @@ import com.message.ink.interactor.SendExistingMessage
 import com.message.ink.interactor.SaveImage
 import com.message.ink.interactor.SendNewMessage
 import com.message.ink.manager.ActiveConversationManager
-import com.message.ink.manager.BillingManager
 import com.message.ink.manager.PermissionManager
 import com.message.ink.model.Attachment
 import com.message.ink.model.Conversation
@@ -110,7 +109,6 @@ class ComposeViewModel @Inject constructor(
     private val context: Context,
     private val activeConversationManager: ActiveConversationManager,
     private val addScheduledMessage: AddScheduledMessage,
-    private val billingManager: BillingManager,
     private val actionDelayedMessage: ActionDelayedMessage,
     private val conversationRepo: ConversationRepository,
     private val deleteMessages: DeleteMessages,
@@ -833,10 +831,6 @@ class ComposeViewModel @Inject constructor(
         // Choose a time to schedule the message
         view.scheduleIntent
                 .doOnNext { newState { copy(attaching = false) } }
-                .withLatestFrom(billingManager.upgradeStatus) { _, upgraded -> upgraded }
-                .filter { upgraded ->
-                    upgraded.also { if (!upgraded) view.showQksmsPlusSnackbar(R.string.compose_scheduled_plus) }
-                }
                 .autoDisposable(view.scope())
                 .subscribe { view.requestDatePicker() }
 
@@ -1245,11 +1239,6 @@ class ComposeViewModel @Inject constructor(
             }
             .autoDisposable(view.scope())
             .subscribe()
-
-        // View QKSMS+
-        view.viewQksmsPlusIntent
-                .autoDisposable(view.scope())
-                .subscribe { navigator.showQksmsPlusActivity("compose_schedule") }
 
         // Navigate back
         view.optionsItemIntent

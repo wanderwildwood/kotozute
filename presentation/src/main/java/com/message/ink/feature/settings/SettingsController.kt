@@ -177,6 +177,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         delivery.checkbox.isChecked = state.deliveryEnabled
         desktopSync.summary = state.desktopSyncSummary
         // Nothing to reset until there's a link to reset.
+        desktopSyncTailscaleOnly.setVisible(state.desktopSyncEnabled)
+        desktopSyncTailscaleOnly.checkbox.isChecked = state.desktopSyncTailscaleOnly
         desktopSyncReset.setVisible(state.desktopSyncEnabled)
 
         unreadAtTop.checkbox.isChecked = state.unreadAtTopEnabled

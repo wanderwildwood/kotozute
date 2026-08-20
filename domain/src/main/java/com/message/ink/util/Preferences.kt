@@ -114,6 +114,7 @@ class Preferences @Inject constructor(
     val systemFont = rxPrefs.getBoolean("systemFont", true)
     val desktopSyncEnabled = rxPrefs.getBoolean("desktopSyncEnabled", false)
     val desktopSyncToken = rxPrefs.getString("desktopSyncToken", "")
+    val desktopSyncTailscaleOnly = rxPrefs.getBoolean("desktopSyncTailscaleOnly", true)
     val showStt = rxPrefs.getBoolean("showStt", false)
     val showSttOffsetX = rxPrefs.getFloat("showSttOffsetX", Float.MIN_VALUE)
     val showSttOffsetY = rxPrefs.getFloat("showSttOffsetY", Float.MIN_VALUE)

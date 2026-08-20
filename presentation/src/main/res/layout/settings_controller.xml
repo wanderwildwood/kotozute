@@ -304,6 +304,16 @@
 
         <!-- Only shown while Desktop Sync is on; see SettingsController.render(). -->
         <com.message.ink.common.widget.PreferenceView
+            android:id="@+id/desktopSyncTailscaleOnly"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:summary="@string/settings_desktop_sync_tailscale_only_summary"
+            app:title="@string/settings_desktop_sync_tailscale_only_title"
+            app:widget="@layout/settings_switch_widget" />
+
+        <!-- Only shown while Desktop Sync is on; see SettingsController.render(). -->
+        <com.message.ink.common.widget.PreferenceView
             android:id="@+id/desktopSyncReset"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

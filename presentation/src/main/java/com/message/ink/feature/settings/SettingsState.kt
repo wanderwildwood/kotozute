@@ -54,5 +54,6 @@ data class SettingsState(
     val disableScreenshotsEnabled: Boolean = false,
     val syncProgress: SyncRepository.SyncProgress = SyncRepository.SyncProgress.Idle,
     val desktopSyncSummary: String = "",
-    val desktopSyncEnabled: Boolean = false
+    val desktopSyncEnabled: Boolean = false,
+    val desktopSyncTailscaleOnly: Boolean = true
 )

@@ -109,11 +109,27 @@ class DesktopSyncService : Service() {
         }.getOrNull().orEmpty()
 
         /** True for Tailscale's CGNAT range, 100.64.0.0/10. */
-        private fun isTailscale(ip: String): Boolean {
+        fun isTailscale(ip: String): Boolean {
             val parts = ip.split('.')
             if (parts.size != 4 || parts[0] != "100") return false
             val second = parts[1].toIntOrNull() ?: return false
             return second in 64..127
+        }
+
+        /**
+         * True for a peer we'll talk to when "Tailscale only" is on: a tailnet address
+         * (CGNAT v4, or Tailscale's fd7a:115c:a1e0::/48 v6) or this device itself.
+         *
+         * The relay still binds every interface, deliberately: binding only the tailnet
+         * address would mean the server cannot start at all while Tailscale is down, and
+         * Tailscale does not come up by itself after a reboot. Refusing at the request
+         * layer keeps the socket alive and simply turns non-tailnet callers away.
+         */
+        fun isAllowedPeer(ip: String?): Boolean {
+            val addr = ip?.substringBefore('%')?.lowercase() ?: return false
+            if (addr == "127.0.0.1" || addr == "::1" || addr == "0:0:0:0:0:0:0:1") return true
+            if (isTailscale(addr)) return true
+            return addr.startsWith("fd7a:115c:a1e0")
         }
 
         /** The Tailscale IPv4 address, if Tailscale is connected. Works from anywhere. */
@@ -196,6 +212,9 @@ class DesktopSyncService : Service() {
             contactRepository = contactRepository,
             markRead = markRead,
             sendNewMessage = sendNewMessage,
+            // Read live, so flipping the setting takes effect on the next request
+            // instead of needing the relay stopped and started again.
+            tailscaleOnly = { prefs.desktopSyncTailscaleOnly.get() },
         )
 
         // Timeout 0 = no socket read timeout. A push WebSocket sits idle by design,

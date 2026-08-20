@@ -38,7 +38,16 @@ class DesktopSyncServer(
     private val contactRepository: ContactRepository,
     private val markRead: MarkRead,
     private val sendNewMessage: SendNewMessage,
+    private val tailscaleOnly: () -> Boolean,
 ) : NanoWSD(port) {
+
+    /**
+     * Whether this peer is allowed to talk to us at all, before the token is even looked at.
+     * With "Tailscale only" on, anything that isn't a tailnet address is refused outright,
+     * so a device sharing the home Wi-Fi cannot reach the dashboard even holding the token.
+     */
+    private fun peerAllowed(ip: String?): Boolean =
+        !tailscaleOnly() || DesktopSyncService.isAllowedPeer(ip)
 
     private companion object {
         /** How many of a thread's most recent messages to send to the browser. */
@@ -123,6 +132,11 @@ class DesktopSyncServer(
         @Volatile var lastPongAt = System.currentTimeMillis()
 
         override fun onOpen() {
+            if (!peerAllowed(handshakeRequest.remoteIpAddress)) {
+                Timber.w("Desktop Sync: WebSocket rejected (peer not on the tailnet)")
+                runCatching { close(CloseCode.PolicyViolation, "not on the tailnet", false) }
+                return
+            }
             val authed = handshakeRequest.parameters["token"]?.firstOrNull() == token
             if (!authed) {
                 Timber.w("Desktop Sync: WebSocket rejected (bad/missing token)")
@@ -155,6 +169,14 @@ class DesktopSyncServer(
 
     override fun serveHttp(session: IHTTPSession): Response {
         val uri = session.uri.trimEnd('/')
+
+        // Ahead of everything, including the two unauthenticated static assets: an
+        // off-tailnet caller should not be able to tell a running relay from a closed
+        // port by fetching index.html.
+        if (!peerAllowed(session.remoteIpAddress)) {
+            Timber.w("Desktop Sync: request refused (peer not on the tailnet)")
+            return jsonResponse(Response.Status.FORBIDDEN, JSONObject().put("error", "not on the tailnet"))
+        }
 
         // The static shell carries no message data, and the browser requests app.js
         // from a plain <script src> with no way to attach the token — so serve those

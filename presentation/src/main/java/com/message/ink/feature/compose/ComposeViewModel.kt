@@ -972,11 +972,6 @@ class ComposeViewModel @Inject constructor(
                 .autoDisposable(view.scope())
                 .subscribe()
 
-        // speech recognition button clicked
-        view.speechRecogniserIntent
-            .autoDisposable(view.scope())
-            .subscribe { view.startSpeechRecognition() }
-
         // shade clicked
         view.shadeIntent
             .autoDisposable(view.scope())

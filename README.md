@@ -35,15 +35,28 @@ An HTTP + WebSocket server runs *inside the app on the phone* and serves its own
 
 **Setup**
 
-1. In the app: **Settings → Desktop Sync**, and tap it.
-2. It shows one or two URLs — a [Tailscale](https://tailscale.com/) address that works from anywhere, and a local Wi-Fi address for when you're at home.
-3. Open either in a browser on your computer. Bookmark it: the address and its token are stable.
-4. Tap the row again (or **Stop** on the notification) to turn it off. It is off by default and never starts on its own.
-5. If the link is ever shared or seen by someone else, **Settings → Reset Desktop Sync link** mints a new token. Existing bookmarks and open tabs stop working immediately.
+1. In the app: **Settings → Desktop Sync**, and switch it on.
+2. Tap **Show link** for the address to open on your computer. Bookmark it: the address and its token are stable.
+3. Switch it off again with the same row, or **Stop** on the notification. It is off by default and never starts on its own.
+4. If the link is ever shared or seen by someone else, **Reset Desktop Sync link** mints a new token. Existing bookmarks and open tabs stop working immediately.
 
-**Access control.** Every request requires a random token generated on first run, so simply being on the same network isn't enough. That said, the server listens on all interfaces, so anything on your LAN can reach the port *if it knows the token*. This is built for a private network — ideally a Tailscale tailnet. Don't port-forward it.
+**Access control.** Two independent gates.
+
+*Where you can connect from.* **Tailscale only** is on by default: any request from outside your [Tailscale](https://tailscale.com/) tailnet is refused before the token is even looked at, so another device on your café or home Wi-Fi cannot reach the dashboard even if it somehow had your link. This also means your messages are never in the clear on a network — the relay speaks plain HTTP, but every tailnet connection is encrypted end to end by Tailscale itself.
+
+Turn the switch off and it also accepts LAN connections, which is worth knowing about for one case: **Tailscale does not start by itself after a reboot** on MuditaOS, which has no always-on VPN toggle. Until you open Tailscale, a restricted relay refuses everyone — Settings says so plainly when that happens.
+
+The restriction is enforced per request rather than by binding only the tailnet address, deliberately: binding it would mean the server cannot start at all while Tailscale is down, so a reboot could leave the relay dead. This way the socket always binds and simply turns non-tailnet callers away.
+
+*Who you are.* Every request also needs a random 144-bit token generated on first run, so being on the tailnet isn't enough by itself — useful if your tailnet has devices you don't fully control.
+
+Don't port-forward the port, and don't expose it with Tailscale Funnel.
 
 Desktop Sync needs the `INTERNET` permission, which upstream InkMessage deliberately left disabled. Leave the feature off and no server is ever started.
+
+**A note on launcher badges.** Desktop Sync runs as a foreground service, which means Android keeps a notification in the shade for as long as the relay is up — that's how the platform works, and it's also your only visible sign the relay is running. Some minimalist launchers count *every* notification a package has posted when deciding whether to badge its icon, without checking whether the notification asked to be badged. On those launchers the relay's notification will light up an unread marker on inkMessage+ that never clears.
+
+The notification lives on its own channel (`desktop_sync_v2`) and declares `setShowBadge(false)` plus `CATEGORY_SERVICE`, so a launcher that honours either one will behave. If yours doesn't, open the notification's channel settings — the cog next to it in the shade — and switch that one channel off. Real messages badge from a different channel and are unaffected. The cost is that you lose the shade indicator telling you the relay is running.
 
 ## Building
 

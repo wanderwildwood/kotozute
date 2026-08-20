@@ -111,11 +111,24 @@
     display: flex; flex-direction: column; min-height: 0;
   }
   #searchWrap { flex: 0 0 auto; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  #searchBox { position: relative; }
   #searchField {
     width: 100%; padding: 8px 12px; font: inherit; font-size: 14px;
     border: 1px solid var(--ink); border-radius: 18px;
     outline: none; background: var(--paper); color: var(--ink);
   }
+  /* Room for the clear button, so a long query does not run underneath it. */
+  #searchField.has-query { padding-right: 34px; }
+  #searchClear {
+    position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+    width: 24px; height: 24px; padding: 0; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    font: inherit; font-size: 18px;
+    border: 0; border-radius: 50%; cursor: pointer;
+    background: transparent; color: var(--muted);
+  }
+  #searchClear:hover { color: var(--ink); }
+  #searchClear[hidden] { display: none; }
   #threads {
     flex: 1 1 auto;
     overflow-y: auto;
@@ -273,7 +286,10 @@
   <main>
     <aside id="leftPane">
       <div id="searchWrap">
-        <input type="text" id="searchField" placeholder="Search conversations" autocomplete="off">
+        <div id="searchBox">
+          <input type="text" id="searchField" placeholder="Search conversations" autocomplete="off">
+          <button type="button" id="searchClear" aria-label="Clear search" hidden>&times;</button>
+        </div>
       </div>
       <div id="threads"></div>
     </aside>

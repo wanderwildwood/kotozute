@@ -41,6 +41,7 @@ const toWrapEl = document.getElementById('toWrap');
 const toFieldEl = document.getElementById('toField');
 const suggestionsEl = document.getElementById('suggestions');
 const searchFieldEl = document.getElementById('searchField');
+const searchClearEl = document.getElementById('searchClear');
 
 let activeThreadId = null;
 let activeThreadTitle = '';
@@ -268,17 +269,39 @@ function exitComposeMode() {
 
 newBtnEl.addEventListener('click', enterComposeMode);
 
+// The clear button only exists while there is something to clear, so an empty box stays as
+// plain as it was.
+function syncSearchClearButton() {
+  const hasQuery = searchFieldEl.value.length > 0;
+  searchClearEl.hidden = !hasQuery;
+  searchFieldEl.classList.toggle('has-query', hasQuery);
+}
+
+// Escape and the button do the same thing, through the same function - two copies of "clear
+// the search" would eventually stop agreeing about what clearing means.
+function clearSearch() {
+  searchFieldEl.value = '';
+  filterQuery = '';
+  syncSearchClearButton();
+  renderThreads();
+}
+
 searchFieldEl.addEventListener('input', () => {
   filterQuery = searchFieldEl.value;
+  syncSearchClearButton();
   renderThreads();
 });
 
 searchFieldEl.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    searchFieldEl.value = '';
-    filterQuery = '';
-    renderThreads();
+    clearSearch();
   }
+});
+
+searchClearEl.addEventListener('click', () => {
+  clearSearch();
+  // Back to the box, so you can type a new search without reaching for the mouse again.
+  searchFieldEl.focus();
 });
 
 function api(path, options) {

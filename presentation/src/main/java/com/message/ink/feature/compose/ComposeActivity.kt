@@ -133,9 +133,6 @@ import kotlinx.android.synthetic.main.compose_activity.sendAsGroupSwitch
 import kotlinx.android.synthetic.main.compose_activity.shadeBackground
 import kotlinx.android.synthetic.main.compose_activity.sim
 import kotlinx.android.synthetic.main.compose_activity.simIndex
-import kotlinx.android.synthetic.main.compose_activity.speechToTextFrame
-import kotlinx.android.synthetic.main.compose_activity.speechToTextIcon
-import kotlinx.android.synthetic.main.compose_activity.speechToTextIconBorder
 import kotlinx.android.synthetic.main.compose_activity.toolbarSubtitle
 import kotlinx.android.synthetic.main.compose_activity.toolbarTitle
 import kotlinx.android.synthetic.main.main_activity.toolbar
@@ -189,7 +186,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override val confirmDeleteIntent: Subject<List<Long>> = PublishSubject.create()
     override val clearCurrentMessageIntent: Subject<Boolean> = PublishSubject.create()
     override val messageLinkAskIntent: Subject<Uri> by lazy { messageAdapter.messageLinkClicks }
-    override val speechRecogniserIntent by lazy { speechToTextIcon.clicks() }
     override val shadeIntent by lazy { shadeBackground.clicks() }
     override val recordAudioStartStopRecording: Subject<Boolean> = PublishSubject.create()
     override val recordAnAudioMessage: Observable<Unit> by lazy {
@@ -218,10 +214,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             .subscribeOn(Schedulers.single())
             .observeOn(AndroidSchedulers.mainThread())
             .autoDisposable(scope())
-    }
-
-    private fun isSpeechRecognitionAvailable(): Boolean {
-        return SpeechRecognizer.isRecognitionAvailable(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -298,11 +290,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                     camera.setTint(android.graphics.Color.BLACK)
                     cameraLabel.setTextColor(android.graphics.Color.BLACK)
 
-                    // speech to text floating button
-                    speechToTextIconBorder.setBackgroundTint(it.theme)
-                    speechToTextIcon.setBackgroundTint(it.textPrimary)
-                    speechToTextIcon.setTint(it.theme)
-
                     // audio message recording
                     audioMsgPlayerPlayPause.setTint(it.theme)
                     audioMsgPlayerSeekBar.apply {
@@ -322,32 +309,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 .autoDisposable(scope())
                 .subscribe { registerForContextMenu(it) }
 
-            // drag drop handlers for speech-to-text icon
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                speechToTextIcon.setOnLongClickListener {
-                    it.startDragAndDrop(null, View.DragShadowBuilder(speechToTextFrame), null, 0)
-                    speechToTextFrame.isVisible = false
-
-                    contentView.setOnDragListener { _, event ->
-                        when (event.action) {
-                            ACTION_DROP -> {
-                                speechToTextFrame.x = (event.x - (speechToTextFrame.width / 2))
-                                speechToTextFrame.y = (event.y - (speechToTextFrame.height / 2))
-
-                                // get offset from root view as a percentage of root view for saving
-                                prefs.showSttOffsetX.set((speechToTextFrame.x - contentView.x) / contentView.width)
-                                prefs.showSttOffsetY.set((speechToTextFrame.y - contentView.y) / contentView.height)
-                            }
-
-                            ACTION_DRAG_ENDED, ACTION_DRAG_EXITED -> {
-                                speechToTextFrame.isVisible = true
-                            }
-                        }
-                        true
-                    }
-                    true
-                }
-            }
 
             // start/stop audio message recording
             audioMsgRecord.setOnClickListener {
@@ -454,16 +415,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override fun onStart() {
         super.onStart()
         activityVisibleIntent.onNext(true)
-
-        // if first time stt icon is shown (since setting reset), pop up an instruction toast
-        if (prefs.showStt.get() &&
-            (prefs.showSttOffsetX.get() == Float.MIN_VALUE) &&
-            (prefs.showSttOffsetX.get() == Float.MIN_VALUE)) {
-            makeToast(R.string.compose_toast_drag_stt, Toast.LENGTH_LONG)
-            // reset to new flag value that indicates 'not first time through, but not customised'
-            prefs.showSttOffsetX.set(Float.MAX_VALUE)
-            prefs.showSttOffsetY.set(Float.MAX_VALUE)
-        }
     }
 
     override fun onPause() {
@@ -610,20 +561,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         // if scheduling mode is set, show schedule dialog
         if (state.scheduling)
             scheduleAction.onNext(true)
-
-        // if stt is available and preference is set to show stt button
-        if (isSpeechRecognitionAvailable() && prefs.showStt.get()) {
-            speechToTextFrame.isVisible = true
-
-            val xPercent = prefs.showSttOffsetX.get()
-            val yPercent = prefs.showSttOffsetY.get()
-
-            // if the stt icon has a custom position, move it
-            if ((xPercent != Float.MAX_VALUE) && (yPercent != Float.MAX_VALUE)) {
-                speechToTextFrame.x = (contentView.x + (xPercent * contentView.width))
-                speechToTextFrame.y = (contentView.y + (yPercent * contentView.height))
-            }
-        }
     }
 
     override fun clearSelection() = messageAdapter.clearSelection()
@@ -711,19 +648,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             .putExtra(ContactsActivity.SHARING_KEY, sharing)
             .putExtra(ContactsActivity.CHIPS_KEY, serialized)
         startActivityForResult(intent, ComposeView.SELECT_CONTACT_REQUEST_CODE)
-    }
-
-    override fun startSpeechRecognition() {
-        if (isSpeechRecognitionAvailable()) {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            }
-            try {
-                startActivityForResult(intent, ComposeView.SPEECH_RECOGNITION_REQUEST_CODE)
-            } catch (e: ActivityNotFoundException) {
-                Toast.makeText(this, getString(R.string.error_stt_toast), Toast.LENGTH_SHORT).show()
-            }
-        }
     }
 
     override fun themeChanged() {
@@ -843,21 +767,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
             ComposeView.ATTACH_CONTACT_REQUEST_CODE -> {
                 data?.data?.let(contactSelectedIntent::onNext)
-            }
-
-            ComposeView.SPEECH_RECOGNITION_REQUEST_CODE -> {
-                // check returned results are good
-                val match = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                if ((match !== null) && (match.size > 0) && (!match[0].isNullOrEmpty())) {
-                    // get the edit text view
-                    val messageEditBox = findViewById<QkEditText>(R.id.message)
-                    if (messageEditBox !== null) {
-                        // populate message box with data returned by STT, set cursor to end, and focus
-                        messageEditBox.append(match[0])
-                        messageEditBox.setSelection(messageEditBox.text?.length ?: 0)
-                        messageEditBox.requestFocus()
-                    }
-                }
             }
 
             else -> super.onActivityResult(requestCode, resultCode, data)

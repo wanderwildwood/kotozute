@@ -33,7 +33,6 @@ import dagger.Provides
 import com.message.ink.blocking.BlockingClient
 import com.message.ink.blocking.BlockingManager
 import com.message.ink.common.ViewModelFactory
-import com.message.ink.common.util.BillingManagerImpl
 import com.message.ink.common.util.NotificationManagerImpl
 import com.message.ink.common.util.ShortcutManagerImpl
 import com.message.ink.feature.conversationinfo.injection.ConversationInfoComponent
@@ -43,7 +42,6 @@ import com.message.ink.manager.ActiveConversationManager
 import com.message.ink.manager.ActiveConversationManagerImpl
 import com.message.ink.manager.AlarmManager
 import com.message.ink.manager.AlarmManagerImpl
-import com.message.ink.manager.BillingManager
 import com.message.ink.manager.KeyManager
 import com.message.ink.manager.KeyManagerImpl
 import com.message.ink.manager.NotificationManager
@@ -131,9 +129,6 @@ class AppModule(private var application: Application) {
     fun provideContactAddedListener(listener: ContactAddedListenerImpl): ContactAddedListener = listener
 
     // Manager
-
-    @Provides
-    fun provideBillingManager(manager: BillingManagerImpl): BillingManager = manager
 
     @Provides
     fun provideActiveConversationManager(manager: ActiveConversationManagerImpl): ActiveConversationManager = manager

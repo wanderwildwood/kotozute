@@ -33,7 +33,6 @@
     <string name="filter_groups">Groups</string>
     <string name="filter_unknown">Unknown</string>
     <string name="title_compose">Type a name or number</string>
-    <string name="title_qksms_plus" translatable="false">If you see this, send in an issue please!</string>
 
     <string name="setup_skip">Skip</string>
     <string name="setup_next">Continue</string>
@@ -141,7 +140,6 @@
     <string name="compose_vcard_label">Contact card</string>
     <string name="compose_scheduled_for">Scheduled time:</string>
     <string name="compose_scheduled_future">Selected time must be in the future!</string>
-    <string name="compose_scheduled_plus">Scheduled messaging is unavailable right now</string>
     <string name="compose_scheduled_toast">Added to scheduled messages</string>
     <string name="compose_scheduled_view">Scheduled messages for this conversation</string>
     <string name="compose_hint">Write a message…</string>
@@ -220,7 +218,6 @@
     <string name="backup_location_summary">Set folder</string>
     <string name="backup_restore_title">Restore</string>
     <string name="backup_restore_summary">Select a backup</string>
-    <string name="backup_restore_error_plus">Backup and restore is unavailable right now</string>
     <string name="backup_restore_error_backup">Backup in progress…</string>
     <string name="backup_restore_error_restore">Restore in progress…</string>
     <string name="backup_restore_confirm_title">Restore from backup</string>

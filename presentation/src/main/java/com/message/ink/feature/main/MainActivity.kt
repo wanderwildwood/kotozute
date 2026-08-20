@@ -102,7 +102,6 @@ class MainActivity : QkThemedActivity(), MainView {
     }
     override val optionsItemIntent: Subject<Int> = PublishSubject.create()
     override val filterChangedIntent: Subject<Int> = PublishSubject.create()
-//    override val plusBannerIntent by lazy { plusBanner.clicks() }
     override val dismissRatingIntent by lazy { rateDismiss.clicks() }
     override val rateIntent by lazy { rateOkay.clicks() }
     override val conversationsSelectedIntent by lazy { conversationsAdapter.selectionChanges }
@@ -199,13 +198,8 @@ class MainActivity : QkThemedActivity(), MainView {
                         }
 
                     // Miscellaneous views
-                    listOf(plusBadge1, plusBadge2).forEach { badge ->
-                        badge.setBackgroundTint(theme.theme)
-                        badge.setTextColor(theme.textPrimary)
-                    }
                     syncingProgress?.progressTintList = ColorStateList.valueOf(theme.theme)
                     syncingProgress?.indeterminateTintList = ColorStateList.valueOf(theme.theme)
-                    plusIcon.setTint(theme.theme)
                     rateIcon.setTint(theme.theme)
                     // Removed compose background tint to show white with black outline
                     // Compose icon tint is set in XML
@@ -337,11 +331,6 @@ class MainActivity : QkThemedActivity(), MainView {
             findItem(R.id.rename)?.isVisible = selectedConversations == 1
         }
 
-        listOf(plusBadge1, plusBadge2).forEach { badge ->
-            badge.isVisible = drawerBadgesExperiment.variant && !state.upgraded
-        }
-//        plus.isVisible = state.upgraded
-        plusBanner.isVisible = !state.upgraded
         rateLayout.setVisible(false) // Disabled "Enjoying QUIK?" popup
 
         conversationsAdapter.emptyView = empty.takeIf {

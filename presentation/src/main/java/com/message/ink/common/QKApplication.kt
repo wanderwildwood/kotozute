@@ -39,7 +39,6 @@ import com.message.ink.common.util.FileLoggingTree
 import com.message.ink.injection.AppComponentManager
 import com.message.ink.injection.appComponent
 import com.message.ink.interactor.SpeakThreads
-import com.message.ink.manager.BillingManager
 import com.message.ink.manager.ReferralManager
 import com.message.ink.migration.QkMigration
 import com.message.ink.migration.QkRealmMigration
@@ -61,7 +60,6 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     @Suppress("unused")
     @Inject lateinit var qkMigration: QkMigration
 
-    @Inject lateinit var billingManager: BillingManager
     @Inject lateinit var dispatchingActivityInjector: DispatchingAndroidInjector<Activity>
     @Inject lateinit var dispatchingBroadcastReceiverInjector: DispatchingAndroidInjector<BroadcastReceiver>
     @Inject lateinit var dispatchingServiceInjector: DispatchingAndroidInjector<Service>
@@ -97,8 +95,6 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         GlobalScope.launch(Dispatchers.IO) {
             referralManager.trackReferrer()
-            billingManager.checkForPurchases()
-            billingManager.queryProducts()
         }
 
         nightModeManager.updateCurrentTheme()

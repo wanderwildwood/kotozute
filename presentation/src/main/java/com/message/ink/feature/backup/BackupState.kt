@@ -27,7 +27,5 @@ data class BackupState(
     val showLocationRationale: Boolean = false,
     val showSelectedBackupError: Boolean = false,
     val selectedBackupDetails: String? = null,
-    val showStopRestoreDialog: Boolean = false,
-
-    val upgraded: Boolean = true
+    val showStopRestoreDialog: Boolean = false
 )

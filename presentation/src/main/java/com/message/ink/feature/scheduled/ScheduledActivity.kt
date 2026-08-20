@@ -44,7 +44,6 @@ class ScheduledActivity : QkThemedActivity(), ScheduledView {
     @Inject lateinit var viewModelFactory: ViewModelProvider.Factory
 
     override val composeIntent by lazy { compose.clicks() }
-    override val upgradeIntent by lazy { upgrade.clicks() }
     override val messagesSelectedIntent by lazy { scheduledMessageAdapter.selectionChanges }
     override val optionsItemIntent: Subject<Int> = PublishSubject.create()
     override val deleteScheduledMessages: Subject<List<Long>> = PublishSubject.create()
@@ -72,9 +71,6 @@ class ScheduledActivity : QkThemedActivity(), ScheduledView {
             sampleMessage.setTextColor(theme.textPrimary)
             compose.setTint(theme.textPrimary)
             compose.setBackgroundTint(theme.theme)
-            upgrade.setBackgroundTint(theme.theme)
-            upgradeIcon.setTint(theme.textPrimary)
-            upgradeLabel.setTextColor(theme.textPrimary)
         }
     }
 
@@ -100,8 +96,7 @@ class ScheduledActivity : QkThemedActivity(), ScheduledView {
             ((scheduledMessageAdapter.itemCount != 0) && (state.selectedMessages == 1))
 
         // show compose button
-        compose.isVisible = state.upgraded && (state.conversationId == null)
-        upgrade.isVisible = !state.upgraded
+        compose.isVisible = state.conversationId == null
     }
 
     override fun onBackPressed() = backPressedIntent.onNext(Unit)

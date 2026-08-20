@@ -81,15 +81,6 @@
             app:title="@string/settings_night_title"
             tools:summary="Automatic" />
 
-        <!-- Pure black night mode - removed -->
-        <!--<com.message.ink.common.widget.PreferenceView
-            android:id="@+id/black"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            app:title="@string/settings_black_title"
-            app:widget="@layout/settings_switch_widget" />-->
-
         <com.message.ink.common.widget.PreferenceView
             android:id="@+id/nightStart"
             android:layout_width="match_parent"
@@ -113,15 +104,6 @@
             app:icon="@drawable/ic_format_size_black_24dp"
             app:title="@string/settings_text_size_title" />
 
-        <!-- Automatic contact colors - removed -->
-        <!--<com.message.ink.common.widget.PreferenceView
-            android:id="@+id/autoColor"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:icon="@drawable/ic_person_black_24dp"
-            app:title="@string/settings_automatic_colors_title"
-            app:widget="@layout/settings_switch_widget" />-->
-
         <com.message.ink.common.widget.PreferenceView
             android:id="@+id/systemFont"
             android:layout_width="match_parent"
@@ -130,15 +112,6 @@
             app:icon="@drawable/ic_title_black_24dp"
             app:title="@string/settings_system_font_title"
             app:widget="@layout/settings_switch_widget" />
-
-        <!-- Show speech to text button - removed -->
-        <!--<com.message.ink.common.widget.PreferenceView
-            android:id="@+id/showStt"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:icon="@drawable/ic_speech_to_text_black"
-            app:title="@string/settings_system_show_stt_title"
-            app:widget="@layout/settings_switch_widget" />-->
 
         <View
             android:layout_width="match_parent"

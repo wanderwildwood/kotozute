@@ -162,7 +162,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         nightEnd.summary = state.nightEnd
 
         // black.setVisible(state.nightModeId != Preferences.NIGHT_MODE_OFF)
-        // black.checkbox.isChecked = state.black
 
         autoEmoji.checkbox.isChecked = state.autoEmojiEnabled
 
@@ -186,7 +185,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         textSize.summary = state.textSizeSummary
         textSizeDialog.adapter.selectedItem = state.textSizeId
 
-        // autoColor.checkbox.isChecked = state.autoColor
 
         systemFont.checkbox.isChecked = state.systemFontEnabled
 

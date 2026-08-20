@@ -25,11 +25,10 @@
     <color name="rippleDark">#33ffffff</color>
 
     <color name="toolbarLight">#FFFFFF</color>
-    <color name="toolbarDark">#1d262b</color>
     <color name="toolbarTranslucent">#88000000</color>
 
     <color name="backgroundLight">#FFFFFF</color>
-    <color name="backgroundDark">#192025</color>
+    <color name="backgroundDark">#1F1F1F</color>
 
     <!-- Stock Kompakt eInk look is strictly black/white: hierarchy comes from
          font weight/size, not gray tones (confirmed by pixel-sampling the
@@ -47,9 +46,9 @@
     <color name="textSecondaryDisabledDark">#67ffffff</color>
     <color name="textTertiaryDark">#80ffffff</color>
 
-    <color name="bubbleLight">#ECEFF1</color>
-    <color name="bubbleDark">#11171B</color>
-    <color name="bubbleBlack">#0F1113</color>
+    <color name="bubbleLight">#EEEEEE</color>
+    <color name="bubbleDark">#161616</color>
+    <color name="bubbleBlack">#111111</color>
 
     <color name="separatorLight">#0C000000</color>
     <color name="separatorDark">#1AFFFFFF</color>

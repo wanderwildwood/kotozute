@@ -37,7 +37,6 @@ import com.message.ink.common.util.BillingManagerImpl
 import com.message.ink.common.util.NotificationManagerImpl
 import com.message.ink.common.util.ShortcutManagerImpl
 import com.message.ink.feature.conversationinfo.injection.ConversationInfoComponent
-import com.message.ink.feature.themepicker.injection.ThemePickerComponent
 import com.message.ink.listener.ContactAddedListener
 import com.message.ink.listener.ContactAddedListenerImpl
 import com.message.ink.manager.ActiveConversationManager
@@ -93,8 +92,7 @@ import com.message.ink.worker.InjectionWorkerFactory
 import javax.inject.Singleton
 
 @Module(subcomponents = [
-    ConversationInfoComponent::class,
-    ThemePickerComponent::class])
+    ConversationInfoComponent::class])
 class AppModule(private var application: Application) {
 
     @Provides

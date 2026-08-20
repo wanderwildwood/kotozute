@@ -41,7 +41,6 @@ import com.message.ink.feature.conversationinfo.injection.ConversationInfoCompon
 import com.message.ink.feature.settings.SettingsController
 import com.message.ink.feature.settings.about.AboutController
 import com.message.ink.feature.settings.swipe.SwipeActionsController
-import com.message.ink.feature.themepicker.injection.ThemePickerComponent
 import com.message.ink.feature.widget.WidgetAdapter
 import com.message.ink.injection.android.ActivityBuilderModule
 import com.message.ink.injection.android.BroadcastReceiverBuilderModule
@@ -58,7 +57,6 @@ import javax.inject.Singleton
 interface AppComponent {
 
     fun conversationInfoBuilder(): ConversationInfoComponent.Builder
-    fun themePickerBuilder(): ThemePickerComponent.Builder
 
     fun inject(application: QKApplication)
 

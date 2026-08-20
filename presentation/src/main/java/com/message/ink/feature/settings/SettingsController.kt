@@ -48,7 +48,6 @@ import com.message.ink.common.widget.TextInputDialog
 import com.message.ink.feature.settings.about.AboutController
 import com.message.ink.feature.settings.autodelete.AutoDeleteDialog
 import com.message.ink.feature.settings.swipe.SwipeActionsController
-import com.message.ink.feature.themepicker.ThemePickerController
 import com.message.ink.injection.appComponent
 import com.message.ink.repository.SyncRepository
 import com.message.ink.util.Preferences
@@ -58,7 +57,6 @@ import io.reactivex.subjects.Subject
 import kotlinx.android.synthetic.main.settings_controller.*
 import kotlinx.android.synthetic.main.settings_controller.view.*
 import kotlinx.android.synthetic.main.settings_switch_widget.view.*
-import kotlinx.android.synthetic.main.settings_theme_widget.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -158,7 +156,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun messageLinkHandlingSelected(): Observable<Int> = messageLinkHandlingDialog.adapter.menuItemClicks
 
     override fun render(state: SettingsState) {
-        themePreview.setBackgroundTint(state.theme)
         night.summary = state.nightModeSummary
         nightModeDialog.adapter.selectedItem = state.nightModeId
         nightStart.setVisible(state.nightModeId == Preferences.NIGHT_MODE_AUTO)
@@ -304,12 +301,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun showSwipeActions() {
         router.pushController(RouterTransaction.with(SwipeActionsController())
-                .pushChangeHandler(QkChangeHandler())
-                .popChangeHandler(QkChangeHandler()))
-    }
-
-    override fun showThemePicker() {
-        router.pushController(RouterTransaction.with(ThemePickerController())
                 .pushChangeHandler(QkChangeHandler())
                 .popChangeHandler(QkChangeHandler()))
     }

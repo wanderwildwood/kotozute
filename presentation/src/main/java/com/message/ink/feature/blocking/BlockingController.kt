@@ -31,18 +31,19 @@ import com.message.ink.feature.blocking.messages.BlockedMessagesController
 import com.message.ink.feature.blocking.numbers.BlockedNumbersController
 import com.message.ink.feature.blocking.filters.MessageContentFiltersController
 import com.message.ink.injection.appComponent
-import kotlinx.android.synthetic.main.blocking_controller.*
-import kotlinx.android.synthetic.main.settings_switch_widget.view.*
 import javax.inject.Inject
+import com.message.ink.databinding.BlockingControllerBinding
 
 class BlockingController : QkController<BlockingView, BlockingState, BlockingPresenter>(), BlockingView {
 
-    override val blockingManagerIntent by lazy { blockingManager.clicks() }
-    override val blockedNumbersIntent by lazy { blockedNumbers.clicks() }
-    override val messageContentFiltersIntent by lazy { messageContentFilters.clicks() }
-    override val blockedMessagesIntent by lazy { blockedMessages.clicks() }
-    override val dropClickedIntent by lazy { drop.clicks() }
-    override val blockNonContactsClickedIntent by lazy { blockNonContacts.clicks() }
+    private val binding get() = BlockingControllerBinding.bind(view!!)
+
+    override val blockingManagerIntent by lazy { binding.blockingManager.clicks() }
+    override val blockedNumbersIntent by lazy { binding.blockedNumbers.clicks() }
+    override val messageContentFiltersIntent by lazy { binding.messageContentFilters.clicks() }
+    override val blockedMessagesIntent by lazy { binding.blockedMessages.clicks() }
+    override val dropClickedIntent by lazy { binding.drop.clicks() }
+    override val blockNonContactsClickedIntent by lazy { binding.blockNonContacts.clicks() }
 
     @Inject lateinit var colors: Colors
     @Inject override lateinit var presenter: BlockingPresenter
@@ -55,7 +56,7 @@ class BlockingController : QkController<BlockingView, BlockingState, BlockingPre
 
     override fun onViewCreated() {
         super.onViewCreated()
-        parent.postDelayed({ parent?.animateLayoutChanges = true }, 100)
+        binding.parent.postDelayed({ binding.parent?.animateLayoutChanges = true }, 100)
     }
 
     override fun onAttach(view: View) {
@@ -66,13 +67,13 @@ class BlockingController : QkController<BlockingView, BlockingState, BlockingPre
     }
 
     override fun render(state: BlockingState) {
-        blockingManager.summary = state.blockingManager
-        drop.checkbox.isChecked = state.dropEnabled
-        blockedMessages.isEnabled = !state.dropEnabled
+        binding.blockingManager.summary = state.blockingManager
+        binding.drop.checkbox.isChecked = state.dropEnabled
+        binding.blockedMessages.isEnabled = !state.dropEnabled
 
-        blockNonContacts.checkbox.isChecked = state.blockNonContactsEnabled
-        blockNonContacts.isEnabled = state.usingBuiltInBlocking && state.canReadContacts
-        blockNonContacts.summary = when {
+        binding.blockNonContacts.checkbox.isChecked = state.blockNonContactsEnabled
+        binding.blockNonContacts.isEnabled = state.usingBuiltInBlocking && state.canReadContacts
+        binding.blockNonContacts.summary = when {
             !state.usingBuiltInBlocking -> activity?.getString(R.string.blocking_manager_title)
             !state.canReadContacts -> activity?.getString(R.string.blocking_non_contacts_no_permission)
             else -> activity?.getString(R.string.blocking_non_contacts_summary)

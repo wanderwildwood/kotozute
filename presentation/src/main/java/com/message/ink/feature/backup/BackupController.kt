@@ -44,11 +44,12 @@ import com.message.ink.repository.BackupRepository
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.backup_controller.*
-import kotlinx.android.synthetic.main.preference_view.view.*
 import javax.inject.Inject
+import com.message.ink.databinding.BackupControllerBinding
 
 class BackupController : QkController<BackupView, BackupState, BackupPresenter>(), BackupView {
+
+    private val binding get() = BackupControllerBinding.bind(view!!)
 
     @Inject override lateinit var presenter: BackupPresenter
 
@@ -136,15 +137,15 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
         super.onViewCreated()
 
         themedActivity?.colors?.theme()?.let { theme ->
-            progressBar.indeterminateTintList = ColorStateList.valueOf(theme.theme)
-            progressBar.progressTintList = ColorStateList.valueOf(theme.theme)
-            fab.setBackgroundTint(theme.theme)
-            fabIcon.setTint(theme.textPrimary)
-            fabLabel.setTextColor(theme.textPrimary)
+            binding.progressBar.indeterminateTintList = ColorStateList.valueOf(theme.theme)
+            binding.progressBar.progressTintList = ColorStateList.valueOf(theme.theme)
+            binding.fab.setBackgroundTint(theme.theme)
+            binding.fabIcon.setTint(theme.textPrimary)
+            binding.fabLabel.setTextColor(theme.textPrimary)
         }
 
         // Make the list titles bold
-        linearLayout.children
+        binding.linearLayout.children
                 .mapNotNull { it as? PreferenceView }
                 .map { it.titleView }
                 .forEach { it.setTypeface(it.typeface, Typeface.BOLD) }
@@ -153,40 +154,40 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
     override fun render(state: BackupState) {
         when {
             state.backupProgress.running -> {
-                progressIcon.setImageResource(R.drawable.ic_file_upload_black_24dp)
-                progressTitle.setText(R.string.backup_backing_up)
-                progressSummary.text = state.backupProgress.getLabel(activity!!)
-                progressSummary.isVisible = progressSummary.text.isNotEmpty()
-                progressCancel.isVisible = false
+                binding.progressIcon.setImageResource(R.drawable.ic_file_upload_black_24dp)
+                binding.progressTitle.setText(R.string.backup_backing_up)
+                binding.progressSummary.text = state.backupProgress.getLabel(activity!!)
+                binding.progressSummary.isVisible = binding.progressSummary.text.isNotEmpty()
+                binding.progressCancel.isVisible = false
                 val running = (state.backupProgress as? BackupRepository.Progress.Running)
-                progressBar.isVisible =
+                binding.progressBar.isVisible =
                     state.backupProgress.indeterminate || (running?.max ?: 0) > 0
-                progressBar.isIndeterminate = state.backupProgress.indeterminate
-                progressBar.max = running?.max ?: 0
-                progressBar.progress = running?.count ?: 0
-                progress.isVisible = true
-                fab.isVisible = false
+                binding.progressBar.isIndeterminate = state.backupProgress.indeterminate
+                binding.progressBar.max = running?.max ?: 0
+                binding.progressBar.progress = running?.count ?: 0
+                binding.progress.isVisible = true
+                binding.fab.isVisible = false
             }
 
             state.restoreProgress.running -> {
-                progressIcon.setImageResource(R.drawable.ic_file_download_black_24dp)
-                progressTitle.setText(R.string.backup_restoring)
-                progressSummary.text = state.restoreProgress.getLabel(activity!!)
-                progressSummary.isVisible = progressSummary.text.isNotEmpty()
-                progressCancel.isVisible = true
+                binding.progressIcon.setImageResource(R.drawable.ic_file_download_black_24dp)
+                binding.progressTitle.setText(R.string.backup_restoring)
+                binding.progressSummary.text = state.restoreProgress.getLabel(activity!!)
+                binding.progressSummary.isVisible = binding.progressSummary.text.isNotEmpty()
+                binding.progressCancel.isVisible = true
                 val running = (state.restoreProgress as? BackupRepository.Progress.Running)
-                progressBar.isVisible =
+                binding.progressBar.isVisible =
                     state.restoreProgress.indeterminate || (running?.max ?: 0) > 0
-                progressBar.isIndeterminate = state.restoreProgress.indeterminate
-                progressBar.max = running?.max ?: 0
-                progressBar.progress = running?.count ?: 0
-                progress.isVisible = true
-                fab.isVisible = false
+                binding.progressBar.isIndeterminate = state.restoreProgress.indeterminate
+                binding.progressBar.max = running?.max ?: 0
+                binding.progressBar.progress = running?.count ?: 0
+                binding.progress.isVisible = true
+                binding.fab.isVisible = false
             }
 
             else -> {
-                progress.isVisible = false
-                fab.isVisible = true
+                binding.progress.isVisible = false
+                binding.fab.isVisible = true
             }
         }
 
@@ -199,13 +200,13 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
 
         stopRestoreDialog.setShowing(state.showStopRestoreDialog)
 
-        fabIcon.setImageResource(R.drawable.ic_file_upload_black_24dp)
-        fabLabel.setText(R.string.backup_now)
+        binding.fabIcon.setImageResource(R.drawable.ic_file_upload_black_24dp)
+        binding.fabLabel.setText(R.string.backup_now)
     }
 
-    override fun setBackupLocationClicks(): Observable<*> = location.clicks()
+    override fun setBackupLocationClicks(): Observable<*> = binding.location.clicks()
 
-    override fun restoreClicks(): Observable<*> = restore.clicks()
+    override fun restoreClicks(): Observable<*> = binding.restore.clicks()
 
     override fun locationRationaleConfirmClicks(): Observable<*> = selectFolderConfirmSubject
 
@@ -217,13 +218,13 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
 
     override fun confirmRestoreBackupCancelClicks(): Observable<*> = confirmRestoreCancelSubject
 
-    override fun stopRestoreClicks(): Observable<*> = progressCancel.clicks()
+    override fun stopRestoreClicks(): Observable<*> = binding.progressCancel.clicks()
 
     override fun stopRestoreConfirmed(): Observable<*> = stopRestoreConfirmSubject
 
     override fun stopRestoreCancel(): Observable<*> = stopRestoreCancelSubject
 
-    override fun backupClicks(): Observable<*> = fab.clicks()
+    override fun backupClicks(): Observable<*> = binding.fab.clicks()
 
     override fun documentTreeSelected(): Observable<Uri> = documentTreeSelectedSubject
 

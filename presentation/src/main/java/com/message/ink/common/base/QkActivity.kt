@@ -39,8 +39,8 @@ abstract class QkActivity : AppCompatActivity() {
     // are non-null because every screen that reaches for them includes the shared toolbar; the
     // base class's own uses below go through nullable lookups, since it also serves screens that
     // do not have one.
-    protected val toolbar: Toolbar get() = findViewById(R.id.toolbar)
-    protected val toolbarTitle: QkTextView get() = findViewById(R.id.toolbarTitle)
+    val toolbar: Toolbar get() = findViewById(R.id.toolbar)
+    val toolbarTitle: QkTextView get() = findViewById(R.id.toolbarTitle)
     @Inject lateinit var prefs: Preferences
 
     protected val menu: Subject<Menu> = BehaviorSubject.create()

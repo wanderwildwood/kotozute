@@ -35,13 +35,14 @@ import com.message.ink.model.MessageContentFilterData
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.message_content_filters_add_dialog.view.*
-import kotlinx.android.synthetic.main.message_content_filters_controller.*
-import kotlinx.android.synthetic.main.settings_switch_widget.view.*
 import javax.inject.Inject
+import com.message.ink.databinding.MessageContentFiltersControllerBinding
+import com.message.ink.databinding.MessageContentFiltersAddDialogBinding
 
 class MessageContentFiltersController : QkController<MessageContentFiltersView, MessageContentFiltersState,
         MessageContentFiltersPresenter>(), MessageContentFiltersView {
+
+    private val binding get() = MessageContentFiltersControllerBinding.bind(view!!)
 
     @Inject override lateinit var presenter: MessageContentFiltersPresenter
     @Inject lateinit var colors: Colors
@@ -64,10 +65,10 @@ class MessageContentFiltersController : QkController<MessageContentFiltersView, 
 
     override fun onViewCreated() {
         super.onViewCreated()
-        add.setBackgroundTint(colors.theme().theme)
-        add.setTint(colors.theme().textPrimary)
-        adapter.emptyView = empty
-        filters.adapter = adapter
+        binding.add.setBackgroundTint(colors.theme().theme)
+        binding.add.setTint(colors.theme().textPrimary)
+        adapter.emptyView = binding.empty
+        binding.filters.adapter = adapter
     }
 
     override fun render(state: MessageContentFiltersState) {
@@ -75,35 +76,36 @@ class MessageContentFiltersController : QkController<MessageContentFiltersView, 
     }
 
     override fun removeFilter(): Observable<Long> = adapter.removeMessageContentFilter
-    override fun addFilter(): Observable<*> = add.clicks()
+    override fun addFilter(): Observable<*> = binding.add.clicks()
     override fun saveFilter(): Observable<MessageContentFilterData> = saveFilterSubject
 
     override fun showAddDialog() {
-        val layout = LayoutInflater.from(activity).inflate(R.layout.message_content_filters_add_dialog, null)
+        val dialogBinding = MessageContentFiltersAddDialogBinding.inflate(LayoutInflater.from(activity))
+        val layout = dialogBinding.root
 
-        (0 until layout.add_dialog.childCount)
-            .map { index -> layout.add_dialog.getChildAt(index) }
+        (0 until dialogBinding.addDialog.childCount)
+            .map { index -> dialogBinding.addDialog.getChildAt(index) }
             .mapNotNull { view -> view as? PreferenceView }
             .map { preference -> preference.clicks().map { preference } }
             .let { Observable.merge(it) }
             .autoDisposable(scope())
             .subscribe {
                 it.checkbox.isChecked = !it.checkbox.isChecked
-                layout.caseSensitivity.isEnabled = !layout.regexp.checkbox.isChecked
+                dialogBinding.caseSensitivity.isEnabled = !dialogBinding.regexp.checkbox.isChecked
             }
 
         val dialog = AlertDialog.Builder(activity!!)
                 .setView(layout)
                 .setPositiveButton(R.string.message_content_filters_dialog_create) { _, _ ->
-                    var text = layout.input.text.toString();
+                    var text = dialogBinding.input.text.toString();
                     if (!text.isBlank()) {
-                        if (!layout.regexp.checkbox.isChecked) text = text.trim()
+                        if (!dialogBinding.regexp.checkbox.isChecked) text = text.trim()
                         saveFilterSubject.onNext(
                             MessageContentFilterData(
                                 text,
-                                layout.caseSensitivity.checkbox.isChecked && !layout.regexp.checkbox.isChecked,
-                                layout.regexp.checkbox.isChecked,
-                                layout.contacts.checkbox.isChecked
+                                dialogBinding.caseSensitivity.checkbox.isChecked && !dialogBinding.regexp.checkbox.isChecked,
+                                dialogBinding.regexp.checkbox.isChecked,
+                                dialogBinding.contacts.checkbox.isChecked
                             )
                         )
                     }

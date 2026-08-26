@@ -5,8 +5,8 @@
  *
  * QKSMS is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * the Free Software Foundation, either binding.version 3 of the License, or
+ * (at your option) any later binding.version.
  *
  * QKSMS is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -26,10 +26,12 @@ import com.message.ink.common.base.QkController
 import com.message.ink.common.widget.PreferenceView
 import com.message.ink.injection.appComponent
 import io.reactivex.Observable
-import kotlinx.android.synthetic.main.about_controller.*
 import javax.inject.Inject
+import com.message.ink.databinding.AboutControllerBinding
 
 class AboutController : QkController<AboutView, Unit, AboutPresenter>(), AboutView {
+
+    private val binding get() = AboutControllerBinding.bind(view!!)
 
     @Inject override lateinit var presenter: AboutPresenter
 
@@ -39,7 +41,7 @@ class AboutController : QkController<AboutView, Unit, AboutPresenter>(), AboutVi
     }
 
     override fun onViewCreated() {
-        version.summary = BuildConfig.VERSION_NAME
+        binding.version.summary = BuildConfig.VERSION_NAME
     }
 
     override fun onAttach(view: View) {
@@ -49,8 +51,8 @@ class AboutController : QkController<AboutView, Unit, AboutPresenter>(), AboutVi
         showBackButton(true)
     }
 
-    override fun preferenceClicks(): Observable<PreferenceView> = (0 until preferences.childCount)
-            .map { index -> preferences.getChildAt(index) }
+    override fun preferenceClicks(): Observable<PreferenceView> = (0 until binding.preferences.childCount)
+            .map { index -> binding.preferences.getChildAt(index) }
             .mapNotNull { view -> view as? PreferenceView }
             .map { preference -> preference.clicks().map { preference } }
             .let { preferences -> Observable.merge(preferences) }

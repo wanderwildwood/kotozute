@@ -54,16 +54,16 @@ import com.message.ink.util.Preferences
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.settings_controller.*
-import kotlinx.android.synthetic.main.settings_controller.view.*
-import kotlinx.android.synthetic.main.settings_switch_widget.view.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import kotlin.coroutines.resume
+import com.message.ink.databinding.SettingsControllerBinding
 
 class SettingsController : QkController<SettingsView, SettingsState, SettingsPresenter>(), SettingsView {
+
+    private val binding get() = SettingsControllerBinding.bind(view!!)
 
     @Inject lateinit var context: Context
     @Inject lateinit var colors: Colors
@@ -85,7 +85,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val autoDeleteSubject: Subject<Int> = PublishSubject.create()
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
 
-    private val progressAnimator by lazy { ObjectAnimator.ofInt(syncingProgress, "progress", 0, 0) }
+    private val progressAnimator by lazy { ObjectAnimator.ofInt(binding.syncingProgress, "progress", 0, 0) }
 
     init {
         appComponent.inject(this)
@@ -98,13 +98,13 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     }
 
     override fun onViewCreated() {
-        preferences.postDelayed({ preferences?.animateLayoutChanges = true }, 100)
+        binding.preferences.postDelayed({ binding.preferences?.animateLayoutChanges = true }, 100)
         textSizeDialog.adapter.setData(R.array.text_sizes)
         sendDelayDialog.adapter.setData(R.array.delayed_sending_labels)
         mmsSizeDialog.adapter.setData(R.array.mms_sizes, R.array.mms_sizes_ids)
         messageLinkHandlingDialog.adapter.setData(R.array.messageLinkHandlings, R.array.messageLinkHandling_ids)
 
-        about.summary = context.getString(R.string.settings_version, BuildConfig.VERSION_NAME)
+        binding.about.summary = context.getString(R.string.settings_version, BuildConfig.VERSION_NAME)
     }
 
     override fun onAttach(view: View) {
@@ -114,13 +114,13 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         showBackButton(true)
     }
 
-    override fun preferenceClicks(): Observable<PreferenceView> = (0 until preferences.childCount)
-            .map { index -> preferences.getChildAt(index) }
+    override fun preferenceClicks(): Observable<PreferenceView> = (0 until binding.preferences.childCount)
+            .map { index -> binding.preferences.getChildAt(index) }
             .mapNotNull { view -> view as? PreferenceView }
             .map { preference -> preference.clicks().map { preference } }
             .let { preferences -> Observable.merge(preferences) }
 
-    override fun aboutLongClicks(): Observable<*> = about.longClicks()
+    override fun aboutLongClicks(): Observable<*> = binding.about.longClicks()
 
     override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
 
@@ -144,56 +144,56 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
 
 
-        delayed.summary = state.sendDelaySummary
+        binding.delayed.summary = state.sendDelaySummary
         sendDelayDialog.adapter.selectedItem = state.sendDelayId
 
-        delivery.checkbox.isChecked = state.deliveryEnabled
-        desktopSync.summary = state.desktopSyncSummary
+        binding.delivery.checkbox.isChecked = state.deliveryEnabled
+        binding.desktopSync.summary = state.desktopSyncSummary
         // Nothing to reset until there's a link to reset.
-        desktopSync.checkbox.isChecked = state.desktopSyncEnabled
-        desktopSyncLink.setVisible(state.desktopSyncEnabled)
-        desktopSyncTailscaleOnly.setVisible(state.desktopSyncEnabled)
-        desktopSyncTailscaleOnly.checkbox.isChecked = state.desktopSyncTailscaleOnly
-        desktopSyncReset.setVisible(state.desktopSyncEnabled)
+        binding.desktopSync.checkbox.isChecked = state.desktopSyncEnabled
+        binding.desktopSyncLink.setVisible(state.desktopSyncEnabled)
+        binding.desktopSyncTailscaleOnly.setVisible(state.desktopSyncEnabled)
+        binding.desktopSyncTailscaleOnly.checkbox.isChecked = state.desktopSyncTailscaleOnly
+        binding.desktopSyncReset.setVisible(state.desktopSyncEnabled)
 
-        unreadAtTop.checkbox.isChecked = state.unreadAtTopEnabled
+        binding.unreadAtTop.checkbox.isChecked = state.unreadAtTopEnabled
 
-        signature.summary = state.signature.takeIf { it.isNotBlank() }
+        binding.signature.summary = state.signature.takeIf { it.isNotBlank() }
                 ?: context.getString(R.string.settings_signature_summary)
 
-        textSize.summary = state.textSizeSummary
+        binding.textSize.summary = state.textSizeSummary
         textSizeDialog.adapter.selectedItem = state.textSizeId
 
 
 
 
-        unicode.checkbox.isChecked = state.stripUnicodeEnabled
-        mobileOnly.checkbox.isChecked = state.mobileOnly
+        binding.unicode.checkbox.isChecked = state.stripUnicodeEnabled
+        binding.mobileOnly.checkbox.isChecked = state.mobileOnly
 
-        autoDelete.summary = when (state.autoDelete) {
+        binding.autoDelete.summary = when (state.autoDelete) {
             0 -> context.getString(R.string.settings_auto_delete_never)
             else -> context.resources.getQuantityString(
                     R.plurals.settings_auto_delete_summary, state.autoDelete, state.autoDelete)
         }
 
-        longAsMms.checkbox.isChecked = state.longAsMms
+        binding.longAsMms.checkbox.isChecked = state.longAsMms
 
-        mmsSize.summary = state.maxMmsSizeSummary
+        binding.mmsSize.summary = state.maxMmsSizeSummary
         mmsSizeDialog.adapter.selectedItem = state.maxMmsSizeId
 
-        messsageLinkHandling.summary = state.messageLinkHandlingSummary
+        binding.messsageLinkHandling.summary = state.messageLinkHandlingSummary
         messageLinkHandlingDialog.adapter.selectedItem = state.messageLinkHandlingId
 
-        disableScreenshots.checkbox.isChecked = state.disableScreenshotsEnabled
+        binding.disableScreenshots.checkbox.isChecked = state.disableScreenshotsEnabled
 
         when (state.syncProgress) {
-            is SyncRepository.SyncProgress.Idle -> syncingProgress.isVisible = false
+            is SyncRepository.SyncProgress.Idle -> binding.syncingProgress.isVisible = false
 
             is SyncRepository.SyncProgress.Running -> {
-                syncingProgress.isVisible = true
-                syncingProgress.max = state.syncProgress.max
-                progressAnimator.apply { setIntValues(syncingProgress.progress, state.syncProgress.progress) }.start()
-                syncingProgress.isIndeterminate = state.syncProgress.indeterminate
+                binding.syncingProgress.isVisible = true
+                binding.syncingProgress.max = state.syncProgress.max
+                progressAnimator.apply { setIntValues(binding.syncingProgress.progress, state.syncProgress.progress) }.start()
+                binding.syncingProgress.isIndeterminate = state.syncProgress.indeterminate
             }
         }
     }

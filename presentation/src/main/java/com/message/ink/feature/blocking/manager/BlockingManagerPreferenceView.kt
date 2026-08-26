@@ -39,6 +39,10 @@ class BlockingManagerPreferenceView @JvmOverloads constructor(
     private val binding: BlockingManagerPreferenceViewBinding =
         BlockingManagerPreferenceViewBinding.inflate(LayoutInflater.from(context), this)
 
+    // The trailing action area, which lives in whichever widget layout was inflated into this
+    // row rather than in the row's own binding.
+    val action: ImageView get() = findViewById(R.id.action)
+
     var icon: Drawable? = null
         set(value) {
             field = value

@@ -36,12 +36,14 @@ import com.message.ink.injection.appComponent
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.conversation_info_controller.*
 import javax.inject.Inject
+import com.message.ink.databinding.ConversationInfoControllerBinding
 
 class ConversationInfoController(
     val threadId: Long = 0
 ) : QkController<ConversationInfoView, ConversationInfoState, ConversationInfoPresenter>(), ConversationInfoView {
+
+    private val binding get() = ConversationInfoControllerBinding.bind(view!!)
 
     @Inject override lateinit var presenter: ConversationInfoPresenter
     @Inject lateinit var blockingDialog: BlockingDialog
@@ -66,9 +68,9 @@ class ConversationInfoController(
     }
 
     override fun onViewCreated() {
-        recyclerView.adapter = adapter
-        recyclerView.addItemDecoration(GridSpacingItemDecoration(adapter, activity!!))
-        recyclerView.layoutManager = GridLayoutManager(activity, 3).apply {
+        binding.recyclerView.adapter = adapter
+        binding.recyclerView.addItemDecoration(GridSpacingItemDecoration(adapter, activity!!))
+        binding.recyclerView.layoutManager = GridLayoutManager(activity, 3).apply {
             spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
                 override fun getSpanSize(position: Int): Int = if (adapter.getItemViewType(position) == 2) 1 else 3
             }
@@ -76,7 +78,7 @@ class ConversationInfoController(
 
         themedActivity?.theme
                 ?.autoDisposable(scope())
-                ?.subscribe { recyclerView.scrapViews() }
+                ?.subscribe { binding.recyclerView.scrapViews() }
     }
 
     override fun onAttach(view: View) {

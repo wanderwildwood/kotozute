@@ -32,12 +32,14 @@ import com.message.ink.util.PhoneNumberUtils
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.blocked_numbers_add_dialog.view.*
-import kotlinx.android.synthetic.main.blocked_numbers_controller.*
 import javax.inject.Inject
+import com.message.ink.databinding.BlockedNumbersControllerBinding
+import com.message.ink.databinding.BlockedNumbersAddDialogBinding
 
 class BlockedNumbersController : QkController<BlockedNumbersView, BlockedNumbersState, BlockedNumbersPresenter>(),
     BlockedNumbersView {
+
+    private val binding get() = BlockedNumbersControllerBinding.bind(view!!)
 
     @Inject override lateinit var presenter: BlockedNumbersPresenter
     @Inject lateinit var colors: Colors
@@ -61,10 +63,10 @@ class BlockedNumbersController : QkController<BlockedNumbersView, BlockedNumbers
 
     override fun onViewCreated() {
         super.onViewCreated()
-        add.setBackgroundTint(colors.theme().theme)
-        add.setTint(colors.theme().textPrimary)
-        adapter.emptyView = empty
-        numbers.adapter = adapter
+        binding.add.setBackgroundTint(colors.theme().theme)
+        binding.add.setTint(colors.theme().textPrimary)
+        adapter.emptyView = binding.empty
+        binding.numbers.adapter = adapter
     }
 
     override fun render(state: BlockedNumbersState) {
@@ -72,16 +74,17 @@ class BlockedNumbersController : QkController<BlockedNumbersView, BlockedNumbers
     }
 
     override fun unblockAddress(): Observable<Long> = adapter.unblockAddress
-    override fun addAddress(): Observable<*> = add.clicks()
+    override fun addAddress(): Observable<*> = binding.add.clicks()
     override fun saveAddress(): Observable<String> = saveAddressSubject
 
     override fun showAddDialog() {
-        val layout = LayoutInflater.from(activity).inflate(R.layout.blocked_numbers_add_dialog, null)
-        val textWatcher = BlockedNumberTextWatcher(layout.input, phoneNumberUtils)
+        val dialogBinding = BlockedNumbersAddDialogBinding.inflate(LayoutInflater.from(activity))
+        val layout = dialogBinding.root
+        val textWatcher = BlockedNumberTextWatcher(dialogBinding.input, phoneNumberUtils)
         val dialog = AlertDialog.Builder(activity!!)
                 .setView(layout)
                 .setPositiveButton(R.string.blocked_numbers_dialog_block) { _, _ ->
-                    saveAddressSubject.onNext(layout.input.text.toString())
+                    saveAddressSubject.onNext(dialogBinding.input.text.toString())
                 }
                 .setNegativeButton(R.string.button_cancel) { _, _ -> }
                 .setOnDismissListener { textWatcher.dispose() }

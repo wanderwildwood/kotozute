@@ -29,10 +29,8 @@ import com.message.ink.extensions.Optional
 import com.message.ink.model.PhoneNumber
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.phone_number_list_item.*
-import kotlinx.android.synthetic.main.radio_preference_view.*
-import kotlinx.android.synthetic.main.radio_preference_view.view.*
 import javax.inject.Inject
+import com.message.ink.databinding.PhoneNumberListItemBinding
 
 class PhoneNumberPickerAdapter @Inject constructor(
     private val context: Context
@@ -50,9 +48,10 @@ class PhoneNumberPickerAdapter @Inject constructor(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkViewHolder {
         val inflater = LayoutInflater.from(parent.context)
-        val view = inflater.inflate(R.layout.phone_number_list_item, parent, false)
+        val binding = PhoneNumberListItemBinding.inflate(inflater, parent, false)
+        val view = binding.root
         return QkViewHolder(view).apply {
-            radioButton.forwardTouches(itemView)
+            binding.number.radioButton.forwardTouches(itemView)
 
             view.setOnClickListener {
                 val phoneNumber = getItem(adapterPosition)
@@ -64,9 +63,9 @@ class PhoneNumberPickerAdapter @Inject constructor(
     override fun onBindViewHolder(holder: QkViewHolder, position: Int) {
         val phoneNumber = getItem(position)
 
-        holder.number.radioButton.isChecked = phoneNumber.id == selectedItem
-        holder.number.titleView.text = phoneNumber.address
-        holder.number.summaryView.text = when (phoneNumber.isDefault) {
+        PhoneNumberListItemBinding.bind(holder.itemView).number.radioButton.isChecked = phoneNumber.id == selectedItem
+        PhoneNumberListItemBinding.bind(holder.itemView).number.titleView.text = phoneNumber.address
+        PhoneNumberListItemBinding.bind(holder.itemView).number.summaryView.text = when (phoneNumber.isDefault) {
             true -> context.getString(R.string.compose_number_picker_default, phoneNumber.type)
             false -> phoneNumber.type
         }

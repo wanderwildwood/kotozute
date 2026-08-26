@@ -35,6 +35,7 @@ import com.message.ink.databinding.RadioPreferenceViewBinding
 import com.message.ink.injection.appComponent
 import javax.inject.Inject
 import android.widget.ImageView
+import androidx.appcompat.widget.AppCompatRadioButton
 
 class RadioPreferenceView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
@@ -42,6 +43,11 @@ class RadioPreferenceView @JvmOverloads constructor(
 
     @Inject lateinit var colors: Colors
     private var layout: RadioPreferenceViewBinding
+
+    // The row's own views, previously reached through synthetics on the view.
+    val radioButton: AppCompatRadioButton get() = findViewById(R.id.radioButton)
+    val titleView: QkTextView get() = findViewById(R.id.titleView)
+    val summaryView: QkTextView get() = findViewById(R.id.summaryView)
 
     var title: String? = null
         set(value) {

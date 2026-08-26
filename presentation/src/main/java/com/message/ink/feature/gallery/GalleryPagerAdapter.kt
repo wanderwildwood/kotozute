@@ -39,11 +39,10 @@ import com.message.ink.model.MmsPart
 import com.message.ink.util.GlideApp
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.gallery_image_page.*
-import kotlinx.android.synthetic.main.gallery_image_page.view.*
-import kotlinx.android.synthetic.main.gallery_video_page.*
 import java.util.*
 import javax.inject.Inject
+import com.message.ink.databinding.GalleryImagePageBinding
+import com.message.ink.databinding.GalleryVideoPageBinding
 
 class GalleryPagerAdapter @Inject constructor(private val context: Context) : QkRealmAdapter<MmsPart, QkViewHolder>() {
 
@@ -61,28 +60,28 @@ class GalleryPagerAdapter @Inject constructor(private val context: Context) : Qk
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         return QkViewHolder(when (viewType) {
-            VIEW_TYPE_IMAGE -> inflater.inflate(R.layout.gallery_image_page, parent, false).apply {
+            VIEW_TYPE_IMAGE -> GalleryImagePageBinding.inflate(inflater, parent, false).let { page ->
+                val attacher = page.image.attacher
 
                 // When calling the public setter, it doesn't allow the midscale to be the same as the
                 // maxscale or the minscale. We don't want 3 levels and we don't want to modify the library
                 // so let's celebrate the invention of reflection!
-                image.attacher.run {
-                    javaClass.getDeclaredField("mMinScale").run {
-                        isAccessible = true
-                        setFloat(image.attacher, 1f)
-                    }
-                    javaClass.getDeclaredField("mMidScale").run {
-                        isAccessible = true
-                        setFloat(image.attacher, 1f)
-                    }
-                    javaClass.getDeclaredField("mMaxScale").run {
-                        isAccessible = true
-                        setFloat(image.attacher, 3f)
-                    }
+                attacher.javaClass.getDeclaredField("mMinScale").run {
+                    isAccessible = true
+                    setFloat(attacher, 1f)
                 }
+                attacher.javaClass.getDeclaredField("mMidScale").run {
+                    isAccessible = true
+                    setFloat(attacher, 1f)
+                }
+                attacher.javaClass.getDeclaredField("mMaxScale").run {
+                    isAccessible = true
+                    setFloat(attacher, 3f)
+                }
+                page.root
             }
 
-            VIEW_TYPE_VIDEO -> inflater.inflate(R.layout.gallery_video_page, parent, false)
+            VIEW_TYPE_VIDEO -> GalleryVideoPageBinding.inflate(inflater, parent, false).root
 
             else -> inflater.inflate(R.layout.gallery_invalid_page, parent, false)
 
@@ -98,12 +97,12 @@ class GalleryPagerAdapter @Inject constructor(private val context: Context) : Qk
                     ContentType.IMAGE_GIF -> GlideApp.with(context)
                             .asGif()
                             .load(part.getUri())
-                            .into(holder.image)
+                            .into(GalleryImagePageBinding.bind(holder.itemView).image)
 
                     else -> GlideApp.with(context)
                             .asBitmap()
                             .load(part.getUri())
-                            .into(holder.image)
+                            .into(GalleryImagePageBinding.bind(holder.itemView).image)
                 }
             }
 
@@ -111,7 +110,7 @@ class GalleryPagerAdapter @Inject constructor(private val context: Context) : Qk
                 val videoTrackSelectionFactory = AdaptiveTrackSelection.Factory(null)
                 val trackSelector = DefaultTrackSelector(videoTrackSelectionFactory)
                 val exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector)
-                holder.video.player = exoPlayer
+                GalleryVideoPageBinding.bind(holder.itemView).video.player = exoPlayer
                 exoPlayers.add(exoPlayer)
 
                 val dataSourceFactory = DefaultDataSourceFactory(context, Util.getUserAgent(context, "inkMessage+"))

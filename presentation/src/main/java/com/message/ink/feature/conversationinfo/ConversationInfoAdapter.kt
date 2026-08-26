@@ -16,10 +16,10 @@ import com.message.ink.feature.conversationinfo.ConversationInfoItem.*
 import com.message.ink.util.GlideApp
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.conversation_info_settings.*
-import kotlinx.android.synthetic.main.conversation_media_list_item.*
-import kotlinx.android.synthetic.main.conversation_recipient_list_item.*
 import javax.inject.Inject
+import com.message.ink.databinding.ConversationRecipientListItemBinding
+import com.message.ink.databinding.ConversationInfoSettingsBinding
+import com.message.ink.databinding.ConversationMediaListItemBinding
 
 class ConversationInfoAdapter @Inject constructor(
     private val context: Context,
@@ -39,7 +39,7 @@ class ConversationInfoAdapter @Inject constructor(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         return when (viewType) {
-            0 -> QkViewHolder(inflater.inflate(R.layout.conversation_recipient_list_item, parent, false)).apply {
+            0 -> QkViewHolder(ConversationRecipientListItemBinding.inflate(inflater, parent, false).root).apply {
                 itemView.setOnClickListener {
                     val item = getItem(adapterPosition) as? ConversationInfoRecipient
                     item?.value?.id?.run(recipientClicks::onNext)
@@ -55,16 +55,18 @@ class ConversationInfoAdapter @Inject constructor(
                 // (e-ink can't render color), so "picking a color" here was a dead end.
             }
 
-            1 -> QkViewHolder(inflater.inflate(R.layout.conversation_info_settings, parent, false)).apply {
-                groupName.clicks().subscribe(nameClicks)
-                notifications.clicks().subscribe(notificationClicks)
-                markUnread.clicks().subscribe(markUnreadClicks)
-                archive.clicks().subscribe(archiveClicks)
-                block.clicks().subscribe(blockClicks)
-                delete.clicks().subscribe(deleteClicks)
+            1 -> ConversationInfoSettingsBinding.inflate(inflater, parent, false).let { settings ->
+                QkViewHolder(settings.root).apply {
+                    settings.groupName.clicks().subscribe(nameClicks)
+                    settings.notifications.clicks().subscribe(notificationClicks)
+                    settings.markUnread.clicks().subscribe(markUnreadClicks)
+                    settings.archive.clicks().subscribe(archiveClicks)
+                    settings.block.clicks().subscribe(blockClicks)
+                    settings.delete.clicks().subscribe(deleteClicks)
+                }
             }
 
-            2 -> QkViewHolder(inflater.inflate(R.layout.conversation_media_list_item, parent, false)).apply {
+            2 -> QkViewHolder(ConversationMediaListItemBinding.inflate(inflater, parent, false).root).apply {
                 itemView.setOnClickListener {
                     val item = getItem(adapterPosition) as? ConversationInfoMedia
                     item?.value?.id?.run(mediaClicks::onNext)
@@ -78,44 +80,47 @@ class ConversationInfoAdapter @Inject constructor(
     override fun onBindViewHolder(holder: QkViewHolder, position: Int) {
         when (val item = getItem(position)) {
             is ConversationInfoRecipient -> {
+                val binding = ConversationRecipientListItemBinding.bind(holder.itemView)
                 val recipient = item.value
-                holder.avatar.setRecipient(recipient)
+                binding.avatar.setRecipient(recipient)
 
-                holder.name.text = recipient.contact?.name ?: recipient.address
+                binding.name.text = recipient.contact?.name ?: recipient.address
 
-                holder.address.text = recipient.address
-                holder.address.setVisible(recipient.contact != null)
+                binding.address.text = recipient.address
+                binding.address.setVisible(recipient.contact != null)
 
-                holder.add.setVisible(recipient.contact == null)
+                binding.add.setVisible(recipient.contact == null)
 
             }
 
             is ConversationInfoSettings -> {
-                holder.groupName.summary = item.name
+                val binding = ConversationInfoSettingsBinding.bind(holder.itemView)
+                binding.groupName.summary = item.name
 
-                holder.notifications.isEnabled = !item.blocked
+                binding.notifications.isEnabled = !item.blocked
 
-                holder.archive.isEnabled = !item.blocked
-                holder.archive.title = context.getString(when (item.archived) {
+                binding.archive.isEnabled = !item.blocked
+                binding.archive.title = context.getString(when (item.archived) {
                     true -> R.string.info_unarchive
                     false -> R.string.info_archive
                 })
 
-                holder.block.title = context.getString(when (item.blocked) {
+                binding.block.title = context.getString(when (item.blocked) {
                     true -> R.string.info_unblock
                     false -> R.string.info_block
                 })
             }
 
             is ConversationInfoMedia -> {
+                val binding = ConversationMediaListItemBinding.bind(holder.itemView)
                 val part = item.value
 
                 GlideApp.with(context)
                         .load(part.getUri())
                         .fitCenter()
-                        .into(holder.thumbnail)
+                        .into(binding.thumbnail)
 
-                holder.video.isVisible = part.isVideo()
+                binding.video.isVisible = part.isVideo()
             }
         }
     }

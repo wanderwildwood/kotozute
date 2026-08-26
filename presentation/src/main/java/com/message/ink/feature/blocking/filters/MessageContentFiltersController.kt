@@ -42,7 +42,7 @@ import com.message.ink.databinding.MessageContentFiltersAddDialogBinding
 class MessageContentFiltersController : QkController<MessageContentFiltersView, MessageContentFiltersState,
         MessageContentFiltersPresenter>(), MessageContentFiltersView {
 
-    private val binding get() = MessageContentFiltersControllerBinding.bind(view!!)
+    private val binding get() = MessageContentFiltersControllerBinding.bind(containerView!!)
 
     @Inject override lateinit var presenter: MessageContentFiltersPresenter
     @Inject lateinit var colors: Colors

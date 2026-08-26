@@ -33,17 +33,18 @@ import com.message.ink.common.util.extensions.setBackgroundTint
 import com.message.ink.common.util.extensions.setTint
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.main_activity.toolbar
-import kotlinx.android.synthetic.main.scheduled_activity.*
 import javax.inject.Inject
+import com.message.ink.databinding.ScheduledActivityBinding
 
 
 class ScheduledActivity : QkThemedActivity(), ScheduledView {
 
+    private val binding by lazy { ScheduledActivityBinding.inflate(layoutInflater) }
+
     @Inject lateinit var scheduledMessageAdapter: ScheduledMessageAdapter
     @Inject lateinit var viewModelFactory: ViewModelProvider.Factory
 
-    override val composeIntent by lazy { compose.clicks() }
+    override val composeIntent by lazy { binding.compose.clicks() }
     override val messagesSelectedIntent by lazy { scheduledMessageAdapter.selectionChanges }
     override val optionsItemIntent: Subject<Int> = PublishSubject.create()
     override val deleteScheduledMessages: Subject<List<Long>> = PublishSubject.create()
@@ -58,19 +59,19 @@ class ScheduledActivity : QkThemedActivity(), ScheduledView {
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.scheduled_activity)
+        setContentView(binding.root)
         setTitle(R.string.scheduled_title)
         showBackButton(true)
         viewModel.bindView(this)
 
-        scheduledMessageAdapter.emptyView = empty
-        messages.adapter = scheduledMessageAdapter
+        scheduledMessageAdapter.emptyView = binding.empty
+        binding.messages.adapter = scheduledMessageAdapter
 
         colors.theme().let { theme ->
-            sampleMessage.setBackgroundTint(theme.theme)
-            sampleMessage.setTextColor(theme.textPrimary)
-            compose.setTint(theme.textPrimary)
-            compose.setBackgroundTint(theme.theme)
+            binding.sampleMessage.setBackgroundTint(theme.theme)
+            binding.sampleMessage.setTextColor(theme.textPrimary)
+            binding.compose.setTint(theme.textPrimary)
+            binding.compose.setBackgroundTint(theme.theme)
         }
     }
 
@@ -84,19 +85,19 @@ class ScheduledActivity : QkThemedActivity(), ScheduledView {
         })
 
         // show/hide menu items
-        toolbar.menu.findItem(R.id.select_all)?.isVisible =
+        binding.toolbar.menu.findItem(R.id.select_all)?.isVisible =
             ((scheduledMessageAdapter.itemCount > 1) && (state.selectedMessages != 0))
-        toolbar.menu.findItem(R.id.delete)?.isVisible =
+        binding.toolbar.menu.findItem(R.id.delete)?.isVisible =
             ((scheduledMessageAdapter.itemCount != 0) && (state.selectedMessages != 0))
-        toolbar.menu.findItem(R.id.copy)?.isVisible =
+        binding.toolbar.menu.findItem(R.id.copy)?.isVisible =
             ((scheduledMessageAdapter.itemCount != 0) && (state.selectedMessages != 0))
-        toolbar.menu.findItem(R.id.send_now)?.isVisible =
+        binding.toolbar.menu.findItem(R.id.send_now)?.isVisible =
             ((scheduledMessageAdapter.itemCount != 0) && (state.selectedMessages != 0))
-        toolbar.menu.findItem(R.id.edit_message)?.isVisible =
+        binding.toolbar.menu.findItem(R.id.edit_message)?.isVisible =
             ((scheduledMessageAdapter.itemCount != 0) && (state.selectedMessages == 1))
 
-        // show compose button
-        compose.isVisible = state.conversationId == null
+        // show binding.compose button
+        binding.compose.isVisible = state.conversationId == null
     }
 
     override fun onBackPressed() = backPressedIntent.onNext(Unit)

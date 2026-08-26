@@ -87,64 +87,18 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.compose_activity.attach
-import kotlinx.android.synthetic.main.compose_activity.attachAFileIcon
-import kotlinx.android.synthetic.main.compose_activity.attachAFileLabel
-import kotlinx.android.synthetic.main.compose_activity.attachAnAudioMessageIcon
-import kotlinx.android.synthetic.main.compose_activity.attachAnAudioMessageLabel
-import kotlinx.android.synthetic.main.compose_activity.attaching
-import kotlinx.android.synthetic.main.compose_activity.audioMsgAbort
-import kotlinx.android.synthetic.main.compose_activity.audioMsgAttach
-import kotlinx.android.synthetic.main.compose_activity.audioMsgBackground
-import kotlinx.android.synthetic.main.compose_activity.audioMsgBluetooth
-import kotlinx.android.synthetic.main.compose_activity.audioMsgDuration
-import kotlinx.android.synthetic.main.compose_activity.audioMsgPlayerBackground
-import kotlinx.android.synthetic.main.compose_activity.audioMsgPlayerPlayPause
-import kotlinx.android.synthetic.main.compose_activity.audioMsgPlayerSeekBar
-import kotlinx.android.synthetic.main.compose_activity.audioMsgRecord
-import kotlinx.android.synthetic.main.compose_activity.camera
-import kotlinx.android.synthetic.main.compose_activity.cameraLabel
-import kotlinx.android.synthetic.main.compose_activity.chips
-import kotlinx.android.synthetic.main.compose_activity.composeBar
-import kotlinx.android.synthetic.main.compose_activity.contact
-import kotlinx.android.synthetic.main.compose_activity.contactLabel
-import kotlinx.android.synthetic.main.compose_activity.contentView
-import kotlinx.android.synthetic.main.compose_activity.counter
-import kotlinx.android.synthetic.main.compose_activity.gallery
-import kotlinx.android.synthetic.main.compose_activity.galleryLabel
-import kotlinx.android.synthetic.main.compose_activity.loading
-import kotlinx.android.synthetic.main.compose_activity.message
-import kotlinx.android.synthetic.main.compose_activity.messageAttachments
-import kotlinx.android.synthetic.main.compose_activity.messageList
-import kotlinx.android.synthetic.main.compose_activity.messagesEmpty
-import kotlinx.android.synthetic.main.compose_activity.noValidRecipients
-import kotlinx.android.synthetic.main.compose_activity.recordAudioMsg
-import kotlinx.android.synthetic.main.compose_activity.schedule
-import kotlinx.android.synthetic.main.compose_activity.scheduleLabel
-import kotlinx.android.synthetic.main.compose_activity.scheduledCancel
-import kotlinx.android.synthetic.main.compose_activity.scheduledGroup
-import kotlinx.android.synthetic.main.compose_activity.scheduledTime
-import kotlinx.android.synthetic.main.compose_activity.scheduledSend
-import kotlinx.android.synthetic.main.compose_activity.send
-import kotlinx.android.synthetic.main.compose_activity.sendAsGroup
-import kotlinx.android.synthetic.main.compose_activity.sendAsGroupBackground
-import kotlinx.android.synthetic.main.compose_activity.sendAsGroupSummary
-import kotlinx.android.synthetic.main.compose_activity.sendAsGroupSwitch
-import kotlinx.android.synthetic.main.compose_activity.shadeBackground
-import kotlinx.android.synthetic.main.compose_activity.sim
-import kotlinx.android.synthetic.main.compose_activity.simIndex
-import kotlinx.android.synthetic.main.compose_activity.toolbarSubtitle
-import kotlinx.android.synthetic.main.compose_activity.toolbarTitle
-import kotlinx.android.synthetic.main.main_activity.toolbar
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import com.message.ink.databinding.ComposeActivityBinding
 
 
 class ComposeActivity : QkThemedActivity(), ComposeView {
+
+    private val binding by lazy { ComposeActivityBinding.inflate(layoutInflater) }
 
     @Inject lateinit var composeAttachmentAdapter: ComposeAttachmentAdapter
     @Inject lateinit var chipsAdapter: ChipsAdapter
@@ -160,7 +114,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override val optionsItemIntent: Subject<Int> = PublishSubject.create()
     override val contextItemIntent: Subject<MenuItem> = PublishSubject.create()
     override val scheduleAction: Subject<Boolean> = PublishSubject.create()
-    override val sendAsGroupIntent by lazy { sendAsGroupBackground.clicks() }
+    override val sendAsGroupIntent by lazy { binding.sendAsGroupBackground.clicks() }
     override val messagePartClickIntent: Subject<Long> by lazy { messageAdapter.partClicks }
     override val messagePartContextMenuRegistrar: Subject<View> by lazy { messageAdapter.partContextMenuRegistrar }
     override val messagesSelectedIntent by lazy { messageAdapter.selectionChanges }
@@ -168,33 +122,33 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override val sendDelayedNowIntent: Subject<Long> by lazy { messageAdapter.sendNowClicks }
     override val resendIntent: Subject<Long> by lazy { messageAdapter.resendClicks }
     override val attachmentDeletedIntent: Subject<Attachment> by lazy { composeAttachmentAdapter.attachmentDeleted }
-    override val textChangedIntent by lazy { message.textChanges() }
-    override val attachIntent: Observable<Unit> by lazy { Observable.merge(attach.clicks(), shadeBackground.clicks()) }
-    override val cameraIntent: Observable<Unit> by lazy { Observable.merge(camera.clicks(), cameraLabel.clicks()) }
-    override val attachImageFileIntent: Observable<Unit> by lazy { Observable.merge(gallery.clicks(), galleryLabel.clicks()) }
-    override val attachAnyFileIntent: Observable<Unit> by lazy { Observable.merge(attachAFileIcon.clicks(), attachAFileLabel.clicks()) }
-    override val scheduleIntent: Observable<Unit> by lazy { Observable.merge(schedule.clicks(), scheduleLabel.clicks()) }
-    override val attachContactIntent: Observable<Unit> by lazy { Observable.merge(contact.clicks(), contactLabel.clicks()) }
+    override val textChangedIntent by lazy { binding.message.textChanges() }
+    override val attachIntent: Observable<Unit> by lazy { Observable.merge(binding.attach.clicks(), binding.shadeBackground.clicks()) }
+    override val cameraIntent: Observable<Unit> by lazy { Observable.merge(binding.camera.clicks(), binding.cameraLabel.clicks()) }
+    override val attachImageFileIntent: Observable<Unit> by lazy { Observable.merge(binding.gallery.clicks(), binding.galleryLabel.clicks()) }
+    override val attachAnyFileIntent: Observable<Unit> by lazy { Observable.merge(binding.attachAFileIcon.clicks(), binding.attachAFileLabel.clicks()) }
+    override val scheduleIntent: Observable<Unit> by lazy { Observable.merge(binding.schedule.clicks(), binding.scheduleLabel.clicks()) }
+    override val attachContactIntent: Observable<Unit> by lazy { Observable.merge(binding.contact.clicks(), binding.contactLabel.clicks()) }
     override val attachAnyFileSelectedIntent: Subject<Uri> = PublishSubject.create()
     override val contactSelectedIntent: Subject<Uri> = PublishSubject.create()
-    override val inputContentIntent by lazy { message.inputContentSelected }
+    override val inputContentIntent by lazy { binding.message.inputContentSelected }
     override val scheduleSelectedIntent: Subject<Long> = PublishSubject.create()
-    override val changeSimIntent by lazy { sim.clicks() }
-    override val scheduleCancelIntent by lazy { scheduledCancel.clicks() }
-    override val sendIntent by lazy {  Observable.merge(send.clicks(), scheduledSend.clicks()) }
+    override val changeSimIntent by lazy { binding.sim.clicks() }
+    override val scheduleCancelIntent by lazy { binding.scheduledCancel.clicks() }
+    override val sendIntent by lazy {  Observable.merge(binding.send.clicks(), binding.scheduledSend.clicks()) }
     override val backPressedIntent: Subject<Unit> = PublishSubject.create()
     override val confirmDeleteIntent: Subject<List<Long>> = PublishSubject.create()
     override val clearCurrentMessageIntent: Subject<Boolean> = PublishSubject.create()
     override val messageLinkAskIntent: Subject<Uri> by lazy { messageAdapter.messageLinkClicks }
-    override val shadeIntent by lazy { shadeBackground.clicks() }
+    override val shadeIntent by lazy { binding.shadeBackground.clicks() }
     override val recordAudioStartStopRecording: Subject<Boolean> = PublishSubject.create()
     override val recordAnAudioMessage: Observable<Unit> by lazy {
-        Observable.merge(recordAudioMsg.clicks(),
-            attachAnAudioMessageIcon.clicks(),
-            attachAnAudioMessageLabel.clicks())
+        Observable.merge(binding.recordAudioMsg.clicks(),
+            binding.attachAnAudioMessageIcon.clicks(),
+            binding.attachAnAudioMessageLabel.clicks())
     }
-    override val recordAudioAbort by lazy { audioMsgAbort.clicks() }
-    override val recordAudioAttach by lazy { audioMsgAttach.clicks() }
+    override val recordAudioAbort by lazy { binding.audioMsgAbort.clicks() }
+    override val recordAudioAttach by lazy { binding.audioMsgAttach.clicks() }
     override val recordAudioPlayerPlayPause: Subject<QkMediaPlayer.PlayingState> = PublishSubject.create()
     override val recordAudioPlayerConfigUI: Subject<QkMediaPlayer.PlayingState> = PublishSubject.create()
     override val recordAudioPlayerVisible: Subject<Boolean> = PublishSubject.create()
@@ -219,7 +173,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.compose_activity)
+        setContentView(binding.root)
         showBackButton(true)
 
         // Set title immediately from intent to prevent flash
@@ -227,21 +181,21 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
         viewModel.bindView(this)
 
-        contentView.layoutTransition = LayoutTransition().apply {
+        binding.contentView.layoutTransition = LayoutTransition().apply {
             disableTransitionType(LayoutTransition.CHANGING)
         }
-            chipsAdapter.view = chips
+            chipsAdapter.view = binding.chips
 
-            chips.itemAnimator = null
-            chips.layoutManager = FlexboxLayoutManager(this)
+            binding.chips.itemAnimator = null
+            binding.chips.layoutManager = FlexboxLayoutManager(this)
 
-            messageAdapter.autoScrollToStart(messageList)
-            messageAdapter.emptyView = messagesEmpty
+            messageAdapter.autoScrollToStart(binding.messageList)
+            messageAdapter.emptyView = binding.messagesEmpty
 
-            messageList.setHasFixedSize(true)
-            messageList.setItemViewCacheSize(20)
-            (messageList.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)?.supportsChangeAnimations = false
-            messageList.adapter = messageAdapter
+            binding.messageList.setHasFixedSize(true)
+            binding.messageList.setItemViewCacheSize(20)
+            (binding.messageList.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)?.supportsChangeAnimations = false
+            binding.messageList.adapter = messageAdapter
 
             // NOTE: switching the panel to EinkDisplayMode.FAST while this list scrolls was
             // tried and deliberately REVERTED (2026-08-07). The meink service does accept a
@@ -252,47 +206,47 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             // waveform doesn't change how long the panel needs. EinkDisplayMode is kept for
             // its reverse-engineering notes and in case a future need justifies it.
 
-            messageAttachments.adapter = composeAttachmentAdapter
+            binding.messageAttachments.adapter = composeAttachmentAdapter
 
-            message.supportsInputContent = true
+            binding.message.supportsInputContent = true
 
             // Hide cursor initially, show only when user clicks on input field
-            message.isCursorVisible = false
-            message.setOnClickListener {
-                message.isCursorVisible = true
+            binding.message.isCursorVisible = false
+            binding.message.setOnClickListener {
+                binding.message.isCursorVisible = true
             }
 
             theme
                 .doOnNext {
-                    loading.setTint(it.theme)
+                    binding.loading.setTint(it.theme)
 
-                    // Set toolbar navigation icon (back arrow) and overflow menu to black
-                    toolbar.navigationIcon?.setTint(android.graphics.Color.BLACK)
-                    toolbar.overflowIcon?.setTint(android.graphics.Color.BLACK)
+                    // Set binding.toolbar navigation icon (back arrow) and overflow menu to black
+                    binding.toolbar.navigationIcon?.setTint(android.graphics.Color.BLACK)
+                    binding.toolbar.overflowIcon?.setTint(android.graphics.Color.BLACK)
 
-                    // Tint all toolbar menu icons to black
-                    for (i in 0 until toolbar.menu.size()) {
-                        toolbar.menu.getItem(i)?.icon?.setTint(android.graphics.Color.BLACK)
+                    // Tint all binding.toolbar menu icons to black
+                    for (i in 0 until binding.toolbar.menu.size()) {
+                        binding.toolbar.menu.getItem(i)?.icon?.setTint(android.graphics.Color.BLACK)
                     }
 
-                    // entire attach menu - white background with black outline, black icons/text
-                    attach.setTint(android.graphics.Color.BLACK)
-                    contact.setTint(android.graphics.Color.BLACK)
-                    contactLabel.setTextColor(android.graphics.Color.BLACK)
-                    schedule.setTint(android.graphics.Color.BLACK)
-                    scheduleLabel.setTextColor(android.graphics.Color.BLACK)
-                    attachAFileIcon.setTint(android.graphics.Color.BLACK)
-                    attachAFileLabel.setTextColor(android.graphics.Color.BLACK)
-                    attachAnAudioMessageIcon.setTint(android.graphics.Color.BLACK)
-                    attachAnAudioMessageLabel.setTextColor(android.graphics.Color.BLACK)
-                    gallery.setTint(android.graphics.Color.BLACK)
-                    galleryLabel.setTextColor(android.graphics.Color.BLACK)
-                    camera.setTint(android.graphics.Color.BLACK)
-                    cameraLabel.setTextColor(android.graphics.Color.BLACK)
+                    // entire binding.attach menu - white background with black outline, black icons/text
+                    binding.attach.setTint(android.graphics.Color.BLACK)
+                    binding.contact.setTint(android.graphics.Color.BLACK)
+                    binding.contactLabel.setTextColor(android.graphics.Color.BLACK)
+                    binding.schedule.setTint(android.graphics.Color.BLACK)
+                    binding.scheduleLabel.setTextColor(android.graphics.Color.BLACK)
+                    binding.attachAFileIcon.setTint(android.graphics.Color.BLACK)
+                    binding.attachAFileLabel.setTextColor(android.graphics.Color.BLACK)
+                    binding.attachAnAudioMessageIcon.setTint(android.graphics.Color.BLACK)
+                    binding.attachAnAudioMessageLabel.setTextColor(android.graphics.Color.BLACK)
+                    binding.gallery.setTint(android.graphics.Color.BLACK)
+                    binding.galleryLabel.setTextColor(android.graphics.Color.BLACK)
+                    binding.camera.setTint(android.graphics.Color.BLACK)
+                    binding.cameraLabel.setTextColor(android.graphics.Color.BLACK)
 
-                    // audio message recording
-                    audioMsgPlayerPlayPause.setTint(it.theme)
-                    audioMsgPlayerSeekBar.apply {
+                    // audio binding.message recording
+                    binding.audioMsgPlayerPlayPause.setTint(it.theme)
+                    binding.audioMsgPlayerSeekBar.apply {
                         thumbTintList = ColorStateList.valueOf(it.theme)
                         progressBackgroundTintList = ColorStateList.valueOf(it.theme)
                         progressTintList = ColorStateList.valueOf(it.theme)
@@ -303,22 +257,22 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 .autoDisposable(scope())
                 .subscribe()
 
-            // context menu registration for message parts
+            // context menu registration for binding.message parts
             messagePartContextMenuRegistrar
                 .mapNotNull { it }
                 .autoDisposable(scope())
                 .subscribe { registerForContextMenu(it) }
 
 
-            // start/stop audio message recording
-            audioMsgRecord.setOnClickListener {
+            // start/stop audio binding.message recording
+            binding.audioMsgRecord.setOnClickListener {
                 isRecording = !isRecording
                 recordAudioRecord.onNext(isRecording)
                 // Update icon based on state
                 if (isRecording) {
-                    audioMsgRecord.setImageResource(R.drawable.exo_icon_stop)
+                    binding.audioMsgRecord.setImageResource(R.drawable.exo_icon_stop)
                 } else {
-                    audioMsgRecord.setImageResource(android.R.drawable.ic_btn_speak_now)
+                    binding.audioMsgRecord.setImageResource(android.R.drawable.ic_btn_speak_now)
                 }
             }
 
@@ -328,17 +282,17 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 .autoDisposable(scope())
                 .subscribe {
                     if (it) {
-                        audioMsgDuration.base = SystemClock.elapsedRealtime()
-                        audioMsgDuration.start()
+                        binding.audioMsgDuration.base = SystemClock.elapsedRealtime()
+                        binding.audioMsgDuration.start()
                     } else {
-                        audioMsgDuration.stop()
+                        binding.audioMsgDuration.stop()
                     }
                 }
 
             // audio record playback play/pause button
-            audioMsgPlayerPlayPause.setOnClickListener {
+            binding.audioMsgPlayerPlayPause.setOnClickListener {
                 recordAudioPlayerPlayPause.onNext(
-                    audioMsgPlayerPlayPause.tag as QkMediaPlayer.PlayingState
+                    binding.audioMsgPlayerPlayPause.tag as QkMediaPlayer.PlayingState
                 )
             }
 
@@ -347,10 +301,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 .distinctUntilChanged()
                 .autoDisposable(scope())
                 .subscribe {
-                    audioMsgRecord.isVisible = it
-                    audioMsgDuration.isVisible =
+                    binding.audioMsgRecord.isVisible = it
+                    binding.audioMsgDuration.isVisible =
                         it   // chronometer follows record button visibility
-                    audioMsgBluetooth.isVisible = !it
+                    binding.audioMsgBluetooth.isVisible = !it
                 }
 
             recordAudioPlayerVisible
@@ -358,7 +312,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 .distinctUntilChanged()
                 .autoDisposable(scope())
                 .subscribe {
-                    audioMsgPlayerBackground.isVisible = it
+                    binding.audioMsgPlayerBackground.isVisible = it
                     recordAudioPlayerConfigUI.onNext(QkMediaPlayer.PlayingState.Stopped)
                 }
 
@@ -369,35 +323,35 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 .subscribe {
                     when (it) {
                         QkMediaPlayer.PlayingState.Playing -> {
-                            audioMsgPlayerPlayPause.tag = QkMediaPlayer.PlayingState.Playing
+                            binding.audioMsgPlayerPlayPause.tag = QkMediaPlayer.PlayingState.Playing
                             QkMediaPlayer.start()
-                            audioMsgPlayerPlayPause.setImageResource(R.drawable.exo_icon_pause)
+                            binding.audioMsgPlayerPlayPause.setImageResource(R.drawable.exo_icon_pause)
                             seekBarUpdater = getSeekBarUpdater().subscribe {
-                                audioMsgPlayerSeekBar.progress = QkMediaPlayer.currentPosition
-                                audioMsgPlayerSeekBar.max = QkMediaPlayer.duration
+                                binding.audioMsgPlayerSeekBar.progress = QkMediaPlayer.currentPosition
+                                binding.audioMsgPlayerSeekBar.max = QkMediaPlayer.duration
                             }
-                            audioMsgPlayerSeekBar.isEnabled = true
+                            binding.audioMsgPlayerSeekBar.isEnabled = true
                         }
 
                         QkMediaPlayer.PlayingState.Paused -> {
-                            audioMsgPlayerPlayPause.tag = QkMediaPlayer.PlayingState.Paused
+                            binding.audioMsgPlayerPlayPause.tag = QkMediaPlayer.PlayingState.Paused
                             QkMediaPlayer.pause()
-                            audioMsgPlayerPlayPause.setImageResource(R.drawable.exo_icon_play)
+                            binding.audioMsgPlayerPlayPause.setImageResource(R.drawable.exo_icon_play)
                             seekBarUpdater?.dispose()
                         }
 
                         else -> {
-                            audioMsgPlayerPlayPause.tag = QkMediaPlayer.PlayingState.Stopped
+                            binding.audioMsgPlayerPlayPause.tag = QkMediaPlayer.PlayingState.Stopped
                             QkMediaPlayer.reset()
-                            audioMsgPlayerPlayPause.setImageResource(R.drawable.exo_icon_play)
+                            binding.audioMsgPlayerPlayPause.setImageResource(R.drawable.exo_icon_play)
                             seekBarUpdater?.dispose()
-                            audioMsgPlayerSeekBar.progress = 0
-                            audioMsgPlayerSeekBar.isEnabled = false
+                            binding.audioMsgPlayerSeekBar.progress = 0
+                            binding.audioMsgPlayerSeekBar.isEnabled = false
                         }
                     }
                 }
             // audio msg player seek bar handler
-            audioMsgPlayerSeekBar.setOnSeekBarChangeListener(
+            binding.audioMsgPlayerSeekBar.setOnSeekBarChangeListener(
                 object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(p0: SeekBar?, progress: Int, fromUser: Boolean) {
                         // if seek was initiated by the user and this part is currently playing
@@ -446,107 +400,107 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             else -> state.conversationtitle
         }
 
-        toolbarSubtitle.setVisible(state.query.isNotEmpty())
-        toolbarSubtitle.text = getString(R.string.compose_subtitle_results, state.searchSelectionPosition,
+        binding.toolbarSubtitle.setVisible(state.query.isNotEmpty())
+        binding.toolbarSubtitle.text = getString(R.string.compose_subtitle_results, state.searchSelectionPosition,
             state.searchResults)
 
-        toolbarTitle.setVisible(!state.editingMode)
-        chips.setVisible(state.editingMode)
-        composeBar.setVisible(!state.loading)
+        binding.toolbarTitle.setVisible(!state.editingMode)
+        binding.chips.setVisible(state.editingMode)
+        binding.composeBar.setVisible(!state.loading)
 
         // Don't set the adapters unless needed
-        if (state.editingMode && chips.adapter == null) chips.adapter = chipsAdapter
+        if (state.editingMode && binding.chips.adapter == null) binding.chips.adapter = chipsAdapter
 
-        toolbar.menu.findItem(R.id.viewScheduledMessages)?.isVisible = !state.editingMode && state.selectedMessages == 0
+        binding.toolbar.menu.findItem(R.id.viewScheduledMessages)?.isVisible = !state.editingMode && state.selectedMessages == 0
                 && state.query.isEmpty() && state.hasScheduledMessages
-        toolbar.menu.findItem(R.id.select_all)?.isVisible = !state.editingMode && (messageAdapter.itemCount > 1) && state.selectedMessages != 0
-        toolbar.menu.findItem(R.id.add)?.isVisible = state.editingMode
-        toolbar.menu.findItem(R.id.call)?.isVisible = !state.editingMode && state.selectedMessages == 0
+        binding.toolbar.menu.findItem(R.id.select_all)?.isVisible = !state.editingMode && (messageAdapter.itemCount > 1) && state.selectedMessages != 0
+        binding.toolbar.menu.findItem(R.id.add)?.isVisible = state.editingMode
+        binding.toolbar.menu.findItem(R.id.call)?.isVisible = !state.editingMode && state.selectedMessages == 0
                 && state.query.isEmpty()
-        toolbar.menu.findItem(R.id.info)?.isVisible = !state.editingMode && state.selectedMessages == 0
+        binding.toolbar.menu.findItem(R.id.info)?.isVisible = !state.editingMode && state.selectedMessages == 0
                 && state.query.isEmpty()
-        toolbar.menu.findItem(R.id.copy)?.isVisible =
+        binding.toolbar.menu.findItem(R.id.copy)?.isVisible =
             !state.editingMode && state.selectedMessages > 0 && state.selectedMessagesHaveText
-        toolbar.menu.findItem(R.id.share)?.isVisible =
+        binding.toolbar.menu.findItem(R.id.share)?.isVisible =
             !state.editingMode && state.selectedMessages > 0 && state.selectedMessagesHaveText
-        toolbar.menu.findItem(R.id.details)?.isVisible = !state.editingMode && state.selectedMessages == 1
-        toolbar.menu.findItem(R.id.delete)?.isVisible = !state.editingMode && ((state.selectedMessages > 0) || state.canSend)
-        toolbar.menu.findItem(R.id.forward)?.isVisible = !state.editingMode && state.selectedMessages == 1
-        toolbar.menu.findItem(R.id.show_status)?.isVisible = !state.editingMode && state.selectedMessages > 0
-        toolbar.menu.findItem(R.id.previous)?.isVisible = state.selectedMessages == 0 && state.query.isNotEmpty()
-        toolbar.menu.findItem(R.id.next)?.isVisible = state.selectedMessages == 0 && state.query.isNotEmpty()
-        toolbar.menu.findItem(R.id.clear)?.isVisible = state.selectedMessages == 0 && state.query.isNotEmpty()
+        binding.toolbar.menu.findItem(R.id.details)?.isVisible = !state.editingMode && state.selectedMessages == 1
+        binding.toolbar.menu.findItem(R.id.delete)?.isVisible = !state.editingMode && ((state.selectedMessages > 0) || state.canSend)
+        binding.toolbar.menu.findItem(R.id.forward)?.isVisible = !state.editingMode && state.selectedMessages == 1
+        binding.toolbar.menu.findItem(R.id.show_status)?.isVisible = !state.editingMode && state.selectedMessages > 0
+        binding.toolbar.menu.findItem(R.id.previous)?.isVisible = state.selectedMessages == 0 && state.query.isNotEmpty()
+        binding.toolbar.menu.findItem(R.id.next)?.isVisible = state.selectedMessages == 0 && state.query.isNotEmpty()
+        binding.toolbar.menu.findItem(R.id.clear)?.isVisible = state.selectedMessages == 0 && state.query.isNotEmpty()
 
         // Tint all visible menu icons to black
-        for (i in 0 until toolbar.menu.size()) {
-            toolbar.menu.getItem(i)?.icon?.setTint(android.graphics.Color.BLACK)
+        for (i in 0 until binding.toolbar.menu.size()) {
+            binding.toolbar.menu.getItem(i)?.icon?.setTint(android.graphics.Color.BLACK)
         }
-        toolbar.overflowIcon?.setTint(android.graphics.Color.BLACK)
+        binding.toolbar.overflowIcon?.setTint(android.graphics.Color.BLACK)
 
         chipsAdapter.data = state.selectedChips
 
-        loading.setVisible(state.loading)
+        binding.loading.setVisible(state.loading)
 
-        // Always hide the send as group switch - it should always be enabled
-        sendAsGroup.setVisible(false)
-        sendAsGroupSwitch.isChecked = true  // Always send as group when multiple recipients
-        sendAsGroupSummary.setText(R.string.compose_send_group_summary_on)
+        // Always hide the binding.send as group switch - it should always be enabled
+        binding.sendAsGroup.setVisible(false)
+        binding.sendAsGroupSwitch.isChecked = true  // Always binding.send as group when multiple recipients
+        binding.sendAsGroupSummary.setText(R.string.compose_send_group_summary_on)
 
-        messageList.setVisible(!state.editingMode || state.sendAsGroup || state.selectedChips.size == 1)
+        binding.messageList.setVisible(!state.editingMode || state.sendAsGroup || state.selectedChips.size == 1)
         messageAdapter.data = state.messages
         messageAdapter.highlight = state.searchSelectionId
 
-        scheduledGroup.isVisible = state.scheduled != 0L
-        scheduledTime.text = dateFormatter.getScheduledTimestamp(state.scheduled)
+        binding.scheduledGroup.isVisible = state.scheduled != 0L
+        binding.scheduledTime.text = dateFormatter.getScheduledTimestamp(state.scheduled)
 
-        messageAttachments.setVisible(state.attachments.isNotEmpty())
+        binding.messageAttachments.setVisible(state.attachments.isNotEmpty())
         composeAttachmentAdapter.data = state.attachments
 
-        attach.animate().rotation(if (state.attaching) 135f else 0f).start()
-        attaching.isVisible = state.attaching
+        binding.attach.animate().rotation(if (state.attaching) 135f else 0f).start()
+        binding.attaching.isVisible = state.attaching
 
-        shadeBackground.apply {
+        binding.shadeBackground.apply {
             when {
                 state.attaching -> {
                     visibility = View.VISIBLE
-                    elevation = 4.dpToPx(context).toFloat() // below attach menu
+                    elevation = 4.dpToPx(context).toFloat() // below binding.attach menu
                 }
 
                 state.audioMsgRecording -> {
                     visibility = View.VISIBLE
-                    elevation = 5.dpToPx(context).toFloat() // above attach menu
+                    elevation = 5.dpToPx(context).toFloat() // above binding.attach menu
                 }
 
                 else-> visibility = View.GONE
             }
         }
 
-        // show or hide audio message recording panel and shade background
-        audioMsgBackground.isVisible = state.audioMsgRecording
+        // show or hide audio binding.message recording panel and shade background
+        binding.audioMsgBackground.isVisible = state.audioMsgRecording
 
-        counter.text = state.remaining
-        counter.setVisible(counter.text.isNotBlank())
+        binding.counter.text = state.remaining
+        binding.counter.setVisible(binding.counter.text.isNotBlank())
 
-        sim.setVisible(state.subscription != null)
-        sim.contentDescription = getString(R.string.compose_sim_cd, state.subscription?.displayName)
-        simIndex.text = state.subscription?.simSlotIndex?.plus(1)?.toString()
+        binding.sim.setVisible(state.subscription != null)
+        binding.sim.contentDescription = getString(R.string.compose_sim_cd, state.subscription?.displayName)
+        binding.simIndex.text = state.subscription?.simSlotIndex?.plus(1)?.toString()
 
-        // show either send, audio msg record, or sendScheduled button
-        send.visibility = if (state.canSend && !state.loading && state.scheduled == 0L) View.VISIBLE else View.INVISIBLE
-        recordAudioMsg.visibility = if (state.canSend && !state.loading) View.INVISIBLE else View.VISIBLE
-        scheduledSend.visibility = if (state.canSend && (state.scheduled != 0L) && !state.loading) View.VISIBLE else View.INVISIBLE
+        // show either binding.send, audio msg record, or sendScheduled button
+        binding.send.visibility = if (state.canSend && !state.loading && state.scheduled == 0L) View.VISIBLE else View.INVISIBLE
+        binding.recordAudioMsg.visibility = if (state.canSend && !state.loading) View.INVISIBLE else View.VISIBLE
+        binding.scheduledSend.visibility = if (state.canSend && (state.scheduled != 0L) && !state.loading) View.VISIBLE else View.INVISIBLE
 
         // if not in editing mode, and there are no non-me participants that can be sent to,
         // hide controls that allow constructing a reply and inform user no valid recipients
         if (!state.editingMode && (state.validRecipientNumbers == 0)) {
-            composeBar.visibility = View.GONE
-            sim.visibility = View.GONE
-            recordAudioMsg.visibility = View.GONE
-            noValidRecipients.visibility = View.VISIBLE
+            binding.composeBar.visibility = View.GONE
+            binding.sim.visibility = View.GONE
+            binding.recordAudioMsg.visibility = View.GONE
+            binding.noValidRecipients.visibility = View.VISIBLE
 
-            // change constraint of messageList to constrain bottom to top of noValidRecipients
+            // change constraint of binding.messageList to constrain bottom to top of binding.noValidRecipients
             ConstraintSet().apply {
-                clone(contentView)
+                clone(binding.contentView)
                 connect(
                     R.id.messageList,
                     ConstraintSet.BOTTOM,
@@ -554,11 +508,11 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                     ConstraintSet.TOP,
                     0
                 )
-                applyTo(contentView)
+                applyTo(binding.contentView)
             }
         }
 
-        // if scheduling mode is set, show schedule dialog
+        // if scheduling mode is set, show binding.schedule dialog
         if (state.scheduling)
             scheduleAction.onNext(true)
     }
@@ -631,7 +585,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
 
         // On some devices, the keyboard can cover the date picker
-        message.hideKeyboard()
+        binding.message.hideKeyboard()
     }
 
     override fun requestContact() {
@@ -642,7 +596,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun showContacts(sharing: Boolean, chips: List<Recipient>) {
-        message.hideKeyboard()
+        binding.message.hideKeyboard()
         val serialized = HashMap(chips.associate { chip -> chip.address to chip.contact?.lookupKey })
         val intent = Intent(this, ContactsActivity::class.java)
             .putExtra(ContactsActivity.SHARING_KEY, sharing)
@@ -651,12 +605,12 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun themeChanged() {
-        messageList.scrapViews()
+        binding.messageList.scrapViews()
     }
 
     override fun showKeyboard() {
-        message.postDelayed({
-            message.showKeyboard()
+        binding.message.postDelayed({
+            binding.message.showKeyboard()
         }, 200)
     }
 
@@ -681,15 +635,15 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun setDraft(draft: String) {
-        message.setText(draft)
-        message.setSelection(draft.length)
+        binding.message.setText(draft)
+        binding.message.setSelection(draft.length)
     }
 
     override fun scrollToMessage(id: Long) {
         messageAdapter.data?.second
             ?.indexOfLast { message -> message.id == id }
             ?.takeIf { position -> position != -1 }
-            ?.let(messageList::scrollToPosition)
+            ?.let(binding.messageList::scrollToPosition)
     }
 
     override fun showDeleteDialog(messages: List<Long>) {
@@ -788,6 +742,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun focusMessage() {
-        message.requestFocus()
+        binding.message.requestFocus()
     }
 }

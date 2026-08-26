@@ -25,18 +25,20 @@ import com.bluelinelabs.conductor.RouterTransaction
 import dagger.android.AndroidInjection
 import com.message.ink.R
 import com.message.ink.common.base.QkThemedActivity
-import kotlinx.android.synthetic.main.container_activity.*
+import com.message.ink.databinding.ContainerActivityBinding
 
 class ConversationInfoActivity : QkThemedActivity() {
+
+    private val binding by lazy { ContainerActivityBinding.inflate(layoutInflater) }
 
     private lateinit var router: Router
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.container_activity)
+        setContentView(binding.root)
 
-        router = Conductor.attachRouter(this, container, savedInstanceState)
+        router = Conductor.attachRouter(this, binding.container, savedInstanceState)
         if (!router.hasRootController()) {
             val threadId = intent.extras?.getLong("threadId") ?: 0L
             router.setRoot(RouterTransaction.with(ConversationInfoController(threadId)))

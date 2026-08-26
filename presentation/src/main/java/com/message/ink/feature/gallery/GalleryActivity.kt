@@ -38,10 +38,12 @@ import com.message.ink.model.MmsPart
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.gallery_activity.*
 import javax.inject.Inject
+import com.message.ink.databinding.GalleryActivityBinding
 
 class GalleryActivity : QkActivity(), GalleryView {
+
+    private val binding by lazy { GalleryActivityBinding.inflate(layoutInflater) }
 
     @Inject lateinit var dateFormatter: DateFormatter
     @Inject lateinit var viewModelFactory: ViewModelProvider.Factory
@@ -57,12 +59,12 @@ class GalleryActivity : QkActivity(), GalleryView {
         delegate.localNightMode = AppCompatDelegate.MODE_NIGHT_YES
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.gallery_activity)
+        setContentView(binding.root)
         showBackButton(true)
         viewModel.bindView(this)
 
-        pager.adapter = pagerAdapter
-        pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+        binding.pager.adapter = pagerAdapter
+        binding.pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 this@GalleryActivity.onPageSelected(position)
             }
@@ -74,7 +76,7 @@ class GalleryActivity : QkActivity(), GalleryView {
                         ?.indexOfFirst { part -> part.id == partId }
                         ?.let { index ->
                             onPageSelected(index)
-                            pager.setCurrentItem(index, false)
+                            binding.pager.setCurrentItem(index, false)
                             pagerAdapter.unregisterAdapterDataObserver(this)
                         }
             }
@@ -82,15 +84,15 @@ class GalleryActivity : QkActivity(), GalleryView {
     }
 
     fun onPageSelected(position: Int) {
-        toolbarSubtitle.text = pagerAdapter.getItem(position)?.messages?.firstOrNull()?.date
+        binding.toolbarSubtitle.text = pagerAdapter.getItem(position)?.messages?.firstOrNull()?.date
                 ?.let(dateFormatter::getDetailedTimestamp)
-        toolbarSubtitle.isVisible = toolbarTitle.text.isNotBlank()
+        binding.toolbarSubtitle.isVisible = binding.toolbarTitle.text.isNotBlank()
 
         pagerAdapter.getItem(position)?.run(pageChangedSubject::onNext)
     }
 
     override fun render(state: GalleryState) {
-        toolbar.setVisible(state.navigationVisible)
+        binding.toolbar.setVisible(state.navigationVisible)
 
         title = state.title
         pagerAdapter.updateData(state.parts)

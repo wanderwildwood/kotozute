@@ -35,9 +35,9 @@ import com.message.ink.model.MmsPart
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.schedulers.Schedulers
-import kotlinx.android.synthetic.main.mms_audio_preview_list_item.*
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import com.message.ink.databinding.MmsAudioPreviewListItemBinding
 
 
 class AudioBinder @Inject constructor(colors: Colors, private val context: Context) :
@@ -59,31 +59,34 @@ class AudioBinder @Inject constructor(colors: Colors, private val context: Conte
                 .subscribeOn(Schedulers.single())
                 .observeOn(AndroidSchedulers.mainThread())
                 .doOnNext {
-                    viewHolder?.seekBar?.progress = QkMediaPlayer.currentPosition
+                    viewHolder?.let { MmsAudioPreviewListItemBinding.bind(it.itemView).seekBar.progress = QkMediaPlayer.currentPosition }
                 }
                 .subscribe()
         }
     }
 
     private fun uiToPlaying(viewHolder: QkViewHolder) {
-        viewHolder.seekBar.max = QkMediaPlayer.duration
-        viewHolder.seekBar.isEnabled = true
-        viewHolder.seekBar.progress = QkMediaPlayer.currentPosition
-        viewHolder.playPause.setImageResource(R.drawable.exo_icon_pause)
-        viewHolder.playPause.tag = QkMediaPlayer.PlayingState.Playing
+        val binding = MmsAudioPreviewListItemBinding.bind(viewHolder.itemView)
+        binding.seekBar.max = QkMediaPlayer.duration
+        binding.seekBar.isEnabled = true
+        binding.seekBar.progress = QkMediaPlayer.currentPosition
+        binding.playPause.setImageResource(R.drawable.exo_icon_pause)
+        binding.playPause.tag = QkMediaPlayer.PlayingState.Playing
     }
 
     private fun uiToPaused(viewHolder: QkViewHolder) {
-        viewHolder.playPause.setImageResource(R.drawable.exo_icon_play)
-        viewHolder.playPause.tag = QkMediaPlayer.PlayingState.Paused
+        val binding = MmsAudioPreviewListItemBinding.bind(viewHolder.itemView)
+        binding.playPause.setImageResource(R.drawable.exo_icon_play)
+        binding.playPause.tag = QkMediaPlayer.PlayingState.Paused
     }
 
     private fun uiToStopped(viewHolder: QkViewHolder) {
-        viewHolder.seekBar.progress = 0
-        viewHolder.seekBar.max = 0
-        viewHolder.seekBar.isEnabled = false
-        viewHolder.playPause.setImageResource(R.drawable.exo_icon_play)
-        viewHolder.playPause.tag = QkMediaPlayer.PlayingState.Stopped
+        val binding = MmsAudioPreviewListItemBinding.bind(viewHolder.itemView)
+        binding.seekBar.progress = 0
+        binding.seekBar.max = 0
+        binding.seekBar.isEnabled = false
+        binding.playPause.setImageResource(R.drawable.exo_icon_play)
+        binding.playPause.tag = QkMediaPlayer.PlayingState.Stopped
     }
 
     override fun bindPart(
@@ -93,9 +96,10 @@ class AudioBinder @Inject constructor(colors: Colors, private val context: Conte
         canGroupWithPrevious: Boolean,
         canGroupWithNext: Boolean,
     ) {
+        val binding = MmsAudioPreviewListItemBinding.bind(holder.itemView)
         // play/pause button click handling
-        holder.playPause.setOnClickListener {
-            when (holder.playPause.tag) {
+        binding.playPause.setOnClickListener {
+            when (binding.playPause.tag) {
                 QkMediaPlayer.PlayingState.Playing -> {
                     if (audioState.partId == part.id) {
                         QkMediaPlayer.pause()
@@ -173,7 +177,7 @@ class AudioBinder @Inject constructor(colors: Colors, private val context: Conte
             audioState.viewHolder = null
 
         // seek bar listener
-        holder.seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        binding.seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(p0: SeekBar?, progress: Int, fromUser: Boolean) {
                 // if seek was initiated by the user and this part is currently playing
                 if (fromUser)
@@ -184,7 +188,7 @@ class AudioBinder @Inject constructor(colors: Colors, private val context: Conte
         })
 
         // playPause button state
-        holder.playPause.apply {
+        binding.playPause.apply {
             if ((audioState.partId == part.id) &&
                 (audioState.state == QkMediaPlayer.PlayingState.Playing))
                 uiToPlaying(holder)

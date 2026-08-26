@@ -30,8 +30,8 @@ import com.message.ink.model.Message
 import com.message.ink.model.MmsPart
 import com.message.ink.util.GlideApp
 import com.message.ink.util.tryOrNull
-import kotlinx.android.synthetic.main.mms_image_preview_list_item.*
 import javax.inject.Inject
+import com.message.ink.databinding.MmsImagePreviewListItemBinding
 
 class ImageBinder @Inject constructor(colors: Colors, private val context: Context) : PartBinder() {
 
@@ -47,10 +47,11 @@ class ImageBinder @Inject constructor(colors: Colors, private val context: Conte
         canGroupWithPrevious: Boolean,
         canGroupWithNext: Boolean
     ) {
-        holder.video.setVisible(part.isVideo())
+        val binding = MmsImagePreviewListItemBinding.bind(holder.itemView)
+        binding.video.setVisible(part.isVideo())
         holder.containerView.setOnClickListener { clicks.onNext(part.id) }
 
-        holder.thumbnail.bubbleStyle = when {
+        binding.thumbnail.bubbleStyle = when {
             !canGroupWithPrevious && canGroupWithNext -> if (message.isMe()) BubbleImageView.Style.OUT_FIRST else BubbleImageView.Style.IN_FIRST
             canGroupWithPrevious && canGroupWithNext -> if (message.isMe()) BubbleImageView.Style.OUT_MIDDLE else BubbleImageView.Style.IN_MIDDLE
             canGroupWithPrevious && !canGroupWithNext -> if (message.isMe()) BubbleImageView.Style.OUT_LAST else BubbleImageView.Style.IN_LAST
@@ -62,7 +63,7 @@ class ImageBinder @Inject constructor(colors: Colors, private val context: Conte
                 .load(part.getUri())
                 .fitCenter()
                 .override(com.bumptech.glide.request.target.Target.SIZE_ORIGINAL)
-                .into(holder.thumbnail)
+                .into(binding.thumbnail)
         }
     }
 

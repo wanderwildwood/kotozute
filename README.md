@@ -2,7 +2,7 @@
 
 # inkMessage+
 
-An SMS/MMS app for the **[Mudita Kompakt](https://mudita.com/products/kompakt/)** e-ink phone, restyled to match the phone's native look — plus **Desktop Sync**, which lets you read and reply to your texts from a web browser on your computer.
+An SMS and MMS app for the [Mudita Kompakt](https://mudita.com/products/kompakt/), restyled for the phone's e-ink screen, with Desktop Sync: reading and replying to texts from a browser on a computer.
 
 It is a fork of [InkMessage](https://github.com/lamdanAmiti/InkMessage), which is a fork of [QUIK](https://github.com/octoshrimpy/quik), which continues [QKSMS](https://github.com/moezbhatti/qksms).
 
@@ -72,6 +72,14 @@ The APK lands in `presentation/build/outputs/apk/release/`.
 Builds are signed with the keystore committed at `presentation/inkmessageplus.keystore`. Its credentials are **intentionally public**, so that any build — local or CI — installs as an in-place upgrade over a previous one. It is not a secret and shouldn't be treated as one.
 
 ## Installing
+
+> **Upgrading from an older copy? Uninstall it first.** Android will not install this over an
+> older copy, and stops with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+>
+> **Your messages are safe.** They live in Android's own message store, not in this app, and it
+> reads them back the first time it runs — on a long history that takes several minutes, showing
+> "Syncing messages…" over an empty list until it finishes. What uninstalling clears is the app's
+> own settings, so expect to make it your default SMS app again and to turn Desktop Sync back on.
 
 Sideload the APK and let Android make it your default SMS app; it then imports your existing messages from the system SMS database. It installs *alongside* the stock Mudita SMS app rather than replacing it, so you can switch back whenever you like.
 

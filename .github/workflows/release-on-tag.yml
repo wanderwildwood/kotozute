@@ -107,10 +107,14 @@ jobs:
           cp "$apk_path" "$apk_name"
           sha256sum "$apk_name" > "${apk_name}.sha256"
 
+      # The generated notes are a list of commits; they cannot say what someone has to do
+      # before installing. This goes above them, and can be emptied once nobody is still
+      # upgrading from a build signed with the checked-in key.
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             inkmessage-plus-*.apk
             inkmessage-plus-*.apk.sha256
+          body_path: .github/release-body.md
           generate_release_notes: true

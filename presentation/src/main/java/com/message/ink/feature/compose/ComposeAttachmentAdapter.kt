@@ -34,10 +34,9 @@ import com.message.ink.model.Attachment
 import ezvcard.Ezvcard
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.attachment_contact_list_item.*
-import kotlinx.android.synthetic.main.scheduled_message_image_list_item.fileName
-import kotlinx.android.synthetic.main.scheduled_message_image_list_item.thumbnail
 import javax.inject.Inject
+import com.message.ink.databinding.AttachmentContactListItemBinding
+import com.message.ink.databinding.ScheduledMessageImageListItemBinding
 
 
 class ComposeAttachmentAdapter @Inject constructor(
@@ -54,12 +53,9 @@ class ComposeAttachmentAdapter @Inject constructor(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkViewHolder {
         val inflater = LayoutInflater.from(parent.context)
 
-        val view = inflater.inflate(
-            if (viewType == VIEW_TYPE_CONTACT) R.layout.attachment_contact_list_item
-            else R.layout.attachment_file_list_item,
-            parent,
-            false
-        )
+        val view =
+            if (viewType == VIEW_TYPE_CONTACT) AttachmentContactListItemBinding.inflate(inflater, parent, false).root
+            else ScheduledMessageImageListItemBinding.inflate(inflater, parent, false).root
 
         return QkViewHolder(view).apply {
             view.setOnClickListener {
@@ -73,36 +69,38 @@ class ComposeAttachmentAdapter @Inject constructor(
         val attachment = getItem(position)
 
         if (attachment.isVCard(context)) {
+            val contact = AttachmentContactListItemBinding.bind(holder.itemView)
             try {
                 val displayName = Ezvcard.parse(
                     String(attachment.getResourceBytes(context))
                 ).first().getDisplayName() ?: ""
-                holder.name.text = displayName
-                holder.name.isVisible = displayName.isNotEmpty()
+                contact.name.text = displayName
+                contact.name.isVisible = displayName.isNotEmpty()
             } catch (e: Exception) {
                 // npe from Ezvcard first() call above can be thrown if resource bytes cannot
                 // be retrieved from contact resource provider
-                holder.vCardAvatar.setImageResource(android.R.drawable.ic_delete)
-                holder.name.text = context.getString(R.string.attachment_missing)
-                holder.name.isVisible = true
+                contact.vCardAvatar.setImageResource(android.R.drawable.ic_delete)
+                contact.name.text = context.getString(R.string.attachment_missing)
+                contact.name.isVisible = true
             }
             return
         }
 
         // set best image and text to use for icon
-        when (attachment.uri.loadBestIconIntoImageView(context, holder.thumbnail)) {
+        val file = ScheduledMessageImageListItemBinding.bind(holder.itemView)
+        when (attachment.uri.loadBestIconIntoImageView(context, file.thumbnail)) {
             LoadBestIconIntoImageView.Missing -> {
-                holder.fileName.text = context.getString(R.string.attachment_missing)
-                holder.fileName.visibility = View.VISIBLE
+                file.fileName.text = context.getString(R.string.attachment_missing)
+                file.fileName.visibility = View.VISIBLE
             }
             LoadBestIconIntoImageView.ActivityIcon,
             LoadBestIconIntoImageView.DefaultAudioIcon,
             LoadBestIconIntoImageView.GenericIcon -> {
                 // generic style icon used, also show name
-                holder.fileName.text = attachment.uri.getName(context)
-                holder.fileName.visibility = View.VISIBLE
+                file.fileName.text = attachment.uri.getName(context)
+                file.fileName.visibility = View.VISIBLE
             }
-            else -> holder.fileName.visibility = View.GONE
+            else -> file.fileName.visibility = View.GONE
         }
     }
 

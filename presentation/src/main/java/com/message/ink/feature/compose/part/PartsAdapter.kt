@@ -31,8 +31,8 @@ import com.message.ink.feature.compose.MessagesAdapter
 import com.message.ink.model.Message
 import com.message.ink.model.MmsPart
 import io.reactivex.Observable
-import kotlinx.android.synthetic.main.message_list_item_in.*
 import javax.inject.Inject
+import com.message.ink.R
 
 
 class PartsAdapter @Inject constructor(
@@ -69,7 +69,7 @@ class PartsAdapter @Inject constructor(
         this.message = message
         this.previous = previous
         this.next = next
-        this.bodyVisible = holder.body.visibility == View.VISIBLE
+        this.bodyVisible = holder.itemView.findViewById<View>(R.id.body).visibility == View.VISIBLE
         this.data = message.parts.filter { !it.isSmil() && !it.isText() }
         this.audioState = audioState
     }

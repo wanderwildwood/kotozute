@@ -34,10 +34,12 @@ import com.message.ink.injection.appComponent
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.swipe_actions_controller.*
 import javax.inject.Inject
+import com.message.ink.databinding.SwipeActionsControllerBinding
 
 class SwipeActionsController : QkController<SwipeActionsView, SwipeActionsState, SwipeActionsPresenter>(), SwipeActionsView {
+
+    private val binding get() = SwipeActionsControllerBinding.bind(view!!)
 
     @Inject override lateinit var presenter: SwipeActionsPresenter
     @Inject lateinit var actionsDialog: QkDialog
@@ -57,18 +59,18 @@ class SwipeActionsController : QkController<SwipeActionsView, SwipeActionsState,
 
     override fun onViewCreated() {
         colors.theme().let { theme ->
-            rightIcon.setBackgroundTint(theme.theme)
-            rightIcon.setTint(theme.textPrimary)
-            leftIcon.setBackgroundTint(theme.theme)
-            leftIcon.setTint(theme.textPrimary)
+            binding.rightIcon.setBackgroundTint(theme.theme)
+            binding.rightIcon.setTint(theme.textPrimary)
+            binding.leftIcon.setBackgroundTint(theme.theme)
+            binding.leftIcon.setTint(theme.textPrimary)
         }
 
-        right.postDelayed({ right?.animateLayoutChanges = true }, 100)
-        left.postDelayed({ left?.animateLayoutChanges = true }, 100)
+        binding.right.postDelayed({ binding.right?.animateLayoutChanges = true }, 100)
+        binding.left.postDelayed({ binding.left?.animateLayoutChanges = true }, 100)
 
         Observable.merge(
-                right.clicks().map { SwipeActionsView.Action.RIGHT },
-                left.clicks().map { SwipeActionsView.Action.LEFT })
+                binding.right.clicks().map { SwipeActionsView.Action.RIGHT },
+                binding.left.clicks().map { SwipeActionsView.Action.LEFT })
                 .autoDisposable(scope())
                 .subscribe(actionClicks)
     }
@@ -90,13 +92,13 @@ class SwipeActionsController : QkController<SwipeActionsView, SwipeActionsState,
     }
 
     override fun render(state: SwipeActionsState) {
-        rightIcon.isVisible = state.rightIcon != 0
-        rightIcon.setImageResource(state.rightIcon)
-        rightLabel.text = state.rightLabel
+        binding.rightIcon.isVisible = state.rightIcon != 0
+        binding.rightIcon.setImageResource(state.rightIcon)
+        binding.rightLabel.text = state.rightLabel
 
-        leftIcon.isVisible = state.leftIcon != 0
-        leftIcon.setImageResource(state.leftIcon)
-        leftLabel.text = state.leftLabel
+        binding.leftIcon.isVisible = state.leftIcon != 0
+        binding.leftIcon.setImageResource(state.leftIcon)
+        binding.leftLabel.text = state.leftLabel
     }
 
 }

@@ -31,12 +31,13 @@ import com.message.ink.feature.blocking.BlockingDialog
 import com.message.ink.injection.appComponent
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.blocked_messages_controller.*
-import kotlinx.android.synthetic.main.container_activity.*
 import javax.inject.Inject
+import com.message.ink.databinding.BlockedMessagesControllerBinding
 
 class BlockedMessagesController : QkController<BlockedMessagesView, BlockedMessagesState, BlockedMessagesPresenter>(),
     BlockedMessagesView {
+
+    private val binding get() = BlockedMessagesControllerBinding.bind(view!!)
 
     override val menuReadyIntent: Subject<Unit> = PublishSubject.create()
     override val optionsItemIntent: Subject<Int> = PublishSubject.create()
@@ -59,8 +60,8 @@ class BlockedMessagesController : QkController<BlockedMessagesView, BlockedMessa
 
     override fun onViewCreated() {
         super.onViewCreated()
-        blockedMessagesAdapter.emptyView = empty
-        conversations.adapter = blockedMessagesAdapter
+        blockedMessagesAdapter.emptyView = binding.empty
+        binding.conversations.adapter = blockedMessagesAdapter
     }
 
     override fun onAttach(view: View) {

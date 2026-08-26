@@ -34,6 +34,7 @@ import com.message.ink.common.util.extensions.setVisible
 import com.message.ink.databinding.RadioPreferenceViewBinding
 import com.message.ink.injection.appComponent
 import javax.inject.Inject
+import android.widget.ImageView
 
 class RadioPreferenceView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null

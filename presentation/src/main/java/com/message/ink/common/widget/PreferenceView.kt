@@ -40,6 +40,8 @@ class PreferenceView @JvmOverloads constructor(
     // it is looked up rather than held: a row with no widget, or one whose widget is not a switch,
     // simply has none.
     val checkbox: QkSwitch get() = findViewById(R.id.checkbox)
+    val titleView: QkTextView get() = findViewById(R.id.titleView)
+    val summaryView: QkTextView get() = findViewById(R.id.summaryView)
 
     private var layout: PreferenceViewBinding
 

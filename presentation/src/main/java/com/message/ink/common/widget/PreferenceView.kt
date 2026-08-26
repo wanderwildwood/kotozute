@@ -36,6 +36,11 @@ class PreferenceView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : LinearLayoutCompat(context, attrs) {
 
+    // The row's widget is inflated into widgetFrame from whatever layout the caller asked for, so
+    // it is looked up rather than held: a row with no widget, or one whose widget is not a switch,
+    // simply has none.
+    val checkbox: QkSwitch get() = findViewById(R.id.checkbox)
+
     private var layout: PreferenceViewBinding
 
     val titleTextView: TextView get() = layout.titleView

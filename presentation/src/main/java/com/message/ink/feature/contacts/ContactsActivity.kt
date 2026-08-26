@@ -43,10 +43,12 @@ import com.message.ink.feature.compose.editing.PhoneNumberPickerAdapter
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.contacts_activity.*
 import javax.inject.Inject
+import com.message.ink.databinding.ContactsActivityBinding
 
 class ContactsActivity : QkThemedActivity(), ContactsContract {
+
+    private val binding by lazy { ContactsActivityBinding.inflate(layoutInflater) }
 
     companion object {
         const val SHARING_KEY = "sharing"
@@ -58,9 +60,9 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     @Inject lateinit var viewModelFactory: ViewModelFactory
     @Inject lateinit var navigator: Navigator
 
-    override val queryChangedIntent: Observable<CharSequence> by lazy { search.textChanges() }
-    override val queryClearedIntent: Observable<*> by lazy { cancel.clicks() }
-    override val queryEditorActionIntent: Observable<Int> by lazy { search.editorActions() }
+    override val queryChangedIntent: Observable<CharSequence> by lazy { binding.search.textChanges() }
+    override val queryClearedIntent: Observable<*> by lazy { binding.cancel.clicks() }
+    override val queryEditorActionIntent: Observable<Int> by lazy { binding.search.editorActions() }
     override val composeItemPressedIntent: Subject<ComposeItem> by lazy { contactsAdapter.clicks }
     override val composeItemLongPressedIntent: Subject<ComposeItem> by lazy { contactsAdapter.longClicks }
     override val phoneNumberSelectedIntent: Subject<Optional<Long>> by lazy { phoneNumberAdapter.selectedItemChanges }
@@ -83,11 +85,11 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.contacts_activity)
+        setContentView(binding.root)
         showBackButton(true)
         viewModel.bindView(this)
 
-        contacts.adapter = contactsAdapter
+        binding.contacts.adapter = contactsAdapter
 
         val callback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -98,7 +100,7 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     }
 
     override fun render(state: ContactsState) {
-        cancel.isVisible = state.query.length > 1
+        binding.cancel.isVisible = state.query.length > 1
 
         contactsAdapter.data = state.composeItems
 
@@ -112,17 +114,17 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     }
 
     override fun clearQuery() {
-        search.text = null
+        binding.search.text = null
     }
 
     override fun openKeyboard() {
-        search.postDelayed({
-            search.showKeyboard()
+        binding.search.postDelayed({
+            binding.search.showKeyboard()
         }, 200)
     }
 
     override fun finish(result: HashMap<String, String?>) {
-        search.hideKeyboard()
+        binding.search.hideKeyboard()
         val intent = Intent().putExtra(CHIPS_KEY, result)
         setResult(Activity.RESULT_OK, intent)
         finish()

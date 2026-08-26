@@ -22,6 +22,18 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
 apply plugin: 'kotlin-kapt'
 
+// The keystore committed at presentation/inkmessageplus.keystore has password 'android' and
+// sits in a public repo, so its private half is anyone's - they can build an APK that upgrades
+// an install in place. A real keystore in signing/ replaces it for every build type when one is
+// present, and the release workflow writes it there from repository secrets. Absent, the build
+// still works off the committed key so a fresh clone compiles.
+def realSigningProps = null
+def realSigningPropsFile = rootProject.file('signing/signing.properties')
+if (realSigningPropsFile.isFile()) {
+    realSigningProps = new Properties()
+    realSigningPropsFile.withInputStream { realSigningProps.load(it) }
+}
+
 android {
     compileSdk 34
 
@@ -52,6 +64,14 @@ android {
             keyAlias 'inkmessageplus'
             keyPassword 'android'
         }
+        if (realSigningProps != null) {
+            release {
+                storeFile rootProject.file('signing/signing.keystore')
+                storePassword realSigningProps['STORE_PASSWORD']
+                keyAlias realSigningProps['KEY_ALIAS']
+                keyPassword realSigningProps['KEY_PASSWORD']
+            }
+        }
 //        release {
 //            def keystoreProps = new Properties()
 //            def keystorePropsFile = rootProject.file('./.gradle/.gradlerc')
@@ -79,20 +99,20 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug
+            signingConfig realSigningProps != null ? signingConfigs.release : signingConfigs.debug
         }
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
             resValue("string", "app_name", "inkMessage+ Debug")
             resValue("string", "application_id", defaultConfig.applicationId)
-            signingConfig signingConfigs.debug
+            signingConfig realSigningProps != null ? signingConfigs.release : signingConfigs.debug
         }
         fdroid {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug
+            signingConfig realSigningProps != null ? signingConfigs.release : signingConfigs.debug
             matchingFallbacks = ['release']
             applicationIdSuffix ".fdroid"
         }

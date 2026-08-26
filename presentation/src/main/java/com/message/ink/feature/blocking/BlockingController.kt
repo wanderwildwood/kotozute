@@ -42,6 +42,7 @@ class BlockingController : QkController<BlockingView, BlockingState, BlockingPre
     override val messageContentFiltersIntent by lazy { messageContentFilters.clicks() }
     override val blockedMessagesIntent by lazy { blockedMessages.clicks() }
     override val dropClickedIntent by lazy { drop.clicks() }
+    override val blockNonContactsClickedIntent by lazy { blockNonContacts.clicks() }
 
     @Inject lateinit var colors: Colors
     @Inject override lateinit var presenter: BlockingPresenter
@@ -68,6 +69,14 @@ class BlockingController : QkController<BlockingView, BlockingState, BlockingPre
         blockingManager.summary = state.blockingManager
         drop.checkbox.isChecked = state.dropEnabled
         blockedMessages.isEnabled = !state.dropEnabled
+
+        blockNonContacts.checkbox.isChecked = state.blockNonContactsEnabled
+        blockNonContacts.isEnabled = state.usingBuiltInBlocking && state.canReadContacts
+        blockNonContacts.summary = when {
+            !state.usingBuiltInBlocking -> activity?.getString(R.string.blocking_manager_title)
+            !state.canReadContacts -> activity?.getString(R.string.blocking_non_contacts_no_permission)
+            else -> activity?.getString(R.string.blocking_non_contacts_summary)
+        }
     }
 
     override fun openBlockedNumbers() {

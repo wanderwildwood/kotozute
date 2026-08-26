@@ -18,20 +18,55 @@
  */
 package com.message.ink.blocking
 
+import com.message.ink.manager.PermissionManager
 import com.message.ink.repository.BlockingRepository
+import com.message.ink.repository.ContactRepository
+import com.message.ink.util.Preferences
 import io.reactivex.Completable
 import io.reactivex.Single
 import javax.inject.Inject
 
+/**
+ * Decides whether a message should be blocked.
+ *
+ * Kept as a pure function so the truth table can be tested without Android, a content resolver or
+ * a preferences store. The permission argument matters: without it, a denied contacts permission
+ * makes every lookup fail, "not a contact" quietly becomes "everyone", and the rule blocks the
+ * whole inbox.
+ */
+internal fun shouldBlockMessage(
+    isBlacklisted: Boolean,
+    onlyAllowContacts: Boolean,
+    canReadContacts: Boolean,
+    isContact: Boolean,
+): Boolean = isBlacklisted || (onlyAllowContacts && canReadContacts && !isContact)
+
 class QksmsBlockingClient @Inject constructor(
-    private val blockingRepo: BlockingRepository
+    private val blockingRepo: BlockingRepository,
+    private val contactRepo: ContactRepository,
+    private val permissionManager: PermissionManager,
+    private val prefs: Preferences
 ) : BlockingClient {
 
     override fun isAvailable(): Boolean = true
 
     override fun getClientCapability() = BlockingClient.Capability.BLOCK_WITHOUT_PERMISSION
 
-    override fun shouldBlock(address: String): Single<BlockingClient.Action> = isBlacklisted(address)
+    override fun shouldBlock(address: String): Single<BlockingClient.Action> = Single.fromCallable {
+        val onlyAllowContacts = prefs.blockNonContacts.get()
+        val block = shouldBlockMessage(
+            isBlacklisted = blockingRepo.isBlocked(address),
+            onlyAllowContacts = onlyAllowContacts,
+            canReadContacts = permissionManager.hasContacts(),
+            // Only looked up when the setting is on, so the usual case stays one Realm read
+            // rather than a contacts-provider query per incoming message.
+            isContact = onlyAllowContacts && contactRepo.isContact(address),
+        )
+        when (block) {
+            true -> BlockingClient.Action.Block()
+            false -> BlockingClient.Action.Unblock
+        }
+    }
 
     override fun isBlacklisted(address: String): Single<BlockingClient.Action> = Single.fromCallable {
         when (blockingRepo.isBlocked(address)) {

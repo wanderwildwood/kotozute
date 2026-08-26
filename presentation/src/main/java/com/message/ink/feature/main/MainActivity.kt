@@ -64,13 +64,14 @@ import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.drawer_view.*
-import kotlinx.android.synthetic.main.main_activity.*
-import kotlinx.android.synthetic.main.main_permission_hint.*
-import kotlinx.android.synthetic.main.main_syncing.*
 import javax.inject.Inject
+import com.message.ink.databinding.MainActivityBinding
+import android.widget.ProgressBar
+import com.message.ink.common.widget.QkTextView
 
 class MainActivity : QkThemedActivity(), MainView {
+
+    private val binding by lazy { MainActivityBinding.inflate(layoutInflater) }
 
     @Inject lateinit var blockingDialog: BlockingDialog
     @Inject lateinit var disposables: CompositeDisposable
@@ -83,27 +84,27 @@ class MainActivity : QkThemedActivity(), MainView {
 
     override val onNewIntentIntent: Subject<Intent> = PublishSubject.create()
     override val activityResumedIntent: Subject<Boolean> = PublishSubject.create()
-    override val queryChangedIntent by lazy { toolbarSearch.textChanges() }
-    override val composeIntent by lazy { compose.clicks() }
-    override val settingsIntent by lazy { settingsIcon.clicks() }
+    override val queryChangedIntent by lazy { binding.toolbarSearch.textChanges() }
+    override val composeIntent by lazy { binding.compose.clicks() }
+    override val settingsIntent by lazy { binding.settingsIcon.clicks() }
     override val drawerToggledIntent: Observable<Boolean> by lazy {
-        drawerLayout.drawerOpen(Gravity.START)
+        binding.drawerLayout.drawerOpen(Gravity.START)
     }
     override val homeIntent: Subject<Unit> = PublishSubject.create()
     override val navigationIntent: Observable<NavItem> by lazy {
         Observable.merge(listOf(
                 backPressedSubject,
-                inbox.clicks().map { NavItem.INBOX },
-                archived.clicks().map { NavItem.ARCHIVED },
-                backup.clicks().map { NavItem.BACKUP },
-                scheduled.clicks().map { NavItem.SCHEDULED },
-                blocking.clicks().map { NavItem.BLOCKING },
-                settings.clicks().map { NavItem.SETTINGS }))
+                binding.drawer.inbox.clicks().map { NavItem.INBOX },
+                binding.drawer.archived.clicks().map { NavItem.ARCHIVED },
+                binding.drawer.backup.clicks().map { NavItem.BACKUP },
+                binding.drawer.scheduled.clicks().map { NavItem.SCHEDULED },
+                binding.drawer.blocking.clicks().map { NavItem.BLOCKING },
+                binding.drawer.settings.clicks().map { NavItem.SETTINGS }))
     }
     override val optionsItemIntent: Subject<Int> = PublishSubject.create()
     override val filterChangedIntent: Subject<Int> = PublishSubject.create()
-    override val dismissRatingIntent by lazy { rateDismiss.clicks() }
-    override val rateIntent by lazy { rateOkay.clicks() }
+    override val dismissRatingIntent by lazy { binding.drawer.rateDismiss.clicks() }
+    override val rateIntent by lazy { binding.drawer.rateOkay.clicks() }
     override val conversationsSelectedIntent by lazy { conversationsAdapter.selectionChanges }
     override val confirmDeleteIntent: Subject<List<Long>> = PublishSubject.create()
     override val renameConversationIntent: Subject<String> = PublishSubject.create()
@@ -117,35 +118,33 @@ class MainActivity : QkThemedActivity(), MainView {
     private val toggle by lazy {
         ActionBarDrawerToggle(
             this,
-            drawerLayout,
-            toolbar,
+            binding.drawerLayout,
+            binding.toolbar,
             R.string.main_drawer_open_cd,
             0
         )
     }
     private val itemTouchHelper by lazy { ItemTouchHelper(itemTouchCallback) }
     private val progressAnimator by lazy {
-        ObjectAnimator.ofInt(syncingProgress, "progress", 0, 0)
+        ObjectAnimator.ofInt(findViewById<ProgressBar?>(R.id.syncingProgress), "progress", 0, 0)
     }
-    private val snackbar by lazy { findViewById<View>(R.id.snackbar) }
-    private val syncing by lazy { findViewById<View>(R.id.syncing) }
     private val backPressedSubject: Subject<NavItem> = PublishSubject.create()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.main_activity)
+        setContentView(binding.root)
         viewModel.bindView(this)
         onNewIntentIntent.onNext(intent)
 
-        (snackbar as? ViewStub)?.setOnInflateListener { _, _ ->
-            snackbarButton.clicks()
+        (binding.snackbar as? ViewStub)?.setOnInflateListener { _, _ ->
+            findViewById<QkTextView?>(R.id.snackbarButton).clicks()
                     .autoDisposable(scope(Lifecycle.Event.ON_DESTROY))
                     .subscribe(snackbarButtonIntent)
         }
 
-        (syncing as? ViewStub)?.setOnInflateListener { _, _ ->
-            syncingProgress?.let {
+        (binding.syncing as? ViewStub)?.setOnInflateListener { _, _ ->
+            findViewById<ProgressBar?>(R.id.syncingProgress)?.let {
                 it.progressTintList = ColorStateList.valueOf(theme.blockingFirst().theme)
                 it.indeterminateTintList = ColorStateList.valueOf(theme.blockingFirst().theme)
             }
@@ -153,32 +152,32 @@ class MainActivity : QkThemedActivity(), MainView {
 
         toggle.syncState()
         toggle.isDrawerIndicatorEnabled = false
-        toolbar.navigationIcon = null
-        toolbar.setNavigationOnClickListener {
+        binding.toolbar.navigationIcon = null
+        binding.toolbar.setNavigationOnClickListener {
             dismissKeyboard()
             homeIntent.onNext(Unit)
         }
 
         // Handle search icon click to show search input
-        searchIcon.setOnClickListener {
+        binding.searchIcon.setOnClickListener {
             showSearchMode()
         }
 
         // Handle search back button click
-        searchBack.setOnClickListener {
+        binding.searchBack.setOnClickListener {
             hideSearchMode()
         }
 
         // Handle search input focus to show/hide cursor
-        toolbarSearch.setOnFocusChangeListener { _, hasFocus ->
-            toolbarSearch.isCursorVisible = hasFocus
+        binding.toolbarSearch.setOnFocusChangeListener { _, hasFocus ->
+            binding.toolbarSearch.isCursorVisible = hasFocus
         }
 
         itemTouchCallback.adapter = conversationsAdapter
-        conversationsAdapter.autoScrollToStart(recyclerView)
+        conversationsAdapter.autoScrollToStart(binding.recyclerView)
 
         // Don't allow clicks to pass through the drawer layout
-        drawer.clicks().autoDisposable(scope()).subscribe()
+        binding.drawer.root.clicks().autoDisposable(scope()).subscribe()
 
         // Set the theme color tint to the recyclerView, progressbar, and FAB
         theme
@@ -193,14 +192,14 @@ class MainActivity : QkThemedActivity(), MainView {
                         resolveThemeColor(android.R.attr.textColorSecondary)
                     ))
                         .let { tintList ->
-                            inboxIcon.imageTintList = tintList
-                            archivedIcon.imageTintList = tintList
+                            binding.drawer.inboxIcon.imageTintList = tintList
+                            binding.drawer.archivedIcon.imageTintList = tintList
                         }
 
                     // Miscellaneous views
-                    syncingProgress?.progressTintList = ColorStateList.valueOf(theme.theme)
-                    syncingProgress?.indeterminateTintList = ColorStateList.valueOf(theme.theme)
-                    rateIcon.setTint(theme.theme)
+                    findViewById<ProgressBar?>(R.id.syncingProgress)?.progressTintList = ColorStateList.valueOf(theme.theme)
+                    findViewById<ProgressBar?>(R.id.syncingProgress)?.indeterminateTintList = ColorStateList.valueOf(theme.theme)
+                    binding.drawer.rateIcon.setTint(theme.theme)
                     // Removed compose background tint to show white with black outline
                     // Compose icon tint is set in XML
                 }
@@ -210,15 +209,15 @@ class MainActivity : QkThemedActivity(), MainView {
     }
 
     private fun setupFilterTabs() {
-        filterAll.setOnClickListener {
+        binding.filterAll.setOnClickListener {
             selectFilterTab(0)
             filterChangedIntent.onNext(0)
         }
-        filterGroups.setOnClickListener {
+        binding.filterGroups.setOnClickListener {
             selectFilterTab(1)
             filterChangedIntent.onNext(1)
         }
-        filterUnknown.setOnClickListener {
+        binding.filterUnknown.setOnClickListener {
             selectFilterTab(2)
             filterChangedIntent.onNext(2)
         }
@@ -226,26 +225,26 @@ class MainActivity : QkThemedActivity(), MainView {
 
     private fun selectFilterTab(filter: Int) {
         // Reset all tabs
-        filterAll.setBackgroundResource(android.R.color.transparent)
-        filterAll.setTextColor(android.graphics.Color.BLACK)
-        filterGroups.setBackgroundResource(android.R.color.transparent)
-        filterGroups.setTextColor(android.graphics.Color.BLACK)
-        filterUnknown.setBackgroundResource(android.R.color.transparent)
-        filterUnknown.setTextColor(android.graphics.Color.BLACK)
+        binding.filterAll.setBackgroundResource(android.R.color.transparent)
+        binding.filterAll.setTextColor(android.graphics.Color.BLACK)
+        binding.filterGroups.setBackgroundResource(android.R.color.transparent)
+        binding.filterGroups.setTextColor(android.graphics.Color.BLACK)
+        binding.filterUnknown.setBackgroundResource(android.R.color.transparent)
+        binding.filterUnknown.setTextColor(android.graphics.Color.BLACK)
 
         // Select the active tab
         when (filter) {
             0 -> {
-                filterAll.setBackgroundResource(R.drawable.filter_tab_selected)
-                filterAll.setTextColor(android.graphics.Color.WHITE)
+                binding.filterAll.setBackgroundResource(R.drawable.filter_tab_selected)
+                binding.filterAll.setTextColor(android.graphics.Color.WHITE)
             }
             1 -> {
-                filterGroups.setBackgroundResource(R.drawable.filter_tab_selected)
-                filterGroups.setTextColor(android.graphics.Color.WHITE)
+                binding.filterGroups.setBackgroundResource(R.drawable.filter_tab_selected)
+                binding.filterGroups.setTextColor(android.graphics.Color.WHITE)
             }
             2 -> {
-                filterUnknown.setBackgroundResource(R.drawable.filter_tab_selected)
-                filterUnknown.setTextColor(android.graphics.Color.WHITE)
+                binding.filterUnknown.setBackgroundResource(R.drawable.filter_tab_selected)
+                binding.filterUnknown.setTextColor(android.graphics.Color.WHITE)
             }
         }
     }
@@ -293,26 +292,26 @@ class MainActivity : QkThemedActivity(), MainView {
         // Only show search when in Searching state
         val searchVisible = state.page is Searching
 
-        searchContainer.setVisible(searchVisible)
-        toolbarContent.setVisible(!searchVisible)
+        binding.searchContainer.setVisible(searchVisible)
+        binding.toolbarContent.setVisible(!searchVisible)
 
         // toolbarTitle's visibility is decided after the `when (state.page)` block below,
         // which is what actually populates the title.
 
         // Show/hide filter tabs - only visible on Inbox page when not searching and no selection
         val showFilterTabs = state.page is Inbox && !searchVisible && selectedConversations == 0
-        filterTabs.setVisible(showFilterTabs)
+        binding.filterTabs.setVisible(showFilterTabs)
 
         // Hide compose button when search is active
         if (searchVisible) {
-            compose.visibility = View.GONE
+            binding.compose.visibility = View.GONE
         } else if (state.page is Inbox || state.page is Archived) {
-            compose.visibility = View.VISIBLE
+            binding.compose.visibility = View.VISIBLE
         } else {
-            compose.visibility = View.GONE
+            binding.compose.visibility = View.GONE
         }
 
-        toolbar.menu.apply {
+        binding.toolbar.menu.apply {
             findItem(R.id.select_all)?.isVisible =
                 (conversationsAdapter.itemCount > 1) && selectedConversations != 0
             findItem(R.id.archive)?.isVisible =
@@ -331,12 +330,12 @@ class MainActivity : QkThemedActivity(), MainView {
             findItem(R.id.rename)?.isVisible = selectedConversations == 1
         }
 
-        rateLayout.setVisible(false) // Disabled "Enjoying QUIK?" popup
+        binding.drawer.rateLayout.setVisible(false) // Disabled "Enjoying QUIK?" popup
 
-        conversationsAdapter.emptyView = empty.takeIf {
+        conversationsAdapter.emptyView = binding.empty.takeIf {
             state.page is Inbox || state.page is Archived
         }
-        searchAdapter.emptyView = empty.takeIf { state.page is Searching }
+        searchAdapter.emptyView = binding.empty.takeIf { state.page is Searching }
 
         when (state.page) {
             is Inbox -> {
@@ -346,22 +345,22 @@ class MainActivity : QkThemedActivity(), MainView {
                     true -> getString(R.string.main_title_selected, state.page.selected)
                     false -> ""
                 }
-                if (recyclerView.adapter !== conversationsAdapter)
-                    recyclerView.adapter = conversationsAdapter
+                if (binding.recyclerView.adapter !== conversationsAdapter)
+                    binding.recyclerView.adapter = conversationsAdapter
                 conversationsAdapter.filterMode = state.page.filter
                 conversationsAdapter.updateData(state.page.data)
-                itemTouchHelper.attachToRecyclerView(recyclerView)
-                empty.setText(R.string.inbox_empty_text)
+                itemTouchHelper.attachToRecyclerView(binding.recyclerView)
+                binding.empty.setText(R.string.inbox_empty_text)
                 // Update filter tab selection
                 selectFilterTab(state.page.filter)
             }
 
             is Searching -> {
                 showBackButton(true)
-                if (recyclerView.adapter !== searchAdapter) recyclerView.adapter = searchAdapter
+                if (binding.recyclerView.adapter !== searchAdapter) binding.recyclerView.adapter = searchAdapter
                 searchAdapter.data = state.page.data ?: listOf()
                 itemTouchHelper.attachToRecyclerView(null)
-                empty.setText(R.string.inbox_search_empty_text)
+                binding.empty.setText(R.string.inbox_search_empty_text)
             }
 
             is Archived -> {
@@ -372,11 +371,11 @@ class MainActivity : QkThemedActivity(), MainView {
                     true -> getString(R.string.main_title_selected, state.page.selected)
                     false -> getString(R.string.title_archived)
                 }
-                if (recyclerView.adapter !== conversationsAdapter)
-                    recyclerView.adapter = conversationsAdapter
+                if (binding.recyclerView.adapter !== conversationsAdapter)
+                    binding.recyclerView.adapter = conversationsAdapter
                 conversationsAdapter.updateData(state.page.data)
                 itemTouchHelper.attachToRecyclerView(null)
-                empty.setText(R.string.archived_empty_text)
+                binding.empty.setText(R.string.archived_empty_text)
             }
 
             else -> {}
@@ -386,59 +385,59 @@ class MainActivity : QkThemedActivity(), MainView {
         // weighted, so leaving it VISIBLE-but-empty would shove the filter pills rightwards.
         // Never write toolbarTitle.text directly: QkActivity owns that view and mirrors the
         // Activity `title` into it, re-applying on layout, so direct writes get clobbered.
-        toolbarTitle.setVisible(!searchVisible && !title.isNullOrEmpty())
+        binding.toolbarTitle.setVisible(!searchVisible && !title.isNullOrEmpty())
 
-        inbox.isActivated = state.page is Inbox
-        archived.isActivated = state.page is Archived
+        binding.drawer.inbox.isActivated = state.page is Inbox
+        binding.drawer.archived.isActivated = state.page is Archived
 
-        if (drawerLayout.isDrawerOpen(GravityCompat.START) && !state.drawerOpen)
-            drawerLayout.closeDrawer(GravityCompat.START, false)
-        else if (!drawerLayout.isDrawerVisible(GravityCompat.START) && state.drawerOpen)
-            drawerLayout.openDrawer(GravityCompat.START, false)
+        if (binding.drawerLayout.isDrawerOpen(GravityCompat.START) && !state.drawerOpen)
+            binding.drawerLayout.closeDrawer(GravityCompat.START, false)
+        else if (!binding.drawerLayout.isDrawerVisible(GravityCompat.START) && state.drawerOpen)
+            binding.drawerLayout.openDrawer(GravityCompat.START, false)
 
         when (state.syncing) {
             is SyncRepository.SyncProgress.Idle -> {
-                syncing.isVisible = false
-                snackbar.isVisible = (!state.defaultSms ||
+                binding.syncing.isVisible = false
+                binding.snackbar.isVisible = (!state.defaultSms ||
                         !state.smsPermission ||
                         !state.contactPermission ||
                         !state.notificationPermission)
             }
 
             is SyncRepository.SyncProgress.Running -> {
-                syncing.isVisible = true
-                syncingProgress.max = state.syncing.max
+                binding.syncing.isVisible = true
+                findViewById<ProgressBar?>(R.id.syncingProgress).max = state.syncing.max
                 progressAnimator.apply {
-                    setIntValues(syncingProgress.progress, state.syncing.progress)
+                    setIntValues(findViewById<ProgressBar?>(R.id.syncingProgress).progress, state.syncing.progress)
                 }.start()
-                syncingProgress.isIndeterminate = state.syncing.indeterminate
-                snackbar.isVisible = false
+                findViewById<ProgressBar?>(R.id.syncingProgress).isIndeterminate = state.syncing.indeterminate
+                binding.snackbar.isVisible = false
             }
         }
 
         when {
             !state.defaultSms -> {
-                snackbarTitle?.setText(R.string.main_default_sms_title)
-                snackbarMessage?.setText(R.string.main_default_sms_message)
-                snackbarButton?.setText(R.string.main_default_sms_change)
+                findViewById<QkTextView?>(R.id.snackbarTitle)?.setText(R.string.main_default_sms_title)
+                findViewById<QkTextView?>(R.id.snackbarMessage)?.setText(R.string.main_default_sms_message)
+                findViewById<QkTextView?>(R.id.snackbarButton)?.setText(R.string.main_default_sms_change)
             }
 
             !state.smsPermission -> {
-                snackbarTitle?.setText(R.string.main_permission_required)
-                snackbarMessage?.setText(R.string.main_permission_sms)
-                snackbarButton?.setText(R.string.main_permission_allow)
+                findViewById<QkTextView?>(R.id.snackbarTitle)?.setText(R.string.main_permission_required)
+                findViewById<QkTextView?>(R.id.snackbarMessage)?.setText(R.string.main_permission_sms)
+                findViewById<QkTextView?>(R.id.snackbarButton)?.setText(R.string.main_permission_allow)
             }
 
             !state.contactPermission -> {
-                snackbarTitle?.setText(R.string.main_permission_required)
-                snackbarMessage?.setText(R.string.main_permission_contacts)
-                snackbarButton?.setText(R.string.main_permission_allow)
+                findViewById<QkTextView?>(R.id.snackbarTitle)?.setText(R.string.main_permission_required)
+                findViewById<QkTextView?>(R.id.snackbarMessage)?.setText(R.string.main_permission_contacts)
+                findViewById<QkTextView?>(R.id.snackbarButton)?.setText(R.string.main_permission_allow)
             }
 
             !state.notificationPermission -> {
-                snackbarTitle?.setText(R.string.main_permission_required)
-                snackbarMessage?.setText(R.string.main_permission_notifications)
-                snackbarButton?.setText(R.string.main_permission_allow)
+                findViewById<QkTextView?>(R.id.snackbarTitle)?.setText(R.string.main_permission_required)
+                findViewById<QkTextView?>(R.id.snackbarMessage)?.setText(R.string.main_permission_notifications)
+                findViewById<QkTextView?>(R.id.snackbarButton)?.setText(R.string.main_permission_allow)
             }
         }
     }
@@ -454,7 +453,7 @@ class MainActivity : QkThemedActivity(), MainView {
 
     override fun showBackButton(show: Boolean) =
         toggle.let {
-            it.onDrawerSlide(drawer, if (show) 1f else 0f)
+            it.onDrawerSlide(binding.drawer.root, if (show) 1f else 0f)
             it.drawerArrowDrawable.color = when (show) {
                 true -> resolveThemeColor(android.R.attr.textColorSecondary)
                 false -> resolveThemeColor(android.R.attr.textColorPrimary)
@@ -479,14 +478,14 @@ class MainActivity : QkThemedActivity(), MainView {
 
     override fun clearSearch() {
         dismissKeyboard()
-        toolbarSearch.text = null
+        binding.toolbarSearch.text = null
     }
 
     override fun clearSelection() = conversationsAdapter.clearSelection()
 
     override fun toggleSelectAll() = conversationsAdapter.toggleSelectAll()
 
-    override fun themeChanged() = recyclerView.scrapViews()
+    override fun themeChanged() = binding.recyclerView.scrapViews()
 
     override fun showBlockingDialog(conversations: List<Long>, block: Boolean) {
         blockingDialog.show(this, conversations, block)
@@ -518,7 +517,7 @@ class MainActivity : QkThemedActivity(), MainView {
 
     override fun showArchivedSnackbar(countConversationsArchived: Int, isArchiving: Boolean) =
         Snackbar.make(
-            drawerLayout,
+            binding.drawerLayout,
             if (isArchiving) {
                 resources.getQuantityString(R.plurals.toast_archived, countConversationsArchived, countConversationsArchived)
             } else {
@@ -542,25 +541,25 @@ class MainActivity : QkThemedActivity(), MainView {
         optionsItemIntent.onNext(item.itemId).let { true }
 
     private fun showSearchMode() {
-        toolbarContent.visibility = View.GONE
-        searchContainer.visibility = View.VISIBLE
-        toolbarSearch.requestFocus()
-        toolbarSearch.isCursorVisible = true
+        binding.toolbarContent.visibility = View.GONE
+        binding.searchContainer.visibility = View.VISIBLE
+        binding.toolbarSearch.requestFocus()
+        binding.toolbarSearch.isCursorVisible = true
         val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-        imm.showSoftInput(toolbarSearch, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        imm.showSoftInput(binding.toolbarSearch, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
     }
 
     private fun hideSearchMode() {
-        searchContainer.visibility = View.GONE
-        toolbarContent.visibility = View.VISIBLE
-        toolbarSearch.text = null
-        toolbarSearch.isCursorVisible = false
+        binding.searchContainer.visibility = View.GONE
+        binding.toolbarContent.visibility = View.VISIBLE
+        binding.toolbarSearch.text = null
+        binding.toolbarSearch.isCursorVisible = false
         dismissKeyboard()
     }
 
     override fun onBackPressed() {
         // If search is visible, hide it and show the toolbar content
-        if (searchContainer.visibility == View.VISIBLE) {
+        if (binding.searchContainer.visibility == View.VISIBLE) {
             hideSearchMode()
         } else {
             backPressedSubject.onNext(NavItem.BACK)
@@ -570,8 +569,8 @@ class MainActivity : QkThemedActivity(), MainView {
     override fun drawerToggled(opened: Boolean) {
         if (opened) {
             dismissKeyboard()
-            if (!inbox.isInTouchMode)
-                inbox.requestFocus()
+            if (!binding.drawer.inbox.isInTouchMode)
+                binding.drawer.inbox.requestFocus()
         }
     }
 }

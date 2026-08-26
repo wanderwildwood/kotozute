@@ -21,7 +21,7 @@ import com.message.ink.databinding.BlockingManagerControllerBinding
 class BlockingManagerController : QkController<BlockingManagerView, BlockingManagerState, BlockingManagerPresenter>(),
     BlockingManagerView {
 
-    private val binding get() = BlockingManagerControllerBinding.bind(view!!)
+    private val binding get() = BlockingManagerControllerBinding.bind(containerView!!)
 
     @Inject lateinit var colors: Colors
     @Inject override lateinit var presenter: BlockingManagerPresenter

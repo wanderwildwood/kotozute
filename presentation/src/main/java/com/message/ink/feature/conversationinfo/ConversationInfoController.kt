@@ -43,7 +43,7 @@ class ConversationInfoController(
     val threadId: Long = 0
 ) : QkController<ConversationInfoView, ConversationInfoState, ConversationInfoPresenter>(), ConversationInfoView {
 
-    private val binding get() = ConversationInfoControllerBinding.bind(view!!)
+    private val binding get() = ConversationInfoControllerBinding.bind(containerView!!)
 
     @Inject override lateinit var presenter: ConversationInfoPresenter
     @Inject lateinit var blockingDialog: BlockingDialog

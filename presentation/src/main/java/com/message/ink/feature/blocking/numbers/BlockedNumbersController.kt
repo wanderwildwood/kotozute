@@ -39,7 +39,7 @@ import com.message.ink.databinding.BlockedNumbersAddDialogBinding
 class BlockedNumbersController : QkController<BlockedNumbersView, BlockedNumbersState, BlockedNumbersPresenter>(),
     BlockedNumbersView {
 
-    private val binding get() = BlockedNumbersControllerBinding.bind(view!!)
+    private val binding get() = BlockedNumbersControllerBinding.bind(containerView!!)
 
     @Inject override lateinit var presenter: BlockedNumbersPresenter
     @Inject lateinit var colors: Colors

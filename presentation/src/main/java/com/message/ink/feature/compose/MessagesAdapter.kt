@@ -71,22 +71,44 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import io.realm.RealmResults
-import kotlinx.android.synthetic.main.message_list_item_in.*
-import kotlinx.android.synthetic.main.message_list_item_in.body
-import kotlinx.android.synthetic.main.message_list_item_in.reactionText
-import kotlinx.android.synthetic.main.message_list_item_in.parts
-import kotlinx.android.synthetic.main.message_list_item_in.reactions
-import kotlinx.android.synthetic.main.message_list_item_in.sim
-import kotlinx.android.synthetic.main.message_list_item_in.simIndex
-import kotlinx.android.synthetic.main.message_list_item_in.status
-import kotlinx.android.synthetic.main.message_list_item_in.timestamp
-import kotlinx.android.synthetic.main.message_list_item_in.view.*
-import kotlinx.android.synthetic.main.message_list_item_out.*
-import kotlinx.android.synthetic.main.message_list_item_out.view.cancel
 import java.util.*
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Provider
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import com.message.ink.common.widget.AvatarView
+import com.message.ink.common.widget.QkTextView
+import com.message.ink.common.widget.TightTextView
+import androidx.recyclerview.widget.RecyclerView
+
+
+/**
+ * The views of one message row, found once and kept.
+ *
+ * The incoming and outgoing layouts do not share every id - only outgoing has a cancel button, a
+ * body box or a resend icon, and only incoming has an avatar - so the ones belonging to a single
+ * direction are nullable, and asking for the wrong one gives null rather than throwing.
+ */
+class MessageViewHolder(view: View) : QkViewHolder(view) {
+    val timestamp: QkTextView = view.findViewById(R.id.timestamp)
+    val sim: ImageView = view.findViewById(R.id.sim)
+    val simIndex: QkTextView = view.findViewById(R.id.simIndex)
+    val parts: RecyclerView = view.findViewById(R.id.parts)
+    val body: TightTextView = view.findViewById(R.id.body)
+    val reactions: LinearLayout = view.findViewById(R.id.reactions)
+    val reactionText: TextView = view.findViewById(R.id.reactionText)
+    val status: QkTextView = view.findViewById(R.id.status)
+
+    val avatar: AvatarView? = view.findViewById(R.id.avatar)
+    val cancelFrame: FrameLayout? = view.findViewById(R.id.cancelFrame)
+    val cancel: ProgressBar? = view.findViewById(R.id.cancel)
+    val cancelIcon: ImageView? = view.findViewById(R.id.cancelIcon)
+    val bodyBox: LinearLayout? = view.findViewById(R.id.bodyBox)
+    val sendNowIcon: ImageView? = view.findViewById(R.id.sendNowIcon)
+    val resendIcon: ImageView? = view.findViewById(R.id.resendIcon)
+}
 
 class MessagesAdapter @Inject constructor(
     subscriptionManager: SubscriptionManagerCompat,
@@ -97,7 +119,7 @@ class MessagesAdapter @Inject constructor(
     private val phoneNumberUtils: PhoneNumberUtils,
     private val prefs: Preferences,
     private val textViewStyler: TextViewStyler,
-) : QkRealmAdapter<Message, QkViewHolder>() {
+) : QkRealmAdapter<Message, MessageViewHolder>() {
     class AudioState(
         var partId: Long = -1,
         var state: QkMediaPlayer.PlayingState = QkMediaPlayer.PlayingState.Stopped,
@@ -157,7 +179,7 @@ class MessagesAdapter @Inject constructor(
 
     private val audioState = AudioState()
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
         // Use the parent's context to inflate the layout, otherwise link clicks will crash the app
         val inflater = LayoutInflater.from(parent.context)
 
@@ -171,12 +193,12 @@ class MessagesAdapter @Inject constructor(
         } else
             inflater.inflate(R.layout.message_list_item_in, parent, false)
 
-        view.body.hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
+        view.findViewById<TightTextView>(R.id.body).hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
 
         // register recycler view with compose activity for context menus
-        partContextMenuRegistrar.onNext(view.parts)
+        partContextMenuRegistrar.onNext(view.findViewById<RecyclerView>(R.id.parts))
 
-        return QkViewHolder(view).apply {
+        return MessageViewHolder(view).apply {
             val longClickListener = View.OnLongClickListener {
                 getItem(adapterPosition)?.let {
                     toggleSelection(it.id)
@@ -190,7 +212,7 @@ class MessagesAdapter @Inject constructor(
                     when (toggleSelection(it.id, false)) {
                         true -> view.isActivated = isSelected(it.id)
                         false -> {
-                            expanded[it.id] = view.status.visibility != View.VISIBLE
+                            expanded[it.id] = view.findViewById<QkTextView>(R.id.status).visibility != View.VISIBLE
                             notifyItemChanged(adapterPosition)
                         }
                     }
@@ -201,12 +223,12 @@ class MessagesAdapter @Inject constructor(
             view.setOnLongClickListener(longClickListener)
 
             // Also set listeners on body to ensure long press works on message text
-            view.body.setOnLongClickListener(longClickListener)
-            view.body.setOnClickListener(clickListener)
+            view.findViewById<TightTextView>(R.id.body).setOnLongClickListener(longClickListener)
+            view.findViewById<TightTextView>(R.id.body).setOnClickListener(clickListener)
         }
     }
 
-    override fun onBindViewHolder(holder: QkViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
         val message = getItem(position) ?: return
         val previous = if (position == 0) null else getItem(position - 1)
         val next = if (position == itemCount - 1) null else getItem(position + 1)
@@ -231,7 +253,7 @@ class MessagesAdapter @Inject constructor(
                     cancelFrame.setOnClickListener { cancelSendingClicks.onNext(message.id) }
                     sendNowIcon.setOnClickListener {  sendNowClicks.onNext(message.id) }
 
-                    cancelFrame.cancel.progress = 2
+                    holder.cancel?.progress = 2
 
                     val delay = when (prefs.sendDelay.get()) {
                         Preferences.SEND_DELAY_SHORT -> 3000
@@ -242,7 +264,7 @@ class MessagesAdapter @Inject constructor(
                     val progress =
                         (1 - (message.date - System.currentTimeMillis()) / delay.toFloat()) * 100
 
-                    ObjectAnimator.ofInt(cancelFrame.cancel, "progress", progress.toInt(), 100)
+                    ObjectAnimator.ofInt(holder.cancel, "progress", progress.toInt(), 100)
                         .setDuration(message.date - System.currentTimeMillis())
                         .start()
                 }
@@ -313,7 +335,7 @@ class MessagesAdapter @Inject constructor(
             // Stock Kompakt SMS relies on the top-bar contact name only; no
             // per-message avatar. Always GONE (not just XML-default) since
             // this used to be toggled visible/invisible per grouping here.
-            holder.avatar.visibility = View.GONE
+            holder.avatar?.visibility = View.GONE
 
             holder.body.apply {
                 setTextColor(android.graphics.Color.BLACK)
@@ -447,7 +469,7 @@ class MessagesAdapter @Inject constructor(
         return RenderedBody(span, displayText.isEmojiOnly(), truncated)
     }
 
-    private fun showEmojiReactions(holder: QkViewHolder, message: Message) {
+    private fun showEmojiReactions(holder: MessageViewHolder, message: Message) {
         holder.reactions?.let { reactionsContainer ->
             val reactions = message.emojiReactions
             val hasReactions = reactions.isNotEmpty()
@@ -476,7 +498,7 @@ class MessagesAdapter @Inject constructor(
         }
     }
 
-    private fun makeRoomForEmojis(holder: QkViewHolder) {
+    private fun makeRoomForEmojis(holder: MessageViewHolder) {
         val paddingBottom = 25.dpToPx(context)
 
         (holder.reactions?.parent?.parent as? ViewGroup)?.let { parent ->
@@ -490,7 +512,7 @@ class MessagesAdapter @Inject constructor(
     }
 
     private fun bindStatus(
-        holder: QkViewHolder,
+        holder: MessageViewHolder,
         bodyTextTruncated: Boolean,
         message: Message,
         next: Message?

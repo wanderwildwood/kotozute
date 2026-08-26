@@ -37,7 +37,7 @@ import com.message.ink.databinding.BlockedMessagesControllerBinding
 class BlockedMessagesController : QkController<BlockedMessagesView, BlockedMessagesState, BlockedMessagesPresenter>(),
     BlockedMessagesView {
 
-    private val binding get() = BlockedMessagesControllerBinding.bind(view!!)
+    private val binding get() = BlockedMessagesControllerBinding.bind(containerView!!)
 
     override val menuReadyIntent: Subject<Unit> = PublishSubject.create()
     override val optionsItemIntent: Subject<Int> = PublishSubject.create()

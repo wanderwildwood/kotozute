@@ -36,7 +36,7 @@ import com.message.ink.databinding.BlockingControllerBinding
 
 class BlockingController : QkController<BlockingView, BlockingState, BlockingPresenter>(), BlockingView {
 
-    private val binding get() = BlockingControllerBinding.bind(view!!)
+    private val binding get() = BlockingControllerBinding.bind(containerView!!)
 
     override val blockingManagerIntent by lazy { binding.blockingManager.clicks() }
     override val blockedNumbersIntent by lazy { binding.blockedNumbers.clicks() }

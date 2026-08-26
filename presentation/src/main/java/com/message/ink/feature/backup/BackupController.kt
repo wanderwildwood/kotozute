@@ -49,7 +49,7 @@ import com.message.ink.databinding.BackupControllerBinding
 
 class BackupController : QkController<BackupView, BackupState, BackupPresenter>(), BackupView {
 
-    private val binding get() = BackupControllerBinding.bind(view!!)
+    private val binding get() = BackupControllerBinding.bind(containerView!!)
 
     @Inject override lateinit var presenter: BackupPresenter
 

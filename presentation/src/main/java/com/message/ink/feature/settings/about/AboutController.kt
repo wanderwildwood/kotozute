@@ -31,7 +31,7 @@ import com.message.ink.databinding.AboutControllerBinding
 
 class AboutController : QkController<AboutView, Unit, AboutPresenter>(), AboutView {
 
-    private val binding get() = AboutControllerBinding.bind(view!!)
+    private val binding get() = AboutControllerBinding.bind(containerView!!)
 
     @Inject override lateinit var presenter: AboutPresenter
 

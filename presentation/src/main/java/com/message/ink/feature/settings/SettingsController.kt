@@ -63,7 +63,7 @@ import com.message.ink.databinding.SettingsControllerBinding
 
 class SettingsController : QkController<SettingsView, SettingsState, SettingsPresenter>(), SettingsView {
 
-    private val binding get() = SettingsControllerBinding.bind(view!!)
+    private val binding get() = SettingsControllerBinding.bind(containerView!!)
 
     @Inject lateinit var context: Context
     @Inject lateinit var colors: Colors

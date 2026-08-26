@@ -39,7 +39,7 @@ import com.message.ink.databinding.SwipeActionsControllerBinding
 
 class SwipeActionsController : QkController<SwipeActionsView, SwipeActionsState, SwipeActionsPresenter>(), SwipeActionsView {
 
-    private val binding get() = SwipeActionsControllerBinding.bind(view!!)
+    private val binding get() = SwipeActionsControllerBinding.bind(containerView!!)
 
     @Inject override lateinit var presenter: SwipeActionsPresenter
     @Inject lateinit var actionsDialog: QkDialog

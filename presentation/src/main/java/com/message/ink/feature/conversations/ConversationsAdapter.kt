@@ -28,7 +28,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.message.ink.R
 import com.message.ink.common.Navigator
 import com.message.ink.common.base.QkRealmAdapter
-import com.message.ink.common.base.QkViewHolder
+import com.message.ink.common.base.QkBindingViewHolder
 import com.message.ink.common.util.Colors
 import com.message.ink.common.util.DateFormatter
 import com.message.ink.common.util.extensions.resolveThemeColor
@@ -37,9 +37,8 @@ import com.message.ink.model.Conversation
 import com.message.ink.repository.ScheduledMessageRepository
 import com.message.ink.util.PhoneNumberUtils
 import io.reactivex.disposables.CompositeDisposable
-import kotlinx.android.synthetic.main.conversation_list_item.*
-import kotlinx.android.synthetic.main.conversation_list_item.view.*
 import javax.inject.Inject
+import com.message.ink.databinding.ConversationListItemBinding
 
 class ConversationsAdapter @Inject constructor(
     private val colors: Colors,
@@ -48,7 +47,7 @@ class ConversationsAdapter @Inject constructor(
     private val scheduledMessageRepo: ScheduledMessageRepository,
     private val navigator: Navigator,
     private val phoneNumberUtils: PhoneNumberUtils
-) : QkRealmAdapter<Conversation, QkViewHolder>() {
+) : QkRealmAdapter<Conversation, QkBindingViewHolder<ConversationListItemBinding>>() {
     private val disposables = CompositeDisposable()
 
     // Filter mode: 0=All, 1=Groups, 2=Unknown (no saved contacts)
@@ -101,26 +100,27 @@ class ConversationsAdapter @Inject constructor(
         return getItem(position)?.id ?: -1
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkBindingViewHolder<ConversationListItemBinding> {
         val layoutInflater = LayoutInflater.from(parent.context)
-        val view = layoutInflater.inflate(R.layout.conversation_list_item, parent, false)
+        val binding = ConversationListItemBinding.inflate(layoutInflater, parent, false)
+        val view = binding.root
 
         if (viewType == 1) {
             val textColorPrimary = parent.context.resolveThemeColor(android.R.attr.textColorPrimary)
 
-            view.title.setTypeface(view.title.typeface, Typeface.BOLD)
+            binding.title.setTypeface(binding.title.typeface, Typeface.BOLD)
 
-            view.snippet.setTypeface(view.snippet.typeface, Typeface.BOLD)
-            view.snippet.setTextColor(textColorPrimary)
-            view.snippet.maxLines = 5
+            binding.snippet.setTypeface(binding.snippet.typeface, Typeface.BOLD)
+            binding.snippet.setTextColor(textColorPrimary)
+            binding.snippet.maxLines = 5
 
-            view.unread.isVisible = true
+            binding.unread.isVisible = true
 
-            view.date.setTypeface(view.date.typeface, Typeface.BOLD)
-            view.date.setTextColor(textColorPrimary)
+            binding.date.setTypeface(binding.date.typeface, Typeface.BOLD)
+            binding.date.setTextColor(textColorPrimary)
         }
 
-        return QkViewHolder(view).apply {
+        return QkBindingViewHolder(binding).apply {
             view.setOnClickListener {
                 val conversation = getItem(adapterPosition) ?: return@setOnClickListener
                 when (toggleSelection(conversation.id, false)) {
@@ -137,7 +137,7 @@ class ConversationsAdapter @Inject constructor(
         }
     }
 
-    override fun onBindViewHolder(holder: QkViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: QkBindingViewHolder<ConversationListItemBinding>, position: Int) {
         val conversation = getItem(position) ?: return
 
         // If the last message wasn't incoming, then the colour doesn't really matter anyway
@@ -152,20 +152,20 @@ class ConversationsAdapter @Inject constructor(
 
         holder.containerView.isActivated = isSelected(conversation.id)
 
-        holder.avatars.recipients = conversation.recipients
-        holder.title.collapseEnabled = conversation.recipients.size > 1
-        holder.title.text = buildSpannedString {
+        holder.binding.avatars.recipients = conversation.recipients
+        holder.binding.title.collapseEnabled = conversation.recipients.size > 1
+        holder.binding.title.text = buildSpannedString {
             append(conversation.getTitle())
         }
-        holder.date.text = conversation.date.takeIf { it > 0 }?.let(dateFormatter::getConversationTimestamp)
-        holder.snippet.text = when {
+        holder.binding.date.text = conversation.date.takeIf { it > 0 }?.let(dateFormatter::getConversationTimestamp)
+        holder.binding.snippet.text = when {
             conversation.draft.isNotEmpty() -> context.getString(R.string.main_sender_draft, conversation.draft)
             conversation.me -> context.getString(R.string.main_sender_you, conversation.snippet)
             else -> conversation.snippet
         }
 
         // Make the preview in italics if draft
-        if (conversation.draft.isNotEmpty()) holder.snippet.setTypeface(null, Typeface.ITALIC)
+        if (conversation.draft.isNotEmpty()) holder.binding.snippet.setTypeface(null, Typeface.ITALIC)
 
         // Get Scheduled Messages
         val disposable = scheduledMessageRepo
@@ -173,12 +173,12 @@ class ConversationsAdapter @Inject constructor(
             .asFlowable()
             .toObservable()
             .subscribe { messages ->
-                holder.scheduled.isVisible = messages.isNotEmpty()
+                holder.binding.scheduled.isVisible = messages.isNotEmpty()
             }
         disposables.add(disposable)
 
-        holder.pinned.isVisible = conversation.pinned
-        holder.unread.setTint(0xFF000000.toInt())
+        holder.binding.pinned.isVisible = conversation.pinned
+        holder.binding.unread.setTint(0xFF000000.toInt())
     }
 
     override fun getItemViewType(position: Int): Int {

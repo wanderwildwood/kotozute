@@ -61,6 +61,14 @@
             app:widget="@layout/settings_switch_widget" />
 
         <com.message.ink.common.widget.PreferenceView
+            android:id="@+id/blockNonContacts"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:summary="@string/blocking_non_contacts_summary"
+            app:title="@string/blocking_non_contacts_title"
+            app:widget="@layout/settings_switch_widget" />
+
+        <com.message.ink.common.widget.PreferenceView
             android:id="@+id/blockedMessages"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

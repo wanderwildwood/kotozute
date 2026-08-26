@@ -20,5 +20,10 @@ package com.message.ink.feature.blocking
 
 data class BlockingState(
     val blockingManager: String = "",
-    val dropEnabled: Boolean = false
+    val dropEnabled: Boolean = false,
+    val blockNonContactsEnabled: Boolean = false,
+    val canReadContacts: Boolean = true,
+    // The rule lives in the built-in blocking client, so it does nothing while a third-party
+    // manager is selected. Better to say so than to leave a switch that silently has no effect.
+    val usingBuiltInBlocking: Boolean = true
 )

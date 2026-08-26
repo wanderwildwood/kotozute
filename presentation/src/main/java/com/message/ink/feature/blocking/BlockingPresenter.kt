@@ -24,6 +24,7 @@ import com.uber.autodispose.autoDisposable
 import com.message.ink.R
 import com.message.ink.blocking.BlockingClient
 import com.message.ink.common.base.QkPresenter
+import com.message.ink.manager.PermissionManager
 import com.message.ink.util.Preferences
 import io.reactivex.rxkotlin.plusAssign
 import javax.inject.Inject
@@ -31,6 +32,7 @@ import javax.inject.Inject
 class BlockingPresenter @Inject constructor(
     context: Context,
     private val blockingClient: BlockingClient,
+    private val permissionManager: PermissionManager,
     private val prefs: Preferences
 ) : QkPresenter<BlockingView, BlockingState>(BlockingState()) {
 
@@ -49,6 +51,15 @@ class BlockingPresenter @Inject constructor(
 
         disposables += prefs.drop.asObservable()
                 .subscribe { enabled -> newState { copy(dropEnabled = enabled) } }
+
+        disposables += prefs.blockNonContacts.asObservable()
+                .subscribe { enabled -> newState { copy(blockNonContactsEnabled = enabled) } }
+
+        disposables += prefs.blockingManager.asObservable()
+                .map { manager -> manager == Preferences.BLOCKING_MANAGER_QKSMS }
+                .subscribe { builtIn -> newState { copy(usingBuiltInBlocking = builtIn) } }
+
+        newState { copy(canReadContacts = permissionManager.hasContacts()) }
     }
 
     override fun bindIntents(view: BlockingView) {
@@ -80,6 +91,10 @@ class BlockingPresenter @Inject constructor(
         view.dropClickedIntent
                 .autoDisposable(view.scope())
                 .subscribe { prefs.drop.set(!prefs.drop.get()) }
+
+        view.blockNonContactsClickedIntent
+                .autoDisposable(view.scope())
+                .subscribe { prefs.blockNonContacts.set(!prefs.blockNonContacts.get()) }
     }
 
 }

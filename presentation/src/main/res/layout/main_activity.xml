@@ -70,11 +70,17 @@
                     android:text="@string/title_conversations" />
 
                 <!-- Filter Tabs with Search and Compose -->
+                <!-- Weighted rather than wrap_content: at wrap_content the labels set the
+                     width, and three of them at 48dp targets ran past the right edge of a
+                     480px screen, which clipped the pill. Weighted, the bar takes the space
+                     that is left and the tabs inside share it. -->
                 <LinearLayout
                     android:id="@+id/filterTabs"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
                     android:layout_height="48dp"
                     android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
                     android:orientation="horizontal"
                     android:background="@drawable/filter_tabs_background">
 
@@ -97,11 +103,14 @@
                     <TextView
                         android:id="@+id/filterAll"
                         android:layout_width="wrap_content"
+                        android:layout_weight="1"
                         android:layout_height="match_parent"
                         android:minWidth="48dp"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
                         android:gravity="center"
+                        android:maxLines="1"
+                        android:ellipsize="end"
                         android:text="@string/filter_all"
                         android:textSize="13sp"
                         android:textStyle="bold"
@@ -111,11 +120,14 @@
                     <TextView
                         android:id="@+id/filterGroups"
                         android:layout_width="wrap_content"
+                        android:layout_weight="1"
                         android:layout_height="match_parent"
                         android:minWidth="48dp"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
                         android:gravity="center"
+                        android:maxLines="1"
+                        android:ellipsize="end"
                         android:text="@string/filter_groups"
                         android:textSize="13sp"
                         android:textStyle="bold"
@@ -125,33 +137,19 @@
                     <TextView
                         android:id="@+id/filterUnknown"
                         android:layout_width="wrap_content"
+                        android:layout_weight="1"
                         android:layout_height="match_parent"
                         android:minWidth="48dp"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
                         android:gravity="center"
+                        android:maxLines="1"
+                        android:ellipsize="end"
                         android:text="@string/filter_unknown"
                         android:textSize="13sp"
                         android:textStyle="bold"
                         android:background="@android:color/transparent"
                         android:textColor="#000000" />
-
-                    <!-- Compose Tab -->
-                    <FrameLayout
-                        android:id="@+id/compose"
-                        android:layout_width="48dp"
-                        android:layout_height="match_parent"
-                        android:background="@android:color/transparent">
-
-                        <ImageView
-                            android:layout_width="20dp"
-                            android:layout_height="20dp"
-                            android:layout_gravity="center"
-                            android:src="@drawable/ic_edit_black_24dp"
-                            android:contentDescription="@string/main_fab_cd"
-                            app:tint="#000000" />
-
-                    </FrameLayout>
 
                 </LinearLayout>
 
@@ -233,6 +231,29 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/toolbar" />
+
+        <!-- Compose. Floats over the list in the bottom end corner rather than
+             sitting in the filter pill, where it and the search icon between them
+             took 96dp of a 480px-wide bar and squeezed the labels. -->
+        <FrameLayout
+            android:id="@+id/compose"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/compose_button_background"
+            app:layout_constraintBottom_toTopOf="@id/bottom"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_edit_black_24dp"
+                android:contentDescription="@string/main_fab_cd"
+                app:tint="#FFFFFF" />
+
+        </FrameLayout>
 
         <View
             android:id="@+id/bottom"

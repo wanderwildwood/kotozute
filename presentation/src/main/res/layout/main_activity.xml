@@ -72,8 +72,8 @@
                 <!-- Filter Tabs with Search and Compose -->
                 <!-- Weighted rather than wrap_content: at wrap_content the labels set the
                      width, and three of them at 48dp targets ran past the right edge of a
-                     480px screen, which clipped the pill. Weighted, the bar takes the space
-                     that is left and the tabs inside share it. -->
+                     480px screen. Weighted, the row takes the space that is left and the
+                     tabs inside share it. -->
                 <LinearLayout
                     android:id="@+id/filterTabs"
                     android:layout_width="0dp"
@@ -81,8 +81,7 @@
                     android:layout_height="48dp"
                     android:layout_marginStart="8dp"
                     android:layout_marginEnd="8dp"
-                    android:orientation="horizontal"
-                    android:background="@drawable/filter_tabs_background">
+                    android:orientation="horizontal">
 
                     <!-- Search Tab -->
                     <FrameLayout
@@ -224,10 +223,13 @@
             app:layout_constraintTop_toBottomOf="@id/toolbar"
             tools:listitem="@layout/conversation_list_item" />
 
+        <!-- A drawn line rather than the inherited 8dp gradient: a soft shadow is
+             dithered noise on e-ink, and this is the same weight of stroke the
+             filter pill used to carry. -->
         <View
             android:layout_width="0dp"
-            android:layout_height="8dp"
-            android:background="@drawable/ab_shadow"
+            android:layout_height="1.5dp"
+            android:background="#000000"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/toolbar" />

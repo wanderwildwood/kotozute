@@ -99,7 +99,9 @@
 
                     </FrameLayout>
 
-                    <TextView
+                    <!-- QkTextView, so the label follows the app's Font size setting
+                         like every other piece of text instead of a hardcoded 13sp. -->
+                    <com.message.ink.common.widget.QkTextView
                         android:id="@+id/filterAll"
                         android:layout_width="wrap_content"
                         android:layout_weight="1"
@@ -111,12 +113,14 @@
                         android:maxLines="1"
                         android:ellipsize="end"
                         android:text="@string/filter_all"
-                        android:textSize="13sp"
                         android:textStyle="bold"
                         android:background="@drawable/filter_tab_selected"
-                        android:textColor="@android:color/white" />
+                        android:textColor="@android:color/white"
+                        app:textSize="secondary" />
 
-                    <TextView
+                    <!-- QkTextView, so the label follows the app's Font size setting
+                         like every other piece of text instead of a hardcoded 13sp. -->
+                    <com.message.ink.common.widget.QkTextView
                         android:id="@+id/filterGroups"
                         android:layout_width="wrap_content"
                         android:layout_weight="1"
@@ -128,12 +132,14 @@
                         android:maxLines="1"
                         android:ellipsize="end"
                         android:text="@string/filter_groups"
-                        android:textSize="13sp"
                         android:textStyle="bold"
                         android:background="@android:color/transparent"
-                        android:textColor="#000000" />
+                        android:textColor="#000000"
+                        app:textSize="secondary" />
 
-                    <TextView
+                    <!-- QkTextView, so the label follows the app's Font size setting
+                         like every other piece of text instead of a hardcoded 13sp. -->
+                    <com.message.ink.common.widget.QkTextView
                         android:id="@+id/filterUnknown"
                         android:layout_width="wrap_content"
                         android:layout_weight="1"
@@ -145,10 +151,10 @@
                         android:maxLines="1"
                         android:ellipsize="end"
                         android:text="@string/filter_unknown"
-                        android:textSize="13sp"
                         android:textStyle="bold"
                         android:background="@android:color/transparent"
-                        android:textColor="#000000" />
+                        android:textColor="#000000"
+                        app:textSize="secondary" />
 
                 </LinearLayout>
 

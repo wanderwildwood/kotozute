@@ -103,7 +103,7 @@
             <View
                 android:id="@+id/actionsDivider"
                 android:layout_width="match_parent"
-                android:layout_height="1dp"
+                android:layout_height="3dp"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp"
                 android:background="?android:attr/divider" />
@@ -137,7 +137,7 @@
             <View
                 android:id="@+id/qkreplyDivider"
                 android:layout_width="match_parent"
-                android:layout_height="1dp"
+                android:layout_height="3dp"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp"
                 android:background="?android:attr/divider" />
@@ -175,7 +175,7 @@
 
     <View
         android:layout_width="match_parent"
-        android:layout_height="1dp"
+        android:layout_height="3dp"
         android:layout_gravity="bottom"
         android:background="?android:attr/divider"
         app:layout_constraintBottom_toBottomOf="parent" />

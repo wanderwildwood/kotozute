@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MMD switch thumb: a 20dp disc, inverted against the track.
+
+     SwitchCompat stretches the thumb drawable to the full height of the switch, so a bare
+     20dp oval renders as a tall blob overhanging the track. A layer-list pins the disc at
+     20dp inside a transparent 32dp box (the track height) instead. An <inset> would also
+     size it, but InsetDrawable reports its insets as padding and SwitchCompat subtracts
+     that from the track, shrinking the capsule. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="true">
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <size android:width="32dp" android:height="32dp" />
+                    <solid android:color="@android:color/transparent" />
+                </shape>
+            </item>
+            <item
+                android:width="20dp"
+                android:height="20dp"
+                android:gravity="center">
+                <shape android:shape="oval">
+                    <solid android:color="@color/white" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <size android:width="32dp" android:height="32dp" />
+                    <solid android:color="@android:color/transparent" />
+                </shape>
+            </item>
+            <item
+                android:width="20dp"
+                android:height="20dp"
+                android:gravity="center">
+                <shape android:shape="oval">
+                    <solid android:color="@color/black" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

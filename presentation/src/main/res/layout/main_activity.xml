@@ -266,7 +266,7 @@
         <View
             android:id="@+id/bottom"
             android:layout_width="match_parent"
-            android:layout_height="1dp"
+            android:layout_height="3dp"
             android:background="?android:attr/divider"
             app:layout_constraintBottom_toTopOf="@id/snackbar" />
 

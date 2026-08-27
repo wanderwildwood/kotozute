@@ -1,14 +1,14 @@
 <img src="icon.png" width="100" />
 
-# inkMessage+
+# eInk Messaging
 
 An SMS and MMS app for the [Mudita Kompakt](https://mudita.com/products/kompakt/), restyled for the phone's e-ink screen, with Desktop Sync: reading and replying to texts from a browser on a computer.
 
-It is a fork of [InkMessage](https://github.com/lamdanAmiti/InkMessage), which is a fork of [QUIK](https://github.com/octoshrimpy/quik), which continues [QKSMS](https://github.com/moezbhatti/qksms).
+It continues [QKSMS](https://github.com/moezbhatti/qksms) by way of [QUIK](https://github.com/octoshrimpy/quik), and branched off [InkMessage](https://github.com/lamdanAmiti/InkMessage), which is where the e-ink work started.
 
-## Why this fork
+## What it does differently
 
-InkMessage already had a good e-ink UI and a strong feature set. This fork adds two things.
+Two things set it apart from the rest of the QKSMS line.
 
 ### 1. A closer match to the Kompakt's native (MMD) look
 
@@ -52,9 +52,9 @@ The restriction is enforced per request rather than by binding only the tailnet 
 
 Don't port-forward the port, and don't expose it with Tailscale Funnel.
 
-Desktop Sync needs the `INTERNET` permission, which upstream InkMessage deliberately left disabled. Leave the feature off and no server is ever started.
+Desktop Sync needs the `INTERNET` permission, which InkMessage deliberately left disabled and this app re-enables for exactly this feature. Leave it off and no server is ever started.
 
-**A note on launcher badges.** Desktop Sync runs as a foreground service, which means Android keeps a notification in the shade for as long as the relay is up — that's how the platform works, and it's also your only visible sign the relay is running. Some minimalist launchers count *every* notification a package has posted when deciding whether to badge its icon, without checking whether the notification asked to be badged. On those launchers the relay's notification will light up an unread marker on inkMessage+ that never clears.
+**A note on launcher badges.** Desktop Sync runs as a foreground service, which means Android keeps a notification in the shade for as long as the relay is up — that's how the platform works, and it's also your only visible sign the relay is running. Some minimalist launchers count *every* notification a package has posted when deciding whether to badge its icon, without checking whether the notification asked to be badged. On those launchers the relay's notification will light up an unread marker on eInk Messaging that never clears.
 
 The notification lives on its own channel (`desktop_sync_v2`) and declares `setShowBadge(false)` plus `CATEGORY_SERVICE`, so a launcher that honours either one will behave. If yours doesn't, open the notification's channel settings — the cog next to it in the shade — and switch that one channel off. Real messages badge from a different channel and are unaffected. The cost is that you lose the shade indicator telling you the relay is running.
 
@@ -69,12 +69,13 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 
 The APK lands in `presentation/build/outputs/apk/release/`.
 
-Builds are signed with the keystore committed at `presentation/inkmessageplus.keystore`. Its credentials are **intentionally public**, so that any build — local or CI — installs as an in-place upgrade over a previous one. It is not a secret and shouldn't be treated as one.
+A keystore is committed at `presentation/einkmessaging.keystore` with the password `android`, so that a fresh clone compiles and installs without any setup. It is a throwaway: its private half is public, its certificate says so, and the release workflow refuses to publish anything signed with it. Released builds are signed with a real key supplied through `signing/`, which is not in this repository.
 
 ## Installing
 
-> **Upgrading from an older copy? Uninstall it first.** Android will not install this over an
-> older copy, and stops with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+> **Running inkMessage+? Uninstall it first — there is no upgrade path.** This app has a
+> different application ID, so Android treats it as unrelated software rather than a newer
+> version, and installing over the old one stops with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
 >
 > **Your messages are safe.** They live in Android's own message store, not in this app, and it
 > reads them back the first time it runs — on a long history that takes several minutes, showing
@@ -89,9 +90,9 @@ Also inherited from upstream: scheduled messages, backup/restore, blocking, arch
 
 Standing on a lot of other people's work:
 
-- **InkMessage** — [lamdanAmiti](https://github.com/lamdanAmiti), the direct parent of this fork
-- **QUIK** — [Marcos Jones (octoshrimpy)](https://github.com/octoshrimpy) — [Liberapay](https://liberapay.com/octoshrimpy/donate) · [Ko-Fi](https://ko-fi.com/octoshrimpy/donate) · [Patreon](https://patreon.com/octoshrimpy)
-- **QKSMS** — [Moez Bhatti](https://github.com/moezbhatti)
+- **QKSMS** — [Moez Bhatti](https://github.com/moezbhatti), where almost all of this code comes from
+- **QUIK** — [Marcos Jones (octoshrimpy)](https://github.com/octoshrimpy), who kept it alive — [Liberapay](https://liberapay.com/octoshrimpy/donate) · [Ko-Fi](https://ko-fi.com/octoshrimpy/donate) · [Patreon](https://patreon.com/octoshrimpy)
+- **InkMessage** — [lamdanAmiti](https://github.com/lamdanAmiti), who took it to e-ink first, and where this branched off
 - **android-smsmms** — [Jake](https://github.com/klinker41) and [Luke Klinker](https://github.com/klinker24)
 - Typography and visual language follow Mudita's [MMD](https://github.com/mudita) design system
 

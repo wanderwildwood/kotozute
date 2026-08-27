@@ -6,22 +6,18 @@ An SMS and MMS app for the [Mudita Kompakt](https://mudita.com/products/kompakt/
 
 It continues [QKSMS](https://github.com/moezbhatti/qksms) by way of [QUIK](https://github.com/octoshrimpy/quik), and branched off [InkMessage](https://github.com/lamdanAmiti/InkMessage), which is where the e-ink work started.
 
-## What it does differently
+## Matching the stock Mudita SMS app
 
-Two things set it apart from the rest of the QKSMS line.
+Measured against the stock app rather than guessed at:
 
-### 1. A closer match to the Kompakt's native (MMD) look
-
-Measured against the stock Mudita SMS app rather than guessed at:
-
-- **No avatars anywhere** — the stock app identifies a conversation by its title, not by per-message circles
-- **Bubble borders match stock**: thin solid for incoming, thick solid for outgoing (upstream had these reversed, with a dashed outgoing border)
+- No avatars — the stock app identifies a conversation by its title, not by per-message circles
+- Bubble borders: thin solid incoming, thick solid outgoing (upstream had these reversed, with a dashed outgoing border)
 - Sender names always bold; message previews bold only when unread
-- **Lato bundled statically.** Upstream loaded it through Google Play Services' downloadable-fonts provider, which silently does nothing on a degoogled phone — so the font never actually rendered on a Kompakt
-- **Strictly black and white.** E-ink can't display colour (it dithers to muddy grey), so the accent-colour system now always resolves to black
+- Lato is bundled statically. Upstream loaded it through Google Play Services' downloadable-fonts provider, which silently does nothing on a degoogled phone, so the font never rendered on a Kompakt
+- Black and white only. E-ink dithers colour to muddy grey, so the accent-colour system always resolves to black
 - Consistent icon weights, and chevrons on navigable settings rows
 
-### 2. Desktop Sync — texting from your computer
+## Desktop Sync
 
 An HTTP + WebSocket server runs *inside the app on the phone* and serves its own web dashboard. Your browser talks directly to the phone: no cloud service, no relay server in between.
 
@@ -33,14 +29,16 @@ An HTTP + WebSocket server runs *inside the app on the phone* and serves its own
 - Live updates over a WebSocket, with polling as a fallback
 - The access link can be reset if it leaks
 
-**Setup**
+### Setup
 
 1. In the app: **Settings → Desktop Sync**, and switch it on.
 2. Tap **Show link** for the address to open on your computer. Bookmark it: the address and its token are stable.
 3. Switch it off again with the same row, or **Stop** on the notification. It is off by default and never starts on its own.
 4. If the link is ever shared or seen by someone else, **Reset Desktop Sync link** mints a new token. Existing bookmarks and open tabs stop working immediately.
 
-**Access control.** Two independent gates.
+### Access control
+
+Two independent gates.
 
 *Where you can connect from.* **Tailscale only** is on by default: any request from outside your [Tailscale](https://tailscale.com/) tailnet is refused before the token is even looked at, so another device on your café or home Wi-Fi cannot reach the dashboard even if it somehow had your link. This also means your messages are never in the clear on a network — the relay speaks plain HTTP, but every tailnet connection is encrypted end to end by Tailscale itself.
 
@@ -54,7 +52,9 @@ Don't port-forward the port, and don't expose it with Tailscale Funnel.
 
 Desktop Sync needs the `INTERNET` permission, which InkMessage deliberately left disabled and this app re-enables for exactly this feature. Leave it off and no server is ever started.
 
-**A note on launcher badges.** Desktop Sync runs as a foreground service, which means Android keeps a notification in the shade for as long as the relay is up — that's how the platform works, and it's also your only visible sign the relay is running. Some minimalist launchers count *every* notification a package has posted when deciding whether to badge its icon, without checking whether the notification asked to be badged. On those launchers the relay's notification will light up an unread marker on eInk Messaging that never clears.
+### Launcher badges
+
+Desktop Sync runs as a foreground service, which means Android keeps a notification in the shade for as long as the relay is up — that's how the platform works, and it's also your only visible sign the relay is running. Some minimalist launchers count *every* notification a package has posted when deciding whether to badge its icon, without checking whether the notification asked to be badged. On those launchers the relay's notification will light up an unread marker on eInk Messaging that never clears.
 
 The notification lives on its own channel (`desktop_sync_v2`) and declares `setShowBadge(false)` plus `CATEGORY_SERVICE`, so a launcher that honours either one will behave. If yours doesn't, open the notification's channel settings — the cog next to it in the shade — and switch that one channel off. Real messages badge from a different channel and are unaffected. The cost is that you lose the shade indicator telling you the relay is running.
 
@@ -96,6 +96,6 @@ Standing on a lot of other people's work:
 - **android-smsmms** — [Jake](https://github.com/klinker41) and [Luke Klinker](https://github.com/klinker24)
 - Typography and visual language follow Mudita's [MMD](https://github.com/mudita) design system
 
-## License
+## Licence
 
 GPLv3, inherited from QKSMS and QUIK — see [LICENSE](LICENSE).

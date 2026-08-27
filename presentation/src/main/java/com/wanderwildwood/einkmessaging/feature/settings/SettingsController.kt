@@ -52,6 +52,8 @@ import com.wanderwildwood.einkmessaging.injection.appComponent
 import com.wanderwildwood.einkmessaging.repository.SyncRepository
 import com.wanderwildwood.einkmessaging.util.Preferences
 import io.reactivex.Observable
+import android.view.ViewGroup
+import androidx.core.view.isVisible
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import kotlinx.coroutines.Dispatchers
@@ -110,15 +112,56 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun onAttach(view: View) {
         super.onAttach(view)
         presenter.bindIntents(this)
-        setTitle(R.string.title_settings)
+        // the view is retained across detach, so restore whichever section was open
+        setTitle(openTitle)
         showBackButton(true)
     }
 
-    override fun preferenceClicks(): Observable<PreferenceView> = (0 until binding.preferences.childCount)
-            .map { index -> binding.preferences.getChildAt(index) }
-            .mapNotNull { view -> view as? PreferenceView }
+    /**
+     * The rows now live inside per-section containers rather than directly under [preferences],
+     * so this walks the tree instead of only the immediate children.
+     */
+    private fun collectPreferences(group: ViewGroup): List<PreferenceView> =
+            (0 until group.childCount)
+                    .map { index -> group.getChildAt(index) }
+                    .flatMap { child ->
+                        when (child) {
+                            is PreferenceView -> listOf(child)
+                            is ViewGroup -> collectPreferences(child)
+                            else -> emptyList()
+                        }
+                    }
+
+    override fun preferenceClicks(): Observable<PreferenceView> = collectPreferences(binding.preferences)
             .map { preference -> preference.clicks().map { preference } }
             .let { preferences -> Observable.merge(preferences) }
+
+    /**
+     * Sections are swapped in place rather than pushed as separate controllers: every row still
+     * exists in one layout, so the presenter's render() keeps working untouched. It also avoids a
+     * push animation, which this app deliberately does not want on e-ink.
+     */
+    private var openSection: Int = 0
+    private var openTitle: Int = R.string.title_settings
+
+    override fun showSection(container: Int, title: Int) {
+        openSection = container
+        openTitle = title
+        sectionContainers().forEach { section -> section.isVisible = section.id == container }
+        setTitle(title)
+    }
+
+    private fun sectionContainers() = listOf(
+            binding.sectionRoot, binding.sectionGeneral, binding.sectionNotifications,
+            binding.sectionSending, binding.sectionStorage, binding.sectionDesktop)
+
+    override fun handleBack(): Boolean {
+        if (openSection != 0 && openSection != binding.sectionRoot.id) {
+            showSection(binding.sectionRoot.id, R.string.title_settings)
+            return true
+        }
+        return super.handleBack()
+    }
 
     override fun aboutLongClicks(): Observable<*> = binding.about.longClicks()
 

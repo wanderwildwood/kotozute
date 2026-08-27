@@ -42,6 +42,7 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showMessageLinkHandlingDialogPicker()
     fun showDesktopSyncLinkDialog(url: String?)
     fun showDesktopSyncResetDialog()
+    fun showSection(container: Int, title: Int)
     fun showSwipeActions()
     fun showAbout()
 }

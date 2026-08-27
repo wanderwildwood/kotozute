@@ -223,7 +223,7 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.mmsSize -> view.showMmsSizePicker()
 
-                        R.id.messsageLinkHandling -> view.showMessageLinkHandlingDialogPicker()
+                        R.id.messageLinkHandling -> view.showMessageLinkHandlingDialogPicker()
 
                         R.id.disableScreenshots -> prefs.disableScreenshots.set(!prefs.disableScreenshots.get())
 

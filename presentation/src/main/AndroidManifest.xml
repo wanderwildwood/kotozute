@@ -298,6 +298,14 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- Without this the camera cannot be seen at all on API 30+, so the
+             photo it is asked to take has nowhere it is allowed to write. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
+        </intent>
     </queries>
 
 </manifest>

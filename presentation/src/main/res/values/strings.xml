@@ -172,6 +172,8 @@
     <string name="compose_schedule_cancel_cd">Cancel schedule message</string>
     <string name="compose_contact_cd">Attach a contact</string>
     <string name="compose_contact_error">Error reading contact</string>
+    <string name="compose_camera_error">Couldn\'t make room for the photo</string>
+    <string name="compose_camera_unavailable">This phone has no camera app that can hand a photo back</string>
     <!-- Example: SIM 1 (Verizon) selected-->
     <string name="compose_sim_changed_toast">SIM %1$d (%2$s) selected</string>
     <string name="compose_sim_cd">%s selected, change SIM card</string>

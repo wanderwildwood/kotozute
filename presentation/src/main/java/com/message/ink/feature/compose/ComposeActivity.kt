@@ -19,13 +19,13 @@
 package com.message.ink.feature.compose
 
 import android.Manifest
-import android.animation.LayoutTransition
 import android.app.Activity
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Build
@@ -453,7 +453,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         binding.messageAttachments.setVisible(state.attachments.isNotEmpty())
         composeAttachmentAdapter.data = state.attachments
 
-        binding.attach.animate().rotation(if (state.attaching) 135f else 0f).start()
+        binding.attach.rotation = if (state.attaching) 135f else 0f
         binding.attaching.isVisible = state.attaching
 
         binding.shadeBackground.apply {

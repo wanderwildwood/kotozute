@@ -148,6 +148,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         sendDelayDialog.adapter.selectedItem = state.sendDelayId
 
         binding.delivery.checkbox.isChecked = state.deliveryEnabled
+        binding.readReceipts.checkbox.isChecked = state.readReceiptsEnabled
         binding.desktopSync.summary = state.desktopSyncSummary
         // Nothing to reset until there's a link to reset.
         binding.desktopSync.checkbox.isChecked = state.desktopSyncEnabled

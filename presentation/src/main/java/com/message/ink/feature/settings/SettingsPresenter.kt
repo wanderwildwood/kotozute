@@ -63,6 +63,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.delivery.asObservable()
             .subscribe { enabled -> newState { copy(deliveryEnabled = enabled) } }
 
+        disposables += prefs.readReceipts.asObservable()
+            .subscribe { enabled -> newState { copy(readReceiptsEnabled = enabled) } }
+
         disposables += prefs.desktopSyncEnabled.asObservable()
             .subscribe { enabled ->
                 newState {
@@ -169,6 +172,8 @@ class SettingsPresenter @Inject constructor(
                         R.id.delayed -> view.showDelayDurationDialog()
 
                         R.id.delivery -> prefs.delivery.set(!prefs.delivery.get())
+
+                        R.id.readReceipts -> prefs.readReceipts.set(!prefs.readReceipts.get())
 
                         R.id.desktopSync -> {
                             if (prefs.desktopSyncEnabled.get()) {

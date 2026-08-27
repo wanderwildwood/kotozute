@@ -145,7 +145,7 @@
                 app:title="@string/settings_swipe_actions" />
 
             <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
-                android:id="@+id/messsageLinkHandling"
+                android:id="@+id/messageLinkHandling"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="visible"

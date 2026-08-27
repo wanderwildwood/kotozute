@@ -225,7 +225,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.mmsSize.summary = state.maxMmsSizeSummary
         mmsSizeDialog.adapter.selectedItem = state.maxMmsSizeId
 
-        binding.messsageLinkHandling.summary = state.messageLinkHandlingSummary
+        binding.messageLinkHandling.summary = state.messageLinkHandlingSummary
         messageLinkHandlingDialog.adapter.selectedItem = state.messageLinkHandlingId
 
         binding.disableScreenshots.checkbox.isChecked = state.disableScreenshotsEnabled

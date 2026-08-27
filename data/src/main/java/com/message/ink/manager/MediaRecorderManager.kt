@@ -38,7 +38,10 @@ object MediaRecorderManager : MediaRecorder() {
     }
 
     const val AUDIO_FILE_PREFIX = "recorded-"
-    const val AUDIO_FILE_SUFFIX = ".3ga"
+    const val AUDIO_FILE_SUFFIX = ".amr"
+
+    /** Recordings made before the move off AMR-WB. Cleaned up, never written. */
+    const val LEGACY_AUDIO_FILE_SUFFIX = ".3ga"
 
     private var recordingState: RecordingState = RecordingState.Initial
 
@@ -77,9 +80,14 @@ object MediaRecorderManager : MediaRecorder() {
             stopRecording()
 
             // configure
+            //
+            // Narrowband, not AMR-WB in a 3GPP container. Wideband is outside the
+            // MMS baseline, so a handset or a carrier transcoder on the far end can
+            // receive the part and still have no way to decode it -- which arrives
+            // as a file that will not open rather than as an error.
             setAudioSource(AudioSource.MIC)
-            setOutputFormat(OutputFormat.THREE_GPP)
-            setAudioEncoder(AudioEncoder.AMR_WB)
+            setOutputFormat(OutputFormat.AMR_NB)
+            setAudioEncoder(AudioEncoder.AMR_NB)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
                 preferredDevice = preferredAudioDevice

@@ -103,7 +103,8 @@ class HousekeepingWorker(appContext: Context, workerParams: WorkerParameters)
         applicationContext.cacheDir.listFiles { entry ->
             entry.isFile &&
                     entry.name.startsWith(MediaRecorderManager.AUDIO_FILE_PREFIX) &&
-                    entry.name.endsWith(MediaRecorderManager.AUDIO_FILE_SUFFIX) &&
+                    (entry.name.endsWith(MediaRecorderManager.AUDIO_FILE_SUFFIX) ||
+                            entry.name.endsWith(MediaRecorderManager.LEGACY_AUDIO_FILE_SUFFIX)) &&
                     (entry.lastModified() < removeOlderThan)
         }?.forEach { it.delete() }  // delete recording file
 

@@ -73,7 +73,7 @@
                 <LinearLayout
                     android:id="@+id/filterTabs"
                     android:layout_width="wrap_content"
-                    android:layout_height="36dp"
+                    android:layout_height="48dp"
                     android:layout_marginStart="8dp"
                     android:orientation="horizontal"
                     android:background="@drawable/filter_tabs_background">
@@ -81,13 +81,13 @@
                     <!-- Search Tab -->
                     <FrameLayout
                         android:id="@+id/searchIcon"
-                        android:layout_width="36dp"
+                        android:layout_width="48dp"
                         android:layout_height="match_parent"
                         android:background="@android:color/transparent">
 
                         <ImageView
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
                             android:layout_gravity="center"
                             android:src="@drawable/ic_search_black_24dp"
                             app:tint="#000000" />
@@ -98,6 +98,7 @@
                         android:id="@+id/filterAll"
                         android:layout_width="wrap_content"
                         android:layout_height="match_parent"
+                        android:minWidth="48dp"
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp"
                         android:gravity="center"
@@ -111,6 +112,7 @@
                         android:id="@+id/filterGroups"
                         android:layout_width="wrap_content"
                         android:layout_height="match_parent"
+                        android:minWidth="48dp"
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp"
                         android:gravity="center"
@@ -124,6 +126,7 @@
                         android:id="@+id/filterUnknown"
                         android:layout_width="wrap_content"
                         android:layout_height="match_parent"
+                        android:minWidth="48dp"
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp"
                         android:gravity="center"
@@ -136,13 +139,13 @@
                     <!-- Compose Tab -->
                     <FrameLayout
                         android:id="@+id/compose"
-                        android:layout_width="36dp"
+                        android:layout_width="48dp"
                         android:layout_height="match_parent"
                         android:background="@android:color/transparent">
 
                         <ImageView
-                            android:layout_width="16dp"
-                            android:layout_height="16dp"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
                             android:layout_gravity="center"
                             android:src="@drawable/ic_edit_black_24dp"
                             android:contentDescription="@string/main_fab_cd"

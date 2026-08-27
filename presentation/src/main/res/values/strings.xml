@@ -351,6 +351,12 @@
     <string name="settings_desktop_sync_reset_dialog">Replace the secret token in your Desktop Sync address?\n\nAny bookmark or open browser tab using the old link will stop working. The new address appears in Settings straight away.</string>
     <string name="settings_desktop_sync_reset_confirm">Reset link</string>
     <string name="settings_desktop_sync_reset_done">New Desktop Sync link generated</string>
+    <!-- Settings categories: the loose options are grouped behind these.
+         general and desktop_sync already exist above and are reused. -->
+    <string name="settings_category_notifications">Notifications</string>
+    <string name="settings_category_sending">Sending</string>
+    <string name="settings_category_storage">Storage and privacy</string>
+
     <string name="settings_about_title">About eInk Messaging</string>
     <string name="settings_version">Version %s</string>
     <string name="settings_logging_enabled">Debug logging enabled</string>

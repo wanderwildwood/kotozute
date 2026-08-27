@@ -156,6 +156,21 @@ class SettingsPresenter @Inject constructor(
                     Timber.v("Preference click: ${context.resources.getResourceName(it.id)}")
 
                     when (it.id) {
+                        R.id.categoryGeneral ->
+                            view.showSection(R.id.sectionGeneral, R.string.settings_category_general)
+
+                        R.id.categoryNotifications ->
+                            view.showSection(R.id.sectionNotifications, R.string.settings_category_notifications)
+
+                        R.id.categorySending ->
+                            view.showSection(R.id.sectionSending, R.string.settings_category_sending)
+
+                        R.id.categoryStorage ->
+                            view.showSection(R.id.sectionStorage, R.string.settings_category_storage)
+
+                        R.id.categoryDesktopSync ->
+                            view.showSection(R.id.sectionDesktop, R.string.settings_category_desktop_sync)
+
                         R.id.archived -> navigator.showArchived()
 
                         R.id.scheduled -> navigator.showScheduled(null)

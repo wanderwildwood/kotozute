@@ -28,7 +28,7 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
     }
-    namespace 'com.message.ink.common'
+    namespace 'com.wanderwildwood.einkmessaging.common'
 }
 
 dependencies {

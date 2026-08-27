@@ -21,7 +21,7 @@ apply plugin: 'realm-android' // Realm needs to be before Kotlin or the build wi
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 
-// The keystore committed at presentation/inkmessageplus.keystore has password 'android' and
+// The keystore committed at presentation/einkmessaging.keystore has password 'android' and
 // sits in a public repo, so its private half is anyone's - they can build an APK that upgrades
 // an install in place. A real keystore in signing/ replaces it for every build type when one is
 // present, and the release workflow writes it there from repository secrets. Absent, the build
@@ -37,7 +37,7 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.wanderwildwood.inkmessageplus'
+        applicationId 'com.wanderwildwood.einkmessaging'
         minSdkVersion 23
         targetSdkVersion 33
         // Released builds take their version from the git tag: the release workflow derives
@@ -45,9 +45,9 @@ android {
         // that got skipped once, shipping tag v1.0.2 as an APK still labelled 1.0.1.
         // The literals are the local-build fallback only, and never ship.
         // (Reset to 1.0.0 for this fork's first release; upstream InkMessage was at 0.0.4.)
-        versionCode project.findProperty('inkVersionCode')?.toInteger() ?: 2
-        versionName project.findProperty('inkVersionName') ?: '1.0.1'
-        setProperty("archivesBaseName", "inkMessagePlus-v${versionName}")
+        versionCode project.findProperty('appVersionCode')?.toInteger() ?: 2
+        versionName project.findProperty('appVersionName') ?: '1.0.1'
+        setProperty("archivesBaseName", "eInkMessaging-v${versionName}")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -58,9 +58,9 @@ android {
         // Credentials are intentionally public: this is a sideloaded personal app,
         // not a Play Store listing.
         debug {
-            storeFile file('inkmessageplus.keystore')
+            storeFile file('einkmessaging.keystore')
             storePassword 'android'
-            keyAlias 'inkmessageplus'
+            keyAlias 'einkmessaging'
             keyPassword 'android'
         }
         if (realSigningProps != null) {
@@ -103,7 +103,7 @@ android {
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
-            resValue("string", "app_name", "inkMessage+ Debug")
+            resValue("string", "app_name", "eInk Messaging Debug")
             resValue("string", "application_id", defaultConfig.applicationId)
             signingConfig realSigningProps != null ? signingConfigs.release : signingConfigs.debug
         }
@@ -130,7 +130,7 @@ android {
         abortOnError false
         checkReleaseBuilds false
     }
-    namespace 'com.message.ink'
+    namespace 'com.wanderwildwood.einkmessaging'
     buildFeatures {
         buildConfig true
         viewBinding true

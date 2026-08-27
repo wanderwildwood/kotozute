@@ -23,7 +23,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <com.message.ink.common.widget.RadioPreferenceView
+    <com.wanderwildwood.einkmessaging.common.widget.RadioPreferenceView
         android:id="@+id/number"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

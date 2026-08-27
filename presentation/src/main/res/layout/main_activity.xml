@@ -59,7 +59,7 @@
                 <!-- Page title. Must live INSIDE toolbarContent: as a direct child of
                      the Toolbar it was a sibling of toolbarContent (match_parent), which
                      consumed the full width and left the title measuring 0px wide. -->
-                <com.message.ink.common.widget.QkTextView
+                <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                     android:id="@+id/toolbarTitle"
                     style="@style/ToolbarText"
                     android:layout_width="0dp"
@@ -101,7 +101,7 @@
 
                     <!-- QkTextView, so the label follows the app's Font size setting
                          like every other piece of text instead of a hardcoded 13sp. -->
-                    <com.message.ink.common.widget.QkTextView
+                    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                         android:id="@+id/filterAll"
                         android:layout_width="wrap_content"
                         android:layout_weight="1"
@@ -120,7 +120,7 @@
 
                     <!-- QkTextView, so the label follows the app's Font size setting
                          like every other piece of text instead of a hardcoded 13sp. -->
-                    <com.message.ink.common.widget.QkTextView
+                    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                         android:id="@+id/filterGroups"
                         android:layout_width="wrap_content"
                         android:layout_weight="1"
@@ -139,7 +139,7 @@
 
                     <!-- QkTextView, so the label follows the app's Font size setting
                          like every other piece of text instead of a hardcoded 13sp. -->
-                    <com.message.ink.common.widget.QkTextView
+                    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                         android:id="@+id/filterUnknown"
                         android:layout_width="wrap_content"
                         android:layout_weight="1"
@@ -181,7 +181,7 @@
                     android:contentDescription="@string/abc_action_bar_up_description"
                     app:tint="#000000" />
 
-                <com.message.ink.common.widget.QkEditText
+                <com.wanderwildwood.einkmessaging.common.widget.QkEditText
                     android:id="@+id/toolbarSearch"
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -203,7 +203,7 @@
             </LinearLayout>
         </androidx.appcompat.widget.Toolbar>
 
-        <com.message.ink.common.widget.QkTextView
+        <com.wanderwildwood.einkmessaging.common.widget.QkTextView
             android:id="@+id/empty"
             style="@style/TextSecondary"
             android:layout_width="match_parent"

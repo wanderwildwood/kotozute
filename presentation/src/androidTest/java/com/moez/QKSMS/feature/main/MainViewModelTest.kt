@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with QKSMS.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.message.ink.feature.main
+package com.wanderwildwood.einkmessaging.feature.main
 
 import androidx.test.runner.AndroidJUnit4
 import org.junit.Test

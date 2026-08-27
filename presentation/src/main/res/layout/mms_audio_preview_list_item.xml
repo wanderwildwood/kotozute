@@ -53,7 +53,7 @@
         android:splitTrack="false" />
 
     <!-- Hidden views to maintain compatibility with AudioBinder -->
-    <com.message.ink.common.widget.BubbleImageView
+    <com.wanderwildwood.einkmessaging.common.widget.BubbleImageView
         android:id="@+id/thumbnail"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -65,7 +65,7 @@
         android:layout_height="0dp"
         android:visibility="gone" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/metadataTitle"
         android:layout_width="0dp"
         android:layout_height="0dp"

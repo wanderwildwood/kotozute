@@ -25,7 +25,7 @@
     android:layout_height="match_parent"
     android:background="?android:attr/windowBackground"
     android:orientation="vertical"
-    tools:context="com.message.ink.feature.compose.ComposeActivity">
+    tools:context="com.wanderwildwood.einkmessaging.feature.compose.ComposeActivity">
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/messageList"
@@ -41,7 +41,7 @@
         app:stackFromEnd="true"
         tools:listitem="@layout/message_list_item_in" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/messagesEmpty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -84,7 +84,7 @@
         app:layout_constraintBottom_toBottomOf="@id/sendAsGroupSummary"
         app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/sendAsGroupTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -99,7 +99,7 @@
         app:layout_constraintTop_toTopOf="@id/sendAsGroupBackground"
         app:textSize="primary" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/sendAsGroupSummary"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -111,7 +111,7 @@
         app:layout_constraintTop_toBottomOf="@id/sendAsGroupTitle"
         app:textSize="secondary" />
 
-    <com.message.ink.common.widget.QkSwitch
+    <com.wanderwildwood.einkmessaging.common.widget.QkSwitch
         android:id="@+id/sendAsGroupSwitch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -166,7 +166,7 @@
         android:visibility="gone"
         app:constraint_referenced_ids="scheduledTitle,scheduledTime,scheduledCancel,scheduledSeparator" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/scheduledTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -183,7 +183,7 @@
         app:layout_constraintVertical_chainStyle="packed"
         app:textSize="secondary" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/scheduledTime"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -232,7 +232,7 @@
         app:layout_constraintStart_toStartOf="@id/messageBackground"
         tools:listitem="@layout/attachment_file_list_item" />
 
-    <com.message.ink.common.widget.QkEditText
+    <com.wanderwildwood.einkmessaging.common.widget.QkEditText
         android:id="@+id/message"
         style="@style/TextPrimary"
         android:layout_width="0dp"
@@ -256,7 +256,7 @@
         app:layout_constraintStart_toStartOf="@id/messageBackground">
 
         <requestFocus />
-    </com.message.ink.common.widget.QkEditText>
+    </com.wanderwildwood.einkmessaging.common.widget.QkEditText>
 
     <ImageView
         android:id="@+id/sim"
@@ -271,7 +271,7 @@
         app:layout_constraintEnd_toEndOf="@id/messageBackground"
         app:tint="?android:attr/textColorPrimary" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/simIndex"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -286,7 +286,7 @@
         tools:ignore="SpUsage"
         tools:text="1" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/counter"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -345,7 +345,7 @@
             android:gravity="center_vertical"
             android:orientation="vertical">
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 android:id="@+id/toolbarTitle"
                 style="@style/ToolbarText"
                 android:layout_height="wrap_content"
@@ -353,7 +353,7 @@
                 android:textSize="16sp"
                 tools:text="Moez Bhatti" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 android:id="@+id/toolbarSubtitle"
                 style="@style/ToolbarText"
                 android:textColor="?android:attr/textColorTertiary"
@@ -424,7 +424,7 @@
         app:layout_constraintStart_toStartOf="@id/attach"
         app:tint="@android:color/black" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/contactLabel"
         android:layout_width="wrap_content"
         android:layout_height="32dp"
@@ -456,7 +456,7 @@
         app:layout_constraintStart_toStartOf="@id/attach"
         app:tint="@android:color/black" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/scheduleLabel"
         android:layout_width="wrap_content"
         android:layout_height="32dp"
@@ -489,7 +489,7 @@
         app:layout_constraintStart_toStartOf="@id/attach"
         app:tint="@android:color/black" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/attachAFileLabel"
         android:layout_width="wrap_content"
         android:layout_height="32dp"
@@ -521,7 +521,7 @@
         app:layout_constraintStart_toStartOf="@id/attach"
         app:tint="@android:color/black" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/attachAnAudioMessageLabel"
         android:layout_width="wrap_content"
         android:layout_height="32dp"
@@ -553,7 +553,7 @@
         app:layout_constraintStart_toStartOf="@id/attach"
         app:tint="@android:color/black" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/galleryLabel"
         android:layout_width="wrap_content"
         android:layout_height="32dp"
@@ -585,7 +585,7 @@
         app:layout_constraintStart_toStartOf="@id/attach"
         app:tint="@android:color/black" />
 
-    <com.message.ink.common.widget.QkTextView
+    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
         android:id="@+id/cameraLabel"
         android:layout_width="wrap_content"
         android:layout_height="32dp"

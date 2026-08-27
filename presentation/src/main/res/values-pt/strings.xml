@@ -2,20 +2,20 @@
 <!--
   ~ Copyright (C) 2019 Moez Bhatti <moez.bhatti@gmail.com>
   ~
-  ~ This file is part of inkMessage+.
+  ~ This file is part of eInk Messaging.
   ~
-  ~ inkMessage+ is free software: you can redistribute it and/or modify
+  ~ eInk Messaging is free software: you can redistribute it and/or modify
   ~ it under the terms of the GNU General Public License as published by
   ~ the Free Software Foundation, either version 3 of the License, or
   ~ (at your option) any later version.
   ~
-  ~ inkMessage+ is distributed in the hope that it will be useful,
+  ~ eInk Messaging is distributed in the hope that it will be useful,
   ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
   ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   ~ GNU General Public License for more details.
   ~
   ~ You should have received a copy of the GNU General Public License
-  ~ along with inkMessage+.  If not, see <http://www.gnu.org/licenses/>.
+  ~ along with eInk Messaging.  If not, see <http://www.gnu.org/licenses/>.
   --><resources>
     <string name="shortcut_compose_long_label">Nova conversa</string>
     <string name="shortcut_compose_short_label">Escrever</string>
@@ -54,12 +54,12 @@
     <string name="archived_empty_text">As conversas arquivadas aparecerão aqui</string>
     <string name="main_fab_cd">Iniciar nova conversa</string>
     <string name="main_default_sms_title">SMS em grande estilo</string>
-    <string name="main_default_sms_message">Tornar inkMessage+ a aplicação padrão para SMS</string>
+    <string name="main_default_sms_message">Tornar eInk Messaging a aplicação padrão para SMS</string>
     <string name="main_default_sms_change">Alterar</string>
     <string name="main_permission_required">Permissão necessária</string>
-    <string name="main_permission_sms">inkMessage+ necessita da permissão para ver e enviar as mensagens</string>
-    <string name="main_permission_contacts">inkMessage+ necessita da permissão para ver os seus contactos</string>
-    <string name="main_permission_notifications">inkMessage+ necessita da permissão para mostrar notificações</string>
+    <string name="main_permission_sms">eInk Messaging necessita da permissão para ver e enviar as mensagens</string>
+    <string name="main_permission_contacts">eInk Messaging necessita da permissão para ver os seus contactos</string>
+    <string name="main_permission_notifications">eInk Messaging necessita da permissão para mostrar notificações</string>
     <string name="main_permission_allow">Permitir</string>
     <string name="drawer_inbox">Caixa de entrada</string>
     <string name="drawer_archived">Arquivadas</string>
@@ -70,7 +70,7 @@
     <string name="drawer_help">Ajuda e comentários</string>
     <string name="drawer_invite">Convidar amigos</string>
     <string name="drawer_plus_banner_summary">Desbloqueie mais funcionalidades e ajude no desenvolvimento</string>
-    <string name="rate_title">Gosta do inkMessage+?</string>
+    <string name="rate_title">Gosta do eInk Messaging?</string>
     <string name="rate_summary">Mostre o seu contentamento e avalie a aplicação na Google Play!</string>
     <string name="rate_okay">Está bem</string>
     <string name="rate_dismiss">Agora não</string>
@@ -96,7 +96,7 @@
     <string name="compose_vcard_label">Cartão do contacto</string>
     <string name="compose_scheduled_for">Agendada para</string>
     <string name="compose_scheduled_future">A hora escolhida tem que ser futura!</string>
-    <string name="compose_scheduled_plus">Para utilizar esta funcionalidade, necessita do inkMessage+</string>
+    <string name="compose_scheduled_plus">Para utilizar esta funcionalidade, necessita do eInk Messaging</string>
     <string name="compose_scheduled_toast">Adicionada às mensagens agendadas</string>
     <string name="compose_hint">Escrever uma mensagem…</string>
     <string name="compose_menu_copy">Copiar texto</string>
@@ -150,7 +150,7 @@
     <string name="backup_location_summary">Definir pasta</string>
     <string name="backup_restore_title">Restaurar</string>
     <string name="backup_restore_summary">Selecionar backup</string>
-    <string name="backup_restore_error_plus">Tem que ter inkMessage+ para poder usar o backup e restauro</string>
+    <string name="backup_restore_error_plus">Tem que ter eInk Messaging para poder usar o backup e restauro</string>
     <string name="backup_restore_error_backup">A criar backup…</string>
     <string name="backup_restore_error_restore">A restaurar…</string>
     <string name="backup_restore_confirm_title">Restaurar de backup</string>
@@ -251,7 +251,7 @@
     <string name="settings_mms_size_title">Comprimir anexos MMS automaticamente</string>
     <string name="settings_sync_title">Sincronizar mensagens</string>
     <string name="settings_sync_summary">Sincronizar as mensagens com a base de dados nativa do Android</string>
-    <string name="settings_about_title">Acerca do inkMessage+</string>
+    <string name="settings_about_title">Acerca do eInk Messaging</string>
     <string name="settings_version">Versão %s</string>
     <string name="settings_logging_enabled">Depuração ativada</string>
     <string name="settings_logging_disabled">Depuração desativada</string>
@@ -261,7 +261,7 @@
     <string name="blocking_drop_summary">As mensagens enviadas pelos remetentes bloqueados serão descartadas e não ocultadas</string>
     <string name="blocking_conversations">Conversas bloqueadas</string>
     <string name="blocking_manager_title">Gestor de bloqueios</string>
-    <string name="blocking_manager_qksms_summary">Funcionalidade de bloqueio, nativa no inkMessage+</string>
+    <string name="blocking_manager_qksms_summary">Funcionalidade de bloqueio, nativa no eInk Messaging</string>
     <string name="blocking_manager_call_blocker_summary">Bloquear mensagens de spam, números e chamadas desconhecidas com lista negra e agendamento.</string>
     <string name="blocking_manager_call_control_summary">Filtrar automaticamente as chamadas e as mensagens com a aplicação Community IQ™, com a qual pode descartar as mensagens que forem enviadas pelo \'spammers\' reconhecidos na comunidade</string>
     <string name="blocking_manager_sia_summary">Filtrar automaticamente as mensagens de números utilizando a aplicação \"Should I Answer\"</string>
@@ -299,10 +299,10 @@
     <string name="qksms_plus_upgrade">Atualização vitalícia para %1$s %2$s</string>
     <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
     <string name="qksms_plus_upgrade_donate">Desbloquear + com uma doação de %1$s %2$s</string>
-    <string name="qksms_plus_thanks_title">Obrigado por apoiar o inkMessage+!</string>
-    <string name="qksms_plus_thanks_summary">Agora, tem acesso a todas as funções do inkMessage+</string>
+    <string name="qksms_plus_thanks_title">Obrigado por apoiar o eInk Messaging!</string>
+    <string name="qksms_plus_thanks_summary">Agora, tem acesso a todas as funções do eInk Messaging</string>
     <string name="qksms_plus_error">Ocorreu um erro. Por favor tente novamente.</string>
-    <string name="qksms_plus_free_title">O inkMessage+ é gratuito para os utilizadores F-Droid! Se quiser ajudar no desenvolvimento, pode efetuar um donativo.</string>
+    <string name="qksms_plus_free_title">O eInk Messaging é gratuito para os utilizadores F-Droid! Se quiser ajudar no desenvolvimento, pode efetuar um donativo.</string>
     <string name="qksms_plus_donate">Donativos por PayPal</string>
     <string name="qksms_plus_coming_soon">Brevemente</string>
     <string name="qksms_plus_themes_title">Temas premium</string>
@@ -324,7 +324,7 @@
     <string name="qksms_plus_respond_title">Resposta automática</string>
     <string name="qksms_plus_respond_summary">Enviar automaticamente um resposta tendo por base os modelos</string>
     <string name="qksms_plus_more_title">Mais</string>
-    <string name="qksms_plus_more_summary">Esta aplicação está a ser desenvolvida e a sua compra disponibiliza todas as futuras funcionalidades do inkMessage+!</string>
+    <string name="qksms_plus_more_summary">Esta aplicação está a ser desenvolvida e a sua compra disponibiliza todas as futuras funcionalidades do eInk Messaging!</string>
     <string name="widget_loading">A carregar…</string>
     <string name="widget_more">Ver mais conversas</string>
     <string name="qkreply_menu_read">Marcar como lida</string>
@@ -355,7 +355,7 @@
     <string name="button_set">Definir</string>
     <string name="button_undo">Anular</string>
     <string name="toast_copied">Copiada</string>
-    <string name="toast_qksms_plus">Tem que ter o inkMessage+ para esta função</string>
+    <string name="toast_qksms_plus">Tem que ter o eInk Messaging para esta função</string>
     <plurals name="notification_new_messages">
         <item quantity="one">1 nova mensagem</item>
         <item quantity="other">%s novas mensagens</item>

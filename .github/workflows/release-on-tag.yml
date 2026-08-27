@@ -42,7 +42,7 @@ jobs:
       # becomes 10203. A workflow_dispatch run has a branch name here, not a version, so it
       # falls through to the defaults in presentation/build.gradle.
       # Without these the build falls back to the keystore committed at
-      # presentation/inkmessageplus.keystore, whose password is 'android' and whose private half
+      # presentation/einkmessaging.keystore, whose password is 'android' and whose private half
       # is public - the release would go out signed with a key anybody has. Fail loudly instead.
       - name: Restore signing key
         env:
@@ -71,17 +71,18 @@ jobs:
             version_code=$(( major * 10000 + minor * 100 + patch ))
             echo "Building $version_name (versionCode $version_code)"
             ./gradlew :presentation:assembleRelease \
-              -PinkVersionName="$version_name" \
-              -PinkVersionCode="$version_code"
+              -PappVersionName="$version_name" \
+              -PappVersionCode="$version_code"
           else
             echo "Ref '$GITHUB_REF_NAME' is not a vX.Y.Z tag; using the versions in build.gradle"
             ./gradlew :presentation:assembleRelease
           fi
 
       # A release signed with the wrong key cannot be taken back once people have installed it.
-      # The forbidden fingerprint is read from the repo's own keystore rather than matched by
-      # certificate name: the new key carries the SAME distinguished name as the committed one,
-      # so only the fingerprint tells them apart.
+      # The forbidden fingerprint is read from the repo's own keystore rather than hardcoded, so
+      # regenerating that keystore cannot silently disarm the check. The committed key's DN now
+      # says "throwaway key" outright, which the old one did not - it carried the same DN as the
+      # real key, and only the fingerprint told them apart.
       - name: Verify the APK is not signed with the committed key
         run: |
           apk=$(find presentation/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -1)
@@ -89,7 +90,7 @@ jobs:
           certs=$("$apksigner" verify --print-certs "$apk")
           echo "$certs"
           apk_digest=$(echo "$certs" | grep -m1 -oE 'certificate SHA-256 digest: [0-9a-f]+' | awk '{print $NF}')
-          repo_digest=$(keytool -list -v -keystore presentation/inkmessageplus.keystore -storepass android \
+          repo_digest=$(keytool -list -v -keystore presentation/einkmessaging.keystore -storepass android \
             | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')
           if [ -z "$apk_digest" ] || [ -z "$repo_digest" ]; then
             echo "::error::Could not read a signing certificate - refusing to release unchecked."
@@ -102,7 +103,7 @@ jobs:
 
       - name: Rename APK and generate checksum
         run: |
-          apk_name="inkmessage-plus-${GITHUB_REF_NAME}.apk"
+          apk_name="eink-messaging-${GITHUB_REF_NAME}.apk"
           apk_path=$(find presentation/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -1)
           cp "$apk_path" "$apk_name"
           sha256sum "$apk_name" > "${apk_name}.sha256"
@@ -114,7 +115,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            inkmessage-plus-*.apk
-            inkmessage-plus-*.apk.sha256
+            eink-messaging-*.apk
+            eink-messaging-*.apk.sha256
           body_path: .github/release-body.md
           generate_release_notes: true

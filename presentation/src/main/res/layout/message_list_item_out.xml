@@ -40,7 +40,7 @@
             android:layout_height="wrap_content"
             android:contentDescription="@string/compose_message_item">
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 android:id="@+id/timestamp"
                 style="@style/TextSecondary"
                 android:layout_width="wrap_content"
@@ -66,7 +66,7 @@
                 app:layout_constraintTop_toTopOf="@id/timestamp"
                 app:tint="?android:attr/textColorSecondary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 android:id="@+id/simIndex"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -80,7 +80,7 @@
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <com.message.ink.common.widget.QkContextMenuRecyclerViewLongMmsPart
+        <com.wanderwildwood.einkmessaging.common.widget.QkContextMenuRecyclerViewLongMmsPart
             android:id="@+id/parts"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -159,7 +159,7 @@
                     android:clipToPadding="false"
                     android:clipChildren="false">
 
-                    <com.message.ink.common.widget.TightTextView
+                    <com.wanderwildwood.einkmessaging.common.widget.TightTextView
                         android:id="@+id/body"
                         style="@style/TextPrimary"
                         android:layout_width="wrap_content"
@@ -230,7 +230,7 @@
             android:layout_gravity="end"
             android:orientation="horizontal">
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 android:id="@+id/status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

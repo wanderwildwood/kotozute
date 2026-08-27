@@ -41,7 +41,7 @@
                 android:src="@drawable/ic_inbox_black_24dp"
                 tools:tint="@color/tools_theme" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 style="@style/DrawerText"
                 android:text="@string/drawer_inbox" />
 
@@ -57,7 +57,7 @@
                 android:src="@drawable/ic_archive_white_24dp"
                 tools:tint="?android:attr/textColorSecondary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 style="@style/DrawerText"
                 android:text="@string/drawer_archived" />
 
@@ -79,7 +79,7 @@
                 android:src="@drawable/ic_backup_black_24dp"
                 app:tint="?android:attr/textColorSecondary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 style="@style/DrawerText"
                 android:text="@string/backup_title" />
 
@@ -94,7 +94,7 @@
                 android:src="@drawable/ic_event_black_24dp"
                 app:tint="?android:attr/textColorSecondary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 style="@style/DrawerText"
                 android:text="@string/drawer_scheduled" />
 
@@ -109,7 +109,7 @@
                 android:src="@drawable/ic_cancel_black_24dp"
                 app:tint="?android:attr/textColorSecondary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 style="@style/DrawerText"
                 android:text="@string/drawer_blocking" />
 
@@ -131,7 +131,7 @@
                 android:src="@drawable/ic_settings_black_24dp"
                 app:tint="?android:attr/textColorSecondary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 style="@style/DrawerText"
                 android:text="@string/drawer_settings" />
 
@@ -146,7 +146,7 @@
 <!--                android:src="@drawable/ic_star_black_24dp"-->
 <!--                android:tint="?android:attr/textColorSecondary" />-->
 
-<!--            <com.message.ink.common.widget.QkTextView-->
+<!--            <com.wanderwildwood.einkmessaging.common.widget.QkTextView-->
 <!--                style="@style/DrawerText"-->
 <!--                android:text="@string/drawer_plus" />-->
 
@@ -161,7 +161,7 @@
 <!--                android:src="@drawable/ic_help_black_24dp"-->
 <!--                android:tint="?android:attr/textColorSecondary" />-->
 
-<!--            <com.message.ink.common.widget.QkTextView-->
+<!--            <com.wanderwildwood.einkmessaging.common.widget.QkTextView-->
 <!--                style="@style/DrawerText"-->
 <!--                android:text="@string/drawer_help" />-->
 
@@ -177,7 +177,7 @@
                 android:src="@drawable/ic_people_black_24dp"
                 app:tint="?android:attr/textColorSecondary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 style="@style/DrawerText"
                 android:text="@string/drawer_invite" />
 
@@ -204,7 +204,7 @@
                 app:layout_constraintTop_toTopOf="@id/rateTitle"
                 tools:tint="@color/tools_theme" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 android:id="@+id/rateTitle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -219,7 +219,7 @@
                 app:layout_constraintTop_toTopOf="parent"
                 app:textSize="primary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 android:id="@+id/rateSummary"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -232,7 +232,7 @@
                 app:layout_constraintTop_toBottomOf="@id/rateTitle"
                 app:textSize="secondary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 android:id="@+id/rateDismiss"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -248,7 +248,7 @@
                 app:layout_constraintTop_toBottomOf="@id/rateSummary"
                 app:textSize="secondary" />
 
-            <com.message.ink.common.widget.QkTextView
+            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
                 android:id="@+id/rateOkay"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

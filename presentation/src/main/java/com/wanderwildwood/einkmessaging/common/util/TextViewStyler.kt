@@ -84,9 +84,9 @@ class TextViewStyler @Inject constructor(
                 })
 
                 textSize = when (textSizeAttr) {
-                    SIZE_PRIMARY -> 16f
-                    SIZE_SECONDARY -> 14f
-                    SIZE_TERTIARY -> 12f
+                    SIZE_PRIMARY -> 18f
+                    SIZE_SECONDARY -> 15f
+                    SIZE_TERTIARY -> 14f
                     SIZE_TOOLBAR -> 20f
                     SIZE_DIALOG -> 18f
                     SIZE_EMOJI -> 32f
@@ -149,30 +149,30 @@ class TextViewStyler @Inject constructor(
         val textSizePref = prefs.textSize.get()
         when (textSizeAttr) {
             SIZE_PRIMARY -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 14f
-                Preferences.TEXT_SIZE_NORMAL -> 16f
-                Preferences.TEXT_SIZE_LARGE -> 18f
-                Preferences.TEXT_SIZE_LARGER -> 20f
-                Preferences.TEXT_SIZE_SUPER -> 40f
-                else -> 16f
+                Preferences.TEXT_SIZE_SMALL -> 16f
+                Preferences.TEXT_SIZE_NORMAL -> 18f
+                Preferences.TEXT_SIZE_LARGE -> 20f
+                Preferences.TEXT_SIZE_LARGER -> 22f
+                Preferences.TEXT_SIZE_SUPER -> 44f
+                else -> 18f
             }
 
             SIZE_SECONDARY -> textView.textSize = when (textSizePref) {
+                Preferences.TEXT_SIZE_SMALL -> 13f
+                Preferences.TEXT_SIZE_NORMAL -> 15f
+                Preferences.TEXT_SIZE_LARGE -> 17f
+                Preferences.TEXT_SIZE_LARGER -> 19f
+                Preferences.TEXT_SIZE_SUPER -> 37f
+                else -> 15f
+            }
+
+            SIZE_TERTIARY -> textView.textSize = when (textSizePref) {
                 Preferences.TEXT_SIZE_SMALL -> 12f
                 Preferences.TEXT_SIZE_NORMAL -> 14f
                 Preferences.TEXT_SIZE_LARGE -> 16f
                 Preferences.TEXT_SIZE_LARGER -> 18f
-                Preferences.TEXT_SIZE_SUPER -> 36f
+                Preferences.TEXT_SIZE_SUPER -> 34f
                 else -> 14f
-            }
-
-            SIZE_TERTIARY -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 10f
-                Preferences.TEXT_SIZE_NORMAL -> 12f
-                Preferences.TEXT_SIZE_LARGE -> 14f
-                Preferences.TEXT_SIZE_LARGER -> 16f
-                Preferences.TEXT_SIZE_SUPER -> 32f
-                else -> 12f
             }
 
             SIZE_TOOLBAR -> textView.textSize = when (textSizePref) {

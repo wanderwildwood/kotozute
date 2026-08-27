@@ -28,6 +28,7 @@ data class SettingsState(
     val sendDelaySummary: String = "",
     val sendDelayId: Int = 0,
     val deliveryEnabled: Boolean = false,
+    val readReceiptsEnabled: Boolean = false,
     val unreadAtTopEnabled: Boolean = false,
     val signature: String = "",
     val textSizeSummary: String = "",

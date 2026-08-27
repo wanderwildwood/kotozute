@@ -109,7 +109,9 @@ object QkTransaction {
         parts: MutableCollection<MMSPart>,
         asGroup: Boolean,
         longAsMms: Boolean,
-        stripUnicode: Boolean
+        stripUnicode: Boolean,
+        deliveryReport: Boolean,
+        readReport: Boolean
     ): Uri {
         Timber.v("creating message")
 
@@ -126,7 +128,9 @@ object QkTransaction {
             RateController.init(context)
             DownloadManager.init(context)
 
-            return createMmsMessage(context, subscriptionId, text, toAddresses, parts)
+            return createMmsMessage(
+                context, subscriptionId, text, toAddresses, parts, deliveryReport, readReport
+            )
         }
 
         return createSmsMessage(context, subscriptionId, text, toAddresses)
@@ -357,7 +361,7 @@ object QkTransaction {
 
     private fun createMmsMessage(
         context: Context, subscriptionId: Int, text: String?, addresses: Array<String>,
-        parts: MutableCollection<MMSPart>
+        parts: MutableCollection<MMSPart>, deliveryReport: Boolean, readReport: Boolean
     ): Uri {
         // add text to the end of the part and send
         if (!text.isNullOrEmpty())
@@ -369,7 +373,10 @@ object QkTransaction {
 
         try {
             return PduPersister.getPduPersister(context).persist(
-                buildPdu(context, subscriptionId, addresses, ArrayList(parts)),
+                buildPdu(
+                    context, subscriptionId, addresses, ArrayList(parts),
+                    deliveryReport, readReport
+                ),
                 Telephony.Mms.Outbox.CONTENT_URI, true, true,
                 null, subscriptionId
             )
@@ -537,7 +544,8 @@ object QkTransaction {
     }
 
     private fun buildPdu(
-        context: Context, subscriptionId: Int, recipients: Array<String>, parts: List<MMSPart>
+        context: Context, subscriptionId: Int, recipients: Array<String>, parts: List<MMSPart>,
+        deliveryReport: Boolean, readReport: Boolean
     ): SendReq {
         val req = SendReq()
 
@@ -590,10 +598,12 @@ object QkTransaction {
             req.priority = DEFAULT_PRIORITY
 
             // Delivery report
-            req.deliveryReport = PduHeaders.VALUE_NO
+            req.deliveryReport =
+                if (deliveryReport) PduHeaders.VALUE_YES else PduHeaders.VALUE_NO
 
             // Read report
-            req.readReport = PduHeaders.VALUE_NO
+            req.readReport =
+                if (readReport) PduHeaders.VALUE_YES else PduHeaders.VALUE_NO
         } catch (e: InvalidHeaderValueException) {
             Timber.e("invalid header value when building pdu")
         }

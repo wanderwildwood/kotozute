@@ -35,7 +35,9 @@ import android.provider.Telephony.Sms
 import android.telephony.SmsManager
 import android.webkit.MimeTypeMap
 import androidx.core.content.contentValuesOf
+import com.android.mms.transaction.MmsMessageSender
 import com.google.android.mms.ContentType
+import com.google.android.mms.pdu_alt.PduHeaders
 import com.klinker.android.send_message.SmsManagerFactory
 import com.message.ink.common.util.extensions.now
 import com.message.ink.compat.TelephonyCompat
@@ -383,6 +385,8 @@ open class MessageRepositoryImpl @Inject constructor(
     override fun markRead(threadIds: Collection<Long>) =
         threadIds.takeIf { it.isNotEmpty() }
             ?.let {
+                answerReadReports(threadIds)
+
                 Realm.getDefaultInstance()?.use { realm ->
                     realm.where(Message::class.java)
                         .anyOf("threadId", threadIds.toLongArray())
@@ -420,6 +424,60 @@ open class MessageRepositoryImpl @Inject constructor(
                 }
             }
             ?: 0
+
+    /**
+     * Send a read receipt for every message about to be marked read whose sender asked for one.
+     *
+     * Only ever an answer: a receipt goes back to someone who requested it, and only while the
+     * user has the setting on. Runs before the flags flip, because "not read yet" is what keeps
+     * it to one receipt per message -- there is no other record of having sent one.
+     *
+     * A receipt is persisted to the outbox before the transaction service is asked to send it,
+     * so if the service can't be started from wherever we are (marking read from a notification
+     * happens in the background, where API 26+ refuses), it goes out with the next transaction
+     * rather than being lost. Read-receipt PDUs are message type 134, which the conversation
+     * queries don't select, so a queued one never shows up as a message in the thread.
+     */
+    private fun answerReadReports(threadIds: Collection<Long>) {
+        if (!prefs.readReceipts.get())
+            return
+
+        Realm.getDefaultInstance()?.use { realm ->
+            realm.where(Message::class.java)
+                .anyOf("threadId", threadIds.toLongArray())
+                .equalTo("read", false)
+                .equalTo("type", TYPE_MMS)
+                .equalTo("boxId", Mms.MESSAGE_BOX_INBOX)
+                .equalTo("readReportString", PduHeaders.VALUE_YES.toString())
+                .findAll()
+                .map { message -> message.address to message.contentId }
+                .filter { (address, _) -> address.isNotEmpty() }
+        }?.forEach { (address, contentId) ->
+            getMmsMessageId(contentId)?.let { messageId ->
+                tryOrNull {
+                    MmsMessageSender.sendReadRec(
+                        context, address, messageId, PduHeaders.READ_STATUS_READ
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * The MMS Message-ID header, which is what a read receipt has to name. It isn't one of the
+     * columns we sync into realm, so read it back off the provider row.
+     */
+    private fun getMmsMessageId(contentId: Long): String? =
+        tryOrNull {
+            context.contentResolver.query(
+                ContentUris.withAppendedId(Mms.CONTENT_URI, contentId),
+                arrayOf(Mms.MESSAGE_ID), null, null, null
+            )?.use { cursor ->
+                cursor.takeIf { it.moveToFirst() }
+                    ?.getString(0)
+                    ?.takeIf { messageId -> messageId.isNotEmpty() }
+            }
+        }
 
     private fun syncProviderMessage(uri: Uri, sendAsGroup: Boolean): Message? {
         // if uri doesn't have valid type
@@ -616,7 +674,8 @@ open class MessageRepositoryImpl @Inject constructor(
         val messageUri = QkTransaction.createMessage(
             context, subId, body, prefs.signature.get(),
             toAddresses.map(phoneNumberUtils::normalizeNumber).toTypedArray(),
-            parts, group, prefs.longAsMms.get(), prefs.unicode.get()
+            parts, group, prefs.longAsMms.get(), prefs.unicode.get(),
+            prefs.delivery.get(), prefs.readReceipts.get()
         )
 
         if (messageUri == Uri.EMPTY) {

@@ -181,9 +181,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
         viewModel.bindView(this)
 
-        binding.contentView.layoutTransition = LayoutTransition().apply {
-            disableTransitionType(LayoutTransition.CHANGING)
-        }
             chipsAdapter.view = binding.chips
 
             binding.chips.itemAnimator = null
@@ -615,13 +612,72 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun requestCamera() {
-        cameraDestination = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            .let { timestamp -> ContentValues().apply { put(MediaStore.Images.Media.TITLE, timestamp) } }
-            .let { cv -> contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv) }
-
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-            .putExtra(MediaStore.EXTRA_OUTPUT, cameraDestination)
-        startActivityForResult(Intent.createChooser(intent, null), ComposeView.TAKE_PHOTOS_REQUEST_CODE)
+        val grants =
+            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
+
+        var targets = packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        var nameTheTarget = false
+
+        if (targets.isEmpty()) {
+            // MuditaOS will not resolve a capture intent implicitly, though its
+            // camera apps do honour one when addressed directly. Fall back to
+            // whatever the system will admit is a camera and name it outright.
+            targets = packageManager.queryIntentActivities(
+                Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA),
+                PackageManager.MATCH_DEFAULT_ONLY)
+            nameTheTarget = true
+        }
+
+        if (targets.isEmpty()) {
+            makeToast(R.string.compose_camera_unavailable)
+            return
+        }
+
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+
+        // TITLE alone leaves the row without a name or a type, which the media
+        // store is free to reject on newer versions.
+        val destination = contentResolver.insert(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            ContentValues().apply {
+                put(MediaStore.Images.Media.TITLE, timestamp)
+                put(MediaStore.Images.Media.DISPLAY_NAME, "$timestamp.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            })
+
+        cameraDestination = destination
+
+        if (destination == null) {
+            // Without a destination the camera has nowhere to put the photo and
+            // the result comes back empty. Say so rather than open it.
+            makeToast(R.string.compose_camera_error)
+            return
+        }
+
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, destination).addFlags(grants)
+
+        // The row belongs to this app, so the camera cannot write to it on the
+        // strength of the flags alone -- every app that might answer has to be
+        // granted access by name. Without this the capture fails, which reads as
+        // a permissions problem with the camera itself.
+        targets.forEach { resolveInfo ->
+            grantUriPermission(resolveInfo.activityInfo.packageName, destination, grants)
+        }
+
+        // A chooser is no use when the system denies that any of these handle a
+        // capture -- it would come up empty -- so the target has to be named.
+        val toStart = when {
+            nameTheTarget -> intent.setClassName(
+                targets[0].activityInfo.packageName, targets[0].activityInfo.name)
+            else -> Intent.createChooser(intent, null)
+        }
+
+        try {
+            startActivityForResult(toStart, ComposeView.TAKE_PHOTOS_REQUEST_CODE)
+        } catch (e: ActivityNotFoundException) {
+            makeToast(R.string.compose_camera_unavailable)
+        }
     }
 
     override fun requestGallery(mimeType: String, requestCode: Int) {

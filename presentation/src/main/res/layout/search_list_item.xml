@@ -36,7 +36,7 @@
     <View
         android:id="@+id/resultsSeparator"
         android:layout_width="match_parent"
-        android:layout_height="1dp"
+        android:layout_height="3dp"
         android:layout_marginTop="12dp"
         android:background="?android:attr/divider"
         app:layout_constraintTop_toTopOf="parent" />

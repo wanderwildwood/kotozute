@@ -19,13 +19,11 @@
 package com.wanderwildwood.einkmessaging.common.widget
 
 import android.content.Context
-import android.content.res.ColorStateList
 import android.util.AttributeSet
 import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
 import com.wanderwildwood.einkmessaging.R
 import com.wanderwildwood.einkmessaging.common.util.Colors
-import com.wanderwildwood.einkmessaging.common.util.extensions.resolveThemeColor
-import com.wanderwildwood.einkmessaging.common.util.extensions.withAlpha
 import com.wanderwildwood.einkmessaging.injection.appComponent
 import com.wanderwildwood.einkmessaging.util.Preferences
 import javax.inject.Inject
@@ -44,21 +42,19 @@ class QkSwitch @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
 
-        if (!isInEditMode) {
-            val states = arrayOf(
-                    intArrayOf(-android.R.attr.state_enabled),
-                    intArrayOf(android.R.attr.state_checked),
-                    intArrayOf())
+        // MMD's switch is an outlined capsule that fills when on - never a tinted slab.
+        // Set on the widget rather than per-layout so every switch in the app gets it, the
+        // same reasoning as Colors.theme() forcing black at the source.
+        // Tints are cleared explicitly: a surviving tint would repaint the drawables flat.
+        trackTintList = null
+        thumbTintList = null
+        trackDrawable = ContextCompat.getDrawable(context, R.drawable.switch_track_mmd)
+        thumbDrawable = ContextCompat.getDrawable(context, R.drawable.switch_thumb_mmd)
+        switchMinWidth = (SWITCH_WIDTH_DP * resources.displayMetrics.density).toInt()
+        thumbTextPadding = 0
+    }
 
-            thumbTintList = ColorStateList(states, intArrayOf(
-                    context.resolveThemeColor(R.attr.switchThumbDisabled),
-                    colors.theme().theme,
-                    context.resolveThemeColor(R.attr.switchThumbEnabled)))
-
-            trackTintList = ColorStateList(states, intArrayOf(
-                    context.resolveThemeColor(R.attr.switchTrackDisabled),
-                    colors.theme().theme.withAlpha(0x4D),
-                    context.resolveThemeColor(R.attr.switchTrackEnabled)))
-        }
+    companion object {
+        private const val SWITCH_WIDTH_DP = 52  // MMD SwitchWidth
     }
 }

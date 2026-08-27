@@ -138,7 +138,7 @@
     <View
         android:id="@+id/composeDivider"
         android:layout_width="match_parent"
-        android:layout_height="1dp"
+        android:layout_height="3dp"
         android:layout_marginBottom="12dp"
         android:background="@android:color/black"
         android:visibility="visible"
@@ -211,7 +211,7 @@
     <View
         android:id="@+id/scheduledSeparator"
         android:layout_width="0dp"
-        android:layout_height="1dp"
+        android:layout_height="3dp"
         android:background="?android:attr/divider"
         app:layout_constraintBottom_toTopOf="@id/messageAttachments"
         app:layout_constraintEnd_toEndOf="@id/messageBackground"
@@ -384,7 +384,7 @@
     <View
         android:id="@+id/titleBarBlackLine"
         android:layout_width="match_parent"
-        android:layout_height="1dp"
+        android:layout_height="3dp"
         android:background="@android:color/black"
         app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
@@ -660,7 +660,7 @@
         <View
             android:id="@+id/audioMsgBackgroundShadow"
             android:layout_width="match_parent"
-            android:layout_height="1dp"
+            android:layout_height="3dp"
             android:background="@android:color/black" />
 
         <LinearLayout

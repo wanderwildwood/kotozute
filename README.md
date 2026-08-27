@@ -98,4 +98,13 @@ Standing on a lot of other people's work:
 
 ## Licence
 
-GPLv3, inherited from QKSMS and QUIK — see [LICENSE](LICENSE).
+**GPL-3.0-only**, inherited from QKSMS by way of QUIK and InkMessage — see [LICENSE](LICENSE)
+for the full text.
+
+This is not a licence that can be changed here. The code this is built on is GPLv3, so this is
+GPLv3, and so is anything built on this in turn: distributing it means carrying the same terms
+and offering the corresponding source.
+
+Copyright in the work added by this fork is held by wander wildwood. The upstream copyrights —
+Moez Bhatti's on QKSMS, and those of the QUIK and InkMessage contributors — are untouched and
+still apply to the code they cover.

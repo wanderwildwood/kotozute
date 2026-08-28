@@ -550,11 +550,23 @@ class MainActivity : QkThemedActivity(), MainView {
     }
 
     private fun hideSearchMode() {
+        // Take the keyboard down FIRST, while the field that raised it is still focused and on
+        // screen. Afterwards is too late: setting the container GONE moves focus off the
+        // now-invisible field, so window.currentFocus is null by then -- and dismissKeyboard()
+        // is `currentFocus?.let { ... }`, which silently does nothing rather than failing. The
+        // search closed, the filters came back, and the keyboard just stayed up.
+        //
+        // Asking the view for its own window token avoids the question entirely: it stays valid
+        // whether or not the view still holds focus.
+        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(binding.toolbarSearch.windowToken, 0)
+        binding.toolbarSearch.clearFocus()
+
         binding.searchContainer.visibility = View.GONE
         binding.toolbarContent.visibility = View.VISIBLE
         binding.toolbarSearch.text = null
         binding.toolbarSearch.isCursorVisible = false
-        dismissKeyboard()
     }
 
     override fun onBackPressed() {

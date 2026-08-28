@@ -247,6 +247,11 @@ class DesktopSyncServer(
             // cannot carry an Authorization header. Neither this nor the list says anything
             // about the messages -- one is a system font, the other is Unicode's own catalogue.
             "/emoji-font" -> return serveEmojiFont()
+            // What makes the dashboard installable: a browser reading these will offer to
+            // put it in the menu with its own window and icon, which is a great deal
+            // friendlier than "bookmark this URL with a token in it".
+            "/manifest.webmanifest" -> return serveManifest(session)
+            "/icon.png" -> return serveAsset("icon.png", "image/png")
         }
 
         val authed = session.headers["authorization"] == "Bearer $token" ||
@@ -274,6 +279,7 @@ class DesktopSyncServer(
             threadSendMatch != null && session.method == Method.POST ->
                 handleSend(session, threadSendMatch.groupValues[1].toLong())
             uri == "/api/compose" && session.method == Method.POST -> handleCompose(session)
+            uri == "/desktop-entry" && session.method == Method.GET -> serveDesktopEntry()
             uri == "/api/contacts" && session.method == Method.GET -> handleContacts(session)
             uri == "/api/thread-for" && session.method == Method.GET -> handleThreadFor(session)
             partMatch != null && session.method == Method.GET ->
@@ -308,6 +314,61 @@ class DesktopSyncServer(
             // Two megabytes that never change: without this the browser refetches the whole font
             // on every reload of the dashboard.
             addHeader("Cache-Control", "public, max-age=604800")
+        }
+    }
+
+    /**
+     * The web app manifest, built here rather than shipped as a file because [start_url] has
+     * to carry the pairing token: an installed window opens straight into the dashboard, and
+     * without the token it would open to a refusal.
+     */
+    private fun serveManifest(session: IHTTPSession): Response {
+        val supplied = session.parameters["token"]?.firstOrNull()
+        val start = if (supplied == token) "/?token=$token" else "/"
+        val manifest = JSONObject().apply {
+            put("name", "Messaging")
+            put("short_name", "Messaging")
+            put("description", "Text from your computer, through the phone.")
+            put("start_url", start)
+            put("scope", "/")
+            put("display", "standalone")
+            put("background_color", "#ffffff")
+            put("theme_color", "#ffffff")
+            put("icons", JSONArray().put(JSONObject().apply {
+                put("src", "/icon.png")
+                put("sizes", "512x512")
+                put("type", "image/png")
+                put("purpose", "any maskable")
+            }))
+        }
+        return jsonResponse(Response.Status.OK, manifest).apply {
+            mimeType = "application/manifest+json"
+        }
+    }
+
+    /**
+     * A Linux desktop entry with this phone's address and token already in it, so the
+     * dashboard can be started from an applications menu like anything else. The browser
+     * saves it; where it has to go afterwards is in the page's own instructions, because no
+     * web page is allowed to write to ~/.local/share.
+     */
+    private fun serveDesktopEntry(): Response {
+        val address = DesktopSyncService.findTailscaleAddress()
+            ?: DesktopSyncService.findLanAddress()
+            ?: "127.0.0.1"
+        val url = "http://$address:$listeningPort?token=$token"
+        val entry = """
+            [Desktop Entry]
+            Type=Application
+            Name=Messaging
+            Comment=Text from this computer, through the phone
+            Exec=xdg-open "$url"
+            Icon=messaging
+            Categories=Network;InstantMessaging;
+            Terminal=false
+        """.trimIndent() + "\n"
+        return newFixedLengthResponse(Response.Status.OK, "application/x-desktop", entry).apply {
+            addHeader("Content-Disposition", "attachment; filename=\"messaging.desktop\"")
         }
     }
 
@@ -480,8 +541,20 @@ class DesktopSyncServer(
     private fun handlePart(partId: Long, session: IHTTPSession): Response {
         val part = messageRepository.getPart(partId)
             ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "no such part"))
-        val mime = part.type.takeIf { it.isNotBlank() } ?: "application/octet-stream"
-        val uri = part.getUri()
+        var mime = part.type.takeIf { it.isNotBlank() } ?: "application/octet-stream"
+        var uri = part.getUri()
+
+        // A video the browser cannot decode is re-encoded once and served from the cache
+        // afterwards. Nothing else is touched: see VideoForBrowser for which codecs count.
+        if (mime.startsWith("video/")) {
+            val size = runCatching {
+                context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+            }.getOrNull()
+            VideoForBrowser.playableCopy(context, part.id, uri, size)?.let { playable ->
+                uri = android.net.Uri.fromFile(playable)
+                mime = "video/mp4"
+            }
+        }
 
         // How long the part is. A picture does not care, but a video does: a browser
         // will not play a stream whose length it does not know and cannot seek within,

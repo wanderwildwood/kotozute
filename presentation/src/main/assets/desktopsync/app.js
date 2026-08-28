@@ -29,6 +29,48 @@ darkQuery.addEventListener('change', () => { if (themePref === 'auto') applyThem
 applyTheme();
 
 const token = new URLSearchParams(location.search).get('token') || '';
+
+/* ── Installing this as an app ─────────────────────────────────────────────────
+ * The manifest has to carry the token: an installed window opens at start_url with
+ * no query string of its own, and without the token that is a refusal rather than a
+ * dashboard. So the link is rewritten here, where the token is known.
+ *
+ * The Install button appears only when the browser offers it — Chromium fires
+ * beforeinstallprompt, Firefox has no equivalent and installs through its own menu,
+ * so there is nothing to show there rather than a button that lies. */
+(function setUpInstall() {
+  if (token) {
+    const link = document.getElementById('manifest');
+    if (link) link.href = '/manifest.webmanifest?token=' + encodeURIComponent(token);
+  }
+
+  let deferred = null;
+  const installBtn = document.getElementById('installBtn');
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferred = e;
+    if (installBtn) installBtn.hidden = false;
+  });
+  if (installBtn) {
+    installBtn.addEventListener('click', async () => {
+      if (!deferred) return;
+      deferred.prompt();
+      await deferred.userChoice;
+      deferred = null;
+      installBtn.hidden = true;
+    });
+  }
+  window.addEventListener('appinstalled', () => { if (installBtn) installBtn.hidden = true; });
+
+  // The desktop entry is a Linux thing and says so by only appearing there. It opens
+  // with xdg-open, so it lands in whichever browser that machine calls its default.
+  const launcherBtn = document.getElementById('launcherBtn');
+  const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+  if (launcherBtn && /linux/i.test(platform) && !/android/i.test(navigator.userAgent)) {
+    launcherBtn.href = '/desktop-entry?token=' + encodeURIComponent(token);
+    launcherBtn.hidden = false;
+  }
+})();
 const threadsEl = document.getElementById('threads');
 const messagesEl = document.getElementById('messages');
 const paneTitleEl = document.getElementById('paneTitle');

@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Messaging — Desktop Sync</title>
+<!-- Written by the phone with the token in start_url, so an installed window opens straight
+     into the conversations instead of a refusal. app.js points this at the token it holds. -->
+<link id="manifest" rel="manifest" href="/manifest.webmanifest">
 <!-- Favicon mirrors the app's launcher icon (speech bubble + pencil). Inlined as a
      data URI so it needs no extra server route and no unauthenticated /favicon.ico. -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='3' width='28' height='20' rx='5' fill='%23000'/><path d='M20 22h6l-5 7z' fill='%23000'/><path d='M20.5 7l3.5 3.5-9 9-4.6 1.1 1.1-4.6z' fill='%23fff'/></svg>">
@@ -99,6 +102,12 @@
     background: var(--paper); color: var(--muted); cursor: pointer;
   }
   #themeBtn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+  #installBtn, #launcherBtn {
+    font: inherit; font-size: 13px; padding: 4px 10px; margin-left: 8px;
+    border: 2px solid var(--ink); border-radius: 999px; background: var(--paper);
+    color: var(--ink); cursor: pointer; text-decoration: none; line-height: 1.4;
+  }
+  #installBtn:hover, #launcherBtn:hover { background: var(--ink); color: var(--paper); }
   #status.live::before {
     content: ""; display: inline-block;
     width: 8px; height: 8px; border-radius: 50%;
@@ -360,6 +369,9 @@
   <header>
     <h1>Messaging</h1>
     <span id="status">connecting…</span>
+    <button type="button" id="installBtn" title="Install this as an app on this computer" hidden>Install</button>
+    <a id="launcherBtn" href="/desktop-entry" download="messaging.desktop"
+       title="Download a launcher for a Linux applications menu" hidden>Launcher</a>
     <button type="button" id="themeBtn" title="Switch theme (auto / light / dark)">Auto</button>
   </header>
   <main>

@@ -2,20 +2,20 @@
 <!--
   ~ Copyright (C) 2019 Moez Bhatti <moez.bhatti@gmail.com>
   ~
-  ~ This file is part of eInk Messaging.
+  ~ This file is part of Messaging.
   ~
-  ~ eInk Messaging is free software: you can redistribute it and/or modify
+  ~ Messaging is free software: you can redistribute it and/or modify
   ~ it under the terms of the GNU General Public License as published by
   ~ the Free Software Foundation, either version 3 of the License, or
   ~ (at your option) any later version.
   ~
-  ~ eInk Messaging is distributed in the hope that it will be useful,
+  ~ Messaging is distributed in the hope that it will be useful,
   ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
   ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   ~ GNU General Public License for more details.
   ~
   ~ You should have received a copy of the GNU General Public License
-  ~ along with eInk Messaging.  If not, see <http://www.gnu.org/licenses/>.
+  ~ along with Messaging.  If not, see <http://www.gnu.org/licenses/>.
   --><resources>
     <string name="app_name" translatable="false">Messaging</string>
     <string name="shortcut_compose_long_label">Nouvelle conversation</string>
@@ -62,12 +62,12 @@
     <string name="archived_empty_text">Vos conversations archivées apparaîtront ici</string>
     <string name="main_fab_cd">Débuter une nouvelle conversation</string>
     <string name="main_default_sms_title">Réapprenez à aimer les textos</string>
-    <string name="main_default_sms_message">Faire de eInk Messaging votre appli SMS par défaut</string>
+    <string name="main_default_sms_message">Faire de Messaging votre appli SMS par défaut</string>
     <string name="main_default_sms_change">Changer</string>
     <string name="main_permission_required">Autorisation requise</string>
-    <string name="main_permission_sms">eInk Messaging a besoin de l’autorisation d’envoyer et de consulter les messages SMS</string>
-    <string name="main_permission_contacts">eInk Messaging a besoin de l’autorisation d’accéder aux contacts</string>
-    <string name="main_permission_notifications">eInk Messaging a besoin de l’autorisation d’afficher des notifications</string>
+    <string name="main_permission_sms">Messaging a besoin de l’autorisation d’envoyer et de consulter les messages SMS</string>
+    <string name="main_permission_contacts">Messaging a besoin de l’autorisation d’accéder aux contacts</string>
+    <string name="main_permission_notifications">Messaging a besoin de l’autorisation d’afficher des notifications</string>
     <string name="main_permission_allow">Autoriser</string>
     <string name="scheduled_menu_send_now">Envoyer maintenant</string>
     <string name="scheduled_menu_edit_message">Modifier le message</string>
@@ -82,7 +82,7 @@
     <string name="drawer_invite">Inviter des amis</string>
     <string name="drawer_plus_banner_title" translatable="false">DEPRECATED - drawer_plus_banner_title</string>
     <string name="drawer_plus_banner_summary">Débloquez des nouvelles fonctionnalités incroyables et soutenez le développement</string>
-    <string name="rate_title">Vous aimez eInk Messaging ?</string>
+    <string name="rate_title">Vous aimez Messaging ?</string>
     <string name="rate_summary">Partagez votre amour et laissez nous une étoile sur GitHub !</string>
     <string name="rate_okay">OK !</string>
     <string name="rate_dismiss">ANNULER</string>
@@ -124,7 +124,7 @@
     <string name="compose_vcard_label">Fiche du contact</string>
     <string name="compose_scheduled_for">Heure d\'envoi prévue :</string>
     <string name="compose_scheduled_future">Le moment choisi doit être dans le futur !</string>
-    <string name="compose_scheduled_plus">Vous devez déverrouiller eInk Messaging pour utiliser la programmation de message</string>
+    <string name="compose_scheduled_plus">Vous devez déverrouiller Messaging pour utiliser la programmation de message</string>
     <string name="compose_scheduled_toast">Ajouté aux messages programmés</string>
     <string name="compose_hint">Écrire un message…</string>
     <string name="compose_no_valid_recipients">Impossible d’envoyer aux autres participants</string>
@@ -195,7 +195,7 @@
     <string name="backup_location_summary">Définir le dossier</string>
     <string name="backup_restore_title">Restauration</string>
     <string name="backup_restore_summary">Sélectionner une sauvegarde</string>
-    <string name="backup_restore_error_plus">Déverrouillez eInk Messaging pour utiliser la sauvegarde et la restauration</string>
+    <string name="backup_restore_error_plus">Déverrouillez Messaging pour utiliser la sauvegarde et la restauration</string>
     <string name="backup_restore_error_backup">Sauvegarde en cours…</string>
     <string name="backup_restore_error_restore">Restauration en cours…</string>
     <string name="backup_restore_confirm_title">Restaurer à partir d’une sauvegarde</string>
@@ -208,7 +208,7 @@
     <string name="backup_selected_backup_error_message">Impossible de lire le fichier de sauvegarde</string>
     <string name="backup_selected_backup_details_title">Détails de la sauvegarde</string>
     <string name="backup_restore_dialog_title">Sauvegardes</string>
-    <string name="backup_restore_dialog_summary" translatable="false">/eInk Messaging/Backups</string>
+    <string name="backup_restore_dialog_summary" translatable="false">/Messaging/Backups</string>
     <string name="backup_restore_dialog_empty">Aucune sauvegarde trouvée</string>
     <string name="backup_disclaimer">Actuellement, seules la sauvegarde et la restauration des SMS sont prises en charge. Les MMS et les sauvegardes planifiées arriveront bientôt !</string>
     <string name="backup_now">Sauvegarder maintenant</string>
@@ -306,7 +306,7 @@
     <string name="settings_diable_screenshots_summary">Empêche l’OS et les autres applications de prendre des captures d’écran de l’application.</string>
     <string name="settings_sync_title">Synchroniser les messages</string>
     <string name="settings_sync_summary">Resynchroniser les messages avec la base de données Android native</string>
-    <string name="settings_about_title">À propos de eInk Messaging</string>
+    <string name="settings_about_title">À propos de Messaging</string>
     <string name="settings_version">Version %s</string>
     <string name="settings_logging_enabled">Journal de débogage activé</string>
     <string name="settings_logging_disabled">Journal de débogage désactivé</string>
@@ -316,7 +316,7 @@
     <string name="blocking_drop_summary">Supprimer les messages entrants des expéditeurs bloqués au lieu de les masquer</string>
     <string name="blocking_conversations">Conversations bloquées</string>
     <string name="blocking_manager_title">Gestionnaire de blocage</string>
-    <string name="blocking_manager_qksms_summary">Fonction de blocage intégrée dans eInk Messaging</string>
+    <string name="blocking_manager_qksms_summary">Fonction de blocage intégrée dans Messaging</string>
     <string name="blocking_manager_call_blocker_title" translatable="false">Call Blocker - Incoming/Outgoing</string>
     <string name="blocking_manager_call_blocker_summary">Bloquer les spams, les numéros &amp; les appels inconnus avec une liste noire &amp; planifier</string>
     <string name="blocking_manager_call_control_title" translatable="false">Call Control</string>
@@ -362,10 +362,10 @@
     <string name="qksms_plus_upgrade_d" translatable="false">One-time purchase of %1$s %2$s</string>
     <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
     <string name="qksms_plus_upgrade_donate">Déverrouiller + faire un don pour %1$s %2$s</string>
-    <string name="qksms_plus_thanks_title">Merci de soutenir eInk Messaging !</string>
-    <string name="qksms_plus_thanks_summary">Vous avez maintenant accès à toutes les fonctionnalités de eInk Messaging</string>
+    <string name="qksms_plus_thanks_title">Merci de soutenir Messaging !</string>
+    <string name="qksms_plus_thanks_summary">Vous avez maintenant accès à toutes les fonctionnalités de Messaging</string>
     <string name="qksms_plus_error">Une erreur s’est produite. Merci de réessayer.</string>
-    <string name="qksms_plus_free_title">eInk Messaging + est gratuit pour les utilisateurs de F-Droid ! Si vous souhaitez soutenir le développement, n’hésitez pas à faire un don.</string>
+    <string name="qksms_plus_free_title">Messaging + est gratuit pour les utilisateurs de F-Droid ! Si vous souhaitez soutenir le développement, n’hésitez pas à faire un don.</string>
     <string name="qksms_plus_donate">Faire un don avec PayPal</string>
     <string name="qksms_plus_coming_soon">Prochainement</string>
     <string name="qksms_plus_themes_title">Thèmes premium</string>
@@ -387,7 +387,7 @@
     <string name="qksms_plus_respond_title">Réponse automatique</string>
     <string name="qksms_plus_respond_summary">Répondre automatiquement aux messages entrants avec une réponse prédéfinie</string>
     <string name="qksms_plus_more_title">Plus</string>
-    <string name="qksms_plus_more_summary">eInk Messaging est en cours de développement actif, et votre achat comprendra toutes les futures fonctionnalités eInk Messaging !</string>
+    <string name="qksms_plus_more_summary">Messaging est en cours de développement actif, et votre achat comprendra toutes les futures fonctionnalités Messaging !</string>
     <string name="widget_loading">Chargement…</string>
     <string name="widget_more">Afficher plus de conversations</string>
     <string name="qkreply_menu_read">Marquer comme lu</string>
@@ -406,7 +406,7 @@
     <string name="about_contact" translatable="false">quik@octo.sh</string>
     <string name="about_license" translatable="false">GNU General Public License v3.0</string>
     <string name="about_copyright" translatable="false">© 2014–2024</string>
-    <string name="changelog_title" translatable="false">New in eInk Messaging</string>
+    <string name="changelog_title" translatable="false">New in Messaging</string>
     <string name="changelog_version" translatable="false">Version %s</string>
     <string name="changelog_added" translatable="false">Added</string>
     <string name="changelog_improved" translatable="false">Improved</string>
@@ -440,7 +440,7 @@
         <item quantity="many">%d conversations archivées</item>
         <item quantity="other">%d conversations archivées</item>
     </plurals>
-    <string name="toast_qksms_plus">Vous devez déverrouiller eInk Messaging pour utiliser cela</string>
+    <string name="toast_qksms_plus">Vous devez déverrouiller Messaging pour utiliser cela</string>
     <plurals name="notification_new_messages">
         <item quantity="one">Nouveau message</item>
         <item quantity="other">%s nouveaux messages</item>

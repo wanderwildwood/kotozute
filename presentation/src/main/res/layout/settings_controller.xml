@@ -39,70 +39,70 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/archived"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_archive_white_24dp"
                 app:title="@string/drawer_archived" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/scheduled"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_event_black_24dp"
                 app:title="@string/drawer_scheduled" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/blocking"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_cancel_black_24dp"
                 app:title="@string/drawer_blocking" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/backup"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_backup_black_24dp"
                 app:title="@string/backup_title" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categoryGeneral"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_settings_black_24dp"
                 app:title="@string/settings_category_general" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categoryNotifications"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_notifications_black_24dp"
                 app:title="@string/settings_category_notifications" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categorySending"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_send_black_24dp"
                 app:title="@string/settings_category_sending" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categoryStorage"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_clear_all_black_24dp"
                 app:title="@string/settings_category_storage" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categoryDesktopSync"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_sync_black_24dp"
                 app:title="@string/settings_category_desktop_sync" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/about"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -119,14 +119,14 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/textSize"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_format_size_black_24dp"
                 app:title="@string/settings_text_size_title" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/unreadAtTop"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -135,7 +135,7 @@
                 app:title="@string/settings_unread_at_top_title"
                 app:widget="@layout/settings_switch_widget" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/swipeActions"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -144,7 +144,7 @@
                 app:summary="@string/settings_swipe_actions_summary"
                 app:title="@string/settings_swipe_actions" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/messageLinkHandling"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -162,14 +162,14 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/notifications"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_notifications_black_24dp"
                 app:title="@string/settings_notifications_title" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/delivery"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -178,7 +178,7 @@
                 app:title="@string/settings_delivery_title"
                 app:widget="@layout/settings_switch_widget" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/readReceipts"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -196,14 +196,14 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signature"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:icon="@drawable/ic_short_text_black_24dp"
                 app:title="@string/settings_signature_title" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/delayed"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -211,7 +211,7 @@
                 app:title="@string/settings_delayed_title"
                 tools:summary="No delay" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/longAsMms"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -220,7 +220,7 @@
                 app:title="@string/settings_long_as_mms_title"
                 app:widget="@layout/settings_switch_widget" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/unicode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -229,7 +229,7 @@
                 app:title="@string/settings_unicode_title"
                 app:widget="@layout/settings_switch_widget" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/mobileOnly"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -238,7 +238,7 @@
                 app:title="@string/settings_mobile_title"
                 app:widget="@layout/settings_switch_widget" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/mmsSize"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -256,7 +256,7 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/autoDelete"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -264,7 +264,7 @@
                 app:title="@string/settings_auto_delete"
                 tools:summary="Never" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/sync"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -282,7 +282,7 @@
                     android:layout_marginBottom="16dp"
                     android:indeterminate="true" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/disableScreenshots"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -300,7 +300,7 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/desktopSync"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -309,7 +309,7 @@
                 app:title="@string/settings_desktop_sync_title"
                 app:widget="@layout/settings_switch_widget" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/desktopSyncLink"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -317,7 +317,7 @@
                 app:summary="@string/settings_desktop_sync_link_summary"
                 app:title="@string/settings_desktop_sync_link_title" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/desktopSyncTailscaleOnly"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -326,7 +326,7 @@
                 app:title="@string/settings_desktop_sync_tailscale_only_title"
                 app:widget="@layout/settings_switch_widget" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/desktopSyncReset"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

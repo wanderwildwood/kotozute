@@ -23,7 +23,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
@@ -33,7 +33,7 @@
         android:textColor="?android:attr/textColorPrimary"
         app:textSize="dialog" />
 
-    <com.wanderwildwood.einkmessaging.common.widget.QkEditText
+    <com.wanderwildwood.kotozute.common.widget.QkEditText
         android:id="@+id/input"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

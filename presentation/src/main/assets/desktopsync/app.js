@@ -720,6 +720,30 @@ async function loadMessages() {
             img.replaceWith(a);
           });
           bubble.append(img);
+        } else if (att.isVideo) {
+          // Played here rather than handed over as a link. The phone serves parts with
+          // a length and answers range requests now, which is what a video element needs
+          // before it will play anything at all.
+          const video = document.createElement('video');
+          video.className = 'attach';
+          video.controls = true;
+          video.preload = 'metadata';
+          video.playsInline = true;
+          video.src = '/api/parts/' + att.id + '?token=' + encodeURIComponent(token);
+          // Some MMS video is in codecs no browser decodes. Say so and offer the file,
+          // rather than leaving a black rectangle that never explains itself.
+          video.addEventListener('error', () => {
+            const wrap = document.createElement('div');
+            wrap.className = 'attachLink';
+            const a = document.createElement('a');
+            a.href = video.src;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.textContent = '🎬 ' + (att.label || 'Video');
+            wrap.append(a, document.createTextNode(' — this browser cannot play it; save it instead'));
+            video.replaceWith(wrap);
+          });
+          bubble.append(video);
         } else {
           const link = document.createElement('a');
           link.className = 'attachLink';
@@ -735,7 +759,16 @@ async function loadMessages() {
     const stamp = document.createElement('div');
     stamp.className = 'stamp';
     stamp.textContent = formatTime(m.date);
-    inner.append(bubble, stamp);
+    // In a group the phone sends who each received message is from; one-to-one threads
+    // send nothing, because the name is already at the top of the screen.
+    if (m.from) {
+      const who = document.createElement('div');
+      who.className = 'who';
+      who.textContent = m.from;
+      inner.append(who, bubble, stamp);
+    } else {
+      inner.append(bubble, stamp);
+    }
     wrap.append(inner);
     messagesEl.append(wrap);
   });

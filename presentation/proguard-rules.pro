@@ -118,7 +118,7 @@
 -keep class io.reactivex.** { *; }
 -keep class io.reactivex.subjects.** { *; }
 -keep class androidx.activity.result.** { *; }
--keep class com.wanderwildwood.einkmessaging.** { *; }
+-keep class com.wanderwildwood.kotozute.** { *; }
 
 
 # NanoHTTPD / NanoWSD — powers the Desktop Sync relay. Added for this fork;

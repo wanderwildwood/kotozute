@@ -33,21 +33,21 @@
         android:paddingTop="8dp"
         android:paddingBottom="8dp">
 
-        <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+        <com.wanderwildwood.kotozute.common.widget.PreferenceView
             android:id="@+id/version"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:title="@string/about_version_title"
             tools:summary="3.0.8" />
 
-        <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+        <com.wanderwildwood.kotozute.common.widget.PreferenceView
             android:id="@+id/developer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:summary="@string/about_developer"
             app:title="@string/about_developer_title" />
 
-        <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+        <com.wanderwildwood.kotozute.common.widget.PreferenceView
             android:id="@+id/source"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -56,14 +56,14 @@
 
 
 
-        <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+        <com.wanderwildwood.kotozute.common.widget.PreferenceView
             android:id="@+id/license"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:summary="@string/about_license"
             app:title="@string/about_license_title" />
 
-        <com.wanderwildwood.einkmessaging.common.widget.PreferenceView
+        <com.wanderwildwood.kotozute.common.widget.PreferenceView
             android:id="@+id/copyright"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -1,6 +1,6 @@
 <img src="icon.png" width="100" />
 
-# 言伝 kotozute — eInk Messaging
+# 言伝 kotozute — Messaging
 
 An SMS and MMS app for the [Mudita Kompakt](https://mudita.com/products/kompakt/), restyled for the phone's e-ink screen, with Desktop Sync: reading and replying to texts from a browser on a computer.
 
@@ -59,7 +59,7 @@ Desktop Sync needs the `INTERNET` permission, which InkMessage deliberately left
 
 ### Launcher badges
 
-Desktop Sync runs as a foreground service, which means Android keeps a notification in the shade for as long as the relay is up — that's how the platform works, and it's also your only visible sign the relay is running. Some minimalist launchers count *every* notification a package has posted when deciding whether to badge its icon, without checking whether the notification asked to be badged. On those launchers the relay's notification will light up an unread marker on eInk Messaging that never clears.
+Desktop Sync runs as a foreground service, which means Android keeps a notification in the shade for as long as the relay is up — that's how the platform works, and it's also your only visible sign the relay is running. Some minimalist launchers count *every* notification a package has posted when deciding whether to badge its icon, without checking whether the notification asked to be badged. On those launchers the relay's notification will light up an unread marker on Messaging that never clears.
 
 The notification lives on its own channel (`desktop_sync_v2`) and declares `setShowBadge(false)` plus `CATEGORY_SERVICE`, so a launcher that honours either one will behave. If yours doesn't, open the notification's channel settings — the cog next to it in the shade — and switch that one channel off. Real messages badge from a different channel and are unaffected. The cost is that you lose the shade indicator telling you the relay is running.
 
@@ -74,7 +74,7 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 
 The APK lands in `presentation/build/outputs/apk/release/`.
 
-A keystore is committed at `presentation/einkmessaging.keystore` with the password `android`, so that a fresh clone compiles and installs without any setup. It is a throwaway: its private half is public, its certificate says so, and the release workflow refuses to publish anything signed with it. Released builds are signed with a real key supplied through `signing/`, which is not in this repository.
+A keystore is committed at `presentation/kotozute.keystore` with the password `android`, so that a fresh clone compiles and installs without any setup. It is a throwaway: its private half is public, its certificate says so, and the release workflow refuses to publish anything signed with it. Released builds are signed with a real key supplied through `signing/`, which is not in this repository.
 
 ## Installing
 

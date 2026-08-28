@@ -33,12 +33,12 @@
         android:backgroundTint="?attr/bubbleColor"
         android:orientation="horizontal">
 
-        <com.wanderwildwood.einkmessaging.common.widget.AvatarView
+        <com.wanderwildwood.kotozute.common.widget.AvatarView
             android:id="@+id/avatar"
             android:layout_width="36dp"
             android:layout_height="36dp" />
 
-        <com.wanderwildwood.einkmessaging.common.widget.QkTextView
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
             android:id="@+id/name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

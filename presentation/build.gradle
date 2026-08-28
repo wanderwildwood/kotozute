@@ -21,7 +21,7 @@ apply plugin: 'realm-android' // Realm needs to be before Kotlin or the build wi
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 
-// The keystore committed at presentation/einkmessaging.keystore has password 'android' and
+// The keystore committed at presentation/kotozute.keystore has password 'android' and
 // sits in a public repo, so its private half is anyone's - they can build an APK that upgrades
 // an install in place. A real keystore in signing/ replaces it for every build type when one is
 // present, and the release workflow writes it there from repository secrets. Absent, the build
@@ -58,9 +58,9 @@ android {
         // Credentials are intentionally public: this is a sideloaded personal app,
         // not a Play Store listing.
         debug {
-            storeFile file('einkmessaging.keystore')
+            storeFile file('kotozute.keystore')
             storePassword 'android'
-            keyAlias 'einkmessaging'
+            keyAlias 'einkmessaging' // the alias inside the throwaway keystore; renaming it would mean regenerating the key
             keyPassword 'android'
         }
         if (realSigningProps != null) {
@@ -103,7 +103,7 @@ android {
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
-            resValue("string", "app_name", "eInk Messaging Debug")
+            resValue("string", "app_name", "Messaging Debug")
             resValue("string", "application_id", defaultConfig.applicationId)
             signingConfig realSigningProps != null ? signingConfigs.release : signingConfigs.debug
         }
@@ -130,7 +130,7 @@ android {
         abortOnError false
         checkReleaseBuilds false
     }
-    namespace 'com.wanderwildwood.einkmessaging'
+    namespace 'com.wanderwildwood.kotozute'
     buildFeatures {
         buildConfig true
         viewBinding true

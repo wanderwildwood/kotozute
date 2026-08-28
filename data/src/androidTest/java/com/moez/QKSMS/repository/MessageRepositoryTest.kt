@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with QKSMS.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.wanderwildwood.einkmessaging.repository
+package com.wanderwildwood.kotozute.repository
 
 import androidx.test.runner.AndroidJUnit4
 import org.junit.Test

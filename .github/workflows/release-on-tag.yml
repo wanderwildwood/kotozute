@@ -42,7 +42,7 @@ jobs:
       # becomes 10203. A workflow_dispatch run has a branch name here, not a version, so it
       # falls through to the defaults in presentation/build.gradle.
       # Without these the build falls back to the keystore committed at
-      # presentation/einkmessaging.keystore, whose password is 'android' and whose private half
+      # presentation/kotozute.keystore, whose password is 'android' and whose private half
       # is public - the release would go out signed with a key anybody has. Fail loudly instead.
       - name: Restore signing key
         env:
@@ -90,7 +90,7 @@ jobs:
           certs=$("$apksigner" verify --print-certs "$apk")
           echo "$certs"
           apk_digest=$(echo "$certs" | grep -m1 -oE 'certificate SHA-256 digest: [0-9a-f]+' | awk '{print $NF}')
-          repo_digest=$(keytool -list -v -keystore presentation/einkmessaging.keystore -storepass android \
+          repo_digest=$(keytool -list -v -keystore presentation/kotozute.keystore -storepass android \
             | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')
           if [ -z "$apk_digest" ] || [ -z "$repo_digest" ]; then
             echo "::error::Could not read a signing certificate - refusing to release unchecked."

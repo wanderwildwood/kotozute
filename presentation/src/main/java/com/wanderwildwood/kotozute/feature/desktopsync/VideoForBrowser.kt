@@ -16,7 +16,6 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.net.Uri
-import android.view.Surface
 import timber.log.Timber
 import java.io.File
 import java.nio.ByteBuffer
@@ -51,6 +50,13 @@ object VideoForBrowser {
     private const val TIMEOUT_US = 10_000L
 
     /**
+     * Bumped whenever the encoding changes. It is part of the cache file's name, so a fix to
+     * how these are made reaches videos somebody has already watched — without it, the first
+     * bad copy of a clip is the copy they keep being served.
+     */
+    private const val CACHE_VERSION = 2
+
+    /**
      * The file to serve for this part, and the type to serve it as.
      *
      * Returns null when the original is fine as it stands, which is the common case and
@@ -59,13 +65,13 @@ object VideoForBrowser {
     fun playableCopy(context: Context, partId: Long, uri: Uri, sizeBytes: Long?): File? {
         if (sizeBytes != null && sizeBytes > MAX_INPUT_BYTES) return null
 
-        val cached = File(cacheDir(context), "$partId.mp4")
+        val cached = File(cacheDir(context), "$partId-v$CACHE_VERSION.mp4")
         if (cached.isFile && cached.length() > 0) return cached
 
         val needed = runCatching { needsTranscoding(context, uri) }.getOrDefault(false)
         if (!needed) return null
 
-        val working = File(cacheDir(context), "$partId.mp4.part")
+        val working = File(cacheDir(context), "$partId-v$CACHE_VERSION.mp4.part")
         return runCatching {
             transcode(context, uri, working)
             // Renamed only once it is complete, so a process killed mid-encode cannot leave
@@ -126,11 +132,14 @@ object VideoForBrowser {
 
         val encoder = MediaCodec.createEncoderByType(OUTPUT_VIDEO)
         encoder.configure(encoderFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        val inputSurface: Surface = encoder.createInputSurface()
+        // Between the two codecs rather than wired straight through: see TranscodeSurfaces.
+        val inputSurface = InputSurface(encoder.createInputSurface())
+        inputSurface.makeCurrent()
         encoder.start()
 
+        val outputSurface = OutputSurface()
         val decoder = MediaCodec.createDecoderByType(inputFormat.getString(MediaFormat.KEY_MIME)!!)
-        decoder.configure(inputFormat, inputSurface, null, 0)
+        decoder.configure(inputFormat, outputSurface.surface, null, 0)
         decoder.start()
         extractor.selectTrack(videoTrack)
 
@@ -164,8 +173,19 @@ object VideoForBrowser {
                     val index = decoder.dequeueOutputBuffer(info, TIMEOUT_US)
                     if (index >= 0) {
                         val render = info.size > 0
+                        val presentationTimeUs = info.presentationTimeUs
+                        val endOfStream = info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
                         decoder.releaseOutputBuffer(index, render)
-                        if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                        if (render) {
+                            // Wait for the frame, draw it, stamp it, hand it over. Each step
+                            // has to finish before the next frame is allowed to arrive.
+                            if (outputSurface.awaitNewImage()) {
+                                outputSurface.drawImage()
+                                inputSurface.setPresentationTime(presentationTimeUs * 1000)
+                                inputSurface.swapBuffers()
+                            }
+                        }
+                        if (endOfStream) {
                             sawDecoderEnd = true
                             encoder.signalEndOfInputStream()
                         }
@@ -198,6 +218,7 @@ object VideoForBrowser {
             runCatching { encoder.stop() }
             runCatching { encoder.release() }
             runCatching { inputSurface.release() }
+            runCatching { outputSurface.release() }
             if (muxerStarted) runCatching { muxer.stop() }
             runCatching { muxer.release() }
             runCatching { extractor.release() }

@@ -357,12 +357,19 @@ class DesktopSyncServer(
             ?: DesktopSyncService.findLanAddress()
             ?: "127.0.0.1"
         val url = "http://$address:$listeningPort?token=$token"
+        // Prefers a Chromium browser in app mode, which gives a window with no tab strip or
+        // address bar and its own entry in the menu and the switcher. Falls back to xdg-open,
+        // so on a machine with neither Chrome nor Brave this still opens the right page in
+        // whatever browser that person actually uses.
+        val exec = "sh -c 'for b in brave-browser brave chromium chromium-browser " +
+            "google-chrome google-chrome-stable microsoft-edge vivaldi; do " +
+            "command -v \$b >/dev/null 2>&1 && exec \$b --app=\"$url\"; done; exec xdg-open \"$url\"'"
         val entry = """
             [Desktop Entry]
             Type=Application
             Name=Messaging
             Comment=Text from this computer, through the phone
-            Exec=xdg-open "$url"
+            Exec=$exec
             Icon=messaging
             Categories=Network;InstantMessaging;
             Terminal=false

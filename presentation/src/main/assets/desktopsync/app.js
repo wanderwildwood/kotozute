@@ -62,13 +62,65 @@ const token = new URLSearchParams(location.search).get('token') || '';
   }
   window.addEventListener('appinstalled', () => { if (installBtn) installBtn.hidden = true; });
 
-  // The desktop entry is a Linux thing and says so by only appearing there. It opens
-  // with xdg-open, so it lands in whichever browser that machine calls its default.
+  /* Keeping this as an app on the computer. Three different answers, because the
+   * platforms give three different ones — and none of them is the manifest, which no
+   * browser will act on over plain HTTP.
+   *
+   * Linux gets a launcher file with this phone's address in it, which prefers a Chromium
+   * browser in app mode and falls back to opening the default browser. Windows and macOS
+   * get told where their own browser already hides the same feature: Chromium's "Create
+   * shortcut / Install as app" makes a proper window over plain HTTP, unlike install
+   * prompts. Safari's is "Add to Dock". */
   const launcherBtn = document.getElementById('launcherBtn');
+  const panel = document.getElementById('launcherPanel');
+  const agent = navigator.userAgent;
   const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
-  if (launcherBtn && /linux/i.test(platform) && !/android/i.test(navigator.userAgent)) {
-    launcherBtn.href = '/desktop-entry?token=' + encodeURIComponent(token);
-    launcherBtn.hidden = false;
+  const isAndroid = /android/i.test(agent);
+  const isLinux = /linux/i.test(platform) && !isAndroid;
+  const isMac = /mac/i.test(platform);
+  const chromium = !!window.chrome || /Chrome|Chromium|Edg|Brave|Vivaldi|OPR/.test(agent);
+
+  function launcherHelp() {
+    if (isLinux) {
+      return '<h2>Keep this in your applications menu</h2>' +
+        '<p>The launcher below has this phone\'s address in it. It opens a window of its own ' +
+        'where it can, and your usual browser where it cannot.</p>' +
+        '<p><a class="dl" href="/desktop-entry?token=' + encodeURIComponent(token) + '" ' +
+        'download="messaging.desktop">Download launcher</a></p>' +
+        '<p>Save it to <code>~/.local/share/applications/</code> and it appears with your ' +
+        'other apps.</p>';
+    }
+    if (chromium) {
+      const menu = isMac ? '⋮ menu → Cast, Save and Share' : '⋮ menu → Save and share';
+      return '<h2>Keep this as an app</h2>' +
+        '<p>Your browser can do this without anything to download: <b>' + menu + ' → ' +
+        'Create shortcut…</b>, and tick <b>Open as window</b>. Edge calls it ' +
+        '<b>Apps → Install this site as an app</b>.</p>' +
+        '<p>You get a window with no tabs or address bar, and an entry in your ' +
+        (isMac ? 'Dock and Launchpad' : 'Start menu and taskbar') + '.</p>';
+    }
+    if (isMac) {
+      return '<h2>Keep this as an app</h2>' +
+        '<p>In Safari: <b>File → Add to Dock</b>. It becomes a window of its own with an ' +
+        'icon in the Dock.</p>';
+    }
+    return '<h2>Keep this to hand</h2>' +
+      '<p>Bookmark this page — the address stays the same, token and all. Chrome, Edge and ' +
+      'Brave can go further: <b>Create shortcut… → Open as window</b> gives it a window ' +
+      'and a menu entry of its own.</p>';
+  }
+
+  if (launcherBtn && panel) {
+    launcherBtn.addEventListener('click', () => {
+      if (!panel.hidden) { panel.hidden = true; return; }
+      panel.innerHTML = launcherHelp() + '<button type="button" class="close">Close</button>';
+      panel.hidden = false;
+      panel.querySelector('.close').addEventListener('click', () => { panel.hidden = true; });
+    });
+    document.addEventListener('click', e => {
+      if (panel.hidden) return;
+      if (!panel.contains(e.target) && e.target !== launcherBtn) panel.hidden = true;
+    });
   }
 })();
 const threadsEl = document.getElementById('threads');

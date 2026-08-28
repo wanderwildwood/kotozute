@@ -102,6 +102,22 @@
     background: var(--paper); color: var(--muted); cursor: pointer;
   }
   #themeBtn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+  #launcherPanel {
+    position: absolute; right: 12px; top: 52px; z-index: 40; max-width: 420px;
+    background: var(--paper); color: var(--ink); border: 2px solid var(--ink);
+    border-radius: 12px; padding: 14px 16px; font-size: 13px; line-height: 1.5;
+  }
+  #launcherPanel h2 { font-size: 14px; margin: 0 0 6px; }
+  #launcherPanel p { margin: 0 0 10px; }
+  #launcherPanel a.dl {
+    display: inline-block; padding: 5px 12px; border: 2px solid var(--ink);
+    border-radius: 999px; text-decoration: none; color: var(--ink);
+  }
+  #launcherPanel a.dl:hover { background: var(--ink); color: var(--paper); }
+  #launcherPanel button.close {
+    font: inherit; background: none; border: 0; color: var(--muted);
+    cursor: pointer; padding: 0; text-decoration: underline;
+  }
   #installBtn, #launcherBtn {
     font: inherit; font-size: 13px; padding: 4px 10px; margin-left: 8px;
     border: 2px solid var(--ink); border-radius: 999px; background: var(--paper);
@@ -370,10 +386,10 @@
     <h1>Messaging</h1>
     <span id="status">connecting…</span>
     <button type="button" id="installBtn" title="Install this as an app on this computer" hidden>Install</button>
-    <a id="launcherBtn" href="/desktop-entry" download="messaging.desktop"
-       title="Download a launcher for a Linux applications menu" hidden>Launcher</a>
+    <button type="button" id="launcherBtn" title="Keep this as an app on this computer">Launcher</button>
     <button type="button" id="themeBtn" title="Switch theme (auto / light / dark)">Auto</button>
   </header>
+  <div id="launcherPanel" hidden></div>
   <main>
     <aside id="leftPane">
       <div id="searchWrap">

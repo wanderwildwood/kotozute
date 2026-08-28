@@ -39,13 +39,18 @@ buildscript {
 
     repositories {
         google()
-        maven { url "https://jitpack.io" }
+        mavenCentral()
         maven { url 'https://maven.google.com' }
         maven {
             name 'glide-snapshot'
             url 'https://oss.sonatype.org/content/repositories/snapshots'
         }
-        mavenCentral()
+        // jitpack goes LAST, after everything else has been asked. It used to be first,
+        // and when it went down on 2026-08-28 nothing could be built or released at all -
+        // including the Realm plugin, which Maven Central serves perfectly well. Four
+        // dependencies really do live here (ExoPlayer r2.9.0, realm-android-adapters, and
+        // a 961-byte annotation shim), so it stays; it just no longer gets asked first.
+        maven { url "https://jitpack.io" }
     }
 
     dependencies {
@@ -59,15 +64,20 @@ buildscript {
 
 allprojects {
     repositories {
+        // Order is deliberate: the repositories that hold almost everything come first.
         google()
-        jcenter()
-        maven { url "https://jitpack.io" }
+        mavenCentral()
         maven { url 'https://maven.google.com' }
         maven {
             name 'glide-snapshot'
             url 'https://oss.sonatype.org/content/repositories/snapshots'
         }
-        mavenCentral()
+        // jitpack goes LAST, after everything else has been asked. It used to be first,
+        // and when it went down on 2026-08-28 nothing could be built or released at all -
+        // including the Realm plugin, which Maven Central serves perfectly well. Four
+        // dependencies really do live here (ExoPlayer r2.9.0, realm-android-adapters, and
+        // a 961-byte annotation shim), so it stays; it just no longer gets asked first.
+        maven { url "https://jitpack.io" }
     }
 }
 

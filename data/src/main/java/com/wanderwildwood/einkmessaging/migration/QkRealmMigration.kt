@@ -37,7 +37,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 14
+        const val SCHEMA_VERSION: Long = 15
     }
 
     @SuppressLint("ApplySharedPref")
@@ -290,6 +290,21 @@ class QkRealmMigration @Inject constructor(
                 .addField("createdAt", Long::class.java, FieldAttribute.REQUIRED)
 
             realm.createObject("EmojiSyncNeeded")
+
+            version++
+        }
+
+        if (version == 14L) {
+            // Read/delivery answers from the far end. Existing rows default to false: the
+            // M-Read-Orig.ind and M-Delivery.ind PDUs that would have set them were never
+            // read, so there is nothing to back-fill from.
+            realm.schema.get("Message")
+                ?.addField("mmsDelivered", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.addField("mmsReadByRecipient", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.transform { msg ->
+                    msg.setBoolean("mmsDelivered", false)
+                    msg.setBoolean("mmsReadByRecipient", false)
+                }
 
             version++
         }

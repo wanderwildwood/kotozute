@@ -67,6 +67,12 @@ interface MessageRepository {
 
     fun markFailed(messageId: Long, resultCode: Int): Boolean
 
+    /**
+     * Apply the far end's delivery/read reports to the messages they acknowledge. Cheap and
+     * idempotent; safe to call on any event that might have brought a report in.
+     */
+    fun syncMmsReports()
+
     fun markDelivered(messageId: Long)
 
     fun markDeliveryFailed(messageId: Long, resultCode: Int)

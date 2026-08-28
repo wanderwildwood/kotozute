@@ -47,7 +47,7 @@ android {
         // (Reset to 1.0.0 for this fork's first release; upstream InkMessage was at 0.0.4.)
         versionCode project.findProperty('appVersionCode')?.toInteger() ?: 2
         versionName project.findProperty('appVersionName') ?: '1.0.1'
-        setProperty("archivesBaseName", "eInkMessaging-v${versionName}")
+        setProperty("archivesBaseName", "kotozute-v${versionName}")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 

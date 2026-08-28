@@ -37,7 +37,7 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.wanderwildwood.einkmessaging'
+        applicationId 'com.wanderwildwood.kotozute'
         minSdkVersion 23
         targetSdkVersion 33
         // Released builds take their version from the git tag: the release workflow derives

@@ -442,19 +442,33 @@ function clearSendFailure() {
 function sendRequestBody(fields) {
   if (pending.length === 0) {
     return {
-      headers: { 'Content-Type': 'application/json' },
+      // The charset is not decoration. NanoHTTPD decodes a request body with the charset
+      // named in this header and falls back to US-ASCII when there is none -- which turns
+      // every emoji, accent and curly quote into replacement characters, unrecoverably,
+      // before the message is ever sent.
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify(fields)
     };
   }
 
   const form = new FormData();
-  Object.keys(fields).forEach(key => form.append(key, fields[key]));
+  // Multipart cannot be fixed the same way: the browser writes the Content-Type itself
+  // (it has to -- the boundary is its own), so the request carries no charset and the text
+  // fields would be read as US-ASCII. Base64 is pure ASCII and survives that untouched.
+  Object.keys(fields).forEach(key => form.append(key + 'B64', toBase64Utf8(fields[key])));
   pending.forEach((file, index) => {
     form.append('attachment' + index, file, file.name || ('attachment' + index));
   });
-  // No Content-Type header: the browser has to set it itself so the multipart boundary
-  // it generates is the one actually in the header.
+  // No Content-Type header, so the browser sets it along with the boundary it generated.
   return { body: form };
+}
+
+/** UTF-8 bytes of a string, base64'd. btoa alone throws on anything above U+00FF. */
+function toBase64Utf8(text) {
+  const bytes = new TextEncoder().encode(text == null ? '' : String(text));
+  let binary = '';
+  bytes.forEach(b => { binary += String.fromCharCode(b); });
+  return btoa(binary);
 }
 
 function api(path, options) {

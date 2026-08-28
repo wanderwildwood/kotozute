@@ -101,12 +101,20 @@ jobs:
             exit 1
           fi
 
+      # Two copies of the same APK go up. The versioned name is what people end up with
+      # in their downloads folder and what a checksum quoted anywhere refers to; the
+      # unversioned one exists so that
+      #   .../releases/latest/download/kotozute.apk
+      # is a link that keeps working after the next release, which a versioned link does
+      # not. Both are byte-identical - only the file name differs.
       - name: Rename APK and generate checksum
         run: |
           apk_name="kotozute-${GITHUB_REF_NAME}.apk"
           apk_path=$(find presentation/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -1)
           cp "$apk_path" "$apk_name"
           sha256sum "$apk_name" > "${apk_name}.sha256"
+          cp "$apk_path" kotozute.apk
+          sha256sum kotozute.apk > kotozute.apk.sha256
 
       # The generated notes are a list of commits; they cannot say what someone has to do
       # before installing. This goes above them, and can be emptied once nobody is still
@@ -114,8 +122,11 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          # kotozute-*.apk does not match kotozute.apk, so the fixed-name pair is listed.
           files: |
             kotozute-*.apk
             kotozute-*.apk.sha256
+            kotozute.apk
+            kotozute.apk.sha256
           body_path: .github/release-body.md
           generate_release_notes: true

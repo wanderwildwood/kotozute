@@ -418,7 +418,7 @@
     <string name="about_title">About</string>
     <string name="about_version_title">Version</string>
     <string name="about_developer_title">Developer</string>
-    <string name="about_source_title">Source code</string>
+    <string name="about_source_title">Source, releases and issues</string>
     <string name="about_changelog_title">Changelog</string>
     <string name="about_contact_title">Contact</string>
     <string name="about_license_title">License</string>
@@ -477,7 +477,7 @@
     <string name="theme_apply">Apply</string>
 
     <string name="about_developer" translatable="false">wander wildwood</string>
-    <string name="about_source" translatable="false">https://github.com/wanderwildwood/kotozute</string>
+    <string name="about_source" translatable="false">github.com/wanderwildwood/kotozute</string>
     <string name="about_changelog" translatable="false">https://github.com/wanderwildwood/kotozute/releases</string>
     <string name="about_contact" translatable="false">github.com/wanderwildwood/kotozute/issues</string>
     <string name="about_license" translatable="false">GNU General Public License v3.0</string>

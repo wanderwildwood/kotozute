@@ -40,10 +40,6 @@ class AboutPresenter @Inject constructor(
 
                         R.id.source -> navigator.showSourceCode()
 
-                        R.id.changelog -> navigator.showChangelog()
-
-                        R.id.contact -> navigator.showSupport()
-
                         R.id.license -> navigator.showLicense()
                     }
                 }

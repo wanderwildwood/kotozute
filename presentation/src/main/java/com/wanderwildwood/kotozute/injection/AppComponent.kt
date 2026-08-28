@@ -39,7 +39,6 @@ import com.wanderwildwood.kotozute.feature.blocking.numbers.BlockedNumbersContro
 import com.wanderwildwood.kotozute.feature.compose.editing.DetailedChipView
 import com.wanderwildwood.kotozute.feature.conversationinfo.injection.ConversationInfoComponent
 import com.wanderwildwood.kotozute.feature.settings.SettingsController
-import com.wanderwildwood.kotozute.feature.settings.about.AboutController
 import com.wanderwildwood.kotozute.feature.settings.swipe.SwipeActionsController
 import com.wanderwildwood.kotozute.feature.widget.WidgetAdapter
 import com.wanderwildwood.kotozute.injection.android.ActivityBuilderModule
@@ -60,7 +59,6 @@ interface AppComponent {
 
     fun inject(application: QKApplication)
 
-    fun inject(controller: AboutController)
     fun inject(controller: BackupController)
     fun inject(controller: BlockedMessagesController)
     fun inject(controller: BlockedNumbersController)

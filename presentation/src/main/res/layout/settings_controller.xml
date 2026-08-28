@@ -102,14 +102,6 @@
                 app:icon="@drawable/ic_sync_black_24dp"
                 app:title="@string/settings_category_desktop_sync" />
 
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/about"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:icon="@drawable/ic_info_black_24dp"
-                app:title="@string/settings_about_title"
-                tools:summary="@string/settings_version" />
-
         </LinearLayout>
 
         <LinearLayout

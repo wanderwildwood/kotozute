@@ -42,6 +42,9 @@ const toFieldEl = document.getElementById('toField');
 const suggestionsEl = document.getElementById('suggestions');
 const searchFieldEl = document.getElementById('searchField');
 const searchClearEl = document.getElementById('searchClear');
+const attachEl = document.getElementById('attach');
+const fileFieldEl = document.getElementById('fileField');
+const attachmentsEl = document.getElementById('attachments');
 
 let activeThreadId = null;
 let activeThreadTitle = '';
@@ -225,6 +228,7 @@ function autoGrow() {
 
 // Keep the stashed draft current as they type, so switching away never loses a keystroke
 bodyEl.addEventListener('input', () => {
+  updateSendEnabled();
   stashDraft();
   autoGrow();
 });
@@ -251,8 +255,8 @@ function enterComposeMode() {
   clearSuggestions();
   messagesEl.innerHTML = '<div id="empty">New conversation</div>';
   bodyEl.disabled = false;
-  sendEl.disabled = false;
   bodyEl.value = '';
+  clearAttachments();
   autoGrow();
   toFieldEl.focus();
   // Drop the highlight from whatever thread was selected
@@ -303,6 +307,155 @@ searchClearEl.addEventListener('click', () => {
   // Back to the box, so you can type a new search without reaching for the mouse again.
   searchFieldEl.focus();
 });
+
+/*
+ * Pictures queued for the next send. They live here rather than in the file input because
+ * the input can only hold what one pick put in it -- picking twice, or dropping a file onto
+ * a thread that already has one queued, would silently replace the first.
+ */
+let pending = [];
+
+/* A single MMS is small: the phone scales pictures down to the carrier's limit, but there is
+ * no sense pushing a 40MB video over the tailnet only for the send to refuse it. */
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+function addFiles(files) {
+  let rejected = 0;
+  Array.from(files || []).forEach(file => {
+    if (file.size > MAX_ATTACHMENT_BYTES) { rejected++; return; }
+    pending.push(file);
+  });
+  if (rejected) statusEl.textContent = rejected + ' file(s) too large';
+  else clearSendFailure();
+  renderAttachments();
+}
+
+function clearAttachments() {
+  // Revoke first: each thumbnail holds an object URL, and dropping the list without
+  // releasing them leaks the file's bytes for as long as the page stays open.
+  Array.from(attachmentsEl.querySelectorAll('img')).forEach(img => URL.revokeObjectURL(img.src));
+  pending = [];
+  fileFieldEl.value = '';
+  renderAttachments();
+}
+
+function renderAttachments() {
+  Array.from(attachmentsEl.querySelectorAll('img')).forEach(img => URL.revokeObjectURL(img.src));
+  attachmentsEl.innerHTML = '';
+  attachmentsEl.hidden = pending.length === 0;
+
+  pending.forEach((file, index) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb';
+
+    if (file.type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      img.alt = file.name || 'attachment';
+      thumb.appendChild(img);
+    } else {
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = file.name || 'file';
+      thumb.appendChild(name);
+    }
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = '\u00d7';
+    remove.title = 'Remove';
+    remove.addEventListener('click', () => {
+      pending.splice(index, 1);
+      renderAttachments();
+    });
+    thumb.appendChild(remove);
+
+    attachmentsEl.appendChild(thumb);
+  });
+
+  updateSendEnabled();
+}
+
+/* A picture on its own is a message, so Send has to come alive for an empty box too. */
+function updateSendEnabled() {
+  const canSend = !bodyEl.disabled && (bodyEl.value.trim() !== '' || pending.length > 0);
+  sendEl.disabled = !canSend;
+  attachEl.disabled = bodyEl.disabled;
+}
+
+attachEl.addEventListener('click', () => fileFieldEl.click());
+fileFieldEl.addEventListener('change', () => addFiles(fileFieldEl.files));
+
+/* Paste a screenshot straight into the composer -- the fastest path from a screen grab to a
+ * text, and the one case where a filename is often missing entirely. */
+bodyEl.addEventListener('paste', e => {
+  const files = Array.from(e.clipboardData ? e.clipboardData.files : []);
+  if (files.length) {
+    e.preventDefault();
+    addFiles(files);
+  }
+});
+
+/* Drag and drop over the conversation pane. dragover must be cancelled or the browser
+ * navigates to the file instead of handing it over. */
+['dragenter', 'dragover'].forEach(name => {
+  messagesEl.addEventListener(name, e => {
+    if (bodyEl.disabled) return;
+    e.preventDefault();
+    messagesEl.classList.add('dropping');
+  });
+});
+['dragleave', 'drop'].forEach(name => {
+  messagesEl.addEventListener(name, () => messagesEl.classList.remove('dropping'));
+});
+messagesEl.addEventListener('drop', e => {
+  if (bodyEl.disabled) return;
+  e.preventDefault();
+  addFiles(e.dataTransfer && e.dataTransfer.files);
+});
+
+/*
+ * Build the request for a send. With nothing attached this stays the JSON the relay has
+ * always taken; with a file it becomes multipart, because base64 in a JSON body would inflate
+ * the bytes by a third for no gain. Field names match what the relay looks for: attachment0,
+ * attachment1, and so on.
+ */
+/*
+ * Say what actually went wrong. The relay refuses a send whose picture it cannot read, and
+ * "send failed" on its own would leave someone retrying the same unreadable file forever.
+ * The composer keeps its text and its queue either way, so a retry is one click.
+ */
+async function reportSendFailure(res) {
+  const detail = await res.json().then(j => j && j.error).catch(() => null);
+  statusEl.textContent = detail || 'send failed';
+}
+
+/*
+ * Put the status line back to what the connection is actually doing. Without this a refusal
+ * stays on screen after the next send succeeds -- and "could not be read as a picture" sitting
+ * above a message that plainly went is worse than no message at all.
+ */
+function clearSendFailure() {
+  statusEl.textContent = statusEl.classList.contains('live') ? 'live' : 'reconnecting…';
+}
+
+function sendRequestBody(fields) {
+  if (pending.length === 0) {
+    return {
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields)
+    };
+  }
+
+  const form = new FormData();
+  Object.keys(fields).forEach(key => form.append(key, fields[key]));
+  pending.forEach((file, index) => {
+    form.append('attachment' + index, file, file.name || ('attachment' + index));
+  });
+  // No Content-Type header: the browser has to set it itself so the multipart boundary
+  // it generates is the one actually in the header.
+  return { body: form };
+}
 
 function api(path, options) {
   const opts = options || {};
@@ -388,9 +541,9 @@ async function selectThread(id, title) {
   activeThreadTitle = title || '';
   paneTitleEl.textContent = activeThreadTitle || 'Conversation';
   bodyEl.disabled = false;
-  sendEl.disabled = false;
   // Restore before the awaits below so the box is right immediately, not a beat later
   bodyEl.value = drafts[String(id)] || '';
+  clearAttachments();
   autoGrow();
   await loadMessages();
   // Reading it here should clear the unread dot and notification on the phone too
@@ -549,7 +702,8 @@ document.addEventListener('keydown', e => {
 composerEl.addEventListener('submit', async e => {
   e.preventDefault();
   const text = bodyEl.value.trim();
-  if (!text) return;
+  // A picture with no caption is a perfectly good message.
+  if (!text && pending.length === 0) return;
 
   if (composeMode) {
     const to = resolveRecipient();
@@ -558,18 +712,19 @@ composerEl.addEventListener('submit', async e => {
       return;
     }
     sendEl.disabled = true;
-    const res = await api('/api/compose', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: to, body: text })
-    });
-    sendEl.disabled = false;
+    const res = await api('/api/compose', Object.assign(
+      { method: 'POST' },
+      sendRequestBody({ to: to, body: text })
+    ));
+    updateSendEnabled();
     if (!res.ok) {
-      statusEl.textContent = 'send failed';
+      await reportSendFailure(res);
       return;
     }
     const result = await res.json().catch(() => ({}));
+    clearSendFailure();
     bodyEl.value = '';
+    clearAttachments();
     autoGrow();
     exitComposeMode();
     await loadThreads();
@@ -588,21 +743,24 @@ composerEl.addEventListener('submit', async e => {
   // actually sent, not whatever is on screen when the response lands.
   const sentThreadId = activeThreadId;
   sendEl.disabled = true;
-  const res = await api('/api/threads/' + sentThreadId + '/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body: text })
-  });
-  sendEl.disabled = false;
+  const res = await api('/api/threads/' + sentThreadId + '/send', Object.assign(
+    { method: 'POST' },
+    sendRequestBody({ body: text })
+  ));
+  updateSendEnabled();
   if (res.ok) {
+    clearSendFailure();
     clearDraft(sentThreadId);
     // Only blank the box if they're still looking at the thread they sent from
     if (activeThreadId === sentThreadId) bodyEl.value = '';
+    // The queue is not per-thread, so it clears either way -- leaving a picture
+    // attached after switching conversations is how you send it to the wrong person.
+    clearAttachments();
     autoGrow();
     await loadMessages();
     await loadThreads();
   } else {
-    statusEl.textContent = 'send failed';
+    await reportSendFailure(res);
   }
 });
 

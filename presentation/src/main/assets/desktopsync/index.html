@@ -235,6 +235,40 @@
     resize: none; overflow-y: auto;
     line-height: 1.4; max-height: 8.4em; /* ~6 lines */
   }
+  /* The composer is a column now: the attachment strip sits above the row that
+     holds the box and the buttons, so a queued picture pushes the text up rather
+     than squeezing it sideways. */
+  form { flex-direction: column; align-items: stretch; gap: 10px; }
+  #composerRow { display: flex; gap: 10px; align-items: flex-end; }
+
+  #attachments {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .thumb {
+    position: relative; width: 64px; height: 64px;
+    border: 2px solid var(--ink); border-radius: 8px; overflow: hidden;
+    background: var(--paper);
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* A file with no preview of its own still needs to show that it is queued. */
+  .thumb .name {
+    display: flex; align-items: center; justify-content: center; height: 100%;
+    font-size: 10px; text-align: center; padding: 4px; word-break: break-all;
+  }
+  .thumb button {
+    position: absolute; top: 0; right: 0; width: 20px; height: 20px; padding: 0;
+    font-size: 14px; line-height: 1; border: 0; border-bottom-left-radius: 8px;
+    background: var(--ink); color: var(--paper); cursor: pointer;
+  }
+  /* Square, so it reads as an icon button beside the round composer, and sized to
+     match the Send button's height rather than the text box's. */
+  #attach {
+    flex: 0 0 auto; padding: 11px 0; width: 44px; font-size: 20px; line-height: 1;
+  }
+  /* Dropping a file anywhere over the conversation counts, so the target is the
+     whole pane and not a small strip nobody would aim for. */
+  #messages.dropping { outline: 3px dashed var(--ink); outline-offset: -6px; }
+
   button {
     padding: 11px 22px; font: inherit; font-weight: 700; font-size: 15px;
     border: 2px solid var(--ink); border-radius: 10px;
@@ -304,8 +338,13 @@
       </div>
       <div id="messages"><div id="empty">Nothing selected</div></div>
       <form id="composer">
-        <textarea id="body" rows="1" placeholder="Write a message…" autocomplete="off" disabled></textarea>
-        <button type="submit" id="send" disabled>Send</button>
+        <div id="attachments" hidden></div>
+        <div id="composerRow">
+          <input type="file" id="fileField" multiple accept="image/*,video/*" hidden>
+          <button type="button" id="attach" title="Attach a picture" aria-label="Attach a picture" disabled>+</button>
+          <textarea id="body" rows="1" placeholder="Write a message…" autocomplete="off" disabled></textarea>
+          <button type="submit" id="send" disabled>Send</button>
+        </div>
       </form>
     </section>
   </main>

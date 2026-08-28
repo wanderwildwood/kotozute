@@ -358,7 +358,6 @@
     <string name="settings_category_sending">Sending</string>
     <string name="settings_category_storage">Storage and privacy</string>
 
-    <string name="settings_about_title">About Messaging</string>
     <string name="settings_version">Version %s</string>
     <string name="settings_logging_enabled">Debug logging enabled</string>
     <string name="settings_logging_disabled">Debug logging disabled</string>
@@ -416,13 +415,7 @@
     </plurals>
 
     <string name="about_title">About</string>
-    <string name="about_version_title">Version</string>
-    <string name="about_developer_title">Developer</string>
-    <string name="about_source_title">Source, releases and issues</string>
-    <string name="about_changelog_title">Changelog</string>
-    <string name="about_contact_title">Contact</string>
-    <string name="about_license_title">License</string>
-    <string name="about_copyright_title">Copyright</string>
+    <string name="about_privacy">Your messages stay on this phone. Nothing is collected and nothing is sent anywhere. Desktop Sync serves a page to your own network, and only while you have it switched on.</string>
 
     <string name="qksms_plus_description_title">Support development, unlock everything</string>
     <string name="qksms_plus_description_summary">You can save a starving developer for just %s</string>
@@ -476,12 +469,10 @@
     <string name="theme_hex">HEX</string>
     <string name="theme_apply">Apply</string>
 
-    <string name="about_developer" translatable="false">wander wildwood</string>
+    <string name="about_name" translatable="false">Messaging %s</string>
     <string name="about_source" translatable="false">github.com/wanderwildwood/kotozute</string>
-    <string name="about_changelog" translatable="false">https://github.com/wanderwildwood/kotozute/releases</string>
-    <string name="about_contact" translatable="false">github.com/wanderwildwood/kotozute/issues</string>
-    <string name="about_license" translatable="false">GNU General Public License v3.0</string>
-    <string name="about_copyright" translatable="false">© 2014–2025</string>
+    <string name="about_license" translatable="false">GNU General Public License v3</string>
+    <string name="about_fork">A fork of QKSMS by Moez Bhatti, under the same licence.</string>
 
 
     <string-array name="notification_actions">
@@ -498,6 +489,7 @@
     <string name="button_yes">Yes</string>
     <string name="button_continue">Continue</string>
     <string name="button_cancel">Cancel</string>
+    <string name="button_close">Close</string>
     <string name="button_delete">Delete</string>
     <string name="button_save">Save</string>
     <string name="button_stop">Stop</string>

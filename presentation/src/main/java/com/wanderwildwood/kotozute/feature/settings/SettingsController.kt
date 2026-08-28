@@ -23,6 +23,8 @@ import android.app.TimePickerDialog
 import android.content.Context
 import android.os.Build
 import android.text.format.DateFormat
+import android.view.Menu
+import android.view.MenuInflater
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -33,7 +35,6 @@ import com.jakewharton.rxbinding2.view.clicks
 import com.jakewharton.rxbinding2.view.longClicks
 import com.uber.autodispose.android.lifecycle.scope
 import com.uber.autodispose.autoDisposable
-import com.wanderwildwood.kotozute.BuildConfig
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.MenuItem
 import com.wanderwildwood.kotozute.common.QkChangeHandler
@@ -45,7 +46,7 @@ import com.wanderwildwood.kotozute.common.util.extensions.setBackgroundTint
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.common.widget.PreferenceView
 import com.wanderwildwood.kotozute.common.widget.TextInputDialog
-import com.wanderwildwood.kotozute.feature.settings.about.AboutController
+import com.wanderwildwood.kotozute.feature.settings.about.AboutDialog
 import com.wanderwildwood.kotozute.feature.settings.autodelete.AutoDeleteDialog
 import com.wanderwildwood.kotozute.feature.settings.swipe.SwipeActionsController
 import com.wanderwildwood.kotozute.injection.appComponent
@@ -82,10 +83,14 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val autoDeleteDialog: AutoDeleteDialog by lazy {
         AutoDeleteDialog(activity!!, autoDeleteSubject::onNext)
     }
+    private val aboutDialog: AboutDialog by lazy {
+        AboutDialog(activity!!) { aboutLongClickSubject.onNext(Unit) }
+    }
 
     private val signatureSubject: Subject<String> = PublishSubject.create()
     private val autoDeleteSubject: Subject<Int> = PublishSubject.create()
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
+    private val aboutLongClickSubject: Subject<Unit> = PublishSubject.create()
 
     private val progressAnimator by lazy { ObjectAnimator.ofInt(binding.syncingProgress, "progress", 0, 0) }
 
@@ -93,6 +98,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         appComponent.inject(this)
         retainViewMode = RetainViewMode.RETAIN_DETACH
         layoutRes = R.layout.settings_controller
+        setHasOptionsMenu(true)
 
         colors.themeObservable()
                 .autoDisposable(scope())
@@ -106,7 +112,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         mmsSizeDialog.adapter.setData(R.array.mms_sizes, R.array.mms_sizes_ids)
         messageLinkHandlingDialog.adapter.setData(R.array.messageLinkHandlings, R.array.messageLinkHandling_ids)
 
-        binding.about.summary = context.getString(R.string.settings_version, BuildConfig.VERSION_NAME)
     }
 
     override fun onAttach(view: View) {
@@ -149,6 +154,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         openTitle = title
         sectionContainers().forEach { section -> section.isVisible = section.id == container }
         setTitle(title)
+        setAboutVisible(themedActivity?.toolbar?.menu)
     }
 
     private fun sectionContainers() = listOf(
@@ -163,7 +169,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         return super.handleBack()
     }
 
-    override fun aboutLongClicks(): Observable<*> = binding.about.longClicks()
+    override fun aboutLongClicks(): Observable<*> = aboutLongClickSubject
 
     override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
 
@@ -297,10 +303,27 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 .popChangeHandler(QkChangeHandler()))
     }
 
-    override fun showAbout() {
-        router.pushController(RouterTransaction.with(AboutController())
-                .pushChangeHandler(QkChangeHandler())
-                .popChangeHandler(QkChangeHandler()))
+    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
+        super.onCreateOptionsMenu(menu, inflater)
+        inflater.inflate(R.menu.settings, menu)
+        setAboutVisible(menu)
+    }
+
+    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean = when (item.itemId) {
+        R.id.about -> {
+            aboutDialog.show()
+            true
+        }
+        else -> super.onOptionsItemSelected(item)
+    }
+
+    /**
+     * About describes the app, not the section you happen to be standing in, so it is offered on
+     * the settings list itself and withdrawn once a section is open.
+     */
+    private fun setAboutVisible(menu: Menu?) {
+        menu?.findItem(R.id.about)?.isVisible =
+                openSection == 0 || openSection == binding.sectionRoot.id
     }
 
 }

@@ -179,26 +179,6 @@ class Navigator @Inject constructor(
         startActivity(intent)
     }
 
-    fun showDeveloper() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/wanderwildwood"))
-        startActivityExternal(intent)
-    }
-
-    fun showSourceCode() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(REPO_URL))
-        startActivityExternal(intent)
-    }
-
-    fun showChangelog() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$REPO_URL/releases"))
-        startActivityExternal(intent)
-    }
-
-    fun showLicense() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$REPO_URL/blob/master/LICENSE"))
-        startActivityExternal(intent)
-    }
-
     fun showBlockedConversations() {
         val intent = Intent(context, BlockingActivity::class.java)
         startActivity(intent)

@@ -38,6 +38,8 @@ import androidx.core.content.contentValuesOf
 import com.android.mms.transaction.MmsMessageSender
 import com.google.android.mms.ContentType
 import com.google.android.mms.pdu_alt.PduHeaders
+import com.wanderwildwood.einkmessaging.mms.MmsReport
+import com.wanderwildwood.einkmessaging.mms.mmsReportVerdicts
 import com.klinker.android.send_message.SmsManagerFactory
 import com.wanderwildwood.einkmessaging.common.util.extensions.now
 import com.wanderwildwood.einkmessaging.compat.TelephonyCompat
@@ -435,8 +437,9 @@ open class MessageRepositoryImpl @Inject constructor(
      * A receipt is persisted to the outbox before the transaction service is asked to send it,
      * so if the service can't be started from wherever we are (marking read from a notification
      * happens in the background, where API 26+ refuses), it goes out with the next transaction
-     * rather than being lost. Read-receipt PDUs are message type 134, which the conversation
-     * queries don't select, so a queued one never shows up as a message in the thread.
+     * rather than being lost. The receipt is an M-Read-Rec.ind, message type 135 -- 134 is the
+     * delivery report, which this does not send. Either way the conversation view only admits
+     * types 128, 130 and 132, so a queued receipt never shows up as a message in the thread.
      */
     private fun answerReadReports(threadIds: Collection<Long>) {
         if (!prefs.readReceipts.get())
@@ -458,6 +461,104 @@ open class MessageRepositoryImpl @Inject constructor(
                     MmsMessageSender.sendReadRec(
                         context, address, messageId, PduHeaders.READ_STATUS_READ
                     )
+                }
+            }
+        }
+    }
+
+    /**
+     * Pull the far end's answers -- "delivered" and "read" -- onto the messages they answer.
+     *
+     * Neither ever lands on the sent message by itself. When the other handset reports, its
+     * M-Delivery.ind / M-Read-Orig.ind PDU is persisted by PushReceiver as *its own row* in
+     * content://mms/inbox, and the sent message's own DELIVERY_REPORT/READ_REPORT columns are
+     * left alone -- on an outgoing message those two only ever meant "I asked for a report",
+     * which is why mapping them (as CursorToMessageImpl does) can never show an answer.
+     *
+     * The only thing tying a report back to what it acknowledges is the MMS Message-ID header,
+     * so that is the join: report row -> Mms.MESSAGE_ID -> the SEND_REQ row carrying it -> the
+     * realm message with that contentId.
+     *
+     * These report rows are invisible to everything else in the app: the sync reads
+     * content://mms-sms/complete-conversations, and that view admits only message types 128,
+     * 130 and 132, never 134 or 136. So they have to be queried for deliberately, here.
+     *
+     * Idempotent by design -- it re-reads every report each time rather than tracking which
+     * ones it has already applied, because setting a flag that is already set costs nothing
+     * and reports are rare enough that the scan stays cheap.
+     */
+    override fun syncMmsReports() {
+        // 134 = M-Delivery.ind, 136 = M-Read-Orig.ind.
+        val reports = tryOrNull {
+            context.contentResolver.query(
+                Mms.CONTENT_URI,
+                // Both status columns: a delivery report answers in Mms.STATUS and a read
+                // report in Mms.READ_STATUS, and neither fills in the other's.
+                arrayOf(Mms.MESSAGE_ID, Mms.MESSAGE_TYPE, Mms.STATUS, Mms.READ_STATUS),
+                "${Mms.MESSAGE_TYPE} IN (?, ?)",
+                arrayOf(
+                    PduHeaders.MESSAGE_TYPE_DELIVERY_IND.toString(),
+                    PduHeaders.MESSAGE_TYPE_READ_ORIG_IND.toString()
+                ),
+                null
+            )?.use { cursor ->
+                generateSequence { cursor.takeIf { it.moveToNext() } }
+                    .mapNotNull { row ->
+                        val messageId = row.getString(0)?.takeIf(String::isNotEmpty)
+                            ?: return@mapNotNull null
+                        MmsReport(
+                            messageId = messageId,
+                            messageType = row.getInt(1),
+                            status = row.getInt(2),
+                            readStatus = row.getInt(3)
+                        )
+                    }
+                    .toList()
+            }
+        } ?: return
+
+        if (reports.isEmpty())
+            return
+
+        // Folding the rows into one verdict each is the part with the awkward cases in it,
+        // so it lives in mmsReportVerdicts() where it can be tested without a phone.
+        val verdicts = mmsReportVerdicts(reports)
+
+        if (verdicts.isEmpty())
+            return
+
+        // Message-ID -> the content id of the SEND_REQ row it acknowledges. Same join
+        // PushReceiver.findThreadId() makes, asking for the row id instead of the thread id.
+        val contentIds = verdicts.keys.mapNotNull { messageId ->
+            tryOrNull {
+                context.contentResolver.query(
+                    Mms.CONTENT_URI,
+                    arrayOf(Mms._ID),
+                    "${Mms.MESSAGE_ID} = ? AND ${Mms.MESSAGE_TYPE} = ?",
+                    arrayOf(messageId, PduHeaders.MESSAGE_TYPE_SEND_REQ.toString()),
+                    null
+                )?.use { cursor ->
+                    cursor.takeIf { it.moveToFirst() }?.getLong(0)
+                }
+            }?.let { contentId -> messageId to contentId }
+        }.toMap()
+
+        if (contentIds.isEmpty())
+            return
+
+        Realm.getDefaultInstance()?.use { realm ->
+            realm.executeTransaction {
+                contentIds.forEach { (messageId, contentId) ->
+                    val verdict = verdicts[messageId] ?: return@forEach
+
+                    realm.where(Message::class.java)
+                        .equalTo("type", TYPE_MMS)
+                        .equalTo("contentId", contentId)
+                        .findAll()
+                        .forEach { message ->
+                            if (verdict.delivered) message.mmsDelivered = true
+                            if (verdict.read) message.mmsReadByRecipient = true
+                        }
                 }
             }
         }

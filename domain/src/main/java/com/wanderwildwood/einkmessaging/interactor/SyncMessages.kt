@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.einkmessaging.interactor
 
+import com.wanderwildwood.einkmessaging.repository.MessageRepository
 import com.wanderwildwood.einkmessaging.repository.SyncRepository
 import io.reactivex.Flowable
 import timber.log.Timber
@@ -26,12 +27,17 @@ import javax.inject.Inject
 
 class SyncMessages @Inject constructor(
     private val syncManager: SyncRepository,
+    private val messageRepo: MessageRepository,
     private val updateBadge: UpdateBadge
 ) : Interactor<Unit>() {
 
     override fun buildObservable(params: Unit): Flowable<*> {
         return Flowable.just(System.currentTimeMillis())
                 .doOnNext { syncManager.syncMessages() }
+                // Delivery and read reports live outside the conversation view the sync reads,
+                // so a sync that repairs everything else would leave them behind. Also the
+                // repair path for any report whose broadcast was missed.
+                .doOnNext { messageRepo.syncMmsReports() }
                 .map { startTime -> System.currentTimeMillis() - startTime }
                 .map { elapsed -> TimeUnit.MILLISECONDS.toSeconds(elapsed) }
                 .doOnNext { seconds -> Timber.v("Completed sync in $seconds seconds") }

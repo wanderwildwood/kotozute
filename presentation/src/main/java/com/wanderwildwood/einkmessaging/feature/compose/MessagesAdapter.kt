@@ -520,6 +520,9 @@ class MessagesAdapter @Inject constructor(
         holder.status.apply {
             text = when {
                 message.isSending() -> context.getString(R.string.message_status_sending)
+                // Read outranks delivered, and carries no time of its own: the report says
+                // that it was read, never when.
+                message.isReadByRecipient() -> context.getString(R.string.message_status_read)
                 message.isDelivered() -> context.getString(
                     R.string.message_status_delivered,
                     dateFormatter.getTimestamp(message.dateSent)

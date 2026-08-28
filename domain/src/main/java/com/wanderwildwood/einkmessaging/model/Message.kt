@@ -71,6 +71,13 @@ open class Message : RealmObject() {
 
     var mmsDeliveryStatusString: String = ""
     var readReportString: String = ""
+
+    // Answers from the far end, learned from the M-Delivery.ind / M-Read-Orig.ind PDUs it
+    // sends back. NOT the same as mmsDeliveryStatusString/readReportString above, which on
+    // an outgoing message only record that we ASKED for a report -- the answer never lands
+    // on this row. See MessageRepositoryImpl.syncMmsReports().
+    var mmsDelivered: Boolean = false
+    var mmsReadByRecipient: Boolean = false
     var errorType: Int = 0
     var messageSize: Int = 0
     var messageType: Int = 0
@@ -172,10 +179,18 @@ open class Message : RealmObject() {
     }
 
     fun isDelivered(): Boolean {
-        val isDeliveredMms = false // TODO
+        // Being read implies having arrived, and some handsets answer with a read receipt
+        // without ever sending a delivery report.
+        val isDeliveredMms = mmsDelivered || mmsReadByRecipient
         val isDeliveredSms = deliveryStatus == Sms.STATUS_COMPLETE
         return isDeliveredMms || isDeliveredSms
     }
+
+    /**
+     * Whether the far end has told us it read this. MMS only -- SMS has no read receipt at
+     * all, so a text can never report more than delivery.
+     */
+    fun isReadByRecipient(): Boolean = mmsReadByRecipient
 
     fun isFailedMessage(): Boolean {
         val isFailedMms = isMms() && (errorType >= MmsSms.ERR_TYPE_GENERIC_PERMANENT || boxId == Mms.MESSAGE_BOX_FAILED)

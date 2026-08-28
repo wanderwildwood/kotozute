@@ -370,8 +370,10 @@ class DesktopSyncServer(
             ?.let { rejected ->
                 jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put(
                     "error",
-                    if (rejected == 1) "that file could not be read as a picture"
-                    else "$rejected of those files could not be read as pictures"
+                    // Deliberately not "as a picture": contacts and video go through here too,
+                    // and a wrong reason is worse than a vague one.
+                    if (rejected == 1) "that file could not be read"
+                    else "$rejected of those files could not be read"
                 ))
             }
 

@@ -346,8 +346,13 @@
       <form id="composer">
         <div id="attachments" hidden></div>
         <div id="composerRow">
-          <input type="file" id="fileField" multiple accept="image/*,video/*" hidden>
-          <button type="button" id="attach" title="Attach a picture" aria-label="Attach a picture" disabled>+</button>
+          <!-- Pictures, video and contact cards: the three kinds of attachment carriers
+               actually carry. MMS can hold arbitrary parts in principle, but anything else
+               tends to be stripped in transit or arrive as nothing the far phone can open. -->
+          <input type="file" id="fileField" multiple
+                 accept="image/*,video/*,text/vcard,text/x-vcard,.vcf" hidden>
+          <button type="button" id="attach" title="Attach a picture, video or contact"
+                  aria-label="Attach a picture, video or contact" disabled>+</button>
           <textarea id="body" rows="1" placeholder="Write a message…" autocomplete="off" disabled></textarea>
           <button type="submit" id="send" disabled>Send</button>
         </div>

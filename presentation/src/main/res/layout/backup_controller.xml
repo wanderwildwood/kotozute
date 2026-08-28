@@ -122,7 +122,6 @@
                 android:id="@+id/location"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:icon="@drawable/ic_baseline_folder_24"
                 app:title="@string/backup_location_title"
                 app:summary="@string/backup_location_summary" />
 
@@ -130,7 +129,6 @@
                 android:id="@+id/restore"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:icon="@drawable/ic_file_download_black_24dp"
                 app:summary="@string/backup_restore_summary"
                 app:title="@string/backup_restore_title" />
 

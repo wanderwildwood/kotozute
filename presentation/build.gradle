@@ -21,11 +21,14 @@ apply plugin: 'realm-android' // Realm needs to be before Kotlin or the build wi
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 
-// The keystore committed at presentation/kotozute.keystore has password 'android' and
-// sits in a public repo, so its private half is anyone's - they can build an APK that upgrades
-// an install in place. A real keystore in signing/ replaces it for every build type when one is
-// present, and the release workflow writes it there from repository secrets. Absent, the build
-// still works off the committed key so a fresh clone compiles.
+// Signing comes from a real keystore in signing/, which is gitignored and written by the
+// release workflow from repository secrets. There is no fallback: a clone without it builds
+// an unsigned release APK, which will not install anywhere, rather than a signed-looking one.
+//
+// This repo used to carry a throwaway keystore with password 'android' and fall back to it.
+// A key in a public repo has no private half worth the name, and the fallback was silent -
+// the build succeeded and produced something installable, which is the wrong way for a
+// missing signing key to fail.
 def realSigningProps = null
 def realSigningPropsFile = rootProject.file('signing/signing.properties')
 if (realSigningPropsFile.isFile()) {
@@ -52,17 +55,6 @@ android {
     }
 
     signingConfigs {
-        // Checked-in keystore (same approach as the other Kompakt forks) so every
-        // build — here or in CI — is signed with the same key and releases install
-        // as in-place upgrades instead of "app not installed" signature conflicts.
-        // Credentials are intentionally public: this is a sideloaded personal app,
-        // not a Play Store listing.
-        debug {
-            storeFile file('kotozute.keystore')
-            storePassword 'android'
-            keyAlias 'einkmessaging' // the alias inside the throwaway keystore; renaming it would mean regenerating the key
-            keyPassword 'android'
-        }
         if (realSigningProps != null) {
             release {
                 storeFile rootProject.file('signing/signing.keystore')
@@ -98,20 +90,20 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig realSigningProps != null ? signingConfigs.release : signingConfigs.debug
+            if (realSigningProps != null) signingConfig signingConfigs.release
         }
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
             resValue("string", "app_name", "Messaging Debug")
             resValue("string", "application_id", defaultConfig.applicationId)
-            signingConfig realSigningProps != null ? signingConfigs.release : signingConfigs.debug
+            if (realSigningProps != null) signingConfig signingConfigs.release
         }
         fdroid {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig realSigningProps != null ? signingConfigs.release : signingConfigs.debug
+            if (realSigningProps != null) signingConfig signingConfigs.release
             matchingFallbacks = ['release']
             applicationIdSuffix ".fdroid"
         }

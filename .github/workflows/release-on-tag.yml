@@ -41,9 +41,8 @@ jobs:
       # it rather than from the run number so it stays monotonic and reproducible: v1.2.3
       # becomes 10203. A workflow_dispatch run has a branch name here, not a version, so it
       # falls through to the defaults in presentation/build.gradle.
-      # Without these the build falls back to the keystore committed at
-      # presentation/kotozute.keystore, whose password is 'android' and whose private half
-      # is public - the release would go out signed with a key anybody has. Fail loudly instead.
+      # There is no fallback key any more, so without these the build would produce an
+      # unsigned APK and happily attach it to a release. Fail loudly instead.
       - name: Restore signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
@@ -78,26 +77,26 @@ jobs:
             ./gradlew :presentation:assembleRelease
           fi
 
-      # A release signed with the wrong key cannot be taken back once people have installed it.
-      # The forbidden fingerprint is read from the repo's own keystore rather than hardcoded, so
-      # regenerating that keystore cannot silently disarm the check. The committed key's DN now
-      # says "throwaway key" outright, which the old one did not - it carried the same DN as the
-      # real key, and only the fingerprint told them apart.
-      - name: Verify the APK is not signed with the committed key
+      # An app signed with the wrong key cannot be taken back once anyone has installed it,
+      # so this asserts positively that the APK carries the one key this app has ever used,
+      # rather than merely that it is not some particular wrong one. The repo used to hold a
+      # throwaway keystore and check the APK was not signed with that; a check shaped like
+      # that passes for every wrong key except the one it names.
+      - name: Verify the signing certificate
+        env:
+          EXPECTED: f4adf9a4ba3644c7ee15e0fb3619bd9c6f25073acd36d69d3bad9cd7f1a2fbcf
         run: |
           apk=$(find presentation/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -1)
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           certs=$("$apksigner" verify --print-certs "$apk")
           echo "$certs"
-          apk_digest=$(echo "$certs" | grep -m1 -oE 'certificate SHA-256 digest: [0-9a-f]+' | awk '{print $NF}')
-          repo_digest=$(keytool -list -v -keystore presentation/kotozute.keystore -storepass android \
-            | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')
-          if [ -z "$apk_digest" ] || [ -z "$repo_digest" ]; then
+          digest=$(echo "$certs" | grep -m1 -oE 'certificate SHA-256 digest: [0-9a-f]+' | awk '{print $NF}')
+          if [ -z "$digest" ]; then
             echo "::error::Could not read a signing certificate - refusing to release unchecked."
             exit 1
           fi
-          if [ "$apk_digest" = "$repo_digest" ]; then
-            echo "::error::APK is signed with the keystore committed to this repo."
+          if [ "$digest" != "$EXPECTED" ]; then
+            echo "::error::APK is signed with $digest, expected $EXPECTED."
             exit 1
           fi
 

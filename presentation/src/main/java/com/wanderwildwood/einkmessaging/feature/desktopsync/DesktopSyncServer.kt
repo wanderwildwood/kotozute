@@ -338,6 +338,28 @@ class DesktopSyncServer(
     )
 
     /**
+     * Read a text field out of a multipart request.
+     *
+     * NanoHTTPD decodes a request body with the charset named in its Content-Type and falls back
+     * to **US-ASCII** when there is none -- and a browser writes the multipart Content-Type
+     * itself, boundary and all, so there is never a charset to find. Every byte above 127 becomes
+     * U+FFFD before this code sees it, and no amount of re-encoding gets it back: an em dash
+     * arrives as three replacement characters, and so does an emoji.
+     *
+     * So the browser sends each text field base64'd under a "B64" name. Base64 is pure ASCII and
+     * comes through any charset untouched, and the UTF-8 is decoded here. The plain field is
+     * still read as a fallback, for a client that doesn't know the convention.
+     */
+    private fun multipartText(session: IHTTPSession, field: String): String {
+        session.parameters["${field}B64"]?.firstOrNull()?.let { encoded ->
+            runCatching {
+                return String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            }.onFailure { error -> Timber.w(error, "Desktop Sync: bad base64 in %s", field) }
+        }
+        return session.parameters[field]?.firstOrNull().orEmpty()
+    }
+
+    /**
      * Refuse the whole send if any file could not be used, rather than quietly sending the text
      * without the picture. Silently dropping an attachment is the worse failure: the message
      * looks sent, and nobody finds out the photo never went until the reply asks what photo.
@@ -386,8 +408,8 @@ class DesktopSyncServer(
             }
 
         return Submission(
-            body = session.parameters["body"]?.firstOrNull().orEmpty(),
-            to = session.parameters["to"]?.firstOrNull().orEmpty(),
+            body = multipartText(session, "body"),
+            to = multipartText(session, "to"),
             attachments = uploads.filterNotNull(),
             rejected = uploads.count { it == null }
         )

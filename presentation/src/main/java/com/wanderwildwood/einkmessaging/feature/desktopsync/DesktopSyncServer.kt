@@ -73,6 +73,9 @@ class DesktopSyncServer(
 
         /** Multipart field prefix the browser attaches files under: attachment0, attachment1... */
         const val ATTACHMENT_FIELD = "attachment"
+
+        /** MuditaOS puts the monochrome Noto Emoji here, under the colour font's name. */
+        const val EMOJI_FONT_PATH = "/system/fonts/NotoColorEmoji.ttf"
     }
 
     private val openSockets = Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<PushSocket, Boolean>())
@@ -229,6 +232,11 @@ class DesktopSyncServer(
         when (uri) {
             "", "/index.html" -> return serveAsset("index.html", "text/html")
             "/app.js" -> return serveAsset("app.js", "application/javascript")
+            "/emoji.json" -> return serveAsset("emoji.json", "application/json")
+            // Served unauthenticated for the same reason as app.js: a stylesheet's @font-face
+            // cannot carry an Authorization header. Neither this nor the list says anything
+            // about the messages -- one is a system font, the other is Unicode's own catalogue.
+            "/emoji-font" -> return serveEmojiFont()
         }
 
         val authed = session.headers["authorization"] == "Bearer $token" ||
@@ -263,6 +271,33 @@ class DesktopSyncServer(
             threadReadMatch != null && session.method == Method.POST ->
                 handleMarkRead(threadReadMatch.groupValues[1].toLong())
             else -> jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
+        }
+    }
+
+    /**
+     * The phone's own emoji font, straight off the system partition.
+     *
+     * MuditaOS ships Google's monochrome **Noto Emoji** here under the colour font's filename,
+     * which is why emoji are clean line art on the Kompakt instead of dithered grey. Serving that
+     * same file to the browser means the picker shows what the person holding the phone will
+     * actually see, rather than whatever colour set the desktop happens to have.
+     *
+     * Read from the system rather than bundled: it is already on every Kompakt, so it costs the
+     * APK nothing. It is SIL OFL 1.1, so shipping it would be allowed -- this is only cheaper.
+     * If a future MuditaOS moves it, the browser falls back to its own emoji and nothing breaks.
+     */
+    private fun serveEmojiFont(): Response {
+        val font = java.io.File(EMOJI_FONT_PATH)
+        if (!font.canRead())
+            return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "no emoji font"))
+
+        val stream = runCatching { font.inputStream() }.getOrNull()
+            ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "font unreadable"))
+
+        return newFixedLengthResponse(Response.Status.OK, "font/ttf", stream, font.length()).apply {
+            // Two megabytes that never change: without this the browser refetches the whole font
+            // on every reload of the dashboard.
+            addHeader("Cache-Control", "public, max-age=604800")
         }
     }
 

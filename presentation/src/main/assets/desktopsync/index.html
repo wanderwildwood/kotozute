@@ -64,7 +64,10 @@
   * { box-sizing: border-box; }
   html, body {
     margin: 0; height: 100%;
-    font-family: Lato, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* "Kompakt Emoji" leads, but its unicode-range confines it to emoji, so every letter and
+       digit still comes from Lato. The effect is that emoji look here exactly as they look on
+       the phone -- including in messages already received, not just in the picker. */
+    font-family: "Kompakt Emoji", Lato, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: var(--ink); background: var(--paper);
   }
   body { display: flex; flex-direction: column; }
@@ -235,6 +238,45 @@
     resize: none; overflow-y: auto;
     line-height: 1.4; max-height: 8.4em; /* ~6 lines */
   }
+  /* The phone's own emoji font, served by the relay off the Kompakt's system partition.
+     unicode-range is what makes it safe to list first: the font also covers 0-9, # and *
+     (they are the bases of the keycap emoji), and without the range every timestamp and
+     phone number in the app would be drawn in it. Any emoji the font lacks -- the
+     regional-indicator flags, mainly -- simply falls through to the browser's own set. */
+  @font-face {
+    font-family: "Kompakt Emoji";
+    src: url("/emoji-font") format("truetype");
+    font-display: swap;
+    unicode-range: U+203C-203E, U+2049, U+20E3, U+2122, U+2139, U+2194-21AA,
+      U+231A-231B, U+2328, U+23CF-23FA, U+24C2, U+25AA-25FE, U+2600-27EF,
+      U+2934-2935, U+2B00-2BFF, U+3030, U+303D, U+3297, U+3299, U+1F000-1FAFF;
+  }
+
+  #emojiPanel {
+    display: none; flex-direction: column; gap: 8px;
+    border: 2px solid var(--ink); border-radius: 10px;
+    padding: 10px; max-height: 260px; background: var(--paper);
+  }
+  #emojiPanel.open { display: flex; }
+  #emojiTabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  #emojiTabs button {
+    padding: 4px 10px; font-size: 12px; font-weight: 700;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--paper); color: var(--muted);
+  }
+  #emojiTabs button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  #emojiGrid {
+    overflow-y: auto; display: grid; gap: 2px;
+    grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  }
+  #emojiGrid button {
+    padding: 0; height: 34px; border: none; background: none;
+    font-size: 21px; line-height: 1; border-radius: 6px;
+  }
+  #emojiGrid button:hover { background: var(--line); color: inherit; }
+  /* Square like the attach button, so the two read as a pair. */
+  #emojiBtn { flex: 0 0 auto; padding: 11px 0; width: 44px; font-size: 18px; line-height: 1; }
+
   /* The composer is a column now: the attachment strip sits above the row that
      holds the box and the buttons, so a queued picture pushes the text up rather
      than squeezing it sideways. */
@@ -345,6 +387,10 @@
       <div id="messages"><div id="empty">Nothing selected</div></div>
       <form id="composer">
         <div id="attachments" hidden></div>
+        <div id="emojiPanel">
+          <div id="emojiTabs"></div>
+          <div id="emojiGrid"></div>
+        </div>
         <div id="composerRow">
           <!-- Pictures, video and contact cards: the three kinds of attachment carriers
                actually carry. MMS can hold arbitrary parts in principle, but anything else
@@ -353,6 +399,7 @@
                  accept="image/*,video/*,text/vcard,text/x-vcard,.vcf" hidden>
           <button type="button" id="attach" title="Attach a picture, video or contact"
                   aria-label="Attach a picture, video or contact" disabled>+</button>
+          <button type="button" id="emojiBtn" title="Emoji" aria-label="Emoji" disabled>&#x1F642;</button>
           <textarea id="body" rows="1" placeholder="Write a message…" autocomplete="off" disabled></textarea>
           <button type="submit" id="send" disabled>Send</button>
         </div>

@@ -45,6 +45,10 @@ const searchClearEl = document.getElementById('searchClear');
 const attachEl = document.getElementById('attach');
 const fileFieldEl = document.getElementById('fileField');
 const attachmentsEl = document.getElementById('attachments');
+const emojiBtnEl = document.getElementById('emojiBtn');
+const emojiPanelEl = document.getElementById('emojiPanel');
+const emojiTabsEl = document.getElementById('emojiTabs');
+const emojiGridEl = document.getElementById('emojiGrid');
 
 let activeThreadId = null;
 let activeThreadTitle = '';
@@ -381,6 +385,7 @@ function updateSendEnabled() {
   const canSend = !bodyEl.disabled && (bodyEl.value.trim() !== '' || pending.length > 0);
   sendEl.disabled = !canSend;
   attachEl.disabled = bodyEl.disabled;
+  emojiBtnEl.disabled = bodyEl.disabled;
 }
 
 attachEl.addEventListener('click', () => fileFieldEl.click());
@@ -462,6 +467,72 @@ function sendRequestBody(fields) {
   // No Content-Type header, so the browser sets it along with the boundary it generated.
   return { body: form };
 }
+
+/*
+ * The emoji picker. The catalogue is Unicode's own, already narrowed at build time to the
+ * codepoints the Kompakt's font can actually draw as a single glyph -- so nothing offered here
+ * can arrive on the phone as an empty box. Skin tones and the family sequences are left out for
+ * the same reason: this font has no ligatures for them, and they would come apart into pieces.
+ */
+let emojiLoaded = false;
+
+async function loadEmoji() {
+  if (emojiLoaded) return;
+  const categories = await api('/emoji.json').then(r => r.json()).catch(() => null);
+  if (!categories) return;
+  emojiLoaded = true;
+
+  categories.forEach((category, index) => {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.textContent = category.name;
+    tab.addEventListener('click', () => {
+      Array.from(emojiTabsEl.children).forEach(b => b.classList.remove('on'));
+      tab.classList.add('on');
+      showEmoji(category.emoji);
+    });
+    emojiTabsEl.appendChild(tab);
+    if (index === 0) { tab.classList.add('on'); showEmoji(category.emoji); }
+  });
+}
+
+function showEmoji(list) {
+  emojiGridEl.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  list.forEach(glyph => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = glyph;
+    b.addEventListener('click', () => insertAtCursor(glyph));
+    frag.appendChild(b);
+  });
+  emojiGridEl.appendChild(frag);
+  emojiGridEl.scrollTop = 0;
+}
+
+/* Insert where the caret is, not at the end -- an emoji usually belongs mid-sentence, and
+ * appending would make the picker useless for anything but the last character. */
+function insertAtCursor(text) {
+  const start = bodyEl.selectionStart, end = bodyEl.selectionEnd;
+  bodyEl.value = bodyEl.value.slice(0, start) + text + bodyEl.value.slice(end);
+  const caret = start + text.length;
+  bodyEl.setSelectionRange(caret, caret);
+  bodyEl.focus();
+  autoGrow();
+  updateSendEnabled();
+  stashDraft();
+}
+
+function toggleEmojiPanel(open) {
+  const show = open === undefined ? !emojiPanelEl.classList.contains('open') : open;
+  emojiPanelEl.classList.toggle('open', show);
+  if (show) loadEmoji();
+}
+
+emojiBtnEl.addEventListener('click', () => toggleEmojiPanel());
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && emojiPanelEl.classList.contains('open')) toggleEmojiPanel(false);
+});
 
 /** UTF-8 bytes of a string, base64'd. btoa alone throws on anything above U+00FF. */
 function toBase64Utf8(text) {

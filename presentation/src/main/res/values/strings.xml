@@ -234,7 +234,7 @@
     <string name="backup_restore_dialog_title">Backups</string>
     <string name="backup_restore_dialog_summary" translatable="false">/Messaging/Backups</string>
     <string name="backup_restore_dialog_empty">No backups found</string>
-    <string name="backup_disclaimer">Currently, only SMS is supported by Backup and Restore. MMS support and scheduled backups will be coming soon!</string>
+    <string name="backup_disclaimer">A backup holds SMS only. It does not hold MMS, and there is no scheduled backup: you take one when you want one.</string>
     <string name="backup_now">Backup now</string>
     <string name="backup_progress_parsing">Parsing backup…</string>
     <string name="backup_progress_running">%1$d/%2$d messages</string>
@@ -260,7 +260,7 @@
 
     <string name="settings_category_appearance">Appearance</string>
     <string name="settings_category_general">General</string>
-    <string name="settings_category_qkreply">QK Reply</string>
+    <string name="settings_category_qkreply">Quick reply</string>
 
     <string name="settings_theme_title">Theme</string>
     <string name="settings_night_title">Night mode</string>
@@ -286,7 +286,7 @@
     <string name="settings_vibration_title">Vibration</string>
     <string name="settings_ringtone_title">Sound</string>
     <string name="settings_ringtone_none">None</string>
-    <string name="settings_qkreply_title">QK Reply</string>
+    <string name="settings_qkreply_title">Quick reply</string>
     <string name="settings_qkreply_summary">Popup for new messages</string>
     <string name="settings_qkreply_tap_dismiss_title">Tap to dismiss</string>
     <string name="settings_qkreply_tap_dismiss_summary">Tap outside of the popup to close it</string>
@@ -333,7 +333,7 @@
     <string name="settings_long_as_mms_summary">If your longer text messages are failing to send, or sending in the wrong order, you can send them as MMS messages instead. Additional charges may apply</string>
     <string name="settings_mms_size_title">Auto-compress MMS image attachments</string>
     <string name="settings_mms_weblink_title">Link handling in messages</string>
-    <string name="settings_disable_screenshots_title">Disable Screenshots</string>
+    <string name="settings_disable_screenshots_title">Disable screenshots</string>
     <string name="settings_diable_screenshots_summary">Prevent your OS and other apps from taking screenshots of the app.</string>
     <string name="settings_sync_title">Sync messages</string>
     <string name="settings_sync_summary">Re-sync your messages with the native Android SMS database</string>
@@ -372,7 +372,7 @@
     <string name="blocking_non_contacts_title">Only allow contacts</string>
     <string name="blocking_non_contacts_summary">Block messages from anyone who is not in your contacts</string>
     <string name="blocking_non_contacts_no_permission">Needs permission to read your contacts</string>
-    <string name="blocking_manager_title">Blocking Manager</string>
+    <string name="blocking_manager_title">Blocking manager</string>
     <string name="blocking_manager_qksms_summary">Built-in blocking functionality in Messaging</string>
     <string name="blocking_manager_call_blocker_title" translatable="false">Call Blocker - Incoming/Outgoing</string>
     <string name="blocking_manager_call_blocker_summary">Block spam messages, numbers &amp; unknown calls with blacklist &amp; Schedule</string>
@@ -455,7 +455,7 @@
 
     <string name="widget_loading">Loading…</string>
     <string name="widget_more">View more conversations</string>
-    <string name="all_conversations_widget_title">All Conversations</string>
+    <string name="all_conversations_widget_title">All conversations</string>
 
     <string name="qkreply_menu_read">Mark read</string>
     <string name="qkreply_menu_call">Call</string>
@@ -597,13 +597,13 @@
         <item>LOL</item>
         <item>That\'s okay</item>
     </string-array>
-    <string name="speak_no_messages">No Messages</string>
+    <string name="speak_no_messages">No messages</string>
     <string name="speak_unseen_messages">Speak unseen messages</string>
-    <string name="messageLinkHandling_dialog_title">External Link Warning</string>
+    <string name="messageLinkHandling_dialog_title">External link</string>
     <string name="messageLinkHandling_dialog_body">Some links may be unsafe or redirect you unexpectedly. Review the link below before proceeding:\n\n%1$s\n\nDo you want to continue?</string>
     <string name="messageLinkHandling_dialog_positive">Yes, open the link</string>
     <string name="messageLinkHandling_dialog_negative">No</string>
     <string name="stt_toast_extra_prompt">Speak your message</string>
 
-    <string name="messages_text_share_file_error">Oops! Something went wrong while sharing</string>
+    <string name="messages_text_share_file_error">That file could not be shared</string>
 </resources>

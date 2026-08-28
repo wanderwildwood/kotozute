@@ -17,7 +17,7 @@
   ~ You should have received a copy of the GNU General Public License
   ~ along with eInk Messaging.  If not, see <http://www.gnu.org/licenses/>.
   --><resources>
-    <string name="app_name" translatable="false">eInk Messaging</string>
+    <string name="app_name" translatable="false">Messaging</string>
     <string name="shortcut_compose_long_label">Nouvelle conversation</string>
     <string name="shortcut_compose_short_label">Rédiger</string>
     <string name="shortcut_compose_disabled_message">Raccourci désactivé</string>

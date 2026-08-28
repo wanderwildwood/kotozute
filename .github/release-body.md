@@ -1,19 +1,21 @@
-## Before you install
+Texting on the Mudita Kompakt, restyled for its e-ink screen, with Desktop Sync — reading and
+replying to your texts from a browser on your own computer.
 
-**Uninstall inkMessage+ first. Everyone. There is no upgrade path from it.**
+It continues [QKSMS](https://github.com/moezbhatti/qksms) by way of
+[QUIK](https://github.com/octoshrimpy/quik), and branched off
+[InkMessage](https://github.com/lamdanAmiti/InkMessage), which is where the e-ink work started.
 
-This app was called inkMessage+ up to v1.0.14. It now has a different application ID, so Android
-treats it as unrelated software rather than a newer version — installing over the old one stops
-with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, and if you have both, you have two SMS apps.
+## What it needs
 
-Your messages are safe. They live in Android's own message store, not in this app, and it reads
-them back the first time it runs — on a long history that takes several minutes, showing
-"Syncing messages…" over an empty list until it finishes. What uninstalling clears is the app's
-own settings: you will need to make it your default SMS app again, and to turn Desktop Sync back
-on if you use it. **Desktop Sync's address changes too**, so re-bookmark it from Settings; the
-old link will not work.
+To be your default SMS app, and the permissions that go with that — messages, contacts, and
+storage for pictures sent and received. Desktop Sync is off until you switch it on, and when it
+is on it serves its dashboard from the phone itself: your browser talks straight to the phone,
+with no cloud service and no relay in between. See [PRIVACY.md](PRIVACY.md).
 
-If you track this app in Obtainium, point it at this repository — the old one publishes nothing
-further.
+## The download
 
----
+`kotozute.apk` and `kotozute-<version>.apk` are the same file. The unversioned one is there so
+a link to it keeps working after the next release. Verify either against the `.sha256` beside it
+if you like.
+
+Free software under the GPLv3.

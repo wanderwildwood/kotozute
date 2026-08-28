@@ -23,7 +23,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/snackbarTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -38,7 +38,7 @@
         app:textSize="primary"
         tools:text="Love texting again" />
 
-    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/snackbarMessage"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -50,9 +50,9 @@
         app:layout_constraintHorizontal_bias="0"
         app:layout_constraintStart_toStartOf="parent"
         app:textSize="secondary"
-        tools:text="Make eInk Messaging your default SMS app" />
+        tools:text="Make Messaging your default SMS app" />
 
-    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/snackbarButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

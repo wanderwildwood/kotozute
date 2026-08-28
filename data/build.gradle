@@ -34,7 +34,7 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    namespace 'com.wanderwildwood.einkmessaging.data'
+    namespace 'com.wanderwildwood.kotozute.data'
 }
 
 dependencies {

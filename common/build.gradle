@@ -28,7 +28,7 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
     }
-    namespace 'com.wanderwildwood.einkmessaging.common'
+    namespace 'com.wanderwildwood.kotozute.common'
 }
 
 dependencies {

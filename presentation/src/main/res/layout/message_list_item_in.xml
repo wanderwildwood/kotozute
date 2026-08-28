@@ -38,7 +38,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/timestamp"
                 style="@style/TextSecondary"
                 android:layout_width="wrap_content"
@@ -63,7 +63,7 @@
                 app:layout_constraintTop_toTopOf="@id/timestamp"
                 app:tint="?android:attr/textColorSecondary" />
 
-            <com.wanderwildwood.einkmessaging.common.widget.QkTextView
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/simIndex"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -86,7 +86,7 @@
             android:clipToPadding="false"
             android:clipChildren="false">
 
-            <com.wanderwildwood.einkmessaging.common.widget.AvatarView
+            <com.wanderwildwood.kotozute.common.widget.AvatarView
                 android:id="@+id/avatar"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
@@ -104,7 +104,7 @@
                 android:paddingEnd="4dp"
                 android:paddingStart="4dp">
 
-                <com.wanderwildwood.einkmessaging.common.widget.QkContextMenuRecyclerViewLongMmsPart
+                <com.wanderwildwood.kotozute.common.widget.QkContextMenuRecyclerViewLongMmsPart
                     android:id="@+id/parts"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -117,7 +117,7 @@
                     tools:itemCount="1"
                     tools:listitem="@layout/mms_image_preview_list_item" />
 
-                <com.wanderwildwood.einkmessaging.common.widget.TightTextView
+                <com.wanderwildwood.kotozute.common.widget.TightTextView
                     android:id="@+id/body"
                     style="@style/TextPrimary"
                     android:layout_width="wrap_content"
@@ -176,7 +176,7 @@
              variants (only/first/middle/last) use the same 12dp, so this holds however
              messages group. Was 72dp, sized for the avatar gutter the MMD restyle
              removed. -->
-        <com.wanderwildwood.einkmessaging.common.widget.QkTextView
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
             android:id="@+id/status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

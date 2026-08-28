@@ -34,7 +34,7 @@
         android:paddingBottom="8dp"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
-    <com.wanderwildwood.einkmessaging.common.widget.QkTextView
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/empty"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

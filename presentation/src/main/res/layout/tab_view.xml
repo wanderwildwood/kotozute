@@ -17,7 +17,7 @@
   ~ You should have received a copy of the GNU General Public License
   ~ along with QKSMS.  If not, see <http://www.gnu.org/licenses/>.
   -->
-<com.wanderwildwood.einkmessaging.common.widget.QkTextView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.wanderwildwood.kotozute.common.widget.QkTextView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/label"
     android:layout_width="wrap_content"

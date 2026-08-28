@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>eInk Messaging — Desktop Sync</title>
+<title>Messaging — Desktop Sync</title>
 <!-- Favicon mirrors the app's launcher icon (speech bubble + pencil). Inlined as a
      data URI so it needs no extra server route and no unauthenticated /favicon.ico. -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='3' width='28' height='20' rx='5' fill='%23000'/><path d='M20 22h6l-5 7z' fill='%23000'/><path d='M20.5 7l3.5 3.5-9 9-4.6 1.1 1.1-4.6z' fill='%23fff'/></svg>">
@@ -216,7 +216,10 @@
   .msg .bubble .attachLink { display: inline-block; color: var(--ink); }
   .msg.me { justify-content: flex-end; }
   .msg.me .bubble { border-width: 3px; }
+  .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
   .msg .stamp { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .msg .bubble video.attach { display: block; max-width: 100%; height: auto; }
+  .msg .bubble video.attach:not(:first-child) { margin-top: 8px; }
   .msg.me .stamp { text-align: right; }
 
   form {
@@ -355,7 +358,7 @@
 </head>
 <body>
   <header>
-    <h1>eInk Messaging</h1>
+    <h1>Messaging</h1>
     <span id="status">connecting…</span>
     <button type="button" id="themeBtn" title="Switch theme (auto / light / dark)">Auto</button>
   </header>

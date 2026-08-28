@@ -477,9 +477,9 @@
     <string name="theme_apply">Apply</string>
 
     <string name="about_developer" translatable="false">wander wildwood</string>
-    <string name="about_source" translatable="false">https://github.com/wanderwildwood/eink-messaging</string>
-    <string name="about_changelog" translatable="false">https://github.com/wanderwildwood/eink-messaging/releases</string>
-    <string name="about_contact" translatable="false">github.com/wanderwildwood/eink-messaging/issues</string>
+    <string name="about_source" translatable="false">https://github.com/wanderwildwood/kotozute</string>
+    <string name="about_changelog" translatable="false">https://github.com/wanderwildwood/kotozute/releases</string>
+    <string name="about_contact" translatable="false">github.com/wanderwildwood/kotozute/issues</string>
     <string name="about_license" translatable="false">GNU General Public License v3.0</string>
     <string name="about_copyright" translatable="false">© 2014–2025</string>
 

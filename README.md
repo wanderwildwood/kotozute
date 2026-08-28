@@ -1,8 +1,13 @@
 <img src="icon.png" width="100" />
 
-# eInk Messaging
+# 言伝 kotozute — eInk Messaging
 
 An SMS and MMS app for the [Mudita Kompakt](https://mudita.com/products/kompakt/), restyled for the phone's e-ink screen, with Desktop Sync: reading and replying to texts from a browser on a computer.
+
+*Kotozute* is 言伝 — word left with someone to carry the rest of the way. The 伝 is the one in
+人づて (*hitozute*, by way of a person) and 伝える (to convey). It names what is handed over rather
+than the machinery that carries it, which is the point: the phone, the cell tower and the browser
+are all just the someone in the middle.
 
 It continues [QKSMS](https://github.com/moezbhatti/qksms) by way of [QUIK](https://github.com/octoshrimpy/quik), and branched off [InkMessage](https://github.com/lamdanAmiti/InkMessage), which is where the e-ink work started.
 

@@ -48,7 +48,7 @@ import javax.inject.Singleton
 @Singleton
 // This fork's own repo. Upstream QUIK/QKSMS attribution lives in the README credits,
 // not in links that send users somewhere that can't help them with this app.
-private const val REPO_URL = "https://github.com/wanderwildwood/eink-messaging"
+private const val REPO_URL = "https://github.com/wanderwildwood/kotozute"
 
 class Navigator @Inject constructor(
     private val context: Context,

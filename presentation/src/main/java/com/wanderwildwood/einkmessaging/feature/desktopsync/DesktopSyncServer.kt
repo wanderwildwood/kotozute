@@ -11,6 +11,7 @@
 package com.wanderwildwood.einkmessaging.feature.desktopsync
 
 import android.content.Context
+import com.wanderwildwood.einkmessaging.model.Attachment
 import com.wanderwildwood.einkmessaging.model.Conversation
 import com.wanderwildwood.einkmessaging.model.Message
 import com.wanderwildwood.einkmessaging.interactor.MarkRead
@@ -20,6 +21,8 @@ import com.wanderwildwood.einkmessaging.repository.ConversationRepository
 import com.wanderwildwood.einkmessaging.repository.MessageRepository
 import io.realm.Realm
 import fi.iki.elonen.NanoHTTPD
+import fi.iki.elonen.NanoHTTPD.TempFile
+import fi.iki.elonen.NanoHTTPD.TempFileManager
 import fi.iki.elonen.NanoWSD
 import fi.iki.elonen.NanoWSD.WebSocketFrame
 import fi.iki.elonen.NanoWSD.WebSocketFrame.CloseCode
@@ -67,6 +70,9 @@ class DesktopSyncServer(
          * and NanoWSD's reader thread stays parked on a read that has no timeout.
          */
         const val DEAD_PEER_TIMEOUT_MS = 95_000L
+
+        /** Multipart field prefix the browser attaches files under: attachment0, attachment1... */
+        const val ATTACHMENT_FIELD = "attachment"
     }
 
     private val openSockets = Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<PushSocket, Boolean>())
@@ -79,6 +85,45 @@ class DesktopSyncServer(
         setServerSocketFactory {
             java.net.ServerSocket().apply { reuseAddress = true }
         }
+
+        // NanoHTTPD stages multipart uploads through temp files, and its default manager puts
+        // them in java.io.tmpdir -- which on Android is not reliably writable by an app. Point
+        // it at our own cache directory instead of finding out per device.
+        setTempFileManagerFactory { CacheDirTempFileManager(context) }
+    }
+
+    /**
+     * Temp files for multipart uploads, kept inside the app's cache. Everything created for one
+     * request is deleted when that request ends, which is exactly why an upload has to be copied
+     * somewhere we own before it can be sent -- see stageUpload().
+     */
+    private class CacheDirTempFileManager(context: Context) : TempFileManager {
+
+        private val directory = java.io.File(context.cacheDir, "desktopsync-upload").apply { mkdirs() }
+        private val files = mutableListOf<TempFile>()
+
+        override fun createTempFile(filenameHint: String?): TempFile =
+            CacheDirTempFile(directory).also { files.add(it) }
+
+        override fun clear() {
+            files.forEach { file -> runCatching { file.delete() } }
+            files.clear()
+        }
+    }
+
+    private class CacheDirTempFile(directory: java.io.File) : TempFile {
+
+        private val file = java.io.File.createTempFile("upload-", "", directory)
+        private val stream = java.io.FileOutputStream(file)
+
+        override fun open(): java.io.OutputStream = stream
+
+        override fun delete() {
+            runCatching { stream.close() }
+            file.delete()
+        }
+
+        override fun getName(): String = file.absolutePath
     }
 
     private val keepAlive = java.util.concurrent.Executors.newSingleThreadScheduledExecutor().apply {
@@ -262,18 +307,90 @@ class DesktopSyncServer(
     }
 
     private fun handleSend(session: IHTTPSession, threadId: Long): Response {
-        val bodyMap = HashMap<String, String>()
-        runCatching { session.parseBody(bodyMap) }
-        val postData = bodyMap["postData"] ?: "{}"
-        val body = runCatching { JSONObject(postData).getString("body") }.getOrNull()
-            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "missing body"))
+        val submission = readSubmission(session)
+            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
+
+        rejectionResponse(submission)?.let { return it }
+
+        // A picture on its own is a message. Only require text when nothing else is attached.
+        if (submission.body.isBlank() && submission.attachments.isEmpty()) {
+            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "missing body"))
+        }
 
         val conversation = conversationRepository.getConversation(threadId)
             ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "no such thread"))
 
         val addresses = conversation.recipients.map { it.address }
-        sendAndWait(conversation.id, addresses, conversation.sendAsGroup, body)
+        sendAndWait(
+            conversation.id, addresses, conversation.sendAsGroup,
+            submission.body, submission.attachments
+        )
         return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+    }
+
+    /** What a compose request carried, however it was encoded. */
+    private class Submission(
+        val body: String,
+        val to: String,
+        val attachments: List<Attachment>,
+        /** Files that arrived but could not be used -- an image the phone cannot decode. */
+        val rejected: Int = 0
+    )
+
+    /**
+     * Refuse the whole send if any file could not be used, rather than quietly sending the text
+     * without the picture. Silently dropping an attachment is the worse failure: the message
+     * looks sent, and nobody finds out the photo never went until the reply asks what photo.
+     */
+    private fun rejectionResponse(submission: Submission): Response? =
+        submission.rejected
+            .takeIf { rejected -> rejected > 0 }
+            ?.let { rejected ->
+                jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put(
+                    "error",
+                    if (rejected == 1) "that file could not be read as a picture"
+                    else "$rejected of those files could not be read as pictures"
+                ))
+            }
+
+    /**
+     * Read a send from either encoding. Text-only sends still arrive as JSON, which is what the
+     * browser has always posted; anything with a file attached arrives as multipart, because a
+     * JSON body cannot carry bytes without base64 inflating them by a third.
+     *
+     * NanoHTTPD does the multipart parsing: parseBody() writes each file part to a temp file and
+     * puts its path in the map under the field name, while ordinary fields land in the session
+     * parameters. The temp files die with the request, so every one that matters is copied out
+     * by stageUpload() before this returns.
+     */
+    private fun readSubmission(session: IHTTPSession): Submission? {
+        val bodyMap = HashMap<String, String>()
+        runCatching { session.parseBody(bodyMap) }.onFailure { error ->
+            Timber.w(error, "Desktop Sync: could not parse a request body")
+            return null
+        }
+
+        val contentType = session.headers["content-type"].orEmpty()
+        if (!contentType.startsWith("multipart/form-data")) {
+            val json = runCatching { JSONObject(bodyMap["postData"] ?: "{}") }.getOrNull() ?: return null
+            return Submission(json.optString("body"), json.optString("to"), emptyList())
+        }
+
+        val uploads = bodyMap
+            .filterKeys { field -> field.startsWith(ATTACHMENT_FIELD) }
+            .toSortedMap()
+            .map { (field, path) ->
+                // parameters holds the name the file was uploaded under, keyed by the same field.
+                val uploadedName = session.parameters[field]?.firstOrNull()
+                stageUpload(context, java.io.File(path), uploadedName)
+            }
+
+        return Submission(
+            body = session.parameters["body"]?.firstOrNull().orEmpty(),
+            to = session.parameters["to"]?.firstOrNull().orEmpty(),
+            attachments = uploads.filterNotNull(),
+            rejected = uploads.count { it == null }
+        )
     }
 
     /**
@@ -358,14 +475,14 @@ class DesktopSyncServer(
 
     /** Start a brand-new conversation with an arbitrary recipient (the "+" button). */
     private fun handleCompose(session: IHTTPSession): Response {
-        val bodyMap = HashMap<String, String>()
-        runCatching { session.parseBody(bodyMap) }
-        val json = runCatching { JSONObject(bodyMap["postData"] ?: "{}") }.getOrNull()
-            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad json"))
+        val submission = readSubmission(session)
+            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
 
-        val body = json.optString("body")
-        val rawTo = json.optString("to")
-        if (body.isBlank()) {
+        rejectionResponse(submission)?.let { return it }
+
+        val body = submission.body
+        val rawTo = submission.to
+        if (body.isBlank() && submission.attachments.isEmpty()) {
             return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "missing body"))
         }
 
@@ -385,7 +502,7 @@ class DesktopSyncServer(
             conversationRepository.getOrCreateConversation(addresses)?.id
         }.getOrNull()
 
-        sendAndWait(threadId ?: 0L, addresses, sendAsGroup, body)
+        sendAndWait(threadId ?: 0L, addresses, sendAsGroup, body, submission.attachments)
 
         return jsonResponse(Response.Status.OK, JSONObject().apply {
             put("ok", true)
@@ -406,6 +523,7 @@ class DesktopSyncServer(
         addresses: List<String>,
         sendAsGroup: Boolean,
         body: String,
+        attachments: List<Attachment> = emptyList(),
     ) {
         val done = java.util.concurrent.CountDownLatch(1)
         sendNewMessage.execute(
@@ -415,6 +533,7 @@ class DesktopSyncServer(
                 addresses = addresses,
                 body = body,
                 sendAsGroup = sendAsGroup,
+                attachments = attachments,
             )
         ) { done.countDown() }
         // Bounded wait: the interactor is asynchronous, and returning before it finishes

@@ -415,7 +415,6 @@
     </plurals>
 
     <string name="about_title">About</string>
-    <string name="about_privacy">Your messages stay on this phone. Nothing is collected and nothing is sent anywhere. Desktop Sync serves a page to your own network, and only while you have it switched on.</string>
 
     <string name="qksms_plus_description_title">Support development, unlock everything</string>
     <string name="qksms_plus_description_summary">You can save a starving developer for just %s</string>

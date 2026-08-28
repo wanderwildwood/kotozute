@@ -101,6 +101,20 @@ Standing on a lot of other people's work:
 - **android-smsmms** — [Jake](https://github.com/klinker41) and [Luke Klinker](https://github.com/klinker24)
 - Typography and visual language follow Mudita's [MMD](https://github.com/mudita) design system
 
+## Getting it, and keeping it
+
+Download <https://github.com/wanderwildwood/kotozute/releases/latest/download/kotozute.apk> and
+sideload it. That address always points at the newest release, and every release publishes a
+`.sha256` beside the APK if you would rather check than trust.
+
+For updates without doing this by hand, add this repository to
+[Obtainium](https://github.com/ImranR98/Obtainium):
+
+    https://github.com/wanderwildwood/kotozute
+
+It will offer each new release as it appears. **The application id is settled** — updates
+install over what you have, keeping your settings and anything the app has stored.
+
 ## Licence
 
 **GPL-3.0-only**, inherited from QKSMS by way of QUIK and InkMessage — see [LICENSE](LICENSE)

@@ -16,6 +16,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.compat.SubscriptionManagerCompat
 import com.wanderwildwood.kotozute.interactor.MarkRead
 import com.wanderwildwood.kotozute.interactor.SendNewMessage
 import com.wanderwildwood.kotozute.repository.ContactRepository
@@ -156,6 +157,7 @@ class DesktopSyncService : Service() {
     @Inject lateinit var contactRepository: ContactRepository
     @Inject lateinit var markRead: MarkRead
     @Inject lateinit var sendNewMessage: SendNewMessage
+    @Inject lateinit var subscriptionManager: SubscriptionManagerCompat
     @Inject lateinit var prefs: Preferences
 
     private val disposables = CompositeDisposable()
@@ -212,6 +214,7 @@ class DesktopSyncService : Service() {
             contactRepository = contactRepository,
             markRead = markRead,
             sendNewMessage = sendNewMessage,
+            subscriptionManager = subscriptionManager,
             // Read live, so flipping the setting takes effect on the next request
             // instead of needing the relay stopped and started again.
             tailscaleOnly = { prefs.desktopSyncTailscaleOnly.get() },

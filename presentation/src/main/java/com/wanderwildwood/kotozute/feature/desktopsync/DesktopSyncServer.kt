@@ -12,9 +12,12 @@ package com.wanderwildwood.kotozute.feature.desktopsync
 
 import android.content.Context
 import android.content.res.AssetFileDescriptor
+import android.os.Build
 import android.telephony.PhoneNumberUtils
+import android.telephony.SubscriptionManager
 import android.webkit.MimeTypeMap
 import java.io.InputStream
+import com.wanderwildwood.kotozute.compat.SubscriptionManagerCompat
 import com.wanderwildwood.kotozute.model.Attachment
 import com.wanderwildwood.kotozute.model.Conversation
 import com.wanderwildwood.kotozute.model.Message
@@ -45,6 +48,7 @@ class DesktopSyncServer(
     private val contactRepository: ContactRepository,
     private val markRead: MarkRead,
     private val sendNewMessage: SendNewMessage,
+    private val subscriptionManager: SubscriptionManagerCompat,
     private val tailscaleOnly: () -> Boolean,
 ) : NanoWSD(port) {
 
@@ -65,6 +69,9 @@ class DesktopSyncServer(
 
         /** How many of a thread's most recent messages to send to the browser. */
         const val MESSAGE_PAGE_SIZE = 300
+
+        /** "No subscription named" -- what SmsManagerFactory reads as "use the default". */
+        const val NO_SUB_ID = -1
 
         /** Ceiling on an explicit ?limit=, so one request can't try to serialize everything. */
         const val MESSAGE_MAX_LIMIT = 5000
@@ -444,10 +451,11 @@ class DesktopSyncServer(
             ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "no such thread"))
 
         val addresses = conversation.recipients.map { it.address }
-        sendAndWait(
+        val failed = sendAndWait(
             conversation.id, addresses, conversation.sendAsGroup,
             submission.body, submission.attachments
         )
+        if (failed) return sendFailureResponse()
         return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
     }
 
@@ -721,12 +729,51 @@ class DesktopSyncServer(
             conversationRepository.getOrCreateConversation(addresses)?.id
         }.getOrNull()
 
-        sendAndWait(threadId ?: 0L, addresses, sendAsGroup, body, submission.attachments)
+        val failed = sendAndWait(threadId ?: 0L, addresses, sendAsGroup, body, submission.attachments)
+        if (failed) return sendFailureResponse()
 
         return jsonResponse(Response.Status.OK, JSONObject().apply {
             put("ok", true)
             if (threadId != null && threadId != 0L) put("threadId", threadId)
         })
+    }
+
+    /**
+     * Which SIM to send from.
+     *
+     * -1 means "unspecified", and SmsManagerFactory turns that into SmsManager.getDefault().
+     * With one SIM that is right, and naming a subscription would only be a way to get it
+     * wrong. With two it hands the send to whatever the system default resolves to, which on
+     * a dual-SIM phone can be no usable subscription at all: the message is marked failed on
+     * the phone while the browser, which asked for it, is told nothing. So once there is more
+     * than one active subscription, say which one.
+     *
+     * The thread's most recent message decides it -- answer on the SIM the conversation is
+     * already happening on -- which is what the phone's own compose screen does. A new thread,
+     * or one whose last message came in on a SIM that has since been removed, falls back to the
+     * system's default SMS subscription, and then to the first active one.
+     */
+    private fun subIdFor(threadId: Long): Int {
+        val subs = runCatching { subscriptionManager.activeSubscriptionInfoList }
+            .getOrDefault(emptyList())
+        // Also the empty list you get without the phone permission: nothing to choose between.
+        if (subs.size < 2) return NO_SUB_ID
+
+        val ids = subs.map { it.subscriptionId }
+
+        // Messages come back sorted by date ascending, so the last one is the newest.
+        val threadSubId = runCatching {
+            messageRepository.getMessagesSync(threadId).lastOrNull()?.subId
+        }.getOrNull()
+        if (threadSubId != null && threadSubId in ids) return threadSubId
+
+        val systemDefault =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                SubscriptionManager.getDefaultSmsSubscriptionId()
+            } else NO_SUB_ID
+        if (systemDefault in ids) return systemDefault
+
+        return ids.first()
     }
 
     /**
@@ -743,11 +790,11 @@ class DesktopSyncServer(
         sendAsGroup: Boolean,
         body: String,
         attachments: List<Attachment> = emptyList(),
-    ) {
+    ): Boolean {
         val done = java.util.concurrent.CountDownLatch(1)
         sendNewMessage.execute(
             SendNewMessage.Params(
-                subId = -1,
+                subId = subIdFor(threadId),
                 threadId = threadId,
                 addresses = addresses,
                 body = body,
@@ -760,7 +807,34 @@ class DesktopSyncServer(
         // a stalled send can't hold the HTTP response open indefinitely.
         runCatching { done.await(10, java.util.concurrent.TimeUnit.SECONDS) }
         notifyChanged()
+        return sendAlreadyFailed(threadId)
     }
+
+    /**
+     * Did that send come straight back failed?
+     *
+     * Sending is asynchronous -- the phone hands the message to the radio and the outcome
+     * arrives some time later -- so a message still in flight is not an error, and says
+     * nothing here. A refusal the phone can make on the spot, though (no usable
+     * subscription, no radio at all), has already landed by the time this runs, and the
+     * person waiting on the other end of the browser should be told now rather than left
+     * looking at a bubble that appears to have gone. Anything that fails later is carried
+     * by the message's own status instead.
+     */
+    private fun sendAlreadyFailed(threadId: Long): Boolean = runCatching {
+        messageRepository.getMessagesSync(threadId).lastOrNull()
+            ?.takeIf { it.isMe() }
+            ?.isFailedMessage() == true
+    }.getOrDefault(false)
+
+    /**
+     * Not a 500: nothing here went wrong. The phone was asked to send and would not, and the
+     * browser needs to say so and keep the message in the box so it can be tried again.
+     */
+    private fun sendFailureResponse(): Response = jsonResponse(
+        Response.Status.SERVICE_UNAVAILABLE,
+        JSONObject().put("error", "the phone could not send this")
+    )
 
     private fun conversationJson(conversation: Conversation) = JSONObject().apply {
         put("id", conversation.id)
@@ -785,6 +859,17 @@ class DesktopSyncServer(
         put("date", message.date)
         put("isMe", message.isMe())
         put("read", message.read)
+        // How the send went. Without this the browser has no way to know a message
+        // failed -- it drew the bubble the moment the phone accepted the message for
+        // sending, and a bubble is what a sent message looks like too. Only outgoing
+        // messages have a state worth reporting.
+        if (message.isMe()) {
+            put("status", when {
+                message.isFailedMessage() -> "failed"
+                message.isSending() -> "sending"
+                else -> "sent"
+            })
+        }
         if (senders.isNotEmpty() && !message.isMe()) {
             val address = message.address.takeIf { it.isNotBlank() }
             val name = address?.let { from ->

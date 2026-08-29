@@ -62,6 +62,7 @@
     <string name="main_menu_edit_message">Edit message</string>
     <string name="main_menu_rename_conversation">Rename conversation</string>
     <string name="main_syncing">Syncing messages…</string>
+    <string name="main_syncing_count">Syncing messages… %1$d of %2$d</string>
     <string name="main_sender_you">You: %s</string>
     <string name="main_sender_draft">Draft: %s</string>
     <string name="main_message_results_title">Results in messages</string>
@@ -131,6 +132,7 @@
     <string name="compose_send_group_summary_on">Recipients and replies will be visible to everyone</string>
     <string name="compose_send_group_summary_off">Messages will be sent separately to all recipients</string>
     <string name="compose_messages_empty">This is the start of your conversation. Say something nice!</string>
+    <string name="compose_loading">Loading…</string>
     <string name="compose_vcard_label">Contact card</string>
     <string name="compose_scheduled_for">Scheduled time:</string>
     <string name="compose_scheduled_future">Selected time must be in the future!</string>
@@ -308,9 +310,9 @@
     <string name="settings_unread_at_top_summary">Show unread conversations at the top</string>
     <string name="settings_signature_title">Signature</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>
-    <string name="settings_unicode_title">Strip accents</string>
+    <string name="settings_unicode_title">Strip accents from outgoing SMS</string>
     <string name="settings_unicode_summary">Remove accents from characters in outgoing SMS messages</string>
-    <string name="settings_mobile_title">Mobile numbers only</string>
+    <string name="settings_mobile_title">Mobile numbers only when composing</string>
     <string name="settings_mobile_summary">When composing a message, only show mobile numbers</string>
     <string name="settings_auto_delete">Delete old messages automatically</string>
     <string name="settings_auto_delete_dialog_message">Messages will be deleted after the specified number of days</string>
@@ -331,6 +333,8 @@
     <string name="settings_diable_screenshots_summary">Prevent your OS and other apps from taking screenshots of the app.</string>
     <string name="settings_sync_title">Sync messages</string>
     <string name="settings_sync_summary">Re-sync your messages with the native Android SMS database</string>
+    <string name="settings_syncing">Syncing…</string>
+    <string name="settings_syncing_count">Syncing… %1$d of %2$d</string>
 
     <string name="settings_desktop_sync_title">Desktop Sync</string>
     <string name="settings_desktop_sync_summary_off">Text from your computer in a browser</string>

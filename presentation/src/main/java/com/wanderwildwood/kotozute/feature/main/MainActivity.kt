@@ -102,9 +102,6 @@ class MainActivity : QkThemedActivity(), MainView {
         ViewModelProviders.of(this, viewModelFactory)[MainViewModel::class.java]
     }
     private val itemTouchHelper by lazy { ItemTouchHelper(itemTouchCallback) }
-    private val progressAnimator by lazy {
-        ObjectAnimator.ofInt(findViewById<ProgressBar?>(R.id.syncingProgress), "progress", 0, 0)
-    }
     private val backPressedSubject: Subject<NavItem> = PublishSubject.create()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,13 +115,6 @@ class MainActivity : QkThemedActivity(), MainView {
             findViewById<QkTextView?>(R.id.snackbarButton).clicks()
                     .autoDisposable(scope(Lifecycle.Event.ON_DESTROY))
                     .subscribe(snackbarButtonIntent)
-        }
-
-        (binding.syncing as? ViewStub)?.setOnInflateListener { _, _ ->
-            findViewById<ProgressBar?>(R.id.syncingProgress)?.let {
-                it.progressTintList = ColorStateList.valueOf(theme.blockingFirst().theme)
-                it.indeterminateTintList = ColorStateList.valueOf(theme.blockingFirst().theme)
-            }
         }
 
         binding.toolbar.navigationIcon = null
@@ -156,8 +146,6 @@ class MainActivity : QkThemedActivity(), MainView {
                 .autoDisposable(scope())
                 .subscribe { theme ->
                     // Miscellaneous views
-                    findViewById<ProgressBar?>(R.id.syncingProgress)?.progressTintList = ColorStateList.valueOf(theme.theme)
-                    findViewById<ProgressBar?>(R.id.syncingProgress)?.indeterminateTintList = ColorStateList.valueOf(theme.theme)
                     // Removed compose background tint to show white with black outline
                     // Compose icon tint is set in XML
                 }
@@ -354,11 +342,16 @@ class MainActivity : QkThemedActivity(), MainView {
 
             is SyncRepository.SyncProgress.Running -> {
                 binding.syncing.isVisible = true
-                findViewById<ProgressBar?>(R.id.syncingProgress).max = state.syncing.max
-                progressAnimator.apply {
-                    setIntValues(findViewById<ProgressBar?>(R.id.syncingProgress).progress, state.syncing.progress)
-                }.start()
-                findViewById<ProgressBar?>(R.id.syncingProgress).isIndeterminate = state.syncing.indeterminate
+                // The count, not a bar sliding towards it. A moving bar on e-ink is a smear
+                // and a redraw per step; the number it was approximating is the useful part,
+                // and it is only shown once the sync knows how much there is to do.
+                findViewById<QkTextView?>(R.id.syncingLabel)?.text = when {
+                    state.syncing.indeterminate || state.syncing.max <= 0 ->
+                        getString(R.string.main_syncing)
+                    else -> getString(
+                        R.string.main_syncing_count, state.syncing.progress, state.syncing.max
+                    )
+                }
                 binding.snackbar.isVisible = false
             }
         }

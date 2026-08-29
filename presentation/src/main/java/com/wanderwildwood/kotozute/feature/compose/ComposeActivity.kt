@@ -215,8 +215,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
             theme
                 .doOnNext {
-                    binding.loading.setTint(it.theme)
-
                     // Set binding.toolbar navigation icon (back arrow) and overflow menu to black
                     binding.toolbar.navigationIcon?.setTint(android.graphics.Color.BLACK)
                     binding.toolbar.overflowIcon?.setTint(android.graphics.Color.BLACK)

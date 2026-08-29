@@ -137,8 +137,6 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
         super.onViewCreated()
 
         themedActivity?.colors?.theme()?.let { theme ->
-            binding.progressBar.indeterminateTintList = ColorStateList.valueOf(theme.theme)
-            binding.progressBar.progressTintList = ColorStateList.valueOf(theme.theme)
             binding.fab.setBackgroundTint(theme.theme)
             binding.fabIcon.setTint(theme.textPrimary)
             binding.fabLabel.setTextColor(theme.textPrimary)
@@ -159,12 +157,6 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
                 binding.progressSummary.text = state.backupProgress.getLabel(activity!!)
                 binding.progressSummary.isVisible = binding.progressSummary.text.isNotEmpty()
                 binding.progressCancel.isVisible = false
-                val running = (state.backupProgress as? BackupRepository.Progress.Running)
-                binding.progressBar.isVisible =
-                    state.backupProgress.indeterminate || (running?.max ?: 0) > 0
-                binding.progressBar.isIndeterminate = state.backupProgress.indeterminate
-                binding.progressBar.max = running?.max ?: 0
-                binding.progressBar.progress = running?.count ?: 0
                 binding.progress.isVisible = true
                 binding.fab.isVisible = false
             }
@@ -175,12 +167,6 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
                 binding.progressSummary.text = state.restoreProgress.getLabel(activity!!)
                 binding.progressSummary.isVisible = binding.progressSummary.text.isNotEmpty()
                 binding.progressCancel.isVisible = true
-                val running = (state.restoreProgress as? BackupRepository.Progress.Running)
-                binding.progressBar.isVisible =
-                    state.restoreProgress.indeterminate || (running?.max ?: 0) > 0
-                binding.progressBar.isIndeterminate = state.restoreProgress.indeterminate
-                binding.progressBar.max = running?.max ?: 0
-                binding.progressBar.progress = running?.count ?: 0
                 binding.progress.isVisible = true
                 binding.fab.isVisible = false
             }

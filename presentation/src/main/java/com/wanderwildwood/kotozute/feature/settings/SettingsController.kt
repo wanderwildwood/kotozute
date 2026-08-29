@@ -92,7 +92,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
     private val aboutLongClickSubject: Subject<Unit> = PublishSubject.create()
 
-    private val progressAnimator by lazy { ObjectAnimator.ofInt(binding.syncingProgress, "progress", 0, 0) }
 
     init {
         appComponent.inject(this)
@@ -236,14 +235,18 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
         binding.disableScreenshots.checkbox.isChecked = state.disableScreenshotsEnabled
 
-        when (state.syncProgress) {
-            is SyncRepository.SyncProgress.Idle -> binding.syncingProgress.isVisible = false
-
-            is SyncRepository.SyncProgress.Running -> {
-                binding.syncingProgress.isVisible = true
-                binding.syncingProgress.max = state.syncProgress.max
-                progressAnimator.apply { setIntValues(binding.syncingProgress.progress, state.syncProgress.progress) }.start()
-                binding.syncingProgress.isIndeterminate = state.syncProgress.indeterminate
+        // The Sync row says how far it has got, in the place a row shows its value. There was a
+        // bar under it that slid towards the same number -- motion an e-ink panel pays for in
+        // full redraws, to say what the count says exactly.
+        binding.sync.summary = when (state.syncProgress) {
+            is SyncRepository.SyncProgress.Idle -> activity?.getString(R.string.settings_sync_summary)
+            is SyncRepository.SyncProgress.Running -> when {
+                state.syncProgress.indeterminate || state.syncProgress.max <= 0 ->
+                    activity?.getString(R.string.settings_syncing)
+                else -> activity?.getString(
+                    R.string.settings_syncing_count,
+                    state.syncProgress.progress, state.syncProgress.max
+                )
             }
         }
     }

@@ -63,7 +63,7 @@
                 app:title="@string/settings_notifications_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/categoryGeneral"
+                android:id="@+id/categoryDisplay"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:title="@string/settings_category_general" />
@@ -88,7 +88,7 @@
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/sectionGeneral"
+            android:id="@+id/sectionDisplay"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"

@@ -255,7 +255,7 @@
     <string name="attachment_missing">Missing</string>
 
     <string name="settings_category_appearance">Appearance</string>
-    <string name="settings_category_general">General</string>
+    <string name="settings_category_general">Display</string>
     <string name="settings_category_qkreply">Quick reply</string>
 
     <string name="settings_theme_title">Theme</string>
@@ -349,6 +349,8 @@
     <string name="settings_desktop_sync_reset_summary">Replace the token in your link</string>
     <string name="settings_desktop_sync_reset_dialog">Replace the secret token in your Desktop Sync address?\n\nAny bookmark or open browser tab using the old link will stop working. The new address appears in Settings straight away.</string>
     <string name="settings_desktop_sync_reset_confirm">Reset link</string>
+    <string name="settings_desktop_sync_reset_armed">Reset link — tap again to confirm</string>
+    <string name="settings_desktop_sync_reset_armed_summary">Any bookmark or open tab on the old link stops working</string>
     <string name="settings_desktop_sync_reset_done">New Desktop Sync link generated</string>
     <!-- Settings categories: the loose options are grouped behind these.
          general and desktop_sync already exist above and are reused. -->

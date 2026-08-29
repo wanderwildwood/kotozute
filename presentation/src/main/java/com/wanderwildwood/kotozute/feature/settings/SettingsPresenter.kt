@@ -200,7 +200,7 @@ class SettingsPresenter @Inject constructor(
                         R.id.desktopSyncTailscaleOnly ->
                             prefs.desktopSyncTailscaleOnly.set(!prefs.desktopSyncTailscaleOnly.get())
 
-                        R.id.desktopSyncReset -> view.showDesktopSyncResetDialog()
+                        R.id.desktopSyncReset -> view.askDesktopSyncReset()
 
                         R.id.unreadAtTop -> prefs.unreadAtTop.set(!prefs.unreadAtTop.get())
 

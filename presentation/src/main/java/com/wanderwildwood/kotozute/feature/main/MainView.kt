@@ -29,13 +29,10 @@ interface MainView : QkView<MainState> {
     val queryChangedIntent: Observable<CharSequence>
     val composeIntent: Observable<Unit>
     val settingsIntent: Observable<Unit>
-    val drawerToggledIntent: Observable<Boolean>
     val homeIntent: Observable<*>
     val navigationIntent: Observable<NavItem>
     val optionsItemIntent: Observable<Int>
     val filterChangedIntent: Observable<Int>
-    val dismissRatingIntent: Observable<*>
-    val rateIntent: Observable<*>
     val conversationsSelectedIntent: Observable<List<Long>>
     val confirmDeleteIntent: Observable<List<Long>>
     val renameConversationIntent: Observable<String>
@@ -53,7 +50,7 @@ interface MainView : QkView<MainState> {
     fun showDeleteDialog(conversations: List<Long>)
     fun showRenameDialog(conversationName: String)
     fun showArchivedSnackbar(countConversationsArchived: Int, isArchiving: Boolean)
-    fun drawerToggled(opened: Boolean)
 }
 
-enum class NavItem { BACK, INBOX, ARCHIVED, BACKUP, SCHEDULED, BLOCKING, SETTINGS, PLUS, HELP, INVITE }
+/** The back press. Everything else this enum used to carry belonged to the drawer. */
+enum class NavItem { BACK }

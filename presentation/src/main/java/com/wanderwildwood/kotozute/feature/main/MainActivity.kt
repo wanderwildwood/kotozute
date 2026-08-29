@@ -46,7 +46,6 @@ import com.uber.autodispose.autoDisposable
 import dagger.android.AndroidInjection
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.Navigator
-import com.wanderwildwood.kotozute.common.androidxcompat.drawerOpen
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.extensions.autoScrollToStart
 import com.wanderwildwood.kotozute.common.util.extensions.dismissKeyboard
@@ -77,7 +76,6 @@ class MainActivity : QkThemedActivity(), MainView {
     @Inject lateinit var disposables: CompositeDisposable
     @Inject lateinit var navigator: Navigator
     @Inject lateinit var conversationsAdapter: ConversationsAdapter
-    @Inject lateinit var drawerBadgesExperiment: DrawerBadgesExperiment
     @Inject lateinit var searchAdapter: SearchAdapter
     @Inject lateinit var itemTouchCallback: ConversationItemTouchCallback
     @Inject lateinit var viewModelFactory: ViewModelProvider.Factory
@@ -87,24 +85,12 @@ class MainActivity : QkThemedActivity(), MainView {
     override val queryChangedIntent by lazy { binding.toolbarSearch.textChanges() }
     override val composeIntent by lazy { binding.compose.clicks() }
     override val settingsIntent by lazy { binding.settingsIcon.clicks() }
-    override val drawerToggledIntent: Observable<Boolean> by lazy {
-        binding.drawerLayout.drawerOpen(Gravity.START)
-    }
     override val homeIntent: Subject<Unit> = PublishSubject.create()
-    override val navigationIntent: Observable<NavItem> by lazy {
-        Observable.merge(listOf(
-                backPressedSubject,
-                binding.drawer.inbox.clicks().map { NavItem.INBOX },
-                binding.drawer.archived.clicks().map { NavItem.ARCHIVED },
-                binding.drawer.backup.clicks().map { NavItem.BACKUP },
-                binding.drawer.scheduled.clicks().map { NavItem.SCHEDULED },
-                binding.drawer.blocking.clicks().map { NavItem.BLOCKING },
-                binding.drawer.settings.clicks().map { NavItem.SETTINGS }))
-    }
+    // Only the back press now. Archived, Backup, Scheduled, Blocking and Settings are
+    // reached from the Settings screen, which the toolbar opens directly.
+    override val navigationIntent: Observable<NavItem> by lazy { backPressedSubject }
     override val optionsItemIntent: Subject<Int> = PublishSubject.create()
     override val filterChangedIntent: Subject<Int> = PublishSubject.create()
-    override val dismissRatingIntent by lazy { binding.drawer.rateDismiss.clicks() }
-    override val rateIntent by lazy { binding.drawer.rateOkay.clicks() }
     override val conversationsSelectedIntent by lazy { conversationsAdapter.selectionChanges }
     override val confirmDeleteIntent: Subject<List<Long>> = PublishSubject.create()
     override val renameConversationIntent: Subject<String> = PublishSubject.create()
@@ -114,15 +100,6 @@ class MainActivity : QkThemedActivity(), MainView {
 
     private val viewModel by lazy {
         ViewModelProviders.of(this, viewModelFactory)[MainViewModel::class.java]
-    }
-    private val toggle by lazy {
-        ActionBarDrawerToggle(
-            this,
-            binding.drawerLayout,
-            binding.toolbar,
-            R.string.main_drawer_open_cd,
-            0
-        )
     }
     private val itemTouchHelper by lazy { ItemTouchHelper(itemTouchCallback) }
     private val progressAnimator by lazy {
@@ -150,8 +127,6 @@ class MainActivity : QkThemedActivity(), MainView {
             }
         }
 
-        toggle.syncState()
-        toggle.isDrawerIndicatorEnabled = false
         binding.toolbar.navigationIcon = null
         binding.toolbar.setNavigationOnClickListener {
             dismissKeyboard()
@@ -176,30 +151,13 @@ class MainActivity : QkThemedActivity(), MainView {
         itemTouchCallback.adapter = conversationsAdapter
         conversationsAdapter.autoScrollToStart(binding.recyclerView)
 
-        // Don't allow clicks to pass through the drawer layout
-        binding.drawer.root.clicks().autoDisposable(scope()).subscribe()
-
         // Set the theme color tint to the recyclerView, progressbar, and FAB
         theme
                 .autoDisposable(scope())
                 .subscribe { theme ->
-                    // Set the color for the drawer icons
-                    val states = arrayOf(
-                            intArrayOf(android.R.attr.state_activated),
-                            intArrayOf(-android.R.attr.state_activated))
-
-                    ColorStateList(states, intArrayOf(theme.theme,
-                        resolveThemeColor(android.R.attr.textColorSecondary)
-                    ))
-                        .let { tintList ->
-                            binding.drawer.inboxIcon.imageTintList = tintList
-                            binding.drawer.archivedIcon.imageTintList = tintList
-                        }
-
                     // Miscellaneous views
                     findViewById<ProgressBar?>(R.id.syncingProgress)?.progressTintList = ColorStateList.valueOf(theme.theme)
                     findViewById<ProgressBar?>(R.id.syncingProgress)?.indeterminateTintList = ColorStateList.valueOf(theme.theme)
-                    binding.drawer.rateIcon.setTint(theme.theme)
                     // Removed compose background tint to show white with black outline
                     // Compose icon tint is set in XML
                 }
@@ -330,8 +288,6 @@ class MainActivity : QkThemedActivity(), MainView {
             findItem(R.id.rename)?.isVisible = selectedConversations == 1
         }
 
-        binding.drawer.rateLayout.setVisible(false) // Disabled "Enjoying QUIK?" popup
-
         conversationsAdapter.emptyView = binding.empty.takeIf {
             state.page is Inbox || state.page is Archived
         }
@@ -386,14 +342,6 @@ class MainActivity : QkThemedActivity(), MainView {
         // Never write toolbarTitle.text directly: QkActivity owns that view and mirrors the
         // Activity `title` into it, re-applying on layout, so direct writes get clobbered.
         binding.toolbarTitle.setVisible(!searchVisible && !title.isNullOrEmpty())
-
-        binding.drawer.inbox.isActivated = state.page is Inbox
-        binding.drawer.archived.isActivated = state.page is Archived
-
-        if (binding.drawerLayout.isDrawerOpen(GravityCompat.START) && !state.drawerOpen)
-            binding.drawerLayout.closeDrawer(GravityCompat.START, false)
-        else if (!binding.drawerLayout.isDrawerVisible(GravityCompat.START) && state.drawerOpen)
-            binding.drawerLayout.openDrawer(GravityCompat.START, false)
 
         when (state.syncing) {
             is SyncRepository.SyncProgress.Idle -> {
@@ -451,14 +399,12 @@ class MainActivity : QkThemedActivity(), MainView {
     override fun onDestroy() =
         super.onDestroy().also { disposables.dispose() }
 
-    override fun showBackButton(show: Boolean) =
-        toggle.let {
-            it.onDrawerSlide(binding.drawer.root, if (show) 1f else 0f)
-            it.drawerArrowDrawable.color = when (show) {
-                true -> resolveThemeColor(android.R.attr.textColorSecondary)
-                false -> resolveThemeColor(android.R.attr.textColorPrimary)
-            }
-        }
+    /**
+     * The conversation list is the root screen and has never drawn a back arrow: the toolbar's
+     * navigation icon is null and the drawer indicator that used to animate here is gone with
+     * the drawer. Overridden to nothing so the base class does not put one there.
+     */
+    override fun showBackButton(show: Boolean) = Unit
 
     override fun requestDefaultSms() =
         navigator.showDefaultSmsDialog(this)
@@ -517,7 +463,8 @@ class MainActivity : QkThemedActivity(), MainView {
 
     override fun showArchivedSnackbar(countConversationsArchived: Int, isArchiving: Boolean) =
         Snackbar.make(
-            binding.drawerLayout,
+            // Was the drawer layout, which was the root; the root is the list screen itself now.
+            binding.root,
             if (isArchiving) {
                 resources.getQuantityString(R.plurals.toast_archived, countConversationsArchived, countConversationsArchived)
             } else {
@@ -578,11 +525,4 @@ class MainActivity : QkThemedActivity(), MainView {
         }
     }
 
-    override fun drawerToggled(opened: Boolean) {
-        if (opened) {
-            dismissKeyboard()
-            if (!binding.drawer.inbox.isInTouchMode)
-                binding.drawer.inbox.requestFocus()
-        }
-    }
 }

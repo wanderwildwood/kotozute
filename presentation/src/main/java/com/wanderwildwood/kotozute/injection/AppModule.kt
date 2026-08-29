@@ -47,7 +47,6 @@ import com.wanderwildwood.kotozute.manager.KeyManagerImpl
 import com.wanderwildwood.kotozute.manager.NotificationManager
 import com.wanderwildwood.kotozute.manager.PermissionManager
 import com.wanderwildwood.kotozute.manager.PermissionManagerImpl
-import com.wanderwildwood.kotozute.manager.RatingManager
 import com.wanderwildwood.kotozute.manager.ReferralManager
 import com.wanderwildwood.kotozute.manager.ReferralManagerImpl
 import com.wanderwildwood.kotozute.manager.ShortcutManager
@@ -67,7 +66,6 @@ import com.wanderwildwood.kotozute.mapper.CursorToPart
 import com.wanderwildwood.kotozute.mapper.CursorToPartImpl
 import com.wanderwildwood.kotozute.mapper.CursorToRecipient
 import com.wanderwildwood.kotozute.mapper.CursorToRecipientImpl
-import com.wanderwildwood.kotozute.mapper.RatingManagerImpl
 import com.wanderwildwood.kotozute.repository.BackupRepository
 import com.wanderwildwood.kotozute.repository.BackupRepositoryImpl
 import com.wanderwildwood.kotozute.repository.BlockingRepository
@@ -147,9 +145,6 @@ class AppModule(private var application: Application) {
 
     @Provides
     fun providePermissionsManager(manager: PermissionManagerImpl): PermissionManager = manager
-
-    @Provides
-    fun provideRatingManager(manager: RatingManagerImpl): RatingManager = manager
 
     @Provides
     fun provideShortcutManager(manager: ShortcutManagerImpl): ShortcutManager = manager

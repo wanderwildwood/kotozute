@@ -18,6 +18,8 @@
  */
 package com.wanderwildwood.kotozute.feature.main
 
+import androidx.core.content.ContextCompat
+import android.graphics.Color
 import android.Manifest
 import android.animation.ObjectAnimator
 import android.content.Intent
@@ -330,6 +332,17 @@ class MainActivity : QkThemedActivity(), MainView {
         // Never write toolbarTitle.text directly: QkActivity owns that view and mirrors the
         // Activity `title` into it, re-applying on layout, so direct writes get clobbered.
         binding.toolbarTitle.setVisible(!searchVisible && !title.isNullOrEmpty())
+
+        // Archived is somewhere Settings sent you, so it carries the toolbar every other
+        // screen reached from Settings carries: a back arrow at the left, and no cog --
+        // the cog would be a second way to the place the arrow already goes.
+        val archived = state.page is Archived
+        binding.toolbar.navigationIcon = when {
+            archived -> ContextCompat.getDrawable(this, R.drawable.ic_arrow_back_black_24dp)
+                ?.apply { setTint(Color.BLACK) }
+            else -> null
+        }
+        binding.settingsIcon.setVisible(!archived)
 
         when (state.syncing) {
             is SyncRepository.SyncProgress.Idle -> {

@@ -290,8 +290,9 @@ class MainViewModel @Inject constructor(
                         state.page is Searching -> view.clearSearch()
                         state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
                         state.page is Archived && state.page.selected > 0 -> view.clearSelection()
-                        // Nothing left for it to do: the toolbar has no navigation icon, and
-                        // the drawer this used to open is gone.
+                        // The back arrow Archived draws in its corner. It returns to Settings,
+                        // which is where Archived is reached from.
+                        state.page is Archived -> navigator.showSettings()
                         else -> Unit
                     }
                 }
@@ -306,7 +307,10 @@ class MainViewModel @Inject constructor(
                         state.page is Searching -> view.clearSearch()
                         state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
                         state.page is Archived && state.page.selected > 0 -> view.clearSelection()
-                        // Archived, or any page that is not the inbox: back returns to the inbox.
+                        // Same place the arrow in the corner goes. A screen whose two backs
+                        // disagree is a defect.
+                        state.page is Archived -> navigator.showSettings()
+                        // Any other page that is not the inbox returns to the inbox.
                         state.page !is Inbox -> {
                             newState { copy(page = Inbox(filter = prefs.conversationFilter.get(), data = getFilteredConversations(prefs.conversationFilter.get()))) }
                         }

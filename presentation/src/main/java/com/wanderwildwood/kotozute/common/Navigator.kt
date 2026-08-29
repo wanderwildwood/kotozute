@@ -96,6 +96,12 @@ class Navigator @Inject constructor(
     fun showArchived() {
         val intent = Intent(context, MainActivity::class.java)
         intent.putExtra("showArchived", true)
+        // CLEAR_TOP so the conversation list actually comes forward and receives this as a new
+        // intent, finishing whatever sits above it. Without these the archived page was set
+        // behind the Settings screen you chose it from, and backing out of Settings landed on
+        // the inbox as if nothing had been picked. It mattered less when the drawer offered a
+        // second way in; this is the only way in now.
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         startActivity(intent)
     }
 
@@ -190,19 +196,6 @@ class Navigator @Inject constructor(
         startActivityExternal(intent)
     }
 
-    fun showRating() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(REPO_URL))
-                .addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY
-                        or Intent.FLAG_ACTIVITY_NEW_DOCUMENT
-                        or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
-
-        try {
-            startActivityExternal(intent)
-        } catch (e: ActivityNotFoundException) {
-            val url = REPO_URL
-            startActivityExternal(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        }
-    }
 
     /**
      * Launch the Play Store and display the Call Blocker listing

@@ -112,7 +112,6 @@
                 android:id="@+id/unreadAtTop"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:summary="@string/settings_unread_at_top_summary"
                 app:title="@string/settings_unread_at_top_title"
                 app:widget="@layout/settings_switch_widget" />
 
@@ -121,7 +120,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="visible"
-                app:summary="@string/settings_swipe_actions_summary"
                 app:title="@string/settings_swipe_actions" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
@@ -151,7 +149,6 @@
                 android:id="@+id/delivery"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:summary="@string/settings_delivery_summary"
                 app:title="@string/settings_delivery_title"
                 app:widget="@layout/settings_switch_widget" />
 
@@ -197,7 +194,6 @@
                 android:id="@+id/unicode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:summary="@string/settings_unicode_summary"
                 app:title="@string/settings_unicode_title"
                 app:widget="@layout/settings_switch_widget" />
 
@@ -205,7 +201,6 @@
                 android:id="@+id/mobileOnly"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:summary="@string/settings_mobile_summary"
                 app:title="@string/settings_mobile_title"
                 app:widget="@layout/settings_switch_widget" />
 
@@ -240,21 +235,10 @@
                 app:summary="@string/settings_sync_summary"
                 app:title="@string/settings_sync_title" />
 
-                <ProgressBar
-                    android:id="@+id/syncingProgress"
-                    style="@style/Widget.AppCompat.ProgressBar.Horizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="72dp"
-                    android:layout_marginEnd="16dp"
-                    android:layout_marginBottom="16dp"
-                    android:indeterminate="true" />
-
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/disableScreenshots"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:summary="@string/settings_diable_screenshots_summary"
                 app:title="@string/settings_disable_screenshots_title"
                 app:widget="@layout/settings_switch_widget" />
 

@@ -284,15 +284,29 @@ class MainViewModel @Inject constructor(
                 .autoDisposable(view.scope())
                 .subscribe()
 
+        // Where every back goes from anywhere that is not the inbox. Written once because
+        // the arrow and the hardware key have to agree, and they stopped agreeing the last
+        // time this was two copies.
+        fun showInbox() {
+            val filter = prefs.conversationFilter.get()
+            newState {
+                copy(page = Inbox(filter = filter, data = getFilteredConversations(filter)))
+            }
+        }
+
         view.homeIntent
                 .withLatestFrom(state) { _, state ->
                     when {
                         state.page is Searching -> view.clearSearch()
                         state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
                         state.page is Archived && state.page.selected > 0 -> view.clearSelection()
-                        // The back arrow Archived draws in its corner. It returns to Settings,
-                        // which is where Archived is reached from.
-                        state.page is Archived -> navigator.showSettings()
+                        // The back arrow Archived draws in its corner, and it goes to the
+                        // inbox. It used to go to Settings, on the reasoning that Settings is
+                        // where Archived is reached from — which is true and still made a trap:
+                        // Settings opens Archived, Archived went back to Settings, and there was
+                        // no way to the messages from either. Archived is a page of this screen
+                        // rather than a child of Settings, so back out of it is back to the list.
+                        state.page is Archived -> showInbox()
                         else -> Unit
                     }
                 }
@@ -307,13 +321,10 @@ class MainViewModel @Inject constructor(
                         state.page is Searching -> view.clearSearch()
                         state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
                         state.page is Archived && state.page.selected > 0 -> view.clearSelection()
-                        // Same place the arrow in the corner goes. A screen whose two backs
-                        // disagree is a defect.
-                        state.page is Archived -> navigator.showSettings()
-                        // Any other page that is not the inbox returns to the inbox.
-                        state.page !is Inbox -> {
-                            newState { copy(page = Inbox(filter = prefs.conversationFilter.get(), data = getFilteredConversations(prefs.conversationFilter.get()))) }
-                        }
+                        // Archived included: the same place the arrow in the corner goes. A
+                        // screen whose two backs disagree is a defect, and one whose two backs
+                        // agree on somewhere you cannot leave is a worse one.
+                        state.page !is Inbox -> showInbox()
                         // Already at the root with nothing to dismiss: let the system have it.
                         else -> newState { copy(hasError = true) }
                     }

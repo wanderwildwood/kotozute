@@ -39,7 +39,6 @@ import com.wanderwildwood.kotozute.interactor.SyncContacts
 import com.wanderwildwood.kotozute.interactor.SyncMessages
 import com.wanderwildwood.kotozute.listener.ContactAddedListener
 import com.wanderwildwood.kotozute.manager.PermissionManager
-import com.wanderwildwood.kotozute.manager.RatingManager
 import com.wanderwildwood.kotozute.model.Conversation
 import com.wanderwildwood.kotozute.model.EmojiSyncNeeded
 import com.wanderwildwood.kotozute.model.SyncLog
@@ -74,7 +73,6 @@ class MainViewModel @Inject constructor(
     private val navigator: Navigator,
     private val permissionManager: PermissionManager,
     private val prefs: Preferences,
-    private val ratingManager: RatingManager,
     private val reactions: EmojiReactionRepository,
     private val syncContacts: SyncContacts,
     private val syncMessages: SyncMessages
@@ -103,10 +101,6 @@ class MainViewModel @Inject constructor(
                 .subscribe { syncing -> newState { copy(syncing = syncing) } }
 
         // Show the rating UI
-        disposables += ratingManager.shouldShowRating
-                .subscribe { show -> newState { copy(showRating = show) } }
-
-
         // Migrate the preferences from 2.7.3
         migratePreferences.execute(Unit)
 
@@ -135,7 +129,6 @@ class MainViewModel @Inject constructor(
                     .subscribe { syncContacts.execute(Unit) }
         }
 
-        ratingManager.addSession()
         markAllSeen.execute(Unit)
     }
 
@@ -297,51 +290,28 @@ class MainViewModel @Inject constructor(
                         state.page is Searching -> view.clearSearch()
                         state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
                         state.page is Archived && state.page.selected > 0 -> view.clearSelection()
-
-                        else -> newState { copy(drawerOpen = true) }
+                        // Nothing left for it to do: the toolbar has no navigation icon, and
+                        // the drawer this used to open is gone.
+                        else -> Unit
                     }
                 }
                 .autoDisposable(view.scope())
                 .subscribe()
 
-        view.drawerToggledIntent
-            .doOnNext {
-                newState { copy(drawerOpen = it) }
-                view.drawerToggled(it)
-            }
-            .autoDisposable(view.scope())
-            .subscribe { open -> newState { copy(drawerOpen = open) } }
-
+        // The back press, and nothing else. The other destinations this used to carry were the
+        // drawer's rows, and they are reached from the Settings screen now.
         view.navigationIntent
-                .withLatestFrom(state) { drawerItem, state ->
-                    newState { copy(drawerOpen = false) }
-                    when (drawerItem) {
-                        NavItem.BACK -> when {
-                            state.drawerOpen -> Unit
-                            state.page is Searching -> view.clearSearch()
-                            state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
-                            state.page is Archived && state.page.selected > 0 -> view.clearSelection()
-                            state.page !is Inbox -> {
-                                newState { copy(page = Inbox(filter = prefs.conversationFilter.get(), data = getFilteredConversations(prefs.conversationFilter.get()))) }
-                            }
-                            else -> newState { copy(hasError = true) }
+                .withLatestFrom(state) { _, state ->
+                    when {
+                        state.page is Searching -> view.clearSearch()
+                        state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
+                        state.page is Archived && state.page.selected > 0 -> view.clearSelection()
+                        // Archived, or any page that is not the inbox: back returns to the inbox.
+                        state.page !is Inbox -> {
+                            newState { copy(page = Inbox(filter = prefs.conversationFilter.get(), data = getFilteredConversations(prefs.conversationFilter.get()))) }
                         }
-                        NavItem.BACKUP -> navigator.showBackup()
-                        NavItem.SCHEDULED -> navigator.showScheduled(null)
-                        NavItem.BLOCKING -> navigator.showBlockedConversations()
-                        NavItem.SETTINGS -> navigator.showSettings()
-//                        NavItem.HELP -> navigator.showSupport()
-                        NavItem.INVITE -> navigator.showInvite()
-                        else -> Unit
-                    }
-                    drawerItem
-                }
-                .distinctUntilChanged()
-                .doOnNext { drawerItem ->
-                    when (drawerItem) {
-                        NavItem.INBOX -> newState { copy(page = Inbox(filter = prefs.conversationFilter.get(), data = getFilteredConversations(prefs.conversationFilter.get()))) }
-                        NavItem.ARCHIVED -> newState { copy(page = Archived(data = conversationRepo.getConversations(prefs.unreadAtTop.get(), true))) }
-                        else -> Unit
+                        // Already at the root with nothing to dismiss: let the system have it.
+                        else -> newState { copy(hasError = true) }
                     }
                 }
                 .autoDisposable(view.scope())
@@ -448,22 +418,6 @@ class MainViewModel @Inject constructor(
             .mapNotNull { conversationId -> conversationRepo.getConversation(conversationId) }
             .autoDisposable(view.scope())
             .subscribe { conversation -> view.showRenameDialog(conversation.name) }
-
-//                .autoDisposable(view.scope())
-//                .subscribe {
-//                    newState { copy(drawerOpen = false) }
-//                }
-
-        view.rateIntent
-                .autoDisposable(view.scope())
-                .subscribe {
-                    navigator.showRating()
-                    ratingManager.rate()
-                }
-
-        view.dismissRatingIntent
-                .autoDisposable(view.scope())
-                .subscribe { ratingManager.dismiss() }
 
         view.conversationsSelectedIntent
                 .withLatestFrom(state) { selection, state ->

@@ -46,7 +46,6 @@
     <string name="menu_mms_part_forward">Forward</string>
     <string name="menu_mms_part_open">Open externally</string>
 
-    <string name="main_drawer_open_cd">Open navigation drawer</string>
     <string name="main_title_selected">%d selected</string>
     <string name="main_menu_clear">Clear</string>
     <string name="main_menu_select_all">Select all</string>
@@ -83,15 +82,10 @@
     <string name="scheduled_menu_send_now">Send now</string>
     <string name="scheduled_menu_edit_message">Edit message</string>
 
-    <string name="drawer_inbox">Inbox</string>
     <string name="drawer_archived">Archived</string>
     <string name="drawer_scheduled">Scheduled</string>
     <string name="drawer_blocking">Blocking</string>
-    <string name="drawer_more">More</string>
     <string name="drawer_settings">Settings</string>
-    <string name="drawer_plus" translatable="false">DEPRECATED - drawer_plus</string>
-    <string name="drawer_help">Help &amp; feedback</string>
-    <string name="drawer_invite">Invite friends</string>
     <string name="drawer_plus_banner_title" translatable="false">DEPRECATED - drawer_plus_banner_title</string>
     <string name="drawer_plus_banner_summary">Unlock amazing new features, and support development</string>
 

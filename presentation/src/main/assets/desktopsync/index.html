@@ -246,6 +246,9 @@
   .msg .bubble video.attach { display: block; max-width: 100%; height: auto; }
   .msg .bubble video.attach:not(:first-child) { margin-top: 8px; }
   .msg.me .stamp { text-align: right; }
+  /* A message the phone would not send. Dashed rather than coloured: the rest of this
+     page is ink on paper, and an e-ink screen has nothing to render a red with. */
+  .msg .bubble.failed { border-style: dashed; }
 
   form {
     display: flex; gap: 10px; padding: 14px 20px;

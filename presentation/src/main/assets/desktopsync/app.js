@@ -134,6 +134,7 @@ const newBtnEl = document.getElementById('newBtn');
 const toWrapEl = document.getElementById('toWrap');
 const toFieldEl = document.getElementById('toField');
 const suggestionsEl = document.getElementById('suggestions');
+const simFieldEl = document.getElementById('simField');
 const searchFieldEl = document.getElementById('searchField');
 const searchClearEl = document.getElementById('searchClear');
 const attachEl = document.getElementById('attach');
@@ -151,6 +152,9 @@ let composeMode = false;
 // field can show a friendly name while we still send to the real address.
 let chosenAddress = null;
 let suggestions = [];
+// The SIMs that can send. Empty on a one-SIM phone, which is most of them, and then
+// nothing about the composer changes.
+let sims = [];
 let selIndex = -1;
 let lookupTimer = null;
 let lastThreads = [];
@@ -341,6 +345,33 @@ bodyEl.addEventListener('keydown', e => {
   if (!sendEl.disabled) composerEl.requestSubmit();
 });
 
+/*
+ * Which SIM a new conversation goes out on.
+ *
+ * A reply never asks: it goes out on the SIM the conversation is already happening on, which
+ * the phone works out for itself. It is only the first message of a new thread that has no
+ * history to inherit from, and on a phone with two SIMs that is a real choice — without this
+ * the browser could only ever start conversations on the default one.
+ *
+ * The phone sends an empty list when there is nothing to choose between, so this quietly does
+ * nothing on the ordinary single-SIM phone.
+ */
+async function loadSims() {
+  const data = await api('/api/sims').then(r => r.ok ? r.json() : null).catch(() => null);
+  sims = (data && data.sims) || [];
+  if (sims.length < 2) return;
+
+  simFieldEl.innerHTML = '';
+  sims.forEach(sim => {
+    const option = document.createElement('option');
+    option.value = String(sim.subId);
+    // The carrier's own name for the SIM, and the slot to tell two of the same apart.
+    // Some phones report no name at all, and then the slot is the whole label.
+    option.textContent = sim.name ? sim.name + ' (SIM ' + sim.slot + ')' : 'SIM ' + sim.slot;
+    simFieldEl.append(option);
+  });
+}
+
 function enterComposeMode() {
   stashDraft(); // must run before composeMode/activeThreadId change out from under it
   composeMode = true;
@@ -348,6 +379,8 @@ function enterComposeMode() {
   activeThreadTitle = '';
   paneTitleEl.textContent = 'To:';
   toWrapEl.hidden = false;
+  // Only when there is genuinely a choice; see loadSims.
+  simFieldEl.hidden = sims.length < 2;
   toFieldEl.value = '';
   chosenAddress = null;
   clearSuggestions();
@@ -364,6 +397,7 @@ function enterComposeMode() {
 function exitComposeMode() {
   composeMode = false;
   toWrapEl.hidden = true;
+  simFieldEl.hidden = true;
   toFieldEl.value = '';
   chosenAddress = null;
   clearSuggestions();
@@ -934,9 +968,13 @@ composerEl.addEventListener('submit', async e => {
       return;
     }
     sendEl.disabled = true;
+    // A string, so the JSON and multipart encodings carry it the same way. Left out
+    // entirely when there is no choice to make, so a one-SIM phone sends what it always did.
+    const fields = { to: to, body: text };
+    if (sims.length > 1 && simFieldEl.value) fields.subId = simFieldEl.value;
     const res = await api('/api/compose', Object.assign(
       { method: 'POST' },
-      sendRequestBody({ to: to, body: text })
+      sendRequestBody(fields)
     ));
     updateSendEnabled();
     if (!res.ok) {
@@ -1031,6 +1069,7 @@ async function refresh() {
 }
 
 loadThreads();
+loadSims();
 connectSocket();
 
 // Belt-and-braces polling alongside the WebSocket. The socket makes updates

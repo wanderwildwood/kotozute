@@ -288,6 +288,7 @@ class DesktopSyncServer(
             uri == "/api/compose" && session.method == Method.POST -> handleCompose(session)
             uri == "/desktop-entry" && session.method == Method.GET -> serveDesktopEntry()
             uri == "/api/contacts" && session.method == Method.GET -> handleContacts(session)
+            uri == "/api/sims" && session.method == Method.GET -> handleSims()
             uri == "/api/thread-for" && session.method == Method.GET -> handleThreadFor(session)
             partMatch != null && session.method == Method.GET ->
                 handlePart(partMatch.groupValues[1].toLong(), session)
@@ -465,7 +466,9 @@ class DesktopSyncServer(
         val to: String,
         val attachments: List<Attachment>,
         /** Files that arrived but could not be used -- an image the phone cannot decode. */
-        val rejected: Int = 0
+        val rejected: Int = 0,
+        /** The SIM the browser picked, or NO_SUB_ID to let the phone work it out. */
+        val subId: Int = NO_SUB_ID
     )
 
     /**
@@ -528,7 +531,11 @@ class DesktopSyncServer(
         val contentType = session.headers["content-type"].orEmpty()
         if (!contentType.startsWith("multipart/form-data")) {
             val json = runCatching { JSONObject(bodyMap["postData"] ?: "{}") }.getOrNull() ?: return null
-            return Submission(json.optString("body"), json.optString("to"), emptyList())
+            return Submission(
+                json.optString("body"), json.optString("to"), emptyList(),
+                // A string either way, so the JSON and multipart bodies carry it identically.
+                subId = json.optString("subId").toIntOrNull() ?: NO_SUB_ID
+            )
         }
 
         val uploads = bodyMap
@@ -544,7 +551,8 @@ class DesktopSyncServer(
             body = multipartText(session, "body"),
             to = multipartText(session, "to"),
             attachments = uploads.filterNotNull(),
-            rejected = uploads.count { it == null }
+            rejected = uploads.count { it == null },
+            subId = multipartText(session, "subId").toIntOrNull() ?: NO_SUB_ID
         )
     }
 
@@ -647,6 +655,33 @@ class DesktopSyncServer(
     }
 
     /**
+     * The SIMs that can send, for the composer's picker.
+     *
+     * Empty with one SIM, and empty again without the phone permission -- either way there is
+     * no choice to offer, and the browser draws no control. Only a phone with two live
+     * subscriptions has a question to ask, which is the same rule the phone's own compose bar
+     * follows: the toggle is there when there is something to toggle between.
+     */
+    private fun handleSims(): Response {
+        val subs = runCatching { subscriptionManager.activeSubscriptionInfoList }
+            .getOrDefault(emptyList())
+        val array = JSONArray()
+        if (subs.size > 1) {
+            subs.forEach { sub ->
+                array.put(JSONObject().apply {
+                    put("subId", sub.subscriptionId)
+                    put("slot", sub.simSlotIndex + 1)
+                    // The carrier's name for it. The compat getter declares this non-null, so a
+                    // phone that reports none throws on the way out rather than returning null;
+                    // the slot number reads perfectly well alone, and the browser handles a blank.
+                    put("name", runCatching { sub.displayName.toString().trim() }.getOrDefault(""))
+                })
+            }
+        }
+        return jsonResponse(Response.Status.OK, JSONObject().put("sims", array))
+    }
+
+    /**
      * Does a conversation already exist for this recipient? Lets the compose field
      * jump straight into an existing thread (with its history) instead of opening a
      * blank one when you pick a contact you've already been texting.
@@ -729,7 +764,10 @@ class DesktopSyncServer(
             conversationRepository.getOrCreateConversation(addresses)?.id
         }.getOrNull()
 
-        val failed = sendAndWait(threadId ?: 0L, addresses, sendAsGroup, body, submission.attachments)
+        val failed = sendAndWait(
+            threadId ?: 0L, addresses, sendAsGroup, body, submission.attachments,
+            chosenSubId = submission.subId
+        )
         if (failed) return sendFailureResponse()
 
         return jsonResponse(Response.Status.OK, JSONObject().apply {
@@ -748,18 +786,24 @@ class DesktopSyncServer(
      * the phone while the browser, which asked for it, is told nothing. So once there is more
      * than one active subscription, say which one.
      *
-     * The thread's most recent message decides it -- answer on the SIM the conversation is
-     * already happening on -- which is what the phone's own compose screen does. A new thread,
-     * or one whose last message came in on a SIM that has since been removed, falls back to the
-     * system's default SMS subscription, and then to the first active one.
+     * An explicit [chosen] subscription wins: that is the browser's SIM picker, which stands in
+     * for the toggle the phone's own compose bar has. Failing that the thread's most recent
+     * message decides -- answer on the SIM the conversation is already happening on, which is
+     * what the phone does. A new thread nobody chose for, or one whose last message came in on a
+     * SIM that has since been removed, falls back to the system's default SMS subscription, and
+     * then to the first active one.
      */
-    private fun subIdFor(threadId: Long): Int {
+    private fun subIdFor(threadId: Long, chosen: Int = NO_SUB_ID): Int {
         val subs = runCatching { subscriptionManager.activeSubscriptionInfoList }
             .getOrDefault(emptyList())
         // Also the empty list you get without the phone permission: nothing to choose between.
         if (subs.size < 2) return NO_SUB_ID
 
         val ids = subs.map { it.subscriptionId }
+
+        // Someone said which SIM. That settles it -- checked against the active list rather
+        // than trusted, since the browser may be holding a list from before a SIM was pulled.
+        if (chosen in ids) return chosen
 
         // Messages come back sorted by date ascending, so the last one is the newest.
         val threadSubId = runCatching {
@@ -790,11 +834,12 @@ class DesktopSyncServer(
         sendAsGroup: Boolean,
         body: String,
         attachments: List<Attachment> = emptyList(),
+        chosenSubId: Int = NO_SUB_ID,
     ): Boolean {
         val done = java.util.concurrent.CountDownLatch(1)
         sendNewMessage.execute(
             SendNewMessage.Params(
-                subId = subIdFor(threadId),
+                subId = subIdFor(threadId, chosenSubId),
                 threadId = threadId,
                 addresses = addresses,
                 body = body,

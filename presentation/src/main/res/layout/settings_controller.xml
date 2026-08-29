@@ -56,12 +56,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:title="@string/drawer_blocking" />
-
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/backup"
+                android:id="@+id/notifications"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:title="@string/backup_title" />
+                app:title="@string/settings_notifications_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categoryGeneral"
@@ -70,28 +69,21 @@
                 app:title="@string/settings_category_general" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/categoryNotifications"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:title="@string/settings_category_notifications" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categorySending"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:title="@string/settings_category_sending" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/categoryStorage"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:title="@string/settings_category_storage" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categoryDesktopSync"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:title="@string/settings_category_desktop_sync" />
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/categoryStorage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_category_storage" />
 
         </LinearLayout>
 
@@ -133,36 +125,6 @@
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/sectionNotifications"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/notifications"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:title="@string/settings_notifications_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/delivery"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:title="@string/settings_delivery_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/readReceipts"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:summary="@string/settings_read_receipts_summary"
-                app:title="@string/settings_read_receipts_title"
-                app:widget="@layout/settings_switch_widget" />
-
-        </LinearLayout>
-
-        <LinearLayout
             android:id="@+id/sectionSending"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -181,6 +143,19 @@
                 android:layout_height="wrap_content"
                 app:title="@string/settings_delayed_title"
                 tools:summary="No delay" />
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/delivery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_delivery_title"
+                app:widget="@layout/settings_switch_widget" />
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/readReceipts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_read_receipts_summary"
+                app:title="@string/settings_read_receipts_title"
+                app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/longAsMms"
@@ -222,12 +197,10 @@
             android:visibility="gone">
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/autoDelete"
+                android:id="@+id/backup"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:title="@string/settings_auto_delete"
-                tools:summary="Never" />
-
+                app:title="@string/backup_title" />
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/sync"
                 android:layout_width="match_parent"
@@ -241,6 +214,12 @@
                 android:layout_height="wrap_content"
                 app:title="@string/settings_disable_screenshots_title"
                 app:widget="@layout/settings_switch_widget" />
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/autoDelete"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_auto_delete"
+                tools:summary="Never" />
 
         </LinearLayout>
 

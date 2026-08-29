@@ -157,7 +157,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     }
 
     private fun sectionContainers() = listOf(
-            binding.sectionRoot, binding.sectionGeneral, binding.sectionNotifications,
+            binding.sectionRoot, binding.sectionGeneral,
             binding.sectionSending, binding.sectionStorage, binding.sectionDesktop)
 
     override fun handleBack(): Boolean {

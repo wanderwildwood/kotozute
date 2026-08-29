@@ -159,9 +159,6 @@ class SettingsPresenter @Inject constructor(
                         R.id.categoryGeneral ->
                             view.showSection(R.id.sectionGeneral, R.string.settings_category_general)
 
-                        R.id.categoryNotifications ->
-                            view.showSection(R.id.sectionNotifications, R.string.settings_category_notifications)
-
                         R.id.categorySending ->
                             view.showSection(R.id.sectionSending, R.string.settings_category_sending)
 

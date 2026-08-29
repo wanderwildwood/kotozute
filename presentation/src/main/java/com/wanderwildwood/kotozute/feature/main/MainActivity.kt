@@ -333,9 +333,10 @@ class MainActivity : QkThemedActivity(), MainView {
         // Activity `title` into it, re-applying on layout, so direct writes get clobbered.
         binding.toolbarTitle.setVisible(!searchVisible && !title.isNullOrEmpty())
 
-        // Archived is somewhere Settings sent you, so it carries the toolbar every other
-        // screen reached from Settings carries: a back arrow at the left, and no cog --
-        // the cog would be a second way to the place the arrow already goes.
+        // Archived gets a back arrow, and it goes to the messages. It had one that went to
+        // Settings instead, on the reasoning that Settings is where Archived is reached
+        // from -- and since Settings opens Archived, the two screens shut behind you with
+        // no way to the messages from either.
         val archived = state.page is Archived
         binding.toolbar.navigationIcon = when {
             archived -> ContextCompat.getDrawable(this, R.drawable.ic_arrow_back_black_24dp)

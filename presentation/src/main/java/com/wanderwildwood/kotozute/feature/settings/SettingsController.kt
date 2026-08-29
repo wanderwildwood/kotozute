@@ -172,6 +172,22 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
 
+    private companion object {
+        /** How long an armed row stays armed. Birding's ConfirmingRow uses the same five seconds. */
+        const val ARM_TIMEOUT_MS = 5000L
+    }
+
+    /** Whether the reset row is armed, and the callback that stands it back down. */
+    private var resetArmed = false
+    private val disarmRunnable = Runnable { disarmReset() }
+
+    private fun disarmReset() {
+        resetArmed = false
+        binding.desktopSyncReset.removeCallbacks(disarmRunnable)
+        binding.desktopSyncReset.title = activity?.getString(R.string.settings_desktop_sync_reset_title).orEmpty()
+        binding.desktopSyncReset.summary = activity?.getString(R.string.settings_desktop_sync_reset_summary)
+    }
+
 
 
 
@@ -288,16 +304,25 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 .show()
     }
 
-    override fun showDesktopSyncResetDialog() {
-        AlertDialog.Builder(activity!!)
-                .setTitle(R.string.settings_desktop_sync_reset_title)
-                .setMessage(R.string.settings_desktop_sync_reset_dialog)
-                .setPositiveButton(R.string.settings_desktop_sync_reset_confirm) { _, _ ->
-                    desktopSyncResetSubject.onNext(Unit)
-                    Toast.makeText(activity, R.string.settings_desktop_sync_reset_done, Toast.LENGTH_SHORT).show()
-                }
-                .setNegativeButton(R.string.button_cancel, null)
-                .show()
+    /**
+     * The row asks, not a dialog. One tap arms it and it says what a second tap will do; the
+     * second tap does it. A dialog is two full-panel repaints to ask one question, and on
+     * e-ink that is the expensive way to ask.
+     *
+     * It disarms itself after a few seconds, so a stray tap does not leave a live trigger
+     * sitting there for whoever picks the phone up next.
+     */
+    override fun askDesktopSyncReset() {
+        if (resetArmed) {
+            disarmReset()
+            desktopSyncResetSubject.onNext(Unit)
+            Toast.makeText(activity, R.string.settings_desktop_sync_reset_done, Toast.LENGTH_SHORT).show()
+            return
+        }
+        resetArmed = true
+        binding.desktopSyncReset.title = activity?.getString(R.string.settings_desktop_sync_reset_armed).orEmpty()
+        binding.desktopSyncReset.summary = activity?.getString(R.string.settings_desktop_sync_reset_armed_summary)
+        binding.desktopSyncReset.postDelayed(disarmRunnable, ARM_TIMEOUT_MS)
     }
 
     override fun showSwipeActions() {

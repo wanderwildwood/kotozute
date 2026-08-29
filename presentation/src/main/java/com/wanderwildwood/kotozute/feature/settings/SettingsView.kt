@@ -41,7 +41,7 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showMmsSizePicker()
     fun showMessageLinkHandlingDialogPicker()
     fun showDesktopSyncLinkDialog(url: String?)
-    fun showDesktopSyncResetDialog()
+    fun askDesktopSyncReset()
     fun showSection(container: Int, title: Int)
     fun showSwipeActions()
 }

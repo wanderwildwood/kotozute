@@ -114,14 +114,6 @@
                 android:visibility="visible"
                 app:title="@string/settings_swipe_actions" />
 
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/messageLinkHandling"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="visible"
-                app:title="@string/settings_mms_weblink_title"
-                tools:summary="100KB" />
-
         </LinearLayout>
 
         <LinearLayout
@@ -208,6 +200,13 @@
                 app:summary="@string/settings_sync_summary"
                 app:title="@string/settings_sync_title" />
 
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/messageLinkHandling"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="visible"
+                app:title="@string/settings_mms_weblink_title"
+                tools:summary="100KB" />
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/disableScreenshots"
                 android:layout_width="match_parent"

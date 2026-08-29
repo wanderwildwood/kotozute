@@ -207,6 +207,14 @@
     max-height: 240px; overflow-y: auto;
   }
   #suggestions:empty { display: none; }
+  /* Matches #toField, minus the flex growth: it sits beside the recipient box and should
+     be no wider than the carrier name it holds. */
+  #simField {
+    flex: 0 0 auto;
+    padding: 7px 12px; font: inherit; font-size: 15px; font-weight: 400;
+    border: 1px solid var(--ink); border-radius: 18px;
+    outline: none; background: var(--paper); color: var(--ink);
+  }
   .suggestion { padding: 9px 12px; cursor: pointer; font-weight: 400; }
   .suggestion + .suggestion { border-top: 1px solid var(--line); }
   .suggestion:hover, .suggestion.sel { background: var(--active); }
@@ -417,6 +425,10 @@
           <input type="text" id="toField" placeholder="Name or number" autocomplete="off">
           <div id="suggestions"></div>
         </span>
+        <!-- Which SIM a new conversation goes out on. Stays hidden unless the phone reports
+             two of them, so a one-SIM phone never sees a choice it does not have. A reply
+             needs no control: it goes out on the SIM the conversation is already on. -->
+        <select id="simField" title="Send from" aria-label="Send from" hidden></select>
       </div>
       <div id="messages"><div id="empty">Nothing selected</div></div>
       <form id="composer">

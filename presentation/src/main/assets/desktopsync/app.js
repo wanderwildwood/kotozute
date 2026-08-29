@@ -850,9 +850,19 @@ async function loadMessages() {
       });
 
     if (!text && !(m.attachments || []).length) bubble.textContent = '';
+
+    // A message that did not go has to say so. The phone knows within a second or two —
+    // a SIM it cannot send on, no radio — and until this was here the bubble looked
+    // exactly like one that had gone, so the failure was only ever visible on the phone.
+    // The dashed edge carries it without colour, which is the whole palette here anyway.
+    if (m.status === 'failed') bubble.classList.add('failed');
+
     const stamp = document.createElement('div');
     stamp.className = 'stamp';
-    stamp.textContent = formatTime(m.date);
+    stamp.textContent = formatTime(m.date)
+      + (m.status === 'failed' ? ' · not sent'
+        : m.status === 'sending' ? ' · sending…'
+        : '');
     // In a group the phone sends who each received message is from; one-to-one threads
     // send nothing, because the name is already at the top of the screen.
     if (m.from) {

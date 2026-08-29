@@ -156,8 +156,8 @@ class SettingsPresenter @Inject constructor(
                     Timber.v("Preference click: ${context.resources.getResourceName(it.id)}")
 
                     when (it.id) {
-                        R.id.categoryGeneral ->
-                            view.showSection(R.id.sectionGeneral, R.string.settings_category_general)
+                        R.id.categoryDisplay ->
+                            view.showSection(R.id.sectionDisplay, R.string.settings_category_general)
 
                         R.id.categorySending ->
                             view.showSection(R.id.sectionSending, R.string.settings_category_sending)

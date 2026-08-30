@@ -69,7 +69,7 @@ import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.MainActivityBinding
 import android.widget.ProgressBar
 import com.wanderwildwood.kotozute.common.widget.QkTextView
-import androidx.recyclerview.widget.RecyclerView
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 
 class MainActivity : QkThemedActivity(), MainView {
 
@@ -144,16 +144,7 @@ class MainActivity : QkThemedActivity(), MainView {
         itemTouchCallback.adapter = conversationsAdapter
         conversationsAdapter.autoScrollToStart(binding.recyclerView)
 
-        // No fling. Mudita's own lists do not scroll continuously on this screen: MMD turns
-        // the list's scrolling off outright and moves it a fixed number of items per swipe,
-        // because a panel that redraws in full renders inertia as a smear and spends the
-        // battery doing it. This list cannot use MMD's component -- it is a RecyclerView
-        // shared by the conversations and the search results, with swipe-to-archive hung off
-        // it -- so it takes the half that needs no rewrite: a drag still tracks the finger,
-        // and letting go stops the list rather than throwing it.
-        binding.recyclerView.onFlingListener = object : RecyclerView.OnFlingListener() {
-            override fun onFling(velocityX: Int, velocityY: Int) = true
-        }
+        binding.recyclerView.turnsAPageOnSwipe()
 
         // Set the theme color tint to the recyclerView, progressbar, and FAB
         theme
@@ -449,6 +440,7 @@ class MainActivity : QkThemedActivity(), MainView {
     override fun clearSelection() = conversationsAdapter.clearSelection()
 
     override fun toggleSelectAll() = conversationsAdapter.toggleSelectAll()
+
 
     override fun themeChanged() = binding.recyclerView.scrapViews()
 

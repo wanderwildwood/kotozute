@@ -185,6 +185,6 @@ class ConversationInfoAdapter @Inject constructor(
 
     private companion object {
         /** How long a tap on the delete row stays armed before it forgets it was asked. */
-        const val ARMED_MS = 5000L
+        const val ARMED_MS = 4000L
     }
 }

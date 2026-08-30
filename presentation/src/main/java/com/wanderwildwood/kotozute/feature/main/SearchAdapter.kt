@@ -75,7 +75,7 @@ class SearchAdapter @Inject constructor(
         }
         holder.binding.title.text = title
 
-        holder.binding.avatars.recipients = result.conversation.recipients
+        // The avatar is gone from the row, so there is nothing to fill.
 
         when (result.messages == 0) {
             true -> {

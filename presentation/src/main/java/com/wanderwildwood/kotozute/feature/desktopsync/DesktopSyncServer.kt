@@ -904,6 +904,12 @@ class DesktopSyncServer(
         put("date", message.date)
         put("isMe", message.isMe())
         put("read", message.read)
+        // Which SIM carried it. The phone's own thread marks this where it changes, and
+        // without it the browser was the one place two numbers looked like one: a reader
+        // with a work SIM and a personal one could not tell which they had just answered
+        // on. Sent on every message; whether it is worth drawing is the browser's call,
+        // and on the single-SIM phone it never is.
+        put("subId", message.subId)
         // How the send went. Without this the browser has no way to know a message
         // failed -- it drew the bubble the moment the phone accepted the message for
         // sending, and a bubble is what a sent message looks like too. Only outgoing

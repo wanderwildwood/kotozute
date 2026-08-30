@@ -365,11 +365,24 @@ async function loadSims() {
   sims.forEach(sim => {
     const option = document.createElement('option');
     option.value = String(sim.subId);
-    // The carrier's own name for the SIM, and the slot to tell two of the same apart.
-    // Some phones report no name at all, and then the slot is the whole label.
-    option.textContent = sim.name ? sim.name + ' (SIM ' + sim.slot + ')' : 'SIM ' + sim.slot;
+    option.textContent = simLabel(sim.subId);
     simFieldEl.append(option);
   });
+}
+
+/*
+ * What to call a SIM.
+ *
+ * The carrier's own name for it, and the slot to tell two of the same carrier apart. Some
+ * phones report no name at all, and then the slot is the whole label. One function so the
+ * picker at the top and the marks down the thread always say the same words about the same
+ * card; null for a subscription the phone no longer has, which is a SIM that has been taken
+ * out since the message was sent and has no honest name left.
+ */
+function simLabel(subId) {
+  const sim = sims.find(s => String(s.subId) === String(subId));
+  if (!sim) return null;
+  return sim.name ? sim.name + ' (SIM ' + sim.slot + ')' : 'SIM ' + sim.slot;
 }
 
 function enterComposeMode() {
@@ -817,6 +830,9 @@ async function loadMessages() {
     messagesEl.append(more);
   }
 
+  // Walks with the loop so each message can be compared with the one above it.
+  let previousSubId = null;
+
   messages.forEach(m => {
     const wrap = document.createElement('div');
     wrap.className = 'msg' + (m.isMe ? ' me' : '');
@@ -893,10 +909,21 @@ async function loadMessages() {
 
     const stamp = document.createElement('div');
     stamp.className = 'stamp';
+    // Which SIM carried it, on the phones where that is a question at all. Marked where
+    // it changes and on the first message shown, which is the phone's own rule plus the
+    // one case the phone does not have: paging back through history arrives mid-thread,
+    // and a run of messages whose mark scrolled off above is a run with no answer on it.
+    // A reader with a work number and a personal one is looking for the switch, so the
+    // switch is what gets drawn rather than a label on every bubble.
+    const sim = sims.length > 1 ? simLabel(m.subId) : null;
+    const marksSim = sim !== null && (previousSubId === null || String(m.subId) !== String(previousSubId));
+    previousSubId = m.subId;
+
     stamp.textContent = formatTime(m.date)
       + (m.status === 'failed' ? ' · not sent'
         : m.status === 'sending' ? ' · sending…'
-        : '');
+        : '')
+      + (marksSim ? ' · ' + sim : '');
     // In a group the phone sends who each received message is from; one-to-one threads
     // send nothing, because the name is already at the top of the screen.
     if (m.from) {

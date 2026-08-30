@@ -222,8 +222,8 @@ open class MessageRepositoryImpl @Inject constructor(
             ?: return null
         // fileDateAndTime is divided by 1000 in order to remove the extra 0's after date and time
         // This way the file name isn't so long.
-        val fileDateAndTime = (part.messages?.first()?.date)?.div(1000)
-        val fileName = "QUIK_${part.type.split("/").last()}_$fileDateAndTime.$extension"
+        val fileDateAndTime = (part.messages?.firstOrNull()?.date)?.div(1000)
+        val fileName = "Messaging_${part.type.split("/").last()}_$fileDateAndTime.$extension"
 
         val values = contentValuesOf(
             MediaStore.MediaColumns.DISPLAY_NAME to fileName,
@@ -234,9 +234,14 @@ open class MessageRepositoryImpl @Inject constructor(
             values.put(MediaStore.MediaColumns.IS_PENDING, 1)
             values.put(
                 MediaStore.MediaColumns.RELATIVE_PATH, when {
-                    part.isImage() -> "${Environment.DIRECTORY_PICTURES}/QUIK"
-                    part.isVideo() -> "${Environment.DIRECTORY_MOVIES}/QUIK"
-                    else -> "${Environment.DIRECTORY_DOWNLOADS}/QUIK"
+                    // Named for this app, not the one it was forked from. A picture saved
+                    // out of Messaging used to land in Pictures/QUIK, under a name nobody
+                    // on this phone would recognise. Backups already went to
+                    // Messaging/Backups, so the app disagreed with itself. Anything saved
+                    // before this stays where it was put.
+                    part.isImage() -> "${Environment.DIRECTORY_PICTURES}/Messaging"
+                    part.isVideo() -> "${Environment.DIRECTORY_MOVIES}/Messaging"
+                    else -> "${Environment.DIRECTORY_DOWNLOADS}/Messaging"
                 }
             )
         }

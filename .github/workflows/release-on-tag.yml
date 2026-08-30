@@ -127,5 +127,8 @@ jobs:
             kotozute-*.apk.sha256
             kotozute.apk
             kotozute.apk.sha256
-          body_path: .github/release-body.md
+          # No body_path: the standing description of the app lives in the README,
+          # and stamping it over every release body buried the news under it --
+          # 13 of 32 published notes said nothing about what had changed. What CI
+          # writes now is the changelog; the note itself is written by hand.
           generate_release_notes: true

@@ -23,11 +23,8 @@
     <string name="title_archived">Αρχείο</string>
     <string name="title_settings">Ρυθμίσεις</string>
     <string name="title_notification_prefs">Ειδοποιήσεις</string>
-    <string name="title_theme">Θέμα εμφάνισης</string>
     <string name="title_conversations">Αναζήτηση στα εισερχόμενα…</string>
     <string name="title_compose">Πληκτρολογήστε ένα όνομα ή αριθμό</string>
-    <string name="setup_skip">Παράλειψη</string>
-    <string name="setup_next">Συνέχεια</string>
     <string name="menu_add_person">Προσθήκη ατόμου</string>
     <string name="menu_call">Κλήση</string>
     <string name="menu_info">Λεπτομέρειες</string>
@@ -35,7 +32,6 @@
     <string name="compose_menu_share">Κοινή χρήση</string>
     <string name="main_drawer_open_cd">Άνοιγμα πλαισίου πλοήγησης</string>
     <string name="main_title_selected">Επιλεγμένα: %d</string>
-    <string name="main_menu_clear">Εκκαθάριση</string>
     <string name="main_menu_archive">Αρχειοθέτηση</string>
     <string name="main_menu_unarchive">Αναίρεση αρχειοθέτησης</string>
     <string name="main_menu_delete">Διαγραφή</string>
@@ -69,11 +65,6 @@
     <string name="drawer_settings">Ρυθμίσεις</string>
     <string name="drawer_help">Βοήθεια &amp; αποστολή σχολίων</string>
     <string name="drawer_invite">Πρόσκληση φίλων</string>
-    <string name="drawer_plus_banner_summary">Ξεκλειδώστε φανταστικές νέες λειτουργίες και συμβάλετε στην ανάπτυξη</string>
-    <string name="rate_title">Σας αρέσει το Messaging;</string>
-    <string name="rate_summary">Δείξτε μας την αγάπη σας και βαθμολογήστε μας στο Google Play!</string>
-    <string name="rate_okay">ΕΝΤΑΞΕΙ!</string>
-    <string name="rate_dismiss">ΠΑΡΑΛΕΙΨΗ</string>
     <string name="dialog_delete_title">Διαγραφή</string>
     <plurals name="dialog_delete_message">
         <item quantity="one">Σίγουρα επιθυμείτε να διαγράψετε αυτή τη συζήτηση;</item>
@@ -109,9 +100,6 @@
     <string name="compose_details_type">Τύπος: %s</string>
     <string name="compose_details_from">Από: %s</string>
     <string name="compose_details_to">Προς: %s</string>
-    <string name="compose_details_subject">Θέμα: %s</string>
-    <string name="compose_details_priority">Προτεραιότητα: %s</string>
-    <string name="compose_details_size">Μέγεθος: %s</string>
     <string name="compose_details_sent">Εστάλη: %s</string>
     <string name="compose_details_received">Ελήφθη: %s</string>
     <string name="compose_details_delivered">Παραδόθηκε: %s</string>
@@ -133,7 +121,6 @@
     <string name="info_copied_address">Η διεύθυνση αντεγράφη</string>
     <string name="info_name">Τίτλος συζήτησης</string>
     <string name="info_notifications">Ειδοποιήσεις</string>
-    <string name="info_theme">Θέμα εμφάνισης</string>
     <string name="info_archive">Αρχειοθέτηση</string>
     <string name="info_unarchive">Αναίρεση αρχειοθέτησης</string>
     <string name="info_block">Φραγή</string>
@@ -144,8 +131,6 @@
     <string name="backup_title">Αντίγραφα ασφαλείας και επαναφορά</string>
     <string name="backup_backing_up">Δημιουργία αντιγράφου ασφαλείας μηνυμάτων</string>
     <string name="backup_restoring">Επαναφορά αντιγράφου ασφαλείας μηνυμάτων</string>
-    <string name="backup_loading">Φόρτωση…</string>
-    <string name="backup_never">Ποτέ</string>
     <string name="backup_location_title">Backup location</string>
     <string name="backup_location_summary">Set folder</string>
     <string name="backup_restore_title">Επαναφορά</string>
@@ -153,7 +138,6 @@
     <string name="backup_restore_error_plus">Παρακαλώ ξεκλειδώστε το Messaging για τη δημιουργία και επαναφορά αντιγράφων ασφαλείας</string>
     <string name="backup_restore_error_backup">Δημιουργία αντιγράφου ασφαλείας…</string>
     <string name="backup_restore_error_restore">Επαναφορά αντιγράφου ασφαλείας…</string>
-    <string name="backup_restore_confirm_title">Επαναφορά αντιγράφου ασφαλείας</string>
     <string name="backup_restore_stop_title">Διακοπή επαναφοράς</string>
     <string name="backup_restore_stop_message">Τα μηνύματα που έχουν ήδη ανακτηθεί θα παραμείνουν στη συσκευή σας</string>
     <string name="backup_select_location_rationale_title">Select backup location</string>
@@ -180,24 +164,14 @@
     <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
     <string name="scheduled_empty_message_3_timestamp">Αποστολή στις 23 Δεκεμβρίου</string>
     <string name="scheduled_compose_cd">Προγραμματισμός μηνύματος</string>
-    <string name="scheduled_options_title">Προγραμματισμένο μήνυμα</string>
     <string-array name="scheduled_options">
         <item>Αποστολή τώρα</item>
         <item>Αντιγραφή κειμένου</item>
         <item>Διαγραφή</item>
     </string-array>
-    <string name="settings_category_appearance">Εμφάνιση</string>
     <string name="settings_category_general">Γενικά</string>
     <string name="settings_category_qkreply">Γρήγορη απάντηση</string>
-    <string name="settings_theme_title">Θέμα εμφάνισης</string>
-    <string name="settings_night_title">Νυχτερινή λειτουργία</string>
-    <string name="settings_black_title">Νυχτερινή λειτουργία καθαρού μαύρου</string>
-    <string name="settings_night_start_title">Ώρα έναρξης</string>
-    <string name="settings_night_end_title">Ώρα λήξης</string>
-    <string name="settings_automatic_colors_title">Αυτόματος χρωματισμός επαφών</string>
     <string name="settings_text_size_title">Μέγεθος γραμματοσειράς</string>
-    <string name="settings_system_font_title">Χρήση γραμματοσειράς συστήματος</string>
-    <string name="settings_auto_emoji_title">Αυτόματα emoji</string>
     <string name="settings_notifications_title">Ειδοποιήσεις</string>
     <string name="settings_notifications_o_summary">Πατήστε για προσαρμογή</string>
     <string name="settings_notification_actions_title">Ενέργειες</string>
@@ -215,7 +189,6 @@
     <string name="settings_qkreply_tap_dismiss_summary">Πατήστε εκτός του παραθύρου για να το κλείσετε</string>
     <string name="settings_delayed_title">Καθυστερημένη αποστολή</string>
     <string name="settings_swipe_actions">Ενέργειες συρσίματος στην οθόνη</string>
-    <string name="settings_swipe_actions_summary">Configure swipe actions for conversations</string>
     <string name="settings_swipe_actions_right">Right swipe</string>
     <string name="settings_swipe_actions_left">Left swipe</string>
     <string name="settings_swipe_actions_change">CHANGE</string>
@@ -229,13 +202,10 @@
         <item>Mark unread</item>
     </string-array>
     <string name="settings_delivery_title">Επιβεβαιώσεις παράδοσης</string>
-    <string name="settings_delivery_summary">Confirm that messages were sent successfully</string>
     <string name="settings_signature_title">Υπογραφή</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>
     <string name="settings_unicode_title">Strip accents</string>
-    <string name="settings_unicode_summary">Remove accents from characters in outgoing SMS messages</string>
     <string name="settings_mobile_title">Mobile numbers only</string>
-    <string name="settings_mobile_summary">When composing a message, only show mobile numbers</string>
     <string name="settings_auto_delete">Delete old messages automatically</string>
     <string name="settings_auto_delete_dialog_message">Messages will be deleted after the specified number of days</string>
     <string name="settings_auto_delete_dialog_hint">Number of days</string>
@@ -252,14 +222,11 @@
     <string name="settings_sync_title">Συγχρονισμός μηνυμάτων</string>
     <string name="settings_sync_summary">Επανασυγχρονισμός μηνυμάτων με τη βάση δεδομένων SMS του Android</string>
     <string name="settings_about_title">Σχετικά με το Messaging</string>
-    <string name="settings_version">Έκδοση %s</string>
     <string name="settings_logging_enabled">Η καταγραφή σφαλμάτων ενεργοποιήθηκε</string>
     <string name="settings_logging_disabled">Η καταγραφή σφαλμάτων απενεργοποιήθηκε</string>
-    <string name="settings_delay_duration_hint">Εισάγετε τη διάρκεια (δευτερόλεπτα)</string>
     <string name="blocking_title">Φραγή</string>
     <string name="blocking_drop_title">Απόρριψη μηνυμάτων</string>
     <string name="blocking_drop_summary">Απόρριψη αντί για απόκρυψη μηνυμάτων από αποστολείς σε φραγή</string>
-    <string name="blocking_conversations">Συζητήσεις σε φραγή</string>
     <string name="blocking_manager_title">Διαχειριστής φραγής</string>
     <string name="blocking_manager_qksms_summary">Ενσωματωμένη λειτουργία φραγής του Messaging</string>
     <string name="blocking_manager_call_blocker_summary">Block spam messages, numbers &amp; unknown calls with blacklist &amp; Schedule</string>
@@ -293,38 +260,9 @@
     <string name="about_contact_title">Επικοινωνία</string>
     <string name="about_license_title">Άδεια χρήσης</string>
     <string name="about_copyright_title">Πνευματικά δικαιώματα</string>
-    <string name="qksms_plus_description_title">Support development, unlock everything</string>
-    <string name="qksms_plus_description_summary">You can save a starving developer for just %s</string>
     <!-- Substitutions are for price and currency. Ex: Lifetime upgrade for $1.99 USD -->
-    <string name="qksms_plus_upgrade">Lifetime upgrade for %1$s %2$s</string>
     <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
-    <string name="qksms_plus_upgrade_donate">Unlock + donate for %1$s %2$s</string>
-    <string name="qksms_plus_thanks_title">Thank you for supporting Messaging!</string>
-    <string name="qksms_plus_thanks_summary">You now have access to all Messaging features</string>
-    <string name="qksms_plus_error">An error has occurred, please try again</string>
-    <string name="qksms_plus_free_title">Messaging is free for F-Droid users! If you\'d like to support development, a donation would be highly appreciated.</string>
     <string name="qksms_plus_donate">Δωρεά μέσω PayPal</string>
-    <string name="qksms_plus_coming_soon">Έρχεται σύντομα</string>
-    <string name="qksms_plus_themes_title">Premium themes</string>
-    <string name="qksms_plus_themes_summary">Unlock beautiful theme colors not available on the Material Design palette</string>
-    <string name="qksms_plus_emoji_title">Custom auto-emoji</string>
-    <string name="qksms_plus_emoji_summary">Create custom auto-emoji shortcuts</string>
-    <string name="qksms_plus_backup_title">Message backup</string>
-    <string name="qksms_plus_backup_summary">Automatically back up your messages. Never again worry about losing your history if you change phones or your phone gets lost</string>
-    <string name="qksms_plus_scheduled_title">Scheduled messages</string>
-    <string name="qksms_plus_scheduled_summary">Schedule messages to automatically be sent at a specific time and date</string>
-    <string name="qksms_plus_delayed_title">Delayed sending</string>
-    <string name="qksms_plus_delayed_summary">Wait a few seconds before sending your message</string>
-    <string name="qksms_plus_night_title">Automatic night mode</string>
-    <string name="qksms_plus_night_summary">Enable night mode based on the time of day</string>
-    <string name="qksms_plus_blacklist_title">Advanced blocking</string>
-    <string name="qksms_plus_blacklist_summary">Block messages that contain keywords or match patterns</string>
-    <string name="qksms_plus_forward_title">Auto-forward</string>
-    <string name="qksms_plus_forward_summary">Automatically forward messages from certain senders</string>
-    <string name="qksms_plus_respond_title">Auto-respond</string>
-    <string name="qksms_plus_respond_summary">Automatically respond to incoming messages with a preset response</string>
-    <string name="qksms_plus_more_title">More</string>
-    <string name="qksms_plus_more_summary">Messaging is under active development, and your purchase will include all future Messaging features!</string>
     <string name="widget_loading">Loading…</string>
     <string name="widget_more">View more conversations</string>
     <string name="qkreply_menu_read">Mark read</string>
@@ -333,9 +271,6 @@
     <string name="qkreply_menu_expand">Show more</string>
     <string name="qkreply_menu_collapse">Show less</string>
     <string name="qkreply_menu_view">Open conversation</string>
-    <string name="theme_material">Material</string>
-    <string name="theme_hex">HEX</string>
-    <string name="theme_apply">Apply</string>
     <string-array name="notification_actions">
         <item>None</item>
         <item>Archive</item>
@@ -351,11 +286,7 @@
     <string name="button_delete">Delete</string>
     <string name="button_save">Save</string>
     <string name="button_stop">Stop</string>
-    <string name="button_more">More</string>
-    <string name="button_set">Set</string>
     <string name="button_undo">Undo</string>
-    <string name="toast_copied">Copied</string>
-    <string name="toast_qksms_plus">You must unlock Messaging to use this</string>
     <plurals name="notification_new_messages">
         <item quantity="one">New message</item>
         <item quantity="other">%s new messages</item>

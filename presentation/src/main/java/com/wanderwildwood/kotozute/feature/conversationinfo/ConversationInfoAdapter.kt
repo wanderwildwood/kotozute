@@ -9,6 +9,7 @@ import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkAdapter
 import com.wanderwildwood.kotozute.common.base.QkViewHolder
 import com.wanderwildwood.kotozute.common.util.Colors
+import com.wanderwildwood.kotozute.common.widget.PreferenceView
 import com.wanderwildwood.kotozute.common.util.extensions.setTint
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.extensions.isVideo
@@ -36,6 +37,36 @@ class ConversationInfoAdapter @Inject constructor(
     val deleteClicks: Subject<Unit> = PublishSubject.create()
     val mediaClicks: Subject<Long> = PublishSubject.create()
 
+    /**
+     * Deleting a conversation cannot be undone, so the row asks first -- on its own face,
+     * rather than by opening a dialog over the screen it was tapped on. A dialog is two
+     * full-panel repaints to ask one question; this is one row changing what it says, in
+     * the place the answer belongs. It is the same shape the other five apps use.
+     *
+     * The question withdraws itself after a few seconds, so a row armed by a stray tap is
+     * not left live for whoever picks the phone up next.
+     */
+    private fun armDelete(row: PreferenceView) {
+        val ready = row.context.getString(R.string.info_delete)
+        val asking = row.context.getString(R.string.info_delete_confirm)
+        var armed = false
+        val disarm = Runnable {
+            armed = false
+            row.title = ready
+        }
+        row.setOnClickListener {
+            row.removeCallbacks(disarm)
+            if (armed) {
+                disarm.run()
+                deleteClicks.onNext(Unit)
+            } else {
+                armed = true
+                row.title = asking
+                row.postDelayed(disarm, ARMED_MS)
+            }
+        }
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         return when (viewType) {
@@ -62,7 +93,7 @@ class ConversationInfoAdapter @Inject constructor(
                     settings.markUnread.clicks().subscribe(markUnreadClicks)
                     settings.archive.clicks().subscribe(archiveClicks)
                     settings.block.clicks().subscribe(blockClicks)
-                    settings.delete.clicks().subscribe(deleteClicks)
+                    armDelete(settings.delete)
                 }
             }
 
@@ -151,4 +182,9 @@ class ConversationInfoAdapter @Inject constructor(
         }
     }
 
+
+    private companion object {
+        /** How long a tap on the delete row stays armed before it forgets it was asked. */
+        const val ARMED_MS = 5000L
+    }
 }

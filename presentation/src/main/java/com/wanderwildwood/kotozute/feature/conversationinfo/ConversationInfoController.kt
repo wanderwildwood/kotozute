@@ -55,7 +55,6 @@ class ConversationInfoController(
     }
 
     private val nameChangeSubject: Subject<String> = PublishSubject.create()
-    private val confirmDeleteSubject: Subject<Unit> = PublishSubject.create()
 
     init {
         appComponent
@@ -106,7 +105,6 @@ class ConversationInfoController(
     override fun archiveClicks(): Observable<*> = adapter.archiveClicks
     override fun blockClicks(): Observable<*> = adapter.blockClicks
     override fun deleteClicks(): Observable<*> = adapter.deleteClicks
-    override fun confirmDelete(): Observable<*> = confirmDeleteSubject
     override fun mediaClicks(): Observable<Long> = adapter.mediaClicks
 
     override fun showNameDialog(name: String) = nameDialog.setText(name).show()
@@ -119,12 +117,4 @@ class ConversationInfoController(
         navigator.showDefaultSmsDialog(activity!!)
     }
 
-    override fun showDeleteDialog() {
-        AlertDialog.Builder(activity!!)
-                .setTitle(R.string.dialog_delete_title)
-                .setMessage(resources?.getQuantityString(R.plurals.dialog_delete_message, 1))
-                .setPositiveButton(R.string.button_delete) { _, _ -> confirmDeleteSubject.onNext(Unit) }
-                .setNegativeButton(R.string.button_cancel, null)
-                .show()
-    }
 }

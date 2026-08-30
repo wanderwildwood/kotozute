@@ -181,13 +181,10 @@ class ConversationInfoPresenter @Inject constructor(
                 .subscribe { conversation -> view.showBlockingDialog(listOf(conversation.id), !conversation.blocked) }
 
         // Show the delete confirmation dialog
+        // The row asks before this fires -- it arms on the first tap and says so -- so
+        // there is no second question to put on the screen. See ConversationInfoAdapter.
         view.deleteClicks()
                 .filter { permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() } }
-                .autoDisposable(view.scope())
-                .subscribe { view.showDeleteDialog() }
-
-        // Delete the conversation
-        view.confirmDelete()
                 .withLatestFrom(conversation) { _, conversation -> conversation }
                 .autoDisposable(view.scope())
                 .subscribe { conversation -> deleteConversations.execute(listOf(conversation.id)) }

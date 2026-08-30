@@ -94,6 +94,7 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.ComposeActivityBinding
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 
 
 class ComposeActivity : QkThemedActivity(), ComposeView {
@@ -193,6 +194,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             binding.messageList.setItemViewCacheSize(20)
             (binding.messageList.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)?.supportsChangeAnimations = false
             binding.messageList.adapter = messageAdapter
+            // The thread turns a page the way the conversation list does. See the extension:
+            // it moves by pixels, so a bubble taller than the screen takes two pages and a
+            // picture still decoding cannot throw it off.
+            binding.messageList.turnsAPageOnSwipe()
 
             // NOTE: switching the panel to EinkDisplayMode.FAST while this list scrolls was
             // tried and deliberately REVERTED (2026-08-07). The meink service does accept a

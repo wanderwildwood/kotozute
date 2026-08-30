@@ -11,6 +11,14 @@ are all just the someone in the middle.
 
 It continues [QKSMS](https://github.com/moezbhatti/qksms) by way of [QUIK](https://github.com/octoshrimpy/quik), and branched off [InkMessage](https://github.com/lamdanAmiti/InkMessage), which is where the e-ink work started.
 
+| | | |
+|---|---|---|
+| ![The conversation list](screenshots/1-conversations.png) | ![A conversation, with a reply half written](screenshots/2-conversation.png) | ![Settings](screenshots/4-settings.png) |
+
+Desktop Sync, which is the page the phone serves to a browser on your own computer:
+
+![Desktop Sync in a browser](screenshots/3-desktop-sync.png)
+
 ## Matching the stock Mudita SMS app
 
 Measured against the stock app rather than guessed at:

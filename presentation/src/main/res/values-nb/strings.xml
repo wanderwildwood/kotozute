@@ -23,11 +23,8 @@
     <string name="title_archived">Arkivert</string>
     <string name="title_settings">Innstillinger</string>
     <string name="title_notification_prefs">Varsler</string>
-    <string name="title_theme">Drakt</string>
     <string name="title_conversations">Søk i innboks …</string>
     <string name="title_compose">Skriv navn eller nummer</string>
-    <string name="setup_skip">Hopp over</string>
-    <string name="setup_next">Fortsett</string>
     <string name="menu_add_person">Add person</string>
     <string name="menu_call">Ring</string>
     <string name="menu_info">Detaljer</string>
@@ -35,7 +32,6 @@
     <string name="compose_menu_share">Share</string>
     <string name="main_drawer_open_cd">Åpne navigasjonsskuff</string>
     <string name="main_title_selected">%d valgt</string>
-    <string name="main_menu_clear">Tøm</string>
     <string name="main_menu_archive">Arkiv</string>
     <string name="main_menu_unarchive">Fjern fra arkiv</string>
     <string name="main_menu_delete">Slett</string>
@@ -69,11 +65,6 @@
     <string name="drawer_settings">Innstillinger</string>
     <string name="drawer_help">Hjelp og tilbakemelding</string>
     <string name="drawer_invite">Inviter venner</string>
-    <string name="drawer_plus_banner_summary">Aktiver fantastiske nye funksjoner og støtt utviklingen</string>
-    <string name="rate_title">Liker du Messaging?</string>
-    <string name="rate_summary">Del litt kjærlighet og vurder oss på Google Play!</string>
-    <string name="rate_okay">Ok!</string>
-    <string name="rate_dismiss">Avvis</string>
     <string name="dialog_delete_title">Slett</string>
     <plurals name="dialog_delete_message">
         <item quantity="one">Er du sikker på at du vil slette samtalen?</item>
@@ -109,9 +100,6 @@
     <string name="compose_details_type">Type: %s</string>
     <string name="compose_details_from">Fra: %s</string>
     <string name="compose_details_to">Til: %s</string>
-    <string name="compose_details_subject">Emne: %s</string>
-    <string name="compose_details_priority">Prioritet: %s</string>
-    <string name="compose_details_size">Størrelse: %s</string>
     <string name="compose_details_sent">Sendt: %s</string>
     <string name="compose_details_received">Mottatt: %s</string>
     <string name="compose_details_delivered">Levert: %s</string>
@@ -133,7 +121,6 @@
     <string name="info_copied_address">Address copied</string>
     <string name="info_name">Tittel på samtalen</string>
     <string name="info_notifications">Varsler</string>
-    <string name="info_theme">Drakt</string>
     <string name="info_archive">Arkiv</string>
     <string name="info_unarchive">Fjern fra arkiv</string>
     <string name="info_block">Blokker</string>
@@ -144,8 +131,6 @@
     <string name="backup_title">Sikret</string>
     <string name="backup_backing_up">Sikkerhetskopierer meldinger</string>
     <string name="backup_restoring">Gjenoppretter fra sikkerhetskopi</string>
-    <string name="backup_loading">Henter …</string>
-    <string name="backup_never">Aldri</string>
     <string name="backup_location_title">Backup location</string>
     <string name="backup_location_summary">Set folder</string>
     <string name="backup_restore_title">Gjenopprett</string>
@@ -153,7 +138,6 @@
     <string name="backup_restore_error_plus">Vennligst aktiver Messaging for å bruke sikkerhetskopiering og gjenoppretting</string>
     <string name="backup_restore_error_backup">Sikkerhetskopiering pågår …</string>
     <string name="backup_restore_error_restore">Gjenoppretting pågår …</string>
-    <string name="backup_restore_confirm_title">Gjenopprett fra sikkerhetskopi</string>
     <string name="backup_restore_stop_title">Avbryt gjenoppretting</string>
     <string name="backup_restore_stop_message">Meldinger som allerede er gjenopprettet vil forbli på din enhet</string>
     <string name="backup_select_location_rationale_title">Select backup location</string>
@@ -180,24 +164,14 @@
     <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
     <string name="scheduled_empty_message_3_timestamp">Sender den 23. desember</string>
     <string name="scheduled_compose_cd">Planlegg en melding</string>
-    <string name="scheduled_options_title">Planlagt melding</string>
     <string-array name="scheduled_options">
         <item>Send nå</item>
         <item>Copy text</item>
         <item>Delete</item>
     </string-array>
-    <string name="settings_category_appearance">Utseende</string>
     <string name="settings_category_general">Generelt</string>
     <string name="settings_category_qkreply">Raskt svar</string>
-    <string name="settings_theme_title">Drakt</string>
-    <string name="settings_night_title">Nattmodus</string>
-    <string name="settings_black_title">Ren svart nattmodus</string>
-    <string name="settings_night_start_title">Starttid</string>
-    <string name="settings_night_end_title">Sluttidspunkt</string>
-    <string name="settings_automatic_colors_title">Automatic contact colors</string>
     <string name="settings_text_size_title">Skriftstørrelse</string>
-    <string name="settings_system_font_title">Bruk systemskrift</string>
-    <string name="settings_auto_emoji_title">Automatisk emoji</string>
     <string name="settings_notifications_title">Varsler</string>
     <string name="settings_notifications_o_summary">Trykk for å tilpasse</string>
     <string name="settings_notification_actions_title">Handlinger</string>
@@ -215,7 +189,6 @@
     <string name="settings_qkreply_tap_dismiss_summary">Trykk hvor som helst utenfor sprettopp-vinduet for å lukke det</string>
     <string name="settings_delayed_title">Forsinket sending</string>
     <string name="settings_swipe_actions">Sveipe-handlinger</string>
-    <string name="settings_swipe_actions_summary">Still inn sveipe-handlinger for samtaler</string>
     <string name="settings_swipe_actions_right">Høyre-sveip</string>
     <string name="settings_swipe_actions_left">Venstre-sveip</string>
     <string name="settings_swipe_actions_change">Endring</string>
@@ -229,13 +202,10 @@
         <item>Mark unread</item>
     </string-array>
     <string name="settings_delivery_title">Leveringsbekreftelse</string>
-    <string name="settings_delivery_summary">Bekreft at melding ble sendt</string>
     <string name="settings_signature_title">Signatur</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>
     <string name="settings_unicode_title">Ta bort akutt-tegn</string>
-    <string name="settings_unicode_summary">Ta bort akutt-tegn fra utgående meldinger</string>
     <string name="settings_mobile_title">Kun mobilnummre</string>
-    <string name="settings_mobile_summary">Vis kun mobilnummre når du skriver ny melding</string>
     <string name="settings_auto_delete">Delete old messages automatically</string>
     <string name="settings_auto_delete_dialog_message">Messages will be deleted after the specified number of days</string>
     <string name="settings_auto_delete_dialog_hint">Number of days</string>
@@ -252,14 +222,11 @@
     <string name="settings_sync_title">Synkroniser meldinger</string>
     <string name="settings_sync_summary">Resynkroniser meldinger med Androids interne meldingslager</string>
     <string name="settings_about_title">Om Messaging</string>
-    <string name="settings_version">Versjon %s</string>
     <string name="settings_logging_enabled">Feillogg aktivert</string>
     <string name="settings_logging_disabled">Feillogg deaktivert</string>
-    <string name="settings_delay_duration_hint">Legg inn forsinkelse (i sekunder)</string>
     <string name="blocking_title">Blocking</string>
     <string name="blocking_drop_title">Forkast meldinger</string>
     <string name="blocking_drop_summary">Forkast meldinger fra blokkerte sendere istedenfor å skjule dem</string>
-    <string name="blocking_conversations">Blokkerte samtaler</string>
     <string name="blocking_manager_title">Blokkeringer</string>
     <string name="blocking_manager_qksms_summary">Innebygd blokkeringsfunksjon i Messaging</string>
     <string name="blocking_manager_call_blocker_summary">Block spam messages, numbers &amp; unknown calls with blacklist &amp; Schedule</string>
@@ -293,38 +260,9 @@
     <string name="about_contact_title">Kontakt</string>
     <string name="about_license_title">Lisens</string>
     <string name="about_copyright_title">Opphavsrett</string>
-    <string name="qksms_plus_description_title">Støtt utviklingen, aktiver alle funksjoner</string>
-    <string name="qksms_plus_description_summary">Du kan redde en sultende programmerer for bare %s</string>
     <!-- Substitutions are for price and currency. Ex: Lifetime upgrade for $1.99 USD -->
-    <string name="qksms_plus_upgrade">Oppdateringer på livstid for %1$s %2$s</string>
     <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
-    <string name="qksms_plus_upgrade_donate">Aktiver + donér for %1$s %2$s</string>
-    <string name="qksms_plus_thanks_title">Takk for at du støtter Messaging!</string>
-    <string name="qksms_plus_thanks_summary">Du har nå tilgang til alle funksjoner i Messaging</string>
-    <string name="qksms_plus_error">An error has occurred, please try again</string>
-    <string name="qksms_plus_free_title">Messaging er gratis for F-Droid-brukere. Om du ønsker å støtte utviklingen, kan du gjerne donere.</string>
     <string name="qksms_plus_donate">Donér med PayPal</string>
-    <string name="qksms_plus_coming_soon">Kommer snart</string>
-    <string name="qksms_plus_themes_title">Premium drakter</string>
-    <string name="qksms_plus_themes_summary">Aktiver vakre draktfarger som ikke er tilgjengelig i Material-design-paletten</string>
-    <string name="qksms_plus_emoji_title">Egne auto-emoji</string>
-    <string name="qksms_plus_emoji_summary">Lag egne auto-emoji snarveier</string>
-    <string name="qksms_plus_backup_title">Sikkerhetskopi av meldinger</string>
-    <string name="qksms_plus_backup_summary">Automatisk sikkerhetskopiering av dine meldinger. Slutt på bekymringer om å miste dine meldinger når du bytter telefon eller mister den</string>
-    <string name="qksms_plus_scheduled_title">Planlagte meldinger</string>
-    <string name="qksms_plus_scheduled_summary">Planlegg at meldinger sendes automatisk ved en tid og dato</string>
-    <string name="qksms_plus_delayed_title">Forsinket sending</string>
-    <string name="qksms_plus_delayed_summary">Vent noen sekunder før meldingen sendes</string>
-    <string name="qksms_plus_night_title">Automatisk nattmodus</string>
-    <string name="qksms_plus_night_summary">Aktiver nattmodus basert på tid på døgnet</string>
-    <string name="qksms_plus_blacklist_title">Avansert blokkering</string>
-    <string name="qksms_plus_blacklist_summary">Blokker meldinger som inneholder visse stikkord eller mønstre</string>
-    <string name="qksms_plus_forward_title">Auto-videresend</string>
-    <string name="qksms_plus_forward_summary">Videresend meldinger fra gitte avsendere automatisk</string>
-    <string name="qksms_plus_respond_title">Auto-svar</string>
-    <string name="qksms_plus_respond_summary">Svar på innkommende meldinger automatisk med et forhåndsdefinert svar</string>
-    <string name="qksms_plus_more_title">Mer</string>
-    <string name="qksms_plus_more_summary">Messaging er i stadig utvikling og ditt kjøp inkluderer alle fremtidige Messaging funksjoner!</string>
     <string name="widget_loading">Laster inn …</string>
     <string name="widget_more">Last inn flere samtaler</string>
     <string name="qkreply_menu_read">Mark read</string>
@@ -333,9 +271,6 @@
     <string name="qkreply_menu_expand">Vis mer</string>
     <string name="qkreply_menu_collapse">Vis mindre</string>
     <string name="qkreply_menu_view">Åpne samtale</string>
-    <string name="theme_material">Material</string>
-    <string name="theme_hex">HEX</string>
-    <string name="theme_apply">Bruk</string>
     <string-array name="notification_actions">
         <item>Ingen</item>
         <item>Archive</item>
@@ -351,11 +286,7 @@
     <string name="button_delete">Slett</string>
     <string name="button_save">Lagre</string>
     <string name="button_stop">Avbryt</string>
-    <string name="button_more">Mer</string>
-    <string name="button_set">Angi</string>
     <string name="button_undo">Angre</string>
-    <string name="toast_copied">Kopiert</string>
-    <string name="toast_qksms_plus">Du må aktivere Messaging for å bruke dette</string>
     <plurals name="notification_new_messages">
         <item quantity="one">Ny melding</item>
         <item quantity="other">%s nye meldinger</item>

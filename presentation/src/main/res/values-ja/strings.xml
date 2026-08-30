@@ -23,11 +23,8 @@
     <string name="title_archived">アーカイブ済み</string>
     <string name="title_settings">設定</string>
     <string name="title_notification_prefs">通知</string>
-    <string name="title_theme">テーマ</string>
     <string name="title_conversations">受信トレイを検索…</string>
     <string name="title_compose">名前または電話番号を入力</string>
-    <string name="setup_skip">スキップ</string>
-    <string name="setup_next">続行</string>
     <string name="menu_add_person">人物を追加</string>
     <string name="menu_call">通話</string>
     <string name="menu_info">詳細</string>
@@ -35,7 +32,6 @@
     <string name="compose_menu_share">共有</string>
     <string name="main_drawer_open_cd">ナビゲーションドロワーを開く</string>
     <string name="main_title_selected">%d 件を選択中</string>
-    <string name="main_menu_clear">消去</string>
     <string name="main_menu_archive">アーカイブ</string>
     <string name="main_menu_unarchive">アーカイブ解除</string>
     <string name="main_menu_delete">削除</string>
@@ -69,11 +65,6 @@
     <string name="drawer_settings">設定</string>
     <string name="drawer_help">ヘルプとフィードバック</string>
     <string name="drawer_invite">友達を招待</string>
-    <string name="drawer_plus_banner_summary">素敵な新機能を解放して、開発をサポート</string>
-    <string name="rate_title">Messaging をお楽みいただいていますか？</string>
-    <string name="rate_summary">Google Play で愛を共有して私たちを評価してください！</string>
-    <string name="rate_okay">OK！</string>
-    <string name="rate_dismiss">非表示</string>
     <string name="dialog_delete_title">削除</string>
     <plurals name="dialog_delete_message">
         <item quantity="other">本当に %d 件の会話を削除しますか？</item>
@@ -108,9 +99,6 @@
     <string name="compose_details_type">タイプ: %s</string>
     <string name="compose_details_from">差出人: %s</string>
     <string name="compose_details_to">宛先:%s</string>
-    <string name="compose_details_subject">件名: %s</string>
-    <string name="compose_details_priority">優先度: %s</string>
-    <string name="compose_details_size">サイズ: %s</string>
     <string name="compose_details_sent">送信: %s</string>
     <string name="compose_details_received">受信: %s</string>
     <string name="compose_details_delivered">配信: %s</string>
@@ -132,7 +120,6 @@
     <string name="info_copied_address">アドレスをコピーしました</string>
     <string name="info_name">会話のタイトル</string>
     <string name="info_notifications">通知</string>
-    <string name="info_theme">テーマ</string>
     <string name="info_archive">アーカイブ</string>
     <string name="info_unarchive">アーカイブ解除</string>
     <string name="info_block">ブロック</string>
@@ -143,8 +130,6 @@
     <string name="backup_title">バックアップと復元</string>
     <string name="backup_backing_up">メッセージをバックアップしています</string>
     <string name="backup_restoring">バックアップから復元</string>
-    <string name="backup_loading">読み込み中...</string>
-    <string name="backup_never">なし</string>
     <string name="backup_location_title">バックアップの場所</string>
     <string name="backup_location_summary">フォルダーを設定</string>
     <string name="backup_restore_title">復元</string>
@@ -152,7 +137,6 @@
     <string name="backup_restore_error_plus">バックアップと復元を使用するには Messaging のロックを解除してください</string>
     <string name="backup_restore_error_backup">バックアップ中…</string>
     <string name="backup_restore_error_restore">復元中…</string>
-    <string name="backup_restore_confirm_title">バックアップから復元</string>
     <string name="backup_restore_stop_title">復元を停止</string>
     <string name="backup_restore_stop_message">既に復元されたメッセージはあなたのデバイスに残ります</string>
     <string name="backup_select_location_rationale_title">バックアップの場所を選択</string>
@@ -179,24 +163,14 @@
     <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
     <string name="scheduled_empty_message_3_timestamp">12 月 23 日に送信</string>
     <string name="scheduled_compose_cd">メッセージを送信予約</string>
-    <string name="scheduled_options_title">送信予約されたメッセージ</string>
     <string-array name="scheduled_options">
         <item>今すぐ送る</item>
         <item>テキストをコピー</item>
         <item>削除</item>
     </string-array>
-    <string name="settings_category_appearance">外観</string>
     <string name="settings_category_general">全般</string>
     <string name="settings_category_qkreply">QK Reply</string>
-    <string name="settings_theme_title">テーマ</string>
-    <string name="settings_night_title">夜間モード</string>
-    <string name="settings_black_title">ピュアブラック夜間モード</string>
-    <string name="settings_night_start_title">開始時刻</string>
-    <string name="settings_night_end_title">終了時刻</string>
-    <string name="settings_automatic_colors_title">自動的に連絡先に色をつける</string>
     <string name="settings_text_size_title">フォントサイズ</string>
-    <string name="settings_system_font_title">システムフォントを使用する</string>
-    <string name="settings_auto_emoji_title">自動絵文字</string>
     <string name="settings_notifications_title">通知</string>
     <string name="settings_notifications_o_summary">タップしてカスタマイズ</string>
     <string name="settings_notification_actions_title">アクション</string>
@@ -214,7 +188,6 @@
     <string name="settings_qkreply_tap_dismiss_summary">ポップアップの外側をタップすると閉じます</string>
     <string name="settings_delayed_title">遅延送信</string>
     <string name="settings_swipe_actions">スワイプアクション</string>
-    <string name="settings_swipe_actions_summary">会話のスワイプアクションを設定</string>
     <string name="settings_swipe_actions_right">右スワイプ</string>
     <string name="settings_swipe_actions_left">左スワイプ</string>
     <string name="settings_swipe_actions_change">変更</string>
@@ -228,13 +201,10 @@
         <item>未読にする</item>
     </string-array>
     <string name="settings_delivery_title">配信確認</string>
-    <string name="settings_delivery_summary">メッセージが正常に送信されたことを確認します</string>
     <string name="settings_signature_title">署名</string>
     <string name="settings_signature_summary">メッセージの最後に署名を追加します</string>
     <string name="settings_unicode_title">アクセントの除去</string>
-    <string name="settings_unicode_summary">送信する SMS メッセージの文字からアクセントを削除します</string>
     <string name="settings_mobile_title">携帯電話番号のみ</string>
-    <string name="settings_mobile_summary">メッセージを作成するときは、携帯電話番号のみを表示します</string>
     <string name="settings_auto_delete">古いメッセージを自動的に削除</string>
     <string name="settings_auto_delete_dialog_message">指定された日数の後にメッセージが削除されます</string>
     <string name="settings_auto_delete_dialog_hint">日数</string>
@@ -250,14 +220,11 @@
     <string name="settings_sync_title">メッセージを同期</string>
     <string name="settings_sync_summary">メッセージをネイティブの Android SMS データベースと再同期します</string>
     <string name="settings_about_title">Messaging について</string>
-    <string name="settings_version">バージョン %s</string>
     <string name="settings_logging_enabled">デバッグログが有効</string>
     <string name="settings_logging_disabled">デバッグログが無効</string>
-    <string name="settings_delay_duration_hint">期間を入力してください (秒)</string>
     <string name="blocking_title">ブロック</string>
     <string name="blocking_drop_title">メッセージをドロップ</string>
     <string name="blocking_drop_summary">ブロックした送信者からの受信メッセージを非表示にする代わりにドロップします</string>
-    <string name="blocking_conversations">ブロックした会話</string>
     <string name="blocking_manager_title">ブロッキングマネージャー</string>
     <string name="blocking_manager_qksms_summary">Messaging の内蔵ブロック機能</string>
     <string name="blocking_manager_call_blocker_summary">ブラックリストにより迷惑メッセージ、番号、不明な通話をブロック</string>
@@ -289,38 +256,9 @@
     <string name="about_contact_title">お問い合わせ</string>
     <string name="about_license_title">ライセンス</string>
     <string name="about_copyright_title">著作権</string>
-    <string name="qksms_plus_description_title">開発をサポートして、すべての機能のロックを解除</string>
-    <string name="qksms_plus_description_summary">%s だけ飢えている開発者を助けることができます</string>
     <!-- Substitutions are for price and currency. Ex: Lifetime upgrade for $1.99 USD -->
-    <string name="qksms_plus_upgrade">%1$s %2$s で買い切りのアップグレード</string>
     <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
-    <string name="qksms_plus_upgrade_donate">%1$s %2$s でロック解除と寄付</string>
-    <string name="qksms_plus_thanks_title">Messaging を支援いただきありがとうございます！</string>
-    <string name="qksms_plus_thanks_summary">Messaging のすべての機能にアクセスできます</string>
-    <string name="qksms_plus_error">エラーが発生しました。もう一度やり直してください</string>
-    <string name="qksms_plus_free_title">Messaging は F-Droid ユーザーには無料です！開発をサポートしたい場合は、気軽に寄付をしてください。</string>
     <string name="qksms_plus_donate">PayPal で寄付</string>
-    <string name="qksms_plus_coming_soon">近日登場</string>
-    <string name="qksms_plus_themes_title">プレミアムテーマ</string>
-    <string name="qksms_plus_themes_summary">マテリアルデザインパレットで利用できない美しいテーマカラーのロックを解除します</string>
-    <string name="qksms_plus_emoji_title">カスタム自動絵文字</string>
-    <string name="qksms_plus_emoji_summary">カスタム自動絵文字のショートカットを作成します</string>
-    <string name="qksms_plus_backup_title">メッセージのバックアップ</string>
-    <string name="qksms_plus_backup_summary">メッセージを自動的にバックアップします。携帯電話を変更したり、お使いの携帯電話をなくしても、もう二度と履歴がなくなる心配はいりません</string>
-    <string name="qksms_plus_scheduled_title">送信予約メッセージ</string>
-    <string name="qksms_plus_scheduled_summary">メッセージが特定の日時に自動的に送信されるように予約する</string>
-    <string name="qksms_plus_delayed_title">遅延送信</string>
-    <string name="qksms_plus_delayed_summary">メッセージを送信する前に、数秒間待ちます</string>
-    <string name="qksms_plus_night_title">自動夜間モード</string>
-    <string name="qksms_plus_night_summary">時間に基づいて夜間モードを有効にします</string>
-    <string name="qksms_plus_blacklist_title">高度なブロック</string>
-    <string name="qksms_plus_blacklist_summary">キーワードを含む、またはパターンに一致するメッセージをブロックします</string>
-    <string name="qksms_plus_forward_title">自動転送</string>
-    <string name="qksms_plus_forward_summary">特定の差出人からのメッセージを自動的に転送します</string>
-    <string name="qksms_plus_respond_title">自動応答</string>
-    <string name="qksms_plus_respond_summary">あらかじめ設定された応答で、受信したメッセージに自動的に返信します</string>
-    <string name="qksms_plus_more_title">その他</string>
-    <string name="qksms_plus_more_summary">Messaging は活発に開発中で、購入にはすべての将来の Messaging 機能が含まれます！</string>
     <string name="widget_loading">読み込み中...</string>
     <string name="widget_more">さらに会話を表示</string>
     <string name="qkreply_menu_read">既読にする</string>
@@ -329,9 +267,6 @@
     <string name="qkreply_menu_expand">表示を増やす</string>
     <string name="qkreply_menu_collapse">表示を減らす</string>
     <string name="qkreply_menu_view">会話を開く</string>
-    <string name="theme_material">マテリアル</string>
-    <string name="theme_hex">16 進数</string>
-    <string name="theme_apply">適用</string>
     <string-array name="notification_actions">
         <item>なし</item>
         <item>アーカイブ</item>
@@ -347,11 +282,7 @@
     <string name="button_delete">削除</string>
     <string name="button_save">保存</string>
     <string name="button_stop">やめる</string>
-    <string name="button_more">さらに</string>
-    <string name="button_set">設定</string>
     <string name="button_undo">元に戻す</string>
-    <string name="toast_copied">コピーしました</string>
-    <string name="toast_qksms_plus">使用するには Messaging のロックを解除する必要があります</string>
     <plurals name="notification_new_messages">
         <item quantity="other">%s 件の新着メッセージ</item>
     </plurals>

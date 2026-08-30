@@ -23,11 +23,8 @@
     <string name="title_archived">Arhivirano</string>
     <string name="title_settings">Postavke</string>
     <string name="title_notification_prefs">Obavijesti</string>
-    <string name="title_theme">Tema</string>
     <string name="title_conversations">Pretraži poruke…</string>
     <string name="title_compose">Unesite ime ili broj</string>
-    <string name="setup_skip">Preskoči</string>
-    <string name="setup_next">Nastavi</string>
     <string name="menu_add_person">Dodaj osobu</string>
     <string name="menu_call">Nazovi</string>
     <string name="menu_info">Detalji</string>
@@ -35,7 +32,6 @@
     <string name="compose_menu_share">Podijeli</string>
     <string name="main_drawer_open_cd">Otvori navigacijsku ladicu</string>
     <string name="main_title_selected">%d odabrano</string>
-    <string name="main_menu_clear">Očisti</string>
     <string name="main_menu_archive">Arhiviraj</string>
     <string name="main_menu_unarchive">Dearhiviraj</string>
     <string name="main_menu_delete">Izbriši</string>
@@ -69,11 +65,6 @@
     <string name="drawer_settings">Postavke</string>
     <string name="drawer_help">Pomoć i povratne informacije</string>
     <string name="drawer_invite">Pozovi prijatelje</string>
-    <string name="drawer_plus_banner_summary">Otključajte čudesne nove značajke i podržite razvoj</string>
-    <string name="rate_title">Uživate u Messaging?</string>
-    <string name="rate_summary">Podijelite malo ljubavi i ocijenite nas na Google Playu!</string>
-    <string name="rate_okay">U REDU!</string>
-    <string name="rate_dismiss">ODBACI</string>
     <string name="dialog_delete_title">Izbriši</string>
     <plurals name="dialog_delete_message">
         <item quantity="one">Sigurno želite izbrisati ovaj razgovor?</item>
@@ -110,9 +101,6 @@
     <string name="compose_details_type">Vrsta: %s</string>
     <string name="compose_details_from">Od: %s</string>
     <string name="compose_details_to">Za: %s</string>
-    <string name="compose_details_subject">Predmet: %s</string>
-    <string name="compose_details_priority">Prioritet: %s</string>
-    <string name="compose_details_size">Veličina: %s</string>
     <string name="compose_details_sent">Poslano: %s</string>
     <string name="compose_details_received">Primljeno: %s</string>
     <string name="compose_details_delivered">Dostavljeno: %s</string>
@@ -134,7 +122,6 @@
     <string name="info_copied_address">Adresa kopirana</string>
     <string name="info_name">Naslov razgovora</string>
     <string name="info_notifications">Obavijesti</string>
-    <string name="info_theme">Tema</string>
     <string name="info_archive">Arhiviraj</string>
     <string name="info_unarchive">Dearhiviraj</string>
     <string name="info_block">Blokiraj</string>
@@ -145,8 +132,6 @@
     <string name="backup_title">Sigurnosno kopiranje i vraćanje</string>
     <string name="backup_backing_up">Sigurnosno kopiranje poruka</string>
     <string name="backup_restoring">Vraćanje podataka iz sig. kopije</string>
-    <string name="backup_loading">Učitavanje…</string>
-    <string name="backup_never">Nikad</string>
     <string name="backup_location_title">Backup location</string>
     <string name="backup_location_summary">Set folder</string>
     <string name="backup_restore_title">Vraćanje</string>
@@ -154,7 +139,6 @@
     <string name="backup_restore_error_plus">Otključajte Messaging za korištenje sig. kopiranja i vraćanja podataka</string>
     <string name="backup_restore_error_backup">Sigurno kopiranje u tijeku…</string>
     <string name="backup_restore_error_restore">Vraćanje podataka u tijeku…</string>
-    <string name="backup_restore_confirm_title">Vrati iz sigurnosne kopije</string>
     <string name="backup_restore_stop_title">Zaustavi vraćanje</string>
     <string name="backup_restore_stop_message">Poruke koje su već vraćene ostat će na vašem uređaju</string>
     <string name="backup_select_location_rationale_title">Select backup location</string>
@@ -181,24 +165,14 @@
     <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
     <string name="scheduled_empty_message_3_timestamp">Slanje 23. prosinca</string>
     <string name="scheduled_compose_cd">Zakaži poruku</string>
-    <string name="scheduled_options_title">Zakazana poruka</string>
     <string-array name="scheduled_options">
         <item>Pošalji sada</item>
         <item>Kopiraj tekst</item>
         <item>Izbriši</item>
     </string-array>
-    <string name="settings_category_appearance">Izgled</string>
     <string name="settings_category_general">Općenito</string>
     <string name="settings_category_qkreply">QK odgovor</string>
-    <string name="settings_theme_title">Tema</string>
-    <string name="settings_night_title">Noćni način</string>
-    <string name="settings_black_title">Potpuno crni noćni način</string>
-    <string name="settings_night_start_title">Vrijeme početka</string>
-    <string name="settings_night_end_title">Vrijeme završetka</string>
-    <string name="settings_automatic_colors_title">Automatske boje kontakata</string>
     <string name="settings_text_size_title">Veličina fonta</string>
-    <string name="settings_system_font_title">Koristi font sustava</string>
-    <string name="settings_auto_emoji_title">Automatski emoji</string>
     <string name="settings_notifications_title">Obavijesti</string>
     <string name="settings_notifications_o_summary">Dodirnite za prilagođavanje</string>
     <string name="settings_notification_actions_title">Radnje</string>
@@ -216,7 +190,6 @@
     <string name="settings_qkreply_tap_dismiss_summary">Dodirnite izvan skočnog prozora za zatvaranje</string>
     <string name="settings_delayed_title">Odgođeno slanje</string>
     <string name="settings_swipe_actions">Radnje poteza</string>
-    <string name="settings_swipe_actions_summary">Konfigurirajte radnje poteza za razgovore</string>
     <string name="settings_swipe_actions_right">Desni potez</string>
     <string name="settings_swipe_actions_left">Lijevi potez</string>
     <string name="settings_swipe_actions_change">PROMIJENI</string>
@@ -230,13 +203,10 @@
         <item>Označi kao nepročitano</item>
     </string-array>
     <string name="settings_delivery_title">Potvrde o dostavi</string>
-    <string name="settings_delivery_summary">Budite sigurni da su se poruke uspješno poslale</string>
     <string name="settings_signature_title">Potpis</string>
     <string name="settings_signature_summary">Dodajte potpis na kraj vaših poruka</string>
     <string name="settings_unicode_title">Uklanjanje naglasaka</string>
-    <string name="settings_unicode_summary">Uklonite naglaske sa znakova u odlaznim SMS porukama</string>
     <string name="settings_mobile_title">Samo mobilni brojevi</string>
-    <string name="settings_mobile_summary">Kod sastavljanja poruke, prikaži samo mobilne brojeve</string>
     <string name="settings_auto_delete">Izbriši stare poruke automatski</string>
     <string name="settings_auto_delete_dialog_message">Poruke bit će izbrisane nakon odabranog broja dana</string>
     <string name="settings_auto_delete_dialog_hint">Broj dana</string>
@@ -254,14 +224,11 @@
     <string name="settings_sync_title">Uskladi poruke</string>
     <string name="settings_sync_summary">Ponovno uskladite svoje poruke s Androidovom nativnom bazom SMS-ova</string>
     <string name="settings_about_title">O Messaging-u</string>
-    <string name="settings_version">Verzija %s</string>
     <string name="settings_logging_enabled">Omogućen zapisnik za ispravljanje grešaka</string>
     <string name="settings_logging_disabled">Onemogućen zapisnik za ispravljanje grešaka</string>
-    <string name="settings_delay_duration_hint">Unesite trajanje (sekunde)</string>
     <string name="blocking_title">Blokiranje</string>
     <string name="blocking_drop_title">Odbaci poruke</string>
     <string name="blocking_drop_summary">Odbacite dolazne poruke od blokiranih pošiljatelja umjesto da ih samo sakrivate</string>
-    <string name="blocking_conversations">Blokirani razgovori</string>
     <string name="blocking_manager_title">Upravitelj za blokiranje</string>
     <string name="blocking_manager_qksms_summary">Ugrađena funkcionalnost blokiranja u Messaging-u</string>
     <string name="blocking_manager_call_blocker_summary">Blokirajte neželjene poruke, brojeve i nepoznate pozive pomoću crne liste i zakazivanja</string>
@@ -297,38 +264,9 @@
     <string name="about_contact_title">Kontakt</string>
     <string name="about_license_title">Licencija</string>
     <string name="about_copyright_title">Autorska prava</string>
-    <string name="qksms_plus_description_title">Podržite razvoj, otključajte sve</string>
-    <string name="qksms_plus_description_summary">Možete spasiti izgladnjelog programera za samo %s</string>
     <!-- Substitutions are for price and currency. Ex: Lifetime upgrade for $1.99 USD -->
-    <string name="qksms_plus_upgrade">Doživotna nadogradnja za %1$s %2$s</string>
     <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
-    <string name="qksms_plus_upgrade_donate">Otključajte + donirajte za %1$s %2$s</string>
-    <string name="qksms_plus_thanks_title">Hvala vam za podržavanje Messaging!</string>
-    <string name="qksms_plus_thanks_summary">Sada imate pristup svim Messaging značajkama</string>
-    <string name="qksms_plus_error">Dogodila se greška, pokušajte ponovno</string>
-    <string name="qksms_plus_free_title">Messaging ke besplatan za korisnike F-Droida! Ako želite podržati razvoj, vrlo smo zahvalni na donacijama.</string>
     <string name="qksms_plus_donate">Donirajte putem PayPala</string>
-    <string name="qksms_plus_coming_soon">Uskoro dolazi</string>
-    <string name="qksms_plus_themes_title">Premium teme</string>
-    <string name="qksms_plus_themes_summary">Otključajte lijepe boje tema koje nisu dostupne na paleti materijalnog dizajna</string>
-    <string name="qksms_plus_emoji_title">Prilagođeni automatski emoji</string>
-    <string name="qksms_plus_emoji_summary">Stvorite prilagođene prečace za automatski emoji</string>
-    <string name="qksms_plus_backup_title">Sigurnosno kopiranje poruka</string>
-    <string name="qksms_plus_backup_summary">Automatski sigurnosno kopirajte svoje poruke. Nikad više nemojte brinuti zbog gubitka povijesti ako promijenite telefon ili ga izgubite</string>
-    <string name="qksms_plus_scheduled_title">Zakazane poruke</string>
-    <string name="qksms_plus_scheduled_summary">Zakažite poruke za automatsko slanje u specificirano vrijeme</string>
-    <string name="qksms_plus_delayed_title">Odgođeno slanje</string>
-    <string name="qksms_plus_delayed_summary">Pričekajte nekoliko sekundi prije slanja poruke</string>
-    <string name="qksms_plus_night_title">Automatski noćni način</string>
-    <string name="qksms_plus_night_summary">Omogućite noćni način prema dobi dana</string>
-    <string name="qksms_plus_blacklist_title">Napredno blokiranje</string>
-    <string name="qksms_plus_blacklist_summary">Blokirajte poruke koje sadrže ključne riječi ili obrasce</string>
-    <string name="qksms_plus_forward_title">Automatsko prosljeđivanje</string>
-    <string name="qksms_plus_forward_summary">Automatski proslijedite poruke određenih pošiljatelja</string>
-    <string name="qksms_plus_respond_title">Automatsko odgovaranje</string>
-    <string name="qksms_plus_respond_summary">Automatski odgovorite na poruke sa prilagođenim odgovorima</string>
-    <string name="qksms_plus_more_title"> Više</string>
-    <string name="qksms_plus_more_summary">Messaging aktivno se razvija i vaša kupnja sadržat će sve buduće Messaging značajke!</string>
     <string name="widget_loading">Učitavanje…</string>
     <string name="widget_more">Prikaži više razgovora</string>
     <string name="qkreply_menu_read">Označi kao pročitano</string>
@@ -337,9 +275,6 @@
     <string name="qkreply_menu_expand">Prikaži više</string>
     <string name="qkreply_menu_collapse">Prikaži manje</string>
     <string name="qkreply_menu_view">Otvori razgovor</string>
-    <string name="theme_material">Materijalna</string>
-    <string name="theme_hex">HEX</string>
-    <string name="theme_apply">Primijeni</string>
     <string-array name="notification_actions">
         <item>Nema</item>
         <item>Arhiviraj</item>
@@ -355,11 +290,7 @@
     <string name="button_delete">Izbriši</string>
     <string name="button_save">Spremi</string>
     <string name="button_stop">Zaustavi</string>
-    <string name="button_more"> Više</string>
-    <string name="button_set">Postavi</string>
     <string name="button_undo">Poništi</string>
-    <string name="toast_copied">Kopirano</string>
-    <string name="toast_qksms_plus">Morate otključati Messaging za korištenje ovog</string>
     <plurals name="notification_new_messages">
         <item quantity="one">Nova poruka</item>
         <item quantity="few">%s nove poruke</item>

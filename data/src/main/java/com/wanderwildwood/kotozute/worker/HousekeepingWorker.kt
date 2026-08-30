@@ -112,15 +112,26 @@ class HousekeepingWorker(appContext: Context, workerParams: WorkerParameters)
         // find saved message text files in cache dir
         applicationContext.cacheDir.listFiles { entry ->
             entry.isFile &&
-                    entry.name.startsWith(Constants.SAVED_MESSAGE_TEXT_FILE_PREFIX) &&
+                    (entry.name.startsWith(Constants.SAVED_MESSAGE_TEXT_FILE_PREFIX) ||
+                            entry.name.startsWith(Constants.LEGACY_SAVED_MESSAGE_TEXT_FILE_PREFIX)) &&
                     (entry.lastModified() < removeOlderThan)
         }?.forEach { it.delete() }  // delete message text file
 
+    /**
+     * The attachment folders left behind when a delayed send was cancelled.
+     *
+     * The `&&` before the age test was missing, which did not fail to compile: the name
+     * check became a statement on its own and the lambda returned the age test alone. So
+     * this matched *every* entry in the cache older than two hours and recursively deleted
+     * it -- Glide's thumbnails, the extracted emoji font, attachments still being composed
+     * -- rather than the handful of folders it names. It ran daily on an idle device, which
+     * is why nothing ever looked obviously broken.
+     */
     private fun removeOrphanedComposeDelayCancelledAttachments(removeOlderThan: Long) =
         // find dirs in cache dir
         applicationContext.cacheDir.listFiles { entry ->
             entry.isDirectory &&
-                    entry.name.startsWith(Constants.DELAY_CANCELLED_CACHED_ATTACHMENTS_FILE_PREFIX)
+                    entry.name.startsWith(Constants.DELAY_CANCELLED_CACHED_ATTACHMENTS_FILE_PREFIX) &&
                     (entry.lastModified() < removeOlderThan)
         }?.forEach { it.deleteRecursively() }  // recursively delete dir
 

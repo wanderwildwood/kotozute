@@ -23,11 +23,8 @@
     <string name="title_archived">Archiviert</string>
     <string name="title_settings">Einstellungen</string>
     <string name="title_notification_prefs">Benachrichtigungen</string>
-    <string name="title_theme">Erscheinungsbild</string>
     <string name="title_conversations">In Posteingang suchen…</string>
     <string name="title_compose">Verfassen</string>
-    <string name="setup_skip">Überspringen</string>
-    <string name="setup_next">Weiter</string>
     <string name="menu_add_person">Person hinzufügen</string>
     <string name="menu_call">Anrufen</string>
     <string name="menu_info">Details</string>
@@ -35,7 +32,6 @@
     <string name="compose_menu_share">Text teilen</string>
     <string name="main_drawer_open_cd">Navigationsmenü öffnen</string>
     <string name="main_title_selected">%d ausgewählt</string>
-    <string name="main_menu_clear">Zurücksetzen</string>
     <string name="main_menu_archive">Archivieren</string>
     <string name="main_menu_unarchive">Wiederherstellen</string>
     <string name="main_menu_delete">Löschen</string>
@@ -69,11 +65,6 @@
     <string name="drawer_settings">Einstellungen</string>
     <string name="drawer_help">Hilfe &amp; Feedback</string>
     <string name="drawer_invite">Freunde einladen</string>
-    <string name="drawer_plus_banner_summary">Schalte erstaunliche neue Funktionen frei und unterstütze die Entwicklung</string>
-    <string name="rate_title">Gefällt dir Messaging?</string>
-    <string name="rate_summary">Teile etwas von deiner Liebe und gib uns einen Stern auf GitHub!</string>
-    <string name="rate_okay">OKAY!</string>
-    <string name="rate_dismiss">VERWERFEN</string>
     <string name="dialog_delete_title">Löschen</string>
     <plurals name="dialog_delete_message">
         <item quantity="one">Bist du sicher, dass du diese Unterhaltung löschen möchtest?</item>
@@ -109,9 +100,6 @@
     <string name="compose_details_type">Typ: %s</string>
     <string name="compose_details_from">Von: %s</string>
     <string name="compose_details_to">An: %s</string>
-    <string name="compose_details_subject">Betreff: %s</string>
-    <string name="compose_details_priority">Priorität: %s</string>
-    <string name="compose_details_size">Größe: %s</string>
     <string name="compose_details_sent">Gesendet: %s</string>
     <string name="compose_details_received">Erhalten: %s</string>
     <string name="compose_details_delivered">Zugestellt: %s</string>
@@ -133,7 +121,6 @@
     <string name="info_copied_address">Adresse kopiert</string>
     <string name="info_name">Unterhaltungstitel</string>
     <string name="info_notifications">Benachrichtigungen</string>
-    <string name="info_theme">Erscheinungsbild</string>
     <string name="info_archive">Archivieren</string>
     <string name="info_unarchive">Wiederherstellen</string>
     <string name="info_block">Blockieren</string>
@@ -144,8 +131,6 @@
     <string name="backup_title">Sichern und Wiederherstellen</string>
     <string name="backup_backing_up">Sichere Nachrichten</string>
     <string name="backup_restoring">Aus Sicherung wiederherstellen</string>
-    <string name="backup_loading">Lade…</string>
-    <string name="backup_never">Niemals</string>
     <string name="backup_location_title">Sicherungsort</string>
     <string name="backup_location_summary">Ordner festlegen</string>
     <string name="backup_restore_title">Wiederherstellen</string>
@@ -153,7 +138,6 @@
     <string name="backup_restore_error_plus">Bitte Messaging freischalten, um die Sicherung und Wiederherstellung zu nutzen</string>
     <string name="backup_restore_error_backup">Sicherung wird durchgeführt…</string>
     <string name="backup_restore_error_restore">Wiederherstellung wird durchgeführt…</string>
-    <string name="backup_restore_confirm_title">Aus einer Sicherung wiederherstellen</string>
     <string name="backup_restore_stop_title">Wiederherstellung abbrechen</string>
     <string name="backup_restore_stop_message">Nachrichten, die bereits wiederhergestellt wurden, werden auf deinem Gerät bleiben</string>
     <string name="backup_select_location_rationale_title">Sicherungsort auswählen</string>
@@ -180,24 +164,14 @@
     <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
     <string name="scheduled_empty_message_3_timestamp">Am 23. Dezember senden </string>
     <string name="scheduled_compose_cd">Eine Nachricht planen</string>
-    <string name="scheduled_options_title">Geplante Nachricht</string>
     <string-array name="scheduled_options">
         <item>Sofort senden</item>
         <item>Text kopieren</item>
         <item>Löschen</item>
     </string-array>
-    <string name="settings_category_appearance">Aussehen</string>
     <string name="settings_category_general">Allgemein</string>
     <string name="settings_category_qkreply">Schnellantwort</string>
-    <string name="settings_theme_title">Erscheinungsbild</string>
-    <string name="settings_night_title">Nachtmodus</string>
-    <string name="settings_black_title">Rein schwarzer Nachtmodus</string>
-    <string name="settings_night_start_title">Anfang</string>
-    <string name="settings_night_end_title">Ende</string>
-    <string name="settings_automatic_colors_title">Automatische Kontaktfarben</string>
     <string name="settings_text_size_title">Schriftgröße</string>
-    <string name="settings_system_font_title">Systemschriftart verwenden</string>
-    <string name="settings_auto_emoji_title">Automatische Emoji</string>
     <string name="settings_notifications_title">Benachrichtigungen</string>
     <string name="settings_notifications_o_summary">Zum Anpassen antippen</string>
     <string name="settings_notification_actions_title">Aktionen</string>
@@ -215,7 +189,6 @@
     <string name="settings_qkreply_tap_dismiss_summary">Tippe außerhalb des Popups, um es zu schließen</string>
     <string name="settings_delayed_title">Verzögertes Senden</string>
     <string name="settings_swipe_actions">Wischgesten</string>
-    <string name="settings_swipe_actions_summary">Konfiguriere Wischgesten für Unterhaltungen</string>
     <string name="settings_swipe_actions_right">Nach rechts wischen</string>
     <string name="settings_swipe_actions_left">Nach links wischen</string>
     <string name="settings_swipe_actions_change">ÄNDERN</string>
@@ -229,13 +202,10 @@
         <item>Als ungelesen markieren</item>
     </string-array>
     <string name="settings_delivery_title">Zustellbestätigungen</string>
-    <string name="settings_delivery_summary">Bestätigung, dass Nachrichten erfolgreich gesendet wurden</string>
     <string name="settings_signature_title">Signatur</string>
     <string name="settings_signature_summary">Füge eine Signatur am Ende deiner Nachrichten hinzu</string>
     <string name="settings_unicode_title">Akzente entfernen</string>
-    <string name="settings_unicode_summary">Akzente aus Zeichen in ausgehenden SMS-Nachrichten entfernen</string>
     <string name="settings_mobile_title">Nur Mobilfunknummern</string>
-    <string name="settings_mobile_summary">Beim Verfassen einer Nachricht nur Mobilfunknummern anzeigen</string>
     <string name="settings_auto_delete">Alte Nachrichten automatisch löschen</string>
     <string name="settings_auto_delete_dialog_message">Nachrichten werden nach der angegebenen Anzahl von Tagen gelöscht</string>
     <string name="settings_auto_delete_dialog_hint">Anzahl der Tage</string>
@@ -252,14 +222,11 @@
     <string name="settings_sync_title">Nachrichten synchronisieren</string>
     <string name="settings_sync_summary">Nachrichten mit der Android SMS-Datenbank abgleichen</string>
     <string name="settings_about_title">Über Messaging</string>
-    <string name="settings_version">Version %s</string>
     <string name="settings_logging_enabled">Protokollierung zur Fehlerbehebung aktiviert</string>
     <string name="settings_logging_disabled">Protokollierung zur Fehlerbehebung deaktiviert</string>
-    <string name="settings_delay_duration_hint">Dauer eingeben (in Sekunden)</string>
     <string name="blocking_title">Blockieren</string>
     <string name="blocking_drop_title">Nachrichten verwerfen</string>
     <string name="blocking_drop_summary">Eingehende Nachrichten von blockierten Absendern verwefen, anstatt sie auszublenden</string>
-    <string name="blocking_conversations">Blockierte Unterhaltungen</string>
     <string name="blocking_manager_title">Blockiermanager</string>
     <string name="blocking_manager_qksms_summary">In Messaging integrierte Blockierfunktion</string>
     <string name="blocking_manager_call_blocker_summary">Spam-Nachrichten und Nummern &amp; unbekannte Anrufe mit Sperrliste &amp; Zeitplan blockieren</string>
@@ -293,38 +260,9 @@
     <string name="about_contact_title">Kontakt</string>
     <string name="about_license_title">Lizenz</string>
     <string name="about_copyright_title">Urheberrecht</string>
-    <string name="qksms_plus_description_title">Unterstütze die Entwicklung, schalte alle Funktionen frei</string>
-    <string name="qksms_plus_description_summary">Rette einen hungernden Entwickler für nur %s</string>
     <!-- Substitutions are for price and currency. Ex: Lifetime upgrade for $1.99 USD -->
-    <string name="qksms_plus_upgrade">Lebenslanges Upgrade für %1$s %2$s</string>
     <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
-    <string name="qksms_plus_upgrade_donate">Entsperren &amp; Spenden für %1$s %2$s</string>
-    <string name="qksms_plus_thanks_title">Vielen Dank für die Unterstützung von Messaging!</string>
-    <string name="qksms_plus_thanks_summary">Du kannst jetzt alle Messaging Funktionen verwenden</string>
-    <string name="qksms_plus_error">Ein Fehler ist aufgetreten, bitte versuche es erneut</string>
-    <string name="qksms_plus_free_title">Messaging ist für Nutzer von F-Droid kostenfrei! Spende gerne um die Entwicklung zu Unterstützen.</string>
     <string name="qksms_plus_donate">Spenden per PayPal</string>
-    <string name="qksms_plus_coming_soon">Demnächst verfügbar</string>
-    <string name="qksms_plus_themes_title">Premium-Erscheinungsbilder</string>
-    <string name="qksms_plus_themes_summary">Wundervolle Farben, die kein Teil der Material Design-Farbpalette sind, für das Erscheinungsbild freischalten</string>
-    <string name="qksms_plus_emoji_title">Benutzerdefinierte Auto-Emoji</string>
-    <string name="qksms_plus_emoji_summary">Benutzerdefinierte Auto-Emoji-Verknüpfungen erstellen</string>
-    <string name="qksms_plus_backup_title">Nachrichtensicherung</string>
-    <string name="qksms_plus_backup_summary">Sichere Deine Nachrichten automatisch. Solltest Du Dein Handy wechseln oder es verlieren, musst Du Dir keine Sorgen mehr machen</string>
-    <string name="qksms_plus_scheduled_title">Geplante Nachrichten</string>
-    <string name="qksms_plus_scheduled_summary">Den automatischen Versand von Nachrichten zu einem bestimmen Zeitpunkt planen</string>
-    <string name="qksms_plus_delayed_title">Verzögertes Senden</string>
-    <string name="qksms_plus_delayed_summary">Wartet einige Sekunden, bevor deine Nachricht gesendet wird</string>
-    <string name="qksms_plus_night_title">Automatischer Nachtmodus</string>
-    <string name="qksms_plus_night_summary">Nachtmodus basierend auf der Uhrzeit aktivieren</string>
-    <string name="qksms_plus_blacklist_title">Erweitertes Blockieren</string>
-    <string name="qksms_plus_blacklist_summary">Nachrichten die bestimmte Wörter oder Muster enthalten blockieren</string>
-    <string name="qksms_plus_forward_title">Automatische Weiterleitung</string>
-    <string name="qksms_plus_forward_summary">Nachrichten von bestimmten Absendern automatisch weiterleiten</string>
-    <string name="qksms_plus_respond_title">Automatische Antwort</string>
-    <string name="qksms_plus_respond_summary">Eingehende Nachrichten werden mit einer voreingestellten Antwort beantwortet</string>
-    <string name="qksms_plus_more_title">Mehr</string>
-    <string name="qksms_plus_more_summary">Messaging wird aktiv weiterentwickelt und dein Erwerb wird alle zukünftigen Funktionen enthalten!</string>
     <string name="widget_loading">Lädt…</string>
     <string name="widget_more">Weitere Unterhaltungen anzeigen</string>
     <string name="qkreply_menu_read">Als gelesen markieren</string>
@@ -333,9 +271,6 @@
     <string name="qkreply_menu_expand">Mehr anzeigen</string>
     <string name="qkreply_menu_collapse">Weniger anzeigen</string>
     <string name="qkreply_menu_view">Unterhaltung öffnen</string>
-    <string name="theme_material">Material</string>
-    <string name="theme_hex">HEX</string>
-    <string name="theme_apply">Übernehmen</string>
     <string-array name="notification_actions">
         <item>Nichts</item>
         <item>Archiv</item>
@@ -351,11 +286,7 @@
     <string name="button_delete">Löschen</string>
     <string name="button_save">Speichern</string>
     <string name="button_stop">Stop</string>
-    <string name="button_more">Mehr</string>
-    <string name="button_set">OK</string>
     <string name="button_undo">Rückgängig</string>
-    <string name="toast_copied">Kopiert</string>
-    <string name="toast_qksms_plus">Für diese Funktion muss Messaging freigeschalten werden</string>
     <plurals name="notification_new_messages">
         <item quantity="one">Neue Nachricht</item>
         <item quantity="other">%s neue Nachrichten</item>
@@ -414,7 +345,6 @@
     <string name="menu_mms_part_open">Extern öffnen</string>
     <string name="main_menu_select_all">Alle auswählen</string>
     <string name="main_menu_send_now">Jetzt senden</string>
-    <string name="main_menu_edit_message">Nachricht bearbeiten</string>
     <string name="main_menu_rename_conversation">Unterhaltung umbenennen</string>
     <string name="main_sender_draft">Entwurf: %s</string>
     <string name="scheduled_menu_send_now">Jetzt senden</string>
@@ -453,15 +383,12 @@
     <string name="clipboard_unable_to_copy_to">In Zwischenablage kopieren nicht möglich</string>
     <string name="scheduled_send_cd">Diese Nachricht planen</string>
     <string name="attachment_missing">Fehlt</string>
-    <string name="settings_system_show_stt_title">„Sprache-zu-Text“-Knopf anzeigen</string>
     <string name="settings_notification_previews_summary">Name und Nachricht anzeigen</string>
     <string name="settings_notification_silent_title">Stumm, wenn kein Kontakt</string>
     <string name="settings_notification_silent_summary">Stummschalten von Benachrichtigungen für Nachrichten ohne Empfänger in deinen Kontakten</string>
     <string name="settings_unread_at_top_title">Ungelesene oben</string>
-    <string name="settings_unread_at_top_summary">Ungelesene Unterhaltungen oben anzeigen</string>
     <string name="settings_mms_weblink_title">Linkverarbeitung in Nachrichten</string>
     <string name="settings_disable_screenshots_title">Screenshots deaktivieren</string>
-    <string name="settings_diable_screenshots_summary">Verhindert, dass dein Betriebssystem und andere Apps Screenshots der App machen.</string>
     <string name="message_content_filters_title">Nachrichteninhaltsfilter</string>
     <string name="message_content_filters_empty">Hier werden deine Nachrichteninhaltsfilter angezeigt</string>
     <string name="message_content_filters_add_cd">Neuen Filter erstellen</string>
@@ -489,6 +416,5 @@
     <string name="messageLinkHandling_dialog_positive">Ja, Link öffnen</string>
     <string name="messageLinkHandling_dialog_negative">Nein</string>
     <string name="error_stt_toast">Leider ist beim Laden des Sprache-zu-Text-Anbieters ein Fehler aufgetreten.</string>
-    <string name="stt_toast_extra_prompt">Sprich deine Nachricht</string>
     <string name="messages_text_share_file_error">Ups! Beim Teilen ist etwas schief gelaufen</string>
 </resources>

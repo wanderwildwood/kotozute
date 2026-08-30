@@ -23,11 +23,8 @@
     <string name="title_archived">Архив</string>
     <string name="title_settings">Настройки</string>
     <string name="title_notification_prefs">Уведомления</string>
-    <string name="title_theme">Тема</string>
     <string name="title_conversations">Поиск во входящих…</string>
     <string name="title_compose">Написать</string>
-    <string name="setup_skip">Пропустить</string>
-    <string name="setup_next">Продолжить</string>
     <string name="menu_add_person">Добавить контакт</string>
     <string name="menu_call">Позвонить</string>
     <string name="menu_info">Подробности</string>
@@ -35,7 +32,6 @@
     <string name="compose_menu_share">Поделиться</string>
     <string name="main_drawer_open_cd">Открыть боковое меню</string>
     <string name="main_title_selected">%d выбрано</string>
-    <string name="main_menu_clear">Очистить</string>
     <string name="main_menu_archive">Архивировать</string>
     <string name="main_menu_unarchive">Разархивировать</string>
     <string name="main_menu_delete">Удалить</string>
@@ -69,11 +65,6 @@
     <string name="drawer_settings">Настройки</string>
     <string name="drawer_help">Помощь и обратная связь</string>
     <string name="drawer_invite">Пригласить друзей</string>
-    <string name="drawer_plus_banner_summary">Разблокировать новые удивительные функции и поддержать разработку</string>
-    <string name="rate_title">Нравится Messaging?</string>
-    <string name="rate_summary">Поделитесь любовью и оцените нас в Google Play!</string>
-    <string name="rate_okay">OK!</string>
-    <string name="rate_dismiss">ОТКЛОНИТЬ</string>
     <string name="dialog_delete_title">Удалить</string>
     <plurals name="dialog_delete_message">
         <item quantity="one">Уверены, что хотите удалить %d беседу?</item>
@@ -111,9 +102,6 @@
     <string name="compose_details_type">Тип: %s</string>
     <string name="compose_details_from">От: %s</string>
     <string name="compose_details_to">Кому: %s</string>
-    <string name="compose_details_subject">Тема: %s</string>
-    <string name="compose_details_priority">Приоритет: %s</string>
-    <string name="compose_details_size">Размер: %s</string>
     <string name="compose_details_sent">Отправлено: %s</string>
     <string name="compose_details_received">Получено: %s</string>
     <string name="compose_details_delivered">Доставлено: %s</string>
@@ -135,7 +123,6 @@
     <string name="info_copied_address">Адрес скопирован</string>
     <string name="info_name">Название разговора</string>
     <string name="info_notifications">Уведомления</string>
-    <string name="info_theme">Тема</string>
     <string name="info_archive">Архивировать</string>
     <string name="info_unarchive">Разархивировать</string>
     <string name="info_block">Заблокировать</string>
@@ -146,8 +133,6 @@
     <string name="backup_title">Резервное копирование</string>
     <string name="backup_backing_up">Резервное копирование сообщений</string>
     <string name="backup_restoring">Восстановление из резервной копии</string>
-    <string name="backup_loading">Загрузка…</string>
-    <string name="backup_never">Никогда</string>
     <string name="backup_location_title">Путь резервной копии</string>
     <string name="backup_location_summary">Выбор папки</string>
     <string name="backup_restore_title">Восстановление</string>
@@ -155,7 +140,6 @@
     <string name="backup_restore_error_plus">Пожалуйста, разблокируйте Messaging для использования резервного копирования и восстановления</string>
     <string name="backup_restore_error_backup">Выполняется резервное копирование…</string>
     <string name="backup_restore_error_restore">Выполняется восстановление…</string>
-    <string name="backup_restore_confirm_title">Восстановление из резервной копии</string>
     <string name="backup_restore_stop_title">Остановить восстановление</string>
     <string name="backup_restore_stop_message">Сообщения, которые уже были восстановлены останутся на вашем устройстве</string>
     <string name="backup_select_location_rationale_title">Выбор папки резервной копии</string>
@@ -182,24 +166,14 @@
     <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
     <string name="scheduled_empty_message_3_timestamp">Отправка 23 декабря </string>
     <string name="scheduled_compose_cd">Запланировать сообщение</string>
-    <string name="scheduled_options_title">Запланированное сообщение</string>
     <string-array name="scheduled_options">
         <item>Отправить сейчас</item>
         <item>Копировать текст</item>
         <item>Удалить</item>
     </string-array>
-    <string name="settings_category_appearance">Внешний вид</string>
     <string name="settings_category_general">Общее</string>
     <string name="settings_category_qkreply">QK-ответ</string>
-    <string name="settings_theme_title">Тема</string>
-    <string name="settings_night_title">Ночной режим</string>
-    <string name="settings_black_title">Полностью чёрный ночной режим</string>
-    <string name="settings_night_start_title">Время начала</string>
-    <string name="settings_night_end_title">Время окончания</string>
-    <string name="settings_automatic_colors_title">Автоматические цвета контактов</string>
     <string name="settings_text_size_title">Размер шрифта</string>
-    <string name="settings_system_font_title">Использовать системный шрифт</string>
-    <string name="settings_auto_emoji_title">Автоматические emoji</string>
     <string name="settings_notifications_title">Уведомления</string>
     <string name="settings_notifications_o_summary">Нажмите для настройки</string>
     <string name="settings_notification_actions_title">Действия</string>
@@ -217,7 +191,6 @@
     <string name="settings_qkreply_tap_dismiss_summary">Нажмите за пределами всплывающего окна, чтобы закрыть его</string>
     <string name="settings_delayed_title">Задержка перед отправкой</string>
     <string name="settings_swipe_actions">Действия жестами</string>
-    <string name="settings_swipe_actions_summary">Настройка действий жестами для бесед</string>
     <string name="settings_swipe_actions_right">Жест вправо</string>
     <string name="settings_swipe_actions_left">Жест влево</string>
     <string name="settings_swipe_actions_change">ИЗМЕНИТЬ</string>
@@ -231,13 +204,10 @@
         <item>Пометить непрочитанным</item>
     </string-array>
     <string name="settings_delivery_title">Отчёты о доставке</string>
-    <string name="settings_delivery_summary">Подтверждение успешной отправки сообщений</string>
     <string name="settings_signature_title">Подпись</string>
     <string name="settings_signature_summary">Добавлять подпись в конец ваших сообщений</string>
     <string name="settings_unicode_title">Удалять акценты</string>
-    <string name="settings_unicode_summary">Удаление акцентов с символов в исходящих SMS-сообщениях</string>
     <string name="settings_mobile_title">Только мобильные номера</string>
-    <string name="settings_mobile_summary">При составлении сообщения показывать только мобильные номера</string>
     <string name="settings_auto_delete">Удалять старые сообщения автоматически</string>
     <string name="settings_auto_delete_dialog_message">Сообщения будут удалены после указанного количества дней</string>
     <string name="settings_auto_delete_dialog_hint">Количество дней</string>
@@ -256,14 +226,11 @@
     <string name="settings_sync_title">Синхронизация сообщений</string>
     <string name="settings_sync_summary">Принудительная синхронизация сообщений с собственной базой данных SMS Android</string>
     <string name="settings_about_title">О Messaging</string>
-    <string name="settings_version">Версия %s</string>
     <string name="settings_logging_enabled">Ведение журнала отладки включено</string>
     <string name="settings_logging_disabled">Ведение журнала отладки отключено</string>
-    <string name="settings_delay_duration_hint">Введите продолжительность (в секундах)</string>
     <string name="blocking_title">Блокировка</string>
     <string name="blocking_drop_title">Удалять сообщения</string>
     <string name="blocking_drop_summary">Удалять входящие сообщения от заблокированных отправителей, а не скрывать их</string>
-    <string name="blocking_conversations">Заблокированные беседы</string>
     <string name="blocking_manager_title">Управление блокировкой</string>
     <string name="blocking_manager_qksms_summary">Встроенная функция блокировки Messaging</string>
     <string name="blocking_manager_call_blocker_summary">Чёрный список с возможность работы по расписанию для блокировки сообщений со спамом, звонков с определённых и неизвестных номеров</string>
@@ -301,38 +268,9 @@
     <string name="about_contact_title">Контакт</string>
     <string name="about_license_title">Лицензия</string>
     <string name="about_copyright_title">Авторское право</string>
-    <string name="qksms_plus_description_title">Поддержать развитие, разблокировать всё</string>
-    <string name="qksms_plus_description_summary">Вы можете спасти голодающего разработчика всего за %s</string>
     <!-- Substitutions are for price and currency. Ex: Lifetime upgrade for $1.99 USD -->
-    <string name="qksms_plus_upgrade">Пожизненное обновление за %1$s %2$s</string>
     <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
-    <string name="qksms_plus_upgrade_donate">Разблокировать + пожертвовать %1$s %2$s</string>
-    <string name="qksms_plus_thanks_title">Спасибо за поддержку Messaging!</string>
-    <string name="qksms_plus_thanks_summary">Теперь у вас есть доступ ко всем функциям Messaging</string>
-    <string name="qksms_plus_error">Произошла ошибка. Попробуйте ещё раз</string>
-    <string name="qksms_plus_free_title">Messaging является бесплатным для пользователей F-Droid! Если вы хотите поддержать развитие приложения, сделайте пожертвование.</string>
     <string name="qksms_plus_donate">Пожертвовать через PayPal</string>
-    <string name="qksms_plus_coming_soon">Скоро</string>
-    <string name="qksms_plus_themes_title">Премиальные темы</string>
-    <string name="qksms_plus_themes_summary">Разблокируйте красивые цвета темы, недоступные в палитре Material Design</string>
-    <string name="qksms_plus_emoji_title">Пользовательские авто-emoji</string>
-    <string name="qksms_plus_emoji_summary">Создайте ярлык пользовательских авто-emoji</string>
-    <string name="qksms_plus_backup_title">Резервирование сообщений</string>
-    <string name="qksms_plus_backup_summary">Автоматически создавайте резервные копии сообщений. Не беспокойтесь о потере истории, если вы поменяете или потеряете телефон</string>
-    <string name="qksms_plus_scheduled_title">Запланированные сообщения</string>
-    <string name="qksms_plus_scheduled_summary">Запланированные сообщения для автоматической отправки в определённое время и дату</string>
-    <string name="qksms_plus_delayed_title">Отложенная отправка</string>
-    <string name="qksms_plus_delayed_summary">Выжидание несколько секунд перед отправкой сообщения</string>
-    <string name="qksms_plus_night_title">Автоматический ночной режим</string>
-    <string name="qksms_plus_night_summary">Включать ночной режим, основываясь на времени суток</string>
-    <string name="qksms_plus_blacklist_title">Расширенная блокировка</string>
-    <string name="qksms_plus_blacklist_summary">Блокировать сообщения, содержащие ключевые слова или соответствующие шаблонам</string>
-    <string name="qksms_plus_forward_title">Автоматическая пересылка</string>
-    <string name="qksms_plus_forward_summary">Автоматическая пересылка сообщений от определённых отправителей</string>
-    <string name="qksms_plus_respond_title">Автоматический ответ</string>
-    <string name="qksms_plus_respond_summary">Автоматически отвечать на входящие сообщения предустановленным ответом</string>
-    <string name="qksms_plus_more_title">Ещё</string>
-    <string name="qksms_plus_more_summary">Messaging находится в активной разработке и ваша покупка будет включать в себя все функции Messaging в будущем!</string>
     <string name="widget_loading">Загрузка…</string>
     <string name="widget_more">Посмотреть больше бесед</string>
     <string name="qkreply_menu_read">Прочитано</string>
@@ -341,9 +279,6 @@
     <string name="qkreply_menu_expand">Показать ещё</string>
     <string name="qkreply_menu_collapse">Показать меньше</string>
     <string name="qkreply_menu_view">Открыть беседу</string>
-    <string name="theme_material">Material</string>
-    <string name="theme_hex">HEX</string>
-    <string name="theme_apply">Применить</string>
     <string-array name="notification_actions">
         <item>Нет</item>
         <item>В архив</item>
@@ -359,11 +294,7 @@
     <string name="button_delete">Удалить</string>
     <string name="button_save">Сохранить</string>
     <string name="button_stop">Остановить</string>
-    <string name="button_more">Ещё</string>
-    <string name="button_set">Задать</string>
     <string name="button_undo">Отмена</string>
-    <string name="toast_copied">Скопировано</string>
-    <string name="toast_qksms_plus">Вы должны разблокировать Messaging, чтобы использовать</string>
     <plurals name="notification_new_messages">
         <item quantity="one">%s новое сообщение</item>
         <item quantity="few">%s новых сообщения</item>
@@ -421,7 +352,6 @@
     </string-array>
     <string name="main_menu_select_all">Выбрать всё</string>
     <string name="main_menu_send_now">Отправить сейчас</string>
-    <string name="main_menu_edit_message">Редактировать сообщение</string>
     <string name="main_menu_rename_conversation">Переименовать разговор</string>
     <string name="main_sender_draft">Черновик: %s</string>
     <string name="scheduled_menu_send_now">Отправить сейчас</string>
@@ -467,15 +397,12 @@
     <string name="menu_mms_part_forward">Переслать</string>
     <string name="menu_mms_part_open">Открыть снаружи</string>
     <string name="attachment_missing">Отсутствует</string>
-    <string name="settings_system_show_stt_title">Показать кнопку перевода речи в текст</string>
     <string name="settings_notification_previews_summary">Показать имя и сообщение</string>
     <string name="settings_notification_silent_title">Заглушить, если не в контактах</string>
     <string name="settings_notification_silent_summary">Заглушает уведомления для сообщений без получателей из вашего списка контактов</string>
     <string name="settings_unread_at_top_title">Непрочитанные сверху</string>
-    <string name="settings_unread_at_top_summary">Показывать непрочитанные разговоры наверху</string>
     <string name="settings_mms_weblink_title">Обрабатывать ссылки в сообщениях</string>
     <string name="settings_disable_screenshots_title">Отключить Скриншоты</string>
-    <string name="settings_diable_screenshots_summary">Запретить вашей ОС и другим приложениям делать скриншоты приложения.</string>
     <string name="message_content_filters_title">Фильтры содержимого сообщений</string>
     <string name="message_content_filters_empty">Здесь появятся ваши фильтры содержимого сообщений</string>
     <string name="message_content_filters_add_cd">Создать новый фильтр</string>
@@ -507,6 +434,5 @@
     <string name="messageLinkHandling_dialog_positive">Да, открыть ссылку</string>
     <string name="messageLinkHandling_dialog_negative">Нет</string>
     <string name="error_stt_toast">Извините, произошла ошибка при загрузке провайдера Speech-To-Text.</string>
-    <string name="stt_toast_extra_prompt">Произнесите своё сообщение</string>
     <string name="messages_text_share_file_error">Упс! Что-то пошло не так во время обмена</string>
 </resources>

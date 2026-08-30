@@ -20,7 +20,14 @@ package com.wanderwildwood.kotozute.util
 
 class Constants {
     companion object {
-        const val SAVED_MESSAGE_TEXT_FILE_PREFIX = "QuikSmsText-"
+        const val SAVED_MESSAGE_TEXT_FILE_PREFIX = "MessagingText-"
+
+        /**
+         * What the same files were called before this app had its own name. Nothing
+         * writes it any more; the housekeeping sweep still looks for it, or a cache
+         * written by an older copy would never be tidied away.
+         */
+        const val LEGACY_SAVED_MESSAGE_TEXT_FILE_PREFIX = "QuikSmsText-"
         const val SCHEDULED_MESSAGE_FILE_PREFIX = "scheduled-"
         const val DELAY_CANCELLED_CACHED_ATTACHMENTS_FILE_PREFIX = "delaycancelled-"
     }

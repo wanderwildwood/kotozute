@@ -18,6 +18,16 @@
         app:textSize="primary"
         tools:text="Messaging 1.5.3" />
 
+    <!-- What it sends, before the licence. This app serves a web page off the phone, which
+         is not what a stranger would assume of a texting app, and the house rule is that
+         the ones which cannot be safely assumed say so here. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="@string/about_collects"
+        app:textSize="secondary" />
+
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

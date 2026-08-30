@@ -32,12 +32,10 @@ interface ConversationInfoView : QkViewContract<ConversationInfoState> {
     fun archiveClicks(): Observable<*>
     fun blockClicks(): Observable<*>
     fun deleteClicks(): Observable<*>
-    fun confirmDelete(): Observable<*>
     fun mediaClicks(): Observable<Long>
 
     fun showNameDialog(name: String)
     fun showBlockingDialog(conversations: List<Long>, block: Boolean)
     fun requestDefaultSms()
-    fun showDeleteDialog()
 
 }

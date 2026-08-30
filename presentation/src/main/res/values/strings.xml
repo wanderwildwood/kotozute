@@ -187,7 +187,7 @@
     <string name="info_block">Block</string>
     <string name="info_unblock">Unblock</string>
     <string name="info_delete">Delete conversation</string>
-    <string name="info_delete_confirm">Delete conversation — tap again to confirm</string>
+    <string name="info_delete_confirm">Delete conversation — tap again</string>
 
     <string name="gallery_error">Couldn\'t load media</string>
     <string name="gallery_toast_saved">Saved to gallery</string>
@@ -312,7 +312,7 @@
     <string name="settings_desktop_sync_tailscale_only_summary">Refuse connections that aren\'t on your tailnet</string>
     <string name="settings_desktop_sync_reset_title">Reset Desktop Sync link</string>
     <string name="settings_desktop_sync_reset_summary">Replace the token in your link</string>
-    <string name="settings_desktop_sync_reset_armed">Reset link — tap again to confirm</string>
+    <string name="settings_desktop_sync_reset_armed">Reset link — tap again</string>
     <string name="settings_desktop_sync_reset_armed_summary">Any bookmark or open tab on the old link stops working</string>
     <string name="settings_desktop_sync_reset_done">New Desktop Sync link generated</string>
     <!-- Settings categories: the loose options are grouped behind these.

@@ -30,6 +30,7 @@
 
     <com.wanderwildwood.kotozute.common.widget.AvatarView
         android:id="@+id/avatar"
+        android:visibility="gone"
         android:layout_width="40dp"
         android:layout_height="40dp"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -47,6 +48,7 @@
         app:layout_constraintEnd_toStartOf="@id/add"
         app:layout_constraintHorizontal_bias="0"
         app:layout_constraintStart_toEndOf="@id/avatar"
+        app:layout_goneMarginStart="12dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_chainStyle="packed"
         tools:text="Moez Bhatti" />

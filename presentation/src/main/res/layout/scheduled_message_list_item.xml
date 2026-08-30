@@ -29,6 +29,7 @@
 
     <com.wanderwildwood.kotozute.common.widget.GroupAvatarView
         android:id="@+id/avatars"
+        android:visibility="gone"
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:layout_gravity="top"
@@ -46,6 +47,7 @@
         android:layout_marginEnd="16dp"
         android:textStyle="bold"
         app:layout_constraintStart_toEndOf="@id/avatars"
+        app:layout_goneMarginStart="12dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_chainStyle="packed"
         app:textSize="secondary"

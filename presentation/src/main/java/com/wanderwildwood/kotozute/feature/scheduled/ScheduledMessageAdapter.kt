@@ -76,9 +76,8 @@ class ScheduledMessageAdapter @Inject constructor(
     override fun onBindViewHolder(holder: QkBindingViewHolder<ScheduledMessageListItemBinding>, position: Int) {
         val message = getItem(position) ?: return
 
-        // GroupAvatarView only accepts recipients, so map the phone numbers to recipients
-        holder.binding.avatars.recipients =
-            message.recipients.map { address -> Recipient(address = address) }
+        // The avatar is gone from the row, so there is nothing to fill -- and this was the
+        // one that cost most, building a Recipient per address to hand to a hidden view.
 
         holder.binding.recipients.text = message.recipients.joinToString(",") { address ->
             contactCache[address]?.name?.takeIf { it.isNotBlank() } ?: address

@@ -73,7 +73,7 @@ class BlockedMessagesAdapter @Inject constructor(
 
         holder.containerView.isActivated = isSelected(conversation.id)
 
-        holder.binding.avatars.recipients = conversation.recipients
+        // The avatar is gone from the row, so there is nothing to fill.
         holder.binding.title.collapseEnabled = conversation.recipients.size > 1
         holder.binding.title.text = conversation.getTitle()
         holder.binding.date.text = dateFormatter.getConversationTimestamp(conversation.date)

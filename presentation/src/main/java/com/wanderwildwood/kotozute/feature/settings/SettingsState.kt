@@ -46,5 +46,9 @@ data class SettingsState(
     val syncProgress: SyncRepository.SyncProgress = SyncRepository.SyncProgress.Idle,
     val desktopSyncSummary: String = "",
     val desktopSyncEnabled: Boolean = false,
-    val desktopSyncTailscaleOnly: Boolean = true
+    val desktopSyncTailscaleOnly: Boolean = true,
+    val signalPaired: Boolean = false,
+    val signalBridgeSummary: String = "",
+    val signalEnabled: Boolean = false,
+    val signalStatusSummary: String = ""
 )

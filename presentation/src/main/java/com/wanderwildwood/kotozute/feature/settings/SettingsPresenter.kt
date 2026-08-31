@@ -37,6 +37,8 @@ import io.reactivex.schedulers.Schedulers
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
+import com.wanderwildwood.kotozute.repository.SignalRepository
+import android.text.format.DateUtils
 import javax.inject.Inject
 
 class SettingsPresenter @Inject constructor(
@@ -46,12 +48,25 @@ class SettingsPresenter @Inject constructor(
     private val messageRepo: MessageRepository,
     private val navigator: Navigator,
     private val prefs: Preferences,
+    private val signalRepo: SignalRepository,
     private val syncMessages: SyncMessages
 ) : QkPresenter<SettingsView, SettingsState>(SettingsState()) {
 
     init {
         disposables += prefs.black.asObservable()
                 .subscribe { black -> newState { copy(black = black) } }
+
+        disposables += signalRepo.connectionState()
+                .subscribe { conn ->
+                    newState {
+                        copy(
+                            signalPaired = conn.configured,
+                            signalEnabled = conn.enabled,
+                            signalBridgeSummary = signalBridgeSummary(conn.configured),
+                            signalStatusSummary = signalStatusSummary(conn)
+                        )
+                    }
+                }
 
         disposables += prefs.notifications().asObservable()
                 .subscribe { enabled -> newState { copy(notificationsEnabled = enabled) } }
@@ -168,6 +183,9 @@ class SettingsPresenter @Inject constructor(
                         R.id.categoryDesktopSync ->
                             view.showSection(R.id.sectionDesktop, R.string.settings_category_desktop_sync)
 
+                        R.id.categorySignal ->
+                            view.showSection(R.id.sectionSignal, R.string.settings_category_signal)
+
                         R.id.archived -> navigator.showArchived()
 
                         R.id.scheduled -> navigator.showScheduled(null)
@@ -201,6 +219,14 @@ class SettingsPresenter @Inject constructor(
                             prefs.desktopSyncTailscaleOnly.set(!prefs.desktopSyncTailscaleOnly.get())
 
                         R.id.desktopSyncReset -> view.askDesktopSyncReset()
+
+                        R.id.signalPair -> view.showSignalPairDialog()
+
+                        // Enabling is only offered once a bridge is paired, so this
+                        // switch cannot put Signal into a configured-but-broken state.
+                        R.id.signalEnabled -> signalRepo.setEnabled(!prefs.signalEnabled.get())
+
+                        R.id.signalUnpair -> view.askSignalUnpair()
 
                         R.id.unreadAtTop -> prefs.unreadAtTop.set(!prefs.unreadAtTop.get())
 
@@ -291,6 +317,49 @@ class SettingsPresenter @Inject constructor(
         view.desktopSyncResetConfirmed()
             .autoDisposable(view.scope())
             .subscribe { DesktopSyncService.resetToken(context) }
+
+        view.signalPairPayload()
+            .autoDisposable(view.scope())
+            .subscribe { payload ->
+                if (signalRepo.pair(payload)) {
+                    signalRepo.setEnabled(true)
+                } else {
+                    view.showSignalPairFailed()
+                }
+            }
+
+        view.signalUnpairConfirmed()
+            .autoDisposable(view.scope())
+            .subscribe { signalRepo.unpair() }
+    }
+
+    private fun signalBridgeSummary(paired: Boolean): String {
+        if (!paired) return context.getString(R.string.settings_signal_pair_summary)
+        val host = prefs.signalBridgeHost.get()
+        val port = prefs.signalBridgePort.get()
+        return context.getString(R.string.settings_signal_paired_summary, "$host:$port")
+    }
+
+    /**
+     * Say what is actually true. Receiving degrades softly -- messages queue on Signal's
+     * servers while the bridge is away -- but sending simply cannot happen, so the line
+     * names read-only rather than implying something is on its way.
+     */
+    private fun signalStatusSummary(conn: SignalRepository.ConnectionState): String {
+        val last = when (val t = conn.lastSyncedAt) {
+            0L -> context.getString(R.string.settings_signal_status_never)
+            else -> context.getString(
+                R.string.settings_signal_status_last_synced,
+                DateUtils.getRelativeTimeSpanString(t).toString()
+            )
+        }
+        return when {
+            !conn.bridgeReachable ->
+                context.getString(R.string.settings_signal_status_no_bridge) + " · " + last
+            !conn.signalConnected ->
+                context.getString(R.string.settings_signal_status_no_signal) + " · " + last
+            else -> context.getString(R.string.settings_signal_status_ok) + " · " + last
+        }
     }
 
     /**

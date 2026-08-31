@@ -80,6 +80,11 @@
                 android:layout_height="wrap_content"
                 app:title="@string/settings_category_desktop_sync" />
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/categorySignal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_category_signal" />
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categoryStorage"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -261,6 +266,46 @@
                 android:visibility="gone"
                 app:summary="@string/settings_desktop_sync_reset_summary"
                 app:title="@string/settings_desktop_sync_reset_title" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/sectionSignal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalPair"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_signal_pair_summary"
+                app:title="@string/settings_signal_pair_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalEnabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_enabled_summary"
+                app:title="@string/settings_signal_enabled_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:title="@string/settings_signal_status_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalUnpair"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_unpair_summary"
+                app:title="@string/settings_signal_unpair_title" />
 
         </LinearLayout>
 

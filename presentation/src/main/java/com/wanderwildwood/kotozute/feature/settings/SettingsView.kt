@@ -32,6 +32,8 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun mmsSizeSelected(): Observable<Int>
     fun messageLinkHandlingSelected(): Observable<Int>
     fun desktopSyncResetConfirmed(): Observable<*>
+    fun signalPairPayload(): Observable<String>
+    fun signalUnpairConfirmed(): Observable<*>
 
     fun showTextSizePicker()
     fun showDelayDurationDialog()
@@ -42,6 +44,9 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showMessageLinkHandlingDialogPicker()
     fun showDesktopSyncLinkDialog(url: String?)
     fun askDesktopSyncReset()
+    fun showSignalPairDialog()
+    fun showSignalPairFailed()
+    fun askSignalUnpair()
     fun showSection(container: Int, title: Int)
     fun showSwipeActions()
 }

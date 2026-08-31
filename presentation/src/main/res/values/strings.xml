@@ -304,6 +304,26 @@
     <string name="settings_desktop_sync_title">Desktop Sync</string>
     <string name="settings_desktop_sync_summary_off">Text from your computer in a browser</string>
     <string name="settings_category_desktop_sync">Desktop Sync</string>
+
+    <string name="settings_category_signal">Signal</string>
+    <string name="settings_signal_pair_title">Connect a bridge</string>
+    <string name="settings_signal_pair_summary">Signal needs a bridge running on a computer that stays on</string>
+    <string name="settings_signal_paired_summary">Paired with %s</string>
+    <string name="settings_signal_pair_dialog_title">Paste the pairing link</string>
+    <string name="settings_signal_pair_dialog_hint">kotozute-bridge://…</string>
+    <string name="settings_signal_pair_failed">That is not a pairing link</string>
+    <string name="settings_signal_enabled_title">Show Signal conversations</string>
+    <string name="settings_signal_enabled_summary">Signal threads start empty and fill from today; older messages stay in Signal</string>
+    <string name="settings_signal_status_title">Connection</string>
+    <string name="settings_signal_status_ok">Connected</string>
+    <string name="settings_signal_status_no_bridge">Cannot reach the bridge — Signal is read-only</string>
+    <string name="settings_signal_status_no_signal">Bridge is up but not connected to Signal — read-only</string>
+    <string name="settings_signal_status_never">Not synced yet</string>
+    <string name="settings_signal_status_last_synced">Last synced %s</string>
+    <string name="settings_signal_unpair_title">Forget this bridge</string>
+    <string name="settings_signal_unpair_summary">Removes the pairing and every Signal message on this phone</string>
+    <string name="settings_signal_unpair_armed">Forget this bridge — tap again</string>
+    <string name="settings_signal_unpair_armed_summary">Signal messages here are deleted; the bridge keeps its own copy</string>
     <string name="settings_desktop_sync_link_title">Show link</string>
     <string name="settings_desktop_sync_link_summary">Open this on your computer</string>
     <string name="settings_desktop_sync_link_bookmark">Bookmark it — the address stays the same.</string>

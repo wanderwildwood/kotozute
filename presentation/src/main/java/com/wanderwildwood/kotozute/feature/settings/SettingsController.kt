@@ -26,6 +26,7 @@ import android.text.format.DateFormat
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.View
+import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
@@ -90,6 +91,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val signatureSubject: Subject<String> = PublishSubject.create()
     private val autoDeleteSubject: Subject<Int> = PublishSubject.create()
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
+    private val signalPairSubject: Subject<String> = PublishSubject.create()
+    private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
     private val aboutLongClickSubject: Subject<Unit> = PublishSubject.create()
 
 
@@ -158,7 +161,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     private fun sectionContainers() = listOf(
             binding.sectionRoot, binding.sectionDisplay,
-            binding.sectionSending, binding.sectionStorage, binding.sectionDesktop)
+            binding.sectionSending, binding.sectionStorage, binding.sectionDesktop,
+            binding.sectionSignal)
 
     override fun handleBack(): Boolean {
         if (openSection != 0 && openSection != binding.sectionRoot.id) {
@@ -172,6 +176,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
 
+    override fun signalPairPayload(): Observable<String> = signalPairSubject
+
+    override fun signalUnpairConfirmed(): Observable<*> = signalUnpairSubject
+
     private companion object {
         /** How long an armed row stays armed. Birding's ConfirmingRow uses the same five seconds. */
         const val ARM_TIMEOUT_MS = 5000L
@@ -180,6 +188,16 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     /** Whether the reset row is armed, and the callback that stands it back down. */
     private var resetArmed = false
     private val disarmRunnable = Runnable { disarmReset() }
+
+    private var unpairArmed = false
+    private val disarmUnpairRunnable = Runnable { disarmUnpair() }
+
+    private fun disarmUnpair() {
+        unpairArmed = false
+        binding.signalUnpair.removeCallbacks(disarmUnpairRunnable)
+        binding.signalUnpair.title = activity?.getString(R.string.settings_signal_unpair_title).orEmpty()
+        binding.signalUnpair.summary = activity?.getString(R.string.settings_signal_unpair_summary)
+    }
 
     private fun disarmReset() {
         resetArmed = false
@@ -220,6 +238,14 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.desktopSyncTailscaleOnly.setVisible(state.desktopSyncEnabled)
         binding.desktopSyncTailscaleOnly.checkbox.isChecked = state.desktopSyncTailscaleOnly
         binding.desktopSyncReset.setVisible(state.desktopSyncEnabled)
+
+        binding.signalPair.summary = state.signalBridgeSummary
+        binding.signalEnabled.setVisible(state.signalPaired)
+        binding.signalEnabled.checkbox.isChecked = state.signalEnabled
+        binding.signalUnpair.setVisible(state.signalPaired)
+        // The status line only means anything once Signal is actually switched on.
+        binding.signalStatus.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalStatus.summary = state.signalStatusSummary
 
         binding.unreadAtTop.checkbox.isChecked = state.unreadAtTopEnabled
 
@@ -323,6 +349,44 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.desktopSyncReset.title = activity?.getString(R.string.settings_desktop_sync_reset_armed).orEmpty()
         binding.desktopSyncReset.summary = activity?.getString(R.string.settings_desktop_sync_reset_armed_summary)
         binding.desktopSyncReset.postDelayed(disarmRunnable, ARM_TIMEOUT_MS)
+    }
+
+    /**
+     * Pairing is paste-only rather than typed: the payload carries a 43-character token
+     * and a 64-character fingerprint, and neither is something to key in on a phone.
+     * Run `kotozute-bridge --pairing` on the bridge host to print it.
+     */
+    override fun showSignalPairDialog() {
+        val input = EditText(activity!!).apply {
+            setHint(R.string.settings_signal_pair_dialog_hint)
+            setSingleLine(false)
+            maxLines = 4
+        }
+        AlertDialog.Builder(activity!!)
+                .setTitle(R.string.settings_signal_pair_dialog_title)
+                .setView(input)
+                .setNegativeButton(R.string.button_cancel, null)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    signalPairSubject.onNext(input.text.toString())
+                }
+                .show()
+    }
+
+    override fun showSignalPairFailed() {
+        Toast.makeText(activity, R.string.settings_signal_pair_failed, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Arm-and-confirm, for the same reason the reset row is: it destroys messages. */
+    override fun askSignalUnpair() {
+        if (unpairArmed) {
+            disarmUnpair()
+            signalUnpairSubject.onNext(Unit)
+            return
+        }
+        unpairArmed = true
+        binding.signalUnpair.title = activity?.getString(R.string.settings_signal_unpair_armed).orEmpty()
+        binding.signalUnpair.summary = activity?.getString(R.string.settings_signal_unpair_armed_summary)
+        binding.signalUnpair.postDelayed(disarmUnpairRunnable, ARM_TIMEOUT_MS)
     }
 
     override fun showSwipeActions() {

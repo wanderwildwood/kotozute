@@ -37,7 +37,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 15
+        const val SCHEMA_VERSION: Long = 16
     }
 
     @SuppressLint("ApplySharedPref")
@@ -305,6 +305,36 @@ class QkRealmMigration @Inject constructor(
                     msg.setBoolean("mmsDelivered", false)
                     msg.setBoolean("mmsReadByRecipient", false)
                 }
+
+            version++
+        }
+
+        if (version == 15L) {
+            // Signal lives in its own tables. Putting it in Message/Conversation would
+            // hand it to removeOldMessages(), which empties both on every full sync.
+            realm.schema.create("SignalMessage")
+                .addField("id", String::class.java, FieldAttribute.PRIMARY_KEY, FieldAttribute.REQUIRED)
+                .addField("seq", Long::class.java, FieldAttribute.INDEXED, FieldAttribute.REQUIRED)
+                .addField("threadKey", String::class.java, FieldAttribute.INDEXED, FieldAttribute.REQUIRED)
+                .addField("date", Long::class.java, FieldAttribute.INDEXED, FieldAttribute.REQUIRED)
+                .addField("senderUuid", String::class.java, FieldAttribute.REQUIRED)
+                .addField("senderNumber", String::class.java, FieldAttribute.REQUIRED)
+                .addField("outgoing", Boolean::class.java, FieldAttribute.REQUIRED)
+                .addField("body", String::class.java, FieldAttribute.REQUIRED)
+                .addField("groupId", String::class.java, FieldAttribute.REQUIRED)
+                .addField("quoteTs", Long::class.java, FieldAttribute.REQUIRED)
+                .addField("read", Boolean::class.java, FieldAttribute.REQUIRED)
+                .addField("source", String::class.java, FieldAttribute.REQUIRED)
+
+            realm.schema.create("SignalThread")
+                .addField("threadKey", String::class.java, FieldAttribute.PRIMARY_KEY, FieldAttribute.REQUIRED)
+                .addField("kind", String::class.java, FieldAttribute.REQUIRED)
+                .addField("title", String::class.java, FieldAttribute.REQUIRED)
+                .addField("counterpartUuid", String::class.java, FieldAttribute.REQUIRED)
+                .addField("counterpartNumber", String::class.java, FieldAttribute.REQUIRED)
+                .addField("lastTs", Long::class.java, FieldAttribute.REQUIRED)
+                .addField("unread", Int::class.java, FieldAttribute.REQUIRED)
+                .addField("archived", Boolean::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

@@ -115,6 +115,19 @@ class Preferences @Inject constructor(
     val desktopSyncEnabled = rxPrefs.getBoolean("desktopSyncEnabled", false)
     val desktopSyncToken = rxPrefs.getString("desktopSyncToken", "")
     val desktopSyncTailscaleOnly = rxPrefs.getBoolean("desktopSyncTailscaleOnly", true)
+
+    // Signal, via a kotozute-bridge. Off unless a bridge has actually been paired:
+    // the toggle is the result of a working setup, not a switch that can be flipped
+    // into a broken state.
+    val signalEnabled = rxPrefs.getBoolean("signalEnabled", false)
+    val signalBridgeHost = rxPrefs.getString("signalBridgeHost", "")
+    val signalBridgePort = rxPrefs.getInteger("signalBridgePort", 8422)
+    val signalBridgeToken = rxPrefs.getString("signalBridgeToken", "")
+    val signalBridgeFingerprint = rxPrefs.getString("signalBridgeFingerprint", "")
+    /** Highest bridge seq we hold. Sync asks for everything after it. */
+    val signalCursor = rxPrefs.getLong("signalCursor", 0L)
+    /** When the bridge was last reachable, for the honest "last synced" line. */
+    val signalLastSync = rxPrefs.getLong("signalLastSync", 0L)
     val textSize = rxPrefs.getInteger("textSize", TEXT_SIZE_LARGE)
     val blockingManager = rxPrefs.getInteger("blockingManager", BLOCKING_MANAGER_QKSMS)
     val drop = rxPrefs.getBoolean("drop", false)

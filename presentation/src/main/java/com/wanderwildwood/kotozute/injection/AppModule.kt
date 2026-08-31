@@ -82,6 +82,8 @@ import com.wanderwildwood.kotozute.repository.MessageRepository
 import com.wanderwildwood.kotozute.repository.MessageRepositoryImpl
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepositoryImpl
+import com.wanderwildwood.kotozute.repository.SignalRepository
+import com.wanderwildwood.kotozute.repository.SignalRepositoryImpl
 import com.wanderwildwood.kotozute.repository.SyncRepository
 import com.wanderwildwood.kotozute.repository.SyncRepositoryImpl
 import com.wanderwildwood.kotozute.worker.InjectionWorkerFactory
@@ -197,6 +199,10 @@ class AppModule(private var application: Application) {
 
     @Provides
     fun provideMessageRepository(repository: MessageRepositoryImpl): MessageRepository = repository
+
+
+    @Provides
+    fun provideSignalRepository(repository: SignalRepositoryImpl): SignalRepository = repository
 
     @Provides
     fun provideScheduledMessagesRepository(repository: ScheduledMessageRepositoryImpl): ScheduledMessageRepository = repository

@@ -44,6 +44,7 @@ import com.wanderwildwood.kotozute.manager.PermissionManager
 import com.wanderwildwood.kotozute.model.ScheduledMessage
 import javax.inject.Inject
 import javax.inject.Singleton
+import timber.log.Timber
 
 @Singleton
 // This fork's own repo. Upstream QUIK/QKSMS attribution lives in the README credits,
@@ -75,16 +76,49 @@ class Navigator @Inject constructor(
      */
     /**
      * This won't work unless we use startActivityForResult
+     *
+     * Everything here is guarded, because this is the one path that only ever runs when we
+     * are *not* the default SMS app -- so a phone where any of it fails takes the app down
+     * on the first screen, and only for the people who haven't chosen it yet. A ROM can
+     * leave out RoleManager, or ship no activity for either request, and one caller (the
+     * send button) reaches this off the main thread.
      */
     fun showDefaultSmsDialog(context: Activity) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = context.getSystemService(RoleManager::class.java) as RoleManager
-            val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS)
-            context.startActivityForResult(intent, 42389)
-        } else {
-            val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-            intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, context.packageName)
-            context.startActivity(intent)
+        context.runOnUiThread {
+            val roleIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                context.getSystemService(RoleManager::class.java)
+                    ?.createRequestRoleIntent(RoleManager.ROLE_SMS)
+            } else {
+                null
+            }
+
+            if (roleIntent != null) {
+                try {
+                    context.startActivityForResult(roleIntent, 42389)
+                    return@runOnUiThread
+                } catch (e: ActivityNotFoundException) {
+                    Timber.w(e, "No activity for the SMS role request")
+                }
+            }
+
+            // Pre-Q phones only ever had this one, and it is the fallback everywhere else.
+            val changeDefault = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
+                .putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, context.packageName)
+
+            try {
+                context.startActivity(changeDefault)
+                return@runOnUiThread
+            } catch (e: ActivityNotFoundException) {
+                Timber.w(e, "No activity for the change-default-SMS request")
+            }
+
+            // Nothing will ask on this phone's behalf, so send them to the list they can
+            // set it from themselves rather than dying with no explanation.
+            try {
+                context.startActivity(Intent(Settings.ACTION_SETTINGS))
+            } catch (e: ActivityNotFoundException) {
+                Timber.w(e, "No settings activity either; leaving the default SMS app alone")
+            }
         }
     }
 

@@ -174,7 +174,16 @@ class ComposeViewModel @Inject constructor(
             .distinctUntilChanged()
             .doOnNext { newState { copy(loading = true) } }
             .observeOn(Schedulers.io())  // background thread for possible long telephony running
-            .doOnNext { addresses -> conversationRepo.getOrCreateConversation(addresses) }
+            .doOnNext { addresses ->
+                // null when the provider won't give us a thread id, which is what happens
+                // without READ_SMS -- a permission the default-SMS role grants and nothing
+                // else does. Nothing downstream will ever emit for a conversation that was
+                // never created, so stop the spinner here rather than leave the screen
+                // reading "Loading" for as long as it is open.
+                if (conversationRepo.getOrCreateConversation(addresses) == null) {
+                    newState { copy(loading = false) }
+                }
+            }
             .observeOn(AndroidSchedulers.mainThread())
             .switchMap { addresses ->
                 // monitors convos and triggers when wanted convo is present
@@ -202,7 +211,15 @@ class ComposeViewModel @Inject constructor(
             .filter { conversation ->
                 conversation.isValid.also { if (!it) newState { copy(hasError = true) } }
             }
-            .subscribe(conversation::onNext)
+            // The doOnError above logs and stops the spinner, but a stream that ends in
+            // error still needs somewhere to put the error: without this arm it reached
+            // RxJava's default handler as OnErrorNotImplementedException and killed the
+            // app. Nothing here is worth a crash -- the screen has a title and a keyboard
+            // whether or not the conversation resolved.
+            .subscribe(conversation::onNext) { e ->
+                Timber.e(e, "Error while opening the conversation")
+                newState { copy(loading = false) }
+            }
 
         if (addresses.isNotEmpty())
             selectedChips.onNext(addresses.map { address -> Recipient(address = address) })

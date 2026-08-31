@@ -135,9 +135,18 @@ class MainViewModel @Inject constructor(
     override fun bindView(view: MainView) {
         super.bindView(view)
 
-        when {
-            !permissionManager.isDefaultSms() -> view.requestDefaultSms()
-            !permissionManager.hasReadSms() || !permissionManager.hasContacts() -> view.requestPermissions()
+        // The SMS permissions are granted by the role, not by us -- dumpsys shows them
+        // GRANTED_BY_ROLE on the default app -- so taking the role is still the best first
+        // question and the only one worth asking here. But it used to be the ONLY question:
+        // this was a single `when`, and on a phone where we are not the default app its
+        // first branch swallowed the second, so we never asked for READ_SMS or contacts
+        // either. Then the first tap on a conversation read the SMS provider without them
+        // and the SecurityException took the whole app down. Hence the second ask below,
+        // once the role screen has closed.
+        if (!permissionManager.isDefaultSms()) {
+            view.requestDefaultSms()
+        } else if (!permissionManager.hasReadSms() || !permissionManager.hasContacts()) {
+            view.requestPermissions()
         }
 
 
@@ -168,6 +177,21 @@ class MainViewModel @Inject constructor(
             .doOnNext { defaultSms -> newState { copy(defaultSms = defaultSms) } }
             .autoDisposable(view.scope())
             .subscribe()
+
+        // Ask for the permissions ourselves if the role didn't bring them. The first resume
+        // is our own, underneath the role screen we just opened, so it is skipped; the next
+        // one is the user coming back from it. Asked once per screen, because a second
+        // dialog after a considered "no" is nagging, and the banner along the bottom is
+        // still there to be tapped.
+        var askedForPermissions = false
+        view.activityResumedIntent
+            .filter { resumed -> resumed }
+            .skip(1)
+            .filter { !askedForPermissions }
+            .filter { !permissionManager.hasReadSms() || !permissionManager.hasContacts() }
+            .doOnNext { askedForPermissions = true }
+            .autoDisposable(view.scope())
+            .subscribe { view.requestPermissions() }
 
         // If the SMS Permission state changes, reflect it in the State
         view.activityResumedIntent

@@ -23,6 +23,7 @@ import android.provider.Telephony
 import android.text.TextUtils
 import android.util.Patterns
 import java.util.regex.Pattern
+import timber.log.Timber
 
 class TelephonyCompat {
     companion object {
@@ -34,8 +35,20 @@ class TelephonyCompat {
             return getOrCreateThreadId(context, listOf(recipient))
         }
 
+        /**
+         * 0 when the provider won't answer. Reading it needs READ_SMS, which arrives with
+         * the default-SMS role and not otherwise, so on a phone where the role was declined
+         * this throws -- and it used to throw all the way out through an RxJava chain with
+         * no error handler, killing the app on the first tap of a conversation. Callers
+         * already treat 0 as "no thread", which is the truth here.
+         */
         fun getOrCreateThreadId(context: Context, recipients: Collection<String>): Long {
-            return Telephony.Threads.getOrCreateThreadId(context, recipients.toSet())
+            return try {
+                Telephony.Threads.getOrCreateThreadId(context, recipients.toSet())
+            } catch (e: SecurityException) {
+                Timber.w(e, "No permission to read the SMS provider for a thread id")
+                0L
+            }
         }
 
         private fun extractAddrSpec(address: String): String {

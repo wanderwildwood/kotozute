@@ -78,7 +78,30 @@ private fun RecyclerView.turnPage(forward: Boolean) {
     val page = height - paddingTop - paddingBottom
     if (page <= 0) return
     scrollBy(0, if (forward) page else -page)
-    // Whatever row the page landed part-way through comes fully into view, so the page opens
-    // on a whole one and carries a line of overlap from the page before.
-    getChildAt(0)?.let { first -> scrollBy(0, first.top) }
+
+    // Two places the row-edge rule has to give way, both of them because the pull that buys the
+    // edge costs a row, and here the list cannot afford one.
+    //
+    // The end is the first. A page turn near the bottom scrolls only as far as there is list
+    // left, and the pull would push the last message's final lines back under the compose bar —
+    // where the next swipe cannot reach them either, because it lands in exactly the same
+    // place. The last page opens mid-row and shows the end of the thread.
+    if (!canScrollVertically(if (forward) 1 else -1)) return
+
+    val first = getChildAt(0) ?: return
+
+    // A bubble taller than the screen is the second: a photo, or a message of some length. It
+    // cannot be brought fully into view at any scroll position, and pulling at it hands back
+    // nearly the whole page — a swipe that moves the thread a pixel, and moves it that same
+    // pixel every time after. This is the bubble the doc above says takes two pages, and this
+    // is what lets it: the first of them ends part-way down.
+    if (first.height > page) return
+
+    // Otherwise whatever row the page landed part-way through comes fully into view, so the
+    // page opens on a whole one and carries a line of overlap from the page before. Where its
+    // top has to land is not the same in both lists: the thread clips to its padding, so a row
+    // sitting at the view's top edge has its first line cut off and must go a padding lower;
+    // the conversation list does not clip, so the same padding is a strip the row above shows
+    // through, and the row belongs at the edge itself.
+    scrollBy(0, first.top - if (clipToPadding) paddingTop else 0)
 }

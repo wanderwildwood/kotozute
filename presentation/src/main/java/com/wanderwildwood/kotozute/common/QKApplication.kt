@@ -70,6 +70,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     @Inject lateinit var workerFactory: WorkerFactory
     @Inject lateinit var prefs: com.wanderwildwood.kotozute.util.Preferences
     @Inject lateinit var signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
+    @Inject lateinit var signalNotifications: com.wanderwildwood.kotozute.feature.signal.SignalNotifications
 
     override fun onCreate() {
         super.onCreate()
@@ -98,6 +99,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // message arriving with the app closed was not picked up until the next time
         // someone went looking -- which defeats the point of the bridge pushing at all.
         if (prefs.signalEnabled.get()) {
+            signalNotifications.start()
             signalRepo.startStream()
         }
 

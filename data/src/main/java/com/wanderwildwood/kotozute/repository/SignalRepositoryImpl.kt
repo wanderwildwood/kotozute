@@ -30,6 +30,8 @@ class SignalRepositoryImpl @Inject constructor(
         )
     )
 
+    private val incoming = io.reactivex.subjects.PublishSubject.create<SignalMessage>()
+
     private var stream: Closeable? = null
     private val streamWanted = AtomicBoolean(false)
 
@@ -124,9 +126,13 @@ class SignalRepositoryImpl @Inject constructor(
                     if (maxSeq > cursor) prefs.signalCursor.set(maxSeq)
                     break
                 }
+                val fresh = mutableListOf<BridgeMessage>()
                 Realm.getDefaultInstance().use { realm ->
-                    realm.executeTransaction { r -> msgs.forEach { store(r, it) } }
+                    realm.executeTransaction { r ->
+                        msgs.forEach { if (store(r, it)) fresh.add(it) }
+                    }
                 }
+                announce(fresh)
                 written += msgs.size
                 cursor = msgs.maxOf { it.seq }
                 prefs.signalCursor.set(cursor)
@@ -172,9 +178,11 @@ class SignalRepositoryImpl @Inject constructor(
                 stream = client.openEvents(
                     sinceSeq = prefs.signalCursor.get(),
                     onMessage = { msg ->
+                        var isNew = false
                         Realm.getDefaultInstance().use { realm ->
-                            realm.executeTransaction { r -> store(r, msg) }
+                            realm.executeTransaction { r -> isNew = store(r, msg) }
                         }
+                        if (isNew) announce(listOf(msg))
                         if (msg.seq > prefs.signalCursor.get()) prefs.signalCursor.set(msg.seq)
                         prefs.signalLastSync.set(System.currentTimeMillis())
                         publishState(reachable = true, signalConnected = true, error = null)
@@ -197,11 +205,15 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
-    /** Idempotent by primary key: the same message may arrive more than once. */
-    private fun store(realm: Realm, m: BridgeMessage) {
-        if (m.id.isBlank()) return
-        val row = realm.where(SignalMessage::class.java).equalTo("id", m.id).findFirst()
-            ?: realm.createObject(SignalMessage::class.java, m.id)
+    /**
+     * Idempotent by primary key: the same message may arrive more than once. Returns
+     * whether a row was actually created, which is what stops a redelivery from ringing.
+     */
+    private fun store(realm: Realm, m: BridgeMessage): Boolean {
+        if (m.id.isBlank()) return false
+        val existing = realm.where(SignalMessage::class.java).equalTo("id", m.id).findFirst()
+        val isNew = existing == null
+        val row = existing ?: realm.createObject(SignalMessage::class.java, m.id)
         row.seq = m.seq
         row.threadKey = m.threadKey
         row.date = m.ts
@@ -227,6 +239,30 @@ class SignalRepositoryImpl @Inject constructor(
             .equalTo("outgoing", false)
             .equalTo("read", false)
             .count().toInt()
+        return isNew
+    }
+
+    /**
+     * An unmanaged copy. The managed row belongs to the Realm and the thread that opened
+     * it; whoever listens for this is on neither.
+     */
+    private fun detached(m: BridgeMessage) = SignalMessage().apply {
+        id = m.id
+        seq = m.seq
+        threadKey = m.threadKey
+        date = m.ts
+        senderUuid = m.senderUuid
+        senderNumber = m.senderNumber
+        outgoing = m.outgoing
+        body = m.body
+        groupId = m.groupId
+        read = m.read
+        source = m.source
+        attachments = m.attachmentsJson
+    }
+
+    private fun announce(msgs: List<BridgeMessage>) {
+        msgs.filter { !it.outgoing }.forEach { incoming.onNext(detached(it)) }
     }
 
     override fun send(threadKey: String, body: String): Long {
@@ -280,6 +316,8 @@ class SignalRepositoryImpl @Inject constructor(
             .findAllAsync()
 
     override fun connectionState(): Observable<SignalRepository.ConnectionState> = state
+
+    override fun newIncoming(): Observable<SignalMessage> = incoming
 
     private fun publishState(reachable: Boolean, signalConnected: Boolean, error: String?) {
         state.onNext(

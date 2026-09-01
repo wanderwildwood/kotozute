@@ -57,4 +57,12 @@ interface SignalRepository {
     fun getMessages(threadKey: String): RealmResults<SignalMessage>
 
     fun connectionState(): Observable<ConnectionState>
+
+    /**
+     * Emits each newly stored *incoming* message, once. Notifications live in the
+     * presentation layer, so the repository announces rather than notifies -- and because
+     * it emits only on a genuinely new row, a message redelivered by the bridge or
+     * replayed on reconnect cannot ring twice.
+     */
+    fun newIncoming(): Observable<SignalMessage>
 }

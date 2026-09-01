@@ -27,6 +27,7 @@ class SignalThreadActivity : QkThemedActivity() {
 
     @Inject lateinit var signalRepo: SignalRepository
     @Inject lateinit var dateFormatter: DateFormatter
+    @Inject lateinit var notifications: SignalNotifications
 
     private lateinit var binding: SignalThreadActivityBinding
     private val disposables = CompositeDisposable()
@@ -108,12 +109,34 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        visibleThreadKey = threadKey
+        // Whatever was announced about this conversation is answered by reading it.
+        notifications.cancel(threadKey)
+    }
+
+    override fun onPause() {
+        if (visibleThreadKey == threadKey) visibleThreadKey = null
+        super.onPause()
+    }
+
     override fun onSupportNavigateUp(): Boolean { finish(); return true }
 
     override fun onDestroy() {
         messages?.removeAllChangeListeners()
         disposables.clear()
         super.onDestroy()
+    }
+
+    companion object {
+        /**
+         * Which conversation is on screen, so a notification is not raised about a message
+         * the user is watching arrive.
+         */
+        @Volatile private var visibleThreadKey: String? = null
+
+        fun isVisible(threadKey: String): Boolean = visibleThreadKey == threadKey
     }
 
     private inner class MessageAdapter : RecyclerView.Adapter<MessageHolder>() {

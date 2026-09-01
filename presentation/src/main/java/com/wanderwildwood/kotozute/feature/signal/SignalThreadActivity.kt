@@ -64,7 +64,12 @@ class SignalThreadActivity : QkThemedActivity() {
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = SignalConversationsActivity.titleOf(intent).ifBlank { getString(R.string.signal_title) }
+        val passed = SignalConversationsActivity.titleOf(intent)
+        supportActionBar?.title = passed.ifBlank { getString(R.string.signal_title) }
+        // Resolved here rather than demanded of every caller: arriving from the SMS side
+        // there is no title to hand over, and "Signal" above someone's messages is not a
+        // name.
+        if (passed.isBlank()) resolveTitle()
 
         val adapter = MessageAdapter()
         val lm = LinearLayoutManager(this).apply { stackFromEnd = true }
@@ -238,6 +243,21 @@ class SignalThreadActivity : QkThemedActivity() {
             true
         }
         else -> super.onOptionsItemSelected(item)
+    }
+
+    private fun resolveTitle() {
+        thread(isDaemon = true) {
+            val name = runCatching {
+                io.realm.Realm.getDefaultInstance().use { realm ->
+                    realm.where(com.wanderwildwood.kotozute.model.SignalThread::class.java)
+                        .equalTo("threadKey", threadKey)
+                        .findFirst()
+                        ?.let { it.title.ifBlank { it.counterpartNumber } }
+                        .orEmpty()
+                }
+            }.getOrDefault("")
+            if (name.isNotBlank()) runOnUiThread { supportActionBar?.title = name }
+        }
     }
 
     private fun findSmsCounterpart() {

@@ -111,6 +111,7 @@ class ComposeViewModel @Inject constructor(
     private val addScheduledMessage: AddScheduledMessage,
     private val actionDelayedMessage: ActionDelayedMessage,
     private val conversationRepo: ConversationRepository,
+    private val signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository,
     private val deleteMessages: DeleteMessages,
     private val markRead: MarkRead,
     private val messageDetailsFormatter: MessageDetailsFormatter,
@@ -236,6 +237,22 @@ class ComposeViewModel @Inject constructor(
             .map { conversation -> conversation.sendAsGroup }
             .distinctUntilChanged()
             .doOnNext { sendAsGroup -> newState { copy(sendAsGroup = sendAsGroup) } }
+            .subscribe()
+
+        // Offer a way across to Signal when the same person is on both rails. Only for a
+        // one-to-one thread: a Signal group and an MMS group are different groups with
+        // different membership, not two views of one conversation.
+        disposables += conversation
+            .observeOn(Schedulers.io())
+            .distinctUntilChanged()
+            .doOnNext { conversation ->
+                val key = conversation.recipients
+                    .takeIf { it.size == 1 }
+                    ?.firstOrNull()
+                    ?.address
+                    ?.let { address -> signalRepo.findThreadForNumber(address)?.threadKey }
+                newState { copy(signalThreadKey = key) }
+            }
             .subscribe()
 
         // update recipient count whenever conversation changes
@@ -413,6 +430,14 @@ class ComposeViewModel @Inject constructor(
             .filter { it == R.id.select_all }
             .autoDisposable(view.scope())
             .subscribe { view.toggleSelectAll() }
+
+        // Cross to the same person's Signal thread
+        view.optionsItemIntent
+            .filter { it == R.id.switchToSignal }
+            .withLatestFrom(state) { _, s -> s.signalThreadKey.orEmpty() }
+            .filter { it.isNotEmpty() }
+            .autoDisposable(view.scope())
+            .subscribe { key -> navigator.showSignalThread(key, "") }
 
         // Open the phone dialer if the call button is clicked
         view.optionsItemIntent

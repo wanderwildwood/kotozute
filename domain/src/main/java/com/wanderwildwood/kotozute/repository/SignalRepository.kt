@@ -54,6 +54,13 @@ interface SignalRepository {
     /** Blocking. Returns null if the bridge cannot be reached or has no such attachment. */
     fun loadAttachment(id: String): ByteArray?
 
+    /**
+     * The Signal thread for a phone number, if this account has one. Matching is by
+     * phone-number comparison rather than string equality -- the same person is
+     * "+15551234567" to Signal and "(555) 123-4567" to the address book.
+     */
+    fun findThreadForNumber(number: String): SignalThread?
+
     fun getThreads(): RealmResults<SignalThread>
     fun getMessages(threadKey: String): RealmResults<SignalMessage>
 

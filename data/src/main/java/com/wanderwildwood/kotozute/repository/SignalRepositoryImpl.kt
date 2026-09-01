@@ -320,6 +320,18 @@ class SignalRepositoryImpl @Inject constructor(
             .getOrNull()
     }
 
+    override fun findThreadForNumber(number: String): SignalThread? {
+        if (number.isBlank()) return null
+        Realm.getDefaultInstance().use { realm ->
+            val match = realm.where(SignalThread::class.java)
+                .equalTo("kind", "direct")
+                .findAll()
+                .firstOrNull { phoneNumberUtils.compare(it.counterpartNumber, number) }
+            // Detached: the caller is on another thread and outlives this Realm.
+            return match?.let { realm.copyFromRealm(it) }
+        }
+    }
+
     override fun getThreads(): RealmResults<SignalThread> =
         Realm.getDefaultInstance()
             .where(SignalThread::class.java)

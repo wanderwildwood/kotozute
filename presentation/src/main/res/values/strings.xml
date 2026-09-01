@@ -336,6 +336,8 @@
     <string name="signal_cannot_send_signal">The bridge is not connected to Signal — you can read, but not send</string>
     <string name="signal_send_failed">Not sent: %s</string>
     <string name="signal_you">You</string>
+    <string name="signal_switch_to_sms">Switch to SMS</string>
+    <string name="signal_switch_to_signal">Switch to Signal</string>
     <string name="signal_attach">+</string>
     <string name="signal_attached">Attached: %s — tap to remove</string>
     <string name="signal_attach_failed">Could not read that file</string>

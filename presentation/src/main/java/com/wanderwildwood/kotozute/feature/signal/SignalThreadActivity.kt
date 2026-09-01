@@ -7,6 +7,8 @@ import android.net.Uri
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.Toast
@@ -34,10 +36,13 @@ class SignalThreadActivity : QkThemedActivity() {
     @Inject lateinit var signalRepo: SignalRepository
     @Inject lateinit var dateFormatter: DateFormatter
     @Inject lateinit var notifications: SignalNotifications
+    @Inject lateinit var navigator: com.wanderwildwood.kotozute.common.Navigator
 
     private lateinit var binding: SignalThreadActivityBinding
     private val disposables = CompositeDisposable()
     private var messages: RealmResults<SignalMessage>? = null
+    /** The SMS thread for the same person, when there is one. */
+    private var smsThreadId: Long = 0L
     private lateinit var threadKey: String
 
     /** The picked file, already a data URI. Held until the message is actually sent. */
@@ -94,6 +99,7 @@ class SignalThreadActivity : QkThemedActivity() {
         })
 
         binding.send.setOnClickListener { send() }
+        findSmsCounterpart()
         binding.attach.setOnClickListener { picker.launch("*/*") }
         binding.pending.setOnClickListener { clearAttachment() }
     }
@@ -207,6 +213,49 @@ class SignalThreadActivity : QkThemedActivity() {
                             Toast.LENGTH_LONG
                         ).show()
                     }
+            }
+        }
+    }
+
+    /**
+     * The same person can be on both rails. Rather than merge the two conversations --
+     * which would mean one composer having to decide silently which way a reply goes --
+     * each thread stays itself and offers a way across.
+     */
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.signal_thread, menu)
+        return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
+        menu?.findItem(R.id.switchToSms)?.isVisible = smsThreadId != 0L
+        return super.onPrepareOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.switchToSms -> {
+            navigator.showConversation(smsThreadId)
+            true
+        }
+        else -> super.onOptionsItemSelected(item)
+    }
+
+    private fun findSmsCounterpart() {
+        // The number lives on the thread row, so read it rather than guess from the key.
+        thread(isDaemon = true) {
+            val n = runCatching {
+                io.realm.Realm.getDefaultInstance().use { realm ->
+                    realm.where(com.wanderwildwood.kotozute.model.SignalThread::class.java)
+                        .equalTo("threadKey", threadKey)
+                        .findFirst()?.counterpartNumber.orEmpty()
+                }
+            }.getOrDefault("")
+            if (n.isBlank()) return@thread
+            val id = runCatching { conversationRepo.getConversation(listOf(n))?.id ?: 0L }
+                .getOrDefault(0L)
+            if (id != 0L) runOnUiThread {
+                smsThreadId = id
+                invalidateOptionsMenu()
             }
         }
     }

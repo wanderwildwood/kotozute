@@ -301,6 +301,15 @@
                 app:title="@string/settings_signal_open_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalReceipts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_receipts_summary"
+                app:title="@string/settings_signal_receipts_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

@@ -347,7 +347,9 @@ class SignalRepositoryImpl @Inject constructor(
             }
         }
         val cfg = config() ?: return@runOffThread
-        runCatching { BridgeClient(cfg).markRead(threadKey, upToTs) }
+        runCatching {
+            BridgeClient(cfg).markRead(threadKey, upToTs, prefs.signalReadReceipts.get())
+        }
             .onFailure { Timber.d("markRead not delivered: ${it.message}") }
     }
 

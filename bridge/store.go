@@ -241,17 +241,44 @@ func (s *Store) Threads() ([]*ThreadRow, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) MarkRead(key string, upToTS int64) (int64, error) {
+// MarkRead returns what it marked, grouped by who sent it, so the caller can tell those
+// people it was read. A read receipt goes to the sender of each message, not to the thread.
+func (s *Store) MarkRead(key string, upToTS int64) (int64, map[string][]int64, error) {
+	rows, err := s.db.Query(`
+		SELECT sender_uuid, ts FROM messages
+		WHERE thread_key=? AND ts<=? AND outgoing=0 AND read=0`, key, upToTS)
+	if err != nil {
+		return 0, nil, err
+	}
+	bySender := map[string][]int64{}
+	for rows.Next() {
+		var sender sql.NullString
+		var ts int64
+		if err := rows.Scan(&sender, &ts); err != nil {
+			rows.Close()
+			return 0, nil, err
+		}
+		if sender.Valid && sender.String != "" {
+			bySender[sender.String] = append(bySender[sender.String], ts)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, nil, err
+	}
+
 	res, err := s.db.Exec(`
 		UPDATE messages SET read=1
 		WHERE thread_key=? AND ts<=? AND outgoing=0 AND read=0`, key, upToTS)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	n, _ := res.RowsAffected()
-	_, err = s.db.Exec(`
-		UPDATE threads SET unread = MAX(0, unread - ?) WHERE thread_key=?`, n, key)
-	return n, err
+	if _, err := s.db.Exec(`
+		UPDATE threads SET unread = MAX(0, unread - ?) WHERE thread_key=?`, n, key); err != nil {
+		return n, bySender, err
+	}
+	return n, bySender, nil
 }
 
 func scanMessages(rows *sql.Rows) ([]*Message, error) {

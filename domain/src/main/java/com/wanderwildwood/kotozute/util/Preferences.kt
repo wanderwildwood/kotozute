@@ -128,6 +128,12 @@ class Preferences @Inject constructor(
     val signalCursor = rxPrefs.getLong("signalCursor", 0L)
     /** When the bridge was last reachable, for the honest "last synced" line. */
     val signalLastSync = rxPrefs.getLong("signalLastSync", 0L)
+    /**
+     * Whether reading a Signal message tells the sender. Off by default: Signal has its
+     * own read-receipt setting which cannot be read from here, and sending them when the
+     * user has chosen not to would share something they declined to share.
+     */
+    val signalReadReceipts = rxPrefs.getBoolean("signalReadReceipts", false)
     val textSize = rxPrefs.getInteger("textSize", TEXT_SIZE_LARGE)
     val blockingManager = rxPrefs.getInteger("blockingManager", BLOCKING_MANAGER_QKSMS)
     val drop = rxPrefs.getBoolean("drop", false)

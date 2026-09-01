@@ -50,5 +50,6 @@ data class SettingsState(
     val signalPaired: Boolean = false,
     val signalBridgeSummary: String = "",
     val signalEnabled: Boolean = false,
-    val signalStatusSummary: String = ""
+    val signalStatusSummary: String = "",
+    val signalReadReceipts: Boolean = false
 )

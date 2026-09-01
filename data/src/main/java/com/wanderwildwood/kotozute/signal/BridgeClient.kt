@@ -110,8 +110,11 @@ class BridgeClient(private val config: BridgeConfig) {
         }
     }
 
-    fun markRead(threadKey: String, upToTs: Long) {
-        val body = JSONObject().put("upToTs", upToTs).toString().toRequestBody(JSON)
+    fun markRead(threadKey: String, upToTs: Long, sendReceipts: Boolean = false) {
+        val body = JSONObject()
+            .put("upToTs", upToTs)
+            .put("sendReceipts", sendReceipts)
+            .toString().toRequestBody(JSON)
         val req = authed("${config.baseUrl}/v1/threads/${enc(threadKey)}/read").post(body).build()
         client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("markRead failed (${resp.code})")

@@ -56,6 +56,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.black.asObservable()
                 .subscribe { black -> newState { copy(black = black) } }
 
+        disposables += prefs.signalReadReceipts.asObservable()
+                .subscribe { on -> newState { copy(signalReadReceipts = on) } }
+
         disposables += signalRepo.connectionState()
                 .subscribe { conn ->
                     newState {
@@ -227,6 +230,9 @@ class SettingsPresenter @Inject constructor(
                         // Enabling is only offered once a bridge is paired, so this
                         // switch cannot put Signal into a configured-but-broken state.
                         R.id.signalEnabled -> signalRepo.setEnabled(!prefs.signalEnabled.get())
+
+                        R.id.signalReceipts ->
+                            prefs.signalReadReceipts.set(!prefs.signalReadReceipts.get())
 
                         R.id.signalUnpair -> view.askSignalUnpair()
 

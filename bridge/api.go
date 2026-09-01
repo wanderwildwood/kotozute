@@ -283,16 +283,40 @@ func (a *API) send(w http.ResponseWriter, r *http.Request, key string) {
 func (a *API) markRead(w http.ResponseWriter, r *http.Request, key string) {
 	var body struct {
 		UpToTs int64 `json:"upToTs"`
+		// Whether to tell the senders. Left to the caller because it is the user's
+		// privacy choice, and Signal's own read-receipt setting is not readable here.
+		SendReceipts bool `json:"sendReceipts"`
 	}
 	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body)
 	if body.UpToTs <= 0 {
 		body.UpToTs = time.Now().UnixMilli()
 	}
-	n, err := a.store.MarkRead(key, body.UpToTs)
+	n, bySender, err := a.store.MarkRead(key, body.UpToTs)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
+
+	if body.SendReceipts && len(bySender) > 0 && a.sc.Connected() {
+		// Off the request: a receipt per sender is a network round trip each, and the
+		// phone is waiting to redraw a thread the user is already looking at.
+		go func() {
+			// Logged on success as well as failure. A feature whose only evidence is the
+			// absence of an error looks identical to one that never runs.
+			sent, failed := 0, 0
+			for sender, stamps := range bySender {
+				if err := a.sc.SendReadReceipt(sender, stamps); err != nil {
+					failed++
+					log.Printf("read receipt to %s...: %v", sender[:8], err)
+					continue
+				}
+				sent++
+			}
+			log.Printf("read receipts: %d sent, %d failed, over %d message(s)",
+				sent, failed, countStamps(bySender))
+		}()
+	}
+
 	writeJSON(w, 200, map[string]any{"marked": n})
 }
 
@@ -312,6 +336,14 @@ func describeSent(uris []string) []Attachment {
 		out = append(out, Attachment{Type: mime, Size: int64(len(payload)) * 3 / 4})
 	}
 	return out
+}
+
+func countStamps(m map[string][]int64) int {
+	n := 0
+	for _, v := range m {
+		n += len(v)
+	}
+	return n
 }
 
 func sseSend(w http.ResponseWriter, fl http.Flusher, event string, v any) {

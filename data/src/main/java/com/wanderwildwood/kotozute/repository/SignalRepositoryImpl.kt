@@ -20,6 +20,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.concurrent.thread
 
+private const val ATTACHMENT_PREVIEW = "\uD83D\uDCCE Attachment"
+
 @Singleton
 class SignalRepositoryImpl @Inject constructor(
     private val prefs: Preferences,
@@ -101,6 +103,12 @@ class SignalRepositoryImpl @Inject constructor(
         val cfg = config() ?: return 0
         val client = BridgeClient(cfg)
         var written = 0
+        // Adopting existing history is not the same as receiving news. On the very first
+        // sync the bridge hands over everything it holds, and announcing all of it would
+        // greet someone who has just finished setting Signal up with a screen of
+        // notifications about conversations they already know about. A later catch-up
+        // does announce: those are messages genuinely missed.
+        val firstSync = prefs.signalCursor.get() == 0L
         try {
             val remote = client.state()
             // Refresh thread titles first, so a new message never lands in an unnamed thread.
@@ -134,6 +142,22 @@ class SignalRepositoryImpl @Inject constructor(
                                 }?.name?.takeIf { n -> n.isNotBlank() }
                             }
                         row.title = local ?: t.title
+
+                        // Threads that existed before previews did, and any created from
+                        // the directory rather than from a message, have nothing to show.
+                        if (row.snippet.isBlank()) {
+                            r.where(SignalMessage::class.java)
+                                .equalTo("threadKey", row.threadKey)
+                                .sort("date", Sort.DESCENDING)
+                                .findFirst()
+                                ?.let { newest ->
+                                    row.snippet = newest.body.ifBlank {
+                                        if (newest.attachments.isNotBlank() &&
+                                            newest.attachments != "[]") ATTACHMENT_PREVIEW else ""
+                                    }
+                                    row.snippetOutgoing = newest.outgoing
+                                }
+                        }
                     }
                 }
             }
@@ -151,7 +175,7 @@ class SignalRepositoryImpl @Inject constructor(
                         msgs.forEach { if (store(r, it)) fresh.add(it) }
                     }
                 }
-                announce(fresh)
+                if (!firstSync) announce(fresh)
                 written += msgs.size
                 cursor = msgs.maxOf { it.seq }
                 prefs.signalCursor.set(cursor)
@@ -252,13 +276,27 @@ class SignalRepositoryImpl @Inject constructor(
                 kind = if (m.groupId.isNotEmpty()) "group" else "direct"
                 counterpartUuid = m.threadKey.substringAfter("direct:", "")
             }
-        if (m.ts > thread.lastTs) thread.lastTs = m.ts
+        // Only the newest message speaks for the thread. Messages can arrive out of
+        // order -- a reconnect replays by cursor, and an imported backup arrives
+        // backwards -- so this is guarded on the timestamp rather than on arrival.
+        if (m.ts >= thread.lastTs) {
+            thread.lastTs = m.ts
+            thread.snippet = previewOf(m)
+            thread.snippetOutgoing = m.outgoing
+        }
         thread.unread = realm.where(SignalMessage::class.java)
             .equalTo("threadKey", m.threadKey)
             .equalTo("outgoing", false)
             .equalTo("read", false)
             .count().toInt()
         return isNew
+    }
+
+    /** What the inbox row shows. A picture with no caption still needs to say something. */
+    private fun previewOf(m: BridgeMessage): String = when {
+        m.body.isNotBlank() -> m.body
+        m.attachmentsJson.isNotBlank() && m.attachmentsJson != "[]" -> ATTACHMENT_PREVIEW
+        else -> ""
     }
 
     /**

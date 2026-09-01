@@ -295,11 +295,15 @@ class ConversationsAdapter @Inject constructor(
         holder.binding.title.text = buildSpannedString { append(signalTitle(item)) }
         holder.binding.date.text = thread.lastTs.takeIf { it > 0 }
             ?.let(dateFormatter::getConversationTimestamp)
+        // Reads the way an SMS row does, including the "You:" prefix, so the two rails
+        // differ by the rail marker alone rather than by how much they tell you.
         holder.binding.snippet.text = when {
-            thread.unread > 0 -> context.resources.getQuantityString(
+            thread.snippet.isBlank() && thread.unread > 0 -> context.resources.getQuantityString(
                 R.plurals.signal_unread, thread.unread, thread.unread
             )
-            else -> ""
+            thread.snippetOutgoing && thread.snippet.isNotBlank() ->
+                context.getString(R.string.main_sender_you, thread.snippet)
+            else -> thread.snippet
         }
         holder.binding.scheduled.isVisible = false
         holder.binding.pinned.isVisible = false

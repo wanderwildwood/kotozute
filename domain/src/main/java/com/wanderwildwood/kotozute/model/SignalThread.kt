@@ -21,6 +21,12 @@ open class SignalThread : RealmObject() {
     var counterpartUuid: String = ""
     var counterpartNumber: String = ""
 
+    /** Preview of the most recent message, so the inbox row says something. */
+    var snippet: String = ""
+
+    /** Whether that preview is our own message, which the row prefixes accordingly. */
+    var snippetOutgoing: Boolean = false
+
     var lastTs: Long = 0
     var unread: Int = 0
     var archived: Boolean = false

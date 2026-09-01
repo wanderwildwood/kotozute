@@ -37,7 +37,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 17
+        const val SCHEMA_VERSION: Long = 18
     }
 
     @SuppressLint("ApplySharedPref")
@@ -345,6 +345,20 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.addField("attachments", String::class.java, FieldAttribute.REQUIRED)
                 ?.transform { msg -> msg.setString("attachments", "") }
+
+            version++
+        }
+
+        if (version == 17L) {
+            // Existing rows start blank and fill on the next message or sync; there is
+            // nothing to back-fill them from without reading every message here.
+            realm.schema.get("SignalThread")
+                ?.addField("snippet", String::class.java, FieldAttribute.REQUIRED)
+                ?.addField("snippetOutgoing", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.transform { t ->
+                    t.setString("snippet", "")
+                    t.setBoolean("snippetOutgoing", false)
+                }
 
             version++
         }

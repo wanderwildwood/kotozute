@@ -98,8 +98,13 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // Without this the Signal stream only ran while its screen was open, so a
         // message arriving with the app closed was not picked up until the next time
         // someone went looking -- which defeats the point of the bridge pushing at all.
+        // Subscribed unconditionally. Gating this on the preference meant that switching
+        // Signal on for the first time started the stream but left nothing listening to
+        // announce what arrived -- silent until the next launch, which is exactly the
+        // session someone has just finished setting it up in. Posting is still gated,
+        // inside the notifier.
+        signalNotifications.start()
         if (prefs.signalEnabled.get()) {
-            signalNotifications.start()
             signalRepo.startStream()
         }
 

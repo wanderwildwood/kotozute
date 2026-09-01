@@ -36,7 +36,13 @@ class SignalNotifications @Inject constructor(
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
 
+    private var started = false
+
+    /** Idempotent: safe to call on every launch, and from anywhere that turns Signal on. */
+    @Synchronized
     fun start() {
+        if (started) return
+        started = true
         createChannel()
         signalRepo.newIncoming().subscribe({ notify(it) }, { Timber.w(it, "signal notify") })
     }

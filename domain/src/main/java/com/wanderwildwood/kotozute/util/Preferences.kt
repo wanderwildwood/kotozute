@@ -126,6 +126,11 @@ class Preferences @Inject constructor(
     val signalBridgeFingerprint = rxPrefs.getString("signalBridgeFingerprint", "")
     /** Highest bridge seq we hold. Sync asks for everything after it. */
     val signalCursor = rxPrefs.getLong("signalCursor", 0L)
+    /**
+     * Which bridge store that cursor belongs to. Sequence numbers mean nothing across a
+     * rebuilt database, so a change here means start from the beginning.
+     */
+    val signalBridgeInstance = rxPrefs.getString("signalBridgeInstance", "")
     /** When the bridge was last reachable, for the honest "last synced" line. */
     val signalLastSync = rxPrefs.getLong("signalLastSync", 0L)
     /**

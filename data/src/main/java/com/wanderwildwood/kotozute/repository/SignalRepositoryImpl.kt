@@ -71,6 +71,7 @@ class SignalRepositoryImpl @Inject constructor(
         prefs.signalBridgeToken.set("")
         prefs.signalBridgeFingerprint.set("")
         prefs.signalCursor.set(0L)
+        prefs.signalBridgeInstance.set("")
         prefs.signalLastSync.set(0L)
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction {
@@ -111,6 +112,20 @@ class SignalRepositoryImpl @Inject constructor(
         val firstSync = prefs.signalCursor.get() == 0L
         try {
             val remote = client.state()
+
+            // A cursor is only meaningful against the store that issued it. If the bridge
+            // has been rebuilt or moved, its sequence numbers started again and ours points
+            // past everything it will ever have -- so the phone would sit silent forever,
+            // waiting for a number that is not coming. Start over instead; the inserts are
+            // idempotent, so re-reading what we already hold costs nothing.
+            val knownInstance = prefs.signalBridgeInstance.get()
+            if (remote.instance.isNotBlank() && knownInstance != remote.instance) {
+                if (knownInstance.isNotBlank()) {
+                    Timber.i("bridge store changed; restarting from the beginning")
+                    prefs.signalCursor.set(0L)
+                }
+                prefs.signalBridgeInstance.set(remote.instance)
+            }
             // Refresh thread titles first, so a new message never lands in an unnamed thread.
             val threads = client.threads()
             Realm.getDefaultInstance().use { realm ->
@@ -208,6 +223,17 @@ class SignalRepositoryImpl @Inject constructor(
      * re-sends the cursor, so a dropped connection is a delay and never a hole.
      */
     private fun streamLoop() {
+        try {
+            streamLoopInner()
+        } finally {
+            // Whatever ended this -- a normal stop or something thrown -- the flag must not
+            // be left set. startStream() refuses to start a second loop while it is, so a
+            // thread that died holding it would mean the stream could never be revived.
+            streamWanted.set(false)
+        }
+    }
+
+    private fun streamLoopInner() {
         var backoff = 2_000L
         while (streamWanted.get()) {
             val cfg = config()

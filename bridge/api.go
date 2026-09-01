@@ -74,7 +74,9 @@ func (a *API) guard(h http.HandlerFunc) http.HandlerFunc {
 
 func (a *API) state(w http.ResponseWriter, r *http.Request) {
 	maxSeq, _ := a.store.MaxSeq()
+	instance, _ := a.store.InstanceID()
 	writeJSON(w, 200, map[string]any{
+		"instance":        instance,
 		"account":         a.self,
 		"signalConnected": a.sc.Connected(),
 		"signalError":     a.sc.LastError(),

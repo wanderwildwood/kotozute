@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -156,6 +158,22 @@ func (s *Store) SetMeta(k, v string) error {
 	_, err := s.db.Exec(`INSERT INTO meta (k,v) VALUES (?,?)
 		ON CONFLICT(k) DO UPDATE SET v=excluded.v`, k, v)
 	return err
+}
+
+// InstanceID identifies this particular database. Sequence numbers are only meaningful
+// relative to the store that issued them, so a client holding a cursor needs to know when
+// it is talking to a different store -- a rebuilt database, a move to another host -- and
+// start again rather than wait forever for a sequence that will never come round.
+func (s *Store) InstanceID() (string, error) {
+	if v := s.GetMeta("instanceId"); v != "" {
+		return v, nil
+	}
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	id := hex.EncodeToString(b)
+	return id, s.SetMeta("instanceId", id)
 }
 
 func (s *Store) MaxSeq() (int64, error) {

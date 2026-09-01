@@ -16,6 +16,8 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
 data class BridgeState(
+    /** Identifies the bridge's store. A change means its sequence numbers restarted. */
+    val instance: String,
     val account: String,
     val signalConnected: Boolean,
     val signalError: String,
@@ -63,6 +65,7 @@ class BridgeClient(private val config: BridgeConfig) {
     fun state(): BridgeState {
         val o = getJson("${config.baseUrl}/v1/state")
         return BridgeState(
+            instance = o.optString("instance"),
             account = o.optString("account"),
             signalConnected = o.optBoolean("signalConnected"),
             signalError = o.optString("signalError"),
@@ -135,8 +138,13 @@ class BridgeClient(private val config: BridgeConfig) {
         val req = authed("${config.baseUrl}/v1/events?sinceSeq=$sinceSeq")
             .header("Accept", "text/event-stream")
             .build()
+        // Longer than the bridge's keepalive, not infinite. An infinite read timeout looks
+        // right for a stream meant to stay open, and means a connection that dies without
+        // saying so -- a restart with no clean close, a NAT timeout, a dropped network --
+        // blocks this read forever: nothing reconnects and the phone goes quiet until the
+        // app is restarted. The bridge pings every 25s, so silence past that is death.
         val call = client.newBuilder()
-            .readTimeout(0, TimeUnit.MILLISECONDS) // the stream is meant to stay open
+            .readTimeout(SSE_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
             .newCall(req)
 
@@ -213,6 +221,9 @@ class BridgeClient(private val config: BridgeConfig) {
     private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
 
     companion object {
+        /** Two of the bridge's 25s keepalives, so one lost ping is not a disconnect. */
+        private const val SSE_READ_TIMEOUT_SECONDS = 60L
+
         private val JSON = "application/json; charset=utf-8".toMediaType()
 
         /**

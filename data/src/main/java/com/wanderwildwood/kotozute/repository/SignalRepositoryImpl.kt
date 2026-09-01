@@ -213,6 +213,7 @@ class SignalRepositoryImpl @Inject constructor(
         row.quoteTs = m.quoteTs
         row.read = m.read
         row.source = m.source
+        row.attachments = m.attachmentsJson
 
         val thread = realm.where(SignalThread::class.java)
             .equalTo("threadKey", m.threadKey).findFirst()
@@ -255,6 +256,13 @@ class SignalRepositoryImpl @Inject constructor(
         val cfg = config() ?: return@runOffThread
         runCatching { BridgeClient(cfg).markRead(threadKey, upToTs) }
             .onFailure { Timber.d("markRead not delivered: ${it.message}") }
+    }
+
+    override fun loadAttachment(id: String): ByteArray? {
+        val cfg = config() ?: return null
+        return runCatching { BridgeClient(cfg).fetchAttachment(id) }
+            .onFailure { Timber.d("attachment $id: ${it.message}") }
+            .getOrNull()
     }
 
     override fun getThreads(): RealmResults<SignalThread> =

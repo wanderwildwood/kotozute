@@ -50,6 +50,9 @@ interface SignalRepository {
 
     fun markRead(threadKey: String, upToTs: Long)
 
+    /** Blocking. Returns null if the bridge cannot be reached or has no such attachment. */
+    fun loadAttachment(id: String): ByteArray?
+
     fun getThreads(): RealmResults<SignalThread>
     fun getMessages(threadKey: String): RealmResults<SignalMessage>
 

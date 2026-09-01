@@ -20,6 +20,7 @@ func main() {
 		account = flag.String("account", "", "Signal account number, e.g. +15551234567 (required)")
 		selfID  = flag.String("self-uuid", "", "own account UUID (auto-detected if omitted)")
 		dataDir = flag.String("data", "/var/lib/kotozute-bridge", "bridge data directory")
+		scData  = flag.String("signal-cli-data", "/var/lib/signal-cli", "signal-cli data directory (for attachments)")
 		listen  = flag.String("listen", "0.0.0.0", "address to listen on")
 		port    = flag.Int("port", 8422, "port to listen on")
 		advert  = flag.String("advertise", "", "host/IP to put in the pairing payload (default: --listen)")
@@ -61,7 +62,7 @@ func main() {
 	sc := NewSignalCLI(*scAddr, *account)
 	self := *selfID
 
-	api := NewAPI(store, sc, auth, self)
+	api := NewAPI(store, sc, auth, self, NewAttachments(*scData))
 
 	// Every envelope signal-cli pushes lands here. This is the only writer of
 	// live messages, so ordering and idempotency are settled in one place.

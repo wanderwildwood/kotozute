@@ -43,4 +43,11 @@ open class SignalMessage : RealmObject() {
 
     /** "live" from the bridge's stream, "import" from a restored Signal backup. */
     var source: String = "live"
+
+    /**
+     * The bridge's attachment list, verbatim JSON. Realm cannot hold a list of plain
+     * objects without another RealmObject per row, and nothing queries inside this --
+     * it is read once when a row is drawn.
+     */
+    var attachments: String = ""
 }

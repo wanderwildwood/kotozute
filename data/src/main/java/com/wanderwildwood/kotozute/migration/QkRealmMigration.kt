@@ -37,7 +37,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 16
+        const val SCHEMA_VERSION: Long = 17
     }
 
     @SuppressLint("ApplySharedPref")
@@ -335,6 +335,16 @@ class QkRealmMigration @Inject constructor(
                 .addField("lastTs", Long::class.java, FieldAttribute.REQUIRED)
                 .addField("unread", Int::class.java, FieldAttribute.REQUIRED)
                 .addField("archived", Boolean::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 16L) {
+            // Attachment metadata from the bridge. Existing rows get "": they were stored
+            // before the client read the field, and the bridge still holds the originals.
+            realm.schema.get("SignalMessage")
+                ?.addField("attachments", String::class.java, FieldAttribute.REQUIRED)
+                ?.transform { msg -> msg.setString("attachments", "") }
 
             version++
         }

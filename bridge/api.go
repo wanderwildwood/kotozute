@@ -16,13 +16,14 @@ type API struct {
 	sc    *SignalCLI
 	auth  *Auth
 	self  string
+	atts  *Attachments
 
 	subsMu sync.Mutex
 	subs   map[chan *Message]struct{}
 }
 
-func NewAPI(st *Store, sc *SignalCLI, auth *Auth, self string) *API {
-	return &API{store: st, sc: sc, auth: auth, self: self,
+func NewAPI(st *Store, sc *SignalCLI, auth *Auth, self string, atts *Attachments) *API {
+	return &API{store: st, sc: sc, auth: auth, self: self, atts: atts,
 		subs: map[chan *Message]struct{}{}}
 }
 
@@ -45,7 +46,16 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("/v1/changes", a.guard(a.changes))
 	mux.HandleFunc("/v1/events", a.guard(a.events))
 	mux.HandleFunc("/v1/threads/", a.guard(a.threadSub))
+	mux.HandleFunc("/v1/attachments/", a.guard(a.attachment))
 	return logging(mux)
+}
+
+func (a *API) attachment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	a.atts.Serve(w, r, strings.TrimPrefix(r.URL.Path, "/v1/attachments/"))
 }
 
 func (a *API) guard(h http.HandlerFunc) http.HandlerFunc {

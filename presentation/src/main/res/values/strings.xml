@@ -336,6 +336,9 @@
     <string name="signal_cannot_send_signal">The bridge is not connected to Signal — you can read, but not send</string>
     <string name="signal_send_failed">Not sent: %s</string>
     <string name="signal_you">You</string>
+    <string name="signal_attachment_image">Image attachment</string>
+    <string name="signal_attachment_other">Attachment: %s</string>
+    <string name="signal_attachment_unavailable">Attachment (not downloaded)</string>
     <plurals name="signal_unread">
         <item quantity="one">%d unread</item>
         <item quantity="other">%d unread</item>

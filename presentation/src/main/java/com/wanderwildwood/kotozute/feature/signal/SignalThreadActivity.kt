@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.feature.signal
 
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -17,6 +18,8 @@ import com.wanderwildwood.kotozute.common.util.DateFormatter
 import dagger.android.AndroidInjection
 import io.reactivex.disposables.CompositeDisposable
 import io.realm.RealmResults
+import org.json.JSONArray
+import android.util.LruCache
 import javax.inject.Inject
 import kotlin.concurrent.thread
 
@@ -138,6 +141,7 @@ class SignalThreadActivity : QkThemedActivity() {
     ) : RecyclerView.ViewHolder(b.root) {
         fun bind(m: SignalMessage) {
             b.body.text = m.body
+            b.body.setVisible(m.body.isNotEmpty())
             b.timestamp.text = dateFormatter.getMessageTimestamp(m.date)
             val label = when {
                 m.outgoing -> getString(R.string.signal_you)
@@ -146,6 +150,61 @@ class SignalThreadActivity : QkThemedActivity() {
             }
             b.sender.text = label
             b.sender.setVisible(label.isNotEmpty())
+            bindAttachment(m)
+        }
+
+        private fun bindAttachment(m: SignalMessage) {
+            b.image.setVisible(false)
+            b.attachment.setVisible(false)
+            b.image.setImageDrawable(null)
+            if (m.attachments.isBlank()) return
+
+            val first = runCatching { JSONArray(m.attachments) }
+                .getOrNull()
+                ?.takeIf { it.length() > 0 }
+                ?.optJSONObject(0) ?: return
+            val id = first.optString("id")
+            val type = first.optString("contentType")
+            if (id.isBlank()) return
+
+            if (!type.startsWith("image/")) {
+                b.attachment.text = getString(
+                    R.string.signal_attachment_other,
+                    first.optString("filename").ifBlank { type.ifBlank { id } }
+                )
+                b.attachment.setVisible(true)
+                return
+            }
+
+            imageCache.get(id)?.let {
+                b.image.setImageBitmap(it)
+                b.image.setVisible(true)
+                return
+            }
+
+            // Tagged so a recycled holder that has moved on does not get someone
+            // else's picture when this comes back.
+            b.image.tag = id
+            b.attachment.text = getString(R.string.signal_attachment_image)
+            b.attachment.setVisible(true)
+            thread(isDaemon = true) {
+                val bytes = signalRepo.loadAttachment(id)
+                val bmp = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                if (bmp != null) imageCache.put(id, bmp)
+                runOnUiThread {
+                    if (b.image.tag != id) return@runOnUiThread
+                    if (bmp == null) {
+                        b.attachment.text = getString(R.string.signal_attachment_unavailable)
+                        return@runOnUiThread
+                    }
+                    b.image.setImageBitmap(bmp)
+                    b.image.setVisible(true)
+                    b.attachment.setVisible(false)
+                }
+            }
         }
     }
+
+    /** Small: a handful of pictures in view at once, and e-ink shows few at a time. */
+    private val imageCache = LruCache<String, android.graphics.Bitmap>(8)
 }

@@ -23,13 +23,13 @@ CREATE TABLE IF NOT EXISTS messages (
   msg_id      TEXT    NOT NULL UNIQUE,   -- idempotency key; see normalize.go
   thread_key  TEXT    NOT NULL,
   ts          INTEGER NOT NULL,          -- message timestamp, ms
-  sender_uuid TEXT,
-  sender_num  TEXT,
+  sender_uuid TEXT    NOT NULL DEFAULT '',
+  sender_num  TEXT    NOT NULL DEFAULT '',
   outgoing    INTEGER NOT NULL DEFAULT 0,
-  body        TEXT,
-  group_id    TEXT,
-  quote_ts    INTEGER,
-  attachments TEXT,                      -- json array
+  body        TEXT    NOT NULL DEFAULT '',
+  group_id    TEXT    NOT NULL DEFAULT '',
+  quote_ts    INTEGER NOT NULL DEFAULT 0,
+  attachments TEXT    NOT NULL DEFAULT '',  -- json array
   read        INTEGER NOT NULL DEFAULT 0,
   source      TEXT    NOT NULL DEFAULT 'live', -- 'live' | 'import'
   raw         TEXT
@@ -172,8 +172,10 @@ func (s *Store) Changes(sinceSeq int64, limit int) ([]*Message, error) {
 		limit = 200
 	}
 	rows, err := s.db.Query(`
-		SELECT seq,msg_id,thread_key,ts,sender_uuid,sender_num,outgoing,body,
-		       group_id,quote_ts,attachments,read,source
+		SELECT seq, msg_id, thread_key, ts,
+		       COALESCE(sender_uuid,''), COALESCE(sender_num,''), outgoing,
+		       COALESCE(body,''), COALESCE(group_id,''), COALESCE(quote_ts,0),
+		       COALESCE(attachments,''), read, COALESCE(source,'live')
 		FROM messages WHERE seq > ? ORDER BY seq LIMIT ?`, sinceSeq, limit)
 	if err != nil {
 		return nil, err
@@ -189,8 +191,10 @@ func (s *Store) ThreadMessages(key string, beforeTS int64, limit int) ([]*Messag
 		beforeTS = 1 << 62
 	}
 	rows, err := s.db.Query(`
-		SELECT seq,msg_id,thread_key,ts,sender_uuid,sender_num,outgoing,body,
-		       group_id,quote_ts,attachments,read,source
+		SELECT seq, msg_id, thread_key, ts,
+		       COALESCE(sender_uuid,''), COALESCE(sender_num,''), outgoing,
+		       COALESCE(body,''), COALESCE(group_id,''), COALESCE(quote_ts,0),
+		       COALESCE(attachments,''), read, COALESCE(source,'live')
 		FROM messages WHERE thread_key=? AND ts < ? ORDER BY ts DESC LIMIT ?`,
 		key, beforeTS, limit)
 	if err != nil {

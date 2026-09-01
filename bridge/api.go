@@ -168,16 +168,33 @@ func (a *API) events(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// parseThreadRoute splits /v1/threads/{key}/{action}.
+//
+// It splits on the LAST separator rather than the first, because a thread key is not
+// opaque: a group's key carries a base64 group id, and the standard base64 alphabet
+// includes "/". Splitting on the first separator would truncate every group whose id
+// happens to contain one -- roughly half of them -- and the failure would look like an
+// empty conversation rather than an error.
+func parseThreadRoute(path string) (key, action string, ok bool) {
+	rest := strings.TrimPrefix(path, "/v1/threads/")
+	if rest == path {
+		return "", "", false
+	}
+	i := strings.LastIndex(rest, "/")
+	if i <= 0 {
+		return "", "", false
+	}
+	key, action = rest[:i], rest[i+1:]
+	if key == "" || action == "" {
+		return "", "", false
+	}
+	return key, action, true
+}
+
 // threadSub routes /v1/threads/{key}/{messages,send,read}
 func (a *API) threadSub(w http.ResponseWriter, r *http.Request) {
-	rest := strings.TrimPrefix(r.URL.Path, "/v1/threads/")
-	i := strings.LastIndex(rest, "/")
-	if i < 0 {
-		http.NotFound(w, r)
-		return
-	}
-	key, action := rest[:i], rest[i+1:]
-	if key == "" {
+	key, action, ok := parseThreadRoute(r.URL.Path)
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}

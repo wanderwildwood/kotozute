@@ -29,6 +29,8 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.rxkotlin.plusAssign
 import io.reactivex.schedulers.Schedulers
 import timber.log.Timber
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.security.SecureRandom
@@ -110,6 +112,8 @@ class DesktopSyncService : Service() {
         }.getOrNull().orEmpty()
 
         /** True for Tailscale's CGNAT range, 100.64.0.0/10. */
+        const val TOKEN_LENGTH = 24
+
         fun isTailscale(ip: String): Boolean {
             val parts = ip.split('.')
             if (parts.size != 4 || parts[0] != "100") return false
@@ -133,8 +137,24 @@ class DesktopSyncService : Service() {
             return addr.startsWith("fd7a:115c:a1e0")
         }
 
-        /** The Tailscale IPv4 address, if Tailscale is connected. Works from anywhere. */
-        fun findTailscaleAddress(): String? = ipv4Addresses().firstOrNull(::isTailscale)
+        /**
+         * The Tailscale IPv4 address, if Tailscale is connected.
+         *
+         * Asks for the VPN network specifically rather than scanning interfaces, because
+         * 100.64.0.0/10 is carrier-grade NAT: a phone on mobile data can hold an address
+         * in that range that has nothing to do with Tailscale, and an interface scan
+         * cannot tell the two apart.
+         */
+        fun findTailscaleAddress(context: Context?): String? {
+            addressesOn(context, NetworkCapabilities.TRANSPORT_VPN)
+                ?.firstOrNull(::isTailscale)
+                ?.let { return it }
+            // Only if the system would not say. Never worse than the old behaviour.
+            return ipv4Addresses().firstOrNull(::isTailscale)
+        }
+
+        /** Kept for callers with no Context to hand; prefer the overload that has one. */
+        fun findTailscaleAddress(): String? = findTailscaleAddress(null)
 
         /**
          * A normal private LAN address, if any. Worth surfacing because the relay
@@ -142,14 +162,61 @@ class DesktopSyncService : Service() {
          * Tailscale isn't running — which it isn't right after a reboot, since
          * MuditaOS has no always-on VPN toggle.
          */
-        fun findLanAddress(): String? = ipv4Addresses()
-            .firstOrNull { ip ->
-                !isTailscale(ip) && (
-                    ip.startsWith("192.168.") ||
-                        ip.startsWith("10.") ||
-                        Regex("^172\\.(1[6-9]|2\\d|3[01])\\.").containsMatchIn(ip)
-                    )
+        fun findLanAddress(context: Context?): String? {
+            // Wi-Fi (or wired) specifically. Carriers hand out private addresses too, and
+            // an interface scan returns whichever the system happens to enumerate first --
+            // which on a phone with mobile data alongside Wi-Fi was reliably the cellular
+            // one. The relay was always reachable on Wi-Fi; only the address we printed
+            // was wrong, which is the hardest kind of wrong to diagnose.
+            for (transport in intArrayOf(
+                NetworkCapabilities.TRANSPORT_WIFI,
+                NetworkCapabilities.TRANSPORT_ETHERNET
+            )) {
+                addressesOn(context, transport)
+                    ?.firstOrNull { !isTailscale(it) && isPrivate(it) }
+                    ?.let { return it }
             }
+            // With a Context we trust the answer, including "there isn't one": a cellular
+            // address here would send someone to a page that can never load.
+            if (context != null) return null
+            return ipv4Addresses().firstOrNull { !isTailscale(it) && isPrivate(it) }
+        }
+
+        /** Kept for callers with no Context to hand; prefer the overload that has one. */
+        fun findLanAddress(): String? = findLanAddress(null)
+
+        private fun isPrivate(ip: String): Boolean =
+            ip.startsWith("192.168.") ||
+                ip.startsWith("10.") ||
+                Regex("^172\\.(1[6-9]|2\\d|3[01])\\.").containsMatchIn(ip)
+
+        /** IPv4 addresses on the first network offering [transport], or null if unknown. */
+        /**
+         * IPv4 addresses on the first network offering [transport], or null if unknown.
+         *
+         * Asks the system only which interface that network uses, then reads the interface
+         * directly. LinkProperties.getLinkAddresses() is compiled against a newer SDK than
+         * this phone runs and throws NoSuchMethodError on API 31 -- caught, and so
+         * indistinguishable from "there is no Wi-Fi" unless you go looking. getInterfaceName
+         * has been stable since API 21.
+         */
+        private fun addressesOn(context: Context?, transport: Int): List<String>? {
+            val cm = context?.getSystemService(Context.CONNECTIVITY_SERVICE)
+                as? ConnectivityManager ?: return null
+            return runCatching {
+                val network = cm.allNetworks.firstOrNull {
+                    cm.getNetworkCapabilities(it)?.hasTransport(transport) == true
+                } ?: return@runCatching null
+                val iface = cm.getLinkProperties(network)?.interfaceName
+                    ?: return@runCatching null
+                NetworkInterface.getByName(iface)?.inetAddresses?.asSequence()
+                    ?.filterIsInstance<Inet4Address>()
+                    ?.filterNot { it.isLoopbackAddress }
+                    ?.mapNotNull { it.hostAddress }
+                    ?.toList()
+            }.onFailure { Timber.w(it, "could not read addresses for transport %d", transport) }
+                .getOrNull()
+        }
     }
 
     @Inject lateinit var conversationRepository: ConversationRepository
@@ -289,9 +356,15 @@ class DesktopSyncService : Service() {
     }
 
     private fun generateToken(): String {
-        val bytes = ByteArray(18)
-        SecureRandom().nextBytes(bytes)
-        return android.util.Base64.encodeToString(bytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING)
+        // Crockford's alphabet: no I, L, O or U, so nothing in a token can be mistaken for
+        // anything else in it. Base64 put lI1 and O0 in the same string and this link gets
+        // read off a phone screen and typed into a computer, which made telling them apart
+        // somebody else's problem. 24 characters of it is 120 bits, which is ample.
+        val alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+        val random = SecureRandom()
+        return buildString(TOKEN_LENGTH) {
+            repeat(TOKEN_LENGTH) { append(alphabet[random.nextInt(alphabet.length)]) }
+        }
     }
 
     /**
@@ -307,7 +380,7 @@ class DesktopSyncService : Service() {
     }
 
     private fun notificationText(): String {
-        val address = findTailscaleAddress() ?: findLanAddress()
+        val address = findTailscaleAddress(this) ?: findLanAddress(this)
         return if (address != null) "Listening on $address:$PORT" else "Waiting for a network…"
     }
 

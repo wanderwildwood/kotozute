@@ -320,10 +320,17 @@ class MessagesAdapter @Inject constructor(
 
         holder.simIndex.text = subscription?.simSlotIndex?.plus(1)?.toString()
 
-        ((message.subId != previous?.subId) && (subscription != null) && (subs.size > 1)).also {
-            holder.sim.setVisible(it)
-            holder.simIndex.setVisible(it)
-        }
+        // Shown when the SIM changes, and always on the newest message.
+        //
+        // Marking only the changes means a conversation carried entirely on one SIM is
+        // labelled once, at the very top, far out of view -- so the question someone
+        // actually has, "which number did that last one go out on", had no answer without
+        // scrolling to the beginning. On a dual-SIM phone where one number is work, that
+        // matters more than the tidiness of an unmarked thread.
+        val simWorthSaying = subscription != null && subs.size > 1 &&
+            (message.subId != previous?.subId || next == null)
+        holder.sim.setVisible(simWorthSaying)
+        holder.simIndex.setVisible(simWorthSaying)
 
         // Bind the grouping
         holder.containerView.setPadding(

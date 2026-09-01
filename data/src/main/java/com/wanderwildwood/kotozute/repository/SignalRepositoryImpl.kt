@@ -1,10 +1,12 @@
 package com.wanderwildwood.kotozute.repository
 
+import com.wanderwildwood.kotozute.model.Contact
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.model.SignalThread
 import com.wanderwildwood.kotozute.signal.BridgeClient
 import com.wanderwildwood.kotozute.signal.BridgeConfig
 import com.wanderwildwood.kotozute.signal.BridgeMessage
+import com.wanderwildwood.kotozute.util.PhoneNumberUtils
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Observable
 import io.reactivex.subjects.BehaviorSubject
@@ -20,7 +22,8 @@ import kotlin.concurrent.thread
 
 @Singleton
 class SignalRepositoryImpl @Inject constructor(
-    private val prefs: Preferences
+    private val prefs: Preferences,
+    private val phoneNumberUtils: PhoneNumberUtils
 ) : SignalRepository {
 
     private val state = BehaviorSubject.createDefault(
@@ -104,17 +107,33 @@ class SignalRepositoryImpl @Inject constructor(
             val threads = client.threads()
             Realm.getDefaultInstance().use { realm ->
                 realm.executeTransaction { r ->
+                    // Resolved once per sync rather than per drawn row: the address
+                    // book rarely moves and a lookup per bind would run on every scroll.
+                    val contacts = r.where(Contact::class.java).findAll()
+
                     threads.forEach { t ->
                         val row = r.where(SignalThread::class.java)
                             .equalTo("threadKey", t.threadKey).findFirst()
                             ?: r.createObject(SignalThread::class.java, t.threadKey)
                         row.kind = t.kind
-                        row.title = t.title
                         if (t.lastTs > row.lastTs) row.lastTs = t.lastTs
                         row.counterpartUuid = t.threadKey.substringAfter("direct:", "")
                         if (t.counterpartNumber.isNotBlank()) {
                             row.counterpartNumber = t.counterpartNumber
                         }
+
+                        // Prefer the name this phone already knows the person by. Signal's
+                        // own profile name is the fallback, and a bare number the last
+                        // resort -- otherwise the same person reads differently depending
+                        // on which rail their message came in on.
+                        val local = row.counterpartNumber
+                            .takeIf { it.isNotBlank() && t.kind == "direct" }
+                            ?.let { number ->
+                                contacts.firstOrNull { c ->
+                                    c.numbers.any { phoneNumberUtils.compare(it.address, number) }
+                                }?.name?.takeIf { n -> n.isNotBlank() }
+                            }
+                        row.title = local ?: t.title
                     }
                 }
             }

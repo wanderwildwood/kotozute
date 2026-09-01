@@ -110,6 +110,29 @@ class MessageViewHolder(view: View) : QkViewHolder(view) {
     val resendIcon: ImageView? = view.findViewById(R.id.resendIcon)
 }
 
+/**
+ * Whether a message should carry a SIM marker.
+ *
+ * Shown where the SIM changes, and always on the newest message. Marking only the changes
+ * left a conversation carried entirely on one SIM labelled once, at the very top and far
+ * out of view -- so "which number did that last one go out on" had no answer without
+ * scrolling to the beginning of the thread. Not shown on every message: where a thread
+ * never switches, one marker at the bottom answers the question and the rest is noise.
+ *
+ * Pure, and separate from the adapter, because the behaviour only exists on a phone with
+ * more than one SIM and neither the emulator nor a single-SIM device ever executes it.
+ */
+internal fun shouldShowSim(
+    hasSubscription: Boolean,
+    simCount: Int,
+    subId: Int,
+    previousSubId: Int?,
+    isNewest: Boolean
+): Boolean {
+    if (!hasSubscription || simCount <= 1) return false
+    return subId != previousSubId || isNewest
+}
+
 class MessagesAdapter @Inject constructor(
     subscriptionManager: SubscriptionManagerCompat,
     private val context: Context,
@@ -320,15 +343,13 @@ class MessagesAdapter @Inject constructor(
 
         holder.simIndex.text = subscription?.simSlotIndex?.plus(1)?.toString()
 
-        // Shown when the SIM changes, and always on the newest message.
-        //
-        // Marking only the changes means a conversation carried entirely on one SIM is
-        // labelled once, at the very top, far out of view -- so the question someone
-        // actually has, "which number did that last one go out on", had no answer without
-        // scrolling to the beginning. On a dual-SIM phone where one number is work, that
-        // matters more than the tidiness of an unmarked thread.
-        val simWorthSaying = subscription != null && subs.size > 1 &&
-            (message.subId != previous?.subId || next == null)
+        val simWorthSaying = shouldShowSim(
+            hasSubscription = subscription != null,
+            simCount = subs.size,
+            subId = message.subId,
+            previousSubId = previous?.subId,
+            isNewest = next == null
+        )
         holder.sim.setVisible(simWorthSaying)
         holder.simIndex.setVisible(simWorthSaying)
 

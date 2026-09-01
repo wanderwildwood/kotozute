@@ -304,6 +304,8 @@
     <string name="settings_desktop_sync_title">Desktop Sync</string>
     <string name="settings_desktop_sync_summary_off">Text from your computer in a browser</string>
     <string name="settings_category_desktop_sync">Desktop Sync</string>
+    <string name="settings_desktop_sync_link_copy">Copy link</string>
+    <string name="settings_desktop_sync_link_copied">Link copied</string>
     <string name="settings_desktop_sync_link_title">Show link</string>
     <string name="settings_desktop_sync_link_summary">Open this on your computer</string>
     <string name="settings_desktop_sync_link_bookmark">Bookmark it — the address stays the same.</string>

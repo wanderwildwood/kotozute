@@ -202,7 +202,7 @@ class DesktopSyncServer(
                 runCatching { close(CloseCode.PolicyViolation, "not on the tailnet", false) }
                 return
             }
-            val authed = handshakeRequest.parameters["token"]?.firstOrNull() == token
+            val authed = tokenMatches(handshakeRequest.parameters["token"]?.firstOrNull())
             if (!authed) {
                 Timber.w("Desktop Sync: WebSocket rejected (bad/missing token)")
                 runCatching { close(CloseCode.PolicyViolation, "bad token", false) }
@@ -262,7 +262,7 @@ class DesktopSyncServer(
         }
 
         val authed = session.headers["authorization"] == "Bearer $token" ||
-                session.parameters["token"]?.firstOrNull() == token
+                tokenMatches(session.parameters["token"]?.firstOrNull())
         if (!authed) {
             return jsonResponse(Response.Status.UNAUTHORIZED, JSONObject().put("error", "bad token"))
         }
@@ -330,9 +330,23 @@ class DesktopSyncServer(
      * to carry the pairing token: an installed window opens straight into the dashboard, and
      * without the token it would open to a refusal.
      */
+    /**
+     * Exact, or case-insensitive when the token holds no lowercase of its own.
+     *
+     * Tokens are generated from an uppercase alphabet, so case carries no information and
+     * a link typed by hand should not fail on it. Tokens issued before that change are
+     * mixed-case base64, where case does carry information, so those are compared exactly.
+     */
+    private fun tokenMatches(supplied: String?): Boolean {
+        if (supplied == null) return false
+        if (supplied == token) return true
+        if (token.any { it.isLowerCase() }) return false
+        return supplied.equals(token, ignoreCase = true)
+    }
+
     private fun serveManifest(session: IHTTPSession): Response {
         val supplied = session.parameters["token"]?.firstOrNull()
-        val start = if (supplied == token) "/?token=$token" else "/"
+        val start = if (tokenMatches(supplied)) "/?token=$token" else "/"
         val manifest = JSONObject().apply {
             put("name", "Messaging")
             put("short_name", "Messaging")
@@ -361,8 +375,8 @@ class DesktopSyncServer(
      * web page is allowed to write to ~/.local/share.
      */
     private fun serveDesktopEntry(): Response {
-        val address = DesktopSyncService.findTailscaleAddress()
-            ?: DesktopSyncService.findLanAddress()
+        val address = DesktopSyncService.findTailscaleAddress(context)
+            ?: DesktopSyncService.findLanAddress(context)
             ?: "127.0.0.1"
         val url = "http://$address:$listeningPort?token=$token"
         // Prefers a Chromium browser in app mode, which gives a window with no tab strip or

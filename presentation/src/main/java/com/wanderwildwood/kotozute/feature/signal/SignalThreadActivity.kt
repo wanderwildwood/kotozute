@@ -271,8 +271,16 @@ class SignalThreadActivity : QkThemedActivity() {
                 }
             }.getOrDefault("")
             if (n.isBlank()) return@thread
-            val id = runCatching { conversationRepo.getConversation(listOf(n))?.id ?: 0L }
-                .getOrDefault(0L)
+            // Try every number on the same address-book card, and take the conversation
+            // that has been used most recently. Someone whose Signal is still on an old
+            // number will have a dead SMS thread there and a live one on the new number;
+            // landing on the dead one would be worse than not offering the switch at all.
+            val id = runCatching {
+                signalRepo.numbersForContactOf(n)
+                    .mapNotNull { conversationRepo.getConversation(listOf(it)) }
+                    .maxByOrNull { it.date }
+                    ?.id ?: 0L
+            }.getOrDefault(0L)
             if (id != 0L) runOnUiThread {
                 smsThreadId = id
                 invalidateOptionsMenu()

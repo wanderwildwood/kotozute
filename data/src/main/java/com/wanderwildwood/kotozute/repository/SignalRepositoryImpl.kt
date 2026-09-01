@@ -323,12 +323,42 @@ class SignalRepositoryImpl @Inject constructor(
     override fun findThreadForNumber(number: String): SignalThread? {
         if (number.isBlank()) return null
         Realm.getDefaultInstance().use { realm ->
-            val match = realm.where(SignalThread::class.java)
+            val threads = realm.where(SignalThread::class.java)
                 .equalTo("kind", "direct")
                 .findAll()
-                .firstOrNull { phoneNumberUtils.compare(it.counterpartNumber, number) }
+
+            // The number itself first.
+            threads.firstOrNull { phoneNumberUtils.compare(it.counterpartNumber, number) }
+                ?.let { return realm.copyFromRealm(it) }
+
+            // Then every other number on the same address-book card. Someone who changed
+            // numbers and left Signal on the old one is one person with two numbers, not
+            // two people -- and that is common enough to be worth the second lookup.
+            val alternates = realm.where(Contact::class.java)
+                .findAll()
+                .firstOrNull { c -> c.numbers.any { phoneNumberUtils.compare(it.address, number) } }
+                ?.numbers
+                ?.map { it.address }
+                .orEmpty()
+
+            val viaContact = threads.firstOrNull { t ->
+                alternates.any { alt -> phoneNumberUtils.compare(t.counterpartNumber, alt) }
+            }
             // Detached: the caller is on another thread and outlives this Realm.
-            return match?.let { realm.copyFromRealm(it) }
+            return viaContact?.let { realm.copyFromRealm(it) }
+        }
+    }
+
+    override fun numbersForContactOf(number: String): List<String> {
+        if (number.isBlank()) return listOf()
+        Realm.getDefaultInstance().use { realm ->
+            val nums = realm.where(Contact::class.java)
+                .findAll()
+                .firstOrNull { c -> c.numbers.any { phoneNumberUtils.compare(it.address, number) } }
+                ?.numbers
+                ?.map { it.address }
+                .orEmpty()
+            return if (nums.isEmpty()) listOf(number) else nums
         }
     }
 

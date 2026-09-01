@@ -161,6 +161,32 @@ Signal threads stay visible and readable with an honest last-synced state and a 
 composer. Receiving degrades softly (messages queue server-side and arrive on reconnect);
 **sending fails hard**. The UI must not offer a compose box that cannot deliver.
 
+## Importing history — deferred, and why the obvious route does not exist
+
+Signal has two unrelated backup systems, and only one of them can be imported:
+
+| | Secure Backups | On-device backups |
+|---|---|---|
+| key | **64 characters**, in groups of four | **30 digits** |
+| stored | on Signal's servers, end-to-end encrypted | a local `.backup` file |
+| platforms | Android and iOS | Android and Desktop only |
+| restored by | Signal itself, during registration | the file, on reinstall or transfer |
+
+A Secure Backups recovery key looks like the thing you want and is not: that backup never
+exists as a file anyone holds, so there is nothing to decrypt and `signalbackup-tools` does
+not apply. Only the **on-device** backup produces a readable file, and it is the 30-digit
+passphrase that opens it.
+
+So importing history needs on-device backups enabled on an Android Signal install, which
+yields the file and the 30-digit passphrase. Deferred deliberately: the messages are already
+on the phone the user carries, and the app says so rather than pretending otherwise.
+
+**What is already in place for it.** The store is idempotent on `(author, timestamp)` and
+makes no assumption about arrival order, and `SignalMessage.source` distinguishes `"live"`
+from `"import"`. A backup arrives backwards in time; nothing has to be rewritten to accept
+it. The thread preview is guarded on the timestamp for the same reason -- an old imported
+message must not overwrite a newer preview.
+
 ## Open items
 - [ ] Design and build the authenticating bridge (token + method allowlist)
 - [ ] Attachment path: fetch, cache, retention policy on the eMMC

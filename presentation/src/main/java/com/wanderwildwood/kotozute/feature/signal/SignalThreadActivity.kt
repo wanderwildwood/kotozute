@@ -1,10 +1,16 @@
 package com.wanderwildwood.kotozute.feature.signal
 
+import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.R
@@ -33,6 +39,14 @@ class SignalThreadActivity : QkThemedActivity() {
     private val disposables = CompositeDisposable()
     private var messages: RealmResults<SignalMessage>? = null
     private lateinit var threadKey: String
+
+    /** The picked file, already a data URI. Held until the message is actually sent. */
+    private var pendingAttachment: String? = null
+    private var pendingName: String? = null
+
+    private val picker = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> if (uri != null) attach(uri) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -80,6 +94,8 @@ class SignalThreadActivity : QkThemedActivity() {
         })
 
         binding.send.setOnClickListener { send() }
+        binding.attach.setOnClickListener { picker.launch("*/*") }
+        binding.pending.setOnClickListener { clearAttachment() }
     }
 
     private fun markRead(data: List<SignalMessage>) {
@@ -87,16 +103,102 @@ class SignalThreadActivity : QkThemedActivity() {
         if (data.any { !it.outgoing && !it.read }) signalRepo.markRead(threadKey, newest)
     }
 
+    /**
+     * Reads the picked file and turns it into a data URI. Images are downscaled first:
+     * a phone photo base64s to several megabytes, and holding that twice over -- bytes
+     * and string -- is how a small device runs out of memory mid-send.
+     */
+    private fun attach(uri: Uri) {
+        thread(isDaemon = true) {
+            val type = contentResolver.getType(uri) ?: "application/octet-stream"
+            val result = runCatching {
+                val bytes = if (type.startsWith("image/")) {
+                    downscaleImage(uri) ?: readBytes(uri)
+                } else {
+                    readBytes(uri)
+                }
+                if (bytes.size > MAX_ATTACHMENT_BYTES) throw IllegalStateException("too big")
+                val encodedType = if (type.startsWith("image/") && type != "image/gif") {
+                    "image/jpeg"
+                } else {
+                    type
+                }
+                "data:$encodedType;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+            }
+            runOnUiThread {
+                result.onSuccess { dataUri ->
+                    pendingAttachment = dataUri
+                    pendingName = displayName(uri) ?: type
+                    binding.pending.text = getString(R.string.signal_attached, pendingName)
+                    binding.pending.setVisible(true)
+                }.onFailure {
+                    val msg = if (it is IllegalStateException) {
+                        R.string.signal_attach_too_big
+                    } else {
+                        R.string.signal_attach_failed
+                    }
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    /** A MediaStore uri's last path segment is a row id, so ask for the real name. */
+    private fun displayName(uri: Uri): String? = runCatching {
+        contentResolver.query(uri, null, null, null, null)?.use { c ->
+            val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (i >= 0 && c.moveToFirst()) c.getString(i) else null
+        }
+    }.getOrNull()
+
+    private fun readBytes(uri: Uri): ByteArray =
+        contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: throw IllegalArgumentException("cannot read $uri")
+
+    /** Decodes at a reduced sample size, then recompresses. Null if it is not an image. */
+    private fun downscaleImage(uri: Uri): ByteArray? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        var sample = 1
+        while (bounds.outWidth / sample > MAX_IMAGE_EDGE || bounds.outHeight / sample > MAX_IMAGE_EDGE) {
+            sample *= 2
+        }
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bmp = contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, opts)
+        } ?: return null
+
+        return ByteArrayOutputStream().use { out ->
+            bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+            bmp.recycle()
+            out.toByteArray()
+        }
+    }
+
+    private fun clearAttachment() {
+        pendingAttachment = null
+        pendingName = null
+        binding.pending.setVisible(false)
+    }
+
     private fun send() {
         val body = binding.message.text?.toString().orEmpty().trim()
-        if (body.isEmpty()) return
+        val attachment = pendingAttachment
+        if (body.isEmpty() && attachment == null) return
         binding.send.isEnabled = false
         thread(isDaemon = true) {
-            val result = runCatching { signalRepo.send(threadKey, body) }
+            val result = runCatching {
+                signalRepo.send(threadKey, body, listOfNotNull(attachment))
+            }
             runOnUiThread {
                 binding.send.isEnabled = true
                 result
-                    .onSuccess { binding.message.setText("") }
+                    .onSuccess {
+                        binding.message.setText("")
+                        clearAttachment()
+                    }
                     .onFailure {
                         // The message stays in the box, so nothing the user typed is lost.
                         Toast.makeText(
@@ -130,6 +232,9 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     companion object {
+        private const val MAX_IMAGE_EDGE = 1600
+        private const val MAX_ATTACHMENT_BYTES = 24 * 1024 * 1024
+
         /**
          * Which conversation is on screen, so a notification is not raised about a message
          * the user is watching arrive.
@@ -188,7 +293,18 @@ class SignalThreadActivity : QkThemedActivity() {
                 ?.optJSONObject(0) ?: return
             val id = first.optString("id")
             val type = first.optString("contentType")
-            if (id.isBlank()) return
+
+            // Our own sent attachments carry no id: Signal assigns one on upload and does
+            // not report it back. There is nothing to fetch, but the sender should still
+            // see that the message carried something.
+            if (id.isBlank()) {
+                b.attachment.text = getString(
+                    R.string.signal_attachment_other,
+                    type.ifBlank { getString(R.string.signal_attachment_image) }
+                )
+                b.attachment.setVisible(true)
+                return
+            }
 
             if (!type.startsWith("image/")) {
                 b.attachment.text = getString(

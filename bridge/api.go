@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// A photo grows by about a third in base64, so this allows a large one with room over.
+const maxSendBytes = 48 << 20
+
 type API struct {
 	store *Store
 	sc    *SignalCLI
@@ -203,14 +206,24 @@ func (a *API) threadSub(w http.ResponseWriter, r *http.Request) {
 func (a *API) send(w http.ResponseWriter, r *http.Request, key string) {
 	var body struct {
 		Message string `json:"message"`
+		// RFC 2397 data URIs. signal-cli takes these directly, so nothing decrypted
+		// is written to disk on the way through.
+		Attachments []string `json:"attachments"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
-		writeJSON(w, 400, map[string]string{"error": "bad json"})
+	// Generous, because a photo base64s to a third again its size.
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxSendBytes)).Decode(&body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "bad json or body too large"})
 		return
 	}
-	if strings.TrimSpace(body.Message) == "" {
-		writeJSON(w, 400, map[string]string{"error": "empty message"})
+	if strings.TrimSpace(body.Message) == "" && len(body.Attachments) == 0 {
+		writeJSON(w, 400, map[string]string{"error": "nothing to send"})
 		return
+	}
+	for _, att := range body.Attachments {
+		if !strings.HasPrefix(att, "data:") {
+			writeJSON(w, 400, map[string]string{"error": "attachments must be data URIs"})
+			return
+		}
 	}
 	if !a.sc.Connected() {
 		// Sending fails hard when the bridge cannot reach signal-cli. Say so
@@ -223,13 +236,13 @@ func (a *API) send(w http.ResponseWriter, r *http.Request, key string) {
 	var err error
 	switch {
 	case strings.HasPrefix(key, "group:"):
-		ts, err = a.sc.SendToGroup(strings.TrimPrefix(key, "group:"), body.Message, nil)
+		ts, err = a.sc.SendToGroup(strings.TrimPrefix(key, "group:"), body.Message, body.Attachments)
 	case strings.HasPrefix(key, "direct:"):
 		to := strings.TrimPrefix(key, "direct:")
 		if to == a.self {
-			ts, err = a.sc.SendToNoteToSelf(body.Message, nil)
+			ts, err = a.sc.SendToNoteToSelf(body.Message, body.Attachments)
 		} else {
-			ts, err = a.sc.SendToRecipient(to, body.Message, nil)
+			ts, err = a.sc.SendToRecipient(to, body.Message, body.Attachments)
 		}
 	default:
 		writeJSON(w, 400, map[string]string{"error": "unknown thread key"})
@@ -247,6 +260,11 @@ func (a *API) send(w http.ResponseWriter, r *http.Request, key string) {
 		ID: fmt.Sprintf("%s:%d", a.self, ts), ThreadKey: key, TS: ts,
 		SenderUUID: a.self, Outgoing: true, Body: body.Message,
 		Read: true, Source: "live",
+		// Signal assigns attachment ids on upload and the send result does not report
+		// them, so our own sent attachments are recorded without one. The sender still
+		// sees that the message carried a picture; there is simply nothing to fetch,
+		// which is what an empty id means to the client.
+		Attachments: describeSent(body.Attachments),
 	}
 	if strings.HasPrefix(key, "group:") {
 		m.GroupID = strings.TrimPrefix(key, "group:")
@@ -276,6 +294,24 @@ func (a *API) markRead(w http.ResponseWriter, r *http.Request, key string) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"marked": n})
+}
+
+// describeSent turns outgoing data URIs into the little we can honestly say about them.
+func describeSent(uris []string) []Attachment {
+	out := make([]Attachment, 0, len(uris))
+	for _, u := range uris {
+		mime := "application/octet-stream"
+		if i := strings.Index(u, ";"); i > 5 {
+			mime = u[5:i]
+		}
+		payload := u
+		if i := strings.Index(u, ","); i >= 0 {
+			payload = u[i+1:]
+		}
+		// base64 length to bytes, near enough for a size label.
+		out = append(out, Attachment{Type: mime, Size: int64(len(payload)) * 3 / 4})
+	}
+	return out
 }
 
 func sseSend(w http.ResponseWriter, fl http.Flusher, event string, v any) {

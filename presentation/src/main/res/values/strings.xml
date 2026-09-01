@@ -336,6 +336,10 @@
     <string name="signal_cannot_send_signal">The bridge is not connected to Signal — you can read, but not send</string>
     <string name="signal_send_failed">Not sent: %s</string>
     <string name="signal_you">You</string>
+    <string name="signal_attach">+</string>
+    <string name="signal_attached">Attached: %s — tap to remove</string>
+    <string name="signal_attach_failed">Could not read that file</string>
+    <string name="signal_attach_too_big">That file is too large to send</string>
     <string name="signal_attachment_image">Image attachment</string>
     <string name="signal_attachment_other">Attachment: %s</string>
     <string name="signal_attachment_unavailable">Attachment (not downloaded)</string>

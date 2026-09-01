@@ -19,6 +19,18 @@
         android:clipToPadding="false" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/pending"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/cannotSend"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -32,6 +44,16 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="8dp">
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/attach"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center"
+            android:minWidth="44dp"
+            android:padding="12dp"
+            android:text="@string/signal_attach" />
 
         <com.wanderwildwood.kotozute.common.widget.QkEditText
             android:id="@+id/message"

@@ -46,7 +46,8 @@ interface SignalRepository {
     fun startStream()
     fun stopStream()
 
-    fun send(threadKey: String, body: String): Long
+    /** [attachments] are RFC 2397 data URIs. Returns the Signal timestamp. */
+    fun send(threadKey: String, body: String, attachments: List<String> = emptyList()): Long
 
     fun markRead(threadKey: String, upToTs: Long)
 

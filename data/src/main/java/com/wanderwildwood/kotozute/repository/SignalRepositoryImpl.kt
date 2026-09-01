@@ -284,9 +284,9 @@ class SignalRepositoryImpl @Inject constructor(
         msgs.filter { !it.outgoing }.forEach { incoming.onNext(detached(it)) }
     }
 
-    override fun send(threadKey: String, body: String): Long {
+    override fun send(threadKey: String, body: String, attachments: List<String>): Long {
         val cfg = config() ?: throw IllegalStateException("no bridge paired")
-        return BridgeClient(cfg).send(threadKey, body)
+        return BridgeClient(cfg).send(threadKey, body, attachments)
     }
 
     /**

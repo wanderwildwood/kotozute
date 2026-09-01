@@ -93,9 +93,12 @@ class BridgeClient(private val config: BridgeConfig) {
     }
 
     /** Returns the Signal timestamp of the sent message. Throws if it could not be sent. */
-    fun send(threadKey: String, message: String): Long {
-        val body = JSONObject().put("message", message)
-            .toString().toRequestBody(JSON)
+    fun send(threadKey: String, message: String, attachments: List<String> = emptyList()): Long {
+        val json = JSONObject().put("message", message)
+        if (attachments.isNotEmpty()) {
+            json.put("attachments", org.json.JSONArray(attachments))
+        }
+        val body = json.toString().toRequestBody(JSON)
         val req = authed("${config.baseUrl}/v1/threads/${enc(threadKey)}/send").post(body).build()
         client.newCall(req).execute().use { resp ->
             val text = resp.body?.string().orEmpty()

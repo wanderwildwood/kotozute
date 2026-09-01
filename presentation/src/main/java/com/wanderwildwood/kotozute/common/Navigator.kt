@@ -132,6 +132,15 @@ class Navigator @Inject constructor(
         startActivity(Intent(context, SignalConversationsActivity::class.java))
     }
 
+    /**
+     * Goes through startActivity() here rather than the adapter's own context: the adapter
+     * is injected with the application context, and starting an activity from one without
+     * FLAG_ACTIVITY_NEW_TASK throws.
+     */
+    fun showSignalThread(threadKey: String, title: String) {
+        startActivity(SignalConversationsActivity.intentFor(context, threadKey, title))
+    }
+
     fun showArchived() {
         val intent = Intent(context, MainActivity::class.java)
         intent.putExtra("showArchived", true)

@@ -336,6 +336,10 @@
     <string name="signal_cannot_send_signal">The bridge is not connected to Signal — you can read, but not send</string>
     <string name="signal_send_failed">Not sent: %s</string>
     <string name="signal_you">You</string>
+    <plurals name="signal_unread">
+        <item quantity="one">%d unread</item>
+        <item quantity="other">%d unread</item>
+    </plurals>
     <string name="settings_desktop_sync_link_title">Show link</string>
     <string name="settings_desktop_sync_link_summary">Open this on your computer</string>
     <string name="settings_desktop_sync_link_bookmark">Bookmark it — the address stays the same.</string>

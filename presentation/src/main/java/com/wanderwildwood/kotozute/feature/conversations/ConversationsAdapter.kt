@@ -21,25 +21,39 @@ package com.wanderwildwood.kotozute.feature.conversations
 import android.content.Context
 import android.graphics.Typeface
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.core.text.buildSpannedString
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.Navigator
-import com.wanderwildwood.kotozute.common.base.QkRealmAdapter
 import com.wanderwildwood.kotozute.common.base.QkBindingViewHolder
 import com.wanderwildwood.kotozute.common.util.Colors
 import com.wanderwildwood.kotozute.common.util.DateFormatter
 import com.wanderwildwood.kotozute.common.util.extensions.resolveThemeColor
 import com.wanderwildwood.kotozute.common.util.extensions.setTint
-import com.wanderwildwood.kotozute.model.Conversation
+import com.wanderwildwood.kotozute.common.util.extensions.setVisible
+import com.wanderwildwood.kotozute.databinding.ConversationListItemBinding
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.util.PhoneNumberUtils
 import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.Subject
 import javax.inject.Inject
-import com.wanderwildwood.kotozute.databinding.ConversationListItemBinding
 
+/**
+ * The inbox, both rails.
+ *
+ * This used to be a RealmRecyclerViewAdapter over Conversation. It is a plain adapter now
+ * because Signal threads are a different Realm class and cannot be merged in the database:
+ * SyncRepositoryImpl.removeOldMessages() empties Conversation and Message on every full
+ * sync, so Signal rows kept there would be destroyed by an ordinary re-sync.
+ *
+ * Only SMS rows are selectable and swipeable. Archive, delete, pin and multi-select are all
+ * telephony operations keyed on a thread id; rather than pretend they apply to a Signal
+ * thread, the row simply does not offer them.
+ */
 class ConversationsAdapter @Inject constructor(
     private val colors: Colors,
     private val context: Context,
@@ -47,60 +61,112 @@ class ConversationsAdapter @Inject constructor(
     private val scheduledMessageRepo: ScheduledMessageRepository,
     private val navigator: Navigator,
     private val phoneNumberUtils: PhoneNumberUtils
-) : QkRealmAdapter<Conversation, QkBindingViewHolder<ConversationListItemBinding>>() {
+) : RecyclerView.Adapter<QkBindingViewHolder<ConversationListItemBinding>>() {
+
     private val disposables = CompositeDisposable()
+
+    val selectionChanges: Subject<List<Long>> = BehaviorSubject.create()
+    private val selection = mutableListOf<Long>()
+
+    var emptyView: View? = null
+        set(value) {
+            field = value
+            updateEmptyView()
+        }
 
     // Filter mode: 0=All, 1=Groups, 2=Unknown (no saved contacts)
     var filterMode: Int = 0
         set(value) {
             if (field != value) {
                 field = value
-                notifyDataSetChanged()
+                applyFilter()
             }
         }
 
-    // Cache filtered items for consistent access
-    private var filteredItems: List<Conversation> = emptyList()
-    private var lastDataVersion: Int = -1
-
-    private fun updateFilteredItems() {
-        val currentData = data ?: return
-        if (!currentData.isLoaded || !currentData.isValid) {
-            filteredItems = emptyList()
-            return
-        }
-
-        filteredItems = when (filterMode) {
-            1 -> currentData.filter { it.recipients.size > 1 } // Groups
-            2 -> currentData.filter { conversation ->
-                // Unknown: all recipients have no contact
-                conversation.recipients.all { it.contact == null }
-            }
-            else -> currentData.toList() // All
-        }
-    }
+    private var source: List<InboxItem> = emptyList()
+    private var items: List<InboxItem> = emptyList()
 
     init {
-        // This is how we access the threadId for the swipe actions
         setHasStableIds(true)
     }
 
-    override fun getItemCount(): Int {
-        updateFilteredItems()
-        return if (filterMode == 0) super.getItemCount() else filteredItems.size
+    /**
+     * Replaces the whole list. This notifies wholesale rather than by range: positions come
+     * from two independent Realm collections merged by date, so Realm's own fine-grained
+     * notifications would be describing the wrong indices.
+     */
+    fun updateData(data: List<InboxItem>?) {
+        source = data.orEmpty()
+        applyFilter()
     }
 
-    override fun getItem(index: Int): Conversation? {
-        if (filterMode == 0) return super.getItem(index)
-        if (index < 0 || index >= filteredItems.size) return null
-        return filteredItems[index]
+    private fun applyFilter() {
+        items = when (filterMode) {
+            // A Signal group is still a group; a Signal thread always has a counterpart,
+            // so it is never "unknown" in the sense the Unknown tab means.
+            1 -> source.filter {
+                when (it) {
+                    is InboxItem.Sms -> it.conversation.recipients.size > 1
+                    is InboxItem.Signal -> it.thread.kind == "group"
+                }
+            }
+            2 -> source.filter {
+                it is InboxItem.Sms && it.conversation.recipients.all { r -> r.contact == null }
+            }
+            else -> source
+        }
+        notifyDataSetChanged()
+        updateEmptyView()
     }
 
-    override fun getItemId(position: Int): Long {
-        return getItem(position)?.id ?: -1
+    private fun updateEmptyView() {
+        emptyView?.setVisible(items.isEmpty())
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkBindingViewHolder<ConversationListItemBinding> {
+    fun getItem(index: Int): InboxItem? = items.getOrNull(index)
+
+    override fun getItemCount(): Int = items.size
+
+    override fun getItemId(position: Int): Long = getItem(position)?.stableId ?: -1
+
+    override fun getItemViewType(position: Int): Int = when (val item = getItem(position)) {
+        is InboxItem.Sms -> if (item.conversation.unread) 1 else 0
+        is InboxItem.Signal -> if (item.thread.unread > 0) 1 else 0
+        null -> 0
+    }
+
+    // ---- selection: SMS only -------------------------------------------------
+
+    private fun toggleSelection(id: Long, force: Boolean = true): Boolean {
+        if (!force && selection.isEmpty()) return false
+        if (!selection.remove(id)) selection.add(id)
+        selectionChanges.onNext(selection)
+        return true
+    }
+
+    private fun isSelected(id: Long): Boolean = selection.contains(id)
+
+    fun clearSelection() {
+        selection.clear()
+        selectionChanges.onNext(selection)
+        notifyDataSetChanged()
+    }
+
+    fun toggleSelectAll() {
+        val selectable = items.filterIsInstance<InboxItem.Sms>().map { it.conversation.id }
+        val needToSelectAll = selection.size != selectable.size
+        selection.clear()
+        if (needToSelectAll) selection.addAll(selectable)
+        selectionChanges.onNext(selection)
+        notifyDataSetChanged()
+    }
+
+    // ---- binding -------------------------------------------------------------
+
+    override fun onCreateViewHolder(
+        parent: ViewGroup,
+        viewType: Int
+    ): QkBindingViewHolder<ConversationListItemBinding> {
         val layoutInflater = LayoutInflater.from(parent.context)
         val binding = ConversationListItemBinding.inflate(layoutInflater, parent, false)
         val view = binding.root
@@ -122,23 +188,56 @@ class ConversationsAdapter @Inject constructor(
 
         return QkBindingViewHolder(binding).apply {
             view.setOnClickListener {
-                val conversation = getItem(adapterPosition) ?: return@setOnClickListener
-                when (toggleSelection(conversation.id, false)) {
-                    true -> view.isActivated = isSelected(conversation.id)
-                    false -> navigator.showConversation(conversation.id, null, conversation.getTitle())
+                when (val item = getItem(adapterPosition)) {
+                    is InboxItem.Sms -> {
+                        val conversation = item.conversation
+                        when (toggleSelection(conversation.id, false)) {
+                            true -> view.isActivated = isSelected(conversation.id)
+                            false -> navigator.showConversation(
+                                conversation.id, null, conversation.getTitle()
+                            )
+                        }
+                    }
+                    is InboxItem.Signal -> {
+                        // Not selectable, so a tap always opens it -- even mid-selection.
+                        navigator.showSignalThread(item.thread.threadKey, signalTitle(item))
+                    }
+                    null -> Unit
                 }
             }
             view.setOnLongClickListener {
-                val conversation = getItem(adapterPosition) ?: return@setOnLongClickListener true
-                toggleSelection(conversation.id)
-                view.isActivated = isSelected(conversation.id)
+                val item = getItem(adapterPosition) as? InboxItem.Sms
+                    ?: return@setOnLongClickListener true
+                toggleSelection(item.conversation.id)
+                view.isActivated = isSelected(item.conversation.id)
                 true
             }
         }
     }
 
-    override fun onBindViewHolder(holder: QkBindingViewHolder<ConversationListItemBinding>, position: Int) {
-        val conversation = getItem(position) ?: return
+    private fun signalTitle(item: InboxItem.Signal): String = with(item.thread) {
+        when {
+            title.isNotBlank() -> title
+            counterpartNumber.isNotBlank() -> counterpartNumber
+            else -> threadKey.substringAfter(":")
+        }
+    }
+
+    override fun onBindViewHolder(
+        holder: QkBindingViewHolder<ConversationListItemBinding>,
+        position: Int
+    ) {
+        when (val item = getItem(position) ?: return) {
+            is InboxItem.Sms -> bindSms(holder, item)
+            is InboxItem.Signal -> bindSignal(holder, item)
+        }
+    }
+
+    private fun bindSms(
+        holder: QkBindingViewHolder<ConversationListItemBinding>,
+        item: InboxItem.Sms
+    ) {
+        val conversation = item.conversation
 
         // If the last message wasn't incoming, then the colour doesn't really matter anyway
         val lastMessage = conversation.lastMessage
@@ -148,9 +247,10 @@ class ConversationsAdapter @Inject constructor(
                 phoneNumberUtils.compare(recipient.address, lastMessage.address)
             }
         }
-        val theme = colors.theme(recipient).theme
+        colors.theme(recipient)
 
         holder.containerView.isActivated = isSelected(conversation.id)
+        holder.binding.rail.isVisible = false
 
         // The avatar is gone from the row, so there is nothing to fill.
         holder.binding.title.collapseEnabled = conversation.recipients.size > 1
@@ -181,14 +281,33 @@ class ConversationsAdapter @Inject constructor(
         holder.binding.unread.setTint(0xFF000000.toInt())
     }
 
-    override fun getItemViewType(position: Int): Int {
-        return if (getItem(position)?.unread == false) 0 else 1
+    private fun bindSignal(
+        holder: QkBindingViewHolder<ConversationListItemBinding>,
+        item: InboxItem.Signal
+    ) {
+        val thread = item.thread
+
+        // Never selected: Signal rows are not part of the telephony selection.
+        holder.containerView.isActivated = false
+        holder.binding.rail.isVisible = true
+
+        holder.binding.title.collapseEnabled = false
+        holder.binding.title.text = buildSpannedString { append(signalTitle(item)) }
+        holder.binding.date.text = thread.lastTs.takeIf { it > 0 }
+            ?.let(dateFormatter::getConversationTimestamp)
+        holder.binding.snippet.text = when {
+            thread.unread > 0 -> context.resources.getQuantityString(
+                R.plurals.signal_unread, thread.unread, thread.unread
+            )
+            else -> ""
+        }
+        holder.binding.scheduled.isVisible = false
+        holder.binding.pinned.isVisible = false
+        holder.binding.unread.setTint(0xFF000000.toInt())
     }
 
     override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
         super.onDetachedFromRecyclerView(recyclerView)
         disposables.clear()
     }
-
-
 }

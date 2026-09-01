@@ -57,7 +57,7 @@ class SignalRepositoryImpl @Inject constructor(
         return true
     }
 
-    override fun unpair() {
+    override fun unpair() = runOffThread {
         stopStream()
         prefs.signalEnabled.set(false)
         prefs.signalBridgeHost.set("")
@@ -72,6 +72,10 @@ class SignalRepositoryImpl @Inject constructor(
             }
         }
         publishState(reachable = false, signalConnected = false, error = null)
+    }
+
+    private fun runOffThread(block: () -> Unit) {
+        thread(isDaemon = true) { runCatching(block).onFailure { Timber.w(it, "signal") } }
     }
 
     override fun setEnabled(enabled: Boolean) {
@@ -229,7 +233,12 @@ class SignalRepositoryImpl @Inject constructor(
         return BridgeClient(cfg).send(threadKey, body)
     }
 
-    override fun markRead(threadKey: String, upToTs: Long) {
+    /**
+     * All of this runs off the caller's thread. The Realm here is configured to refuse
+     * writes on the UI thread, and this is reached straight from a change listener, which
+     * is delivered on the main looper.
+     */
+    override fun markRead(threadKey: String, upToTs: Long) = runOffThread {
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 r.where(SignalMessage::class.java)
@@ -243,11 +252,9 @@ class SignalRepositoryImpl @Inject constructor(
                     .findFirst()?.unread = 0
             }
         }
-        val cfg = config() ?: return
-        thread(isDaemon = true) {
-            runCatching { BridgeClient(cfg).markRead(threadKey, upToTs) }
-                .onFailure { Timber.d("markRead not delivered: ${it.message}") }
-        }
+        val cfg = config() ?: return@runOffThread
+        runCatching { BridgeClient(cfg).markRead(threadKey, upToTs) }
+            .onFailure { Timber.d("markRead not delivered: ${it.message}") }
     }
 
     override fun getThreads(): RealmResults<SignalThread> =

@@ -55,13 +55,30 @@
         android:textStyle="bold"
         app:layout_constrainedWidth="true"
         app:layout_constraintBottom_toTopOf="@id/snippet"
-        app:layout_constraintEnd_toStartOf="@id/date"
+        app:layout_constraintEnd_toStartOf="@id/rail"
         app:layout_constraintHorizontal_bias="0"
         app:layout_constraintStart_toEndOf="@id/avatars"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_chainStyle="packed"
         tools:text="@tools:sample/full_names"
         android:textDirection="ltr" />
+
+    <!-- Which rail the thread rides. Shown only on Signal rows: unmarked means SMS,
+         which keeps the marker off every row in an inbox that is mostly SMS. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/rail"
+        style="@style/TextSecondary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:lines="1"
+        android:text="@string/signal_rail_label"
+        android:textSize="11sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/title"
+        app:layout_constraintEnd_toStartOf="@id/date"
+        app:layout_constraintTop_toTopOf="@id/title"
+        tools:visibility="visible" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/snippet"

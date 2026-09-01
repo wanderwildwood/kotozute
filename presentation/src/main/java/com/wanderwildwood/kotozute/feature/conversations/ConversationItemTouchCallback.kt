@@ -54,6 +54,20 @@ class ConversationItemTouchCallback @Inject constructor(
      */
     var adapter: RecyclerView.Adapter<*>? = null
 
+    /**
+     * Signal rows offer no swipe. Archive, delete and mark-read are telephony operations
+     * keyed on a thread id, and a Signal thread has none -- swiping one would either do
+     * nothing or act on an unrelated conversation. Their stable ids are negative, which is
+     * how a row is recognised here without reaching back into the adapter.
+     */
+    override fun getSwipeDirs(
+        recyclerView: RecyclerView,
+        viewHolder: RecyclerView.ViewHolder
+    ): Int = when {
+        InboxItem.isSignalId(viewHolder.itemId) -> 0
+        else -> super.getSwipeDirs(recyclerView, viewHolder)
+    }
+
     private val backgroundPaint = Paint()
     private var rightAction = 0
     private var swipeRightIcon: Bitmap? = null

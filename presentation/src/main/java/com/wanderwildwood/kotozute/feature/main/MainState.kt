@@ -18,7 +18,7 @@
  */
 package com.wanderwildwood.kotozute.feature.main
 
-import com.wanderwildwood.kotozute.model.Conversation
+import com.wanderwildwood.kotozute.feature.conversations.InboxItem
 import com.wanderwildwood.kotozute.model.SearchResult
 import com.wanderwildwood.kotozute.repository.SyncRepository
 import io.realm.RealmResults
@@ -39,7 +39,7 @@ data class Inbox(
     val addContact: Boolean = false,
     val markPinned: Boolean = true,
     val markRead: Boolean = false,
-    val data: RealmResults<Conversation>? = null,
+    val data: List<InboxItem>? = null,
     val selected: Int = 0,
     val filter: Int = 0 // 0=All, 1=Groups, 2=Unknown
 ) : MainPage()
@@ -53,6 +53,6 @@ data class Archived(
     val addContact: Boolean = false,
     val markPinned: Boolean = true,
     val markRead: Boolean = false,
-    val data: RealmResults<Conversation>? = null,
+    val data: List<InboxItem>? = null,
     val selected: Int = 0
 ) : MainPage()

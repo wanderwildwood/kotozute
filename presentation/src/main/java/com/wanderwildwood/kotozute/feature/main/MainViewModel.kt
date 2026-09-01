@@ -47,6 +47,9 @@ import io.realm.RealmResults
 import com.wanderwildwood.kotozute.repository.EmojiReactionRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
 import com.wanderwildwood.kotozute.repository.SyncRepository
+import com.wanderwildwood.kotozute.feature.conversations.InboxItem
+import com.wanderwildwood.kotozute.model.SignalThread
+import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.plusAssign
@@ -74,18 +77,73 @@ class MainViewModel @Inject constructor(
     private val permissionManager: PermissionManager,
     private val prefs: Preferences,
     private val reactions: EmojiReactionRepository,
+    private val signalRepo: SignalRepository,
     private val syncContacts: SyncContacts,
     private val syncMessages: SyncMessages
 ) : QkViewModel<MainView, MainState>(
     MainState(page = Inbox(
-        filter = prefs.conversationFilter.get(),
-        // Always get all conversations - filtering is done in the adapter
-        data = conversationRepo.getConversations(prefs.unreadAtTop.get())
+        filter = prefs.conversationFilter.get()
     ))
 ) {
     private var lastArchivedThreadIds = listOf<Long>(0)
 
+    // The inbox is merged from two live Realm collections. Signal cannot share Conversation
+    // -- a full sync empties that table -- so the rails are joined here and re-merged
+    // whenever either side changes.
+    private var smsResults: RealmResults<Conversation>? = null
+    private var signalResults: RealmResults<SignalThread>? = null
+    private var showingArchived = false
+
+    private val smsListener =
+        io.realm.RealmChangeListener<RealmResults<Conversation>> { refreshInbox() }
+    private val signalListener =
+        io.realm.RealmChangeListener<RealmResults<SignalThread>> { refreshInbox() }
+
+    private fun bindInbox(archived: Boolean): List<InboxItem> {
+        showingArchived = archived
+        smsResults?.removeAllChangeListeners()
+        smsResults = conversationRepo.getConversations(prefs.unreadAtTop.get(), archived)
+            .also { it.addChangeListener(smsListener) }
+        if (signalResults == null) {
+            signalResults = signalRepo.getThreads().also { it.addChangeListener(signalListener) }
+        }
+        return mergedInbox()
+    }
+
+    private fun mergedInbox(): List<InboxItem> {
+        val sms = smsResults
+            ?.takeIf { it.isValid && it.isLoaded }
+            ?.map { InboxItem.Sms(it) }
+            .orEmpty()
+        // Signal has no archive of its own, so it belongs in the inbox only.
+        val signal = when {
+            showingArchived || !prefs.signalEnabled.get() -> emptyList()
+            else -> signalResults
+                ?.takeIf { it.isValid && it.isLoaded }
+                ?.map { InboxItem.Signal(it) }
+                .orEmpty()
+        }
+        return (sms + signal).sortedByDescending { it.sortDate }
+    }
+
+    private fun refreshInbox() {
+        val items = mergedInbox()
+        newState {
+            when (val p = page) {
+                is Inbox -> copy(page = p.copy(data = items))
+                is Archived -> copy(page = p.copy(data = items))
+                else -> this
+            }
+        }
+    }
+
     init {
+        // The initial state cannot build this: the list is merged from two collections.
+        newState { copy(page = Inbox(filter = prefs.conversationFilter.get(), data = bindInbox(false))) }
+
+        disposables += prefs.signalEnabled.asObservable()
+                .subscribe { refreshInbox() }
+
         disposables += deleteConversations
         disposables += markAllSeen
         disposables += markArchived
@@ -158,11 +216,11 @@ class MainViewModel @Inject constructor(
             .withLatestFrom(state) { _, state ->
                 if (state.page is Inbox)
                     newState {
-                        copy(page = Inbox(filter = prefs.conversationFilter.get(), data = getFilteredConversations(prefs.conversationFilter.get())))
+                        copy(page = Inbox(filter = prefs.conversationFilter.get(), data = bindInbox(false)))
                     }
                 else if (state.page is Archived)
                     newState {
-                        copy(page = Inbox(data = conversationRepo.getConversations(prefs.unreadAtTop.get(), true)))
+                        copy(page = Inbox(data = bindInbox(false)))
                     }
             }
             .autoDisposable(view.scope())
@@ -240,7 +298,7 @@ class MainViewModel @Inject constructor(
                 .subscribe { intent ->
                     when {
                         intent.getBooleanExtra("showArchived", false) -> {
-                            newState { copy(page = Archived(data = conversationRepo.getConversations(prefs.unreadAtTop.get(), true))) }
+                            newState { copy(page = Archived(data = bindInbox(true))) }
                         }
                         intent.getStringExtra("screen") == "compose" -> {
                             navigator.showConversation(intent.getLongExtra("threadId", 0))
@@ -257,7 +315,7 @@ class MainViewModel @Inject constructor(
                 .map { query -> query.trim() }
                 .withLatestFrom(state) { query, state ->
                     if (query.isEmpty() && state.page is Searching) {
-                        newState { copy(page = Inbox(filter = prefs.conversationFilter.get(), data = getFilteredConversations(prefs.conversationFilter.get()))) }
+                        newState { copy(page = Inbox(filter = prefs.conversationFilter.get(), data = bindInbox(false))) }
                     }
                     query
                 }
@@ -302,7 +360,7 @@ class MainViewModel @Inject constructor(
                     prefs.conversationFilter.set(filter)
                     newState {
                         val page = (page as? Inbox) ?: Inbox()
-                        copy(page = page.copy(filter = filter, data = getFilteredConversations(filter)))
+                        copy(page = page.copy(filter = filter, data = mergedInbox()))
                     }
                 }
                 .autoDisposable(view.scope())
@@ -314,7 +372,7 @@ class MainViewModel @Inject constructor(
         fun showInbox() {
             val filter = prefs.conversationFilter.get()
             newState {
-                copy(page = Inbox(filter = filter, data = getFilteredConversations(filter)))
+                copy(page = Inbox(filter = filter, data = mergedInbox()))
             }
         }
 
@@ -572,12 +630,6 @@ class MainViewModel @Inject constructor(
                 }
                 .autoDisposable(view.scope())
                 .subscribe()
-    }
-
-    private fun getFilteredConversations(filter: Int): RealmResults<Conversation> {
-        // Always return all conversations - filtering is done in the adapter
-        // This is because Realm doesn't support isNull queries on linked objects in lists
-        return conversationRepo.getConversations(prefs.unreadAtTop.get())
     }
 
 }

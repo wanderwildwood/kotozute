@@ -106,6 +106,9 @@ class SignalRepositoryImpl @Inject constructor(
                         row.title = t.title
                         if (t.lastTs > row.lastTs) row.lastTs = t.lastTs
                         row.counterpartUuid = t.threadKey.substringAfter("direct:", "")
+                        if (t.counterpartNumber.isNotBlank()) {
+                            row.counterpartNumber = t.counterpartNumber
+                        }
                     }
                 }
             }

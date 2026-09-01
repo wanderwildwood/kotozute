@@ -79,6 +79,13 @@ func (a *API) threads(w http.ResponseWriter, r *http.Request) {
 	if t == nil {
 		t = []*ThreadRow{}
 	}
+	// The account is never in its own contact list, so its thread would otherwise
+	// reach the client as a bare uuid with no name to show.
+	for _, row := range t {
+		if row.Title == "" && a.self != "" && row.Key == "direct:"+a.self {
+			row.Title = "Note to Self"
+		}
+	}
 	writeJSON(w, 200, map[string]any{"threads": t})
 }
 

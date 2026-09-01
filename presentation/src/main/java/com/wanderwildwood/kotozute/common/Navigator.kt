@@ -32,6 +32,7 @@ import com.wanderwildwood.kotozute.compat.TelephonyCompat
 import com.wanderwildwood.kotozute.extensions.resourceExists
 import com.wanderwildwood.kotozute.feature.backup.BackupActivity
 import com.wanderwildwood.kotozute.feature.blocking.BlockingActivity
+import com.wanderwildwood.kotozute.feature.signal.SignalConversationsActivity
 import com.wanderwildwood.kotozute.feature.compose.ComposeActivity
 import com.wanderwildwood.kotozute.feature.conversationinfo.ConversationInfoActivity
 import com.wanderwildwood.kotozute.feature.gallery.GalleryActivity
@@ -125,6 +126,10 @@ class Navigator @Inject constructor(
     fun showMainActivity() {
         val intent = Intent(context, MainActivity::class.java)
         startActivity(intent)
+    }
+
+    fun showSignalConversations() {
+        startActivity(Intent(context, SignalConversationsActivity::class.java))
     }
 
     fun showArchived() {

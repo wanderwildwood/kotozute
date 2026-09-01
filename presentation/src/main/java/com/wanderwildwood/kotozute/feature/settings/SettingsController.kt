@@ -244,6 +244,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalEnabled.checkbox.isChecked = state.signalEnabled
         binding.signalUnpair.setVisible(state.signalPaired)
         // The status line only means anything once Signal is actually switched on.
+        binding.signalOpen.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalStatus.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalStatus.summary = state.signalStatusSummary
 

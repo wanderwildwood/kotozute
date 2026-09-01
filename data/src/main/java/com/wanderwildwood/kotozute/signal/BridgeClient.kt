@@ -27,7 +27,9 @@ data class BridgeThread(
     val kind: String,
     val title: String,
     val lastTs: Long,
-    val unread: Int
+    val unread: Int,
+    /** Needed to pair a Signal thread with the SMS thread for the same person. */
+    val counterpartNumber: String
 )
 
 data class BridgeMessage(
@@ -75,7 +77,8 @@ class BridgeClient(private val config: BridgeConfig) {
                 kind = o.optString("kind"),
                 title = o.optString("title"),
                 lastTs = o.optLong("lastTs"),
-                unread = o.optInt("unread")
+                unread = o.optInt("unread"),
+                counterpartNumber = o.optString("counterpartNumber")
             )
         }
     }

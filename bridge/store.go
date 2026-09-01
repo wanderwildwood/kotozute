@@ -193,13 +193,22 @@ type ThreadRow struct {
 	LastTS  int64    `json:"lastTs"`
 	LastSeq int64    `json:"lastSeq"`
 	Unread  int      `json:"unread"`
+	// The counterpart's phone number, when we know it. The app needs this to pair a
+	// Signal thread with the SMS thread for the same person; a thread key only ever
+	// carries the uuid.
+	Number string `json:"counterpartNumber,omitempty"`
 }
 
 func (s *Store) Threads() ([]*ThreadRow, error) {
 	rows, err := s.db.Query(`
-		SELECT thread_key,kind,COALESCE(title,''),COALESCE(members,'[]'),
-		       last_ts,last_seq,unread
-		FROM threads ORDER BY last_ts DESC`)
+		SELECT t.thread_key, t.kind, COALESCE(t.title,''), COALESCE(t.members,'[]'),
+		       t.last_ts, t.last_seq, t.unread,
+		       COALESCE(c.number,'')
+		FROM threads t
+		LEFT JOIN contacts c
+		  ON t.kind = 'direct'
+		 AND c.uuid = substr(t.thread_key, 8)
+		ORDER BY t.last_ts DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +217,8 @@ func (s *Store) Threads() ([]*ThreadRow, error) {
 	for rows.Next() {
 		t := &ThreadRow{}
 		var mj string
-		if err := rows.Scan(&t.Key, &t.Kind, &t.Title, &mj, &t.LastTS, &t.LastSeq, &t.Unread); err != nil {
+		if err := rows.Scan(&t.Key, &t.Kind, &t.Title, &mj, &t.LastTS, &t.LastSeq,
+			&t.Unread, &t.Number); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(mj), &t.Members)

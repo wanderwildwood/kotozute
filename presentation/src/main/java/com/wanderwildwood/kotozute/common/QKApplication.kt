@@ -69,6 +69,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     @Inject lateinit var referralManager: ReferralManager
     @Inject lateinit var workerFactory: WorkerFactory
     @Inject lateinit var prefs: com.wanderwildwood.kotozute.util.Preferences
+    @Inject lateinit var signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
 
     override fun onCreate() {
         super.onCreate()
@@ -92,6 +93,13 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // This is what makes the desktop URL keep working across reboots and app
         // updates without having to re-toggle anything.
         com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService.restoreIfEnabled(this, prefs)
+
+        // Without this the Signal stream only ran while its screen was open, so a
+        // message arriving with the app closed was not picked up until the next time
+        // someone went looking -- which defeats the point of the bridge pushing at all.
+        if (prefs.signalEnabled.get()) {
+            signalRepo.startStream()
+        }
 
         GlobalScope.launch(Dispatchers.IO) {
             referralManager.trackReferrer()

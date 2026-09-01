@@ -222,6 +222,8 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalPair -> view.showSignalPairDialog()
 
+                        R.id.signalOpen -> navigator.showSignalConversations()
+
                         // Enabling is only offered once a bridge is paired, so this
                         // switch cannot put Signal into a configured-but-broken state.
                         R.id.signalEnabled -> signalRepo.setEnabled(!prefs.signalEnabled.get())

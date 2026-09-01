@@ -324,6 +324,18 @@
     <string name="settings_signal_unpair_summary">Removes the pairing and every Signal message on this phone</string>
     <string name="settings_signal_unpair_armed">Forget this bridge — tap again</string>
     <string name="settings_signal_unpair_armed_summary">Signal messages here are deleted; the bridge keeps its own copy</string>
+    <string name="settings_signal_open_title">Signal conversations</string>
+    <string name="settings_signal_open_summary">Read and reply on the Signal rail</string>
+
+    <string name="signal_title">Signal</string>
+    <string name="signal_rail_label">Signal</string>
+    <string name="signal_empty">No Signal conversations yet.\n\nThreads begin when a message arrives; anything older stays in Signal.</string>
+    <string name="signal_composer_hint">Message</string>
+    <string name="signal_send">Send</string>
+    <string name="signal_cannot_send_bridge">Cannot reach the bridge — you can read, but not send</string>
+    <string name="signal_cannot_send_signal">The bridge is not connected to Signal — you can read, but not send</string>
+    <string name="signal_send_failed">Not sent: %s</string>
+    <string name="signal_you">You</string>
     <string name="settings_desktop_sync_link_title">Show link</string>
     <string name="settings_desktop_sync_link_summary">Open this on your computer</string>
     <string name="settings_desktop_sync_link_bookmark">Bookmark it — the address stays the same.</string>

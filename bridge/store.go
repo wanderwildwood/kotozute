@@ -144,6 +144,20 @@ func (s *Store) UpsertContact(uuid, number, name string) error {
 	return err
 }
 
+// Meta is a tiny key/value corner of the store. The account's own uuid lives here so a
+// restart knows it before the first envelope arrives rather than four seconds later.
+func (s *Store) GetMeta(k string) string {
+	var v string
+	_ = s.db.QueryRow(`SELECT v FROM meta WHERE k=?`, k).Scan(&v)
+	return v
+}
+
+func (s *Store) SetMeta(k, v string) error {
+	_, err := s.db.Exec(`INSERT INTO meta (k,v) VALUES (?,?)
+		ON CONFLICT(k) DO UPDATE SET v=excluded.v`, k, v)
+	return err
+}
+
 func (s *Store) MaxSeq() (int64, error) {
 	var seq sql.NullInt64
 	err := s.db.QueryRow(`SELECT MAX(seq) FROM messages`).Scan(&seq)

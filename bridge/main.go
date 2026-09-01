@@ -10,22 +10,23 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
 
 func main() {
 	var (
-		scAddr  = flag.String("signal-cli", "127.0.0.1:7583", "signal-cli JSON-RPC address (must be loopback)")
-		account = flag.String("account", "", "Signal account number, e.g. +15551234567 (required)")
-		selfID  = flag.String("self-uuid", "", "own account UUID (auto-detected if omitted)")
-		dataDir = flag.String("data", "/var/lib/kotozute-bridge", "bridge data directory")
-		scData  = flag.String("signal-cli-data", "/var/lib/signal-cli", "signal-cli data directory (for attachments)")
-		attDays = flag.Int("attachment-days", 90, "delete attachments older than this many days (0 = never)")
-		attMB   = flag.Int64("attachment-max-mb", 2048, "cap the attachment store at this many MB (0 = no cap)")
-		listen  = flag.String("listen", "0.0.0.0", "address to listen on")
-		port    = flag.Int("port", 8422, "port to listen on")
-		advert  = flag.String("advertise", "", "host/IP to put in the pairing payload (default: --listen)")
+		scAddr   = flag.String("signal-cli", "127.0.0.1:7583", "signal-cli JSON-RPC address (must be loopback)")
+		account  = flag.String("account", "", "Signal account number, e.g. +15551234567 (required)")
+		selfID   = flag.String("self-uuid", "", "own account UUID (auto-detected if omitted)")
+		dataDir  = flag.String("data", "/var/lib/kotozute-bridge", "bridge data directory")
+		scData   = flag.String("signal-cli-data", "/var/lib/signal-cli", "signal-cli data directory (for attachments)")
+		attDays  = flag.Int("attachment-days", 90, "delete attachments older than this many days (0 = never)")
+		attMB    = flag.Int64("attachment-max-mb", 2048, "cap the attachment store at this many MB (0 = no cap)")
+		listen   = flag.String("listen", "0.0.0.0", "address to listen on")
+		port     = flag.Int("port", 8422, "port to listen on")
+		advert   = flag.String("advertise", "", "host/IP to put in the pairing payload (default: --listen)")
 		showPair = flag.Bool("pairing", false, "print the pairing payload and exit")
 	)
 	flag.Parse()
@@ -63,12 +64,28 @@ func main() {
 
 	sc := NewSignalCLI(*scAddr, *account)
 	self := *selfID
+	if self == "" {
+		// Remembered from a previous run. Without this the first few seconds after a
+		// restart normalise messages without knowing whose account this is, and a Note
+		// to Self drained from the queue in that window looks like someone else's.
+		self = store.GetMeta("selfUuid")
+		if self != "" {
+			log.Printf("self uuid (remembered): %s", self)
+		}
+	}
 
 	api := NewAPI(store, sc, auth, self, NewAttachments(*scData))
 
 	// Every envelope signal-cli pushes lands here. This is the only writer of
 	// live messages, so ordering and idempotency are settled in one place.
-	sc.OnEvent = func(params json.RawMessage) {
+	// Envelopes that arrive before the account's own uuid is known are held rather than
+	// guessed at. On any run after the first this never fills, because self is loaded
+	// from the store above.
+	var pendingMu sync.Mutex
+	var pending []json.RawMessage
+
+	var handle func(params json.RawMessage)
+	handle = func(params json.RawMessage) {
 		m, receipt, err := normalize(self, params)
 		if err != nil {
 			log.Printf("normalize: %v", err)
@@ -91,6 +108,32 @@ func main() {
 		}
 	}
 
+	sc.OnEvent = func(params json.RawMessage) {
+		if self == "" {
+			pendingMu.Lock()
+			if self == "" {
+				pending = append(pending, params)
+				pendingMu.Unlock()
+				return
+			}
+			pendingMu.Unlock()
+		}
+		handle(params)
+	}
+
+	drainPending := func() {
+		pendingMu.Lock()
+		held := pending
+		pending = nil
+		pendingMu.Unlock()
+		for _, p := range held {
+			handle(p)
+		}
+		if len(held) > 0 {
+			log.Printf("processed %d envelope(s) held until the account uuid was known", len(held))
+		}
+	}
+
 	stop := make(chan struct{})
 	go sc.Run(stop)
 	go NewRetention(*scData, *attDays, *attMB).Run(stop)
@@ -104,9 +147,13 @@ func main() {
 			}
 			if self == "" {
 				if u := detectSelfUUID(sc, *account); u != "" {
+					pendingMu.Lock()
 					self = u
+					pendingMu.Unlock()
 					api.self = u
+					_ = store.SetMeta("selfUuid", u)
 					log.Printf("self uuid: %s", u)
+					drainPending()
 				}
 			}
 			syncDirectory(sc, store)
@@ -126,9 +173,9 @@ func main() {
 	}()
 
 	srv := &http.Server{
-		Addr:      fmt.Sprintf("%s:%d", *listen, *port),
-		Handler:   api.Handler(),
-		TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12},
+		Addr:              fmt.Sprintf("%s:%d", *listen, *port),
+		Handler:           api.Handler(),
+		TLSConfig:         &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12},
 		ReadHeaderTimeout: 15 * time.Second,
 	}
 

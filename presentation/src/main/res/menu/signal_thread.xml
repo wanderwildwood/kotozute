@@ -9,4 +9,10 @@
         android:visible="false"
         app:showAsAction="never" />
 
+
+    <item
+        android:id="@+id/archiveSignal"
+        android:title="@string/signal_archive"
+        app:showAsAction="never" />
+
 </menu>

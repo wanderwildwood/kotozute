@@ -339,6 +339,9 @@
     <string name="signal_send_failed">Not sent: %s</string>
     <string name="signal_you">You</string>
     <string name="signal_switch_to_sms">Switch to SMS</string>
+    <string name="signal_archive">Archive conversation</string>
+    <string name="signal_unarchive">Move back to inbox</string>
+    <string name="signal_archived_toast">Archived — find it under Archived</string>
     <string name="signal_switch_to_signal">Switch to Signal</string>
     <string name="signal_attach">+</string>
     <string name="signal_attached">Attached: %s — tap to remove</string>

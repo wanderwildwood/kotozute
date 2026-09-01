@@ -104,10 +104,18 @@ class MainViewModel @Inject constructor(
         smsResults?.removeAllChangeListeners()
         smsResults = conversationRepo.getConversations(prefs.unreadAtTop.get(), archived)
             .also { it.addChangeListener(smsListener) }
-        if (signalResults == null) {
-            signalResults = signalRepo.getThreads().also { it.addChangeListener(signalListener) }
+        signalResults?.removeAllChangeListeners()
+        signalResults = signalRepo.getThreads(archived)
+            .also { it.addChangeListener(signalListener) }
+        val items = mergedInbox()
+        newState {
+            when (val p = page) {
+                is Inbox -> copy(page = p.copy(data = items))
+                is Archived -> copy(page = p.copy(data = items))
+                else -> this
+            }
         }
-        return mergedInbox()
+        return items
     }
 
     private fun mergedInbox(): List<InboxItem> {
@@ -115,9 +123,10 @@ class MainViewModel @Inject constructor(
             ?.takeIf { it.isValid && it.isLoaded }
             ?.map { InboxItem.Sms(it) }
             .orEmpty()
-        // Signal has no archive of its own, so it belongs in the inbox only.
+        // The archive shelf shows archived Signal threads, not none. Offering to archive
+        // one while having nowhere to see it again would simply lose the conversation.
         val signal = when {
-            showingArchived || !prefs.signalEnabled.get() -> emptyList()
+            !prefs.signalEnabled.get() -> emptyList()
             else -> signalResults
                 ?.takeIf { it.isValid && it.isLoaded }
                 ?.map { InboxItem.Signal(it) }
@@ -143,6 +152,14 @@ class MainViewModel @Inject constructor(
 
         disposables += prefs.signalEnabled.asObservable()
                 .subscribe { refreshInbox() }
+
+        // Bind whichever shelf the page is showing. Leaving Archived by a route that does
+        // not rebind used to leave its rows on an inbox that no longer contained them;
+        // following the page is one rule instead of one per exit path.
+        disposables += state
+                .map { it.page is Archived }
+                .distinctUntilChanged()
+                .subscribe { archived -> if (archived != showingArchived) bindInbox(archived) }
 
         disposables += deleteConversations
         disposables += markAllSeen

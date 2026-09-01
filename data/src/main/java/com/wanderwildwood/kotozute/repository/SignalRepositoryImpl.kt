@@ -442,12 +442,22 @@ class SignalRepositoryImpl @Inject constructor(
         return out
     }
 
-    override fun getThreads(): RealmResults<SignalThread> =
+    override fun getThreads(archived: Boolean): RealmResults<SignalThread> =
         Realm.getDefaultInstance()
             .where(SignalThread::class.java)
-            .equalTo("archived", false)
+            .equalTo("archived", archived)
             .sort("lastTs", Sort.DESCENDING)
             .findAllAsync()
+
+    override fun setArchived(threadKey: String, archived: Boolean) = runOffThread {
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalThread::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .findFirst()?.archived = archived
+            }
+        }
+    }
 
     override fun getMessages(threadKey: String): RealmResults<SignalMessage> =
         Realm.getDefaultInstance()

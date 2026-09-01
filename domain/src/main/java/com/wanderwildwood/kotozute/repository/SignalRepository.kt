@@ -75,7 +75,14 @@ interface SignalRepository {
      */
     fun senderNamesFor(threadKey: String): Map<String, String>
 
-    fun getThreads(): RealmResults<SignalThread>
+    /** [archived] selects which shelf: the inbox, or the archive. */
+    fun getThreads(archived: Boolean = false): RealmResults<SignalThread>
+
+    /**
+     * Archiving a Signal thread only hides it here. Signal has no such notion, so this
+     * is not sent anywhere and other devices are unaffected.
+     */
+    fun setArchived(threadKey: String, archived: Boolean)
     fun getMessages(threadKey: String): RealmResults<SignalMessage>
 
     fun connectionState(): Observable<ConnectionState>

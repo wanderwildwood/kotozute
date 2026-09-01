@@ -44,6 +44,7 @@ class SignalThreadActivity : QkThemedActivity() {
     private var messages: RealmResults<SignalMessage>? = null
     /** The SMS thread for the same person, when there is one. */
     private var smsThreadId: Long = 0L
+    private var isArchived: Boolean = false
 
     /** Only groups need these; resolved once per load rather than per drawn row. */
     private var senderNames: Map<String, String> = emptyMap()
@@ -71,10 +72,10 @@ class SignalThreadActivity : QkThemedActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         val passed = SignalConversationsActivity.titleOf(intent)
         supportActionBar?.title = passed.ifBlank { getString(R.string.signal_title) }
-        // Resolved here rather than demanded of every caller: arriving from the SMS side
-        // there is no title to hand over, and "Signal" above someone's messages is not a
-        // name.
-        if (passed.isBlank()) resolveTitle()
+        // Always read the row: the title is only missing when arriving from the SMS side,
+        // but which shelf the thread is on has to be known however it was opened, or the
+        // archive action offers to archive something already archived.
+        loadThreadState(needTitle = passed.isBlank())
 
         val adapter = MessageAdapter()
         val lm = LinearLayoutManager(this).apply { stackFromEnd = true }
@@ -250,6 +251,9 @@ class SignalThreadActivity : QkThemedActivity() {
 
     override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
         menu?.findItem(R.id.switchToSms)?.isVisible = smsThreadId != 0L
+        menu?.findItem(R.id.archiveSignal)?.setTitle(
+            if (isArchived) R.string.signal_unarchive else R.string.signal_archive
+        )
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -258,21 +262,35 @@ class SignalThreadActivity : QkThemedActivity() {
             navigator.showConversation(smsThreadId)
             true
         }
+        R.id.archiveSignal -> {
+            val nowArchived = !isArchived
+            signalRepo.setArchived(threadKey, nowArchived)
+            if (nowArchived) {
+                Toast.makeText(this, R.string.signal_archived_toast, Toast.LENGTH_SHORT).show()
+            }
+            finish()
+            true
+        }
         else -> super.onOptionsItemSelected(item)
     }
 
-    private fun resolveTitle() {
+    private fun loadThreadState(needTitle: Boolean) {
         thread(isDaemon = true) {
-            val name = runCatching {
+            val state = runCatching {
                 io.realm.Realm.getDefaultInstance().use { realm ->
                     realm.where(com.wanderwildwood.kotozute.model.SignalThread::class.java)
                         .equalTo("threadKey", threadKey)
                         .findFirst()
-                        ?.let { it.title.ifBlank { it.counterpartNumber } }
-                        .orEmpty()
+                        ?.let { it.archived to it.title.ifBlank { it.counterpartNumber } }
                 }
-            }.getOrDefault("")
-            if (name.isNotBlank()) runOnUiThread { supportActionBar?.title = name }
+            }.getOrNull() ?: return@thread
+
+            val (archived, name) = state
+            runOnUiThread {
+                isArchived = archived
+                invalidateOptionsMenu()
+                if (needTitle && name.isNotBlank()) supportActionBar?.title = name
+            }
         }
     }
 

@@ -21,6 +21,8 @@ func main() {
 		selfID  = flag.String("self-uuid", "", "own account UUID (auto-detected if omitted)")
 		dataDir = flag.String("data", "/var/lib/kotozute-bridge", "bridge data directory")
 		scData  = flag.String("signal-cli-data", "/var/lib/signal-cli", "signal-cli data directory (for attachments)")
+		attDays = flag.Int("attachment-days", 90, "delete attachments older than this many days (0 = never)")
+		attMB   = flag.Int64("attachment-max-mb", 2048, "cap the attachment store at this many MB (0 = no cap)")
 		listen  = flag.String("listen", "0.0.0.0", "address to listen on")
 		port    = flag.Int("port", 8422, "port to listen on")
 		advert  = flag.String("advertise", "", "host/IP to put in the pairing payload (default: --listen)")
@@ -91,6 +93,7 @@ func main() {
 
 	stop := make(chan struct{})
 	go sc.Run(stop)
+	go NewRetention(*scData, *attDays, *attMB).Run(stop)
 
 	// Resolve our own UUID once connected; the sync/sent distinction depends on it.
 	go func() {

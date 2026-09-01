@@ -3,7 +3,7 @@ package com.wanderwildwood.kotozute.signal
 /**
  * Everything needed to reach a kotozute-bridge, as carried by its pairing payload:
  *
- *     kotozute-bridge://<host>:8422/?token=<token>&fp=<sha256 hex, no colons>
+ *     kotozute-bridge://<host>:<port>/?token=<token>&fp=<sha256 hex, no colons>
  *
  * The fingerprint matters as much as the token. The bridge serves a self-signed
  * certificate -- there is no CA to check it against -- so the app pins this exact

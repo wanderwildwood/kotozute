@@ -7,6 +7,7 @@ import android.net.Uri
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import android.os.Bundle
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.LayoutInflater
@@ -43,6 +44,10 @@ class SignalThreadActivity : QkThemedActivity() {
     private var messages: RealmResults<SignalMessage>? = null
     /** The SMS thread for the same person, when there is one. */
     private var smsThreadId: Long = 0L
+
+    /** Only groups need these; resolved once per load rather than per drawn row. */
+    private var senderNames: Map<String, String> = emptyMap()
+    private val isGroup: Boolean get() = threadKey.startsWith("group:")
     private lateinit var threadKey: String
 
     /** The picked file, already a data URI. Held until the message is actually sent. */
@@ -105,6 +110,17 @@ class SignalThreadActivity : QkThemedActivity() {
 
         binding.send.setOnClickListener { send() }
         findSmsCounterpart()
+
+        if (isGroup) {
+            thread(isDaemon = true) {
+                val names = runCatching { signalRepo.senderNamesFor(threadKey) }
+                    .getOrDefault(emptyMap())
+                if (names.isNotEmpty()) runOnUiThread {
+                    senderNames = names
+                    binding.recyclerView.adapter?.notifyDataSetChanged()
+                }
+            }
+        }
         binding.attach.setOnClickListener { picker.launch("*/*") }
         binding.pending.setOnClickListener { clearAttachment() }
     }
@@ -348,13 +364,29 @@ class SignalThreadActivity : QkThemedActivity() {
             b.body.text = m.body
             b.body.setVisible(m.body.isNotEmpty())
             b.timestamp.text = dateFormatter.getMessageTimestamp(m.date)
+            // Who sent it only needs saying in a group. In a one-to-one thread the
+            // title already says, and labelling every incoming line with the same phone
+            // number is noise on a small screen.
             val label = when {
+                !isGroup -> ""
                 m.outgoing -> getString(R.string.signal_you)
-                m.senderNumber.isNotBlank() -> m.senderNumber
-                else -> ""
+                else -> senderNames[m.senderUuid]
+                    ?: m.senderNumber.ifBlank { m.senderUuid.take(8) }
             }
             b.sender.text = label
             b.sender.setVisible(label.isNotEmpty())
+
+            // Which side a message sits on is what tells the two apart once the labels
+            // are gone. Without this, dropping the "You:" prefix left a one-to-one
+            // thread where both halves of the conversation look identical.
+            val side = if (m.outgoing) Gravity.END else Gravity.START
+            (b.root as? android.widget.LinearLayout)?.gravity = side
+            b.body.textAlignment = if (m.outgoing) {
+                android.view.View.TEXT_ALIGNMENT_VIEW_END
+            } else {
+                android.view.View.TEXT_ALIGNMENT_VIEW_START
+            }
+
             bindAttachment(m)
         }
 

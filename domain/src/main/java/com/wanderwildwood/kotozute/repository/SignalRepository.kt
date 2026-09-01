@@ -68,6 +68,13 @@ interface SignalRepository {
      */
     fun numbersForContactOf(number: String): List<String>
 
+    /**
+     * Display names for the people who sent messages in a thread, keyed by their Signal
+     * uuid. Resolved in one pass rather than per drawn row, and only ever needed for a
+     * group -- a one-to-one thread already says who it is at the top.
+     */
+    fun senderNamesFor(threadKey: String): Map<String, String>
+
     fun getThreads(): RealmResults<SignalThread>
     fun getMessages(threadKey: String): RealmResults<SignalMessage>
 

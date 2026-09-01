@@ -400,6 +400,46 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun senderNamesFor(threadKey: String): Map<String, String> {
+        val out = mutableMapOf<String, String>()
+        Realm.getDefaultInstance().use { realm ->
+            val senders = realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .equalTo("outgoing", false)
+                .findAll()
+                .mapNotNull { m ->
+                    m.senderUuid.takeIf { it.isNotBlank() }?.let { it to m.senderNumber }
+                }
+                .toMap()
+            if (senders.isEmpty()) return emptyMap()
+
+            val contacts = realm.where(Contact::class.java).findAll()
+            senders.forEach { (uuid, number) ->
+                // The address book first, the same order the thread titles use, so one
+                // person is named the same way wherever they appear.
+                val fromContacts = number
+                    .takeIf { it.isNotBlank() }
+                    ?.let { n ->
+                        contacts.firstOrNull { c ->
+                            c.numbers.any { phoneNumberUtils.compare(it.address, n) }
+                        }?.name
+                    }
+                    ?.takeIf { it.isNotBlank() }
+
+                // Then whatever their own direct thread is called -- that already carries
+                // Signal's profile name for them.
+                val fromThread = realm.where(SignalThread::class.java)
+                    .equalTo("threadKey", "direct:" + uuid)
+                    .findFirst()
+                    ?.title
+                    ?.takeIf { it.isNotBlank() }
+
+                out[uuid] = fromContacts ?: fromThread ?: number.ifBlank { uuid.take(8) }
+            }
+        }
+        return out
+    }
+
     override fun getThreads(): RealmResults<SignalThread> =
         Realm.getDefaultInstance()
             .where(SignalThread::class.java)

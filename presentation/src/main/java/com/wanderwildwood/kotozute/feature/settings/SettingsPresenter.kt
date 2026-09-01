@@ -384,11 +384,11 @@ class SettingsPresenter @Inject constructor(
         if (!DesktopSyncService.isRunning) {
             return "Starting…"
         }
-        val tailscale = DesktopSyncService.findTailscaleAddress()
+        val tailscale = DesktopSyncService.findTailscaleAddress(context)
         if (prefs.desktopSyncTailscaleOnly.get() && tailscale == null) {
             return "On, but Tailscale isn't connected"
         }
-        if (tailscale == null && DesktopSyncService.findLanAddress() == null) {
+        if (tailscale == null && DesktopSyncService.findLanAddress(context) == null) {
             return "On, but this phone has no network yet"
         }
         return "On"
@@ -400,8 +400,8 @@ class SettingsPresenter @Inject constructor(
      * that address answers 403.
      */
     private fun desktopSyncUrl(): String? {
-        val host = DesktopSyncService.findTailscaleAddress()
-            ?: DesktopSyncService.findLanAddress().takeUnless { prefs.desktopSyncTailscaleOnly.get() }
+        val host = DesktopSyncService.findTailscaleAddress(context)
+            ?: DesktopSyncService.findLanAddress(context).takeUnless { prefs.desktopSyncTailscaleOnly.get() }
             ?: return null
         return "http://$host:${DesktopSyncService.PORT}?token=${prefs.desktopSyncToken.get()}"
     }

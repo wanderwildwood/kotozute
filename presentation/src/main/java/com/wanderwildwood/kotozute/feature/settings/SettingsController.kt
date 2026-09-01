@@ -20,6 +20,8 @@ package com.wanderwildwood.kotozute.feature.settings
 
 import android.animation.ObjectAnimator
 import android.app.TimePickerDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import android.text.format.DateFormat
@@ -326,11 +328,25 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         } else {
             url + "\n\n" + activity!!.getString(R.string.settings_desktop_sync_link_bookmark)
         }
-        AlertDialog.Builder(activity!!)
+        val builder = AlertDialog.Builder(activity!!)
                 .setTitle(R.string.settings_desktop_sync_link_title)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
-                .show()
+
+        // The link carries a long random token and is read off a phone to be entered on a
+        // computer. Without this it can only be copied out by hand, one character at a time.
+        if (url != null) {
+            builder.setNeutralButton(R.string.settings_desktop_sync_link_copy) { _, _ ->
+                val clipboard = activity!!
+                    .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Desktop Sync", url))
+                Toast.makeText(activity, R.string.settings_desktop_sync_link_copied, Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        val dialog = builder.show()
+        // Selectable as well as copyable, so part of it can be taken if that is what is wanted.
+        dialog.findViewById<android.widget.TextView>(android.R.id.message)?.setTextIsSelectable(true)
     }
 
     /**

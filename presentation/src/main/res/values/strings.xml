@@ -334,6 +334,22 @@
     <string name="signal_title">Signal</string>
     <string name="settings_signal_weave_title">One conversation list</string>
     <string name="settings_signal_weave_summary">Signal threads sit alongside SMS, newest first. Turn this off to keep two separate lists; the badge in each list crosses to the other.</string>
+    <string name="signal_archived_shelf">Archived</string>
+    <string name="signal_inbox_shelf">Back to the inbox</string>
+    <string name="signal_title_archived">Signal · archived</string>
+    <string name="signal_archived_empty">No archived Signal conversations</string>
+    <string name="signal_message_copy">Copy text</string>
+    <string name="signal_message_share">Share</string>
+    <string name="signal_message_copied">Copied</string>
+    <string name="signal_info_title">Details</string>
+    <string name="signal_info_members">In this group</string>
+    <string name="signal_info_media">Pictures</string>
+    <string name="signal_info_media_none">No pictures in this conversation</string>
+    <plurals name="signal_info_counts">
+        <item quantity="one">%1$d message</item>
+        <item quantity="other">%1$d messages</item>
+    </plurals>
+    <string name="signal_info_since">%1$s, since %2$s</string>
     <string name="signal_rail_label">Signal</string>
     <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;
@@ -350,6 +366,7 @@
     <string name="signal_archive">Archive conversation</string>
     <string name="signal_unarchive">Move back to inbox</string>
     <string name="signal_archived_toast">Archived — find it under Archived</string>
+    <string name="signal_unarchived_toast">Back in the inbox</string>
     <string name="signal_switch_to_signal">Switch to Signal</string>
     <string name="signal_attach">+</string>
     <string name="signal_attached">Attached: %s — tap to remove</string>

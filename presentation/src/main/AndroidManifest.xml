@@ -115,6 +115,7 @@
         <activity android:name=".feature.blocking.BlockingActivity" />
         <activity android:name=".feature.signal.SignalConversationsActivity" />
         <activity android:name=".feature.signal.SignalThreadActivity" />
+        <activity android:name=".feature.signal.SignalThreadInfoActivity" />
         <activity
             android:name=".feature.qkreply.QkReplyActivity"
             android:excludeFromRecents="true"

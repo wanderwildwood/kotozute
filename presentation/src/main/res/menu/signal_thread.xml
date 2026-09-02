@@ -3,6 +3,11 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/signalInfo"
+        android:title="@string/menu_info"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/archiveSignal"
         android:title="@string/signal_archive"
         app:showAsAction="never" />

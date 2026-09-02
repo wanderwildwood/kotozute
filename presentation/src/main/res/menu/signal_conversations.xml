@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Without this, a Signal thread archived while the two lists are kept apart has
+         nowhere to be seen again: the archive shelf lives on the SMS list, which this
+         screen replaces. Archiving something into a place you cannot reach loses it. -->
+    <item
+        android:id="@+id/signalArchivedShelf"
+        android:title="@string/signal_archived_shelf"
+        app:showAsAction="never" />
+
+</menu>

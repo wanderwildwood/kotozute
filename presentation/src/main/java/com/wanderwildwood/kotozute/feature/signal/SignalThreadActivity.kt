@@ -35,6 +35,10 @@ import kotlin.math.abs
 import java.util.concurrent.TimeUnit
 import com.wanderwildwood.kotozute.common.util.extensions.dpToPx
 import com.wanderwildwood.kotozute.feature.compose.BubbleUtils
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import androidx.appcompat.app.AlertDialog
 
 class SignalThreadActivity : QkThemedActivity() {
 
@@ -271,6 +275,11 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.signalInfo -> {
+            startActivity(SignalThreadInfoActivity.intentFor(this, threadKey))
+            true
+        }
+
         R.id.archiveSignal -> {
             val nowArchived = !isArchived
             signalRepo.setArchived(threadKey, nowArchived)
@@ -314,6 +323,35 @@ class SignalThreadActivity : QkThemedActivity() {
         binding.railBadge.isClickable = smsThreadId != 0L
         binding.railBadge.contentDescription =
             if (smsThreadId != 0L) getString(R.string.signal_switch_to_sms) else label
+    }
+
+    /**
+     * Copy or share one message. A dialog rather than a selection mode: selection earns its
+     * complexity when you act on many messages at once, and here there is nothing yet that
+     * takes more than one.
+     */
+    private fun showMessageActions(body: String) {
+        val actions = listOf(
+            getString(R.string.signal_message_copy) to {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Signal message", body))
+                Toast.makeText(this, R.string.signal_message_copied, Toast.LENGTH_SHORT).show()
+            },
+            getString(R.string.signal_message_share) to {
+                startActivity(
+                    Intent.createChooser(
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, body)
+                        },
+                        getString(R.string.signal_message_share)
+                    )
+                )
+            }
+        )
+        AlertDialog.Builder(this)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
+            .show()
     }
 
     private fun findSmsCounterpart() {
@@ -475,6 +513,14 @@ class SignalThreadActivity : QkThemedActivity() {
                 b.root.paddingRight,
                 if (canGroup(m, next)) 0 else 16.dpToPx(this@SignalThreadActivity)
             )
+
+            // A message you could read and not copy. The SMS side has had a selection mode
+            // since it was QKSMS; this is the small version of it -- the two things anyone
+            // actually reaches for, on the gesture they will already try.
+            b.body.setOnLongClickListener {
+                if (m.body.isNotBlank()) showMessageActions(m.body)
+                m.body.isNotBlank()
+            }
 
             bindAttachment(m)
         }

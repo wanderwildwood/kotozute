@@ -20,6 +20,8 @@ import dagger.android.AndroidInjection
 import io.reactivex.disposables.CompositeDisposable
 import io.realm.RealmResults
 import javax.inject.Inject
+import android.view.Menu
+import android.view.MenuItem
 
 /**
  * The Signal rail on its own, until Signal threads are interleaved into the main
@@ -34,8 +36,12 @@ class SignalConversationsActivity : QkThemedActivity() {
     @Inject lateinit var dateFormatter: DateFormatter
 
     private lateinit var binding: SignalConversationsActivityBinding
+    private lateinit var adapter: ThreadAdapter
     private val disposables = CompositeDisposable()
     private var threads: RealmResults<SignalThread>? = null
+
+    /** Which shelf is on screen. Archiving with no way back to the thread would lose it. */
+    private var showingArchived = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -51,22 +57,13 @@ class SignalConversationsActivity : QkThemedActivity() {
 
         // Only while the two lists are being kept apart. Reached from Settings while they
         // are woven, there is no SMS-only list to go back to and the badge would mislead.
-        binding.railBadge.setVisible(!prefs.signalWeave.get())
         binding.railBadge.setOnClickListener { navigator.showMainActivity() }
 
-        val adapter = ThreadAdapter()
+        adapter = ThreadAdapter()
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
 
-        val results = signalRepo.getThreads()
-        threads = results
-        results.addChangeListener { data, _ ->
-            adapter.submit(data)
-            val empty = data.isEmpty()
-            binding.empty.setVisible(empty)
-            binding.recyclerView.setVisible(!empty)
-        }
-        adapter.submit(results)
+        bindShelf()
 
         disposables += signalRepo.connectionState()
             .subscribe { conn ->
@@ -86,9 +83,75 @@ class SignalConversationsActivity : QkThemedActivity() {
         signalRepo.startStream()
     }
 
+    /**
+     * Point the list at one shelf or the other. Both live in the same screen because a
+     * separate archive activity would need its own copy of everything here, and the only
+     * difference is which threads the query returns.
+     */
+    private fun bindShelf() {
+        threads?.removeAllChangeListeners()
+        val results = signalRepo.getThreads(showingArchived)
+        threads = results
+        results.addChangeListener { data, _ ->
+            adapter.submit(data)
+            val empty = data.isEmpty()
+            binding.empty.setVisible(empty)
+            binding.recyclerView.setVisible(!empty)
+        }
+        adapter.submit(results)
+        binding.empty.text = getString(
+            if (showingArchived) R.string.signal_archived_empty else R.string.signal_empty
+        )
+        binding.toolbarTitle.text = getString(
+            if (showingArchived) R.string.signal_title_archived else R.string.signal_title
+        )
+        // The crossing is to the SMS inbox; from the archive shelf the way out is the shelf
+        // toggle, not a jump to another rail's inbox.
+        binding.railBadge.setVisible(!prefs.signalWeave.get() && !showingArchived)
+        invalidateOptionsMenu()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.signal_conversations, menu)
+        return super.onCreateOptionsMenu(menu)
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
+        menu?.findItem(R.id.signalArchivedShelf)?.setTitle(
+            if (showingArchived) R.string.signal_inbox_shelf else R.string.signal_archived_shelf
+        )
+        return super.onPrepareOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.signalArchivedShelf -> {
+            showingArchived = !showingArchived
+            bindShelf()
+            true
+        }
+        else -> super.onOptionsItemSelected(item)
+    }
+
     override fun onSupportNavigateUp(): Boolean {
+        // Back out of the archive shelf before leaving the screen, so the way in has a way
+        // out that does not need the menu.
+        if (showingArchived) {
+            showingArchived = false
+            bindShelf()
+            return true
+        }
         finish()
         return true
+    }
+
+    override fun onBackPressed() {
+        if (showingArchived) {
+            showingArchived = false
+            bindShelf()
+            return
+        }
+        @Suppress("DEPRECATION")
+        super.onBackPressed()
     }
 
     override fun onDestroy() {

@@ -24,6 +24,7 @@ import com.wanderwildwood.kotozute.feature.backup.BackupActivity
 import com.wanderwildwood.kotozute.feature.blocking.BlockingActivity
 import com.wanderwildwood.kotozute.feature.signal.SignalConversationsActivity
 import com.wanderwildwood.kotozute.feature.signal.SignalThreadActivity
+import com.wanderwildwood.kotozute.feature.signal.SignalThreadInfoActivity
 import com.wanderwildwood.kotozute.feature.compose.ComposeActivity
 import com.wanderwildwood.kotozute.feature.compose.ComposeActivityModule
 import com.wanderwildwood.kotozute.feature.contacts.ContactsActivity
@@ -98,5 +99,9 @@ abstract class ActivityBuilderModule {
     @ActivityScope
     @ContributesAndroidInjector(modules = [])
     abstract fun bindSignalThreadActivity(): SignalThreadActivity
+
+    @ActivityScope
+    @ContributesAndroidInjector(modules = [])
+    abstract fun bindSignalThreadInfoActivity(): SignalThreadInfoActivity
 
 }

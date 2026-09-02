@@ -53,6 +53,8 @@ class SignalThreadActivity : QkThemedActivity() {
     /** The SMS thread for the same person, when there is one. */
     private var smsThreadId: Long = 0L
     private var isArchived: Boolean = false
+    private var isPinned: Boolean = false
+    private var isMuted: Boolean = false
 
     /** Only groups need these; resolved once per load rather than per drawn row. */
     private var senderNames: Map<String, String> = emptyMap()
@@ -273,12 +275,43 @@ class SignalThreadActivity : QkThemedActivity() {
         menu?.findItem(R.id.archiveSignal)?.setTitle(
             if (isArchived) R.string.signal_unarchive else R.string.signal_archive
         )
+        menu?.findItem(R.id.signalPin)?.setTitle(
+            if (isPinned) R.string.main_menu_unpin else R.string.main_menu_pin
+        )
+        menu?.findItem(R.id.signalMute)?.setTitle(
+            if (isMuted) R.string.signal_unmute else R.string.signal_mute
+        )
         return super.onPrepareOptionsMenu(menu)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
         R.id.signalInfo -> {
             startActivity(SignalThreadInfoActivity.intentFor(this, threadKey))
+            true
+        }
+
+        R.id.signalPin -> {
+            isPinned = !isPinned
+            signalRepo.setPinned(threadKey, isPinned)
+            invalidateOptionsMenu()
+            true
+        }
+
+        R.id.signalMute -> {
+            isMuted = !isMuted
+            signalRepo.setMuted(threadKey, isMuted)
+            invalidateOptionsMenu()
+            if (isMuted) {
+                Toast.makeText(this, R.string.signal_muted_toast, Toast.LENGTH_SHORT).show()
+            }
+            true
+        }
+
+        // Leaving the thread is part of it: marked unread and then left on screen, the
+        // read-on-view below would undo it before you got anywhere.
+        R.id.signalMarkUnread -> {
+            signalRepo.markUnread(threadKey)
+            finish()
             true
         }
 
@@ -294,6 +327,14 @@ class SignalThreadActivity : QkThemedActivity() {
         else -> super.onOptionsItemSelected(item)
     }
 
+    /** What the menu needs to know about this thread; read once, off the looper. */
+    private data class ThreadState(
+        val archived: Boolean,
+        val pinned: Boolean,
+        val muted: Boolean,
+        val name: String
+    )
+
     private fun loadThreadState(needTitle: Boolean) {
         thread(isDaemon = true) {
             val state = runCatching {
@@ -301,15 +342,23 @@ class SignalThreadActivity : QkThemedActivity() {
                     realm.where(com.wanderwildwood.kotozute.model.SignalThread::class.java)
                         .equalTo("threadKey", threadKey)
                         .findFirst()
-                        ?.let { it.archived to it.title.ifBlank { it.counterpartNumber } }
+                        ?.let {
+                            ThreadState(
+                                archived = it.archived,
+                                pinned = it.pinned,
+                                muted = it.muted,
+                                name = it.title.ifBlank { it.counterpartNumber }
+                            )
+                        }
                 }
             }.getOrNull() ?: return@thread
 
-            val (archived, name) = state
             runOnUiThread {
-                isArchived = archived
+                isArchived = state.archived
+                isPinned = state.pinned
+                isMuted = state.muted
                 invalidateOptionsMenu()
-                if (needTitle && name.isNotBlank()) binding.toolbarTitle.text = name
+                if (needTitle && state.name.isNotBlank()) binding.toolbarTitle.text = state.name
             }
         }
     }

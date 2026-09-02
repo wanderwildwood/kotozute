@@ -162,7 +162,11 @@ class MainViewModel @Inject constructor(
                 ?.map { InboxItem.Signal(it) }
                 .orEmpty()
         }
-        return (sms + signal).sortedByDescending { it.sortDate }
+        // Pinned first on both rails, then newest. The SMS list has always sorted this
+        // way; before this the merged list dropped the pin the moment Signal was woven in.
+        return (sms + signal).sortedWith(
+            compareByDescending<InboxItem> { it.pinned }.thenByDescending { it.sortDate }
+        )
     }
 
     /** Unread on either rail; the two carry it differently. */

@@ -529,6 +529,56 @@ class SignalRepositoryImpl @Inject constructor(
             ).sortedBy { it.title.lowercase() }
         }
 
+    override fun setPinned(threadKey: String, pinned: Boolean) = runOffThread {
+        editThread(threadKey) { it.pinned = pinned }
+    }
+
+    override fun setMuted(threadKey: String, muted: Boolean) = runOffThread {
+        editThread(threadKey) { it.muted = muted }
+    }
+
+    override fun markUnread(threadKey: String) = runOffThread {
+        // The newest incoming message, not the thread's counter. thread.unread is recomputed
+        // from message read-state every time a message lands, so a counter set by hand is
+        // wiped by the next arrival -- the feature would work until the moment it mattered.
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val newest = r.where(SignalMessage::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .equalTo("outgoing", false)
+                    .sort("date", Sort.DESCENDING)
+                    .findFirst()
+                if (newest != null) {
+                    newest.read = false
+                    r.where(SignalThread::class.java)
+                        .equalTo("threadKey", threadKey)
+                        .findFirst()?.unread = r.where(SignalMessage::class.java)
+                        .equalTo("threadKey", threadKey)
+                        .equalTo("outgoing", false)
+                        .equalTo("read", false)
+                        .count().toInt()
+                }
+            }
+        }
+    }
+
+    override fun isMuted(threadKey: String): Boolean =
+        Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java)
+                .equalTo("threadKey", threadKey)
+                .findFirst()?.muted == true
+        }
+
+    private fun editThread(threadKey: String, block: (SignalThread) -> Unit) {
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalThread::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .findFirst()?.let(block)
+            }
+        }
+    }
+
     override fun setArchived(threadKey: String, archived: Boolean) = runOffThread {
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->

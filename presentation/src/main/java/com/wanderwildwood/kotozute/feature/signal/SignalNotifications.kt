@@ -61,6 +61,9 @@ class SignalNotifications @Inject constructor(
 
         // Nothing to announce about a conversation the user is already reading.
         if (SignalThreadActivity.isVisible(message.threadKey)) return
+        // Muted means no notification, not no message: it still arrives and still counts
+        // as unread, exactly as muting an SMS conversation behaves.
+        if (signalRepo.isMuted(message.threadKey)) return
 
         val title = titleFor(message.threadKey).ifBlank {
             message.senderNumber.ifBlank { context.getString(R.string.signal_title) }

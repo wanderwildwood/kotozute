@@ -107,6 +107,16 @@ interface SignalRepository {
      * is not sent anywhere and other devices are unaffected.
      */
     fun setArchived(threadKey: String, archived: Boolean)
+
+    fun setPinned(threadKey: String, pinned: Boolean)
+
+    fun setMuted(threadKey: String, muted: Boolean)
+
+    /** Put a thread back to unread, so it is picked up again later. */
+    fun markUnread(threadKey: String)
+
+    /** Whether this thread's notifications are silenced. Read on the notification path. */
+    fun isMuted(threadKey: String): Boolean
     fun getMessages(threadKey: String): RealmResults<SignalMessage>
 
     fun connectionState(): Observable<ConnectionState>

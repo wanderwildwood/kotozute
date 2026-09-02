@@ -37,7 +37,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 18
+        const val SCHEMA_VERSION: Long = 19
     }
 
     @SuppressLint("ApplySharedPref")
@@ -358,6 +358,20 @@ class QkRealmMigration @Inject constructor(
                 ?.transform { t ->
                     t.setString("snippet", "")
                     t.setBoolean("snippetOutgoing", false)
+                }
+
+            version++
+        }
+
+        if (version == 18L) {
+            // Per-thread settings the SMS side has had all along. Defaults keep every
+            // existing thread exactly as it behaves today: not pinned, not muted.
+            realm.schema.get("SignalThread")
+                ?.addField("pinned", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.addField("muted", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.transform { t ->
+                    t.setBoolean("pinned", false)
+                    t.setBoolean("muted", false)
                 }
 
             version++

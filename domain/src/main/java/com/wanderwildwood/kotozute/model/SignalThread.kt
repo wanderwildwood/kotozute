@@ -30,4 +30,10 @@ open class SignalThread : RealmObject() {
     var lastTs: Long = 0
     var unread: Int = 0
     var archived: Boolean = false
+
+    /** Kept at the top of the list, as a pinned SMS conversation is. */
+    var pinned: Boolean = false
+
+    /** No notification for this thread. Messages still arrive and still count as unread. */
+    var muted: Boolean = false
 }

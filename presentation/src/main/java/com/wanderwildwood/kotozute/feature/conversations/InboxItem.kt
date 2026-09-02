@@ -13,16 +13,21 @@ sealed class InboxItem {
 
     abstract val sortDate: Long
 
+    /** Pinned threads sit above the rest, on either rail. */
+    abstract val pinned: Boolean
+
     /** Stable id for the adapter and for swipe. */
     abstract val stableId: Long
 
     data class Sms(val conversation: Conversation) : InboxItem() {
         override val sortDate: Long get() = conversation.date
+        override val pinned: Boolean get() = conversation.pinned
         override val stableId: Long get() = conversation.id
     }
 
     data class Signal(val thread: SignalThread) : InboxItem() {
         override val sortDate: Long get() = thread.lastTs
+        override val pinned: Boolean get() = thread.pinned
 
         /**
          * Negative, so it can never collide with a telephony thread id (always positive)

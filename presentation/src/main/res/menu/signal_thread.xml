@@ -8,6 +8,21 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/signalPin"
+        android:title="@string/main_menu_pin"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/signalMute"
+        android:title="@string/signal_mute"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/signalMarkUnread"
+        android:title="@string/main_menu_unread"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/archiveSignal"
         android:title="@string/signal_archive"
         app:showAsAction="never" />

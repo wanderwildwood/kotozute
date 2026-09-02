@@ -118,6 +118,18 @@ class MainViewModel @Inject constructor(
         return items
     }
 
+    private fun markEverythingRead() {
+        val items = mergedInbox().filter(::isUnread)
+        val smsIds = items.filterIsInstance<InboxItem.Sms>().map { it.conversation.id }
+        if (smsIds.isNotEmpty()) markRead.execute(smsIds)
+        // Signal threads are marked up to now rather than by id: the bridge's read receipt
+        // is "everything in this thread up to this moment", which is what this means.
+        val now = System.currentTimeMillis()
+        items.filterIsInstance<InboxItem.Signal>().forEach { item ->
+            signalRepo.markRead(item.thread.threadKey, now)
+        }
+    }
+
     private fun mergedInbox(): List<InboxItem> {
         val sms = smsResults
             ?.takeIf { it.isValid && it.isLoaded }
@@ -137,8 +149,16 @@ class MainViewModel @Inject constructor(
         return (sms + signal).sortedByDescending { it.sortDate }
     }
 
+    /** Unread on either rail; the two carry it differently. */
+    private fun isUnread(item: InboxItem): Boolean = when (item) {
+        is InboxItem.Sms -> item.conversation.unread
+        is InboxItem.Signal -> item.thread.unread > 0
+    }
+
     private fun refreshInbox() {
         val items = mergedInbox()
+        val anyUnread = items.any(::isUnread)
+        newState { copy(hasUnread = anyUnread) }
         newState {
             when (val p = page) {
                 is Inbox -> copy(page = p.copy(data = items))
@@ -442,6 +462,21 @@ class MainViewModel @Inject constructor(
                 }
                 .autoDisposable(view.scope())
                 .subscribe()
+
+        // Mark all read, both rails. The SMS side goes through the same interactor a
+        // selection would, so notifications and the badge are updated the one way; the
+        // Signal side goes straight to its repository.
+        //
+        // Stays on the main thread. The inbox is RealmResults belonging to this thread's
+        // Realm, and reading it anywhere else throws "Realm accessed from incorrect
+        // thread" -- which, with no onError handler, is swallowed into System.err and
+        // leaves a menu item that silently does nothing. Both writers move themselves off:
+        // the interactor schedules its own work, and SignalRepository.markRead runs off
+        // the looper internally.
+        view.optionsItemIntent
+            .filter { itemId -> itemId == R.id.markAllRead }
+            .autoDisposable(view.scope())
+            .subscribe { markEverythingRead() }
 
         view.optionsItemIntent
             .filter { itemId -> itemId == R.id.select_all }

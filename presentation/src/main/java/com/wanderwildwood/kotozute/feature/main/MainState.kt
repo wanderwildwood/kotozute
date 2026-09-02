@@ -30,6 +30,8 @@ data class MainState(
     /** True when Signal is on and the two lists are being kept apart, so a crossing is
      *  worth offering. Woven, there is nowhere to cross to. */
     val separateSignalList: Boolean = false,
+    /** Anything unread on either rail. Decides whether Mark all read is offered at all. */
+    val hasUnread: Boolean = false,
     val defaultSms: Boolean = true,
     val smsPermission: Boolean = true,
     val contactPermission: Boolean = true,

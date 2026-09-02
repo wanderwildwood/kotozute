@@ -80,12 +80,18 @@
         android:title="@string/compose_menu_delete"
         android:visible="false"
         app:showAsAction="always" />
+    <!-- Was the three-dot overflow glyph, forced always-visible, so it drew as a second
+         overflow button beside the real one. It opens conversation details, so it gets the
+         icon that says so, and it moves into the overflow. On a 480px screen the name is
+         what the screen is for: a truncated contact name is a worse trade than one extra tap to a
+         screen that is rarely opened. ifRoom was not enough, because Android judged there
+         was room and truncated the name anyway. -->
     <item
         android:id="@+id/info"
-        android:icon="@drawable/ic_more_vert_black_24dp"
+        android:icon="@drawable/ic_info_outline_24dp"
         android:title="@string/menu_info"
         android:visible="false"
-        app:showAsAction="always" />
+        app:showAsAction="never" />
 
     <item
         android:id="@+id/share"

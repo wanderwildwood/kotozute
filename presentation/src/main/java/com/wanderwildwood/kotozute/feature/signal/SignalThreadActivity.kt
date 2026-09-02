@@ -129,6 +129,13 @@ class SignalThreadActivity : QkThemedActivity() {
                 }
             }
         }
+        // The rail badge doubles as the way across. It says which rail you are on either
+        // way; when this person also has an SMS thread it gains an arrow and a tap takes
+        // you there. The overflow item stays for anyone who already knows it.
+        binding.railBadge.setOnClickListener {
+            if (smsThreadId != 0L) navigator.showConversation(smsThreadId)
+        }
+        showRailBadge()
         binding.attach.setOnClickListener { picker.launch("*/*") }
         binding.pending.setOnClickListener { clearAttachment() }
     }
@@ -301,6 +308,19 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     }
 
+    /**
+     * The badge always names the rail, because on a phone where one person can hold a thread
+     * on each, that is worth saying. The arrow is only there when there is somewhere to go:
+     * a badge that looks tappable and does nothing is worse than a plain label.
+     */
+    private fun showRailBadge() {
+        val label = getString(R.string.signal_rail_label)
+        binding.railBadge.text = if (smsThreadId != 0L) "$label $RAIL_SWITCH_ARROW" else label
+        binding.railBadge.isClickable = smsThreadId != 0L
+        binding.railBadge.contentDescription =
+            if (smsThreadId != 0L) getString(R.string.signal_switch_to_sms) else label
+    }
+
     private fun findSmsCounterpart() {
         // The number lives on the thread row, so read it rather than guess from the key.
         thread(isDaemon = true) {
@@ -324,6 +344,7 @@ class SignalThreadActivity : QkThemedActivity() {
             }.getOrDefault(0L)
             if (id != 0L) runOnUiThread {
                 smsThreadId = id
+                showRailBadge()
                 invalidateOptionsMenu()
             }
         }
@@ -350,6 +371,8 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     companion object {
+        /** Plain ASCII on purpose: the Kompakt's font has no glyph for the nicer arrows. */
+        private const val RAIL_SWITCH_ARROW = ">"
         private const val MAX_IMAGE_EDGE = 1600
         private const val MAX_ATTACHMENT_BYTES = 24 * 1024 * 1024
 

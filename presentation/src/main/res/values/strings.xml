@@ -333,6 +333,9 @@
 
     <string name="signal_title">Signal</string>
     <string name="signal_rail_label">Signal</string>
+    <!-- Shown in an SMS thread only when the same person is also reachable on Signal;
+         the ">" says it is a way across rather than a label. -->
+    <string name="sms_rail_label_switch">SMS ></string>
     <string name="signal_empty">No Signal conversations yet.\n\nThreads begin when a message arrives; anything older stays in Signal.</string>
     <string name="signal_composer_hint">Message</string>
     <string name="signal_send">Send</string>

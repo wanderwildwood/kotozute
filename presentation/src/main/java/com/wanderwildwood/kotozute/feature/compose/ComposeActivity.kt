@@ -218,6 +218,12 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 binding.message.isCursorVisible = true
             }
 
+            // Routed through the same intent the overflow item uses, so the crossing has one
+            // implementation however it is reached.
+            binding.railBadge.setOnClickListener {
+                optionsItemIntent.onNext(R.id.switchToSignal)
+            }
+
             theme
                 .doOnNext {
                     // Set binding.toolbar navigation icon (back arrow) and overflow menu to black
@@ -416,9 +422,12 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         binding.toolbar.menu.findItem(R.id.select_all)?.isVisible = !state.editingMode && (messageAdapter.itemCount > 1) && state.selectedMessages != 0
         binding.toolbar.menu.findItem(R.id.add)?.isVisible = state.editingMode
         binding.toolbar.menu.findItem(R.id.call)?.isVisible = !state.editingMode && state.selectedMessages == 0
-        binding.toolbar.menu.findItem(R.id.switchToSignal)?.isVisible =
-            !state.editingMode && state.selectedMessages == 0 && state.signalThreadKey != null
-                && state.query.isEmpty()
+        val canCrossToSignal = !state.editingMode && state.selectedMessages == 0 &&
+            state.signalThreadKey != null && state.query.isEmpty()
+        binding.toolbar.menu.findItem(R.id.switchToSignal)?.isVisible = canCrossToSignal
+        // The same crossing, out where it can be found. The overflow item stays for anyone
+        // who already knows it is there.
+        binding.railBadge.setVisible(canCrossToSignal)
         binding.toolbar.menu.findItem(R.id.info)?.isVisible = !state.editingMode && state.selectedMessages == 0
                 && state.query.isEmpty()
         binding.toolbar.menu.findItem(R.id.copy)?.isVisible =

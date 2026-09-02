@@ -351,13 +351,45 @@
             android:gravity="center_vertical"
             android:orientation="vertical">
 
-            <com.wanderwildwood.kotozute.common.widget.QkTextView
-                android:id="@+id/toolbarTitle"
-                style="@style/ToolbarText"
+            <!-- The title, with the rail badge beside it. The badge only appears when this
+                 person also has a Signal thread, so it is a door rather than a label: on a
+                 rail-less conversation there is nothing to say. -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textDirection="ltr"
-                android:textSize="16sp"
-                tools:text="Moez Bhatti" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <com.wanderwildwood.kotozute.common.widget.QkTextView
+                    android:id="@+id/toolbarTitle"
+                    style="@style/ToolbarText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textDirection="ltr"
+                    android:textSize="16sp"
+                    tools:text="Moez Bhatti" />
+
+                <com.wanderwildwood.kotozute.common.widget.QkTextView
+                    android:id="@+id/railBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginEnd="4dp"
+                    android:background="@drawable/filter_tab_selected"
+                    android:contentDescription="@string/signal_switch_to_signal"
+                    android:paddingStart="6dp"
+                    android:paddingTop="1dp"
+                    android:paddingEnd="6dp"
+                    android:paddingBottom="1dp"
+                    android:text="@string/sms_rail_label_switch"
+                    android:textColor="@android:color/white"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+
+            </LinearLayout>
 
             <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/toolbarSubtitle"

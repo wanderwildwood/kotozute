@@ -29,6 +29,7 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.rxkotlin.plusAssign
 import io.reactivex.schedulers.Schedulers
 import timber.log.Timber
+import com.wanderwildwood.kotozute.BuildConfig
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import java.net.Inet4Address
@@ -39,7 +40,13 @@ import javax.inject.Inject
 class DesktopSyncService : Service() {
 
     companion object {
-        const val PORT = 8420
+        /**
+         * A debug build listens on its own port. Installed alongside a release build --
+         * which is the only sensible way to try a branch on the phone you actually use --
+         * both would otherwise race for 8420 and whichever started second would die with
+         * EADDRINUSE and no relay.
+         */
+        val PORT = if (BuildConfig.DEBUG) 8421 else 8420
         private const val NOTIFICATION_ID = 20260805
 
         /**

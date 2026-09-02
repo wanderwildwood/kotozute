@@ -153,6 +153,15 @@
                 app:title="@string/info_archive"
                 xmlns:app="http://schemas.android.com/apk/res-auto" />
 
+            <!-- Reaches the Signal account, not just this phone, so it holds everywhere.
+                 Arms and confirms: it is outward-facing and not obviously undone. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/block"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                xmlns:app2="http://schemas.android.com/apk/res-auto"
+                app2:title="@string/info_block" />
+
         </LinearLayout>
 
     </ScrollView>

@@ -42,6 +42,11 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     private lateinit var binding: SignalThreadInfoActivityBinding
     private lateinit var threadKey: String
     private var isArchived = false
+    private var blockArmed = false
+    private val disarmBlock = Runnable {
+        blockArmed = false
+        binding.block.title = getString(R.string.info_block)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -69,6 +74,36 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                 if (isArchived) R.string.signal_archived_toast else R.string.signal_unarchived_toast,
                 Toast.LENGTH_SHORT
             ).show()
+        }
+
+        // Blocking reaches the Signal account, so it arms and confirms rather than acting
+        // on one tap: the row says what a second tap will do, and disarms itself after a
+        // few seconds so a stray tap does not leave a live trigger sitting there.
+        binding.block.setOnClickListener {
+            if (!blockArmed) {
+                blockArmed = true
+                binding.block.title = getString(R.string.signal_block_armed)
+                binding.block.postDelayed(disarmBlock, ARM_TIMEOUT_MS)
+                return@setOnClickListener
+            }
+            binding.block.removeCallbacks(disarmBlock)
+            blockArmed = false
+            binding.block.title = getString(R.string.info_block)
+            thread(isDaemon = true) {
+                val result = runCatching { signalRepo.setBlocked(threadKey, true) }
+                runOnUiThread {
+                    if (isFinishing) return@runOnUiThread
+                    // Said either way. A block that failed silently would leave someone
+                    // believing they had stopped hearing from a person they had not.
+                    Toast.makeText(
+                        this,
+                        if (result.isSuccess) R.string.signal_blocked_toast
+                        else R.string.signal_block_failed,
+                        Toast.LENGTH_LONG
+                    ).show()
+                    if (result.isSuccess) finish()
+                }
+            }
         }
 
         // Realm and the bridge both off the main thread; this screen opens over a
@@ -180,6 +215,8 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     private val cache = LruCache<String, Bitmap>(12)
 
     companion object {
+        /** Long enough to read the armed label, short enough not to stay live. */
+        private const val ARM_TIMEOUT_MS = 4000L
         private const val EXTRA_KEY = "threadKey"
         private const val MEDIA_COLUMNS = 3
 

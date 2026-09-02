@@ -125,6 +125,19 @@ class BridgeClient(private val config: BridgeConfig) {
     }
 
     /**
+     * Block or unblock the other party of a thread, on the Signal account rather than only
+     * here, so it holds on every device. Throws on failure: a block that quietly did not
+     * happen would leave someone believing they had stopped hearing from a person.
+     */
+    fun setBlocked(threadKey: String, blocked: Boolean) {
+        val body = JSONObject().put("blocked", blocked).toString().toRequestBody(JSON)
+        val req = authed("${config.baseUrl}/v1/threads/${enc(threadKey)}/block").post(body).build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("block failed (${resp.code})")
+        }
+    }
+
+    /**
      * Holds the bridge's Server-Sent Events stream open and calls [onMessage] for each
      * message. Blocking: run it on a background thread. Closing the returned handle, or
      * any network error, ends it -- the caller is expected to reconnect and pass its

@@ -108,6 +108,12 @@ interface SignalRepository {
      */
     fun setArchived(threadKey: String, archived: Boolean)
 
+    /**
+     * Block or unblock this thread's other party on the Signal account itself. Throws if
+     * the bridge cannot be reached, so the caller can say so rather than imply success.
+     */
+    fun setBlocked(threadKey: String, blocked: Boolean)
+
     fun setPinned(threadKey: String, pinned: Boolean)
 
     fun setMuted(threadKey: String, muted: Boolean)

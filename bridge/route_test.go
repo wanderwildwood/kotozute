@@ -38,3 +38,19 @@ func TestParseThreadRoute(t *testing.T) {
 		})
 	}
 }
+
+// The block route has to survive the same thing every thread route does: a base64 group id
+// containing a slash, which is why parseThreadRoute splits on the last separator.
+func TestBlockRouteParsesAGroupKeyWithSlashes(t *testing.T) {
+	key, action, ok := parseThreadRoute(
+		"/v1/threads/group:AAAAAAAAAAAAAAAAAAAAAA/BBBBBBBBBBBBBBBBBBBBBB=/block")
+	if !ok {
+		t.Fatal("route did not parse")
+	}
+	if action != "block" {
+		t.Errorf("action = %q, want block", action)
+	}
+	if want := "group:AAAAAAAAAAAAAAAAAAAAAA/BBBBBBBBBBBBBBBBBBBBBB="; key != want {
+		t.Errorf("key = %q, want %q", key, want)
+	}
+}

@@ -217,9 +217,43 @@ func (a *API) threadSub(w http.ResponseWriter, r *http.Request) {
 		a.send(w, r, key)
 	case action == "read" && r.Method == http.MethodPost:
 		a.markRead(w, r, key)
+	case action == "block" && r.Method == http.MethodPost:
+		a.setBlocked(w, r, key)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// setBlocked blocks or unblocks the other party of a thread, on the Signal account itself
+// so it holds on every device rather than only hiding them here.
+func (a *API) setBlocked(w http.ResponseWriter, r *http.Request, key string) {
+	var body struct {
+		Blocked bool `json:"blocked"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request body"})
+		return
+	}
+
+	var err error
+	switch {
+	case strings.HasPrefix(key, "group:"):
+		err = a.sc.SetGroupBlocked(strings.TrimPrefix(key, "group:"), body.Blocked)
+	case strings.HasPrefix(key, "direct:"):
+		err = a.sc.SetBlocked(strings.TrimPrefix(key, "direct:"), body.Blocked)
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown thread"})
+		return
+	}
+	if err != nil {
+		// Said out loud rather than swallowed: a block that quietly failed would leave
+		// someone believing they had stopped hearing from a person they had not.
+		log.Printf("block %s (blocked=%v): %v", key, body.Blocked, err)
+		writeErr(w, err)
+		return
+	}
+	log.Printf("block %s: blocked=%v", key, body.Blocked)
+	writeJSON(w, 200, map[string]any{"ok": true, "blocked": body.Blocked})
 }
 
 func (a *API) send(w http.ResponseWriter, r *http.Request, key string) {

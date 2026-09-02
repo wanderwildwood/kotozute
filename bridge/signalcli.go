@@ -258,6 +258,33 @@ func (s *SignalCLI) SendToNoteToSelf(body string, attachments []string) (int64, 
 	return r.Timestamp, err
 }
 
+// SetBlocked blocks or unblocks a contact on the Signal account itself, which is what
+// makes it stick across every device rather than only hiding them here.
+//
+// One method with a flag rather than two, so the allowlist grows by one entry: this file is
+// the entire surface the phone can reach through the bridge, and every addition to it is a
+// thing a stolen pairing token can now do.
+func (s *SignalCLI) SetBlocked(recipient string, blocked bool) error {
+	method := "unblock"
+	if blocked {
+		method = "block"
+	}
+	return s.call(method, map[string]any{
+		"account": s.account, "recipient": []string{recipient},
+	}, nil)
+}
+
+// SetGroupBlocked is the same for a group; signal-cli takes groups by a separate parameter.
+func (s *SignalCLI) SetGroupBlocked(groupID string, blocked bool) error {
+	method := "unblock"
+	if blocked {
+		method = "block"
+	}
+	return s.call(method, map[string]any{
+		"account": s.account, "groupId": []string{groupID},
+	}, nil)
+}
+
 func (s *SignalCLI) SendReadReceipt(recipient string, timestamps []int64) error {
 	return s.call("sendReceipt", map[string]any{
 		"account": s.account, "recipient": recipient,

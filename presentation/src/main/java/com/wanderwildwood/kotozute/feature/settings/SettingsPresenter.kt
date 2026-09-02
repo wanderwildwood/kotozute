@@ -219,7 +219,7 @@ class SettingsPresenter @Inject constructor(
                             }
                         }
 
-                        R.id.desktopSyncLink -> view.showDesktopSyncLinkDialog(desktopSyncUrl())
+                        R.id.desktopSyncLink -> view.showDesktopSyncLinkDialog(desktopSyncUrls())
 
                         R.id.desktopSyncTailscaleOnly ->
                             prefs.desktopSyncTailscaleOnly.set(!prefs.desktopSyncTailscaleOnly.get())
@@ -400,15 +400,21 @@ class SettingsPresenter @Inject constructor(
     }
 
     /**
-     * The address to open on the computer, or null if nothing can reach us right now.
-     * Only offers the Wi-Fi address when the tailnet restriction is off, since otherwise
-     * that address answers 403.
+     * Every address the computer could open, labelled, or empty if nothing can reach this
+     * phone right now. All of them rather than one: the relay binds every interface, and
+     * which address the computer can see is not knowable from here. Under the tailnet
+     * restriction only the tailnet address is offered, because the others answer 403.
      */
-    private fun desktopSyncUrl(): String? {
-        val host = DesktopSyncService.findTailscaleAddress(context)
-            ?: DesktopSyncService.findLanAddress(context).takeUnless { prefs.desktopSyncTailscaleOnly.get() }
-            ?: return null
-        return "http://$host:${DesktopSyncService.PORT}?token=${prefs.desktopSyncToken.get()}"
+    private fun desktopSyncUrls(): List<Pair<String, String>> {
+        val token = prefs.desktopSyncToken.get()
+        return DesktopSyncService.reachableAddresses(context)
+            .filter {
+                !prefs.desktopSyncTailscaleOnly.get() ||
+                    it.first == DesktopSyncService.LABEL_TAILSCALE
+            }
+            .map { (label, host) ->
+                label to "http://$host:${DesktopSyncService.PORT}?token=$token"
+            }
     }
 
 }

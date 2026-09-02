@@ -192,35 +192,82 @@ class DesktopSyncService : Service() {
         /** Kept for callers with no Context to hand; prefer the overload that has one. */
         fun findLanAddress(): String? = findLanAddress(null)
 
+        /**
+         * Every address this phone can be reached on right now, labelled, most useful
+         * first. The relay binds all interfaces, so on a phone with both Wi-Fi and
+         * Tailscale up there is more than one right answer and no way to know from here
+         * which one the computer at the other end can see. Naming one and hiding the rest
+         * is what made the wrong address so hard to diagnose: the page simply never loaded,
+         * with nothing to suggest another was available.
+         */
+        fun reachableAddresses(context: Context?): List<Pair<String, String>> {
+            val found = LinkedHashMap<String, String>()   // address -> label, first label wins
+            findTailscaleAddress(context)?.let { found.putIfAbsent(it, LABEL_TAILSCALE) }
+            addressesOn(context, NetworkCapabilities.TRANSPORT_WIFI)
+                ?.filter { !isTailscale(it) && isPrivate(it) }
+                ?.forEach { found.putIfAbsent(it, LABEL_WIFI) }
+            addressesOn(context, NetworkCapabilities.TRANSPORT_ETHERNET)
+                ?.filter { !isTailscale(it) && isPrivate(it) }
+                ?.forEach { found.putIfAbsent(it, LABEL_ETHERNET) }
+            // Only where the system would not answer. A cellular address is still left out:
+            // it would send someone to a page that can never load.
+            if (found.isEmpty()) {
+                ipv4Addresses().firstOrNull { !isTailscale(it) && isPrivate(it) }
+                    ?.let { found.putIfAbsent(it, LABEL_WIFI) }
+            }
+            return found.map { (address, label) -> label to address }
+        }
+
+        const val LABEL_TAILSCALE = "Tailscale"
+        const val LABEL_WIFI = "Wi-Fi"
+        const val LABEL_ETHERNET = "Wired"
+
         private fun isPrivate(ip: String): Boolean =
             ip.startsWith("192.168.") ||
                 ip.startsWith("10.") ||
                 Regex("^172\\.(1[6-9]|2\\d|3[01])\\.").containsMatchIn(ip)
 
-        /** IPv4 addresses on the first network offering [transport], or null if unknown. */
         /**
-         * IPv4 addresses on the first network offering [transport], or null if unknown.
+         * IPv4 addresses on every network offering [transport], or null if unknown.
          *
-         * Asks the system only which interface that network uses, then reads the interface
+         * Asks the system only which interface each network uses, then reads the interface
          * directly. LinkProperties.getLinkAddresses() is compiled against a newer SDK than
          * this phone runs and throws NoSuchMethodError on API 31 -- caught, and so
          * indistinguishable from "there is no Wi-Fi" unless you go looking. getInterfaceName
          * has been stable since API 21.
+         *
+         * A VPN network reports its underlying transports as well as TRANSPORT_VPN, so
+         * asking for Wi-Fi while Tailscale is up could match the tunnel and return tun0's
+         * address -- which then failed the "not a tailnet address" test, leaving the phone
+         * looking like it had no Wi-Fi at all. Unless the VPN transport is what was asked
+         * for, VPN networks are skipped.
+         *
+         * Every matching network, not the first: a phone can hold more than one, and the
+         * one enumerated first is not reliably the one that answers.
          */
         private fun addressesOn(context: Context?, transport: Int): List<String>? {
             val cm = context?.getSystemService(Context.CONNECTIVITY_SERVICE)
                 as? ConnectivityManager ?: return null
             return runCatching {
-                val network = cm.allNetworks.firstOrNull {
-                    cm.getNetworkCapabilities(it)?.hasTransport(transport) == true
-                } ?: return@runCatching null
-                val iface = cm.getLinkProperties(network)?.interfaceName
-                    ?: return@runCatching null
-                NetworkInterface.getByName(iface)?.inetAddresses?.asSequence()
-                    ?.filterIsInstance<Inet4Address>()
-                    ?.filterNot { it.isLoopbackAddress }
-                    ?.mapNotNull { it.hostAddress }
-                    ?.toList()
+                cm.allNetworks
+                    .filter { network ->
+                        val caps = cm.getNetworkCapabilities(network) ?: return@filter false
+                        if (!caps.hasTransport(transport)) return@filter false
+                        transport == NetworkCapabilities.TRANSPORT_VPN ||
+                            !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                    }
+                    .mapNotNull { cm.getLinkProperties(it)?.interfaceName }
+                    .distinct()
+                    .flatMap { iface ->
+                        NetworkInterface.getByName(iface)?.inetAddresses?.asSequence()
+                            ?.filterIsInstance<Inet4Address>()
+                            ?.filterNot { addr -> addr.isLoopbackAddress }
+                            ?.mapNotNull { addr -> addr.hostAddress }
+                            ?.toList()
+                            .orEmpty()
+                    }
+                    .distinct()
+                    .ifEmpty { null }
             }.onFailure { Timber.w(it, "could not read addresses for transport %d", transport) }
                 .getOrNull()
         }

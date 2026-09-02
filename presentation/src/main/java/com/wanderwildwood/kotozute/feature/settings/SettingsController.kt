@@ -324,11 +324,23 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun showMessageLinkHandlingDialogPicker() = messageLinkHandlingDialog.show(activity!!)
 
-    override fun showDesktopSyncLinkDialog(url: String?) {
-        val message = if (url == null) {
-            activity!!.getString(R.string.settings_desktop_sync_link_none)
-        } else {
-            url + "\n\n" + activity!!.getString(R.string.settings_desktop_sync_link_bookmark)
+    override fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>) {
+        if (urls.isEmpty()) {
+            AlertDialog.Builder(activity!!)
+                .setTitle(R.string.settings_desktop_sync_link_title)
+                .setMessage(R.string.settings_desktop_sync_link_none)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+
+        // All of them, labelled. The relay listens on every interface, so on a phone with
+        // both Wi-Fi and Tailscale up there is more than one right answer and no way from
+        // here to know which the computer can see. Showing one and hiding the rest is what
+        // made a wrong address so hard to diagnose: the page just never loaded.
+        val message = buildString {
+            urls.forEach { (label, url) -> append(label).append('\n').append(url).append("\n\n") }
+            append(activity!!.getString(R.string.settings_desktop_sync_link_bookmark))
         }
         val builder = AlertDialog.Builder(activity!!)
                 .setTitle(R.string.settings_desktop_sync_link_title)
@@ -337,13 +349,13 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
         // The link carries a long random token and is read off a phone to be entered on a
         // computer. Without this it can only be copied out by hand, one character at a time.
-        if (url != null) {
-            builder.setNeutralButton(R.string.settings_desktop_sync_link_copy) { _, _ ->
-                val clipboard = activity!!
-                    .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("Desktop Sync", url))
-                Toast.makeText(activity, R.string.settings_desktop_sync_link_copied, Toast.LENGTH_SHORT).show()
-            }
+        // With more than one address the copy button takes the first, which is the tailnet
+        // address when there is one; the rest are selectable in the dialog.
+        builder.setNeutralButton(R.string.settings_desktop_sync_link_copy) { _, _ ->
+            val clipboard = activity!!
+                .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Desktop Sync", urls.first().second))
+            Toast.makeText(activity, R.string.settings_desktop_sync_link_copied, Toast.LENGTH_SHORT).show()
         }
 
         val dialog = builder.show()

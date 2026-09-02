@@ -42,7 +42,7 @@ interface SettingsView : QkViewContract<SettingsState> {
     suspend fun showAutoDeleteWarningDialog(messages: Int): Boolean
     fun showMmsSizePicker()
     fun showMessageLinkHandlingDialogPicker()
-    fun showDesktopSyncLinkDialog(url: String?)
+    fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>)
     fun askDesktopSyncReset()
     fun showSignalPairDialog()
     fun showSignalPairFailed()

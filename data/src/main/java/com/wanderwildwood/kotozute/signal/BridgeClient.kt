@@ -15,6 +15,13 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
+/** A contact's safety number and whether their key is still the accepted one. */
+data class BridgeIdentity(val safetyNumber: String, val trustLevel: String) {
+    /** The key changed and has not been accepted since -- the case worth shouting about. */
+    val changed: Boolean get() = trustLevel == "UNTRUSTED"
+    val verified: Boolean get() = trustLevel == "TRUSTED_VERIFIED"
+}
+
 /** One device on the Signal account. Id 1 is the primary; the rest are linked. */
 data class BridgeDevice(val id: Int, val name: String, val created: Long) {
     val isPrimary: Boolean get() = id == 1
@@ -159,6 +166,18 @@ class BridgeClient(private val config: BridgeConfig) {
             number = o.optString("number").orEmpty(),
             selfUuid = o.optString("selfUuid").orEmpty(),
             devices = devices.sortedBy { it.id }
+        )
+    }
+
+    /**
+     * The safety number for a one-to-one thread, and whether the other end's key is still
+     * the one that was accepted. Blank when the two have never exchanged a message.
+     */
+    fun identity(threadKey: String): BridgeIdentity {
+        val o = getJson("${config.baseUrl}/v1/threads/${enc(threadKey)}/identity")
+        return BridgeIdentity(
+            safetyNumber = o.optString("safetyNumber").orEmpty(),
+            trustLevel = o.optString("trustLevel").orEmpty()
         )
     }
 

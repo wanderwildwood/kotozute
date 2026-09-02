@@ -220,6 +220,8 @@ func (a *API) threadSub(w http.ResponseWriter, r *http.Request) {
 		a.markRead(w, r, key)
 	case action == "block" && r.Method == http.MethodPost:
 		a.setBlocked(w, r, key)
+	case action == "identity" && r.Method == http.MethodGet:
+		a.identity(w, r, key)
 	default:
 		http.NotFound(w, r)
 	}
@@ -249,6 +251,38 @@ func (a *API) account(w http.ResponseWriter, r *http.Request) {
 		out["devices"] = []SCDevice{}
 	}
 	writeJSON(w, 200, out)
+}
+
+// identity returns the safety number for a one-to-one thread and whether the other end's
+// key is still the one that was accepted.
+//
+// This is the part of "verify keys" that can honestly be offered. Automatically trusting a
+// changed key is not verification, it is the opposite: safety numbers exist so that a key
+// changing under you is something you are told about rather than something handled quietly.
+func (a *API) identity(w http.ResponseWriter, r *http.Request, key string) {
+	uuid, ok := strings.CutPrefix(key, "direct:")
+	if !ok {
+		// A group has no single safety number; each member has their own.
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a direct thread"})
+		return
+	}
+	ids, err := a.sc.ListIdentities()
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	for _, id := range ids {
+		if id.UUID == uuid {
+			writeJSON(w, 200, map[string]any{
+				"safetyNumber": id.SafetyNumber,
+				"trustLevel":   id.TrustLevel,
+				"added":        id.Added,
+			})
+			return
+		}
+	}
+	// Not an error: a contact who has never exchanged a message has no identity record.
+	writeJSON(w, 200, map[string]any{"safetyNumber": "", "trustLevel": "", "added": 0})
 }
 
 // setBlocked blocks or unblocks the other party of a thread, on the Signal account itself

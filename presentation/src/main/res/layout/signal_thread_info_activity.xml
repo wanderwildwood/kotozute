@@ -119,6 +119,45 @@
                 android:paddingBottom="8dp"
                 android:visibility="gone" />
 
+            <!-- The safety number, and loudly when the key behind it has changed. This is
+                 the honest half of "verify keys": trusting a changed key automatically is
+                 the opposite of verification. -->
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/safetyHeading"
+                style="@style/TextSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="16dp"
+                android:text="@string/signal_safety_number"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/safetyNumber"
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="2dp"
+                android:paddingStart="16dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="16dp"
+                android:textIsSelectable="true"
+                android:typeface="monospace"
+                android:visibility="gone" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/safetyState"
+                style="@style/TextSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="8dp"
+                android:visibility="gone" />
+
             <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/mediaHeading"
                 style="@style/TextSecondary"

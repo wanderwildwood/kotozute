@@ -118,6 +118,12 @@ interface SignalRepository {
      */
     fun account(): SignalAccount
 
+    /**
+     * The safety number for a one-to-one thread and whether the key is still the accepted
+     * one. Throws if the bridge cannot be reached.
+     */
+    fun identity(threadKey: String): SignalIdentity
+
     fun setBlocked(threadKey: String, blocked: Boolean)
 
     fun setPinned(threadKey: String, pinned: Boolean)
@@ -156,3 +162,9 @@ data class SignalAccount(
     val selfUuid: String,
     val devices: List<SignalDevice>
 )
+
+/** A contact's safety number, and whether their key is still the one that was accepted. */
+data class SignalIdentity(val safetyNumber: String, val trustLevel: String) {
+    val changed: Boolean get() = trustLevel == "UNTRUSTED"
+    val verified: Boolean get() = trustLevel == "TRUSTED_VERIFIED"
+}

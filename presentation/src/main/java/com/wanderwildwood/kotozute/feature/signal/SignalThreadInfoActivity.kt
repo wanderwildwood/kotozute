@@ -109,6 +109,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         // Realm and the bridge both off the main thread; this screen opens over a
         // conversation and a stutter there is the one place it would be noticed.
         thread(isDaemon = true) { load() }
+        thread(isDaemon = true) { loadIdentity() }
     }
 
     private fun load() {
@@ -156,6 +157,36 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                 binding.media.adapter = MediaAdapter(pictures)
             }
             renderArchive()
+        }
+    }
+
+    /**
+     * The safety number, fetched separately from the rest: it needs the bridge, and a
+     * screen that waits for the network to show a name would be the wrong trade.
+     */
+    private fun loadIdentity() {
+        if (!threadKey.startsWith("direct:")) return // a group has one per member
+        val identity = runCatching { signalRepo.identity(threadKey) }.getOrNull() ?: return
+        if (identity.safetyNumber.isBlank()) return
+        runOnUiThread {
+            if (isFinishing) return@runOnUiThread
+            binding.safetyHeading.setVisible(true)
+            // Grouped in fives, the way Signal prints it, so two people can read it aloud
+            // to each other without losing their place.
+            binding.safetyNumber.text = identity.safetyNumber
+                .filter { it.isDigit() }
+                .chunked(5)
+                .chunked(6)
+                .joinToString("\n") { row -> row.joinToString(" ") }
+            binding.safetyNumber.setVisible(true)
+            binding.safetyState.setText(
+                when {
+                    identity.changed -> R.string.signal_safety_changed
+                    identity.verified -> R.string.signal_safety_verified
+                    else -> R.string.signal_safety_unverified
+                }
+            )
+            binding.safetyState.setVisible(true)
         }
     }
 

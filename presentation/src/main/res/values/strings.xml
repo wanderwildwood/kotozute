@@ -377,6 +377,10 @@
     <!-- Said plainly, because it is the reason several settings people look for are not
          here, and the reason losing the primary would take this device with it. -->
     <string name="signal_account_linked_note">Registering the number, changing it, the registration-lock PIN and transferring the account all belong to the primary device. If the primary is unregistered, every other device on the account stops working.</string>
+    <string name="signal_safety_number">Safety number</string>
+    <string name="signal_safety_verified">Verified. Compare these digits with theirs to confirm.</string>
+    <string name="signal_safety_unverified">Not verified yet. Compare these digits with theirs in person or over a call you trust.</string>
+    <string name="signal_safety_changed">⚠ Their key has changed since you last accepted it. This happens on a reinstall or a new phone, and it is also what interception would look like. Compare the digits before sending anything private.</string>
     <string name="signal_rail_label">Signal</string>
     <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;

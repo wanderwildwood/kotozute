@@ -314,6 +314,13 @@ func (s *SignalCLI) ListDevices() ([]SCDevice, error) {
 type SCIdentity struct {
 	Number string `json:"number"`
 	UUID   string `json:"uuid"`
+	// The 60-digit safety number two people compare to know they are talking to each
+	// other and not to something in between.
+	SafetyNumber string `json:"safetyNumber"`
+	// TRUSTED_VERIFIED, TRUSTED_UNVERIFIED or UNTRUSTED. UNTRUSTED is the one that
+	// matters: the other end's key changed and has not been accepted since.
+	TrustLevel string `json:"trustLevel"`
+	Added      int64  `json:"addedTimestamp"`
 }
 
 // ListIdentities is how we learn our own ACI. Note that getUserStatus returns the

@@ -51,7 +51,7 @@ data class Inbox(
 
 data class Searching(
     val loading: Boolean = false,
-    val data: List<SearchResult>? = null
+    val data: List<InboxSearchResult>? = null
 ) : MainPage()
 
 data class Archived(

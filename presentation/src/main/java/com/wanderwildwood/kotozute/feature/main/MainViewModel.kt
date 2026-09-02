@@ -118,6 +118,22 @@ class MainViewModel @Inject constructor(
         return items
     }
 
+    /**
+     * Search both rails, in the order the SMS side already used: everything that matched by
+     * name first, then everything that matched inside a conversation, most matches first.
+     *
+     * Signal is searched only when it is on and the two lists are woven. Kept apart, this
+     * list is the SMS list and returning Signal hits in it would contradict the setting.
+     */
+    private fun searchBothRails(query: CharSequence): List<InboxSearchResult> {
+        val sms = conversationRepo.searchConversations(query).map(InboxSearchResult::Sms)
+        if (!prefs.signalEnabled.get() || !prefs.signalWeave.get()) return sms
+        val signal = signalRepo.searchThreads(query.toString()).map {
+            InboxSearchResult.Signal(it.thread, it.messages, it.snippet)
+        }
+        return (sms + signal).sortedWith(compareBy({ it.messages > 0 }, { -it.messages }))
+    }
+
     private fun markEverythingRead() {
         val items = mergedInbox().filter(::isUnread)
         val smsIds = items.filterIsInstance<InboxItem.Sms>().map { it.conversation.id }
@@ -377,7 +393,7 @@ class MainViewModel @Inject constructor(
                     }
                 }
                 .observeOn(Schedulers.io())
-                .map(conversationRepo::searchConversations)
+                .map(::searchBothRails)
                 .autoDisposable(view.scope())
                 .subscribe { data -> newState { copy(page = Searching(loading = false, data = data)) } }
 

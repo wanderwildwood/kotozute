@@ -319,6 +319,9 @@ class MainActivity : QkThemedActivity(), MainView {
             is Searching -> {
                 showBackButton(true)
                 if (binding.recyclerView.adapter !== searchAdapter) binding.recyclerView.adapter = searchAdapter
+                // Signal hits do not carry the query on themselves; the adapter needs it
+                // to highlight a thread title the same way it highlights a contact's name.
+                searchAdapter.lastQuery = binding.toolbarSearch.text?.toString()?.trim().orEmpty()
                 searchAdapter.data = state.page.data ?: listOf()
                 itemTouchHelper.attachToRecyclerView(null)
                 binding.empty.setText(R.string.inbox_search_empty_text)

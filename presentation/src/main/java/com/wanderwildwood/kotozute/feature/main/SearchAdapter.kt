@@ -34,6 +34,7 @@ import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.extensions.removeAccents
 import com.wanderwildwood.kotozute.model.SearchResult
 import com.wanderwildwood.kotozute.databinding.SearchListItemBinding
+import com.wanderwildwood.kotozute.feature.conversations.InboxItem
 import javax.inject.Inject
 
 class SearchAdapter @Inject constructor(
@@ -41,7 +42,7 @@ class SearchAdapter @Inject constructor(
     private val context: Context,
     private val dateFormatter: DateFormatter,
     private val navigator: Navigator
-) : QkAdapter<SearchResult, QkBindingViewHolder<SearchListItemBinding>>() {
+) : QkAdapter<InboxSearchResult, QkBindingViewHolder<SearchListItemBinding>>() {
 
     private val highlightColor: Int by lazy { colors.theme().highlight }
 
@@ -49,12 +50,18 @@ class SearchAdapter @Inject constructor(
         val binding = SearchListItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return QkBindingViewHolder(binding).apply {
             itemView.setOnClickListener {
-                val result = getItem(adapterPosition)
-                navigator.showConversation(
-                    result.conversation.id,
-                    result.query.takeIf { result.messages > 0 },
-                    result.conversation.getTitle()
-                )
+                when (val result = getItem(adapterPosition)) {
+                    is InboxSearchResult.Sms -> navigator.showConversation(
+                        result.result.conversation.id,
+                        result.result.query.takeIf { result.messages > 0 },
+                        result.result.conversation.getTitle()
+                    )
+                    // No query is passed through: the Signal thread has no in-thread search
+                    // to hand it to yet, and a highlight that never appears is a promise
+                    // the screen does not keep.
+                    is InboxSearchResult.Signal ->
+                        navigator.showSignalThread(result.thread.threadKey, result.thread.title)
+                }
             }
         }
     }
@@ -65,8 +72,8 @@ class SearchAdapter @Inject constructor(
 
         holder.binding.resultsHeader.setVisible(result.messages > 0 && previous?.messages == 0)
 
-        val query = result.query
-        val title = SpannableString(result.conversation.getTitle())
+        val query = queryOf(result)
+        val title = SpannableString(titleOf(result))
         var index = title.removeAccents().indexOf(query, ignoreCase = true)
 
         while (index >= 0) {
@@ -80,27 +87,71 @@ class SearchAdapter @Inject constructor(
         when (result.messages == 0) {
             true -> {
                 holder.binding.date.setVisible(true)
-                holder.binding.date.text = dateFormatter.getConversationTimestamp(result.conversation.date)
-                holder.binding.snippet.text = when (result.conversation.me) {
-                    true -> context.getString(R.string.main_sender_you, result.conversation.snippet)
-                    false -> result.conversation.snippet
+                when (result) {
+                    is InboxSearchResult.Sms -> {
+                        holder.binding.date.text =
+                            dateFormatter.getConversationTimestamp(result.result.conversation.date)
+                        holder.binding.snippet.text = when (result.result.conversation.me) {
+                            true -> context.getString(
+                                R.string.main_sender_you, result.result.conversation.snippet
+                            )
+                            false -> result.result.conversation.snippet
+                        }
+                    }
+                    is InboxSearchResult.Signal -> {
+                        holder.binding.date.text =
+                            dateFormatter.getConversationTimestamp(result.thread.lastTs)
+                        holder.binding.snippet.text = when (result.thread.snippetOutgoing) {
+                            true -> context.getString(
+                                R.string.main_sender_you, result.thread.snippet
+                            )
+                            false -> result.thread.snippet
+                        }
+                    }
                 }
             }
 
             false -> {
                 holder.binding.date.setVisible(false)
-                holder.binding.snippet.text = context.getString(R.string.main_message_results, result.messages)
+                holder.binding.snippet.text = context.resources.getQuantityString(
+                    R.plurals.main_message_results, result.messages, result.messages
+                )
             }
         }
+
+        // Which rail the hit is on. Without it a result list drawn from both rails does not
+        // say which conversation you are about to open, and the two can share a name.
+        holder.binding.rail.setVisible(result is InboxSearchResult.Signal)
     }
 
-    override fun areItemsTheSame(old: SearchResult, new: SearchResult): Boolean {
-        return old.conversation.id == new.conversation.id && old.messages > 0 == new.messages > 0
+    private fun queryOf(result: InboxSearchResult): String = when (result) {
+        is InboxSearchResult.Sms -> result.result.query
+        // The Signal side does not carry the query on the hit; the highlight below simply
+        // finds nothing, which is right for a thread that matched only by name.
+        is InboxSearchResult.Signal -> lastQuery
     }
 
-    override fun areContentsTheSame(old: SearchResult, new: SearchResult): Boolean {
-        return old.query == new.query && // Queries are the same
-                old.conversation.id == new.conversation.id // Conversation id is the same
-                && old.messages == new.messages // Result count is the same
+    private fun titleOf(result: InboxSearchResult): String = when (result) {
+        is InboxSearchResult.Sms -> result.result.conversation.getTitle()
+        is InboxSearchResult.Signal -> result.thread.title
+    }
+
+    /** The query the current results were produced for, for highlighting Signal titles. */
+    var lastQuery: String = ""
+
+
+    private fun idOf(result: InboxSearchResult): Long = when (result) {
+        is InboxSearchResult.Sms -> result.result.conversation.id
+        is InboxSearchResult.Signal -> InboxItem.signalStableId(result.thread.threadKey)
+    }
+
+    override fun areItemsTheSame(old: InboxSearchResult, new: InboxSearchResult): Boolean {
+        return idOf(old) == idOf(new) && old.messages > 0 == new.messages > 0
+    }
+
+    override fun areContentsTheSame(old: InboxSearchResult, new: InboxSearchResult): Boolean {
+        return queryOf(old) == queryOf(new) &&
+                idOf(old) == idOf(new) &&
+                old.messages == new.messages
     }
 }

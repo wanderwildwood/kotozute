@@ -93,6 +93,13 @@ interface SignalRepository {
      */
     fun threadDirectory(): List<SignalThread>
 
+    /**
+     * Threads whose title or messages match [query]. Returns each thread once, with how
+     * many of its messages matched and the newest matching body; a thread that matched only
+     * by name reports zero.
+     */
+    fun searchThreads(query: String): List<SignalSearchHit>
+
     fun getMessagesSnapshot(threadKey: String, limit: Int): List<SignalMessage>
 
     /**
@@ -112,3 +119,6 @@ interface SignalRepository {
      */
     fun newIncoming(): Observable<SignalMessage>
 }
+
+/** One thread that matched a search, and what matched in it. */
+data class SignalSearchHit(val thread: SignalThread, val messages: Int, val snippet: String)

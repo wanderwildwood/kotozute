@@ -10,6 +10,7 @@ import com.wanderwildwood.kotozute.util.PhoneNumberUtils
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Observable
 import io.reactivex.subjects.BehaviorSubject
+import io.realm.Case
 import io.realm.Realm
 import io.realm.RealmResults
 import io.realm.Sort
@@ -486,6 +487,39 @@ class SignalRepositoryImpl @Inject constructor(
      * what the conversation list deliberately does not show: the people you have never
      * messaged. Sorted by how they read, since there is no recency to sort by.
      */
+    override fun searchThreads(query: String): List<SignalSearchHit> {
+        val q = query.trim()
+        if (q.isEmpty()) return emptyList()
+        return Realm.getDefaultInstance().use { realm ->
+            // Only threads that are conversations. The directory holds a row per contact,
+            // and offering "no messages" rows as search results would bury the real hits.
+            val threads = realm.where(SignalThread::class.java)
+                .greaterThan("lastTs", 0L)
+                .findAll()
+
+            val matches = threads.mapNotNull { thread ->
+                val hits = realm.where(SignalMessage::class.java)
+                    .equalTo("threadKey", thread.threadKey)
+                    .contains("body", q, Case.INSENSITIVE)
+                    .sort("date", Sort.DESCENDING)
+                    .findAll()
+                val byName = thread.title.contains(q, ignoreCase = true)
+                when {
+                    hits.isNotEmpty() -> SignalSearchHit(
+                        realm.copyFromRealm(thread), hits.size, hits.first()?.body.orEmpty()
+                    )
+                    // A thread whose name matches is a result even with no matching message,
+                    // the same way the SMS side treats a conversation title.
+                    byName -> SignalSearchHit(realm.copyFromRealm(thread), 0, thread.snippet)
+                    else -> null
+                }
+            }
+            // Name matches first, then by how much matched: the same order the SMS results
+            // arrive in, so the merged list does not read as two lists stapled together.
+            matches.sortedWith(compareBy({ it.messages > 0 }, { -it.messages }))
+        }
+    }
+
     override fun threadDirectory(): List<SignalThread> =
         Realm.getDefaultInstance().use { realm ->
             realm.copyFromRealm(

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -17,17 +18,18 @@ import (
 
 func main() {
 	var (
-		scAddr   = flag.String("signal-cli", "127.0.0.1:7583", "signal-cli JSON-RPC address (must be loopback)")
-		account  = flag.String("account", "", "Signal account number, e.g. +15551234567 (required)")
-		selfID   = flag.String("self-uuid", "", "own account UUID (auto-detected if omitted)")
-		dataDir  = flag.String("data", "/var/lib/kotozute-bridge", "bridge data directory")
-		scData   = flag.String("signal-cli-data", "/var/lib/signal-cli", "signal-cli data directory (for attachments)")
-		attDays  = flag.Int("attachment-days", 90, "delete attachments older than this many days (0 = never)")
-		attMB    = flag.Int64("attachment-max-mb", 2048, "cap the attachment store at this many MB (0 = no cap)")
-		listen   = flag.String("listen", "0.0.0.0", "address to listen on")
-		port     = flag.Int("port", 8422, "port to listen on")
-		advert   = flag.String("advertise", "", "host/IP to put in the pairing payload (default: --listen)")
-		showPair = flag.Bool("pairing", false, "print the pairing payload and exit")
+		scAddr    = flag.String("signal-cli", "127.0.0.1:7583", "signal-cli JSON-RPC address (must be loopback)")
+		account   = flag.String("account", "", "Signal account number, e.g. +15551234567 (required)")
+		selfID    = flag.String("self-uuid", "", "own account UUID (auto-detected if omitted)")
+		dataDir   = flag.String("data", "/var/lib/kotozute-bridge", "bridge data directory")
+		scData    = flag.String("signal-cli-data", "/var/lib/signal-cli", "signal-cli data directory (for attachments)")
+		attDays   = flag.Int("attachment-days", 90, "delete attachments older than this many days (0 = never)")
+		attMB     = flag.Int64("attachment-max-mb", 2048, "cap the attachment store at this many MB (0 = no cap)")
+		listen    = flag.String("listen", "0.0.0.0", "address to listen on")
+		port      = flag.Int("port", 8422, "port to listen on")
+		advert    = flag.String("advertise", "", "host/IP to put in the pairing payload (default: --listen)")
+		showPair  = flag.Bool("pairing", false, "print the pairing payload and exit")
+		importDir = flag.String("import", "", "import a Signal \"export chat history\" folder into the store, then exit")
 	)
 	flag.Parse()
 
@@ -61,6 +63,30 @@ func main() {
 		fatal("store: %v", err)
 	}
 	defer store.Close()
+
+	// A one-shot: import the history and stop. Deliberately not something the running
+	// daemon does on a signal or an endpoint -- it writes thousands of rows and copies
+	// media, and it should happen when an operator asks for it, not when a packet does.
+	if *importDir != "" {
+		// The export carries no identifier for the account itself. The bridge learned it
+		// when it first connected, so it comes from meta; --self-uuid overrides for a
+		// store that has not run yet.
+		self := *selfID
+		if self == "" {
+			self = store.GetMeta("selfUuid")
+		}
+		if self == "" {
+			fatal("import: this account's own uuid is unknown -- run the bridge once so it " +
+				"can learn it, or pass --self-uuid. Without it every message you sent has " +
+				"no author and would be dropped.")
+		}
+		stats, err := ImportExport(store, *importDir, filepath.Join(*scData, "attachments"), self, *account)
+		if err != nil {
+			fatal("import: %v", err)
+		}
+		log.Printf("import: %s", stats)
+		return
+	}
 
 	sc := NewSignalCLI(*scAddr, *account)
 	self := *selfID

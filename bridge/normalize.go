@@ -1,9 +1,9 @@
 package main
 
 import (
-	"time"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // Message is the one shape the app ever sees. Everything awkward about the wire
@@ -74,7 +74,7 @@ type envelope struct {
 }
 
 type dataMessage struct {
-	Timestamp        int64 `json:"timestamp"`
+	Timestamp        int64  `json:"timestamp"`
 	Message          string `json:"message"`
 	ExpiresInSeconds int64  `json:"expiresInSeconds"`
 	// True when the message carries nothing but a change to the disappearing-message
@@ -82,7 +82,7 @@ type dataMessage struct {
 	// empty bubble in the thread.
 	IsExpirationUpdate bool `json:"isExpirationUpdate"`
 	ViewOnce           bool `json:"viewOnce"`
-	GroupInfo   *struct {
+	GroupInfo          *struct {
 		GroupID string `json:"groupId"`
 	} `json:"groupInfo"`
 	Quote *struct {

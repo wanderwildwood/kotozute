@@ -21,8 +21,8 @@ func envelopeJSON(t *testing.T, dm map[string]any) json.RawMessage {
 	raw, err := json.Marshal(map[string]any{
 		"envelope": map[string]any{
 			"source": "+15550001111", "sourceNumber": "+15550001111",
-			"sourceUuid": "aaaaaaaa-0000-0000-0000-000000000001",
-			"timestamp":  testNow,
+			"sourceUuid":  "aaaaaaaa-0000-0000-0000-000000000001",
+			"timestamp":   testNow,
 			"dataMessage": dm,
 		},
 	})
@@ -114,8 +114,8 @@ func TestPurgeRemovesExpiredAndKeepsTheRest(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	insert("gone:1", testNow-1)   // deadline passed
-	insert("due:2", testNow)      // deadline is now; now is not "still in the future"
+	insert("gone:1", testNow-1) // deadline passed
+	insert("due:2", testNow)    // deadline is now; now is not "still in the future"
 	insert("alive:3", testNow+60_000)
 	insert("forever:4", 0)
 

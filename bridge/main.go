@@ -30,6 +30,7 @@ func main() {
 		advert    = flag.String("advertise", "", "host/IP to put in the pairing payload (default: --listen)")
 		showPair  = flag.Bool("pairing", false, "print the pairing payload and exit")
 		importDir = flag.String("import", "", "import a Signal \"export chat history\" folder into the store, then exit")
+		wipe      = flag.Bool("wipe", false, "delete every message, thread, contact and stored identity, then exit")
 	)
 	flag.Parse()
 
@@ -63,6 +64,17 @@ func main() {
 		fatal("store: %v", err)
 	}
 	defer store.Close()
+
+	// The other half of the app's "Delete Signal data": that clears the phone, this
+	// clears the bridge. Deliberately not something the phone can ask for over the
+	// pairing -- a token that can erase the whole store is a different kind of token.
+	if *wipe {
+		if err := store.DeleteEverything(); err != nil {
+			fatal("wipe: %v", err)
+		}
+		log.Printf("wipe: the store is empty")
+		return
+	}
 
 	// A one-shot: import the history and stop. Deliberately not something the running
 	// daemon does on a signal or an endpoint -- it writes thousands of rows and copies

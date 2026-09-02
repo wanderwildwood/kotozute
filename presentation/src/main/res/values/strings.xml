@@ -323,10 +323,12 @@
     <string name="settings_signal_status_no_signal">Bridge is up but not connected to Signal — read-only</string>
     <string name="settings_signal_status_never">Not synced yet</string>
     <string name="settings_signal_status_last_synced">Last synced %s</string>
-    <string name="settings_signal_unpair_title">Forget this bridge</string>
-    <string name="settings_signal_unpair_summary">Removes the pairing and every Signal message on this phone</string>
-    <string name="settings_signal_unpair_armed">Forget this bridge — tap again</string>
-    <string name="settings_signal_unpair_armed_summary">Signal messages here are deleted; the bridge keeps its own copy</string>
+    <!-- Named for what it destroys, not for the pairing it happens to end. Someone looking
+         for a way to remove their Signal data will not find it under "Forget this bridge". -->
+    <string name="settings_signal_unpair_title">Delete Signal data</string>
+    <string name="settings_signal_unpair_summary">Removes every Signal message on this phone, and the saved bridge and account details</string>
+    <string name="settings_signal_unpair_armed">Delete Signal data — tap again</string>
+    <string name="settings_signal_unpair_armed_summary">Messages, threads and the pairing go. The bridge keeps its own copy until it is wiped there.</string>
     <string name="settings_signal_receipts_title">Send read receipts</string>
     <string name="settings_signal_receipts_summary">Tell people when you have read their Signal message. Separate from Signal\'s own setting, which this cannot see</string>
     <string name="settings_signal_open_title">Signal conversations</string>

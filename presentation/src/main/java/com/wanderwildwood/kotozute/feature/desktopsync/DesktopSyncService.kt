@@ -210,10 +210,12 @@ class DesktopSyncService : Service() {
                 ?.filter { !isTailscale(it) && isPrivate(it) }
                 ?.forEach { found.putIfAbsent(it, LABEL_ETHERNET) }
             // Only where the system would not answer. A cellular address is still left out:
-            // it would send someone to a page that can never load.
+            // it would send someone to a page that can never load. Labelled neutrally,
+            // because an interface scan cannot tell Wi-Fi from wired and calling it Wi-Fi
+            // would be claiming to know something we do not.
             if (found.isEmpty()) {
                 ipv4Addresses().firstOrNull { !isTailscale(it) && isPrivate(it) }
-                    ?.let { found.putIfAbsent(it, LABEL_WIFI) }
+                    ?.let { found.putIfAbsent(it, LABEL_LOCAL) }
             }
             return found.map { (address, label) -> label to address }
         }
@@ -221,6 +223,7 @@ class DesktopSyncService : Service() {
         const val LABEL_TAILSCALE = "Tailscale"
         const val LABEL_WIFI = "Wi-Fi"
         const val LABEL_ETHERNET = "Wired"
+        const val LABEL_LOCAL = "Local network"
 
         private fun isPrivate(ip: String): Boolean =
             ip.startsWith("192.168.") ||

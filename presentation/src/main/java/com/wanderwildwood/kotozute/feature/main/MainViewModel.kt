@@ -178,12 +178,13 @@ class MainViewModel @Inject constructor(
     private fun refreshInbox() {
         val items = mergedInbox()
         val anyUnread = items.any(::isUnread)
-        newState { copy(hasUnread = anyUnread) }
+        // One emission, not two. Every state change redraws the list, and on e-ink a
+        // needless full-panel repaint is the expensive kind of mistake.
         newState {
             when (val p = page) {
-                is Inbox -> copy(page = p.copy(data = items))
-                is Archived -> copy(page = p.copy(data = items))
-                else -> this
+                is Inbox -> copy(hasUnread = anyUnread, page = p.copy(data = items))
+                is Archived -> copy(hasUnread = anyUnread, page = p.copy(data = items))
+                else -> copy(hasUnread = anyUnread)
             }
         }
     }

@@ -178,6 +178,9 @@
   .thread.active { background: var(--active); }
   .thread .row { display: flex; align-items: baseline; gap: 8px; }
   .thread .name { font-weight: 700; font-size: 15px; }
+  /* Mirrors the phone's rail chip: filled, not outlined, so it reads at a glance. */
+  .thread .rail { background: var(--ink); color: var(--paper); font-size: 10px; font-weight: 700;
+    padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
   .thread .when { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
   .thread .snippet {
     font-size: 13px; color: var(--muted); margin-top: 3px;

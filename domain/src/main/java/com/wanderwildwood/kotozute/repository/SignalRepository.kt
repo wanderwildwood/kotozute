@@ -79,6 +79,17 @@ interface SignalRepository {
     fun getThreads(archived: Boolean = false): RealmResults<SignalThread>
 
     /**
+     * Detached copies, readable from any thread.
+     *
+     * The async results [getThreads] returns need a Looper, and the desktop relay serves
+     * each request on a plain worker thread -- the same reason the SMS side has a Sync
+     * variant.
+     */
+    fun getThreadsSnapshot(archived: Boolean = false): List<SignalThread>
+
+    fun getMessagesSnapshot(threadKey: String, limit: Int): List<SignalMessage>
+
+    /**
      * Archiving a Signal thread only hides it here. Signal has no such notion, so this
      * is not sent anywhere and other devices are unaffected.
      */

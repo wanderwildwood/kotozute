@@ -26,6 +26,10 @@ import com.wanderwildwood.kotozute.interactor.SendNewMessage
 import com.wanderwildwood.kotozute.repository.ContactRepository
 import com.wanderwildwood.kotozute.repository.ConversationRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
+import com.wanderwildwood.kotozute.feature.conversations.InboxItem
+import com.wanderwildwood.kotozute.model.SignalMessage
+import com.wanderwildwood.kotozute.model.SignalThread
+import com.wanderwildwood.kotozute.repository.SignalRepository
 import io.realm.Realm
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.TempFile
@@ -49,6 +53,8 @@ class DesktopSyncServer(
     private val markRead: MarkRead,
     private val sendNewMessage: SendNewMessage,
     private val subscriptionManager: SubscriptionManagerCompat,
+    private val signalRepository: SignalRepository,
+    private val signalEnabled: () -> Boolean,
     private val tailscaleOnly: () -> Boolean,
 ) : NanoWSD(port) {
 
@@ -274,9 +280,9 @@ class DesktopSyncServer(
         // (curl looked fine only because each new connection got a fresh thread.)
         runCatching { Realm.getDefaultInstance().use { it.refresh() } }
 
-        val threadMessagesMatch = Regex("^/api/threads/(\\d+)/messages$").find(uri)
-        val threadSendMatch = Regex("^/api/threads/(\\d+)/send$").find(uri)
-        val threadReadMatch = Regex("^/api/threads/(\\d+)/read$").find(uri)
+        val threadMessagesMatch = Regex("^/api/threads/(-?\\d+)/messages$").find(uri)
+        val threadSendMatch = Regex("^/api/threads/(-?\\d+)/send$").find(uri)
+        val threadReadMatch = Regex("^/api/threads/(-?\\d+)/read$").find(uri)
         val partMatch = Regex("^/api/parts/(\\d+)$").find(uri)
 
         return when {
@@ -407,16 +413,72 @@ class DesktopSyncServer(
         return newChunkedResponse(Response.Status.OK, mimeType, stream)
     }
 
+
+    // ---- the Signal rail -----------------------------------------------------
+
+    /**
+     * The Signal thread an id refers to, or null if the id is a telephony one.
+     *
+     * Ids are derived from the thread key rather than stored, so this walks the threads
+     * and matches. There are dozens, not thousands, and the alternative is a second
+     * identifier to keep in step with the one the inbox already uses.
+     */
+    private fun signalThreadFor(id: Long): SignalThread? {
+        if (!InboxItem.isSignalId(id) || !signalEnabled()) return null
+        return signalRepository.getThreadsSnapshot()
+            .firstOrNull { InboxItem.signalStableId(it.threadKey) == id }
+    }
+
+    private fun signalThreadJson(t: SignalThread) = JSONObject().apply {
+        put("id", InboxItem.signalStableId(t.threadKey))
+        put("title", t.title.ifBlank { t.counterpartNumber.ifBlank { t.threadKey.substringAfter(":") } })
+        put("snippet", if (t.snippetOutgoing && t.snippet.isNotBlank()) "You: " + t.snippet else t.snippet)
+        put("date", t.lastTs)
+        put("unread", t.unread > 0)
+        put("rail", "signal")
+    }
+
+    private fun signalMessageJson(m: SignalMessage) = JSONObject().apply {
+        // The desktop list keys on this; Signal's own id is a string, so derive a stable
+        // number from it the same way thread ids are derived.
+        put("id", InboxItem.signalStableId(m.id))
+        put("body", m.body)
+        put("date", m.date)
+        put("isMe", m.outgoing)
+        put("read", m.read)
+        put("rail", "signal")
+        if (m.attachments.isNotBlank() && m.attachments != "[]") {
+            put("attachmentNote", "\uD83D\uDCCE Attachment")
+        }
+    }
+
     private fun handleGetThreads(): Response {
         val conversations = conversationRepository.getConversationsSnapshot(unreadAtTop = true)
         val array = JSONArray()
+        val rows = mutableListOf<Pair<Long, JSONObject>>()
         conversations.filterNot { it.archived || it.blocked }.forEach { conversation ->
-            array.put(conversationJson(conversation))
+            rows += conversation.date to conversationJson(conversation)
         }
+        if (signalEnabled()) {
+            signalRepository.getThreadsSnapshot()
+                .filterNot { it.archived }
+                .forEach { rows += it.lastTs to signalThreadJson(it) }
+        }
+        // One list, newest first, the same order the phone shows.
+        rows.sortedByDescending { it.first }.forEach { array.put(it.second) }
         return jsonResponse(Response.Status.OK, array)
     }
 
     private fun handleGetMessages(threadId: Long, session: IHTTPSession): Response {
+        signalThreadFor(threadId)?.let { thread ->
+            val requested = session.parameters["limit"]?.firstOrNull()?.toIntOrNull()
+            val limit = (requested ?: MESSAGE_PAGE_SIZE).coerceIn(1, MESSAGE_MAX_LIMIT)
+            val array = JSONArray()
+            signalRepository.getMessagesSnapshot(thread.threadKey, limit)
+                .forEach { array.put(signalMessageJson(it)) }
+            return jsonResponse(Response.Status.OK, array)
+        }
+
         // Only the tail of the thread by default: some conversations here run 600+
         // messages and the browser re-fetches this every few seconds. `limit` lets the
         // browser ask for more so older history is still reachable.
@@ -454,6 +516,31 @@ class DesktopSyncServer(
     private fun handleSend(session: IHTTPSession, threadId: Long): Response {
         val submission = readSubmission(session)
             ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
+
+        signalThreadFor(threadId)?.let { thread ->
+            val body = submission.body.trim()
+            if (body.isEmpty() || submission.attachments.isNotEmpty()) {
+                // Attachments over the relay are an SMS path; Signal has no route for them
+                // here yet, and silently dropping the picture would be worse than refusing.
+                return jsonResponse(
+                    Response.Status.BAD_REQUEST,
+                    JSONObject().put("error", "Signal messages from the browser are text only for now")
+                )
+            }
+            return try {
+                signalRepository.send(thread.threadKey, body)
+                notifyChanged()
+                jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+            } catch (t: Throwable) {
+                // Sending has no offline queue on purpose: better to say it did not go
+                // than to accept a message that never arrives.
+                Timber.w(t, "Desktop Sync: Signal send failed")
+                jsonResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    JSONObject().put("error", t.message ?: "could not reach the Signal bridge")
+                )
+            }
+        }
 
         rejectionResponse(submission)?.let { return it }
 
@@ -663,6 +750,11 @@ class DesktopSyncServer(
      * the database flag.
      */
     private fun handleMarkRead(threadId: Long): Response {
+        signalThreadFor(threadId)?.let { thread ->
+            signalRepository.markRead(thread.threadKey, System.currentTimeMillis())
+            notifyChanged()
+            return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+        }
         markRead.execute(listOf(threadId))
         notifyChanged()
         return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
@@ -901,6 +993,7 @@ class DesktopSyncServer(
         put("snippet", conversation.snippet ?: "")
         put("date", conversation.date)
         put("unread", conversation.unread)
+        put("rail", "sms")
     }
 
     /**

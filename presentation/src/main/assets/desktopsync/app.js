@@ -146,6 +146,7 @@ const emojiTabsEl = document.getElementById('emojiTabs');
 const emojiGridEl = document.getElementById('emojiGrid');
 
 let activeThreadId = null;
+let activeThreadRail = 'sms'; // the open thread's rail; a SIM means nothing on Signal
 let activeThreadTitle = '';
 let composeMode = false;
 // The number actually sent to. Set when a suggestion is picked, so the visible
@@ -394,6 +395,9 @@ function enterComposeMode() {
   toWrapEl.hidden = false;
   // Only when there is genuinely a choice; see loadSims.
   simFieldEl.hidden = sims.length < 2;
+  // A new conversation always starts on SMS; there is no Signal compose path yet. Without
+  // this the rail of the last thread opened would linger and gate the composer.
+  activeThreadRail = 'sms';
   toFieldEl.value = '';
   chosenAddress = null;
   clearSuggestions();
@@ -523,9 +527,14 @@ function renderAttachments() {
 
 /* A picture on its own is a message, so Send has to come alive for an empty box too. */
 function updateSendEnabled() {
-  const canSend = !bodyEl.disabled && (bodyEl.value.trim() !== '' || pending.length > 0);
+  // Signal over the relay carries text only, so a picture would be refused at the far end.
+  // Greying the button out says so before the file is chosen rather than after.
+  const canAttach = activeThreadRail !== 'signal';
+  const canSend = !bodyEl.disabled &&
+    (bodyEl.value.trim() !== '' || (canAttach && pending.length > 0));
   sendEl.disabled = !canSend;
-  attachEl.disabled = bodyEl.disabled;
+  attachEl.disabled = bodyEl.disabled || !canAttach;
+  attachEl.title = canAttach ? '' : 'Signal messages from the browser are text only for now';
   emojiBtnEl.disabled = bodyEl.disabled;
 }
 
@@ -746,7 +755,16 @@ function renderThreads() {
     const when = document.createElement('span');
     when.className = 'when';
     when.textContent = formatTime(t.date);
-    row.append(name, when);
+    row.append(name);
+    // Which rail the thread rides. Only Signal is marked: unmarked means SMS, which keeps
+    // the badge off nearly every row in a list that is mostly SMS.
+    if (t.rail === 'signal') {
+      const rail = document.createElement('span');
+      rail.className = 'rail';
+      rail.textContent = 'Signal';
+      row.append(rail);
+    }
+    row.append(when);
     const snippet = document.createElement('div');
     applySnippet(snippet, t, drafts[String(t.id)]);
     div.dataset.id = t.id; // lets a keystroke update just this row, see refreshDraftRow
@@ -764,6 +782,7 @@ async function selectThread(id, title) {
   messageLimit = 300;    // start each thread at the most recent page
   hasMoreMessages = false;
   activeThreadId = id;
+  activeThreadRail = (lastThreads.find(t => t.id === id) || {}).rail || 'sms';
   activeThreadTitle = title || '';
   paneTitleEl.textContent = activeThreadTitle || 'Conversation';
   bodyEl.disabled = false;
@@ -998,7 +1017,9 @@ composerEl.addEventListener('submit', async e => {
     // A string, so the JSON and multipart encodings carry it the same way. Left out
     // entirely when there is no choice to make, so a one-SIM phone sends what it always did.
     const fields = { to: to, body: text };
-    if (sims.length > 1 && simFieldEl.value) fields.subId = simFieldEl.value;
+    if (activeThreadRail !== 'signal' && sims.length > 1 && simFieldEl.value) {
+      fields.subId = simFieldEl.value;
+    }
     const res = await api('/api/compose', Object.assign(
       { method: 'POST' },
       sendRequestBody(fields)

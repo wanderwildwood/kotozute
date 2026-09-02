@@ -233,6 +233,7 @@ class DesktopSyncService : Service() {
     @Inject lateinit var sendNewMessage: SendNewMessage
     @Inject lateinit var subscriptionManager: SubscriptionManagerCompat
     @Inject lateinit var prefs: Preferences
+    @Inject lateinit var signalRepository: com.wanderwildwood.kotozute.repository.SignalRepository
 
     private val disposables = CompositeDisposable()
     private var server: DesktopSyncServer? = null
@@ -289,6 +290,8 @@ class DesktopSyncService : Service() {
             markRead = markRead,
             sendNewMessage = sendNewMessage,
             subscriptionManager = subscriptionManager,
+            signalRepository = signalRepository,
+            signalEnabled = { prefs.signalEnabled.get() },
             // Read live, so flipping the setting takes effect on the next request
             // instead of needing the relay stopped and started again.
             tailscaleOnly = { prefs.desktopSyncTailscaleOnly.get() },

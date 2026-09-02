@@ -485,6 +485,27 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun getThreadsSnapshot(archived: Boolean): List<SignalThread> =
+        Realm.getDefaultInstance().use { realm ->
+            realm.copyFromRealm(
+                realm.where(SignalThread::class.java)
+                    .equalTo("archived", archived)
+                    .sort("lastTs", Sort.DESCENDING)
+                    .findAll()
+            )
+        }
+
+    override fun getMessagesSnapshot(threadKey: String, limit: Int): List<SignalMessage> =
+        Realm.getDefaultInstance().use { realm ->
+            val all = realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .sort("date", Sort.ASCENDING)
+                .findAll()
+            // The tail, like the SMS side: a long thread is re-fetched every few seconds.
+            val from = maxOf(0, all.size - limit.coerceAtLeast(1))
+            realm.copyFromRealm(all.subList(from, all.size))
+        }
+
     override fun getMessages(threadKey: String): RealmResults<SignalMessage> =
         Realm.getDefaultInstance()
             .where(SignalMessage::class.java)

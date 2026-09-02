@@ -29,11 +29,21 @@ sealed class InboxItem {
          * and never equals the -1 the adapter returns for "no item". The sign is also how
          * the swipe callback recognises a Signal row without reaching for the item.
          */
-        override val stableId: Long
-            get() = -2L - (thread.threadKey.hashCode().toLong() and 0xFFFFFFFFL)
+        override val stableId: Long get() = signalStableId(thread.threadKey)
     }
 
     companion object {
+        /**
+         * The id a Signal thread answers to wherever a Long is required -- the inbox
+         * adapter, the swipe callback, and the desktop relay's URLs. Negative, so it can
+         * never collide with a telephony thread id, and never -1, which means "no item".
+         *
+         * Defined once because two places derive it and a disagreement between them would
+         * send a reply to the wrong conversation.
+         */
+        fun signalStableId(threadKey: String): Long =
+            -2L - (threadKey.hashCode().toLong() and 0xFFFFFFFFL)
+
         fun isSignalId(id: Long): Boolean = id <= -2L
     }
 }

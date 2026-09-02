@@ -49,6 +49,10 @@ data class ComposeState(
     val canSend: Boolean = false,
     /** The same person has a Signal thread, so a way across can be offered. */
     val signalThreadKey: String? = null,
+
+    /** The Signal thread of the single person chosen while composing a new conversation.
+     *  Separate from [signalThreadKey], which describes a conversation that already exists. */
+    val composeSignalThreadKey: String? = null,
     val hasScheduledMessages: Boolean = false,
     val validRecipientNumbers: Int = 1,
     val recipientCount: Int = 1,

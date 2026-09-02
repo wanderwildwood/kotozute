@@ -425,10 +425,12 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         binding.toolbar.menu.findItem(R.id.call)?.isVisible = !state.editingMode && state.selectedMessages == 0
         // The crossing to this person's Signal thread, and the only way to it: an overflow
         // item for the same thing would be a second door to one room, and the buried one.
-        signalThreadKey = state.signalThreadKey
+        //
+        // While composing, the same badge is how a Signal conversation gets started at all:
+        // choose one person, and if Signal knows them it appears.
+        signalThreadKey = if (state.editingMode) state.composeSignalThreadKey else state.signalThreadKey
         binding.railBadge.setVisible(
-            !state.editingMode && state.selectedMessages == 0 &&
-                state.signalThreadKey != null && state.query.isEmpty()
+            state.selectedMessages == 0 && signalThreadKey != null && state.query.isEmpty()
         )
         binding.toolbar.menu.findItem(R.id.info)?.isVisible = !state.editingMode && state.selectedMessages == 0
                 && state.query.isEmpty()

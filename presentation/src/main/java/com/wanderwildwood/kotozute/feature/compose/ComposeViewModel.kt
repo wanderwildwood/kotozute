@@ -255,6 +255,23 @@ class ComposeViewModel @Inject constructor(
             }
             .subscribe()
 
+        // The same crossing while composing a new conversation, which is the only way there
+        // is to start one on Signal: pick a person, and if Signal knows them the badge
+        // appears and takes you to their Signal thread. The thread already exists -- Signal's
+        // directory gives one per contact -- it simply has no messages in it yet.
+        disposables += selectedChips
+            .observeOn(Schedulers.io())
+            .map { chips ->
+                chips.takeIf { it.size == 1 }
+                    ?.firstOrNull()
+                    ?.address
+                    ?.let { address -> signalRepo.findThreadForNumber(address)?.threadKey }
+                    .orEmpty()
+            }
+            .distinctUntilChanged()
+            .doOnNext { key -> newState { copy(composeSignalThreadKey = key.ifEmpty { null }) } }
+            .subscribe()
+
         // update recipient count whenever conversation changes
         disposables += conversation
             .observeOn(Schedulers.io())

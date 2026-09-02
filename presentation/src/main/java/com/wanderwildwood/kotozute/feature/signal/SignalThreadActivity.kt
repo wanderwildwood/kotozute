@@ -97,10 +97,12 @@ class SignalThreadActivity : QkThemedActivity() {
         messages = results
         results.addChangeListener { data, _ ->
             adapter.submit(data)
+            binding.empty.setVisible(data.isEmpty())
             if (data.isNotEmpty()) binding.recyclerView.scrollToPosition(data.size - 1)
             markRead(data)
         }
         adapter.submit(results)
+        binding.empty.setVisible(results.isEmpty())
         markRead(results)
 
         // The composer is disabled, visibly and with a reason, whenever a send would

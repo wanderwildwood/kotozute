@@ -353,6 +353,7 @@
         <item quantity="other">%1$d messages</item>
     </plurals>
     <string name="signal_info_since">%1$s, since %2$s</string>
+    <string name="signal_thread_empty">No messages yet. Anything you send goes out over Signal.</string>
     <string name="signal_rail_label">Signal</string>
     <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;

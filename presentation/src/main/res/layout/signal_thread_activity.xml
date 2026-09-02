@@ -54,13 +54,33 @@
         android:layout_height="3dp"
         android:background="@android:color/black" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerView"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:paddingTop="8dp"
-        android:clipToPadding="false" />
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingTop="8dp"
+            android:clipToPadding="false" />
+
+        <!-- A thread reached from the directory has no messages in it yet. Blank white with
+             a composer under it reads as broken; one line reads as new. -->
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:text="@string/signal_thread_empty"
+            android:textColor="?android:attr/textColorTertiary"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/pending"

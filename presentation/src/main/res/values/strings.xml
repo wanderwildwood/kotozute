@@ -397,6 +397,9 @@ Back the bridge up:
 kotozute-bridge --export /path/to/backup
 
 Either can be run twice without duplicating anything. An export written this way imports back exactly.</string>
+    <string name="settings_desktop_sync_code_intro">On the computer, open:</string>
+    <string name="settings_desktop_sync_code">and enter this code:\n\n    %1$s\n\nIt lasts three minutes and works once.</string>
+    <string name="settings_desktop_sync_link_full">Or use the full link, which needs no code:</string>
     <string name="signal_rail_label">Signal</string>
     <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;

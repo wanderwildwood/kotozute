@@ -268,6 +268,14 @@ class DesktopSyncServer(
             "/icon.png" -> return serveAsset("icon.png", "image/png")
         }
 
+        // Redeeming a pairing code is the one route that answers without a token -- it is
+        // how a browser gets one. Everything bounding it lives in DesktopSyncPairing: six
+        // digits, three minutes, five attempts, one use, and only after someone asked for
+        // it on the phone.
+        if (uri == "/api/pair-code" && session.method == Method.POST) {
+            return handlePairCode(session)
+        }
+
         val authed = session.headers["authorization"] == "Bearer $token" ||
                 tokenMatches(session.parameters["token"]?.firstOrNull())
         if (!authed) {
@@ -347,6 +355,25 @@ class DesktopSyncServer(
      * a link typed by hand should not fail on it. Tokens issued before that change are
      * mixed-case base64, where case does carry information, so those are compared exactly.
      */
+    /**
+     * Exchange a pairing code for the token. Deliberately says nothing about why a code was
+     * refused -- expired, wrong, already used and never issued all read the same, because
+     * telling them apart is only useful to someone guessing.
+     */
+    private fun handlePairCode(session: IHTTPSession): Response {
+        val submission = readSubmission(session)
+        val supplied = submission?.body?.trim()
+        if (!DesktopSyncPairing.redeem(supplied)) {
+            Timber.w("Desktop Sync: a pairing code was refused")
+            return jsonResponse(
+                Response.Status.UNAUTHORIZED,
+                JSONObject().put("error", "that code is not valid — get a fresh one on the phone")
+            )
+        }
+        Timber.i("Desktop Sync: a pairing code was redeemed")
+        return jsonResponse(Response.Status.OK, JSONObject().put("token", token))
+    }
+
     private fun tokenMatches(supplied: String?): Boolean {
         if (supplied == null) return false
         if (supplied == token) return true

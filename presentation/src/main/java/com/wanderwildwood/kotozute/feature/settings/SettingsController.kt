@@ -389,11 +389,26 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             return
         }
 
+        // A short code first, because typing the full link is the part people complain
+        // about: a host and six digits beats a host, a port and a 24-character token.
+        val code = com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncPairing.issue()
+        val hosts = urls.map { (label, url) ->
+            label to url.substringBefore("?token=")
+        }
+
         // All of them, labelled. The relay listens on every interface, so on a phone with
         // both Wi-Fi and Tailscale up there is more than one right answer and no way from
         // here to know which the computer can see. Showing one and hiding the rest is what
         // made a wrong address so hard to diagnose: the page just never loaded.
         val message = buildString {
+            append(activity!!.getString(R.string.settings_desktop_sync_code_intro)).append("\n\n")
+            hosts.forEach { (label, url) -> append(label).append('\n').append(url).append("\n\n") }
+            append(activity!!.getString(
+                R.string.settings_desktop_sync_code,
+                code.substring(0, 3) + " " + code.substring(3)
+            ))
+            append("\n\n")
+            append(activity!!.getString(R.string.settings_desktop_sync_link_full)).append("\n\n")
             urls.forEach { (label, url) -> append(label).append('\n').append(url).append("\n\n") }
             append(activity!!.getString(R.string.settings_desktop_sync_link_bookmark))
         }

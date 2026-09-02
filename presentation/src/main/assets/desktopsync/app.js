@@ -28,7 +28,25 @@ document.getElementById('themeBtn').addEventListener('click', () => {
 darkQuery.addEventListener('change', () => { if (themePref === 'auto') applyTheme(); });
 applyTheme();
 
-const token = new URLSearchParams(location.search).get('token') || '';
+/*
+ * The token, from the URL if it is there, otherwise from whatever a pairing code got us
+ * last time. Storing it means the bookmark is just the host -- no 24-character token to
+ * copy, and no token sitting in browser history either.
+ */
+const STORED_TOKEN_KEY = 'kotozute.token';
+function storedToken() {
+  try { return localStorage.getItem(STORED_TOKEN_KEY) || ''; } catch { return ''; }
+}
+function rememberToken(t) {
+  try { localStorage.setItem(STORED_TOKEN_KEY, t); } catch { /* private window: this session only */ }
+}
+let token = new URLSearchParams(location.search).get('token') || storedToken();
+if (new URLSearchParams(location.search).get('token')) {
+  rememberToken(token);
+  // Take it back out of the address bar: a token in a URL ends up in history, and the
+  // whole point of the code is not having to carry one around.
+  try { history.replaceState(null, '', location.pathname); } catch { /* not fatal */ }
+}
 
 /* ── Installing this as an app ─────────────────────────────────────────────────
  * The manifest has to carry the token: an installed window opens at start_url with
@@ -1223,3 +1241,54 @@ signalPayloadEl.addEventListener('keydown', e => {
 });
 
 refreshSignalSetup();
+
+/*
+ * With no token, ask for the six digits the phone is showing rather than a long link.
+ * Everything bounding the code is on the phone; here it is one field and one attempt at a
+ * time.
+ */
+function showPairCodePrompt(reason) {
+  document.body.innerHTML =
+    '<div id="pairGate">' +
+    '  <h1>Messaging</h1>' +
+    '  <p>' + (reason || 'Open Settings &rarr; Desktop Sync &rarr; Show link on your phone, and enter the code it shows.') + '</p>' +
+    '  <input type="text" id="pairCode" inputmode="numeric" autocomplete="off" placeholder="000 000" maxlength="7">' +
+    '  <button type="button" id="pairGo">Connect</button>' +
+    '  <p id="pairErr" hidden></p>' +
+    '</div>';
+  const field = document.getElementById('pairCode');
+  const err = document.getElementById('pairErr');
+  const button = document.getElementById('pairGo');
+  const go = async () => {
+    const code = field.value.replace(/\D/g, '');
+    if (code.length !== 6) return;
+    button.disabled = true;
+    err.hidden = true;
+    try {
+      const res = await fetch('/api/pair-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ body: code })
+      });
+      if (res.ok) {
+        const { token: t } = await res.json();
+        rememberToken(t);
+        location.reload();
+        return;
+      }
+      const detail = await res.json().then(j => j && j.error).catch(() => null);
+      err.textContent = detail || 'that code did not work';
+      err.hidden = false;
+    } catch {
+      err.textContent = 'could not reach the phone';
+      err.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
+  };
+  button.addEventListener('click', go);
+  field.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  field.focus();
+}
+
+if (!token) showPairCodePrompt();

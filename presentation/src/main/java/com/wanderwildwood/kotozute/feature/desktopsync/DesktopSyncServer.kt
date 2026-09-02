@@ -288,6 +288,7 @@ class DesktopSyncServer(
 
         return when {
             uri == "/api/threads" && session.method == Method.GET -> handleGetThreads()
+            uri == "/api/search" && session.method == Method.GET -> handleSearch(session)
             threadMessagesMatch != null && session.method == Method.GET ->
                 handleGetMessages(threadMessagesMatch.groupValues[1].toLong(), session)
             threadSendMatch != null && session.method == Method.POST ->
@@ -414,6 +415,50 @@ class DesktopSyncServer(
         return newChunkedResponse(Response.Status.OK, mimeType, stream)
     }
 
+
+    /**
+     * Search both rails by message body, not just by name.
+     *
+     * The browser could only filter the conversation list it had already fetched, matching
+     * a title or the one snippet a row carries -- so searching for something said inside a
+     * conversation found nothing, on either rail. This is the same search the phone does,
+     * through the same repositories, so the two give the same answers.
+     */
+    private fun handleSearch(session: IHTTPSession): Response {
+        val query = session.parameters["q"]?.firstOrNull()?.trim().orEmpty()
+        // Two characters, as the phone's search does: one letter matches most of an inbox
+        // and costs a full scan to say so.
+        if (query.length < 2) {
+            return jsonResponse(Response.Status.OK, JSONObject().put("results", JSONArray()))
+        }
+
+        val rows = mutableListOf<Pair<Long, JSONObject>>()
+        conversationRepository.searchConversations(query).forEach { result ->
+            rows += result.conversation.date to conversationJson(result.conversation).apply {
+                put("matches", result.messages)
+            }
+        }
+        if (signalEnabled()) {
+            signalRepository.searchThreads(query).forEach { hit ->
+                rows += hit.thread.lastTs to signalThreadJson(hit.thread).apply {
+                    put("matches", hit.messages)
+                    // The matching line, so a hit inside a long conversation says what it
+                    // found rather than only that it found something.
+                    if (hit.snippet.isNotBlank()) put("snippet", hit.snippet)
+                }
+            }
+        }
+
+        val array = JSONArray()
+        // Name matches first, then by how much matched, then newest -- the order the phone
+        // uses, so the same search does not read differently in the two places.
+        rows.sortedWith(
+            compareBy<Pair<Long, JSONObject>> { it.second.optInt("matches") > 0 }
+                .thenByDescending { it.second.optInt("matches") }
+                .thenByDescending { it.first }
+        ).forEach { array.put(it.second) }
+        return jsonResponse(Response.Status.OK, JSONObject().put("results", array))
+    }
 
     // ---- the Signal rail -----------------------------------------------------
 

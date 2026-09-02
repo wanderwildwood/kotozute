@@ -301,6 +301,14 @@
                 app:title="@string/settings_signal_open_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalHistory"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_history_summary"
+                app:title="@string/settings_signal_history_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalAccount"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

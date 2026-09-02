@@ -381,6 +381,22 @@
     <string name="signal_safety_verified">Verified. Compare these digits with theirs to confirm.</string>
     <string name="signal_safety_unverified">Not verified yet. Compare these digits with theirs in person or over a call you trust.</string>
     <string name="signal_safety_changed">⚠ Their key has changed since you last accepted it. This happens on a reinstall or a new phone, and it is also what interception would look like. Compare the digits before sending anything private.</string>
+    <string name="settings_signal_history_title">Chat history</string>
+    <string name="settings_signal_history_summary">Importing and exporting, and where it happens</string>
+    <!-- The work runs on the machine holding the bridge, because that is where a Signal
+         Desktop export lands and where the messages already live. Saying so beats leaving
+         someone to search Settings for a button that should not be here. -->
+    <string name="settings_signal_history_body">Signal threads on this phone start empty and fill from the day the bridge was paired. Older messages can be brought across from a Signal Desktop export — Signal Desktop → Settings → Chats → Export chat history.
+
+This runs on the computer holding the bridge, not from the phone: that is where the export lands, and a history can be tens of thousands of messages.
+
+Bring history in:
+kotozute-bridge --import /path/to/signal-export-…
+
+Back the bridge up:
+kotozute-bridge --export /path/to/backup
+
+Either can be run twice without duplicating anything. An export written this way imports back exactly.</string>
     <string name="signal_rail_label">Signal</string>
     <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;

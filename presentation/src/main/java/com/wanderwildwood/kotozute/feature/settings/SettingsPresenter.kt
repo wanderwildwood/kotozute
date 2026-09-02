@@ -248,6 +248,8 @@ class SettingsPresenter @Inject constructor(
                             }.apply { isDaemon = true }.start()
                         }
 
+                        R.id.signalHistory -> view.showSignalHistoryDialog()
+
                         R.id.signalUnpair -> view.askSignalUnpair()
 
                         R.id.unreadAtTop -> prefs.unreadAtTop.set(!prefs.unreadAtTop.get())

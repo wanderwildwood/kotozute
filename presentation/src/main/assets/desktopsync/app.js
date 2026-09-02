@@ -162,6 +162,11 @@ let lastThreads = [];
 let lastMessagesSig = '';
 let lastThreadsSig = '';
 let filterQuery = '';
+// Results from /api/search, which searches message bodies. Null means we are not searching
+// and the list is the inbox. Filtering the fetched list, which is all this used to do, only
+// ever matched a title or the single snippet a row carries.
+let searchResults = null;
+let searchSeq = 0;
 // How many of the active thread's messages we're currently showing. Grows when the
 // reader asks for older history.
 let messageLimit = 300;
@@ -435,14 +440,46 @@ function syncSearchClearButton() {
 function clearSearch() {
   searchFieldEl.value = '';
   filterQuery = '';
+  searchResults = null;
+  searchSeq++;            // abandon anything still in flight
   syncSearchClearButton();
   renderThreads();
+}
+
+/**
+ * Ask the phone to search, debounced. Two characters, matching the phone: one letter
+ * matches most of an inbox and costs a full scan to say so.
+ *
+ * Every request carries a sequence number and a slower earlier one is discarded on arrival,
+ * so typing quickly cannot leave the results of a prefix on screen.
+ */
+let searchTimer = null;
+function runSearch() {
+  const query = filterQuery.trim();
+  if (query.length < 2) {
+    searchResults = null;
+    renderThreads();
+    return;
+  }
+  const seq = ++searchSeq;
+  api('/api/search?q=' + encodeURIComponent(query))
+    .then(r => r.json())
+    .then(d => {
+      if (seq !== searchSeq) return;
+      searchResults = d.results || [];
+      renderThreads();
+    })
+    .catch(() => { /* leave the list alone; the status line already says if we are offline */ });
 }
 
 searchFieldEl.addEventListener('input', () => {
   filterQuery = searchFieldEl.value;
   syncSearchClearButton();
+  // Redraw at once off what is already here, so typing feels immediate, and ask the phone
+  // for the real answer a beat later.
   renderThreads();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, 200);
 });
 
 searchFieldEl.addEventListener('keydown', e => {
@@ -728,8 +765,11 @@ async function loadThreads() {
 function renderThreads() {
   const prevScroll = threadsEl.scrollTop;
   const q = filterQuery.trim().toLowerCase();
-  const threads = !q ? lastThreads : lastThreads.filter(t =>
-    (t.title || '').toLowerCase().includes(q) || (t.snippet || '').toLowerCase().includes(q));
+  // Server results when we have them, otherwise the local filter -- which is what shows
+  // between a keystroke and the phone answering, and when the query is too short to send.
+  const threads = !q ? lastThreads
+    : (searchResults !== null ? searchResults : lastThreads.filter(t =>
+        (t.title || '').toLowerCase().includes(q) || (t.snippet || '').toLowerCase().includes(q)));
 
   threadsEl.innerHTML = '';
   if (!threads.length) {
@@ -761,7 +801,13 @@ function renderThreads() {
     }
     row.append(when);
     const snippet = document.createElement('div');
-    applySnippet(snippet, t, drafts[String(t.id)]);
+    if (t.matches > 0) {
+      // A hit inside a conversation, not the conversation's last line.
+      snippet.className = 'snippet';
+      snippet.textContent = t.matches + (t.matches === 1 ? ' message' : ' messages');
+    } else {
+      applySnippet(snippet, t, drafts[String(t.id)]);
+    }
     div.dataset.id = t.id; // lets a keystroke update just this row, see refreshDraftRow
     div.append(row, snippet);
     div.addEventListener('click', () => selectThread(t.id, t.title));

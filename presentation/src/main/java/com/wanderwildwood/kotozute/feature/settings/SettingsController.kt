@@ -247,6 +247,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalUnpair.setVisible(state.signalPaired)
         // The status line only means anything once Signal is actually switched on.
         binding.signalOpen.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalHistory.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalAccount.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalWeave.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalWeave.checkbox.isChecked = state.signalWeave
@@ -324,6 +325,18 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun showMmsSizePicker() = mmsSizeDialog.show(activity!!)
 
     override fun showMessageLinkHandlingDialogPicker() = messageLinkHandlingDialog.show(activity!!)
+
+    override fun showSignalHistoryDialog() {
+        val activity = activity ?: return
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(R.string.settings_signal_history_title)
+            .setMessage(R.string.settings_signal_history_body)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+        // Selectable, because the whole point is the two commands in it.
+        dialog.findViewById<android.widget.TextView>(android.R.id.message)
+            ?.setTextIsSelectable(true)
+    }
 
     override fun showSignalAccountDialog(
         account: com.wanderwildwood.kotozute.repository.SignalAccount?

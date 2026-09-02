@@ -76,7 +76,11 @@ type expRecipient struct {
 			} `json:"title"`
 		} `json:"snapshot"`
 	} `json:"group"`
-	Self *struct{} `json:"self"`
+	// Only in an export this bridge wrote. Signal's own export cannot carry it -- it holds
+	// a group's master key, and signal-cli's id is derived from that through zkgroup -- so
+	// restoring our own file is exact where restoring Signal's has to match on title.
+	ThreadKey string    `json:"kotozuteThreadKey"`
+	Self      *struct{} `json:"self"`
 }
 
 type expChat struct {
@@ -143,8 +147,9 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 	}
 
 	people := map[string]person{}
-	groupTitles := map[string]string{} // recipient id -> group title, matched below
-	chats := map[string]string{}       // chat id -> recipient id
+	groupTitles := map[string]string{}     // recipient id -> group title, matched below
+	groupThreadKeys := map[string]string{} // recipient id -> exact key, our own exports only
+	chats := map[string]string{}           // chat id -> recipient id
 
 	// First pass: who and where. The export does not promise that a recipient appears
 	// before the messages that reference it, so the mapping has to be complete first.
@@ -174,6 +179,9 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 				}
 				st.Recipients++
 			case r.Group != nil:
+				if r.ThreadKey != "" {
+					groupThreadKeys[r.ID] = r.ThreadKey
+				}
 				if r.Group.Snapshot != nil && r.Group.Snapshot.Title != nil {
 					groupTitles[r.ID] = r.Group.Snapshot.Title.Title
 				}
@@ -208,6 +216,11 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 		if key, ok := knownGroups[strings.ToLower(title)]; ok {
 			groupKeys[recipientID] = key
 		}
+	}
+	// An exact key beats a title match, and works when there is no thread to match against
+	// -- which is the whole of restoring into an empty store.
+	for recipientID, key := range groupThreadKeys {
+		groupKeys[recipientID] = key
 	}
 
 	files, err := indexFiles(filepath.Join(dir, "files"))

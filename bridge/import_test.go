@@ -237,3 +237,159 @@ func TestImportRefusesAFolderThatIsNotAnExport(t *testing.T) {
 		t.Errorf("error should say what is missing, got: %v", err)
 	}
 }
+
+// The claim export makes is that what comes out goes back in. Anything less and it is not a
+// backup, it is a file that looks like one.
+func TestExportRoundTripsThroughImport(t *testing.T) {
+	withFrozenClock(t)
+	const selfACI = "00000000-0000-4000-8000-000000000000"
+	const theirACI = "11111111-1111-4111-8111-111111111111"
+
+	origin, err := OpenStore(filepath.Join(t.TempDir(), "a.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer origin.Close()
+
+	// A thread with a message each way, and a title to carry across.
+	if err := origin.SetThreadMeta("direct:"+theirACI, "direct", "Ada Lovelace", nil); err != nil {
+		t.Fatal(err)
+	}
+	want := []*Message{
+		{
+			ID: theirACI + ":1700000000000", ThreadKey: "direct:" + theirACI,
+			TS: 1700000000000, SenderUUID: theirACI, Body: "hello", Source: "live", Read: true,
+		},
+		{
+			ID: selfACI + ":1700000001000", ThreadKey: "direct:" + theirACI,
+			TS: 1700000001000, SenderUUID: selfACI, Outgoing: true, Body: "hi back",
+			Source: "live", Read: true,
+		},
+	}
+	for _, m := range want {
+		if _, _, err := origin.InsertMessage(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dir := t.TempDir()
+	attach := t.TempDir()
+	exported, err := ExportStore(origin, dir, attach, selfACI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exported.Messages != 2 || exported.Threads != 1 {
+		t.Fatalf("exported %d messages in %d threads, want 2 and 1", exported.Messages, exported.Threads)
+	}
+
+	// Back into a store that has never seen any of it.
+	fresh, err := OpenStore(filepath.Join(t.TempDir(), "b.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	imported, err := ImportExport(fresh, dir, t.TempDir(), selfACI, "+15559998888")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if imported.Messages != 2 {
+		t.Fatalf("imported %d, want 2 -- %s", imported.Messages, imported)
+	}
+
+	got, err := fresh.ThreadMessages("direct:"+theirACI, 0, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("round trip produced %d messages, want 2", len(got))
+	}
+	byID := map[string]*Message{}
+	for _, m := range got {
+		byID[m.ID] = m
+	}
+	for _, w := range want {
+		g, ok := byID[w.ID]
+		if !ok {
+			t.Errorf("%s did not survive the round trip; got %v", w.ID, byID)
+			continue
+		}
+		if g.Body != w.Body {
+			t.Errorf("%s body = %q, want %q", w.ID, g.Body, w.Body)
+		}
+		if g.Outgoing != w.Outgoing {
+			t.Errorf("%s outgoing = %v, want %v", w.ID, g.Outgoing, w.Outgoing)
+		}
+		if g.TS != w.TS {
+			t.Errorf("%s ts = %d, want %d", w.ID, g.TS, w.TS)
+		}
+	}
+}
+
+// The group case is the one that broke twice: first because a group's key cannot be derived
+// from Signal's own export, then because the author of a group message is a member rather
+// than the thread's other party, which left every incoming one with no identity.
+func TestExportRoundTripsAGroupWithSeveralSenders(t *testing.T) {
+	withFrozenClock(t)
+	const selfACI = "00000000-0000-4000-8000-000000000000"
+	const alice = "11111111-1111-4111-8111-111111111111"
+	const bob = "22222222-2222-4222-8222-222222222222"
+	// A real signal-cli group id: base64, and it contains a slash.
+	const groupKey = "group:AAAAAAAAAAAAAAAAAAAAAA/BBBBBBBBBBBBBBBBBBBBBB="
+
+	origin, err := OpenStore(filepath.Join(t.TempDir(), "a.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer origin.Close()
+	if err := origin.SetThreadMeta(groupKey, "group", "Bridge Club", nil); err != nil {
+		t.Fatal(err)
+	}
+	for i, sender := range []string{alice, bob, selfACI} {
+		ts := int64(1700000000000 + i*1000)
+		m := &Message{
+			ID: sender + ":" + strconv.FormatInt(ts, 10), ThreadKey: groupKey, TS: ts,
+			SenderUUID: sender, Body: "in the group", Source: "live", Read: true,
+			Outgoing: sender == selfACI, GroupID: strings.TrimPrefix(groupKey, "group:"),
+		}
+		if _, _, err := origin.InsertMessage(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dir := t.TempDir()
+	if _, err := ExportStore(origin, dir, t.TempDir(), selfACI); err != nil {
+		t.Fatal(err)
+	}
+
+	// A store that has never seen this group: nothing to match a title against, which is
+	// exactly the restore case.
+	fresh, err := OpenStore(filepath.Join(t.TempDir(), "b.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	st, err := ImportExport(fresh, dir, t.TempDir(), selfACI, "+15559998888")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Messages != 3 {
+		t.Fatalf("imported %d of 3 -- %s", st.Messages, st)
+	}
+	got, err := fresh.ThreadMessages(groupKey, 0, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("group holds %d messages after the round trip, want 3", len(got))
+	}
+	// Each sender kept their own identity, rather than collapsing into the group.
+	senders := map[string]bool{}
+	for _, m := range got {
+		senders[m.SenderUUID] = true
+	}
+	for _, want := range []string{alice, bob, selfACI} {
+		if !senders[want] {
+			t.Errorf("sender %s did not survive; got %v", want, senders)
+		}
+	}
+}

@@ -31,6 +31,7 @@ func main() {
 		showPair  = flag.Bool("pairing", false, "print the pairing payload and exit")
 		importDir = flag.String("import", "", "import a Signal \"export chat history\" folder into the store, then exit")
 		wipe      = flag.Bool("wipe", false, "delete every message, thread, contact and stored identity, then exit")
+		exportDir = flag.String("export", "", "write the store to a folder the --import flag can read back, then exit")
 	)
 	flag.Parse()
 
@@ -73,6 +74,16 @@ func main() {
 			fatal("wipe: %v", err)
 		}
 		log.Printf("wipe: the store is empty")
+		return
+	}
+
+	if *exportDir != "" {
+		stats, err := ExportStore(store, *exportDir, filepath.Join(*scData, "attachments"),
+			store.GetMeta("selfUuid"))
+		if err != nil {
+			fatal("export: %v", err)
+		}
+		log.Printf("export: %s", stats)
 		return
 	}
 

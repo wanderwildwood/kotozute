@@ -431,14 +431,6 @@ class ComposeViewModel @Inject constructor(
             .autoDisposable(view.scope())
             .subscribe { view.toggleSelectAll() }
 
-        // Cross to the same person's Signal thread
-        view.optionsItemIntent
-            .filter { it == R.id.switchToSignal }
-            .withLatestFrom(state) { _, s -> s.signalThreadKey.orEmpty() }
-            .filter { it.isNotEmpty() }
-            .autoDisposable(view.scope())
-            .subscribe { key -> navigator.showSignalThread(key, "") }
-
         // Open the phone dialer if the call button is clicked
         view.optionsItemIntent
             .filter { it == R.id.call }

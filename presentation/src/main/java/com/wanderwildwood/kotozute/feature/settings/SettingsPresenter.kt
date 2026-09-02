@@ -59,6 +59,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.signalReadReceipts.asObservable()
                 .subscribe { on -> newState { copy(signalReadReceipts = on) } }
 
+        disposables += prefs.signalWeave.asObservable()
+                .subscribe { on -> newState { copy(signalWeave = on) } }
+
         disposables += signalRepo.connectionState()
                 .subscribe { conn ->
                     newState {
@@ -233,6 +236,8 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalReceipts ->
                             prefs.signalReadReceipts.set(!prefs.signalReadReceipts.get())
+
+                        R.id.signalWeave -> prefs.signalWeave.set(!prefs.signalWeave.get())
 
                         R.id.signalUnpair -> view.askSignalUnpair()
 

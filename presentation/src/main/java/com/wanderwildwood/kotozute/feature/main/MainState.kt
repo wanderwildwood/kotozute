@@ -27,6 +27,9 @@ data class MainState(
     val hasError: Boolean = false,
     val page: MainPage = Inbox(),
     val syncing: SyncRepository.SyncProgress = SyncRepository.SyncProgress.Idle,
+    /** True when Signal is on and the two lists are being kept apart, so a crossing is
+     *  worth offering. Woven, there is nowhere to cross to. */
+    val separateSignalList: Boolean = false,
     val defaultSms: Boolean = true,
     val smsPermission: Boolean = true,
     val contactPermission: Boolean = true,

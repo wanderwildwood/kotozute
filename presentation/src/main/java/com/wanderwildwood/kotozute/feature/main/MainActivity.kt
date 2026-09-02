@@ -131,6 +131,8 @@ class MainActivity : QkThemedActivity(), MainView {
             showSearchMode()
         }
 
+        binding.railBadge.setOnClickListener { navigator.showSignalConversations() }
+
         // Handle search back button click
         binding.searchBack.setOnClickListener {
             hideSearchMode()
@@ -215,6 +217,11 @@ class MainActivity : QkThemedActivity(), MainView {
             finish()
             return
         }
+
+        // The crossing to the Signal list, offered only when there is a separate one to
+        // cross to. Woven, a Signal thread is already in this list and the badge is on its
+        // row instead.
+        binding.railBadge.setVisible(state.separateSignalList && state.page is Inbox)
 
         val addContact = when (state.page) {
             is Inbox -> state.page.addContact

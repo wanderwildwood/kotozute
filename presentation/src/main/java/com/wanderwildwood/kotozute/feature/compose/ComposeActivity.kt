@@ -106,6 +106,9 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     @Inject lateinit var dateFormatter: DateFormatter
     @Inject lateinit var messageAdapter: MessagesAdapter
     @Inject lateinit var navigator: Navigator
+
+    /** The Signal thread this conversation's contact also has, if any; drives the badge. */
+    private var signalThreadKey: String? = null
     @Inject lateinit var viewModelFactory: ViewModelProvider.Factory
 
     override val activityVisibleIntent: Subject<Boolean> = PublishSubject.create()
@@ -218,10 +221,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 binding.message.isCursorVisible = true
             }
 
-            // Routed through the same intent the overflow item uses, so the crossing has one
-            // implementation however it is reached.
             binding.railBadge.setOnClickListener {
-                optionsItemIntent.onNext(R.id.switchToSignal)
+                signalThreadKey?.let { key -> navigator.showSignalThread(key, "") }
             }
 
             theme
@@ -422,12 +423,13 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         binding.toolbar.menu.findItem(R.id.select_all)?.isVisible = !state.editingMode && (messageAdapter.itemCount > 1) && state.selectedMessages != 0
         binding.toolbar.menu.findItem(R.id.add)?.isVisible = state.editingMode
         binding.toolbar.menu.findItem(R.id.call)?.isVisible = !state.editingMode && state.selectedMessages == 0
-        val canCrossToSignal = !state.editingMode && state.selectedMessages == 0 &&
-            state.signalThreadKey != null && state.query.isEmpty()
-        binding.toolbar.menu.findItem(R.id.switchToSignal)?.isVisible = canCrossToSignal
-        // The same crossing, out where it can be found. The overflow item stays for anyone
-        // who already knows it is there.
-        binding.railBadge.setVisible(canCrossToSignal)
+        // The crossing to this person's Signal thread, and the only way to it: an overflow
+        // item for the same thing would be a second door to one room, and the buried one.
+        signalThreadKey = state.signalThreadKey
+        binding.railBadge.setVisible(
+            !state.editingMode && state.selectedMessages == 0 &&
+                state.signalThreadKey != null && state.query.isEmpty()
+        )
         binding.toolbar.menu.findItem(R.id.info)?.isVisible = !state.editingMode && state.selectedMessages == 0
                 && state.query.isEmpty()
         binding.toolbar.menu.findItem(R.id.copy)?.isVisible =

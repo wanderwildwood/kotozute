@@ -129,9 +129,9 @@ class SignalThreadActivity : QkThemedActivity() {
                 }
             }
         }
-        // The rail badge doubles as the way across. It says which rail you are on either
-        // way; when this person also has an SMS thread it gains an arrow and a tap takes
-        // you there. The overflow item stays for anyone who already knows it.
+        // The rail badge doubles as the way across, and is the only way: it says which rail
+        // you are on either way, and when this person also has an SMS thread it gains an
+        // arrow and a tap takes you there.
         binding.railBadge.setOnClickListener {
             if (smsThreadId != 0L) navigator.showConversation(smsThreadId)
         }
@@ -264,7 +264,6 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
-        menu?.findItem(R.id.switchToSms)?.isVisible = smsThreadId != 0L
         menu?.findItem(R.id.archiveSignal)?.setTitle(
             if (isArchived) R.string.signal_unarchive else R.string.signal_archive
         )
@@ -272,10 +271,6 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
-        R.id.switchToSms -> {
-            navigator.showConversation(smsThreadId)
-            true
-        }
         R.id.archiveSignal -> {
             val nowArchived = !isArchived
             signalRepo.setArchived(threadKey, nowArchived)

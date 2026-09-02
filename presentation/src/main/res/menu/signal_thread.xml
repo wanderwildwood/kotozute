@@ -2,14 +2,6 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <!-- Only shown when this person also has an SMS thread on this phone. -->
-    <item
-        android:id="@+id/switchToSms"
-        android:title="@string/signal_switch_to_sms"
-        android:visible="false"
-        app:showAsAction="never" />
-
-
     <item
         android:id="@+id/archiveSignal"
         android:title="@string/signal_archive"

@@ -23,15 +23,15 @@
             android:maxLines="1"
             android:textStyle="bold" />
 
-        <!-- Which rail this thread rides. The whole point of one inbox is knowing
-             which one a reply will go out on. -->
+        <!-- Was the word "Signal" on every row. This list is nothing but Signal, so it
+             said the same thing 55 times; the time is what a row here was missing. -->
         <com.wanderwildwood.kotozute.common.widget.QkTextView
-            android:id="@+id/rail"
+            android:id="@+id/timestamp"
+            style="@style/TextSecondary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingStart="8dp"
-            android:text="@string/signal_rail_label"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
 
     </LinearLayout>
 

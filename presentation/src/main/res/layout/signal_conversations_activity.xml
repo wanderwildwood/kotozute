@@ -6,9 +6,52 @@
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
+        style="@style/Toolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary" />
+        android:layout_height="wrap_content">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/toolbarTitle"
+                style="@style/ToolbarText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="16sp" />
+
+            <!-- Crosses back to the SMS list. Present only while the two lists are being
+                 kept apart; woven, this screen is not reached from a list at all. -->
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/railBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/filter_tab_selected"
+                android:contentDescription="@string/title_conversations"
+                android:paddingStart="6dp"
+                android:paddingTop="1dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="1dp"
+                android:text="@string/signal_rail_label_switch"
+                android:textColor="@android:color/white"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+    </androidx.appcompat.widget.Toolbar>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:background="@android:color/black" />
 
     <!-- Says plainly when the bridge is unreachable. Receiving catches up on its own,
          but sending cannot happen, so this is not decoration. -->

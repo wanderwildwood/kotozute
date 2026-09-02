@@ -42,12 +42,6 @@
         app:showAsAction="always" />
 
     <item
-        android:id="@+id/switchToSignal"
-        android:title="@string/signal_switch_to_signal"
-        android:visible="false"
-        app:showAsAction="never" />
-
-    <item
         android:id="@+id/call"
         android:icon="@drawable/ic_call_black_24dp"
         android:title="@string/menu_call"

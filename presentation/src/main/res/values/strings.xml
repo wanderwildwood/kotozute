@@ -332,7 +332,10 @@
     <string name="settings_signal_open_summary">Read and reply on the Signal rail</string>
 
     <string name="signal_title">Signal</string>
+    <string name="settings_signal_weave_title">One conversation list</string>
+    <string name="settings_signal_weave_summary">Signal threads sit alongside SMS, newest first. Turn this off to keep two separate lists; the badge in each list crosses to the other.</string>
     <string name="signal_rail_label">Signal</string>
+    <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;
          the ">" says it is a way across rather than a label. -->
     <string name="sms_rail_label_switch">SMS ></string>

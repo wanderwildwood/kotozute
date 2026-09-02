@@ -472,8 +472,28 @@ class SignalRepositoryImpl @Inject constructor(
         Realm.getDefaultInstance()
             .where(SignalThread::class.java)
             .equalTo("archived", archived)
+            // A conversation list lists conversations. Signal's directory gives a row for
+            // every contact it knows, which on this account was 53 people never messaged
+            // against 2 who had been; undated, they piled up at the bottom of the inbox and
+            // filled the Signal list entirely. They stay in the store as the directory for
+            // starting a new conversation -- see threadDirectory.
+            .greaterThan("lastTs", 0L)
             .sort("lastTs", Sort.DESCENDING)
             .findAllAsync()
+
+    /**
+     * Everyone Signal knows about on this account, conversation or not, by name. This is
+     * what the conversation list deliberately does not show: the people you have never
+     * messaged. Sorted by how they read, since there is no recency to sort by.
+     */
+    override fun threadDirectory(): List<SignalThread> =
+        Realm.getDefaultInstance().use { realm ->
+            realm.copyFromRealm(
+                realm.where(SignalThread::class.java)
+                    .equalTo("kind", "direct")
+                    .findAll()
+            ).sortedBy { it.title.lowercase() }
+        }
 
     override fun setArchived(threadKey: String, archived: Boolean) = runOffThread {
         Realm.getDefaultInstance().use { realm ->
@@ -490,6 +510,7 @@ class SignalRepositoryImpl @Inject constructor(
             realm.copyFromRealm(
                 realm.where(SignalThread::class.java)
                     .equalTo("archived", archived)
+                    .greaterThan("lastTs", 0L)
                     .sort("lastTs", Sort.DESCENDING)
                     .findAll()
             )

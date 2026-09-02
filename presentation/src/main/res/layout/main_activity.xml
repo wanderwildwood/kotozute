@@ -80,8 +80,8 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="48dp"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
                 android:orientation="horizontal">
 
                 <!-- QkTextView, so the label follows the app's Font size setting
@@ -92,8 +92,8 @@
                     android:layout_weight="1"
                     android:layout_height="match_parent"
                     android:minWidth="48dp"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
                     android:gravity="center"
                     android:maxLines="1"
                     android:ellipsize="end"
@@ -111,8 +111,8 @@
                     android:layout_weight="1"
                     android:layout_height="match_parent"
                     android:minWidth="48dp"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
                     android:gravity="center"
                     android:maxLines="1"
                     android:ellipsize="end"
@@ -130,8 +130,8 @@
                     android:layout_weight="1"
                     android:layout_height="match_parent"
                     android:minWidth="48dp"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
                     android:gravity="center"
                     android:maxLines="1"
                     android:ellipsize="end"
@@ -142,6 +142,25 @@
                     app:textSize="secondary" />
 
             </LinearLayout>
+
+            <!-- Only when the two lists are being kept apart (Settings, "One conversation
+                 list", off). Woven, there is nothing to cross to and this stays gone. -->
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/railBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/filter_tab_selected"
+                android:contentDescription="@string/settings_signal_open_title"
+                android:paddingStart="6dp"
+                android:paddingTop="1dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="1dp"
+                android:text="@string/sms_rail_label_switch"
+                android:textColor="@android:color/white"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <!-- A cog, not a hamburger: a hamburger promises a menu of places and
                  there is one place behind this. See the house style. At the right end,

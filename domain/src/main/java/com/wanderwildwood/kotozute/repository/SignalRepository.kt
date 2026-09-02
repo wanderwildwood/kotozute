@@ -87,6 +87,12 @@ interface SignalRepository {
      */
     fun getThreadsSnapshot(archived: Boolean = false): List<SignalThread>
 
+    /**
+     * Everyone Signal knows on this account, whether or not there is a conversation --
+     * the recipient list for starting one. The conversation lists exclude these on purpose.
+     */
+    fun threadDirectory(): List<SignalThread>
+
     fun getMessagesSnapshot(threadKey: String, limit: Int): List<SignalMessage>
 
     /**

@@ -139,6 +139,14 @@ class Preferences @Inject constructor(
      * user has chosen not to would share something they declined to share.
      */
     val signalReadReceipts = rxPrefs.getBoolean("signalReadReceipts", false)
+
+    /**
+     * Whether Signal threads sit in the one conversation list alongside SMS. On by default:
+     * a conversation is a conversation, and which rail it arrived on is the badge's job to
+     * say. Off keeps two lists, crossed by the badge in each list's toolbar, for anyone who
+     * would rather not have them mixed.
+     */
+    val signalWeave = rxPrefs.getBoolean("signalWeave", true)
     val textSize = rxPrefs.getInteger("textSize", TEXT_SIZE_LARGE)
     val blockingManager = rxPrefs.getInteger("blockingManager", BLOCKING_MANAGER_QKSMS)
     val drop = rxPrefs.getBoolean("drop", false)

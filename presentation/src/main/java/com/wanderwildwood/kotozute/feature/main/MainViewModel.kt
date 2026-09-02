@@ -127,6 +127,8 @@ class MainViewModel @Inject constructor(
         // one while having nowhere to see it again would simply lose the conversation.
         val signal = when {
             !prefs.signalEnabled.get() -> emptyList()
+            // Kept out of this list on purpose; they have their own, reached by the badge.
+            !prefs.signalWeave.get() -> emptyList()
             else -> signalResults
                 ?.takeIf { it.isValid && it.isLoaded }
                 ?.map { InboxItem.Signal(it) }
@@ -152,6 +154,16 @@ class MainViewModel @Inject constructor(
 
         disposables += prefs.signalEnabled.asObservable()
                 .subscribe { refreshInbox() }
+
+        disposables += prefs.signalWeave.asObservable()
+                .subscribe { refreshInbox() }
+
+        disposables += io.reactivex.Observable.combineLatest(
+                prefs.signalEnabled.asObservable(),
+                prefs.signalWeave.asObservable()
+        ) { enabled, weave -> enabled && !weave }
+                .distinctUntilChanged()
+                .subscribe { separate -> newState { copy(separateSignalList = separate) } }
 
         // Bind whichever shelf the page is showing. Leaving Archived by a route that does
         // not rebind used to leave its rows on an inbox that no longer contained them;

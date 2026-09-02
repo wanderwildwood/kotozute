@@ -29,6 +29,7 @@ import javax.inject.Inject
  */
 class SignalConversationsActivity : QkThemedActivity() {
 
+    @Inject lateinit var navigator: com.wanderwildwood.kotozute.common.Navigator
     @Inject lateinit var signalRepo: SignalRepository
     @Inject lateinit var dateFormatter: DateFormatter
 
@@ -44,7 +45,14 @@ class SignalConversationsActivity : QkThemedActivity() {
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = getString(R.string.signal_title)
+        // Its own title view, so the rail badge can sit beside it as it does everywhere else.
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        binding.toolbarTitle.text = getString(R.string.signal_title)
+
+        // Only while the two lists are being kept apart. Reached from Settings while they
+        // are woven, there is no SMS-only list to go back to and the badge would mislead.
+        binding.railBadge.setVisible(!prefs.signalWeave.get())
+        binding.railBadge.setOnClickListener { navigator.showMainActivity() }
 
         val adapter = ThreadAdapter()
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
@@ -128,10 +136,17 @@ class SignalConversationsActivity : QkThemedActivity() {
 
         fun bind(t: SignalThread) {
             b.title.text = titleOf(t)
-            val when_ = if (t.lastTs > 0) dateFormatter.getConversationTimestamp(t.lastTs) else ""
+            b.timestamp.text =
+                if (t.lastTs > 0) dateFormatter.getConversationTimestamp(t.lastTs) else ""
+            // The same line the merged list shows, so a thread reads the same wherever it
+            // is seen. It used to repeat the timestamp here and show no message at all.
             b.subtitle.text = when {
-                t.unread > 0 -> "$when_  ·  ${t.unread} unread"
-                else -> when_
+                t.snippet.isBlank() && t.unread > 0 -> resources.getQuantityString(
+                    R.plurals.signal_unread, t.unread, t.unread
+                )
+                t.snippetOutgoing && t.snippet.isNotBlank() ->
+                    getString(R.string.main_sender_you, t.snippet)
+                else -> t.snippet
             }
         }
     }

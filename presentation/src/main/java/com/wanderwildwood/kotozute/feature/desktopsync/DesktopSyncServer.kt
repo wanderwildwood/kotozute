@@ -576,7 +576,7 @@ class DesktopSyncServer(
             val encoded = mutableListOf<String>()
             for (attachment in submission.attachments) {
                 val uri = runCatching {
-                    SignalAttachment.dataUri(context.contentResolver, attachment.uri)
+                    SignalAttachment.dataUri(context, attachment.uri)
                 }.getOrElse { failure ->
                     val reason = if (failure is SignalAttachment.TooLarge) {
                         "that file is too large to send over Signal"

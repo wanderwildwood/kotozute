@@ -1,10 +1,11 @@
 package com.wanderwildwood.kotozute.feature.signal
 
-import android.content.ContentResolver
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
+import com.wanderwildwood.kotozute.extensions.getType
 import java.io.ByteArrayOutputStream
 
 /**
@@ -31,8 +32,13 @@ object SignalAttachment {
      * Read [uri] and encode it. Images are downscaled and re-encoded as JPEG first, except
      * GIFs, where re-encoding would throw away the animation.
      */
-    fun dataUri(resolver: ContentResolver, uri: Uri): String {
-        val type = resolver.getType(uri) ?: "application/octet-stream"
+    fun dataUri(context: Context, uri: Uri): String {
+        // Uri.getType, not ContentResolver.getType: the latter returns null for a file://
+        // Uri, which is what the Desktop Sync relay stages an upload as. That made every
+        // picture sent from the browser go out as application/octet-stream -- unscaled, and
+        // shown by the recipient's Signal as a file rather than an image.
+        val resolver = context.contentResolver
+        val type = uri.getType(context)
         val bytes = if (type.startsWith("image/")) {
             downscale(resolver, uri) ?: readBytes(resolver, uri)
         } else {
@@ -48,19 +54,19 @@ object SignalAttachment {
     }
 
     /** A MediaStore uri's last path segment is a row id, so ask for the real name. */
-    fun displayName(resolver: ContentResolver, uri: Uri): String? = runCatching {
-        resolver.query(uri, null, null, null, null)?.use { c ->
+    fun displayName(context: Context, uri: Uri): String? = runCatching {
+        context.contentResolver.query(uri, null, null, null, null)?.use { c ->
             val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
             if (i >= 0 && c.moveToFirst()) c.getString(i) else null
         }
     }.getOrNull()
 
-    private fun readBytes(resolver: ContentResolver, uri: Uri): ByteArray =
+    private fun readBytes(resolver: android.content.ContentResolver, uri: Uri): ByteArray =
         resolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IllegalArgumentException("cannot read $uri")
 
     /** Decodes at a reduced sample size, then recompresses. Null if it is not an image. */
-    private fun downscale(resolver: ContentResolver, uri: Uri): ByteArray? {
+    private fun downscale(resolver: android.content.ContentResolver, uri: Uri): ByteArray? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null

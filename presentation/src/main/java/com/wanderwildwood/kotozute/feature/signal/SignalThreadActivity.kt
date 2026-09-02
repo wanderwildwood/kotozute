@@ -177,11 +177,11 @@ class SignalThreadActivity : QkThemedActivity() {
     private fun attach(uri: Uri) {
         thread(isDaemon = true) {
             val type = contentResolver.getType(uri) ?: "application/octet-stream"
-            val result = runCatching { SignalAttachment.dataUri(contentResolver, uri) }
+            val result = runCatching { SignalAttachment.dataUri(this@SignalThreadActivity, uri) }
             runOnUiThread {
                 result.onSuccess { dataUri ->
                     pendingAttachment = dataUri
-                    pendingName = SignalAttachment.displayName(contentResolver, uri) ?: type
+                    pendingName = SignalAttachment.displayName(this@SignalThreadActivity, uri) ?: type
                     binding.pending.text = getString(R.string.signal_attached, pendingName)
                     binding.pending.setVisible(true)
                 }.onFailure {

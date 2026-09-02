@@ -171,13 +171,15 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         runOnUiThread {
             if (isFinishing) return@runOnUiThread
             binding.safetyHeading.setVisible(true)
-            // Grouped in fives, the way Signal prints it, so two people can read it aloud
-            // to each other without losing their place.
+            // Signal's own layout: sixty digits in twelve groups of five, four rows of
+            // three. Six to a row is the natural half -- your thirty digits then theirs --
+            // but it does not fit 480px and wrapped mid-number, which is exactly where two
+            // people reading it aloud lose their place.
             binding.safetyNumber.text = identity.safetyNumber
                 .filter { it.isDigit() }
                 .chunked(5)
-                .chunked(6)
-                .joinToString("\n") { row -> row.joinToString(" ") }
+                .chunked(3)
+                .joinToString("\n") { row -> row.joinToString("  ") }
             binding.safetyNumber.setVisible(true)
             binding.safetyState.setText(
                 when {

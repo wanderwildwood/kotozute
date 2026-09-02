@@ -61,3 +61,7 @@ android-keystore/keystore.b64
 *.keystore
 key.properties
 .gradlerc
+
+# The compiled bridge. `go build` drops it beside its source; it is a 16MB artefact
+# and it reached a commit once already.
+/bridge/bridge

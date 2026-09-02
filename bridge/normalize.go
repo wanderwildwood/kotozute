@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"encoding/json"
 	"fmt"
 )
@@ -21,7 +22,20 @@ type Message struct {
 	Attachments  []Attachment `json:"attachments,omitempty"`
 	Read         bool         `json:"read"`
 	Source       string       `json:"source"` // "live" | "import"
-	Raw          string       `json:"-"`
+
+	// ExpiresInSeconds is the disappearing-message timer the sender set, 0 for none.
+	// ExpiresAt is when this copy must be gone, in ms; 0 means never. Signal starts the
+	// clock when the recipient reads the message, and we cannot know that moment for a
+	// device that is not this one, so the clock starts on receipt instead. That deletes
+	// no later than Signal would, which is the only direction that is safe to be wrong in.
+	ExpiresInSeconds int64 `json:"expiresInSeconds,omitempty"`
+	ExpiresAt        int64 `json:"expiresAt,omitempty"`
+
+	// ViewOnce marks a message Signal intends to be opened once. Its attachment is never
+	// stored; the row is kept so the conversation does not have a silent hole in it.
+	ViewOnce bool `json:"viewOnce,omitempty"`
+
+	Raw string `json:"-"`
 }
 
 type Attachment struct {
@@ -60,8 +74,14 @@ type envelope struct {
 }
 
 type dataMessage struct {
-	Timestamp   int64  `json:"timestamp"`
-	Message     string `json:"message"`
+	Timestamp        int64 `json:"timestamp"`
+	Message          string `json:"message"`
+	ExpiresInSeconds int64  `json:"expiresInSeconds"`
+	// True when the message carries nothing but a change to the disappearing-message
+	// timer. Signal shows these as an event, not a message; stored as one it would be an
+	// empty bubble in the thread.
+	IsExpirationUpdate bool `json:"isExpirationUpdate"`
+	ViewOnce           bool `json:"viewOnce"`
 	GroupInfo   *struct {
 		GroupID string `json:"groupId"`
 	} `json:"groupInfo"`
@@ -167,6 +187,13 @@ func normalize(selfUUID string, raw json.RawMessage) (*Message, *Receipt, error)
 		outgoing = true
 	}
 
+	// A timer change carries no message. Signal shows it as an event in the thread; kept
+	// as a message it would be an empty bubble, and kept as one that never expires it
+	// would be a permanent record of a conversation being made impermanent.
+	if dm.IsExpirationUpdate {
+		return nil, nil, nil
+	}
+
 	m := &Message{
 		ID:           fmt.Sprintf("%s:%d", idAuthor, ts),
 		ThreadKey:    threadKey,
@@ -178,19 +205,36 @@ func normalize(selfUUID string, raw json.RawMessage) (*Message, *Receipt, error)
 		GroupID:      groupID,
 		Read:         outgoing, // our own messages are not unread
 		Source:       "live",
-		Raw:          string(raw),
+
+		ExpiresInSeconds: dm.ExpiresInSeconds,
+		ViewOnce:         dm.ViewOnce,
+
+		Raw: string(raw),
+	}
+	// The clock starts now rather than at the moment of reading. See Message.ExpiresAt:
+	// we cannot observe a read on another device, and erring early is the safe direction.
+	if dm.ExpiresInSeconds > 0 {
+		m.ExpiresAt = nowMs() + dm.ExpiresInSeconds*1000
 	}
 	if dm.Quote != nil {
 		m.QuoteTS = dm.Quote.ID
 	}
-	for _, a := range dm.Attachments {
-		m.Attachments = append(m.Attachments, Attachment{
-			ID: a.ID, Type: a.ContentType, Filename: a.Filename, Size: a.Size,
-		})
+	// A view-once attachment is not stored. Signal's promise is that it can be opened
+	// once, and a copy sitting in this database is a copy that can be opened for ever.
+	if !dm.ViewOnce {
+		for _, a := range dm.Attachments {
+			m.Attachments = append(m.Attachments, Attachment{
+				ID: a.ID, Type: a.ContentType, Filename: a.Filename, Size: a.Size,
+			})
+		}
 	}
-	// An empty message with no attachments is a reaction/edit/receipt artefact.
-	if m.Body == "" && len(m.Attachments) == 0 {
+	// An empty message with no attachments is a reaction/edit/receipt artefact -- unless
+	// it is view-once, where the emptiness is the point and the row says so.
+	if m.Body == "" && len(m.Attachments) == 0 && !m.ViewOnce {
 		return nil, nil, nil
 	}
 	return m, nil, nil
 }
+
+// nowMs is a variable so the expiry tests can hold time still.
+var nowMs = func() int64 { return time.Now().UnixMilli() }

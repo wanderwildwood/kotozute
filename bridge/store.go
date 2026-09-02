@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -69,10 +70,57 @@ func OpenStore(path string) (*Store, error) {
 	if _, err := db.Exec(schema); err != nil {
 		return nil, fmt.Errorf("schema: %w", err)
 	}
+	if err := migrate(db); err != nil {
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
 	return &Store{db: db}, nil
 }
 
+// migrate adds columns to a store that already exists. CREATE TABLE IF NOT EXISTS does
+// nothing to a table that is already there, so every column added after the first release
+// has to arrive this way. Adding a column that is already present is not an error worth
+// stopping for: SQLite has no ADD COLUMN IF NOT EXISTS, and the alternative is parsing
+// PRAGMA table_info to ask a question the failure already answers.
+func migrate(db *sql.DB) error {
+	adds := []string{
+		`ALTER TABLE messages ADD COLUMN expires_in INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE messages ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE messages ADD COLUMN view_once INTEGER NOT NULL DEFAULT 0`,
+	}
+	for _, stmt := range adds {
+		if _, err := db.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	_, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_msg_expires ON messages(expires_at)`)
+	return err
+}
+
 func (s *Store) Close() error { return s.db.Close() }
+
+// PurgeExpired removes messages whose disappearing-message timer has run out. Reads
+// already hide them, so this is what stops the database from being a record of
+// conversations that were meant to leave no record. Returns how many went.
+func (s *Store) PurgeExpired() (int64, error) {
+	res, err := s.db.Exec(
+		`DELETE FROM messages WHERE expires_at != 0 AND expires_at <= ?`, nowMs())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// DeleteEverything empties the store: every message, thread, contact, and the cursor
+// and account identity in meta. Used by the app's "delete Signal data". The tables are
+// kept so the next sync has somewhere to land.
+func (s *Store) DeleteEverything() error {
+	_, err := s.db.Exec(`
+		DELETE FROM messages;
+		DELETE FROM threads;
+		DELETE FROM contacts;
+		DELETE FROM meta;`)
+	return err
+}
 
 // InsertMessage is idempotent on msg_id. Returns the assigned seq and whether it
 // was new. One logical Signal message can arrive as several notifications, and an
@@ -83,10 +131,12 @@ func (s *Store) InsertMessage(m *Message) (int64, bool, error) {
 	res, err := s.db.Exec(`
 		INSERT OR IGNORE INTO messages
 		  (msg_id, thread_key, ts, sender_uuid, sender_num, outgoing, body,
-		   group_id, quote_ts, attachments, read, source, raw)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		   group_id, quote_ts, attachments, read, source, raw,
+		   expires_in, expires_at, view_once)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		m.ID, m.ThreadKey, m.TS, m.SenderUUID, m.SenderNumber, b2i(m.Outgoing),
-		m.Body, m.GroupID, m.QuoteTS, string(atts), b2i(m.Read), m.Source, m.Raw)
+		m.Body, m.GroupID, m.QuoteTS, string(atts), b2i(m.Read), m.Source, m.Raw,
+		m.ExpiresInSeconds, m.ExpiresAt, b2i(m.ViewOnce))
 	if err != nil {
 		return 0, false, err
 	}
@@ -193,8 +243,11 @@ func (s *Store) Changes(sinceSeq int64, limit int) ([]*Message, error) {
 		SELECT seq, msg_id, thread_key, ts,
 		       COALESCE(sender_uuid,''), COALESCE(sender_num,''), outgoing,
 		       COALESCE(body,''), COALESCE(group_id,''), COALESCE(quote_ts,0),
-		       COALESCE(attachments,''), read, COALESCE(source,'live')
-		FROM messages WHERE seq > ? ORDER BY seq LIMIT ?`, sinceSeq, limit)
+		       COALESCE(attachments,''), read, COALESCE(source,'live'),
+		       COALESCE(expires_in,0), COALESCE(expires_at,0), COALESCE(view_once,0)
+		-- Never hand out a message whose time is up, even if the sweep has not run yet.
+		FROM messages WHERE seq > ? AND (expires_at = 0 OR expires_at > ?)
+		ORDER BY seq LIMIT ?`, sinceSeq, nowMs(), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -212,9 +265,11 @@ func (s *Store) ThreadMessages(key string, beforeTS int64, limit int) ([]*Messag
 		SELECT seq, msg_id, thread_key, ts,
 		       COALESCE(sender_uuid,''), COALESCE(sender_num,''), outgoing,
 		       COALESCE(body,''), COALESCE(group_id,''), COALESCE(quote_ts,0),
-		       COALESCE(attachments,''), read, COALESCE(source,'live')
-		FROM messages WHERE thread_key=? AND ts < ? ORDER BY ts DESC LIMIT ?`,
-		key, beforeTS, limit)
+		       COALESCE(attachments,''), read, COALESCE(source,'live'),
+		       COALESCE(expires_in,0), COALESCE(expires_at,0), COALESCE(view_once,0)
+		FROM messages WHERE thread_key=? AND ts < ? AND (expires_at = 0 OR expires_at > ?)
+		ORDER BY ts DESC LIMIT ?`,
+		key, beforeTS, nowMs(), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -309,13 +364,13 @@ func scanMessages(rows *sql.Rows) ([]*Message, error) {
 	for rows.Next() {
 		m := &Message{}
 		var atts string
-		var outg, read int
+		var outg, read, viewOnce int
 		if err := rows.Scan(&m.Seq, &m.ID, &m.ThreadKey, &m.TS, &m.SenderUUID,
 			&m.SenderNumber, &outg, &m.Body, &m.GroupID, &m.QuoteTS, &atts,
-			&read, &m.Source); err != nil {
+			&read, &m.Source, &m.ExpiresInSeconds, &m.ExpiresAt, &viewOnce); err != nil {
 			return nil, err
 		}
-		m.Outgoing, m.Read = outg == 1, read == 1
+		m.Outgoing, m.Read, m.ViewOnce = outg == 1, read == 1, viewOnce == 1
 		_ = json.Unmarshal([]byte(atts), &m.Attachments)
 		out = append(out, m)
 	}

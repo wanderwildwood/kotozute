@@ -137,6 +137,7 @@ func main() {
 	stop := make(chan struct{})
 	go sc.Run(stop)
 	go NewRetention(*scData, *attDays, *attMB).Run(stop)
+	go sweepExpired(store, stop)
 
 	// Resolve our own UUID once connected; the sync/sent distinction depends on it.
 	go func() {
@@ -254,4 +255,36 @@ func firstLocalIP() string {
 func fatal(f string, a ...any) {
 	log.Printf("fatal: "+f, a...)
 	os.Exit(1)
+}
+
+// sweepExpired deletes disappearing messages whose time is up.
+//
+// Separate from the attachment retention sweep, which runs every six hours: a Signal timer
+// can be thirty seconds, and "deleted within six hours" is not what a disappearing message
+// promises. Reads already hide an expired message, so this is not about what is shown --
+// it is about how long the row survives on disk after it stopped being shown.
+func sweepExpired(store *Store, stop <-chan struct{}) {
+	tick := time.NewTicker(30 * time.Second)
+	defer tick.Stop()
+	for {
+		purge(store)
+		select {
+		case <-stop:
+			return
+		case <-tick.C:
+		}
+	}
+}
+
+func purge(store *Store) {
+	n, err := store.PurgeExpired()
+	if err != nil {
+		log.Printf("expiry sweep: %v", err)
+		return
+	}
+	// Logged positively: a sweep that silently does nothing looks the same whether it is
+	// working or broken, and this one is only ever noticed when it has failed.
+	if n > 0 {
+		log.Printf("expiry sweep: removed %d expired message(s)", n)
+	}
 }

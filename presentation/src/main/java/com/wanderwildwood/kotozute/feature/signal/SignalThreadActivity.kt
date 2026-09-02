@@ -52,6 +52,7 @@ class SignalThreadActivity : QkThemedActivity() {
     private var messages: RealmResults<SignalMessage>? = null
     /** The SMS thread for the same person, when there is one. */
     private var smsThreadId: Long = 0L
+    private lateinit var adapter: MessageAdapter
     private var isArchived: Boolean = false
     private var isPinned: Boolean = false
     private var isMuted: Boolean = false
@@ -90,7 +91,7 @@ class SignalThreadActivity : QkThemedActivity() {
         // archive action offers to archive something already archived.
         loadThreadState(needTitle = passed.isBlank())
 
-        val adapter = MessageAdapter()
+        adapter = MessageAdapter()
         val lm = LinearLayoutManager(this).apply { stackFromEnd = true }
         binding.recyclerView.layoutManager = lm
         binding.recyclerView.adapter = adapter
@@ -144,6 +145,25 @@ class SignalThreadActivity : QkThemedActivity() {
             if (smsThreadId != 0L) navigator.showConversation(smsThreadId)
         }
         showRailBadge()
+        binding.searchClose.setOnClickListener { closeSearch() }
+        binding.searchField.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val query = s?.toString().orEmpty()
+                adapter.filterBy(query)
+                binding.searchCount.text = when {
+                    query.isBlank() -> ""
+                    adapter.matchCount() == 0 -> getString(R.string.signal_find_none)
+                    else -> adapter.matchCount().toString()
+                }
+                // Newest match in view, which is where a conversation is usually read from.
+                if (adapter.itemCount > 0) {
+                    binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+        })
+
         binding.attach.setOnClickListener { picker.launch("*/*") }
         binding.pending.setOnClickListener { clearAttachment() }
     }
@@ -287,6 +307,12 @@ class SignalThreadActivity : QkThemedActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
         R.id.signalInfo -> {
             startActivity(SignalThreadInfoActivity.intentFor(this, threadKey))
+            true
+        }
+
+        R.id.signalFind -> {
+            binding.searchBar.setVisible(true)
+            binding.searchField.requestFocus()
             true
         }
 
@@ -446,7 +472,31 @@ class SignalThreadActivity : QkThemedActivity() {
         super.onPause()
     }
 
-    override fun onSupportNavigateUp(): Boolean { finish(); return true }
+    /** Leave the filtered view before leaving the screen, so back does the nearer thing. */
+    private fun closeSearch() {
+        binding.searchField.setText("")
+        binding.searchBar.setVisible(false)
+        binding.searchCount.text = ""
+        adapter.filterBy("")
+    }
+
+    override fun onBackPressed() {
+        if (binding.searchBar.visibility == android.view.View.VISIBLE) {
+            closeSearch()
+            return
+        }
+        @Suppress("DEPRECATION")
+        super.onBackPressed()
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        if (binding.searchBar.visibility == android.view.View.VISIBLE) {
+            closeSearch()
+            return true
+        }
+        finish()
+        return true
+    }
 
     override fun onDestroy() {
         messages?.removeAllChangeListeners()
@@ -470,10 +520,27 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     private inner class MessageAdapter : RecyclerView.Adapter<MessageHolder>() {
+        /** Everything in the thread. [items] is what is on screen, which may be a subset. */
+        private var all: List<SignalMessage> = emptyList()
         private var items: List<SignalMessage> = emptyList()
+        private var filter: String = ""
 
         fun submit(data: List<SignalMessage>) {
-            items = data.toList()
+            all = data.toList()
+            applyFilter()
+        }
+
+        /** Narrow to the messages containing [query]; empty restores the whole thread. */
+        fun filterBy(query: String) {
+            filter = query.trim()
+            applyFilter()
+        }
+
+        fun matchCount(): Int = if (filter.isEmpty()) 0 else items.size
+
+        private fun applyFilter() {
+            items = if (filter.isEmpty()) all
+            else all.filter { it.body.contains(filter, ignoreCase = true) }
             notifyDataSetChanged()
         }
 

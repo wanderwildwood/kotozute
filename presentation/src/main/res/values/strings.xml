@@ -364,6 +364,10 @@
     <string name="signal_block_armed">Block on Signal — tap again</string>
     <string name="signal_blocked_toast">Blocked on Signal, on every device</string>
     <string name="signal_block_failed">Not blocked: the bridge could not be reached</string>
+    <string name="signal_find">Find in conversation</string>
+    <string name="signal_find_hint">Find</string>
+    <string name="signal_find_close">Close search</string>
+    <string name="signal_find_none">none</string>
     <string name="signal_rail_label">Signal</string>
     <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;

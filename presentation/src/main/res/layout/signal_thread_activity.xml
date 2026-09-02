@@ -54,6 +54,58 @@
         android:layout_height="3dp"
         android:background="@android:color/black" />
 
+    <!-- Find in conversation. Filters the thread to the messages that match rather than
+         stepping through them one at a time: on e-ink, seeing every hit at once costs one
+         redraw where stepping costs one per hit. -->
+    <LinearLayout
+        android:id="@+id/searchBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <com.wanderwildwood.kotozute.common.widget.QkEditText
+            android:id="@+id/searchField"
+            style="@style/TextPrimary"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/rounded_rectangle_22dp"
+            android:hint="@string/signal_find_hint"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLines="1"
+            android:minHeight="40dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:textColorHint="?android:attr/textColorTertiary" />
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/searchCount"
+            style="@style/TextSecondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:minWidth="44dp"
+            android:gravity="center" />
+
+        <ImageView
+            android:id="@+id/searchClose"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/signal_find_close"
+            android:padding="8dp"
+            android:src="@drawable/ic_clear_black_24dp"
+            android:tint="@android:color/black" />
+
+    </LinearLayout>
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"

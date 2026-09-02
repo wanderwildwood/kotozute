@@ -289,6 +289,8 @@ class DesktopSyncServer(
         return when {
             uri == "/api/threads" && session.method == Method.GET -> handleGetThreads()
             uri == "/api/search" && session.method == Method.GET -> handleSearch(session)
+            uri == "/api/signal/state" && session.method == Method.GET -> handleSignalState()
+            uri == "/api/signal/pair" && session.method == Method.POST -> handleSignalPair(session)
             threadMessagesMatch != null && session.method == Method.GET ->
                 handleGetMessages(threadMessagesMatch.groupValues[1].toLong(), session)
             threadSendMatch != null && session.method == Method.POST ->
@@ -415,6 +417,52 @@ class DesktopSyncServer(
         return newChunkedResponse(Response.Status.OK, mimeType, stream)
     }
 
+
+    /**
+     * Whether Signal is set up on this phone, so the browser knows whether to offer to do it.
+     */
+    private fun handleSignalState(): Response = jsonResponse(
+        Response.Status.OK,
+        JSONObject()
+            .put("configured", signalRepository.isConfigured())
+            .put("enabled", signalEnabled())
+    )
+
+    /**
+     * Pair the phone with a Signal bridge, from the browser.
+     *
+     * The pairing payload is about 140 characters and two thirds of it is a hex certificate
+     * fingerprint. Typing that into a phone is the single worst thing this app asks of
+     * anyone -- it is the complaint the Desktop Sync link already drew, an order of
+     * magnitude worse. The browser is already authenticated, already talking to the phone,
+     * and sitting on a real keyboard next to the machine that printed the payload.
+     *
+     * It carries a token in clear over the LAN, which is what this relay already does with
+     * every message on both rails; pairing here grants nothing the relay's own token did
+     * not already grant.
+     */
+    private fun handleSignalPair(session: IHTTPSession): Response {
+        val submission = readSubmission(session)
+            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
+        val payload = submission.body.trim()
+        if (payload.isEmpty()) {
+            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "nothing pasted"))
+        }
+        if (!signalRepository.pair(payload)) {
+            // Said precisely: the usual cause is a half-copied line, and "failed" would not
+            // tell anyone that.
+            return jsonResponse(
+                Response.Status.BAD_REQUEST,
+                JSONObject().put(
+                    "error",
+                    "that does not look like a bridge pairing link — it should begin " +
+                        "kotozute-bridge:// and end with a long fp= value"
+                )
+            )
+        }
+        Timber.i("Desktop Sync: paired with a Signal bridge from the browser")
+        return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+    }
 
     /**
      * Search both rails by message body, not just by name.

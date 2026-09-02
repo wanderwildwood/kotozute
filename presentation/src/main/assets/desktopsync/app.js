@@ -135,6 +135,10 @@ const toWrapEl = document.getElementById('toWrap');
 const toFieldEl = document.getElementById('toField');
 const suggestionsEl = document.getElementById('suggestions');
 const simFieldEl = document.getElementById('simField');
+const signalSetupEl = document.getElementById('signalSetup');
+const signalPayloadEl = document.getElementById('signalPayload');
+const signalPairBtnEl = document.getElementById('signalPairBtn');
+const signalSetupErrorEl = document.getElementById('signalSetupError');
 const searchFieldEl = document.getElementById('searchField');
 const searchClearEl = document.getElementById('searchClear');
 const attachEl = document.getElementById('attach');
@@ -1166,3 +1170,56 @@ connectSocket();
 // network switch, or a dropped push — polling guarantees the view still catches
 // up on its own without a manual reload.
 setInterval(refresh, 5000);
+
+/*
+ * Offer to set Signal up, but only while it is not.
+ *
+ * Pairing means a link about 140 characters long, two thirds of it a hex certificate
+ * fingerprint, and the alternative is typing it into an e-ink phone. Here it is a paste on
+ * the same machine that printed it. Once paired this disappears and does not come back.
+ */
+async function refreshSignalSetup() {
+  try {
+    const state = await api('/api/signal/state').then(r => r.json());
+    signalSetupEl.hidden = !!state.configured;
+  } catch {
+    // Offline is not the moment to ask someone to set something up.
+    signalSetupEl.hidden = true;
+  }
+}
+
+signalPairBtnEl.addEventListener('click', async () => {
+  const payload = signalPayloadEl.value.trim();
+  if (!payload) return;
+  signalSetupErrorEl.hidden = true;
+  signalPairBtnEl.disabled = true;
+  try {
+    const res = await api('/api/signal/pair', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ body: payload })
+    });
+    if (res.ok) {
+      signalPayloadEl.value = '';
+      signalSetupEl.hidden = true;
+      // The threads list is about to gain a rail.
+      loadThreads();
+      return;
+    }
+    // Say what was wrong with it. "Failed" would not tell anyone they pasted half a line.
+    const detail = await res.json().then(j => j && j.error).catch(() => null);
+    signalSetupErrorEl.textContent = detail || 'that could not be used';
+    signalSetupErrorEl.hidden = false;
+  } catch {
+    signalSetupErrorEl.textContent = 'could not reach the phone';
+    signalSetupErrorEl.hidden = false;
+  } finally {
+    signalPairBtnEl.disabled = false;
+  }
+});
+
+signalPayloadEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter') signalPairBtnEl.click();
+});
+
+refreshSignalSetup();

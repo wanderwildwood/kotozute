@@ -527,14 +527,9 @@ function renderAttachments() {
 
 /* A picture on its own is a message, so Send has to come alive for an empty box too. */
 function updateSendEnabled() {
-  // Signal over the relay carries text only, so a picture would be refused at the far end.
-  // Greying the button out says so before the file is chosen rather than after.
-  const canAttach = activeThreadRail !== 'signal';
-  const canSend = !bodyEl.disabled &&
-    (bodyEl.value.trim() !== '' || (canAttach && pending.length > 0));
+  const canSend = !bodyEl.disabled && (bodyEl.value.trim() !== '' || pending.length > 0);
   sendEl.disabled = !canSend;
-  attachEl.disabled = bodyEl.disabled || !canAttach;
-  attachEl.title = canAttach ? '' : 'Signal messages from the browser are text only for now';
+  attachEl.disabled = bodyEl.disabled;
   emojiBtnEl.disabled = bodyEl.disabled;
 }
 

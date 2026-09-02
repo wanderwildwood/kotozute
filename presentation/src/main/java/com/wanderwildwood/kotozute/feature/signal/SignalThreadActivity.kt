@@ -173,36 +173,19 @@ class SignalThreadActivity : QkThemedActivity() {
         if (data.any { !it.outgoing && !it.read }) signalRepo.markRead(threadKey, newest)
     }
 
-    /**
-     * Reads the picked file and turns it into a data URI. Images are downscaled first:
-     * a phone photo base64s to several megabytes, and holding that twice over -- bytes
-     * and string -- is how a small device runs out of memory mid-send.
-     */
+    /** Reads the picked file into a data URI; see [SignalAttachment] for why it resizes. */
     private fun attach(uri: Uri) {
         thread(isDaemon = true) {
             val type = contentResolver.getType(uri) ?: "application/octet-stream"
-            val result = runCatching {
-                val bytes = if (type.startsWith("image/")) {
-                    downscaleImage(uri) ?: readBytes(uri)
-                } else {
-                    readBytes(uri)
-                }
-                if (bytes.size > MAX_ATTACHMENT_BYTES) throw IllegalStateException("too big")
-                val encodedType = if (type.startsWith("image/") && type != "image/gif") {
-                    "image/jpeg"
-                } else {
-                    type
-                }
-                "data:$encodedType;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
-            }
+            val result = runCatching { SignalAttachment.dataUri(contentResolver, uri) }
             runOnUiThread {
                 result.onSuccess { dataUri ->
                     pendingAttachment = dataUri
-                    pendingName = displayName(uri) ?: type
+                    pendingName = SignalAttachment.displayName(contentResolver, uri) ?: type
                     binding.pending.text = getString(R.string.signal_attached, pendingName)
                     binding.pending.setVisible(true)
                 }.onFailure {
-                    val msg = if (it is IllegalStateException) {
+                    val msg = if (it is SignalAttachment.TooLarge) {
                         R.string.signal_attach_too_big
                     } else {
                         R.string.signal_attach_failed
@@ -210,40 +193,6 @@ class SignalThreadActivity : QkThemedActivity() {
                     Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                 }
             }
-        }
-    }
-
-    /** A MediaStore uri's last path segment is a row id, so ask for the real name. */
-    private fun displayName(uri: Uri): String? = runCatching {
-        contentResolver.query(uri, null, null, null, null)?.use { c ->
-            val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (i >= 0 && c.moveToFirst()) c.getString(i) else null
-        }
-    }.getOrNull()
-
-    private fun readBytes(uri: Uri): ByteArray =
-        contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: throw IllegalArgumentException("cannot read $uri")
-
-    /** Decodes at a reduced sample size, then recompresses. Null if it is not an image. */
-    private fun downscaleImage(uri: Uri): ByteArray? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-
-        var sample = 1
-        while (bounds.outWidth / sample > MAX_IMAGE_EDGE || bounds.outHeight / sample > MAX_IMAGE_EDGE) {
-            sample *= 2
-        }
-        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-        val bmp = contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, opts)
-        } ?: return null
-
-        return ByteArrayOutputStream().use { out ->
-            bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
-            bmp.recycle()
-            out.toByteArray()
         }
     }
 
@@ -507,8 +456,6 @@ class SignalThreadActivity : QkThemedActivity() {
     companion object {
         /** Plain ASCII on purpose: the Kompakt's font has no glyph for the nicer arrows. */
         private const val RAIL_SWITCH_ARROW = ">"
-        private const val MAX_IMAGE_EDGE = 1600
-        private const val MAX_ATTACHMENT_BYTES = 24 * 1024 * 1024
 
         /**
          * Which conversation is on screen, so a notification is not raised about a message

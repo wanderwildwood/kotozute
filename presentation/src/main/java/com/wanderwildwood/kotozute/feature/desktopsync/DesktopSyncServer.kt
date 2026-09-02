@@ -27,6 +27,7 @@ import com.wanderwildwood.kotozute.repository.ContactRepository
 import com.wanderwildwood.kotozute.repository.ConversationRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
 import com.wanderwildwood.kotozute.feature.conversations.InboxItem
+import com.wanderwildwood.kotozute.feature.signal.SignalAttachment
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.model.SignalThread
 import com.wanderwildwood.kotozute.repository.SignalRepository
@@ -519,16 +520,35 @@ class DesktopSyncServer(
 
         signalThreadFor(threadId)?.let { thread ->
             val body = submission.body.trim()
-            if (body.isEmpty() || submission.attachments.isNotEmpty()) {
-                // Attachments over the relay are an SMS path; Signal has no route for them
-                // here yet, and silently dropping the picture would be worse than refusing.
+            if (body.isEmpty() && submission.attachments.isEmpty()) {
                 return jsonResponse(
                     Response.Status.BAD_REQUEST,
-                    JSONObject().put("error", "Signal messages from the browser are text only for now")
+                    JSONObject().put("error", "nothing to send")
                 )
             }
+            // The same encoding the phone uses, from the same helper, so a picture sent
+            // from the browser arrives the same size and format as one sent by hand.
+            val encoded = mutableListOf<String>()
+            for (attachment in submission.attachments) {
+                val uri = runCatching {
+                    SignalAttachment.dataUri(context.contentResolver, attachment.uri)
+                }.getOrElse { failure ->
+                    val reason = if (failure is SignalAttachment.TooLarge) {
+                        "that file is too large to send over Signal"
+                    } else {
+                        "that file could not be read"
+                    }
+                    Timber.w(failure, "Desktop Sync: Signal attachment")
+                    // Refused, not dropped: a picture that silently did not go is worse
+                    // than one that says it did not.
+                    return jsonResponse(
+                        Response.Status.BAD_REQUEST, JSONObject().put("error", reason)
+                    )
+                }
+                encoded += uri
+            }
             return try {
-                signalRepository.send(thread.threadKey, body)
+                signalRepository.send(thread.threadKey, body, encoded)
                 notifyChanged()
                 jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
             } catch (t: Throwable) {

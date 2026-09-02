@@ -2,7 +2,7 @@
 
 # 言伝 kotozute — Messaging
 
-An SMS and MMS app for the [Mudita Kompakt](https://mudita.com/products/kompakt/), restyled for the phone's e-ink screen, with Desktop Sync: reading and replying to texts from a browser on a computer.
+An SMS and MMS app for the [Mudita Kompakt](https://mudita.com/products/kompakt/), restyled for the phone's e-ink screen, with two things bolted on that the phone cannot otherwise have: **Desktop Sync**, reading and replying from a browser on a computer, and **Signal**, in the same inbox as your texts.
 
 *Kotozute* is 言伝 — word left with someone to carry the rest of the way. The 伝 is the one in
 人づて (*hitozute*, by way of a person) and 伝える (to convey). It names what is handed over rather
@@ -45,7 +45,7 @@ An HTTP + WebSocket server runs *inside the app on the phone* and serves its own
 ### Setup
 
 1. In the app: **Settings → Desktop Sync**, and switch it on.
-2. Tap **Show link** for the address to open on your computer. Bookmark it: the address and its token are stable.
+2. Tap **Show link**. It gives you the address to open on your computer and a six-digit code to type in, which saves reading a long token off an e-ink screen. The code lasts three minutes and works once. The full link is there too if you would rather paste that; either way the browser remembers, so the bookmark is just the address.
 3. Switch it off again with the same row, or **Stop** on the notification. It is off by default and never starts on its own.
 4. If the link is ever shared or seen by someone else, **Reset Desktop Sync link** mints a new token. Existing bookmarks and open tabs stop working immediately.
 
@@ -70,6 +70,48 @@ Desktop Sync needs the `INTERNET` permission, which InkMessage deliberately left
 Desktop Sync runs as a foreground service, which means Android keeps a notification in the shade for as long as the relay is up — that's how the platform works, and it's also your only visible sign the relay is running. Some minimalist launchers count *every* notification a package has posted when deciding whether to badge its icon, without checking whether the notification asked to be badged. On those launchers the relay's notification will light up an unread marker on Messaging that never clears.
 
 The notification lives on its own channel (`desktop_sync_v2`) and declares `setShowBadge(false)` plus `CATEGORY_SERVICE`, so a launcher that honours either one will behave. If yours doesn't, open the notification's channel settings — the cog next to it in the shade — and switch that one channel off. Real messages badge from a different channel and are unaffected. The cost is that you lose the shade indicator telling you the relay is running.
+
+## Signal
+
+Signal threads sit in the same conversation list as your texts, newest first, with a badge on
+the rows that came over Signal. Nothing is marked SMS: unmarked means SMS, which keeps the badge
+off nearly every row.
+
+- Send and receive, one-to-one and in groups, with pictures
+- The same person's SMS and Signal threads are separate conversations, and the badge in either
+  one crosses to the other
+- Search reaches message bodies on both rails at once, from the phone or the browser
+- Disappearing messages disappear, and a view-once photo is never stored
+- Safety numbers, with a loud warning when someone's key has changed
+- Pin, mute, mark unread, archive, block, and a details screen with the pictures a conversation
+  has carried
+- Bring old messages across from a Signal Desktop export
+
+### What it needs
+
+The Kompakt cannot run Signal — the app needs services the phone does not have. So Signal runs
+on **a computer that stays on**, and the phone talks to it. That computer needs
+[signal-cli](https://github.com/AsamK/signal-cli) and this repository's bridge; `bridge/install.sh`
+sets both up and prints a line you paste into Desktop Sync.
+See [bridge/README.md](bridge/README.md).
+
+If that computer is off, Signal is off. Messages are not lost — they queue on Signal's servers and
+arrive when it comes back — but nothing new appears on the phone meanwhile.
+
+### What is not possible
+
+Worth saying plainly, so nobody goes looking:
+
+- **No Signal calls.** signal-cli carries no audio, and the audio would be on the wrong machine
+  anyway.
+- **No PIN, registration lock, number change or account transfer** — unless the bridge is itself
+  the account's primary device. Linked to a phone that already has Signal, those all belong to
+  that phone.
+- **A linked bridge dies with its primary.** If the phone holding the Signal account is ever
+  unregistered, the bridge stops with it.
+- **History does not arrive by itself.** Signal's servers do not hold it and a newly linked device
+  is not sent any, so threads start empty and fill from the day you pair. Importing an export is
+  how you get the rest.
 
 ## Building
 

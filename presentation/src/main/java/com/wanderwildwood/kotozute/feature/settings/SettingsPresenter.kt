@@ -239,6 +239,15 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalWeave -> prefs.signalWeave.set(!prefs.signalWeave.get())
 
+                        // Read over the network, so off the main thread, and shown even
+                        // when it fails: a blank dialog would not say why it was blank.
+                        R.id.signalAccount -> {
+                            Thread {
+                                val account = runCatching { signalRepo.account() }.getOrNull()
+                                view.showSignalAccountDialog(account)
+                            }.apply { isDaemon = true }.start()
+                        }
+
                         R.id.signalUnpair -> view.askSignalUnpair()
 
                         R.id.unreadAtTop -> prefs.unreadAtTop.set(!prefs.unreadAtTop.get())

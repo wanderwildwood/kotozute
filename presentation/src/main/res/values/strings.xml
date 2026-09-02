@@ -368,6 +368,15 @@
     <string name="signal_find_hint">Find</string>
     <string name="signal_find_close">Close search</string>
     <string name="signal_find_none">none</string>
+    <string name="settings_signal_account_title">Signal account</string>
+    <string name="settings_signal_account_summary">The number, and the devices on it</string>
+    <string name="signal_account_unreachable">Could not reach the bridge, so the account could not be read.</string>
+    <string name="signal_account_this_device">this one</string>
+    <string name="signal_account_primary">primary</string>
+    <string name="signal_account_unnamed">unnamed</string>
+    <!-- Said plainly, because it is the reason several settings people look for are not
+         here, and the reason losing the primary would take this device with it. -->
+    <string name="signal_account_linked_note">Registering the number, changing it, the registration-lock PIN and transferring the account all belong to the primary device. If the primary is unregistered, every other device on the account stops working.</string>
     <string name="signal_rail_label">Signal</string>
     <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;

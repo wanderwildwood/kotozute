@@ -15,6 +15,18 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
+/** One device on the Signal account. Id 1 is the primary; the rest are linked. */
+data class BridgeDevice(val id: Int, val name: String, val created: Long) {
+    val isPrimary: Boolean get() = id == 1
+}
+
+/** Who the bridge is signed in as, and what else is attached to that account. */
+data class BridgeAccount(
+    val number: String,
+    val selfUuid: String,
+    val devices: List<BridgeDevice>
+)
+
 data class BridgeState(
     /** Identifies the bridge's store. A change means its sequence numbers restarted. */
     val instance: String,
@@ -122,6 +134,32 @@ class BridgeClient(private val config: BridgeConfig) {
         client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("markRead failed (${resp.code})")
         }
+    }
+
+    /**
+     * Who this bridge is signed in as, and which devices are on the account. Device 1 is
+     * the primary; anything else is linked, and a linked device cannot register, change
+     * the number, set a registration lock, or transfer the account.
+     */
+    fun account(): BridgeAccount {
+        val o = getJson("${config.baseUrl}/v1/account")
+        val devices = mutableListOf<BridgeDevice>()
+        val arr = o.optJSONArray("devices")
+        if (arr != null) {
+            for (i in 0 until arr.length()) {
+                val d = arr.optJSONObject(i) ?: continue
+                devices += BridgeDevice(
+                    id = d.optInt("id"),
+                    name = d.optString("name").orEmpty(),
+                    created = d.optLong("createdTimestamp")
+                )
+            }
+        }
+        return BridgeAccount(
+            number = o.optString("number").orEmpty(),
+            selfUuid = o.optString("selfUuid").orEmpty(),
+            devices = devices.sortedBy { it.id }
+        )
     }
 
     /**

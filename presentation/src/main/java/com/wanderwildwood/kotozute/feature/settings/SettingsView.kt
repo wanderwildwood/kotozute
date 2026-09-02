@@ -44,6 +44,7 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showMessageLinkHandlingDialogPicker()
     fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>)
     fun askDesktopSyncReset()
+    fun showSignalAccountDialog(account: com.wanderwildwood.kotozute.repository.SignalAccount?)
     fun showSignalPairDialog()
     fun showSignalPairFailed()
     fun askSignalUnpair()

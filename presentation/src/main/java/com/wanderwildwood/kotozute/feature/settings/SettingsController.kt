@@ -247,6 +247,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalUnpair.setVisible(state.signalPaired)
         // The status line only means anything once Signal is actually switched on.
         binding.signalOpen.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalAccount.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalWeave.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalWeave.checkbox.isChecked = state.signalWeave
         binding.signalReceipts.setVisible(state.signalPaired && state.signalEnabled)
@@ -323,6 +324,47 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun showMmsSizePicker() = mmsSizeDialog.show(activity!!)
 
     override fun showMessageLinkHandlingDialogPicker() = messageLinkHandlingDialog.show(activity!!)
+
+    override fun showSignalAccountDialog(
+        account: com.wanderwildwood.kotozute.repository.SignalAccount?
+    ) {
+        val activity = activity ?: return
+        activity.runOnUiThread {
+            val message = if (account == null) {
+                activity.getString(R.string.signal_account_unreachable)
+            } else {
+                buildString {
+                    append(account.number).append('\n')
+                    if (account.selfUuid.isNotBlank()) append(account.selfUuid).append('\n')
+                    append('\n')
+                    account.devices.forEach { d ->
+                        val name = d.name.ifBlank {
+                            activity.getString(R.string.signal_account_unnamed)
+                        }
+                        val tags = buildList {
+                            if (d.isPrimary) add(activity.getString(R.string.signal_account_primary))
+                        }
+                        append("· ").append(name)
+                        if (tags.isNotEmpty()) append(" (").append(tags.joinToString(", ")).append(')')
+                        append('\n')
+                    }
+                    append('\n')
+                    // The whole point of the screen: it says why the settings someone came
+                    // looking for are not here. Which device this bridge is cannot be asked
+                    // of signal-cli, so the note states the rule and the list above shows
+                    // which device is the primary.
+                    append(activity.getString(R.string.signal_account_linked_note))
+                }
+            }
+            val dialog = AlertDialog.Builder(activity)
+                .setTitle(R.string.settings_signal_account_title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            dialog.findViewById<android.widget.TextView>(android.R.id.message)
+                ?.setTextIsSelectable(true)
+        }
+    }
 
     override fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>) {
         if (urls.isEmpty()) {

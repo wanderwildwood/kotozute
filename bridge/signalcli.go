@@ -49,6 +49,9 @@ func NewSignalCLI(addr, account string) *SignalCLI {
 }
 
 func (s *SignalCLI) Connected() bool { return s.connected.Load() }
+
+// Account is the number this bridge is attached to.
+func (s *SignalCLI) Account() string { return s.account }
 func (s *SignalCLI) LastError() string {
 	v, _ := s.lastErr.Load().(string)
 	return v
@@ -290,6 +293,22 @@ func (s *SignalCLI) SendReadReceipt(recipient string, timestamps []int64) error 
 		"account": s.account, "recipient": recipient,
 		"targetTimestamp": timestamps, "type": "read",
 	}, nil)
+}
+
+// SCDevice is one device linked to this Signal account. Device 1 is the primary; a linked
+// device cannot register, change the number, set the registration lock, or transfer the
+// account -- so which of these we are decides what the app can honestly offer.
+type SCDevice struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Created  int64  `json:"createdTimestamp"`
+	LastSeen int64  `json:"lastSeenTimestamp"`
+}
+
+func (s *SignalCLI) ListDevices() ([]SCDevice, error) {
+	var out []SCDevice
+	err := s.call("listDevices", map[string]any{"account": s.account}, &out)
+	return out, err
 }
 
 type SCIdentity struct {

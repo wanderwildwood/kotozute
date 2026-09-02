@@ -112,6 +112,12 @@ interface SignalRepository {
      * Block or unblock this thread's other party on the Signal account itself. Throws if
      * the bridge cannot be reached, so the caller can say so rather than imply success.
      */
+    /**
+     * Who the bridge is signed in as and which devices are on that account. Throws if the
+     * bridge cannot be reached, so a screen can say so rather than show a blank.
+     */
+    fun account(): SignalAccount
+
     fun setBlocked(threadKey: String, blocked: Boolean)
 
     fun setPinned(threadKey: String, pinned: Boolean)
@@ -138,3 +144,15 @@ interface SignalRepository {
 
 /** One thread that matched a search, and what matched in it. */
 data class SignalSearchHit(val thread: SignalThread, val messages: Int, val snippet: String)
+
+/** One device on the Signal account. Id 1 is the primary; the rest are linked. */
+data class SignalDevice(val id: Int, val name: String, val created: Long) {
+    val isPrimary: Boolean get() = id == 1
+}
+
+/** The Signal account this phone reaches through the bridge. */
+data class SignalAccount(
+    val number: String,
+    val selfUuid: String,
+    val devices: List<SignalDevice>
+)

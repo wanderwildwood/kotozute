@@ -529,6 +529,16 @@ class SignalRepositoryImpl @Inject constructor(
             ).sortedBy { it.title.lowercase() }
         }
 
+    override fun account(): SignalAccount {
+        val cfg = config() ?: throw IllegalStateException("no bridge paired")
+        val a = BridgeClient(cfg).account()
+        return SignalAccount(
+            number = a.number,
+            selfUuid = a.selfUuid,
+            devices = a.devices.map { SignalDevice(it.id, it.name, it.created) }
+        )
+    }
+
     override fun setBlocked(threadKey: String, blocked: Boolean) {
         // Not runOffThread: this one has to be able to fail in front of the caller. The
         // others are local writes that cannot really go wrong; this one leaves the phone.

@@ -50,6 +50,7 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("/v1/events", a.guard(a.events))
 	mux.HandleFunc("/v1/threads/", a.guard(a.threadSub))
 	mux.HandleFunc("/v1/attachments/", a.guard(a.attachment))
+	mux.HandleFunc("/v1/account", a.guard(a.account))
 	return logging(mux)
 }
 
@@ -222,6 +223,32 @@ func (a *API) threadSub(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// account describes the Signal account this bridge is attached to, and which device we are
+// on it. Read-only: everything an account page could otherwise want to change -- the
+// registration lock, the number, transferring the account -- belongs to the primary device,
+// and this is not it.
+func (a *API) account(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	devices, err := a.sc.ListDevices()
+	if err != nil {
+		// Not fatal: the number and uuid are known locally and are worth returning even
+		// when signal-cli cannot be asked about the rest.
+		log.Printf("listDevices: %v", err)
+	}
+	out := map[string]any{
+		"number":   a.sc.Account(),
+		"selfUuid": a.store.GetMeta("selfUuid"),
+		"devices":  devices,
+	}
+	if devices == nil {
+		out["devices"] = []SCDevice{}
+	}
+	writeJSON(w, 200, out)
 }
 
 // setBlocked blocks or unblocks the other party of a thread, on the Signal account itself

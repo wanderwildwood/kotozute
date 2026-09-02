@@ -31,6 +31,10 @@ import org.json.JSONArray
 import android.util.LruCache
 import javax.inject.Inject
 import kotlin.concurrent.thread
+import kotlin.math.abs
+import java.util.concurrent.TimeUnit
+import com.wanderwildwood.kotozute.common.util.extensions.dpToPx
+import com.wanderwildwood.kotozute.feature.compose.BubbleUtils
 
 class SignalThreadActivity : QkThemedActivity() {
 
@@ -70,8 +74,11 @@ class SignalThreadActivity : QkThemedActivity() {
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        // The toolbar holds its own title view so the rail badge can sit beside it, the way
+        // the SMS thread holds its own. The stock one would draw over both.
+        supportActionBar?.setDisplayShowTitleEnabled(false)
         val passed = SignalConversationsActivity.titleOf(intent)
-        supportActionBar?.title = passed.ifBlank { getString(R.string.signal_title) }
+        binding.toolbarTitle.text = passed.ifBlank { getString(R.string.signal_title) }
         // Always read the row: the title is only missing when arriving from the SMS side,
         // but which shelf the thread is on has to be known however it was opened, or the
         // archive action offers to archive something already archived.
@@ -289,7 +296,7 @@ class SignalThreadActivity : QkThemedActivity() {
             runOnUiThread {
                 isArchived = archived
                 invalidateOptionsMenu()
-                if (needTitle && name.isNotBlank()) supportActionBar?.title = name
+                if (needTitle && name.isNotBlank()) binding.toolbarTitle.text = name
             }
         }
     }
@@ -372,16 +379,39 @@ class SignalThreadActivity : QkThemedActivity() {
 
         override fun getItemCount() = items.size
         override fun onBindViewHolder(holder: MessageHolder, position: Int) =
-            holder.bind(items[position])
+            holder.bind(
+                items[position],
+                items.getOrNull(position - 1),
+                items.getOrNull(position + 1)
+            )
+    }
+
+    /**
+     * Two messages belong to the same run when the same person sent them close together --
+     * the SMS thread's rule, and the same ten minutes, so a conversation that crosses the
+     * rails groups the same way on both sides.
+     */
+    private fun canGroup(m: SignalMessage, other: SignalMessage?): Boolean {
+        if (other == null) return false
+        if (m.outgoing != other.outgoing) return false
+        if (m.senderUuid != other.senderUuid) return false
+        return TimeUnit.MILLISECONDS.toMinutes(abs(m.date - other.date)) <
+            BubbleUtils.TIMESTAMP_THRESHOLD
     }
 
     private inner class MessageHolder(
         private val b: SignalMessageListItemBinding
     ) : RecyclerView.ViewHolder(b.root) {
-        fun bind(m: SignalMessage) {
+        fun bind(m: SignalMessage, previous: SignalMessage?, next: SignalMessage?) {
             b.body.text = m.body
             b.body.setVisible(m.body.isNotEmpty())
             b.timestamp.text = dateFormatter.getMessageTimestamp(m.date)
+            // One timestamp above a run, not one per line. Anything less than the grouping
+            // threshold since the last message is the same moment as far as reading goes.
+            b.timestamp.setVisible(
+                TimeUnit.MILLISECONDS.toMinutes(m.date - (previous?.date ?: 0L)) >=
+                    BubbleUtils.TIMESTAMP_THRESHOLD
+            )
             // Who sent it only needs saying in a group. In a one-to-one thread the
             // title already says, and labelling every incoming line with the same phone
             // number is noise on a small screen.
@@ -398,12 +428,35 @@ class SignalThreadActivity : QkThemedActivity() {
             // are gone. Without this, dropping the "You:" prefix left a one-to-one
             // thread where both halves of the conversation look identical.
             val side = if (m.outgoing) Gravity.END else Gravity.START
-            (b.root as? android.widget.LinearLayout)?.gravity = side
-            b.body.textAlignment = if (m.outgoing) {
-                android.view.View.TEXT_ALIGNMENT_VIEW_END
-            } else {
-                android.view.View.TEXT_ALIGNMENT_VIEW_START
+            (b.root as? android.widget.LinearLayout)?.let { root ->
+                // The timestamp stays centred whichever side the message is on, so only the
+                // children below it follow the sender.
+                listOf(b.sender, b.image, b.attachment, b.body).forEach { child ->
+                    (child.layoutParams as? android.widget.LinearLayout.LayoutParams)
+                        ?.let { lp -> lp.gravity = side; child.layoutParams = lp }
+                }
+                root.gravity = Gravity.START
             }
+            b.body.textAlignment = android.view.View.TEXT_ALIGNMENT_VIEW_START
+
+            // The outlined bubble, and the same first/middle/last/only shapes the SMS thread
+            // uses, so a run of messages draws as one form rather than a stack of pills.
+            b.body.setBackgroundResource(
+                BubbleUtils.getBubble(
+                    emojiOnly = false,
+                    canGroupWithPrevious = canGroup(m, previous),
+                    canGroupWithNext = canGroup(m, next),
+                    isMe = m.outgoing
+                )
+            )
+            // A gap after the last message of a run, none inside one -- the grouping is the
+            // bubble shape plus this, exactly as on the SMS side.
+            b.root.setPadding(
+                b.root.paddingLeft,
+                b.root.paddingTop,
+                b.root.paddingRight,
+                if (canGroup(m, next)) 0 else 16.dpToPx(this@SignalThreadActivity)
+            )
 
             bindAttachment(m)
         }

@@ -1,17 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Mirrors the SMS thread's look: outlined bubbles, a centred timestamp above a group,
+     and the side telling you who spoke. The SMS item carries MMS parts, reactions, avatars
+     and a SIM indicator that Signal has no equivalent for, so this is the shape of that
+     layout rather than a copy of it, drawn with the same bubble drawables and text styles
+     so the two threads read as one app. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:paddingStart="16dp"
-    android:paddingTop="4dp"
-    android:paddingEnd="16dp"
-    android:paddingBottom="4dp">
+    android:paddingEnd="16dp">
 
+    <!-- Centred, and shown only where there is a real gap in the conversation, exactly as
+         the SMS thread does it. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/timestamp"
+        style="@style/TextSecondary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:gravity="center"
+        android:padding="8dp" />
+
+    <!-- Only ever visible in a group thread; a one-to-one thread's title already says. -->
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/sender"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="2dp"
+        android:textColor="?android:attr/textColorSecondary"
         android:textSize="11sp"
         android:visibility="gone" />
 
@@ -19,6 +38,7 @@
         android:id="@+id/image"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="2dp"
         android:adjustViewBounds="true"
         android:maxHeight="260dp"
         android:contentDescription="@string/signal_attachment_image"
@@ -28,18 +48,20 @@
         android:id="@+id/attachment"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="2dp"
+        android:textColor="?android:attr/textColorSecondary"
         android:textSize="12sp"
         android:visibility="gone" />
 
-    <com.wanderwildwood.kotozute.common.widget.QkTextView
+    <!-- The bubble. Its background is chosen per message so a run from one person draws as
+         one shape, the same four-way first/middle/last/only the SMS thread uses. -->
+    <com.wanderwildwood.kotozute.common.widget.TightTextView
         android:id="@+id/body"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
-
-    <com.wanderwildwood.kotozute.common.widget.QkTextView
-        android:id="@+id/timestamp"
+        style="@style/TextPrimary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textSize="10sp" />
+        android:background="@drawable/message_in_only"
+        android:gravity="start|center_vertical"
+        android:minHeight="36dp" />
 
 </LinearLayout>

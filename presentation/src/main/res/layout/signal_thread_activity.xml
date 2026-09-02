@@ -2,13 +2,57 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="?android:attr/windowBackground"
     android:orientation="vertical">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
+        style="@style/Toolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary" />
+        android:layout_height="wrap_content">
+
+        <!-- The title, with the rail beside it. On a phone where a contact can hold both an
+             SMS and a Signal thread, which one you are typing into is not a detail. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/toolbarTitle"
+                style="@style/ToolbarText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textDirection="ltr"
+                android:textSize="16sp" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/railBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/filter_tab_selected"
+                android:paddingStart="6dp"
+                android:paddingTop="1dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="1dp"
+                android:text="@string/signal_rail_label"
+                android:textColor="@android:color/white"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </androidx.appcompat.widget.Toolbar>
+
+    <View
+        android:id="@+id/titleBarBlackLine"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:background="@android:color/black" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
@@ -38,41 +82,65 @@
         android:textSize="12sp"
         android:visibility="gone" />
 
+    <View
+        android:id="@+id/composeDivider"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_marginBottom="12dp"
+        android:background="@android:color/black" />
+
     <LinearLayout
         android:id="@+id/composer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="8dp">
+        android:layout_marginBottom="12dp"
+        android:gravity="bottom"
+        android:orientation="horizontal">
 
-        <com.wanderwildwood.kotozute.common.widget.QkTextView
+        <ImageView
             android:id="@+id/attach"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:gravity="center"
-            android:minWidth="44dp"
-            android:padding="12dp"
-            android:text="@string/signal_attach" />
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginBottom="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/compose_attach_cd"
+            android:padding="8dp"
+            android:src="@drawable/ic_add_black_24dp"
+            android:tint="@android:color/black" />
 
         <com.wanderwildwood.kotozute.common.widget.QkEditText
             android:id="@+id/message"
+            style="@style/TextPrimary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
             android:layout_weight="1"
-            android:hint="@string/signal_composer_hint"
+            android:background="@drawable/rounded_rectangle_22dp"
+            android:backgroundTint="?attr/bubbleColor"
+            android:cursorVisible="false"
+            android:gravity="center_vertical"
+            android:hint="@string/compose_hint"
             android:inputType="textCapSentences|textMultiLine"
-            android:maxLines="4" />
+            android:maxLines="6"
+            android:minHeight="44dp"
+            android:paddingStart="16dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="12dp"
+            android:textColorHint="?android:attr/textColorTertiary" />
 
-        <com.wanderwildwood.kotozute.common.widget.QkTextView
+        <ImageView
             android:id="@+id/send"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:gravity="center"
-            android:minWidth="56dp"
-            android:padding="12dp"
-            android:text="@string/signal_send" />
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/rounded_square_outline_send"
+            android:contentDescription="@string/compose_send_cd"
+            android:padding="10dp"
+            android:src="@drawable/ic_send_black_24dp"
+            android:tint="@android:color/black" />
 
     </LinearLayout>
 

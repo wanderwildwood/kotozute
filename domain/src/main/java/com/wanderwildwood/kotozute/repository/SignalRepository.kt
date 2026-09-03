@@ -103,6 +103,12 @@ interface SignalRepository {
     fun getMessagesSnapshot(threadKey: String, limit: Int): List<SignalMessage>
 
     /**
+     * How many unexpired messages this thread holds, so a caller showing only the tail can
+     * say whether there is older history behind it.
+     */
+    fun countMessages(threadKey: String): Int
+
+    /**
      * Archiving a Signal thread only hides it here. Signal has no such notion, so this
      * is not sent anywhere and other devices are unaffected.
      */

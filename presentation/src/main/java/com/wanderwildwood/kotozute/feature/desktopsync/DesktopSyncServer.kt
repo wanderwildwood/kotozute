@@ -90,6 +90,9 @@ class DesktopSyncServer(
         /** Ceiling on an explicit ?limit=, so one request can't try to serialize everything. */
         const val MESSAGE_MAX_LIMIT = 5000
 
+        /** As many search hits as anyone reads before typing another letter. */
+        const val SEARCH_MAX_RESULTS = 200
+
         /** How often we ping connected browsers. */
         const val PING_INTERVAL_SECONDS = 30L
 
@@ -373,6 +376,20 @@ class DesktopSyncServer(
         // route that answers without a token would let an unauthenticated caller on the LAN
         // fill the phone's storage. A pairing code is six digits; nothing here needs a body
         // parser, a file, or more than a handful of bytes.
+        // This is the one route that answers without a token, and its budget is five
+        // attempts before the code is dead. Any page in any browser -- pointed at the
+        // phone's LAN address, or at 127.0.0.1 on the phone itself, where the port is a
+        // fixed constant -- could otherwise spend all five in a hidden fetch, and the user
+        // would find a freshly shown code already refused. So the request has to prove it
+        // came from the Desktop Sync page: a custom header, which a cross-origin caller
+        // cannot set without a CORS preflight this server does not answer.
+        if (session.headers["x-kotozute-pairing"] != "1") {
+            Timber.w("Desktop Sync: a pairing attempt arrived without the page's own header")
+            return jsonResponse(
+                Response.Status.FORBIDDEN,
+                JSONObject().put("error", "open this page from the phone's Desktop Sync address")
+            )
+        }
         val supplied = readSmallJsonField(session, "body", MAX_PAIR_BODY_BYTES)?.trim()
         if (!DesktopSyncPairing.redeem(supplied)) {
             Timber.w("Desktop Sync: a pairing code was refused")
@@ -501,11 +518,32 @@ class DesktopSyncServer(
      * magnitude worse. The browser is already authenticated, already talking to the phone,
      * and sitting on a real keyboard next to the machine that printed the payload.
      *
-     * It carries a token in clear over the LAN, which is what this relay already does with
-     * every message on both rails; pairing here grants nothing the relay's own token did
-     * not already grant.
+     * It does carry a secret, though, and the comment here used to wave that away by
+     * saying it grants nothing the relay's own token did not. That was wrong. The relay's
+     * token can be replaced from the phone in two taps -- Settings, Desktop Sync, Reset
+     * link. The bridge's token cannot: it lives in the bridge's config on the other
+     * machine, and changing it means editing that file and pairing every phone again. So
+     * of the two secrets that cross this wire, the one pasted here is the durable one, and
+     * a passive listener on the same Wi-Fi keeps it.
+     *
+     * Hence the peer check below. Over the tailnet the payload is encrypted in transit and
+     * this is fine; over plain LAN HTTP it is not, and the phone will not take it. Pairing
+     * on the phone itself still works from anywhere -- it is only the shortcut that is
+     * withheld, and only where the shortcut is the thing that leaks.
      */
     private fun handleSignalPair(session: IHTTPSession): Response {
+        if (!DesktopSyncService.isAllowedPeer(session.remoteIpAddress)) {
+            Timber.w("Desktop Sync: refused a bridge pairing over cleartext from %s", session.remoteIpAddress)
+            return jsonResponse(
+                Response.Status.FORBIDDEN,
+                JSONObject().put(
+                    "error",
+                    "pairing carries the bridge's password, so it needs an encrypted " +
+                        "connection — reach this page over Tailscale, or paste the link " +
+                        "on the phone instead"
+                )
+            )
+        }
         val submission = readSubmission(session)
             ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
         val payload = submission.body.trim()
@@ -536,7 +574,17 @@ class DesktopSyncServer(
      * conversation found nothing, on either rail. This is the same search the phone does,
      * through the same repositories, so the two give the same answers.
      */
-    private fun handleSearch(session: IHTTPSession): Response {
+    /**
+     * One search at a time. Each one walks every conversation and copies the matching
+     * messages out of Realm, and the browser fires a fresh request per keystroke past its
+     * debounce. The browser now cancels the request it has typed past, but a cancelled
+     * request is only cancelled at the socket -- the scan it started keeps running. This
+     * lock is what actually bounds the work: a second search waits for the first rather
+     * than stacking another full scan onto the same small CPU.
+     */
+    private val searchLock = Any()
+
+    private fun handleSearch(session: IHTTPSession): Response = synchronized(searchLock) {
         val query = session.parameters["q"]?.firstOrNull()?.trim().orEmpty()
         // Two characters, as the phone's search does: one letter matches most of an inbox
         // and costs a full scan to say so.
@@ -563,12 +611,14 @@ class DesktopSyncServer(
 
         val array = JSONArray()
         // Name matches first, then by how much matched, then newest -- the order the phone
-        // uses, so the same search does not read differently in the two places.
+        // uses, so the same search does not read differently in the two places. Capped: a
+        // two-letter query can match most of an inbox, and nobody scrolls a thousand rows
+        // looking for one -- they type another letter.
         rows.sortedWith(
             compareBy<Pair<Long, JSONObject>> { it.second.optInt("matches") > 0 }
                 .thenByDescending { it.second.optInt("matches") }
                 .thenByDescending { it.first }
-        ).forEach { array.put(it.second) }
+        ).take(SEARCH_MAX_RESULTS).forEach { array.put(it.second) }
         return jsonResponse(Response.Status.OK, JSONObject().put("results", array))
     }
 
@@ -638,7 +688,15 @@ class DesktopSyncServer(
             val array = JSONArray()
             signalRepository.getMessagesSnapshot(thread.threadKey, limit)
                 .forEach { array.put(signalMessageJson(it)) }
-            return jsonResponse(Response.Status.OK, array)
+            // The same envelope the SMS branch returns. A bare array here meant the browser
+            // read hasMore as false for every Signal thread, so "Load older messages" was
+            // never offered and a long conversation ended at its most recent page.
+            val total = signalRepository.countMessages(thread.threadKey)
+            return jsonResponse(Response.Status.OK, JSONObject().apply {
+                put("total", total)
+                put("hasMore", total > limit)
+                put("messages", array)
+            })
         }
 
         // Only the tail of the thread by default: some conversations here run 600+

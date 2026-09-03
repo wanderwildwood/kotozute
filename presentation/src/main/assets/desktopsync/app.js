@@ -476,15 +476,22 @@ function clearSearch() {
  * so typing quickly cannot leave the results of a prefix on screen.
  */
 let searchTimer = null;
+let searchAbort = null;
 function runSearch() {
   const query = filterQuery.trim();
+  // An earlier search that is still running is now worthless -- the reader has typed
+  // past it. Dropping its result on arrival was not enough: each one scans every
+  // conversation and copies the matches out of the database, so a fast typist could
+  // leave half a dozen full scans running at once on a phone with one small CPU.
+  if (searchAbort) searchAbort.abort();
+  searchAbort = new AbortController();
   if (query.length < 2) {
     searchResults = null;
     renderThreads();
     return;
   }
   const seq = ++searchSeq;
-  api('/api/search?q=' + encodeURIComponent(query))
+  api('/api/search?q=' + encodeURIComponent(query), { signal: searchAbort.signal })
     .then(r => r.json())
     .then(d => {
       if (seq !== searchSeq) return;
@@ -749,7 +756,19 @@ function toBase64Utf8(text) {
 function api(path, options) {
   const opts = options || {};
   opts.headers = Object.assign({ 'Authorization': 'Bearer ' + token }, opts.headers || {});
-  return fetch(path, opts);
+  return fetch(path, opts).then(res => {
+    // A stored token stops working when the phone mints a new one -- "Reset Desktop Sync
+    // link" is there precisely so it can. Without this the browser holds a token that will
+    // never be accepted again and every request 401s for ever, with no prompt, because the
+    // code gate only appears when there is NO token at all.
+    if (res.status === 401 && token) {
+      try { localStorage.removeItem(STORED_TOKEN_KEY); } catch { /* nothing to clear */ }
+      token = '';
+      showPairCodePrompt('This link is no longer valid — the phone has issued a new one. ' +
+        'Open Settings &rarr; Desktop Sync &rarr; Show link and enter the code.');
+    }
+    return res;
+  });
 }
 
 function formatTime(ms) {
@@ -1267,7 +1286,14 @@ function showPairCodePrompt(reason) {
     try {
       const res = await fetch('/api/pair-code', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          // Proves the request came from this page. A page on another origin cannot set a
+          // custom header without a CORS preflight, which the relay does not answer -- so
+          // it cannot spend this phone's pairing attempts from a tab the user happens to
+          // have open somewhere else.
+          'X-Kotozute-Pairing': '1'
+        },
         body: JSON.stringify({ body: code })
       });
       if (res.ok) {

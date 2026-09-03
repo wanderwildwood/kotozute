@@ -96,6 +96,36 @@
   }
   #newBtn:hover { opacity: 0.8; background: var(--ink); color: var(--paper); }
   #status { margin-left: auto; font-size: 13px; color: var(--muted); }
+  #settingsBtn {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; padding: 0;
+    background: none; color: var(--paper);
+    border: 1px solid rgba(255,255,255,.35); border-radius: 4px; cursor: pointer;
+  }
+  #settingsBtn:hover { background: rgba(255,255,255,.15); }
+  #settingsPanel {
+    position: absolute; top: 46px; right: 12px; z-index: 40;
+    width: 280px; max-height: 78vh; overflow-y: auto; padding: 6px 0;
+    background: var(--paper); color: var(--ink);
+    border: 1px solid var(--ink); border-radius: 5px;
+    box-shadow: 0 3px 12px rgba(0,0,0,.2);
+  }
+  #settingsPanel[hidden] { display: none; }
+  #settingsPanel h3 {
+    margin: 10px 14px 4px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  }
+  #settingsPanel .row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; font-size: 13px; cursor: pointer;
+  }
+  #settingsPanel .row:hover { background: var(--line); }
+  #settingsPanel .row input[type=checkbox] { margin: 0; flex: 0 0 auto; }
+  #settingsPanel .row .label { flex: 1 1 auto; }
+  #settingsPanel .row .note { display: block; font-size: 11px; color: var(--muted); }
+  #settingsPanel .row.act { color: var(--ink); }
+  #settingsPanel .row.act.danger { color: #a00; }
+  #settingsPanel hr { margin: 6px 0; border: 0; border-top: 1px solid var(--line); }
   #themeBtn {
     padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 700;
     border: 1px solid var(--line); border-radius: 14px;
@@ -494,9 +524,15 @@
     <h1>Messaging</h1>
     <span id="status">connecting…</span>
     <button type="button" id="installBtn" title="Install this as an app on this computer" hidden>Install</button>
-    <button type="button" id="launcherBtn" title="Keep this as an app on this computer">Launcher</button>
-    <button type="button" id="themeBtn" title="Switch theme (auto / light / dark)">Auto</button>
+    <!-- A cog, not a hamburger: a hamburger promises a menu of places and there is one
+         place behind this. The same reasoning, and the same glyph, as the phone's. -->
+    <button type="button" id="settingsBtn" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M19.14,12.94c0.04,-0.31 0.06,-0.63 0.06,-0.94c0,-0.31 -0.02,-0.63 -0.06,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.37 4.8,11.69 4.8,12s0.02,0.63 0.06,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"/>
+      </svg>
+    </button>
   </header>
+  <div id="settingsPanel" hidden></div>
   <div id="launcherPanel" hidden></div>
   <main>
     <aside id="leftPane">

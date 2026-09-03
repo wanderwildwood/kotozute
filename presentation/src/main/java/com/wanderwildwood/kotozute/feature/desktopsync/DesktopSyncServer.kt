@@ -16,6 +16,9 @@ import android.os.Build
 import android.telephony.PhoneNumberUtils
 import android.telephony.SubscriptionManager
 import android.webkit.MimeTypeMap
+import com.wanderwildwood.kotozute.interactor.SyncMessages
+import com.wanderwildwood.kotozute.util.Preferences
+import kotlin.concurrent.thread
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import com.wanderwildwood.kotozute.compat.SubscriptionManagerCompat
@@ -60,6 +63,14 @@ class DesktopSyncServer(
     private val tailscaleOnly: () -> Boolean,
     /** Which blocking backend to record against a block, read live like the two above. */
     private val blockingManager: () -> Int,
+    /**
+     * The settings the browser can read and change. Passed whole rather than as another
+     * row of lambdas: the settings screen touches enough of them that a lambda each was
+     * going to be longer than the thing it avoided.
+     */
+    private val prefs: Preferences,
+    /** The phone's "Sync messages": re-read Android's own SMS store. */
+    private val syncMessages: SyncMessages,
 ) : NanoWSD(port) {
 
     /**
@@ -328,6 +339,9 @@ class DesktopSyncServer(
             uri == "/api/threads" && session.method == Method.GET -> handleGetThreads(session)
             uri == "/api/search" && session.method == Method.GET -> handleSearch(session)
             uri == "/api/signal/state" && session.method == Method.GET -> handleSignalState()
+            uri == "/api/settings" && session.method == Method.GET -> handleGetSettings()
+            uri == "/api/settings" && session.method == Method.POST -> handleSetSetting(session)
+            uri == "/api/sync" && session.method == Method.POST -> handleSyncMessages()
             uri == "/api/signal/pair" && session.method == Method.POST -> handleSignalPair(session)
             threadMessagesMatch != null && session.method == Method.GET ->
                 handleGetMessages(threadMessagesMatch.groupValues[1].toLong(), session)
@@ -458,6 +472,35 @@ class DesktopSyncServer(
             }
             val text = String(buffer, 0, read, Charsets.UTF_8)
             JSONObject(text).optString(field).takeIf { it.isNotEmpty() }
+        }.getOrNull()
+    }
+
+    /**
+     * The whole small JSON body, for the routes that need more than one field out of it.
+     *
+     * There is exactly one read of the request stream available, so asking
+     * readSmallJsonField twice does not give two fields -- the first call drains the body
+     * and the second finds nothing and then blocks waiting for bytes that will not come.
+     * That is not a hypothetical: every settings write landed as false and the request
+     * after it timed out.
+     */
+    private fun readSmallJson(session: IHTTPSession, limit: Int): JSONObject? {
+        val declared = session.headers["content-length"]?.toIntOrNull() ?: 0
+        if (declared > limit) {
+            Timber.w("Desktop Sync: refused a %d-byte body", declared)
+            return null
+        }
+        val buffer = ByteArray(limit)
+        var read = 0
+        return runCatching {
+            val input = session.inputStream
+            while (read < limit) {
+                if (declared in 1..read) break
+                val n = input.read(buffer, read, limit - read)
+                if (n <= 0) break
+                read += n
+            }
+            JSONObject(String(buffer, 0, read, Charsets.UTF_8))
         }.getOrNull()
     }
 
@@ -1135,6 +1178,78 @@ class DesktopSyncServer(
                 )
             }
         return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+    }
+
+    /**
+     * The phone settings a browser can sensibly read and change.
+     *
+     * Deliberately not all of them. Notifications, delayed sending, MMS compression, the
+     * signature, accent stripping, screenshot blocking and link handling all act on the
+     * phone's own sending or its own screen; a browser quietly changing those would be
+     * reaching past what it is, which is a window onto the messages.
+     */
+    private fun handleGetSettings(): Response = jsonResponse(Response.Status.OK, JSONObject().apply {
+        put("unreadAtTop", prefs.unreadAtTop.get())
+        put("signalEnabled", prefs.signalEnabled.get())
+        put("signalWeave", prefs.signalWeave.get())
+        put("signalReadReceipts", prefs.signalReadReceipts.get())
+        put("tailscaleOnly", prefs.desktopSyncTailscaleOnly.get())
+        // Read-only, so the settings screen can say what it is talking to.
+        put("signalConfigured", signalRepository.isConfigured())
+    })
+
+    private fun handleSetSetting(session: IHTTPSession): Response {
+        val body = readSmallJson(session, MAX_ACTION_BODY_BYTES)
+            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
+        val name = body.optString("name").trim()
+        val value = body.optString("value").trim() == "true"
+        when (name) {
+            "unreadAtTop" -> prefs.unreadAtTop.set(value)
+            "signalWeave" -> prefs.signalWeave.set(value)
+            "signalReadReceipts" -> prefs.signalReadReceipts.set(value)
+            // Signal is only offered once a bridge is paired, the same guard the phone's
+            // own switch has, so the browser cannot put it into a configured-but-broken
+            // state.
+            "signalEnabled" -> {
+                if (value && !signalRepository.isConfigured()) {
+                    return jsonResponse(
+                        Response.Status.BAD_REQUEST,
+                        JSONObject().put("error", "pair a bridge first")
+                    )
+                }
+                signalRepository.setEnabled(value)
+            }
+            // Turning this ON from a LAN browser would cut that browser off mid-request,
+            // which reads as the app breaking. Turning it off is allowed: that only ever
+            // widens what can reach the relay, and the person doing it is already through.
+            "tailscaleOnly" -> {
+                if (value && !DesktopSyncService.isAllowedPeer(session.remoteIpAddress)) {
+                    return jsonResponse(
+                        Response.Status.BAD_REQUEST,
+                        JSONObject().put(
+                            "error",
+                            "that would disconnect this browser — turn it on from the phone, " +
+                                "or reach this page over Tailscale first"
+                        )
+                    )
+                }
+                prefs.desktopSyncTailscaleOnly.set(value)
+            }
+            else -> return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "no such setting"))
+        }
+        return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+    }
+
+    /** The phone's "Sync messages": re-read Android's own SMS store into the app. */
+    private fun handleSyncMessages(): Response {
+        // Fired and not awaited. A full sync walks every message on the device -- 6,485 on
+        // this phone -- and holding an HTTP request open for it would time out long before
+        // it finished and tell the browser it failed when it had not.
+        thread(isDaemon = true) {
+            runCatching { syncMessages.execute(Unit) }
+                .exceptionOrNull()?.let { Timber.w(it, "Desktop Sync: sync messages") }
+        }
+        return jsonResponse(Response.Status.OK, JSONObject().put("started", true))
     }
 
     private fun handleGetThreads(session: IHTTPSession): Response {

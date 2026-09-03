@@ -11,18 +11,23 @@ const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 let themePref = localStorage.getItem('theme') || 'auto';
 if (!THEMES.includes(themePref)) themePref = 'auto';
 
+function themeLabel() {
+  return themePref === 'auto' ? 'Auto' : (themePref === 'dark' ? 'Dark' : 'Light');
+}
+
 function applyTheme() {
   const resolved = themePref === 'auto' ? (darkQuery.matches ? 'dark' : 'light') : themePref;
   document.documentElement.dataset.theme = resolved;
-  const btn = document.getElementById('themeBtn');
-  if (btn) btn.textContent = themePref === 'auto' ? 'Auto' : (themePref === 'dark' ? 'Dark' : 'Light');
+  // The label lives in the settings panel now, which only exists while it is open.
+  const label = document.getElementById('themeValue');
+  if (label) label.textContent = themeLabel();
 }
 
-document.getElementById('themeBtn').addEventListener('click', () => {
+function cycleTheme() {
   themePref = THEMES[(THEMES.indexOf(themePref) + 1) % THEMES.length];
   localStorage.setItem('theme', themePref);
   applyTheme();
-});
+}
 
 // Follow the OS live, but only while the preference actually is "auto"
 darkQuery.addEventListener('change', () => { if (themePref === 'auto') applyTheme(); });
@@ -127,6 +132,14 @@ if (new URLSearchParams(location.search).get('token')) {
       'Brave can go further: <b>Create shortcut… → Open as window</b> gives it a window ' +
       'and a menu entry of its own.</p>';
   }
+
+  // Reachable from the settings panel, which is where this lives now.
+  window.showLauncherHelp = () => {
+    if (!panel) return;
+    panel.innerHTML = launcherHelp() + '<button type="button" class="close">Close</button>';
+    panel.hidden = false;
+    panel.querySelector('.close').addEventListener('click', () => { panel.hidden = true; });
+  };
 
   if (launcherBtn && panel) {
     launcherBtn.addEventListener('click', () => {
@@ -1147,6 +1160,177 @@ document.getElementById('infoClose').addEventListener('click', () => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') document.getElementById('infoPanel').hidden = true;
+});
+
+/* ── Settings ──────────────────────────────────────────────────────────────────
+ * The phone's settings, minus the ones a browser has no business touching.
+ *
+ * Notifications, delayed sending, MMS compression, the signature, accent stripping,
+ * screenshot blocking and link handling all act on the phone's own sending or its own
+ * screen. A browser silently changing those is reaching past what it is, which is a
+ * window onto the messages -- so they stay on the phone, where the person can see what
+ * they are changing.
+ *
+ * Theme and Launcher live here too, rather than as their own buttons in the header. They
+ * are settings, and a header with four buttons in it was three too many. */
+const settingsBtnEl = document.getElementById('settingsBtn');
+const settingsPanelEl = document.getElementById('settingsPanel');
+
+function settingRow(label, note, checked, onChange) {
+  const row = document.createElement('label');
+  row.className = 'row';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = !!checked;
+  box.addEventListener('change', () => onChange(box.checked, box));
+  const text = document.createElement('span');
+  text.className = 'label';
+  text.textContent = label;
+  if (note) {
+    const n = document.createElement('span');
+    n.className = 'note';
+    n.textContent = note;
+    text.append(n);
+  }
+  row.append(box, text);
+  return row;
+}
+
+function actionRow(label, note, run, danger) {
+  const row = document.createElement('div');
+  row.className = 'row act' + (danger ? ' danger' : '');
+  const text = document.createElement('span');
+  text.className = 'label';
+  text.textContent = label;
+  if (note) {
+    const n = document.createElement('span');
+    n.className = 'note';
+    n.textContent = note;
+    text.append(n);
+  }
+  row.append(text);
+  row.addEventListener('click', run);
+  return row;
+}
+
+function heading(text) {
+  const h = document.createElement('h3');
+  h.textContent = text;
+  return h;
+}
+
+async function setSetting(name, value, box) {
+  try {
+    const res = await api('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ name, value: String(value) })
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      statusEl.textContent = d.error || 'that did not stick';
+      // Put the box back: it is showing a state the phone refused.
+      if (box) box.checked = !value;
+      return false;
+    }
+    lastThreadsSig = '';
+    await loadThreads();
+    return true;
+  } catch (e) {
+    statusEl.textContent = 'the phone did not answer';
+    if (box) box.checked = !value;
+    return false;
+  }
+}
+
+async function openSettings() {
+  settingsPanelEl.innerHTML = '';
+  settingsPanelEl.hidden = false;
+
+  // This browser's own preferences first: they answer instantly and do not depend on the
+  // phone being reachable.
+  settingsPanelEl.append(heading('This browser'));
+
+  const theme = actionRow('Theme', null, () => { cycleTheme(); });
+  const themeVal = document.createElement('span');
+  themeVal.id = 'themeValue';
+  themeVal.className = 'note';
+  themeVal.textContent = themeLabel();
+  theme.querySelector('.label').append(themeVal);
+  settingsPanelEl.append(theme);
+
+  settingsPanelEl.append(actionRow('Launcher',
+    'Keep this as an app on this computer',
+    () => { settingsPanelEl.hidden = true; window.showLauncherHelp(); }));
+
+  settingsPanelEl.append(document.createElement('hr'));
+
+  let s;
+  try {
+    const res = await api('/api/settings');
+    s = await res.json();
+  } catch (e) {
+    settingsPanelEl.append(heading('Phone'));
+    const p = document.createElement('div');
+    p.className = 'row';
+    p.textContent = 'The phone did not answer.';
+    settingsPanelEl.append(p);
+    return;
+  }
+
+  settingsPanelEl.append(heading('Conversations'));
+  settingsPanelEl.append(settingRow('Unread at the top', null, s.unreadAtTop,
+    (v, b) => setSetting('unreadAtTop', v, b)));
+
+  settingsPanelEl.append(heading('Signal'));
+  if (!s.signalConfigured) {
+    const p = document.createElement('div');
+    p.className = 'row';
+    p.innerHTML = '<span class="label">No bridge paired' +
+      '<span class="note">Pair one from the left pane</span></span>';
+    settingsPanelEl.append(p);
+  } else {
+    settingsPanelEl.append(settingRow('Show Signal conversations', null, s.signalEnabled,
+      (v, b) => setSetting('signalEnabled', v, b)));
+    settingsPanelEl.append(settingRow('One conversation list',
+      'Off keeps SMS and Signal apart', s.signalWeave,
+      (v, b) => setSetting('signalWeave', v, b)));
+    settingsPanelEl.append(settingRow('Send read receipts', null, s.signalReadReceipts,
+      (v, b) => setSetting('signalReadReceipts', v, b)));
+  }
+
+  settingsPanelEl.append(heading('Desktop Sync'));
+  settingsPanelEl.append(settingRow('Tailscale only',
+    'Refuse connections that are not on your tailnet', s.tailscaleOnly,
+    (v, b) => setSetting('tailscaleOnly', v, b)));
+
+  settingsPanelEl.append(document.createElement('hr'));
+  settingsPanelEl.append(heading('Phone'));
+  settingsPanelEl.append(actionRow('Sync messages',
+    'Re-read Android\u2019s own SMS store', async () => {
+      settingsPanelEl.hidden = true;
+      statusEl.textContent = 'syncing on the phone\u2026';
+      try {
+        await api('/api/sync', { method: 'POST' });
+        statusEl.textContent = 'sync started';
+      } catch (e) {
+        statusEl.textContent = 'the phone did not answer';
+      }
+    }));
+}
+
+settingsBtnEl.addEventListener('click', () => {
+  if (settingsPanelEl.hidden) openSettings();
+  else settingsPanelEl.hidden = true;
+});
+document.addEventListener('click', e => {
+  if (settingsPanelEl.hidden) return;
+  if (!settingsPanelEl.contains(e.target) && !settingsBtnEl.contains(e.target)) {
+    settingsPanelEl.hidden = true;
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') settingsPanelEl.hidden = true;
 });
 
 markAllBtn.addEventListener('click', async () => {

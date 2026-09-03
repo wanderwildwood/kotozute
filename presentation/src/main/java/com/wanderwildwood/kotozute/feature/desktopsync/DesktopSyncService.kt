@@ -305,6 +305,7 @@ class DesktopSyncService : Service() {
     @Inject lateinit var sendNewMessage: SendNewMessage
     @Inject lateinit var subscriptionManager: SubscriptionManagerCompat
     @Inject lateinit var prefs: Preferences
+    @Inject lateinit var syncMessages: com.wanderwildwood.kotozute.interactor.SyncMessages
     @Inject lateinit var signalRepository: com.wanderwildwood.kotozute.repository.SignalRepository
 
     private val disposables = CompositeDisposable()
@@ -368,6 +369,8 @@ class DesktopSyncService : Service() {
             // instead of needing the relay stopped and started again.
             tailscaleOnly = { prefs.desktopSyncTailscaleOnly.get() },
             blockingManager = { prefs.blockingManager.get() },
+            prefs = prefs,
+            syncMessages = syncMessages,
         )
 
         // Timeout 0 = no socket read timeout. A push WebSocket sits idle by design,

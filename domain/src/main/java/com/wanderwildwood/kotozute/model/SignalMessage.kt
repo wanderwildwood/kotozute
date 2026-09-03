@@ -50,4 +50,18 @@ open class SignalMessage : RealmObject() {
      * it is read once when a row is drawn.
      */
     var attachments: String = ""
+
+    /**
+     * When this copy must be gone, in ms; 0 means never. The bridge purges its own row on
+     * time, but that row is not the one anybody reads -- this is. Without honouring it here
+     * the bridge deletes the only copy that was ever going to go and the phone keeps the
+     * message for ever, in the thread, in the inbox snippet, in search and in the browser.
+     */
+    @Index var expiresAt: Long = 0
+
+    /** The timer the sender set, in seconds; 0 for none. Kept so the UI can say so. */
+    var expiresInSeconds: Long = 0
+
+    /** Signal intends this to be opened once; its attachment is never stored. */
+    var viewOnce: Boolean = false
 }

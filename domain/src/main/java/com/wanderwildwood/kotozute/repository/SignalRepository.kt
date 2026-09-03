@@ -131,6 +131,12 @@ interface SignalRepository {
     fun setMuted(threadKey: String, muted: Boolean)
 
     /** Put a thread back to unread, so it is picked up again later. */
+    /**
+     * Delete messages whose disappearing deadline has passed. Returns how many went. Reads
+     * already hide them; this is what stops the phone being the copy that outlives the timer.
+     */
+    fun purgeExpired(): Int
+
     fun markUnread(threadKey: String)
 
     /** Whether this thread's notifications are silenced. Read on the notification path. */

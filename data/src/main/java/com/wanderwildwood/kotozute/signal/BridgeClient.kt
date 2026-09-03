@@ -67,7 +67,17 @@ data class BridgeMessage(
     val read: Boolean,
     val source: String,
     /** The bridge's attachment array, kept as JSON; the app only reads it to draw a row. */
-    val attachmentsJson: String
+    val attachmentsJson: String,
+
+    /**
+     * When this copy must be gone, in ms, or 0 for never. The bridge sends it; the phone
+     * has to honour it independently, because the bridge deletes only its own row and the
+     * phone's copy is the one the user can still read.
+     */
+    val expiresAt: Long = 0,
+    val expiresInSeconds: Long = 0,
+    /** Signal intends this to be opened once. Its attachment is never stored. */
+    val viewOnce: Boolean = false
 )
 
 /**
@@ -272,7 +282,9 @@ class BridgeClient(private val config: BridgeConfig) {
         }
     }
 
-    private fun parseMessage(o: JSONObject) = BridgeMessage(
+    // internal, not private: dropping the expiry fields here is precisely the bug that
+    // shipped, so it is worth a test that reads the wire shape directly.
+    internal fun parseMessage(o: JSONObject) = BridgeMessage(
         id = o.optString("id"),
         seq = o.optLong("seq"),
         threadKey = o.optString("threadKey"),
@@ -285,7 +297,10 @@ class BridgeClient(private val config: BridgeConfig) {
         quoteTs = o.optLong("quoteTs"),
         read = o.optBoolean("read"),
         source = o.optString("source", "live"),
-        attachmentsJson = o.optJSONArray("attachments")?.toString() ?: ""
+        attachmentsJson = o.optJSONArray("attachments")?.toString() ?: "",
+        expiresAt = o.optLong("expiresAt"),
+        expiresInSeconds = o.optLong("expiresInSeconds"),
+        viewOnce = o.optBoolean("viewOnce")
     )
 
     private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")

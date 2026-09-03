@@ -83,6 +83,60 @@ class SignalRepositoryImpl @Inject constructor(
         publishState(reachable = false, signalConnected = false, error = null)
     }
 
+    /**
+     * Delete every message whose disappearing deadline has passed, and tidy the threads they
+     * were the last of.
+     *
+     * The bridge sweeps its own store, but that copy is not the one anyone reads. Without
+     * this the bridge deletes the only row that was ever going to go and the phone keeps the
+     * message for ever. Reads exclude expired rows too, so a message is gone from view the
+     * moment its time is up whether or not the sweep has run.
+     */
+    override fun purgeExpired(): Int {
+        var removed = 0
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val dead = r.where(SignalMessage::class.java)
+                    .greaterThan("expiresAt", 0L)
+                    .lessThanOrEqualTo("expiresAt", System.currentTimeMillis())
+                    .findAll()
+                removed = dead.size
+                if (removed == 0) return@executeTransaction
+                val touched = dead.map { it.threadKey }.distinct()
+                dead.deleteAllFromRealm()
+                // A thread whose newest message just vanished would otherwise keep showing
+                // it as the preview on the inbox row.
+                touched.forEach { key -> refreshThreadPreview(r, key) }
+            }
+        }
+        if (removed > 0) Timber.i("signal: %d expired message(s) removed", removed)
+        return removed
+    }
+
+    /** Re-derive a thread's snippet, timestamp and unread count from what is left. */
+    private fun refreshThreadPreview(r: Realm, threadKey: String) {
+        val thread = r.where(SignalThread::class.java)
+            .equalTo("threadKey", threadKey).findFirst() ?: return
+        val newest = r.where(SignalMessage::class.java)
+            .equalTo("threadKey", threadKey)
+            .sort("date", Sort.DESCENDING)
+            .findFirst()
+        if (newest == null) {
+            thread.snippet = ""
+            thread.snippetOutgoing = false
+            thread.unread = 0
+            return
+        }
+        thread.snippet = previewOf(newest)
+        thread.snippetOutgoing = newest.outgoing
+        thread.lastTs = newest.date
+        thread.unread = r.where(SignalMessage::class.java)
+            .equalTo("threadKey", threadKey)
+            .equalTo("outgoing", false)
+            .equalTo("read", false)
+            .count().toInt()
+    }
+
     private fun runOffThread(block: () -> Unit) {
         thread(isDaemon = true) { runCatching(block).onFailure { Timber.w(it, "signal") } }
     }
@@ -295,7 +349,13 @@ class SignalRepositoryImpl @Inject constructor(
         row.quoteTs = m.quoteTs
         row.read = m.read
         row.source = m.source
-        row.attachments = m.attachmentsJson
+        // A view-once attachment is never stored. Signal's promise is that it can be opened
+        // once; a copy in Realm is a copy that can be opened for ever. The row stays so the
+        // thread does not have a silent hole where a message was.
+        row.attachments = if (m.viewOnce) "" else m.attachmentsJson
+        row.expiresAt = m.expiresAt
+        row.expiresInSeconds = m.expiresInSeconds
+        row.viewOnce = m.viewOnce
 
         val thread = realm.where(SignalThread::class.java)
             .equalTo("threadKey", m.threadKey).findFirst()
@@ -320,9 +380,14 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /** What the inbox row shows. A picture with no caption still needs to say something. */
-    private fun previewOf(m: BridgeMessage): String = when {
-        m.body.isNotBlank() -> m.body
-        m.attachmentsJson.isNotBlank() && m.attachmentsJson != "[]" -> ATTACHMENT_PREVIEW
+    private fun previewOf(m: BridgeMessage): String = preview(m.body, m.attachmentsJson)
+
+    /** The same, from a stored row -- the sweep re-derives previews from what is left. */
+    private fun previewOf(m: SignalMessage): String = preview(m.body, m.attachments)
+
+    private fun preview(body: String, attachmentsJson: String): String = when {
+        body.isNotBlank() -> body
+        attachmentsJson.isNotBlank() && attachmentsJson != "[]" -> ATTACHMENT_PREVIEW
         else -> ""
     }
 
@@ -500,6 +565,7 @@ class SignalRepositoryImpl @Inject constructor(
             val matches = threads.mapNotNull { thread ->
                 val hits = realm.where(SignalMessage::class.java)
                     .equalTo("threadKey", thread.threadKey)
+                    .unexpired()
                     .contains("body", q, Case.INSENSITIVE)
                     .sort("date", Sort.DESCENDING)
                     .findAll()
@@ -627,6 +693,7 @@ class SignalRepositoryImpl @Inject constructor(
         Realm.getDefaultInstance().use { realm ->
             val all = realm.where(SignalMessage::class.java)
                 .equalTo("threadKey", threadKey)
+                .unexpired()
                 .sort("date", Sort.ASCENDING)
                 .findAll()
             // The tail, like the SMS side: a long thread is re-fetched every few seconds.
@@ -638,6 +705,7 @@ class SignalRepositoryImpl @Inject constructor(
         Realm.getDefaultInstance()
             .where(SignalMessage::class.java)
             .equalTo("threadKey", threadKey)
+            .unexpired()
             .sort("date", Sort.ASCENDING)
             .findAllAsync()
 
@@ -658,3 +726,15 @@ class SignalRepositoryImpl @Inject constructor(
         )
     }
 }
+
+/**
+ * Everything whose disappearing deadline has not passed. Applied on every read as well as by
+ * the sweep: a message must be gone from view the moment its time is up, not whenever a
+ * timer next happens to fire.
+ */
+private fun io.realm.RealmQuery<SignalMessage>.unexpired(): io.realm.RealmQuery<SignalMessage> =
+    beginGroup()
+        .equalTo("expiresAt", 0L)
+        .or()
+        .greaterThan("expiresAt", System.currentTimeMillis())
+        .endGroup()

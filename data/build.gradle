@@ -71,6 +71,10 @@ dependencies {
     testImplementation "androidx.test:runner:$androidx_testrunner_version"
     testImplementation "junit:junit:$junit_version"
     testImplementation "org.mockito:mockito-core:$mockito_version"
+    // A real JSON implementation for unit tests. Android stubs org.json out to methods that
+    // throw "not mocked", which makes any test of wire parsing impossible -- and wire parsing
+    // is where the disappearing-message fields were being dropped.
+    testImplementation "org.json:json:20240303"
 
     // coroutines
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutines_version"

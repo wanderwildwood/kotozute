@@ -48,6 +48,7 @@ import io.realm.Realm
 import io.realm.RealmConfiguration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -106,6 +107,20 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         signalNotifications.start()
         if (prefs.signalEnabled.get()) {
             signalRepo.startStream()
+        }
+
+        // Disappearing messages have to be swept here, not only on the bridge. The bridge
+        // deletes its own row on time, but the phone's copy is the one anybody reads -- and
+        // without this it is the copy that outlives the timer. Reads already hide an expired
+        // message, so this is about not keeping it on disk after it stopped being shown.
+        //
+        // A minute, not the six-hour attachment pass: a Signal timer can be thirty seconds.
+        GlobalScope.launch(Dispatchers.IO) {
+            while (true) {
+                runCatching { signalRepo.purgeExpired() }
+                    .onFailure { Timber.w(it, "signal: expiry sweep") }
+                delay(60_000)
+            }
         }
 
         GlobalScope.launch(Dispatchers.IO) {

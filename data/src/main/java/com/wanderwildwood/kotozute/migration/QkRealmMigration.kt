@@ -37,7 +37,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 19
+        const val SCHEMA_VERSION: Long = 20
     }
 
     @SuppressLint("ApplySharedPref")
@@ -372,6 +372,25 @@ class QkRealmMigration @Inject constructor(
                 ?.transform { t ->
                     t.setBoolean("pinned", false)
                     t.setBoolean("muted", false)
+                }
+
+            version++
+        }
+
+        if (version == 19L) {
+            // Disappearing messages. Existing rows default to "never expires", which is what
+            // they have been all along -- there is nothing to back-fill them from, and the
+            // bridge has already deleted its own copies, so their deadlines are unknowable.
+            // Only messages arriving from here on can be honoured.
+            realm.schema.get("SignalMessage")
+                ?.addField("expiresAt", Long::class.java, FieldAttribute.REQUIRED)
+                ?.addField("expiresInSeconds", Long::class.java, FieldAttribute.REQUIRED)
+                ?.addField("viewOnce", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.addIndex("expiresAt")
+                ?.transform { m ->
+                    m.setLong("expiresAt", 0)
+                    m.setLong("expiresInSeconds", 0)
+                    m.setBoolean("viewOnce", false)
                 }
 
             version++

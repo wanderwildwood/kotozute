@@ -367,6 +367,7 @@ class DesktopSyncService : Service() {
             // Read live, so flipping the setting takes effect on the next request
             // instead of needing the relay stopped and started again.
             tailscaleOnly = { prefs.desktopSyncTailscaleOnly.get() },
+            blockingManager = { prefs.blockingManager.get() },
         )
 
         // Timeout 0 = no socket read timeout. A push WebSocket sits idle by design,

@@ -58,6 +58,8 @@ class DesktopSyncServer(
     private val signalRepository: SignalRepository,
     private val signalEnabled: () -> Boolean,
     private val tailscaleOnly: () -> Boolean,
+    /** Which blocking backend to record against a block, read live like the two above. */
+    private val blockingManager: () -> Int,
 ) : NanoWSD(port) {
 
     /**
@@ -75,6 +77,9 @@ class DesktopSyncServer(
          * is not a pairing attempt.
          */
         private const val MAX_PAIR_BODY_BYTES = 512
+
+        /** An action name is a single short word; nothing larger is one. */
+        private const val MAX_ACTION_BODY_BYTES = 256
 
         /**
          * `bytes=START-[END]` out of a Range header. Only the single-range form, which
@@ -308,6 +313,7 @@ class DesktopSyncServer(
         val threadMessagesMatch = Regex("^/api/threads/(-?\\d+)/messages$").find(uri)
         val threadSendMatch = Regex("^/api/threads/(-?\\d+)/send$").find(uri)
         val threadReadMatch = Regex("^/api/threads/(-?\\d+)/read$").find(uri)
+        val threadActionMatch = Regex("^/api/threads/(-?\\d+)/action$").find(uri)
         val partMatch = Regex("^/api/parts/(\\d+)$").find(uri)
         // The same strict shape the bridge itself enforces on an id it serves: the value
         // originates in a sender's attachment pointer, so nothing that could climb out of
@@ -334,6 +340,9 @@ class DesktopSyncServer(
                 handleSignalAttachment(signalPartMatch.groupValues[1], session)
             threadReadMatch != null && session.method == Method.POST ->
                 handleMarkRead(threadReadMatch.groupValues[1].toLong())
+            threadActionMatch != null && session.method == Method.POST ->
+                handleThreadAction(threadActionMatch.groupValues[1].toLong(), session)
+            uri == "/api/mark-all-read" && session.method == Method.POST -> handleMarkAllRead()
             else -> jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
         }
     }
@@ -660,6 +669,12 @@ class DesktopSyncServer(
         put("date", t.lastTs)
         put("unread", t.unread > 0)
         put("rail", "signal")
+        put("pinned", t.pinned)
+        put("muted", t.muted)
+        put("archived", t.archived)
+        // No blocked flag: setBlocked acts on the Signal account itself and the state
+        // lives there, not in this row, so there is nothing local to report. The browser
+        // offers Block and not a toggle, rather than guessing which way round it is.
     }
 
     /**
@@ -785,6 +800,97 @@ class DesktopSyncServer(
             addHeader("Content-Range", "bytes $start-$end/$length")
             addHeader("Cache-Control", "private, max-age=86400")
         }
+    }
+
+    /**
+     * Everything the phone offers on a conversation: archive, pin, mute, mark unread,
+     * block, delete. The browser had none of it -- a conversation could be read and
+     * replied to and nothing else, so tidying an inbox meant picking the phone up.
+     *
+     * One route rather than eight, because the shape is identical every time and the only
+     * real work is deciding which rail the id belongs to. The two rails do not offer quite
+     * the same set: Signal has mute and SMS does not, and Signal's "delete" clears only
+     * this device's copy, which the caller is told rather than left to assume.
+     */
+    private fun handleThreadAction(threadId: Long, session: IHTTPSession): Response {
+        val action = readSmallJsonField(session, "action", MAX_ACTION_BODY_BYTES)?.trim().orEmpty()
+        if (action.isEmpty()) {
+            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "no action"))
+        }
+
+        signalThreadFor(threadId)?.let { thread ->
+            val key = thread.threadKey
+            val done = runCatching {
+                when (action) {
+                    "archive" -> signalRepository.setArchived(key, true)
+                    "unarchive" -> signalRepository.setArchived(key, false)
+                    "pin" -> signalRepository.setPinned(key, true)
+                    "unpin" -> signalRepository.setPinned(key, false)
+                    "mute" -> signalRepository.setMuted(key, true)
+                    "unmute" -> signalRepository.setMuted(key, false)
+                    "unread" -> signalRepository.markUnread(key)
+                    "block" -> signalRepository.setBlocked(key, true)
+                    "unblock" -> signalRepository.setBlocked(key, false)
+                    else -> return jsonResponse(
+                        Response.Status.BAD_REQUEST,
+                        JSONObject().put("error", "signal threads do not support \"" + action + "\"")
+                    )
+                }
+            }
+            done.exceptionOrNull()?.let { failure ->
+                Timber.w(failure, "Desktop Sync: signal %s failed", action)
+                return jsonResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    JSONObject().put("error", failure.message ?: "that did not work")
+                )
+            }
+            return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+        }
+
+        runCatching {
+            when (action) {
+                "archive" -> conversationRepository.markArchived(threadId)
+                "unarchive" -> conversationRepository.markUnarchived(listOf(threadId))
+                "pin" -> conversationRepository.markPinned(threadId)
+                "unpin" -> conversationRepository.markUnpinned(threadId)
+                "unread" -> messageRepository.markUnread(listOf(threadId))
+                "block" -> conversationRepository.markBlocked(listOf(threadId), blockingManager(), null)
+                "delete" -> conversationRepository.deleteConversations(threadId)
+                else -> return jsonResponse(
+                    Response.Status.BAD_REQUEST,
+                    JSONObject().put("error", "no such action")
+                )
+            }
+        }.exceptionOrNull()?.let { failure ->
+            Timber.w(failure, "Desktop Sync: %s failed", action)
+            return jsonResponse(
+                Response.Status.INTERNAL_ERROR,
+                JSONObject().put("error", failure.message ?: "that did not work")
+            )
+        }
+        return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+    }
+
+    /** The whole inbox, both rails, the same as the phone's overflow item. */
+    private fun handleMarkAllRead(): Response {
+        runCatching {
+            val ids = conversationRepository.getConversationsSnapshot(unreadAtTop = false)
+                .filter { it.unread }
+                .map { it.id }
+            if (ids.isNotEmpty()) messageRepository.markRead(ids)
+            if (signalEnabled()) {
+                signalRepository.getThreadsSnapshot(archived = false)
+                    .filter { it.unread > 0 }
+                    .forEach { signalRepository.markRead(it.threadKey, System.currentTimeMillis()) }
+            }
+        }.exceptionOrNull()?.let { failure ->
+            Timber.w(failure, "Desktop Sync: mark all read failed")
+            return jsonResponse(
+                Response.Status.INTERNAL_ERROR,
+                JSONObject().put("error", failure.message ?: "that did not work")
+            )
+        }
+        return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
     }
 
     private fun handleGetThreads(): Response {
@@ -1369,6 +1475,11 @@ class DesktopSyncServer(
         put("date", conversation.date)
         put("unread", conversation.unread)
         put("rail", "sms")
+        // What the row's own menu needs to label itself: an item that says "Pin" on an
+        // already-pinned conversation is worse than no item.
+        put("pinned", conversation.pinned)
+        put("archived", conversation.archived)
+        put("blocked", conversation.blocked)
     }
 
     /**

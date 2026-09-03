@@ -139,6 +139,24 @@
     display: flex; flex-direction: column; min-height: 0;
   }
   #searchWrap { flex: 0 0 auto; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  #markAllBtn {
+    margin-top: 8px; width: 100%; padding: 6px 8px; font-size: 13px;
+    background: none; color: var(--muted); border: 1px solid var(--line); border-radius: 4px;
+    cursor: pointer;
+  }
+  #markAllBtn:hover { color: var(--ink); border-color: var(--ink); }
+  #threadMenu {
+    position: fixed; z-index: 50; min-width: 160px; padding: 4px 0;
+    background: var(--paper); border: 1px solid var(--ink); border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  }
+  #threadMenu button {
+    display: block; width: 100%; padding: 7px 14px; border: 0; background: none;
+    font: inherit; font-size: 13px; color: var(--ink); text-align: left; cursor: pointer;
+  }
+  #threadMenu button:hover { background: var(--line); }
+  #threadMenu button.danger { color: #a00; }
+  #threadMenu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--line); }
   #pairGate { max-width: 340px; margin: 18vh auto; padding: 0 20px; text-align: center; }
   #pairGate h1 { font-size: 20px; margin: 0 0 12px; }
   #pairGate p { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 16px; }
@@ -443,9 +461,17 @@
           <input type="text" id="searchField" placeholder="Search conversations" autocomplete="off">
           <button type="button" id="searchClear" aria-label="Clear search" hidden>&times;</button>
         </div>
+        <!-- Only when there is something unread, the same rule the phone uses: on a narrow
+             pane a control that never has anything to do is just width spent. -->
+        <button type="button" id="markAllBtn" hidden>Mark all read</button>
       </div>
       <div id="threads"></div>
     </aside>
+
+    <!-- One menu, moved and refilled per conversation, rather than one built into every
+         row: the list is re-rendered on every poll and 300 hidden menus would be rebuilt
+         with it. Right-click here is the phone's long-press. -->
+    <div id="threadMenu" hidden role="menu"></div>
     <button type="button" id="newBtn" title="New conversation" aria-label="New conversation">
       <!-- The same pencil the phone's compose button uses, path and all, so "new message" reads
            as one thing on both. The only + left in this corner is the one that attaches. -->

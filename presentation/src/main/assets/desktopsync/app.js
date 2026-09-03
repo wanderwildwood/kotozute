@@ -812,6 +812,11 @@ function renderThreads() {
     : (searchResults !== null ? searchResults : lastThreads.filter(t =>
         (t.title || '').toLowerCase().includes(q) || (t.snippet || '').toLowerCase().includes(q)));
 
+  // Shown only when it has something to do, the same rule the phone applies to the same
+  // item -- and judged on the whole inbox, not the filtered view, or searching would hide
+  // a button whose job is the inbox.
+  markAllBtn.hidden = !lastThreads.some(t => t.unread);
+
   threadsEl.innerHTML = '';
   if (!threads.length) {
     const none = document.createElement('div');
@@ -852,10 +857,121 @@ function renderThreads() {
     div.dataset.id = t.id; // lets a keystroke update just this row, see refreshDraftRow
     div.append(row, snippet);
     div.addEventListener('click', () => selectThread(t.id, t.title));
+    // The phone opens this set with a long press; on a keyboard and mouse it is the
+    // right-click, and on a touchscreen the long press still arrives as one.
+    div.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      openThreadMenu(t, e.clientX, e.clientY);
+    });
     threadsEl.append(div);
   });
   threadsEl.scrollTop = prevScroll;
 }
+
+const threadMenuEl = document.getElementById('threadMenu');
+const markAllBtn = document.getElementById('markAllBtn');
+
+/**
+ * Everything the phone offers on a conversation. The rails do not offer the same set --
+ * Signal has mute and no delete here, SMS has delete and no mute -- so the menu is built
+ * per row from what that rail can actually do, rather than showing an item that answers
+ * with an error.
+ */
+function openThreadMenu(t, x, y) {
+  const signal = t.rail === 'signal';
+  const items = [
+    ['Mark unread', 'unread'],
+    [t.pinned ? 'Unpin' : 'Pin', t.pinned ? 'unpin' : 'pin'],
+  ];
+  if (signal) items.push([t.muted ? 'Unmute' : 'Mute', t.muted ? 'unmute' : 'mute']);
+  items.push([t.archived ? 'Move to inbox' : 'Archive', t.archived ? 'unarchive' : 'archive']);
+  items.push(null);
+  // SMS keeps a blocked flag on the row, so it can be a toggle. Signal's block lives on
+  // the account rather than here, and the row cannot say which way round it is, so that
+  // rail is offered the action and not a claim about its current state.
+  if (signal) items.push(['Block', 'block', true]);
+  else items.push([t.blocked ? 'Unblock' : 'Block', t.blocked ? 'unblock' : 'block', true]);
+  // Deleting a Signal conversation here would clear only this device's copy while the
+  // bridge kept its own, which reads as "it came back" the next time anything syncs. Not
+  // offered rather than offered and surprising.
+  if (!signal) items.push(['Delete', 'delete', true]);
+
+  threadMenuEl.innerHTML = '';
+  items.forEach(item => {
+    if (!item) { threadMenuEl.append(document.createElement('hr')); return; }
+    const [label, action, danger] = item;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (danger) b.className = 'danger';
+    b.addEventListener('click', () => runThreadAction(t, action, label));
+    threadMenuEl.append(b);
+  });
+
+  threadMenuEl.hidden = false;
+  // Placed after unhiding, so the measurement is of something with a size. Kept on screen
+  // at the bottom and right edges, where a menu opened on the last row would otherwise
+  // hang off the window.
+  const r = threadMenuEl.getBoundingClientRect();
+  const left = Math.min(x, window.innerWidth - r.width - 8);
+  const top = Math.min(y, window.innerHeight - r.height - 8);
+  threadMenuEl.style.left = Math.max(8, left) + 'px';
+  threadMenuEl.style.top = Math.max(8, top) + 'px';
+}
+
+function closeThreadMenu() { threadMenuEl.hidden = true; }
+document.addEventListener('click', e => {
+  if (!threadMenuEl.hidden && !threadMenuEl.contains(e.target)) closeThreadMenu();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeThreadMenu(); });
+window.addEventListener('resize', closeThreadMenu);
+
+async function runThreadAction(t, action, label) {
+  closeThreadMenu();
+  // The two that cannot be taken back ask first. Everything else is a toggle the same
+  // menu will undo.
+  if (action === 'delete' && !confirm('Delete this conversation? This cannot be undone.')) return;
+  if (action === 'block' && !confirm('Block ' + (t.title || 'this sender') + '?')) return;
+  try {
+    const res = await api('/api/threads/' + t.id + '/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ action })
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      statusEl.textContent = d.error || (label + ' did not work');
+      return;
+    }
+    // The open thread has just been deleted or filed away; showing it still open invites
+    // a reply into a conversation that is no longer there.
+    if ((action === 'delete' || action === 'archive') && activeThreadId === t.id) {
+      activeThreadId = null;
+      lastMessagesSig = '';
+      paneTitleEl.textContent = 'Select a conversation';
+      messagesEl.innerHTML = '';
+      bodyEl.disabled = true;
+    }
+    lastThreadsSig = '';
+    await loadThreads();
+  } catch (e) {
+    statusEl.textContent = 'the phone did not answer';
+  }
+}
+
+markAllBtn.addEventListener('click', async () => {
+  markAllBtn.disabled = true;
+  try {
+    const res = await api('/api/mark-all-read', { method: 'POST' });
+    if (!res.ok) statusEl.textContent = 'mark all read did not work';
+    lastThreadsSig = '';
+    await loadThreads();
+  } catch (e) {
+    statusEl.textContent = 'the phone did not answer';
+  } finally {
+    markAllBtn.disabled = false;
+  }
+});
 
 async function selectThread(id, title) {
   stashDraft(); // capture unsent text for the thread we're leaving, before it changes

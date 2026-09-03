@@ -193,6 +193,13 @@ func exportThread(
 			if m.Body != "" {
 				standard["text"] = map[string]any{"body": m.Body}
 			}
+			// The reply link. Signal's own export nests a whole quoted message here; we only
+			// have the timestamp it points at, which is all the importer needs to restore it.
+			if m.QuoteTS != 0 {
+				standard["quote"] = map[string]any{
+					"targetSentTimestamp": strconv.FormatInt(m.QuoteTS, 10),
+				}
+			}
 			if atts := exportAttachments(m, dir, attachDir, st); len(atts) > 0 {
 				standard["attachments"] = atts
 			}
@@ -270,6 +277,12 @@ func exportAttachments(m *Message, dir, attachDir string, st *ExportStats) []map
 				"fileName":    a.Filename,
 				"locatorInfo": map[string]any{"size": info.Size()},
 			},
+			// Our own exports name the file outright. Matching on size alone loses BOTH of
+			// any two attachments that happen to share a length -- two screenshots, two
+			// voice notes, the same file sent twice -- and with them any message whose only
+			// content was the attachment. Signal's export cannot carry this, so the importer
+			// still falls back to size when it is absent.
+			"kotozuteFileName": filepath.Base(dst),
 		})
 		st.Attachments++
 	}

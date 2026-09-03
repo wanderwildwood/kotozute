@@ -29,8 +29,11 @@ sudo ./install.sh
 ```
 
 It installs signal-cli, builds and installs the bridge, writes both systemd units, starts
-them, and prints the line you paste into the phone. Re-running is safe: anything already in
-place is left alone. If it cannot work out this machine's address on your network, pass one:
+them, and prints the line you paste into the phone.
+
+Re-running it is how you upgrade: it reinstalls the bridge, **rewrites both unit files** from
+that run's environment, and restarts both services. Any hand-editing of those units is lost,
+so diff them first if you have customised them. signal-cli and your account are untouched. If it cannot work out this machine's address on your network, pass one:
 `sudo ADVERTISE=192.168.1.50 ./install.sh`.
 
 It stops short of two things, both on purpose.
@@ -59,8 +62,13 @@ kotozute-bridge --account +15551234567 --import /path/to/signal-export-...
 
 Running it twice imports nothing twice — messages are keyed the same way live ones are.
 
-`--export <dir>` writes the store back out in the same shape, which is how you back it up
-or move it to another machine. It round-trips exactly.
+`--export <dir>` writes the store back out in the same shape, which is how you back it up or
+move it to another machine.
+
+It does not round-trip *everything*. Reply-quote links are not carried, and two attachments
+of identical byte length cannot be told apart on the way back in, so both are dropped and
+counted in the stats line as unmatched. Check that line: a backup that quietly lost files is
+worse than one that says so.
 
 ## Doing it by hand
 
@@ -88,3 +96,23 @@ optional: see above.
 | `/var/lib/kotozute-bridge` | messages, and `token`, which is the only credential the phone uses. Treat it as the account. |
 | `127.0.0.1:7583` | signal-cli's JSON-RPC. No authentication; never expose it. |
 | `:8422` | the bridge. TLS, pinned certificate, bearer token. Meant to be reachable. |
+
+## Attachment retention, which deletes files
+
+The bridge prunes signal-cli's own `attachments/` directory: on startup and every six hours
+it removes anything older than `--attachment-days` (default **90**), then keeps removing the
+oldest until the directory is under `--attachment-max-mb` (default **2048**).
+
+That is a directory the bridge writes to *and deletes from*, and on a setup where this
+machine is the account's primary device those files are the only copy of received media in
+existence. Pass `--attachment-days 0` to keep everything, and size your backups accordingly.
+
+## Other flags
+
+| | |
+|---|---|
+| `--pairing` | print the line the phone needs, and exit |
+| `--import <dir>` | read a Signal Desktop export, or one of ours, into the store |
+| `--export <dir>` | write the store out in that same shape |
+| `--wipe` | **destroy** every message, thread, contact and stored identity, then exit. No confirmation. This is the other half of the phone's "Delete Signal data", which clears only the phone. |
+| `--attachment-days`, `--attachment-max-mb` | see retention above |

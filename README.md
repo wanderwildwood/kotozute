@@ -59,7 +59,7 @@ Turn the switch off and it also accepts LAN connections, which is worth knowing 
 
 The restriction is enforced per request rather than by binding only the tailnet address, deliberately: binding it would mean the server cannot start at all while Tailscale is down, so a reboot could leave the relay dead. This way the socket always binds and simply turns non-tailnet callers away.
 
-*Who you are.* Every request also needs a random 144-bit token generated on first run, so being on the tailnet isn't enough by itself — useful if your tailnet has devices you don't fully control.
+*Who you are.* Every request also needs a random 120-bit token generated on first run, so being on the tailnet isn't enough by itself — useful if your tailnet has devices you don't fully control.
 
 Don't port-forward the port, and don't expose it with Tailscale Funnel.
 

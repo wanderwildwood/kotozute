@@ -13,7 +13,10 @@
 # only you can receive, and pairing the phone, which is a paste into Desktop Sync. It tells
 # you exactly what to do for both, at the point where you need to do it.
 #
-# Re-running is safe. Anything already in place is left alone and said so.
+# Re-running is how you upgrade. It rebuilds and reinstalls the bridge, REWRITES both unit
+# files from this run's environment, and restarts both services. That means any hand-editing
+# you did to those units is lost -- if you have customised them, diff before re-running.
+# signal-cli itself and your account are left alone.
 
 set -euo pipefail
 
@@ -87,14 +90,10 @@ echo "  installed to $BRIDGE_BIN"
 
 # --- the account ---------------------------------------------------------------------------
 #
-# Two ways in, and which one you want is a real decision rather than a detail:
-#
-#   link      this computer becomes another device on a Signal account your phone already
-#             holds. Nothing about your existing Signal changes. If that phone ever stops
-#             being registered, this stops working with it.
-#   register  this computer becomes the account. Signal's own app stops working for that
-#             number, and Signal's Android app cannot be a secondary, so there is no phone
-#             app afterwards. Choose it only if you mean to.
+# Linking and registering are not interchangeable and this script will not choose. The
+# consequences are PRINTED to the user below, not left in a comment here: an earlier version
+# put the warning in comments and then told the reader to "read the warning above first",
+# pointing at something they could never see.
 ACCOUNT="${ACCOUNT:-}"
 if [ -z "$ACCOUNT" ]; then
   # Read the number out of signal-cli's own index rather than asking signal-cli. The CLI
@@ -110,19 +109,48 @@ if [ -n "$ACCOUNT" ]; then
   say "Signal account $ACCOUNT is already set up on this machine"
 else
   say "No Signal account on this machine yet"
-  cat <<'EOF'
+  cat <<EOF
   Do that now, in another terminal, then run this script again.
 
-  To LINK to a phone that already has Signal (the usual choice):
-      signal-cli --config /var/lib/signal-cli link -n "kotozute"
-    It prints an sgnl:// URI. Turn it into a QR (qrencode -t utf8 '<uri>') and scan it
-    with Signal on your phone: Settings -> Linked devices -> +.
+  There are two ways in and they are NOT interchangeable. Read both before choosing.
 
-  To REGISTER this machine as the account itself, read the warning above first:
-      signal-cli --config /var/lib/signal-cli -a +15551234567 register
-    You will need a captcha from https://signalcaptchas.org/registration/generate.html
-    and the code Signal sends you, then:
-      signal-cli --config /var/lib/signal-cli -a +15551234567 verify 123456
+  ---------------------------------------------------------------------------
+  LINK -- the usual choice. This computer becomes an additional device on a
+  Signal account your phone already holds. Nothing about your existing Signal
+  changes. If that phone ever stops being registered, this stops working too.
+
+      $SIGNAL_CLI --config $SIGNAL_CLI_DATA link -n "kotozute"
+
+  It prints an sgnl:// URI. Turn it into a QR and scan it with Signal on your
+  phone (Settings -> Linked devices -> +):
+
+      qrencode -t utf8 '<the sgnl:// URI it printed>'
+  ---------------------------------------------------------------------------
+  REGISTER -- this computer BECOMES the account. Understand what that means:
+
+    * Signal's own app STOPS WORKING for that number, immediately, on
+      verification.
+    * Signal's Android app cannot be a linked secondary device, so afterwards
+      there is NO Signal app on any phone for that number.
+    * Everyone you talk to sees a "safety number changed" warning.
+    * Nothing carries over from Signal's servers: threads start empty.
+    * $SIGNAL_CLI_DATA becomes the account itself. Lose that directory and the
+      account goes with it, recoverable only by re-registering, which needs the
+      registration-lock PIN if one is set.
+
+  Only if you mean all of that:
+
+      $SIGNAL_CLI --config $SIGNAL_CLI_DATA -a +15551234567 register
+
+  You will need a captcha from
+  https://signalcaptchas.org/registration/generate.html and the code Signal
+  sends, then:
+
+      $SIGNAL_CLI --config $SIGNAL_CLI_DATA -a +15551234567 verify 123456
+
+  Both commands need root, because $SIGNAL_CLI_DATA is mode 700 and
+  signal-cli is not on PATH -- run them with sudo, exactly as printed.
+  ---------------------------------------------------------------------------
 EOF
   exit 0
 fi
@@ -189,12 +217,22 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now signal-cli >/dev/null 2>&1
+# enable --now starts a stopped service and does nothing at all to a running one. On a
+# re-run -- which is how an upgrade happens -- that left the OLD binary running under the
+# NEW unit file and reported success. Restart explicitly.
+systemctl enable signal-cli >/dev/null 2>&1
+systemctl restart signal-cli
 echo "  signal-cli: $(systemctl is-active signal-cli)"
 sleep 8
-systemctl enable --now kotozute-bridge >/dev/null 2>&1
+systemctl enable kotozute-bridge >/dev/null 2>&1
+systemctl restart kotozute-bridge
 sleep 4
 echo "  kotozute-bridge: $(systemctl is-active kotozute-bridge)"
+
+# The binary that is now running, not the one that was installed. A restart that silently
+# failed would otherwise read as an upgrade.
+running=$(systemctl show -p ExecMainStartTimestamp --value kotozute-bridge 2>/dev/null)
+echo "  bridge started: ${running:-unknown}"
 
 if [ "$(systemctl is-active kotozute-bridge)" != "active" ]; then
   die "The bridge did not start. What it said:

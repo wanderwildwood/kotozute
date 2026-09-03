@@ -108,6 +108,9 @@ type expChatItem struct {
 		Text *struct {
 			Body string `json:"body"`
 		} `json:"text"`
+		Quote *struct {
+			TargetSentTimestamp int64 `json:"targetSentTimestamp,string"`
+		} `json:"quote"`
 		Attachments []struct {
 			Pointer *struct {
 				ContentType string `json:"contentType"`
@@ -116,6 +119,10 @@ type expChatItem struct {
 					Size int64 `json:"size"`
 				} `json:"locatorInfo"`
 			} `json:"pointer"`
+			// Only in an export this bridge wrote. Size alone cannot tell two attachments of
+			// equal length apart, and dropping both is how an attachment-only message
+			// disappears entirely.
+			FileName string `json:"kotozuteFileName"`
 		} `json:"attachments"`
 	} `json:"standardMessage"`
 
@@ -275,6 +282,10 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 		if it.StandardMessage.Text != nil {
 			body = it.StandardMessage.Text.Body
 		}
+		quoteTS := int64(0)
+		if q := it.StandardMessage.Quote; q != nil {
+			quoteTS = q.TargetSentTimestamp
+		}
 
 		m := &Message{
 			ThreadKey:    threadKey,
@@ -286,8 +297,9 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 			GroupID:      groupID,
 			// Imported history has been seen. Marking it unread would raise a notification
 			// storm for messages from years ago.
-			Read:   true,
-			Source: "import",
+			Read:    true,
+			Source:  "import",
+			QuoteTS: quoteTS,
 		}
 		if it.ExpireStartDate > 0 && it.ExpiresInMs > 0 {
 			m.ExpiresInSeconds = it.ExpiresInMs / 1000
@@ -310,7 +322,7 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 			if a.Pointer == nil || a.Pointer.LocatorInfo == nil {
 				continue
 			}
-			name, ok := files.take(a.Pointer.LocatorInfo.Size, attachDir)
+			name, ok := files.takeNamed(a.FileName, a.Pointer.LocatorInfo.Size, attachDir)
 			if !ok {
 				// The export references a file it did not write, or two files share a
 				// size. Attaching the wrong picture to a message is worse than attaching
@@ -405,11 +417,16 @@ func threadFor(
 
 type fileIndex struct {
 	bySize map[int64][]string // size -> full paths
+	byName map[string]string  // base filename -> full path, for our own exports
 	copied map[string]string  // source path -> attachment id already copied
 }
 
 func indexFiles(dir string) (*fileIndex, error) {
-	idx := &fileIndex{bySize: map[int64][]string{}, copied: map[string]string{}}
+	idx := &fileIndex{
+		bySize: map[int64][]string{},
+		byName: map[string]string{},
+		copied: map[string]string{},
+	}
 	if _, err := os.Stat(dir); err != nil {
 		return idx, nil // an export with no attachments is fine
 	}
@@ -418,6 +435,7 @@ func indexFiles(dir string) (*fileIndex, error) {
 			return err
 		}
 		idx.bySize[info.Size()] = append(idx.bySize[info.Size()], path)
+		idx.byName[info.Name()] = path
 		return nil
 	})
 	return idx, err
@@ -426,12 +444,26 @@ func indexFiles(dir string) (*fileIndex, error) {
 // take resolves one attachment reference to a file and copies it where the bridge serves
 // attachments from, returning the id to record. The same source file referenced twice
 // returns the same id rather than being copied twice.
+// takeNamed prefers an exact filename, which our own exports carry, and falls back to a
+// unique size, which is all Signal's own export makes possible.
+func (f *fileIndex) takeNamed(name string, size int64, attachDir string) (string, bool) {
+	if name != "" {
+		if src, ok := f.byName[filepath.Base(name)]; ok {
+			return f.copyOut(src, attachDir)
+		}
+	}
+	return f.take(size, attachDir)
+}
+
 func (f *fileIndex) take(size int64, attachDir string) (string, bool) {
 	paths := f.bySize[size]
 	if len(paths) != 1 {
 		return "", false
 	}
-	src := paths[0]
+	return f.copyOut(paths[0], attachDir)
+}
+
+func (f *fileIndex) copyOut(src, attachDir string) (string, bool) {
 	if id, ok := f.copied[src]; ok {
 		return id, true
 	}

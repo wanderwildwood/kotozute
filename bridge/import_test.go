@@ -485,3 +485,116 @@ func TestExportKeepsMessagesSharingATimestamp(t *testing.T) {
 		t.Errorf("exported %d of %d messages -- a tie at the page boundary was dropped", st.Messages, total)
 	}
 }
+
+// Size alone cannot tell two attachments of equal length apart. The importer dropped both,
+// and with them any message whose only content was the attachment.
+func TestRoundTripKeepsTwoAttachmentsOfEqualSize(t *testing.T) {
+	withFrozenClock(t)
+	const selfACI = "00000000-0000-4000-8000-000000000000"
+	const theirACI = "11111111-1111-4111-8111-111111111111"
+	key := "direct:" + theirACI
+
+	attach := t.TempDir()
+	// Two DIFFERENT files of identical length, as two screenshots would be.
+	for i, name := range []string{"one.png", "two.png"} {
+		if err := os.WriteFile(filepath.Join(attach, name),
+			[]byte(strings.Repeat(string(rune('a'+i)), 10)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	origin, err := OpenStore(filepath.Join(t.TempDir(), "a.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer origin.Close()
+	if err := origin.SetThreadMeta(key, "direct", "Ada Lovelace", nil); err != nil {
+		t.Fatal(err)
+	}
+	for i, name := range []string{"one.png", "two.png"} {
+		ts := int64(1700000000000 + i)
+		// No body: the message IS the attachment, so losing the file loses the message.
+		if _, _, err := origin.InsertMessage(&Message{
+			ID: theirACI + ":" + strconv.FormatInt(ts, 10), ThreadKey: key, TS: ts,
+			SenderUUID: theirACI, Source: "live", Read: true,
+			Attachments: []Attachment{{ID: name, Type: "image/png", Size: 10}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dir := t.TempDir()
+	st, err := ExportStore(origin, dir, attach, selfACI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Attachments != 2 {
+		t.Fatalf("exported %d attachments, want 2 -- %s", st.Attachments, st)
+	}
+
+	fresh, err := OpenStore(filepath.Join(t.TempDir(), "b.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	back, err := ImportExport(fresh, dir, t.TempDir(), selfACI, "+15559998888")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Messages != 2 {
+		t.Errorf("imported %d of 2 messages -- equal-sized attachments took them with them; %s",
+			back.Messages, back)
+	}
+	if back.AttachmentsLost != 0 {
+		t.Errorf("%d attachments unmatched, want 0", back.AttachmentsLost)
+	}
+}
+
+// A reply's link to what it answers is part of the conversation.
+func TestRoundTripKeepsQuoteLinks(t *testing.T) {
+	withFrozenClock(t)
+	const selfACI = "00000000-0000-4000-8000-000000000000"
+	const theirACI = "11111111-1111-4111-8111-111111111111"
+	key := "direct:" + theirACI
+
+	origin, _ := OpenStore(filepath.Join(t.TempDir(), "a.db"))
+	defer origin.Close()
+	_ = origin.SetThreadMeta(key, "direct", "Ada Lovelace", nil)
+	if _, _, err := origin.InsertMessage(&Message{
+		ID: theirACI + ":1700000000000", ThreadKey: key, TS: 1700000000000,
+		SenderUUID: theirACI, Body: "the question", Source: "live", Read: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := origin.InsertMessage(&Message{
+		ID: selfACI + ":1700000001000", ThreadKey: key, TS: 1700000001000,
+		SenderUUID: selfACI, Outgoing: true, Body: "the answer", Source: "live", Read: true,
+		QuoteTS: 1700000000000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	if _, err := ExportStore(origin, dir, t.TempDir(), selfACI); err != nil {
+		t.Fatal(err)
+	}
+	fresh, _ := OpenStore(filepath.Join(t.TempDir(), "b.db"))
+	defer fresh.Close()
+	if _, err := ImportExport(fresh, dir, t.TempDir(), selfACI, "+15559998888"); err != nil {
+		t.Fatal(err)
+	}
+	msgs, _ := fresh.ThreadMessages(key, 0, 50)
+	var reply *Message
+	for _, m := range msgs {
+		if m.Body == "the answer" {
+			reply = m
+		}
+	}
+	if reply == nil {
+		t.Fatal("the reply did not survive the round trip")
+	}
+	if reply.QuoteTS != 1700000000000 {
+		t.Errorf("quoteTs = %d, want 1700000000000 -- the reply lost what it was answering",
+			reply.QuoteTS)
+	}
+}

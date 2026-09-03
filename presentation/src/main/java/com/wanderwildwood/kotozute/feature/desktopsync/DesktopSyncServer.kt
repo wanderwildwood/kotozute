@@ -317,6 +317,7 @@ class DesktopSyncServer(
         val threadCrossMatch = Regex("^/api/threads/(-?\\d+)/cross$").find(uri)
         val threadInfoMatch = Regex("^/api/threads/(-?\\d+)/info$").find(uri)
         val threadLinkMatch = Regex("^/api/threads/(-?\\d+)/link$").find(uri)
+        val messageDeleteMatch = Regex("^/api/messages/(\\d+)/delete$").find(uri)
         val partMatch = Regex("^/api/parts/(\\d+)$").find(uri)
         // The same strict shape the bridge itself enforces on an id it serves: the value
         // originates in a sender's attachment pointer, so nothing that could climb out of
@@ -337,6 +338,8 @@ class DesktopSyncServer(
             uri == "/api/contacts" && session.method == Method.GET -> handleContacts(session)
             uri == "/api/sims" && session.method == Method.GET -> handleSims()
             uri == "/api/thread-for" && session.method == Method.GET -> handleThreadFor(session)
+            messageDeleteMatch != null && session.method == Method.POST ->
+                handleDeleteMessage(messageDeleteMatch.groupValues[1].toLong())
             partMatch != null && session.method == Method.GET ->
                 handlePart(partMatch.groupValues[1].toLong(), session)
             signalPartMatch != null && session.method == Method.GET ->
@@ -1110,6 +1113,27 @@ class DesktopSyncServer(
                 JSONObject().put("error", failure.message ?: "that did not work")
             )
         }
+        return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+    }
+
+    /**
+     * Delete one SMS or MMS message.
+     *
+     * SMS only, which is not an omission: there is no delete for a Signal message anywhere
+     * in this app, the phone's own Signal thread included, and a browser-only way to
+     * remove one would be a capability the device it syncs with does not have. The ids the
+     * browser holds for Signal messages are derived stable numbers rather than the real
+     * ones, so there would be nothing to address it by either.
+     */
+    private fun handleDeleteMessage(messageId: Long): Response {
+        runCatching { messageRepository.deleteMessages(listOf(messageId)) }
+            .exceptionOrNull()?.let { failure ->
+                Timber.w(failure, "Desktop Sync: delete message")
+                return jsonResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    JSONObject().put("error", failure.message ?: "that did not work")
+                )
+            }
         return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
     }
 

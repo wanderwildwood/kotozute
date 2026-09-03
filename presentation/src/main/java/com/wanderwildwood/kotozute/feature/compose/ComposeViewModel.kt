@@ -249,16 +249,22 @@ class ComposeViewModel @Inject constructor(
             // Rx worker throws "Realm access from incorrect thread" and takes the app down.
             // Only the String crosses, so the lookup below never touches Realm at all.
             .map { conversation ->
-                conversation.recipients
+                // Both read here, before the hop to io: these are managed Realm objects
+                // and they belong to the thread that made them.
+                conversation.id to conversation.recipients
                     .takeIf { it.size == 1 }
                     ?.firstOrNull()
                     ?.address
                     .orEmpty()
             }
             .observeOn(Schedulers.io())
-            .doOnNext { address ->
-                val key = address.takeIf { it.isNotBlank() }
-                    ?.let { signalRepo.findThreadForNumber(it)?.threadKey }
+            .doOnNext { (conversationId, address) ->
+                // A link made by hand first. It is how the rails are joined for a contact
+                // whose Signal shares no number, and one set from the browser has to hold
+                // here too, or the pair is joined in one place and separate in the other.
+                val key = signalRepo.linkedThreadKeyFor(conversationId)
+                    ?: address.takeIf { it.isNotBlank() }
+                        ?.let { signalRepo.findThreadForNumber(it)?.threadKey }
                 newState { copy(signalThreadKey = key) }
             }
             .subscribe()

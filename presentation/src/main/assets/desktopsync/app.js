@@ -946,6 +946,88 @@ function openThreadMenu(t, x, y) {
   threadMenuEl.style.top = Math.max(8, top) + 'px';
 }
 
+/**
+ * What can be done with one message.
+ *
+ * Copy and forward work on either rail; delete is SMS only. That is not an omission --
+ * there is no delete for a Signal message anywhere in this app, the phone's own thread
+ * screen included, and the id the browser holds for one is a derived number rather than
+ * the real one, so there would be nothing to address.
+ */
+function openMessageMenu(m, x, y) {
+  const text = (m.body || '').trim();
+  const items = [];
+  if (text) items.push(['Copy text', () => copyText(text)]);
+  if (text) items.push(['Forward\u2026', () => forwardText(text)]);
+  // The thread's rail, not the message's: an SMS message carries no rail field at all, so
+  // testing the message would rely on an absence rather than a fact.
+  if (text && activeThreadRail !== 'signal') {
+    items.push(null);
+    items.push(['Delete', () => deleteMessage(m), true]);
+  }
+  if (!items.length) return;
+
+  threadMenuEl.innerHTML = '';
+  items.forEach(item => {
+    if (!item) { threadMenuEl.append(document.createElement('hr')); return; }
+    const [label, run, danger] = item;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (danger) b.className = 'danger';
+    b.addEventListener('click', () => { closeThreadMenu(); run(); });
+    threadMenuEl.append(b);
+  });
+
+  threadMenuEl.hidden = false;
+  const r = threadMenuEl.getBoundingClientRect();
+  threadMenuEl.style.left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8)) + 'px';
+  threadMenuEl.style.top = Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    statusEl.textContent = 'copied';
+  } catch (e) {
+    // Clipboard access needs a secure context, and this is served over plain HTTP on a
+    // tailnet. Fall back to the old selection trick rather than failing silently.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.append(ta);
+    ta.select();
+    try { document.execCommand('copy'); statusEl.textContent = 'copied'; }
+    catch (e2) { statusEl.textContent = 'could not copy'; }
+    ta.remove();
+  }
+}
+
+/** Forwarding is composing a new message that already says the thing. */
+function forwardText(text) {
+  enterComposeMode();
+  bodyEl.value = text;
+  autoGrow();
+  bodyEl.focus();
+}
+
+async function deleteMessage(m) {
+  if (!confirm('Delete this message? This cannot be undone.')) return;
+  try {
+    const res = await api('/api/messages/' + m.id + '/delete', { method: 'POST' });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      statusEl.textContent = d.error || 'could not delete that';
+      return;
+    }
+    lastMessagesSig = '';
+    await loadMessages();
+  } catch (e) {
+    statusEl.textContent = 'the phone did not answer';
+  }
+}
+
 function closeThreadMenu() { threadMenuEl.hidden = true; }
 document.addEventListener('click', e => {
   if (!threadMenuEl.hidden && !threadMenuEl.contains(e.target)) closeThreadMenu();
@@ -1426,6 +1508,12 @@ async function loadMessages() {
     } else {
       inner.append(bubble, stamp);
     }
+    // The phone opens a message's actions with a long press; on a desktop that is the
+    // right-click, and a long press on a touchscreen still arrives as one.
+    wrap.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      openMessageMenu(m, e.clientX, e.clientY);
+    });
     wrap.append(inner);
     messagesEl.append(wrap);
   });

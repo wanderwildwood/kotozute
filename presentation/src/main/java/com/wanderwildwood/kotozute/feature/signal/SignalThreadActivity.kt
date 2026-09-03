@@ -381,8 +381,22 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     private fun findSmsCounterpart() {
-        // The number lives on the thread row, so read it rather than guess from the key.
         thread(isDaemon = true) {
+            // A link made by hand wins over any matching, and is checked first. It exists
+            // for the pairs matching cannot see -- a contact whose Signal shares no number
+            // at all -- and a link set from the browser has to hold here too, or the same
+            // two conversations are joined in one place and separate in the other.
+            runCatching { signalRepo.linkedConversationId(threadKey) }.getOrNull()?.let { linked ->
+                runOnUiThread {
+                    smsThreadId = linked
+                    showRailBadge()
+                    invalidateOptionsMenu()
+                }
+                return@thread
+            }
+
+            // Otherwise the number, which lives on the thread row -- read it rather than
+            // guess it from the key.
             val n = runCatching {
                 io.realm.Realm.getDefaultInstance().use { realm ->
                     realm.where(com.wanderwildwood.kotozute.model.SignalThread::class.java)

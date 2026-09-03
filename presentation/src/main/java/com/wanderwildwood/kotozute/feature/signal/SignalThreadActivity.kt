@@ -391,15 +391,16 @@ class SignalThreadActivity : QkThemedActivity() {
                 }
             }.getOrDefault("")
             if (n.isBlank()) return@thread
-            // Try every number on the same address-book card, and take the conversation
-            // that has been used most recently. Someone whose Signal is still on an old
-            // number will have a dead SMS thread there and a live one on the new number;
-            // landing on the dead one would be worse than not offering the switch at all.
+            // This number, and only this number.
+            //
+            // It used to try every number on the same address-book card, so that someone
+            // whose Signal was still on an old number crossed to their live SMS thread.
+            // That is gone on purpose, and the same change is made on the other side in
+            // findThreadForNumber: two rails reached on two different numbers are two
+            // conversations, because keeping them apart is a thing a person may want and
+            // the app cannot tell that intent from an oversight.
             val id = runCatching {
-                signalRepo.numbersForContactOf(n)
-                    .mapNotNull { conversationRepo.getConversation(listOf(it)) }
-                    .maxByOrNull { it.date }
-                    ?.id ?: 0L
+                conversationRepo.getConversation(listOf(n))?.id ?: 0L
             }.getOrDefault(0L)
             if (id != 0L) runOnUiThread {
                 smsThreadId = id

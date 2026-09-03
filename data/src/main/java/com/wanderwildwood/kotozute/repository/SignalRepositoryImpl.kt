@@ -555,38 +555,20 @@ class SignalRepositoryImpl @Inject constructor(
                 .equalTo("kind", "direct")
                 .findAll()
 
-            // The number itself first.
-            threads.firstOrNull { phoneNumberUtils.compare(it.counterpartNumber, number) }
-                ?.let { return realm.copyFromRealm(it) }
-
-            // Then every other number on the same address-book card. Someone who changed
-            // numbers and left Signal on the old one is one person with two numbers, not
-            // two people -- and that is common enough to be worth the second lookup.
-            val alternates = realm.where(Contact::class.java)
-                .findAll()
-                .firstOrNull { c -> c.numbers.any { phoneNumberUtils.compare(it.address, number) } }
-                ?.numbers
-                ?.map { it.address }
-                .orEmpty()
-
-            val viaContact = threads.firstOrNull { t ->
-                alternates.any { alt -> phoneNumberUtils.compare(t.counterpartNumber, alt) }
-            }
+            // The number, and only the number.
+            //
+            // This used to fall back to every other number on the same address-book card,
+            // so that someone who changed numbers and left Signal on the old one still
+            // crossed between their two threads. That is deliberately gone: two rails
+            // reached on two different numbers are left as two conversations, because
+            // keeping them apart is a thing a person may well want, and the app cannot
+            // tell that intent from an oversight. Same number, one person, one crossing;
+            // anything less certain than that is not asserted.
+            //
             // Detached: the caller is on another thread and outlives this Realm.
-            return viaContact?.let { realm.copyFromRealm(it) }
-        }
-    }
-
-    override fun numbersForContactOf(number: String): List<String> {
-        if (number.isBlank()) return listOf()
-        Realm.getDefaultInstance().use { realm ->
-            val nums = realm.where(Contact::class.java)
-                .findAll()
-                .firstOrNull { c -> c.numbers.any { phoneNumberUtils.compare(it.address, number) } }
-                ?.numbers
-                ?.map { it.address }
-                .orEmpty()
-            return if (nums.isEmpty()) listOf(number) else nums
+            return threads
+                .firstOrNull { phoneNumberUtils.compare(it.counterpartNumber, number) }
+                ?.let { realm.copyFromRealm(it) }
         }
     }
 

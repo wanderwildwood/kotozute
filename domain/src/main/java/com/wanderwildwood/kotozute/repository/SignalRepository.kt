@@ -61,12 +61,6 @@ interface SignalRepository {
      */
     fun findThreadForNumber(number: String): SignalThread?
 
-    /**
-     * Every number on the address-book card that [number] belongs to, or just [number]
-     * when there is no card. Used to find the SMS conversation for a Signal thread whose
-     * number is an old one the person no longer texts from.
-     */
-    fun numbersForContactOf(number: String): List<String>
 
     /**
      * Display names for the people who sent messages in a thread, keyed by their Signal

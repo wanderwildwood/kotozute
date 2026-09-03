@@ -29,8 +29,12 @@
 
     <item>
         <selector>
+            <!-- Translucent, necessarily: this selector is a foreground and paints over
+                 the row's own text. It was separatorLight, which this fork redefined to
+                 opaque #000000 for the e-ink palette, so a selected conversation became a
+                 solid black rectangle with its title and snippet buried under it. -->
             <item android:state_activated="true">
-                <color android:color="@color/separatorLight" />
+                <color android:color="@color/selectionLight" />
             </item>
 
             <item>

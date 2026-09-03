@@ -51,6 +51,17 @@
     <color name="bubbleBlack">#111111</color>
 
     <color name="separatorLight">#000000</color>
+
+    <!-- The wash over a selected row, and it must be TRANSLUCENT.
+         This is used as a foreground, which draws on top of the row's own text, so any
+         opaque value hides the thing being selected. It was separatorLight (#000000,
+         because a 1px divider on e-ink should be black) and a selected conversation became
+         a solid black rectangle with the title and snippet buried underneath. Making it an
+         opaque grey only changed the colour of the blindfold. A separator colour and a
+         selection wash want opposite things from the same palette.
+         The row's background selector supplies the solid tone; this only deepens it. -->
+    <color name="selectionLight">#22000000</color>
+    <color name="selectionDark">#33FFFFFF</color>
     <color name="separatorDark">#FFFFFF</color>
 
     <color name="switchThumbEnabledLight">#000000</color>

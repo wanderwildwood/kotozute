@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- In dark mode the light selection fill would be near-white and just as unreadable
+         as the black one was in light mode. Same reasoning, other direction. -->
+    <color name="selectionLight">@color/selectionDark</color>
+
+</resources>

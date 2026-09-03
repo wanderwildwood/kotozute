@@ -386,6 +386,15 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 		}
 		if p, ok := people[recipientID]; ok && p.name != "" {
 			_ = store.SetThreadMeta(key, "direct", p.name, nil)
+			continue
+		}
+		// A group recipient is never in `people` -- it goes to groupTitles instead -- so
+		// this loop used to walk straight past every group and leave it named with its raw
+		// zkgroup id. Restoring a backup then gave back a list where every group
+		// conversation was a wall of base64, until signal-cli happened to re-sync the
+		// names on its own, which it only does when something changes in the group.
+		if title := groupTitles[recipientID]; title != "" {
+			_ = store.SetThreadMeta(key, "group", title, nil)
 		}
 	}
 	return st, nil

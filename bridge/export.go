@@ -120,12 +120,24 @@ func ExportStore(store *Store, dir, attachDir, selfUUID string) (ExportStats, er
 			if existing := senders[strings.TrimPrefix(t.Key, "direct:")]; existing != "" {
 				recipientID = existing
 			}
+			// A direct thread is keyed on the counterpart's UUID where one is known and on
+			// their number where it is not -- normalize falls back deliberately, so a
+			// number-keyed thread is ordinary, not a fault. Writing that number into the
+			// "aci" field made the round trip drop the whole conversation: canonicalUUID
+			// refuses it on the way back in, e164 was empty because the contacts join keys
+			// on uuid, and a thread with neither identifier has nowhere to go. So the key
+			// goes to whichever field it actually is.
+			ident := strings.TrimPrefix(t.Key, "direct:")
+			aci, e164 := ident, t.Number
+			if strings.HasPrefix(ident, "+") {
+				aci, e164 = "", ident
+			}
 			if err := enc.Encode(map[string]any{"recipient": map[string]any{
 				"id": recipientID,
 				"contact": map[string]any{
 					// Written canonically, which canonicalUUID passes through unchanged.
-					"aci":             strings.TrimPrefix(t.Key, "direct:"),
-					"e164":            t.Number,
+					"aci":             aci,
+					"e164":            e164,
 					"systemGivenName": t.Title,
 				},
 			}}); err != nil {

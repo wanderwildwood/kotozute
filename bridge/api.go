@@ -8,17 +8,35 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // A photo grows by about a third in base64, so this allows a large one with room over.
 const maxSendBytes = 48 << 20
 
+// SelfUUID holds the account's own UUID.
+//
+// On a first run it is not known at start: a goroutine resolves it from signal-cli seconds
+// later, and by then the reader goroutine and every HTTP handler are already reading it. A
+// Go string is two words, a pointer and a length, so an unsynchronised read across that
+// write can pair one string's pointer with the other's length -- a read past the end of
+// the allocation at worst, a wrong sender on a message at best. Behind an atomic a reader
+// sees one whole value or the other.
+type SelfUUID struct{ v atomic.Value }
+
+func (s *SelfUUID) Get() string {
+	u, _ := s.v.Load().(string)
+	return u
+}
+
+func (s *SelfUUID) Set(u string) { s.v.Store(u) }
+
 type API struct {
 	store *Store
 	sc    *SignalCLI
 	auth  *Auth
-	self  string
+	self  *SelfUUID
 	atts  *Attachments
 
 	subsMu sync.Mutex
@@ -36,7 +54,7 @@ type subscriber struct {
 	dropped bool
 }
 
-func NewAPI(st *Store, sc *SignalCLI, auth *Auth, self string, atts *Attachments) *API {
+func NewAPI(st *Store, sc *SignalCLI, auth *Auth, self *SelfUUID, atts *Attachments) *API {
 	return &API{store: st, sc: sc, auth: auth, self: self, atts: atts,
 		subs: map[chan *Message]*subscriber{}}
 }
@@ -102,7 +120,7 @@ func (a *API) state(w http.ResponseWriter, r *http.Request) {
 	instance, _ := a.store.InstanceID()
 	writeJSON(w, 200, map[string]any{
 		"instance":        instance,
-		"account":         a.self,
+		"account":         a.self.Get(),
 		"signalConnected": a.sc.Connected(),
 		"signalError":     a.sc.LastError(),
 		"maxSeq":          maxSeq,
@@ -122,7 +140,8 @@ func (a *API) threads(w http.ResponseWriter, r *http.Request) {
 	// The account is never in its own contact list, so its thread would otherwise
 	// reach the client as a bare uuid with no name to show.
 	for _, row := range t {
-		if row.Title == "" && a.self != "" && row.Key == "direct:"+a.self {
+		self := a.self.Get()
+		if row.Title == "" && self != "" && row.Key == "direct:"+self {
 			row.Title = "Note to Self"
 		}
 	}
@@ -395,7 +414,7 @@ func (a *API) send(w http.ResponseWriter, r *http.Request, key string) {
 		ts, err = a.sc.SendToGroup(strings.TrimPrefix(key, "group:"), body.Message, body.Attachments)
 	case strings.HasPrefix(key, "direct:"):
 		to := strings.TrimPrefix(key, "direct:")
-		if to == a.self {
+		if to == a.self.Get() {
 			ts, err = a.sc.SendToNoteToSelf(body.Message, body.Attachments)
 		} else {
 			ts, err = a.sc.SendToRecipient(to, body.Message, body.Attachments)
@@ -413,8 +432,8 @@ func (a *API) send(w http.ResponseWriter, r *http.Request, key string) {
 	// sending connection, so without this the message would not appear until some
 	// other device synced it -- and for Note to Self, never.
 	m := &Message{
-		ID: fmt.Sprintf("%s:%d", a.self, ts), ThreadKey: key, TS: ts,
-		SenderUUID: a.self, Outgoing: true, Body: body.Message,
+		ID: fmt.Sprintf("%s:%d", a.self.Get(), ts), ThreadKey: key, TS: ts,
+		SenderUUID: a.self.Get(), Outgoing: true, Body: body.Message,
 		Read: true, Source: "live",
 		// Signal assigns attachment ids on upload and the send result does not report
 		// them, so our own sent attachments are recorded without one. The sender still

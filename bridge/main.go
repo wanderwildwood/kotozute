@@ -147,6 +147,11 @@ func main() {
 	}
 
 	sc := NewSignalCLI(*scAddr, *account)
+
+	// One holder, read by the signal-cli reader goroutine and by every HTTP handler,
+	// written by the detection goroutine below. See SelfUUID for why it is not a plain
+	// string: on a first run the write lands seconds in, with readers already going.
+	selfUUID := &SelfUUID{}
 	self := *selfID
 	if self == "" {
 		// Remembered from a previous run. Without this the first few seconds after a
@@ -158,7 +163,9 @@ func main() {
 		}
 	}
 
-	api := NewAPI(store, sc, auth, self, NewAttachments(*scData))
+	selfUUID.Set(self)
+
+	api := NewAPI(store, sc, auth, selfUUID, NewAttachments(*scData))
 
 	// Every envelope signal-cli pushes lands here. This is the only writer of
 	// live messages, so ordering and idempotency are settled in one place.
@@ -170,7 +177,7 @@ func main() {
 
 	var handle func(params json.RawMessage)
 	handle = func(params json.RawMessage) {
-		m, receipt, err := normalize(self, params)
+		m, receipt, err := normalize(selfUUID.Get(), params)
 		if err != nil {
 			log.Printf("normalize: %v", err)
 			return
@@ -209,9 +216,11 @@ func main() {
 	}
 
 	sc.OnEvent = func(params json.RawMessage) {
-		if self == "" {
+		if selfUUID.Get() == "" {
+			// Re-checked under the lock: the drain below empties `pending` and it must not
+			// be possible to append to it afterwards, or that envelope is never handled.
 			pendingMu.Lock()
-			if self == "" {
+			if selfUUID.Get() == "" {
 				pending = append(pending, params)
 				pendingMu.Unlock()
 				return
@@ -258,12 +267,14 @@ func main() {
 			if !sc.Connected() {
 				continue
 			}
-			if self == "" {
+			if selfUUID.Get() == "" {
 				if u := detectSelfUUID(sc, *account); u != "" {
+					// Under the lock so it cannot be set between OnEvent's unlocked check
+					// and its locked one, which would leave that envelope in a queue
+					// nothing drains again.
 					pendingMu.Lock()
-					self = u
+					selfUUID.Set(u)
 					pendingMu.Unlock()
-					api.self = u
 					_ = store.SetMeta("selfUuid", u)
 					log.Printf("self uuid: learned")
 					drainPending()

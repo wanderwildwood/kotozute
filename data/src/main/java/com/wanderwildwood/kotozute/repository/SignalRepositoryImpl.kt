@@ -767,16 +767,11 @@ class SignalRepositoryImpl @Inject constructor(
             )
         }
 
-    override fun getMessagesSnapshot(threadKey: String, limit: Int, query: String): List<SignalMessage> =
+    override fun getMessagesSnapshot(threadKey: String, limit: Int): List<SignalMessage> =
         Realm.getDefaultInstance().use { realm ->
             val all = realm.where(SignalMessage::class.java)
                 .equalTo("threadKey", threadKey)
                 .unexpired()
-                .apply {
-                    if (query.isNotBlank()) {
-                        contains("body", query, io.realm.Case.INSENSITIVE)
-                    }
-                }
                 .sort("date", Sort.ASCENDING)
                 .findAll()
             // The tail, like the SMS side: a long thread is re-fetched every few seconds.

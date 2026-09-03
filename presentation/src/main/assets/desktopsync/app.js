@@ -147,11 +147,6 @@ const paneTitleEl = document.getElementById('paneTitle');
 const statusEl = document.getElementById('status');
 const crossBtnEl = document.getElementById('crossBtn');
 let crossTarget = null;
-const findBtnEl = document.getElementById('findBtn');
-const findBarEl = document.getElementById('findBar');
-const findFieldEl = document.getElementById('findField');
-const findCountEl = document.getElementById('findCount');
-const findCloseEl = document.getElementById('findClose');
 const bodyEl = document.getElementById('body');
 const composerEl = document.getElementById('composer');
 const sendEl = document.getElementById('send');
@@ -986,8 +981,6 @@ async function runThreadAction(t, action, label) {
       messagesEl.innerHTML = '';
       bodyEl.disabled = true;
       crossBtnEl.hidden = true;
-      findBtnEl.hidden = true;
-      findBarEl.hidden = true;
     }
     lastThreadsSig = '';
     await loadThreads();
@@ -1010,9 +1003,6 @@ archiveBtn.addEventListener('click', async () => {
   paneTitleEl.textContent = 'Select a conversation';
   bodyEl.disabled = true;
   crossBtnEl.hidden = true;
-  findBtnEl.hidden = true;
-  findBarEl.hidden = true;
-  threadQuery = '';
   await loadThreads();
 });
 
@@ -1098,13 +1088,6 @@ async function selectThread(id, title) {
   messageLimit = 300;    // start each thread at the most recent page
   hasMoreMessages = false;
   activeThreadId = id;
-  // A find belongs to the conversation it was made in; carrying it into the next one
-  // would show someone else's thread filtered by a word they never said.
-  threadQuery = '';
-  findBarEl.hidden = true;
-  findFieldEl.value = '';
-  findCountEl.textContent = '';
-  findBtnEl.hidden = false;
   activeThreadRail = (lastThreads.find(t => t.id === id) || {}).rail || 'sms';
   activeThreadTitle = title || '';
   paneTitleEl.textContent = activeThreadTitle || 'Conversation';
@@ -1148,45 +1131,6 @@ crossBtnEl.addEventListener('click', () => {
   if (crossTarget) selectThread(crossTarget.id, crossTarget.title);
 });
 
-/** Finding inside the open conversation. Closing it puts the whole thread back. */
-function openFind() {
-  findBarEl.hidden = false;
-  findFieldEl.focus();
-  findFieldEl.select();
-}
-
-async function closeFind() {
-  findBarEl.hidden = true;
-  findFieldEl.value = '';
-  findCountEl.textContent = '';
-  if (threadQuery) {
-    threadQuery = '';
-    lastMessagesSig = '';
-    await loadMessages();
-  }
-}
-
-findBtnEl.addEventListener('click', () => {
-  if (findBarEl.hidden) openFind(); else closeFind();
-});
-findCloseEl.addEventListener('click', closeFind);
-
-let findTimer = null;
-findFieldEl.addEventListener('input', () => {
-  clearTimeout(findTimer);
-  // Debounced, and two characters before anything is sent -- the same floor the
-  // conversation search uses, for the same reason: one letter matches most of a thread.
-  findTimer = setTimeout(async () => {
-    const q = findFieldEl.value.trim();
-    const next = q.length >= 2 ? q : '';
-    if (next === threadQuery) return;
-    threadQuery = next;
-    lastMessagesSig = '';
-    await loadMessages();
-  }, 220);
-});
-findFieldEl.addEventListener('keydown', e => { if (e.key === 'Escape') closeFind(); });
-
 /** Tell the phone this thread has been read (clears its notification + badge). */
 async function markThreadRead(id) {
   if (id === null || id === undefined) return;
@@ -1197,31 +1141,19 @@ async function markThreadRead(id) {
   }
 }
 
-// What is being looked for inside the open conversation, or ''. Sent to the phone rather
-// than filtered here: the browser holds only the most recent page, so a find that only
-// looked at what is loaded would quietly miss the older half of a long thread.
-let threadQuery = '';
-
 async function loadMessages() {
   if (activeThreadId === null) return;
-  const res = await api('/api/threads/' + activeThreadId + '/messages?limit=' + messageLimit +
-    (threadQuery ? '&q=' + encodeURIComponent(threadQuery) : ''));
+  const res = await api('/api/threads/' + activeThreadId + '/messages?limit=' + messageLimit);
   if (!res.ok) return;
   const payload = await res.json();
   // Response used to be a bare array; it's now {total, hasMore, messages}
   const messages = Array.isArray(payload) ? payload : (payload.messages || []);
   hasMoreMessages = Array.isArray(payload) ? false : !!payload.hasMore;
-  if (threadQuery) {
-    const n = messages.length;
-    findCountEl.textContent = n === 0 ? 'no matches' : n + (n === 1 ? ' match' : ' matches');
-  } else {
-    findCountEl.textContent = '';
-  }
 
   // The poll runs every few seconds. Rebuilding the DOM each time would throw away
   // the reader's scroll position (and any in-flight image loads), so bail out when
   // nothing has actually changed.
-  const sig = activeThreadId + ':' + messageLimit + ':' + threadQuery + ':' + messages.length + ':' +
+  const sig = activeThreadId + ':' + messageLimit + ':' + messages.length + ':' +
     (messages.length ? messages[messages.length - 1].id + ':' + messages[messages.length - 1].date : '');
   if (sig === lastMessagesSig) return;
   const isNewThread = !lastMessagesSig.startsWith(activeThreadId + ':');

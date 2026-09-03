@@ -94,12 +94,7 @@ interface SignalRepository {
      */
     fun searchThreads(query: String): List<SignalSearchHit>
 
-    /**
-     * The tail of a thread, or the messages in it matching [query] when one is given --
-     * the SMS side's getMessagesSync has taken a query all along, and finding inside a
-     * conversation should not be a thing only one rail can do.
-     */
-    fun getMessagesSnapshot(threadKey: String, limit: Int, query: String = ""): List<SignalMessage>
+    fun getMessagesSnapshot(threadKey: String, limit: Int): List<SignalMessage>
 
     /**
      * How many unexpired messages this thread holds, so a caller showing only the tail can

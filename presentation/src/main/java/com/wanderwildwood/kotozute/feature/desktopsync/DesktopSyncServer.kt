@@ -1042,11 +1042,6 @@ class DesktopSyncServer(
     }
 
     private fun handleGetMessages(threadId: Long, session: IHTTPSession): Response {
-        // Finding inside a conversation, which the phone offers on both rails. Two
-        // characters, as everywhere else here: one letter matches most of a thread and
-        // costs a full scan to say so.
-        val query = session.parameters["q"]?.firstOrNull()?.trim().orEmpty().takeIf { it.length >= 2 }.orEmpty()
-
         signalThreadFor(threadId)?.let { thread ->
             val requested = session.parameters["limit"]?.firstOrNull()?.toIntOrNull()
             val limit = (requested ?: MESSAGE_PAGE_SIZE).coerceIn(1, MESSAGE_MAX_LIMIT)
@@ -1059,18 +1054,15 @@ class DesktopSyncServer(
                 emptyMap()
             }
             val array = JSONArray()
-            signalRepository.getMessagesSnapshot(thread.threadKey, limit, query)
+            signalRepository.getMessagesSnapshot(thread.threadKey, limit)
                 .forEach { array.put(signalMessageJson(it, senders)) }
             // The same envelope the SMS branch returns. A bare array here meant the browser
             // read hasMore as false for every Signal thread, so "Load older messages" was
             // never offered and a long conversation ended at its most recent page.
-            // While finding, "how many are there" means how many matched, and there is no
-            // older page to offer -- the matches are the whole result, not a window on it.
-            val total = if (query.isEmpty()) signalRepository.countMessages(thread.threadKey) else array.length()
+            val total = signalRepository.countMessages(thread.threadKey)
             return jsonResponse(Response.Status.OK, JSONObject().apply {
                 put("total", total)
-                put("hasMore", query.isEmpty() && total > limit)
-                if (query.isNotEmpty()) put("matching", true)
+                put("hasMore", total > limit)
                 put("messages", array)
             })
         }
@@ -1093,7 +1085,7 @@ class DesktopSyncServer(
         val isGroup = recipients.size > 1
         val senders = recipients.map { it.address to it.getDisplayName() }
 
-        val all = messageRepository.getMessagesSync(threadId, query)
+        val all = messageRepository.getMessagesSync(threadId)
         val total = all.size
         val array = JSONArray()
         all.takeLast(limit).forEach { message ->
@@ -1104,8 +1096,7 @@ class DesktopSyncServer(
         // messages exist without having to guess from the count.
         return jsonResponse(Response.Status.OK, JSONObject().apply {
             put("total", total)
-            put("hasMore", query.isEmpty() && total > limit)
-            if (query.isNotEmpty()) put("matching", true)
+            put("hasMore", total > limit)
             put("messages", array)
         })
     }

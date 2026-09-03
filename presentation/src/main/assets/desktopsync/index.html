@@ -226,6 +226,17 @@
     border: 0; border-bottom: 1px solid var(--line); cursor: pointer;
   }
   #linkList button:hover { background: var(--line); }
+  #schedList { max-height: 320px; margin-top: 12px; overflow-y: auto; }
+  .schedRow { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .schedMeta { font-size: 11px; color: var(--muted); }
+  .schedBody { margin: 3px 0 6px; font-size: 13px; word-break: break-word; }
+  .schedRow button {
+    padding: 3px 10px; font: inherit; font-size: 12px;
+    background: none; color: #a00;
+    border: 1px solid var(--line); border-radius: 3px; cursor: pointer;
+  }
+  .schedRow button:hover { border-color: #a00; }
+  .schedRow button:disabled { opacity: .5; cursor: default; }
   #infoClose {
     margin-top: 16px; padding: 6px 14px; font: inherit; font-size: 13px;
     background: var(--ink); color: var(--paper); border: 0; border-radius: 4px; cursor: pointer;

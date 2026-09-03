@@ -1306,6 +1306,11 @@ async function openSettings() {
 
   settingsPanelEl.append(document.createElement('hr'));
   settingsPanelEl.append(heading('Phone'));
+  settingsPanelEl.append(actionRow('Scheduled messages',
+    'Waiting to go out later', () => {
+      settingsPanelEl.hidden = true;
+      showScheduled();
+    }));
   settingsPanelEl.append(actionRow('Sync messages',
     'Re-read Android\u2019s own SMS store', async () => {
       settingsPanelEl.hidden = true;
@@ -1317,6 +1322,92 @@ async function openSettings() {
         statusEl.textContent = 'the phone did not answer';
       }
     }));
+}
+
+/**
+ * Messages waiting to go out later.
+ *
+ * Listed and cancellable, not composed. Scheduling one needs a date and time picker and a
+ * decision about whose clock it is -- the browser's or the phone's, which are not always
+ * the same -- and the thing worth having first is being able to see something is queued
+ * and stop it. A message you cannot see is the one that goes out when you did not want it.
+ */
+async function showScheduled() {
+  const panel = document.getElementById('infoPanel');
+  const body = document.getElementById('infoBody');
+  body.innerHTML = '';
+  body.append(heading2('Scheduled messages'));
+
+  let list;
+  try {
+    const res = await api('/api/scheduled');
+    list = (await res.json()).scheduled || [];
+  } catch (e) {
+    const p = document.createElement('p');
+    p.textContent = 'The phone did not answer.';
+    body.append(p);
+    panel.hidden = false;
+    return;
+  }
+
+  if (!list.length) {
+    const p = document.createElement('p');
+    p.textContent = 'Nothing is waiting to go out.';
+    body.append(p);
+    panel.hidden = false;
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.id = 'schedList';
+  list.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'schedRow';
+
+    const meta = document.createElement('div');
+    meta.className = 'schedMeta';
+    meta.textContent = new Date(m.date).toLocaleString() + ' \u2192 ' + (m.to || 'unknown');
+    row.append(meta);
+
+    const text = document.createElement('div');
+    text.className = 'schedBody';
+    text.textContent = m.body ||
+      (m.attachments ? '(' + m.attachments + ' attachment' + (m.attachments === 1 ? '' : 's') + ')' : '(empty)');
+    row.append(text);
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'danger';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', async () => {
+      if (!confirm('Cancel this scheduled message? It will not be sent.')) return;
+      cancel.disabled = true;
+      try {
+        const res = await api('/api/scheduled/' + m.id + '/cancel', { method: 'POST' });
+        if (!res.ok) { statusEl.textContent = 'could not cancel that'; cancel.disabled = false; return; }
+        row.remove();
+        if (!wrap.children.length) {
+          const p = document.createElement('p');
+          p.textContent = 'Nothing is waiting to go out.';
+          body.append(p);
+        }
+      } catch (e) {
+        statusEl.textContent = 'the phone did not answer';
+        cancel.disabled = false;
+      }
+    });
+    row.append(cancel);
+    wrap.append(row);
+  });
+  body.append(wrap);
+  panel.hidden = false;
+}
+
+/** The info panel's own heading, kept separate from the settings menu's small caps. */
+function heading2(text) {
+  const h = document.createElement('h2');
+  h.textContent = text;
+  return h;
 }
 
 settingsBtnEl.addEventListener('click', () => {

@@ -17,6 +17,7 @@ import android.telephony.PhoneNumberUtils
 import android.telephony.SubscriptionManager
 import android.webkit.MimeTypeMap
 import com.wanderwildwood.kotozute.interactor.SyncMessages
+import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.util.Preferences
 import kotlin.concurrent.thread
 import java.io.ByteArrayInputStream
@@ -71,6 +72,8 @@ class DesktopSyncServer(
     private val prefs: Preferences,
     /** The phone's "Sync messages": re-read Android's own SMS store. */
     private val syncMessages: SyncMessages,
+    /** Messages waiting to go out later, which the phone can list and the browser could not. */
+    private val scheduledMessageRepository: ScheduledMessageRepository,
 ) : NanoWSD(port) {
 
     /**
@@ -329,6 +332,7 @@ class DesktopSyncServer(
         val threadInfoMatch = Regex("^/api/threads/(-?\\d+)/info$").find(uri)
         val threadLinkMatch = Regex("^/api/threads/(-?\\d+)/link$").find(uri)
         val messageDeleteMatch = Regex("^/api/messages/(\\d+)/delete$").find(uri)
+        val scheduledCancelMatch = Regex("^/api/scheduled/(\\d+)/cancel$").find(uri)
         val partMatch = Regex("^/api/parts/(\\d+)$").find(uri)
         // The same strict shape the bridge itself enforces on an id it serves: the value
         // originates in a sender's attachment pointer, so nothing that could climb out of
@@ -342,6 +346,7 @@ class DesktopSyncServer(
             uri == "/api/settings" && session.method == Method.GET -> handleGetSettings()
             uri == "/api/settings" && session.method == Method.POST -> handleSetSetting(session)
             uri == "/api/sync" && session.method == Method.POST -> handleSyncMessages()
+            uri == "/api/scheduled" && session.method == Method.GET -> handleScheduled()
             uri == "/api/signal/pair" && session.method == Method.POST -> handleSignalPair(session)
             threadMessagesMatch != null && session.method == Method.GET ->
                 handleGetMessages(threadMessagesMatch.groupValues[1].toLong(), session)
@@ -354,6 +359,8 @@ class DesktopSyncServer(
             uri == "/api/thread-for" && session.method == Method.GET -> handleThreadFor(session)
             messageDeleteMatch != null && session.method == Method.POST ->
                 handleDeleteMessage(messageDeleteMatch.groupValues[1].toLong())
+            scheduledCancelMatch != null && session.method == Method.POST ->
+                handleCancelScheduled(scheduledCancelMatch.groupValues[1].toLong())
             partMatch != null && session.method == Method.GET ->
                 handlePart(partMatch.groupValues[1].toLong(), session)
             signalPartMatch != null && session.method == Method.GET ->
@@ -1250,6 +1257,51 @@ class DesktopSyncServer(
                 .exceptionOrNull()?.let { Timber.w(it, "Desktop Sync: sync messages") }
         }
         return jsonResponse(Response.Status.OK, JSONObject().put("started", true))
+    }
+
+    /**
+     * Messages waiting to go out later.
+     *
+     * Listed, and cancellable, but not composed here. Scheduling one needs a date and time
+     * picker and a decision about whose clock it is -- the browser's or the phone's, which
+     * are not always the same -- and the thing worth having first is being able to see
+     * that something is queued and stop it. A message you cannot see is the one that goes
+     * out when you did not want it to.
+     */
+    private fun handleScheduled(): Response {
+        val array = JSONArray()
+        runCatching { scheduledMessageRepository.getScheduledMessagesSnapshot() }
+            .getOrDefault(emptyList())
+            .forEach { m ->
+                array.put(JSONObject().apply {
+                    put("id", m.id)
+                    put("date", m.date)
+                    put("body", m.body)
+                    put("threadId", m.conversationId)
+                    // Who it goes to, resolved to names where the address book knows them:
+                    // a list of bare numbers is not something anyone can check at a glance.
+                    put("to", m.recipients.joinToString(", ") { address ->
+                        val conversation = runCatching {
+                            conversationRepository.getConversation(listOf(address))
+                        }.getOrNull()
+                        conversation?.getTitle()?.takeIf { it.isNotBlank() } ?: address
+                    })
+                    put("attachments", m.attachments.size)
+                })
+            }
+        return jsonResponse(Response.Status.OK, JSONObject().put("scheduled", array))
+    }
+
+    private fun handleCancelScheduled(id: Long): Response {
+        runCatching { scheduledMessageRepository.deleteScheduledMessage(id) }
+            .exceptionOrNull()?.let { failure ->
+                Timber.w(failure, "Desktop Sync: cancel scheduled")
+                return jsonResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    JSONObject().put("error", failure.message ?: "that did not work")
+                )
+            }
+        return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
     }
 
     private fun handleGetThreads(session: IHTTPSession): Response {

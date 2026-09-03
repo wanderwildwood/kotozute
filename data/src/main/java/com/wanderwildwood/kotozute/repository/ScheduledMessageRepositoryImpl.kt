@@ -56,6 +56,13 @@ class ScheduledMessageRepositoryImpl @Inject constructor() : ScheduledMessageRep
             .findAll()
     }
 
+    override fun getScheduledMessagesSnapshot(): List<ScheduledMessage> =
+        Realm.getDefaultInstance().use { realm ->
+            realm.copyFromRealm(
+                realm.where(ScheduledMessage::class.java).sort("date").findAll()
+            )
+        }
+
     override fun getScheduledMessage(id: Long): ScheduledMessage? {
         return Realm.getDefaultInstance()
             .apply { refresh() }

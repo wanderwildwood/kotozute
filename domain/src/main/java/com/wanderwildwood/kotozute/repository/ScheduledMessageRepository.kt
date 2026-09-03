@@ -49,6 +49,15 @@ interface ScheduledMessageRepository {
     fun getScheduledMessages(): RealmResults<ScheduledMessage>
 
     /**
+     * The same list, detached and with the Realm closed behind it.
+     *
+     * getScheduledMessages hands back managed objects from a Realm it never closes, which
+     * is survivable for a presenter that lives as long as its screen and a leak per call
+     * for anything else -- the relay answers each request on a fresh worker thread.
+     */
+    fun getScheduledMessagesSnapshot(): List<ScheduledMessage>
+
+    /**
      * Returns the scheduled message with the given [id]
      */
     fun getScheduledMessage(id: Long): ScheduledMessage?

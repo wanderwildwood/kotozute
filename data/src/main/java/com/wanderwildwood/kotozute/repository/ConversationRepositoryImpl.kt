@@ -197,6 +197,16 @@ class ConversationRepositoryImpl @Inject constructor(
             } + messagesByConversation
     }
 
+    override fun getBlockedConversationsSnapshot(): List<Conversation> =
+        Realm.getDefaultInstance().use { realm ->
+            realm.copyFromRealm(
+                realm.where(Conversation::class.java)
+                    .equalTo("blocked", true)
+                    .sort(arrayOf("lastMessage.date"), arrayOf(Sort.DESCENDING))
+                    .findAll()
+            )
+        }
+
     override fun getBlockedConversations(): RealmResults<Conversation> =
         Realm.getDefaultInstance()
             .where(Conversation::class.java)

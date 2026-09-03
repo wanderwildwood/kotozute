@@ -348,6 +348,7 @@ class DesktopSyncServer(
             uri == "/api/settings" && session.method == Method.POST -> handleSetSetting(session)
             uri == "/api/sync" && session.method == Method.POST -> handleSyncMessages()
             uri == "/api/scheduled" && session.method == Method.GET -> handleScheduled()
+            uri == "/api/blocked" && session.method == Method.GET -> handleBlocked()
             uri == "/api/signal/pair" && session.method == Method.POST -> handleSignalPair(session)
             threadMessagesMatch != null && session.method == Method.GET ->
                 handleGetMessages(threadMessagesMatch.groupValues[1].toLong(), session)
@@ -970,6 +971,7 @@ class DesktopSyncServer(
                 "unpin" -> conversationRepository.markUnpinned(threadId)
                 "unread" -> messageRepository.markUnread(listOf(threadId))
                 "block" -> conversationRepository.markBlocked(listOf(threadId), blockingManager(), null)
+                "unblock" -> conversationRepository.markUnblocked(threadId)
                 "delete" -> conversationRepository.deleteConversations(threadId)
                 else -> return jsonResponse(
                     Response.Status.BAD_REQUEST,
@@ -1345,6 +1347,34 @@ class DesktopSyncServer(
                 )
             }
         return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+    }
+
+    /**
+     * Who is blocked.
+     *
+     * The row menu could block someone and nothing could show it afterwards, so a block
+     * made by a mis-click was invisible and permanent from here -- the same shape of hole
+     * as offering Archive with nowhere for archived conversations to go. Unblocking is the
+     * existing action route, which already handles it.
+     *
+     * SMS only. Signal's block lives on the account rather than on a row here, so this
+     * phone has no list of it to show; saying nothing is better than showing a short list
+     * that looks complete.
+     */
+    private fun handleBlocked(): Response {
+        val array = JSONArray()
+        runCatching { conversationRepository.getBlockedConversationsSnapshot() }
+            .getOrDefault(emptyList())
+            .forEach { c ->
+                array.put(JSONObject().apply {
+                    put("id", c.id)
+                    put("title", c.getTitle())
+                    put("snippet", c.snippet ?: "")
+                    put("date", c.date)
+                    put("rail", "sms")
+                })
+            }
+        return jsonResponse(Response.Status.OK, JSONObject().put("blocked", array))
     }
 
     private fun handleGetThreads(session: IHTTPSession): Response {

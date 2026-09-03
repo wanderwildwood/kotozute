@@ -47,6 +47,13 @@ interface ConversationRepository {
 
     fun getBlockedConversations(): RealmResults<Conversation>
 
+    /**
+     * The same list, detached and with the Realm closed behind it -- getBlockedConversations
+     * leaves one open, which a screen that lives as long as its Realm survives and a caller
+     * on a fresh worker thread per request does not.
+     */
+    fun getBlockedConversationsSnapshot(): List<Conversation>
+
     fun getBlockedConversationsAsync(): RealmResults<Conversation>
 
     fun getConversationAsync(threadId: Long): Conversation

@@ -1281,6 +1281,10 @@ async function openSettings() {
   settingsPanelEl.append(heading('Conversations'));
   settingsPanelEl.append(settingRow('Unread at the top', null, s.unreadAtTop,
     (v, b) => setSetting('unreadAtTop', v, b)));
+  settingsPanelEl.append(actionRow('Blocked', 'Who is blocked, and how to undo it', () => {
+    settingsPanelEl.hidden = true;
+    showBlocked();
+  }));
 
   settingsPanelEl.append(heading('Signal'));
   if (s.signalConfigured) {
@@ -1473,6 +1477,92 @@ async function showSignalAccount() {
     list.append(row);
   });
   body.append(list);
+  panel.hidden = false;
+}
+
+/**
+ * Who is blocked, and a way back.
+ *
+ * The row menu could block someone and nothing could show it afterwards, so a block made
+ * by a mis-click was invisible and permanent from the browser -- the same shape of hole as
+ * offering Archive with nowhere for archived conversations to go.
+ *
+ * SMS only, because Signal's block lives on the account rather than on a row this phone
+ * holds. The panel says so rather than showing a short list that looks complete.
+ */
+async function showBlocked() {
+  const panel = document.getElementById('infoPanel');
+  const body = document.getElementById('infoBody');
+  body.innerHTML = '';
+  body.append(heading2('Blocked'));
+
+  let list;
+  try {
+    list = (await (await api('/api/blocked')).json()).blocked || [];
+  } catch (e) {
+    const p = document.createElement('p');
+    p.textContent = 'The phone did not answer.';
+    body.append(p);
+    panel.hidden = false;
+    return;
+  }
+
+  const note = document.createElement('p');
+  note.textContent = 'SMS only \u2014 a Signal block lives on the Signal account, not here.';
+  body.append(note);
+
+  if (!list.length) {
+    const p = document.createElement('p');
+    p.textContent = 'Nobody is blocked.';
+    body.append(p);
+    panel.hidden = false;
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.id = 'blockedList';
+  list.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'schedRow';
+    const name = document.createElement('div');
+    name.className = 'schedBody';
+    name.textContent = c.title || '(no name)';
+    row.append(name);
+    if (c.snippet) {
+      const sn = document.createElement('div');
+      sn.className = 'schedMeta';
+      sn.textContent = c.snippet;
+      row.append(sn);
+    }
+    const un = document.createElement('button');
+    un.type = 'button';
+    un.textContent = 'Unblock';
+    un.addEventListener('click', async () => {
+      un.disabled = true;
+      try {
+        const res = await api('/api/threads/' + c.id + '/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ action: 'unblock' })
+        });
+        if (!res.ok) { statusEl.textContent = 'could not unblock'; un.disabled = false; return; }
+        row.remove();
+        lastThreadsSig = '';
+        loadThreads();
+        if (!wrap.children.length) {
+          const p = document.createElement('p');
+          p.textContent = 'Nobody is blocked.';
+          body.append(p);
+        }
+      } catch (e) {
+        statusEl.textContent = 'the phone did not answer';
+        un.disabled = false;
+      }
+    });
+    row.append(un);
+    wrap.append(row);
+  });
+  body.append(wrap);
   panel.hidden = false;
 }
 

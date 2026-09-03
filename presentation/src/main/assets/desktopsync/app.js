@@ -1282,7 +1282,9 @@ async function openSettings() {
   }));
 
   settingsPanelEl.append(heading('Signal'));
-  if (s.signalConfigured) {
+  // Account only while Signal is actually on. The relay refuses it when off, and offering
+  // a row that answers "Signal is off" is worse than not offering it.
+  if (s.signalConfigured && s.signalEnabled) {
     settingsPanelEl.append(actionRow('Account',
       'The number, and the devices on it', () => {
         settingsPanelEl.hidden = true;
@@ -1297,12 +1299,16 @@ async function openSettings() {
     settingsPanelEl.append(p);
   } else {
     settingsPanelEl.append(settingRow('Show Signal conversations', null, s.signalEnabled,
-      (v, b) => setSetting('signalEnabled', v, b)));
-    settingsPanelEl.append(settingRow('One conversation list',
-      'Off keeps SMS and Signal apart', s.signalWeave,
-      (v, b) => setSetting('signalWeave', v, b)));
-    settingsPanelEl.append(settingRow('Send read receipts', null, s.signalReadReceipts,
-      (v, b) => setSetting('signalReadReceipts', v, b)));
+      (v, b) => setSetting('signalEnabled', v, b).then(ok => { if (ok) openSettings(); })));
+    // The two below only mean anything while Signal is on, so they appear with it. A
+    // control that does nothing is a question the reader has to answer for themselves.
+    if (s.signalEnabled) {
+      settingsPanelEl.append(settingRow('One conversation list',
+        'Off keeps SMS and Signal apart', s.signalWeave,
+        (v, b) => setSetting('signalWeave', v, b)));
+      settingsPanelEl.append(settingRow('Send read receipts', null, s.signalReadReceipts,
+        (v, b) => setSetting('signalReadReceipts', v, b)));
+    }
   }
 
   settingsPanelEl.append(heading('Desktop Sync'));

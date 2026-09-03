@@ -611,8 +611,12 @@ class DesktopSyncServer(
      * on it.
      */
     private fun handleSignalAccount(): Response {
-        if (!signalRepository.isConfigured()) {
-            return jsonResponse(Response.Status.OK, JSONObject().put("error", "no bridge paired"))
+        // Enabled, not merely configured. Turning Signal off should stop the browser
+        // reaching Signal, and this route was answering with the account -- number and
+        // devices -- while every other Signal route correctly refused. An off switch that
+        // some routes honour and others do not is not an off switch.
+        if (!signalEnabled() || !signalRepository.isConfigured()) {
+            return jsonResponse(Response.Status.OK, JSONObject().put("error", "Signal is off"))
         }
         val account = runCatching { signalRepository.account() }.getOrElse { failure ->
             Timber.w(failure, "Desktop Sync: account lookup")

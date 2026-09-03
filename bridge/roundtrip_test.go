@@ -102,3 +102,47 @@ func TestAGroupComesBackWithItsName(t *testing.T) {
 			row.Title, "Bridge Club")
 	}
 }
+
+// A message still waiting to be read should come back still waiting. Import hardcoded
+// Read: true and threw the flag away, so restoring a backup marked everything as seen --
+// including whatever had arrived while you were away.
+func TestAnUnreadMessageComesBackUnread(t *testing.T) {
+	dst := roundTrip(t, func(src *Store) {
+		if _, _, err := src.InsertMessage(&Message{
+			ID: "u1", ThreadKey: "direct:11111111-1111-4111-8111-111111111111", TS: testNow,
+			SenderUUID: "11111111-1111-4111-8111-111111111111",
+			Body:       "did you see this", Read: false,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	msgs, err := dst.ThreadMessages("direct:11111111-1111-4111-8111-111111111111", 0, 10)
+	if err != nil || len(msgs) != 1 {
+		t.Fatalf("restored %d message(s): %v", len(msgs), err)
+	}
+	if msgs[0].Read {
+		t.Error("came back marked read; a restore should not clear what was waiting for you")
+	}
+	row := threadNamed(t, dst, "direct:11111111-1111-4111-8111-111111111111")
+	if row == nil || row.Unread != 1 {
+		t.Errorf("thread unread = %v, want 1", row)
+	}
+}
+
+// A read message must stay read -- the flag is honoured in both directions, not inverted.
+func TestAReadMessageComesBackRead(t *testing.T) {
+	dst := roundTrip(t, func(src *Store) {
+		if _, _, err := src.InsertMessage(&Message{
+			ID: "r1", ThreadKey: "direct:11111111-1111-4111-8111-111111111111", TS: testNow,
+			SenderUUID: "11111111-1111-4111-8111-111111111111",
+			Body:       "old news", Read: true,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	msgs, _ := dst.ThreadMessages("direct:11111111-1111-4111-8111-111111111111", 0, 10)
+	if len(msgs) != 1 || !msgs[0].Read {
+		t.Errorf("a read message came back unread: %+v", msgs)
+	}
+}

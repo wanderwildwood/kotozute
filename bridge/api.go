@@ -543,6 +543,32 @@ func writeErr(w http.ResponseWriter, err error) {
 // redactPath replaces the identifying segment of a route with its kind, so the log says
 // which route was called without saying who it was about: /v1/threads/direct:<aci>/messages
 // becomes /v1/threads/direct:_/messages.
+// safeForLog strips anything that could make one log line look like several. r.URL.Path is
+// the percent-DECODED path, so a request for /v1/%0Akotozute-bridge:%20paired put a literal
+// newline into the output, and journald splits stderr on newlines -- giving an
+// unauthenticated caller on the LAN a way to write entries into `journalctl -u
+// kotozute-bridge` indistinguishable from the bridge's own. The logging middleware wraps
+// the whole mux, so it runs before the token is checked and on 404s too.
+func safeForLog(s string) string {
+	const max = 120
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r == '\n' || r == '\r' || r == '\t':
+			b.WriteByte(' ')
+		case r < 0x20 || r == 0x7f:
+			b.WriteByte('?')
+		default:
+			b.WriteRune(r)
+		}
+		if b.Len() >= max {
+			b.WriteString("...")
+			break
+		}
+	}
+	return b.String()
+}
+
 func redactPath(p string) string {
 	parts := strings.Split(p, "/")
 	for i, seg := range parts {
@@ -555,7 +581,7 @@ func redactPath(p string) string {
 			parts[i] = "_"
 		}
 	}
-	return strings.Join(parts, "/")
+	return safeForLog(strings.Join(parts, "/"))
 }
 
 func logging(h http.Handler) http.Handler {

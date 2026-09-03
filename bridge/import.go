@@ -230,6 +230,10 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 		groupKeys[recipientID] = key
 	}
 
+	// Threads a message actually landed in, so the title pass below names conversations
+	// rather than conjuring them.
+	named := map[string]bool{}
+
 	files, err := indexFiles(filepath.Join(dir, "files"))
 	if err != nil {
 		return st, err
@@ -295,9 +299,12 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 			Outgoing:     outgoing,
 			Body:         body,
 			GroupID:      groupID,
-			// Imported history has been seen. Marking it unread would raise a notification
-			// storm for messages from years ago.
-			Read:    true,
+			// Our own export writes the real flag and it is honoured, so restoring a
+			// backup gives back a message still waiting to be read as still waiting.
+			// Signal's own archive carries no such field, and there everything decodes
+			// as read -- which is the right default for it: marking years of history
+			// unread would raise a notification storm.
+			Read:    isRead(it),
 			Source:  "import",
 			QuoteTS: quoteTS,
 		}
@@ -366,6 +373,7 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 		if err != nil {
 			return fmt.Errorf("insert %s: %w", m.ID, err)
 		}
+		named[threadKey] = true
 		if inserted {
 			st.Messages++
 		} else {
@@ -384,6 +392,13 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 		if key == "" {
 			continue
 		}
+		// Only threads a message actually landed in. SetThreadMeta inserts, so naming a
+		// chat that contributed nothing created the thread rather than labelling it, and
+		// a real Signal export carries a chat for every contact ever messaged -- so an
+		// import added a screenful of empty conversations, lastTs 0, above the real ones.
+		if !named[key] {
+			continue
+		}
 		if p, ok := people[recipientID]; ok && p.name != "" {
 			_ = store.SetThreadMeta(key, "direct", p.name, nil)
 			continue
@@ -398,6 +413,19 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 		}
 	}
 	return st, nil
+}
+
+// isRead is whether this imported message has already been seen.
+//
+// An outgoing message always has. An incoming one carries the flag in our own exports;
+// Signal's own archive has no "incoming" object at all on most items, and the zero value
+// there would mark decades of history unread, so absence means read and only an explicit
+// false means waiting.
+func isRead(it *expChatItem) bool {
+	if it.Incoming == nil {
+		return true
+	}
+	return it.Incoming.Read
 }
 
 func contactName(r *expRecipient) string {

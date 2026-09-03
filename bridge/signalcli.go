@@ -116,7 +116,20 @@ func (s *SignalCLI) session(stop <-chan struct{}) error {
 		s.mu.Unlock()
 	}()
 
-	go func() { <-stop; conn.Close() }()
+	// Closes the connection when the process is stopping. Bound to this session as well
+	// as to stop: it used to wait on stop alone, so every reconnect -- a read error,
+	// signal-cli restarting, the daemon being down -- left another goroutine parked on a
+	// dead conn for the life of the process. With the backoff capped at 30 seconds, a
+	// daemon down for a day parked about 2,880 of them.
+	sessionOver := make(chan struct{})
+	defer close(sessionOver)
+	go func() {
+		select {
+		case <-stop:
+			conn.Close()
+		case <-sessionOver:
+		}
+	}()
 
 	r := bufio.NewReaderSize(conn, 1<<20)
 	for {

@@ -138,15 +138,27 @@ else
       account goes with it, recoverable only by re-registering, which needs the
       registration-lock PIN if one is set.
 
-  Only if you mean all of that:
+  Only if you mean all of that.
 
-      $SIGNAL_CLI --config $SIGNAL_CLI_DATA -a +15551234567 register
+  Get a captcha token first -- register will not run without one. Open
 
-  You will need a captcha from
-  https://signalcaptchas.org/registration/generate.html and the code Signal
-  sends, then:
+      https://signalcaptchas.org/registration/generate.html
+
+  solve it, and copy the link the page hands back. It begins
+  signalcaptcha:// and is long. The token is everything after that prefix,
+  and it expires in a few minutes, so have it ready before you run:
+
+      $SIGNAL_CLI --config $SIGNAL_CLI_DATA -a +15551234567 \\
+          register --captcha '<the whole signalcaptcha:// link>'
+
+  Signal then sends a six-digit code to that number, by SMS. Enter it:
 
       $SIGNAL_CLI --config $SIGNAL_CLI_DATA -a +15551234567 verify 123456
+
+  If the code does not arrive, --voice on the register command asks for a
+  phone call instead. Do not run register again to retry: a second register
+  invalidates the session the first one opened, so a code already on its way
+  stops working and you wait for a new one.
 
   Both commands need root, because $SIGNAL_CLI_DATA is mode 700 and
   signal-cli is not on PATH -- run them with sudo, exactly as printed.

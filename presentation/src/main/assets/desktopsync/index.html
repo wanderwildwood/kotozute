@@ -167,6 +167,11 @@
     position: fixed; inset: 0; z-index: 60; display: flex;
     align-items: center; justify-content: center; background: rgba(0,0,0,.4);
   }
+  /* An explicit display beats the browser's [hidden] rule, so without this the panel is
+     on screen from page load with nothing in it, over the whole app, and the Close button
+     cannot dismiss it because setting .hidden changes nothing. Any element given a display
+     here needs its own hidden rule. */
+  #infoPanel[hidden] { display: none; }
   #infoCard {
     max-width: 420px; margin: 20px; padding: 20px;
     background: var(--paper); color: var(--ink);
@@ -402,6 +407,9 @@
   #attachments {
     display: flex; flex-wrap: wrap; gap: 8px;
   }
+  /* Same trap as #infoPanel: the display above beats [hidden], so the tray kept its gap
+     and padding in the composer with nothing staged in it. */
+  #attachments[hidden] { display: none; }
   .thumb {
     position: relative; width: 64px; height: 64px;
     border: 2px solid var(--ink); border-radius: 8px; overflow: hidden;

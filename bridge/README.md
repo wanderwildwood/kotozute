@@ -65,10 +65,44 @@ Running it twice imports nothing twice — messages are keyed the same way live 
 `--export <dir>` writes the store back out in the same shape, which is how you back it up or
 move it to another machine.
 
-It does not round-trip *everything*. Reply-quote links are not carried, and two attachments
-of identical byte length cannot be told apart on the way back in, so both are dropped and
-counted in the stats line as unmatched. Check that line: a backup that quietly lost files is
-worse than one that says so.
+Our own exports round-trip whole: reply-quote links, group titles and attachments all come
+back, because we write a filename beside every attachment and match on it. Signal's own
+exports do not carry one, so there an attachment is identified by byte length alone, and two
+files of identical length cannot be told apart -- both are dropped and counted in the stats
+line as unmatched. Check that line either way: a backup that quietly lost files is worse
+than one that says so.
+
+## Wiping the bridge
+
+`--wipe` deletes every message, thread, contact, stored identity and attachment file. It is
+the other half of the phone's "Delete Signal data", which clears only the phone -- the
+bridge keeps its own copy until this is run. It asks for the account number before doing
+anything; `--yes` skips that, for scripts.
+
+```
+kotozute-bridge --account +15551234567 --wipe
+```
+
+Deliberately not something the phone can ask for over the pairing: a token that can erase
+the whole store is a different kind of token.
+
+## Attachment retention
+
+Attachments pile up in `/var/lib/signal-cli/attachments` and nothing else prunes them --
+signal-cli downloads and forgets. Two flags will prune them, and **both are off by
+default**:
+
+| flag | what it does |
+|---|---|
+| `--attachment-days N` | delete attachments older than N days (0, the default, never deletes) |
+| `--attachment-max-mb N` | delete oldest-first until the directory is under N MB (0, the default, no cap) |
+
+Off by default because of what those files are. If this machine registered the number
+rather than linking to a phone, that directory holds **the only copy** of every photo
+anyone has ever sent it. Signal's servers do not keep them and no other device has them.
+Turn these on only where something else holds a copy, and note the sweep runs immediately
+at startup and every six hours after -- not only on old files you had already written off.
+When either flag is set the bridge says so in its log at every start.
 
 ## Doing it by hand
 
@@ -92,7 +126,7 @@ optional: see above.
 
 | | |
 |---|---|
-| `/var/lib/signal-cli` | the Signal account. If this machine registered the number rather than linking to a phone, **this directory is the account** — back it up, encrypted. |
+| `/var/lib/signal-cli` | the Signal account. If this machine registered the number rather than linking to a phone, **this directory is the account** — back it up, encrypted. Its `attachments/` subdirectory holds received media, and is the one place the bridge writes into and can be told to delete from; see [Attachment retention](#attachment-retention). |
 | `/var/lib/kotozute-bridge` | messages, and `token`, which is the only credential the phone uses. Treat it as the account. |
 | `127.0.0.1:7583` | signal-cli's JSON-RPC. No authentication; never expose it. |
 | `:8422` | the bridge. TLS, pinned certificate, bearer token. Meant to be reachable. |

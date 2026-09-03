@@ -134,6 +134,16 @@ func (a *API) threads(w http.ResponseWriter, r *http.Request) {
 func (a *API) changes(w http.ResponseWriter, r *http.Request) {
 	since, _ := strconv.ParseInt(r.URL.Query().Get("sinceSeq"), 10, 64)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+	// Read before the page, not after. The client treats an empty page plus a higher
+	// maxSeq as "nothing more, you are caught up" and jumps its cursor there. Read after,
+	// a message arriving between the two statements would be counted in maxSeq but absent
+	// from the page, and the jump would step straight over it -- changes() never returns
+	// it again, and the SSE stream is not attached yet during catch-up, so nothing else
+	// would ever deliver it. Read first, the same arrival simply leaves maxSeq one behind
+	// and the client asks again.
+	maxSeq, _ := a.store.MaxSeq()
+
 	msgs, err := a.store.Changes(since, limit)
 	if err != nil {
 		writeErr(w, err)
@@ -142,7 +152,6 @@ func (a *API) changes(w http.ResponseWriter, r *http.Request) {
 	if msgs == nil {
 		msgs = []*Message{}
 	}
-	maxSeq, _ := a.store.MaxSeq()
 	writeJSON(w, 200, map[string]any{"messages": msgs, "maxSeq": maxSeq})
 }
 
@@ -342,11 +351,11 @@ func (a *API) setBlocked(w http.ResponseWriter, r *http.Request, key string) {
 	if err != nil {
 		// Said out loud rather than swallowed: a block that quietly failed would leave
 		// someone believing they had stopped hearing from a person they had not.
-		log.Printf("block %s (blocked=%v): %v", key, body.Blocked, err)
+		log.Printf("block %s (blocked=%v): %v", redactPath(key), body.Blocked, err)
 		writeErr(w, err)
 		return
 	}
-	log.Printf("block %s: blocked=%v", key, body.Blocked)
+	log.Printf("block %s: blocked=%v", redactPath(key), body.Blocked)
 	writeJSON(w, 200, map[string]any{"ok": true, "blocked": body.Blocked})
 }
 
@@ -512,11 +521,34 @@ func writeErr(w http.ResponseWriter, err error) {
 	writeJSON(w, 500, map[string]string{"error": err.Error()})
 }
 
+// redactPath replaces the identifying segment of a route with its kind, so the log says
+// which route was called without saying who it was about: /v1/threads/direct:<aci>/messages
+// becomes /v1/threads/direct:_/messages.
+func redactPath(p string) string {
+	parts := strings.Split(p, "/")
+	for i, seg := range parts {
+		switch {
+		case strings.HasPrefix(seg, "direct:"):
+			parts[i] = "direct:_"
+		case strings.HasPrefix(seg, "group:"):
+			parts[i] = "group:_"
+		case i > 0 && parts[i-1] == "attachments" && seg != "":
+			parts[i] = "_"
+		}
+	}
+	return strings.Join(parts, "/")
+}
+
 func logging(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		h.ServeHTTP(w, r)
-		// Never log query strings: the token rides in one during pairing.
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
+		// Never log query strings: the token rides in one during pairing. And never log
+		// the path as given, because the path is where the identifiers are -- every
+		// message fetch names a contact's ACI, every group fetch its group id. Left
+		// alone that writes a timestamped record of who this person talks to and when,
+		// in plaintext, into a journal that persists across reboots. The route is what
+		// is useful in a log; who it was about is not.
+		log.Printf("%s %s %s", r.Method, redactPath(r.URL.Path), time.Since(start).Round(time.Millisecond))
 	})
 }

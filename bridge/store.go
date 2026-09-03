@@ -525,3 +525,11 @@ func b2i(b bool) int {
 	}
 	return 0
 }
+
+// CountMessages is how many messages the store holds, for telling someone what --wipe is
+// about to destroy before they confirm it.
+func (s *Store) CountMessages() (int64, error) {
+	var n int64
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM messages`).Scan(&n)
+	return n, err
+}

@@ -23,14 +23,15 @@ func main() {
 		selfID    = flag.String("self-uuid", "", "own account UUID (auto-detected if omitted)")
 		dataDir   = flag.String("data", "/var/lib/kotozute-bridge", "bridge data directory")
 		scData    = flag.String("signal-cli-data", "/var/lib/signal-cli", "signal-cli data directory (for attachments)")
-		attDays   = flag.Int("attachment-days", 90, "delete attachments older than this many days (0 = never)")
-		attMB     = flag.Int64("attachment-max-mb", 2048, "cap the attachment store at this many MB (0 = no cap)")
+		attDays   = flag.Int("attachment-days", 0, "delete attachments older than this many days (0 = never)")
+		attMB     = flag.Int64("attachment-max-mb", 0, "cap the attachment store at this many MB (0 = no cap)")
 		listen    = flag.String("listen", "0.0.0.0", "address to listen on")
 		port      = flag.Int("port", 8422, "port to listen on")
 		advert    = flag.String("advertise", "", "host/IP to put in the pairing payload (default: --listen)")
 		showPair  = flag.Bool("pairing", false, "print the pairing payload and exit")
 		importDir = flag.String("import", "", "import a Signal \"export chat history\" folder into the store, then exit")
 		wipe      = flag.Bool("wipe", false, "delete every message, thread, contact and stored identity, then exit")
+		wipeYes   = flag.Bool("yes", false, "answer yes to --wipe's confirmation (for scripts)")
 		exportDir = flag.String("export", "", "write the store to a folder the --import flag can read back, then exit")
 	)
 	flag.Parse()
@@ -70,6 +71,21 @@ func main() {
 	// clears the bridge. Deliberately not something the phone can ask for over the
 	// pairing -- a token that can erase the whole store is a different kind of token.
 	if *wipe {
+		// One mistyped line of shell history should not erase somebody's messages, and an
+		// export is not a guaranteed way back -- Signal's own exports cannot distinguish
+		// two attachments of the same byte length. So it asks, unless a script says not to.
+		if !*wipeYes {
+			n, _ := store.CountMessages()
+			fmt.Fprintf(os.Stderr,
+				"This deletes %d message(s), every thread, contact and stored identity,\n"+
+					"and every attachment file they refer to. It cannot be undone.\n"+
+					"Type the account number to confirm: ", n)
+			var typed string
+			fmt.Fscanln(os.Stdin, &typed)
+			if strings.TrimSpace(typed) != *account {
+				fatal("wipe: not confirmed, nothing was deleted")
+			}
+		}
 		// The files first: once the rows are gone nothing remembers which files belonged to
 		// this account, and "the store is empty" while every picture is still on disk is
 		// the wrong kind of true.
@@ -138,7 +154,7 @@ func main() {
 		// to Self drained from the queue in that window looks like someone else's.
 		self = store.GetMeta("selfUuid")
 		if self != "" {
-			log.Printf("self uuid (remembered): %s", self)
+			log.Printf("self uuid: known (remembered)")
 		}
 	}
 
@@ -220,7 +236,18 @@ func main() {
 
 	stop := make(chan struct{})
 	go sc.Run(stop)
-	go NewRetention(*scData, *attDays, *attMB).Run(stop)
+	// Off by default, and it says so, because of what these files are. When signal-cli is
+	// the account's primary device -- which it is, for anyone who registered here rather
+	// than linking to a phone -- the attachments directory holds the only copy of every
+	// photo anyone has ever sent this number. Signal's servers do not keep them and no
+	// other device has them. A sweep with a 90-day default would quietly delete the
+	// originals out from under a quarterly backup.
+	if *attDays > 0 || *attMB > 0 {
+		log.Printf("retention: attachments in %s will be deleted (age > %dd, total > %dMB) "+
+			"-- these may be the only copy",
+			filepath.Join(*scData, "attachments"), *attDays, *attMB)
+		go NewRetention(*scData, *attDays, *attMB).Run(stop)
+	}
 	purgeAttachmentDir = filepath.Join(*scData, "attachments")
 	go sweepExpired(store, stop)
 
@@ -238,7 +265,7 @@ func main() {
 					pendingMu.Unlock()
 					api.self = u
 					_ = store.SetMeta("selfUuid", u)
-					log.Printf("self uuid: %s", u)
+					log.Printf("self uuid: learned")
 					drainPending()
 				}
 			}

@@ -944,8 +944,22 @@ async function loadMessages() {
     const text = (m.body || '').trim();
     if (text) bubble.textContent = text;
 
-    // MMS attachments — without these a picture message is just an empty bubble.
+    // Attachments, on either rail — without these a picture message is just an empty
+    // bubble. Each row says where to fetch itself, because MMS parts and Signal
+    // attachments live in different places and answer on different routes; the drawing
+    // below does not need to know which is which.
     (m.attachments || []).forEach(att => {
+        // Our own sent Signal attachments carry no id: Signal assigns one on upload and
+        // never reports it back, so there is nothing to fetch. Say the message carried
+        // something rather than drawing a broken picture.
+        if (!att.url) {
+          const note = document.createElement('div');
+          note.className = 'attachLink';
+          note.textContent = '📎 ' + (att.label || att.type || 'Attachment');
+          bubble.append(note);
+          return;
+        }
+        const src = att.url + '?token=' + encodeURIComponent(token);
         if (att.isImage) {
           const img = document.createElement('img');
           img.className = 'attach';
@@ -953,7 +967,7 @@ async function loadMessages() {
           // lazy heuristic never fires and the image sits at complete=false forever.
           img.alt = att.label || 'Picture';
           // Token goes in the query string: <img src> can't send an auth header.
-          img.src = '/api/parts/' + att.id + '?token=' + encodeURIComponent(token);
+          img.src = src;
           // If it genuinely fails, fall back to a link rather than showing nothing
           img.addEventListener('error', () => {
             const a = document.createElement('a');
@@ -974,7 +988,7 @@ async function loadMessages() {
           video.controls = true;
           video.preload = 'metadata';
           video.playsInline = true;
-          video.src = '/api/parts/' + att.id + '?token=' + encodeURIComponent(token);
+          video.src = src;
           // Some MMS video is in codecs no browser decodes. Say so and offer the file,
           // rather than leaving a black rectangle that never explains itself.
           video.addEventListener('error', () => {
@@ -992,7 +1006,7 @@ async function loadMessages() {
         } else {
           const link = document.createElement('a');
           link.className = 'attachLink';
-          link.href = '/api/parts/' + att.id + '?token=' + encodeURIComponent(token);
+          link.href = src;
           link.target = '_blank';
           link.rel = 'noopener';
           link.textContent = '📎 ' + (att.label || att.type);

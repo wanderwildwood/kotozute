@@ -331,7 +331,7 @@ class DesktopSyncServer(
             partMatch != null && session.method == Method.GET ->
                 handlePart(partMatch.groupValues[1].toLong(), session)
             signalPartMatch != null && session.method == Method.GET ->
-                handleSignalAttachment(signalPartMatch.groupValues[1])
+                handleSignalAttachment(signalPartMatch.groupValues[1], session)
             threadReadMatch != null && session.method == Method.POST ->
                 handleMarkRead(threadReadMatch.groupValues[1].toLong())
             else -> jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
@@ -727,10 +727,16 @@ class DesktopSyncServer(
      *
      * Fetched through the repository rather than off disk: the file lives on the bridge
      * machine, not this phone, and the repository is what holds the pinned-TLS client that
-     * can ask for it. Whole in memory, which is what the phone's own thread screen already
-     * does -- Signal caps an attachment well below the point where that matters.
+     * can ask for it.
+     *
+     * Whole in memory, which is the phone's own approach in its thread screen, and it is a
+     * real cost here rather than a nominal one -- the first video this was tried against was
+     * 27 MB. Acceptable because the alternative is a disk cache with its own eviction and
+     * lifetime, and this is a request the user made by opening the thread. Ranges are
+     * answered from the array we already hold, which is what a video element needs before
+     * it will let anyone seek.
      */
-    private fun handleSignalAttachment(id: String): Response {
+    private fun handleSignalAttachment(id: String, session: IHTTPSession): Response {
         if (!signalEnabled()) {
             return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
         }
@@ -749,11 +755,34 @@ class DesktopSyncServer(
             bytes.size > 3 && bytes[0] == 'G'.code.toByte() && bytes[1] == 'I'.code.toByte() -> "image/gif"
             else -> "application/octet-stream"
         }
+        val length = bytes.size.toLong()
+        val range = session.headers["range"]?.let { RANGE.find(it) }
+
+        if (range == null) {
+            return newFixedLengthResponse(
+                Response.Status.OK, mime, ByteArrayInputStream(bytes), length
+            ).apply {
+                addHeader("Accept-Ranges", "bytes")
+                // The bytes never change under an id, so let the browser keep them rather
+                // than pulling every picture in a thread over the network on each poll.
+                addHeader("Cache-Control", "private, max-age=86400")
+            }
+        }
+
+        val start = range.groupValues[1].toLongOrNull() ?: 0L
+        val end = range.groupValues[2].toLongOrNull()?.coerceAtMost(length - 1) ?: (length - 1)
+        if (start > end || start < 0) {
+            return jsonResponse(Response.Status.RANGE_NOT_SATISFIABLE, JSONObject().put("error", "bad range"))
+                .apply { addHeader("Content-Range", "bytes */$length") }
+        }
+
+        val count = (end - start + 1).toInt()
         return newFixedLengthResponse(
-            Response.Status.OK, mime, ByteArrayInputStream(bytes), bytes.size.toLong()
+            Response.Status.PARTIAL_CONTENT, mime,
+            ByteArrayInputStream(bytes, start.toInt(), count), count.toLong()
         ).apply {
-            // The bytes never change under an id, so let the browser keep them rather than
-            // pulling every picture in a thread over the network on each poll.
+            addHeader("Accept-Ranges", "bytes")
+            addHeader("Content-Range", "bytes $start-$end/$length")
             addHeader("Cache-Control", "private, max-age=86400")
         }
     }
@@ -1395,7 +1424,7 @@ class DesktopSyncServer(
                     // the two rails keep their attachments in different places and answer
                     // on different routes -- letting the row say where it lives means the
                     // browser draws a Signal photo and an MMS photo with the same code.
-                    put("url", "/api/parts/${'$'}{part.id}")
+                    put("url", "/api/parts/${part.id}")
                     put("type", part.type)
                     put("label", part.getSummary() ?: part.type)
                     put("isImage", part.type.startsWith("image"))

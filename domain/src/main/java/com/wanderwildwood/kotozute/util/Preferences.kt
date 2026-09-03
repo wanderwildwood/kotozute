@@ -147,6 +147,22 @@ class Preferences @Inject constructor(
      * would rather not have them mixed.
      */
     val signalWeave = rxPrefs.getBoolean("signalWeave", true)
+
+    /**
+     * Signal threads tied to an SMS conversation by hand, as JSON: {"direct:<aci>": <id>}.
+     *
+     * The badge finds the other rail by phone number and only by phone number, because
+     * two rails on two different numbers may be two conversations on purpose. That leaves
+     * the case where Signal shares no number at all -- a contact with phone-number privacy
+     * on gives an ACI and nothing else -- and then there is no way across at all, in
+     * either direction, however obvious the pairing is to the person reading them.
+     *
+     * This is that person saying so. Nothing here is inferred.
+     *
+     * A preference rather than a Realm object: it is a handful of small pairs, and a
+     * schema migration is a far larger risk than that is worth.
+     */
+    val signalThreadLinks = rxPrefs.getString("signalThreadLinks", "{}")
     val textSize = rxPrefs.getInteger("textSize", TEXT_SIZE_LARGE)
     val blockingManager = rxPrefs.getInteger("blockingManager", BLOCKING_MANAGER_QKSMS)
     val drop = rxPrefs.getBoolean("drop", false)

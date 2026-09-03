@@ -14,6 +14,7 @@ import io.realm.Case
 import io.realm.Realm
 import io.realm.RealmResults
 import io.realm.Sort
+import org.json.JSONObject
 import timber.log.Timber
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
@@ -546,6 +547,40 @@ class SignalRepositoryImpl @Inject constructor(
         return runCatching { BridgeClient(cfg).fetchAttachment(id) }
             .onFailure { Timber.d("attachment $id: ${it.message}") }
             .getOrNull()
+    }
+
+    /**
+     * Links the user has made by hand between a Signal thread and an SMS conversation.
+     *
+     * Held as a small JSON object in a preference and read on each call rather than
+     * cached: it changes only when someone sets one, and being certain it is current
+     * matters more than the microseconds.
+     */
+    private fun links(): JSONObject =
+        runCatching { JSONObject(prefs.signalThreadLinks.get()) }.getOrElse { JSONObject() }
+
+    override fun linkedConversationId(threadKey: String): Long? =
+        links().optLong(threadKey, 0L).takeIf { it != 0L }
+
+    override fun linkedThreadKeyFor(conversationId: Long): String? {
+        val all = links()
+        return all.keys().asSequence().firstOrNull { all.optLong(it, 0L) == conversationId }
+    }
+
+    override fun linkConversation(threadKey: String, conversationId: Long?) {
+        val all = links()
+        // One SMS conversation belongs to at most one Signal thread. Without this, linking
+        // a second Signal thread to the same conversation would leave the first pointing
+        // at it too, and crossing back would land on whichever the map happened to yield.
+        if (conversationId != null) {
+            all.keys().asSequence().toList()
+                .filter { all.optLong(it, 0L) == conversationId }
+                .forEach { all.remove(it) }
+            all.put(threadKey, conversationId)
+        } else {
+            all.remove(threadKey)
+        }
+        prefs.signalThreadLinks.set(all.toString())
     }
 
     override fun findThreadForNumber(number: String): SignalThread? {

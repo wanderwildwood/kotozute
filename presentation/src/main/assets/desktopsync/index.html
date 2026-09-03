@@ -184,6 +184,18 @@
     font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
     line-height: 1.7; letter-spacing: .5px; word-spacing: 6px;
   }
+  #linkFilter {
+    width: 100%; margin-top: 12px; padding: 7px 10px; font: inherit; font-size: 14px;
+    background: var(--paper); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 4px;
+  }
+  #linkList { max-height: 300px; margin-top: 8px; overflow-y: auto; }
+  #linkList button {
+    display: block; width: 100%; padding: 8px 10px; font: inherit; font-size: 13px;
+    text-align: left; background: none; color: var(--ink);
+    border: 0; border-bottom: 1px solid var(--line); cursor: pointer;
+  }
+  #linkList button:hover { background: var(--line); }
   #infoClose {
     margin-top: 16px; padding: 6px 14px; font: inherit; font-size: 13px;
     background: var(--ink); color: var(--paper); border: 0; border-radius: 4px; cursor: pointer;

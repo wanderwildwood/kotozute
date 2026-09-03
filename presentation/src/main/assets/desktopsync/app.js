@@ -1121,15 +1121,124 @@ async function loadCrossRail(id) {
     const d = await res.json();
     // The thread may have been changed while this was in flight.
     if (!d.found || activeThreadId !== id) return;
-    crossTarget = d;
-    crossBtnEl.textContent = d.label + ' \u203a';
-    crossBtnEl.hidden = false;
+    if (d.found) {
+      crossTarget = d;
+      crossBtnEl.textContent = d.label + ' \u203a';
+      crossBtnEl.title = d.linked
+        ? 'Linked by hand. Right-click to unlink.'
+        : 'Same number on both rails';
+      crossBtnEl.hidden = false;
+    } else if (d.canLink) {
+      // No counterpart found by number, but this thread could have one. Matching only
+      // ever links two rails on the same number, so a contact whose Signal shares no
+      // number has no crossing at all -- this is how one gets made.
+      crossTarget = null;
+      crossBtnEl.textContent = 'Link\u2026';
+      crossBtnEl.title = 'Tie this to the same person\u2019s conversation on the other rail';
+      crossBtnEl.hidden = false;
+    }
   } catch (e) { /* no badge is the right failure here */ }
 }
 
 crossBtnEl.addEventListener('click', () => {
   if (crossTarget) selectThread(crossTarget.id, crossTarget.title);
+  else openLinkPicker();
 });
+
+// Right-click an established link to break it, which is the only way back out.
+crossBtnEl.addEventListener('contextmenu', async e => {
+  e.preventDefault();
+  if (!crossTarget || !crossTarget.linked) return;
+  if (!confirm('Unlink these two conversations?')) return;
+  await api('/api/threads/' + activeThreadId + '/link', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ other: '0' })
+  });
+  loadCrossRail(activeThreadId);
+});
+
+/**
+ * Pick the conversation on the other rail that belongs to the same person.
+ *
+ * Offered only where matching found nothing, and it is the reader asserting the pairing
+ * rather than the app inferring one -- which is the whole point, since the case this
+ * exists for is a contact Signal will not give us a number for.
+ */
+function openLinkPicker() {
+  const fromSignal = activeThreadRail === 'signal';
+  const candidates = lastThreads
+    .filter(t => (fromSignal ? t.rail === 'sms' : t.rail === 'signal'))
+    .filter(t => t.id !== activeThreadId);
+
+  const panel = document.getElementById('infoPanel');
+  const body = document.getElementById('infoBody');
+  body.innerHTML = '';
+
+  const h = document.createElement('h2');
+  h.textContent = fromSignal ? 'Link to an SMS conversation' : 'Link to a Signal conversation';
+  body.append(h);
+
+  const why = document.createElement('p');
+  why.textContent = 'Signal shares no phone number for this contact, so nothing can pair ' +
+    'the two automatically. Choosing here says they are the same person.';
+  body.append(why);
+
+  const filter = document.createElement('input');
+  filter.type = 'text';
+  filter.id = 'linkFilter';
+  filter.placeholder = 'Filter by name';
+  body.append(filter);
+
+  const list = document.createElement('div');
+  list.id = 'linkList';
+  body.append(list);
+
+  const draw = () => {
+    const q = filter.value.trim().toLowerCase();
+    list.innerHTML = '';
+    const shown = candidates
+      .filter(t => !q || (t.title || '').toLowerCase().includes(q))
+      .slice(0, 60);
+    if (!shown.length) {
+      const none = document.createElement('p');
+      none.textContent = 'Nothing matches.';
+      list.append(none);
+      return;
+    }
+    shown.forEach(t => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = t.title || '(no name)';
+      b.addEventListener('click', () => linkTo(t));
+      list.append(b);
+    });
+  };
+  filter.addEventListener('input', draw);
+  draw();
+
+  panel.hidden = false;
+  filter.focus();
+}
+
+async function linkTo(other) {
+  document.getElementById('infoPanel').hidden = true;
+  try {
+    const res = await api('/api/threads/' + activeThreadId + '/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ other: String(other.id) })
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      statusEl.textContent = d.error || 'could not link those';
+      return;
+    }
+    loadCrossRail(activeThreadId);
+  } catch (e) {
+    statusEl.textContent = 'the phone did not answer';
+  }
+}
 
 /** Tell the phone this thread has been read (clears its notification + badge). */
 async function markThreadRead(id) {

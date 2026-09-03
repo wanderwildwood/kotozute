@@ -61,6 +61,15 @@ interface SignalRepository {
      */
     fun findThreadForNumber(number: String): SignalThread?
 
+    /** The SMS conversation this Signal thread has been tied to by hand, or null. */
+    fun linkedConversationId(threadKey: String): Long?
+
+    /** The Signal thread tied by hand to this SMS conversation, or null. */
+    fun linkedThreadKeyFor(conversationId: Long): String?
+
+    /** Tie a Signal thread to an SMS conversation; null unties it. */
+    fun linkConversation(threadKey: String, conversationId: Long?)
+
 
     /**
      * Display names for the people who sent messages in a thread, keyed by their Signal

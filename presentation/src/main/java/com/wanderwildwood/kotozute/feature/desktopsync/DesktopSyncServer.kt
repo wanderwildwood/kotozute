@@ -316,6 +316,7 @@ class DesktopSyncServer(
         val threadActionMatch = Regex("^/api/threads/(-?\\d+)/action$").find(uri)
         val threadCrossMatch = Regex("^/api/threads/(-?\\d+)/cross$").find(uri)
         val threadInfoMatch = Regex("^/api/threads/(-?\\d+)/info$").find(uri)
+        val threadLinkMatch = Regex("^/api/threads/(-?\\d+)/link$").find(uri)
         val partMatch = Regex("^/api/parts/(\\d+)$").find(uri)
         // The same strict shape the bridge itself enforces on an id it serves: the value
         // originates in a sender's attachment pointer, so nothing that could climb out of
@@ -348,6 +349,8 @@ class DesktopSyncServer(
                 handleThreadCross(threadCrossMatch.groupValues[1].toLong())
             threadInfoMatch != null && session.method == Method.GET ->
                 handleThreadInfo(threadInfoMatch.groupValues[1].toLong())
+            threadLinkMatch != null && session.method == Method.POST ->
+                handleThreadLink(threadLinkMatch.groupValues[1].toLong(), session)
             uri == "/api/mark-all-read" && session.method == Method.POST -> handleMarkAllRead()
             else -> jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
         }
@@ -937,8 +940,28 @@ class DesktopSyncServer(
         signalThreadFor(threadId)?.let { thread ->
             // Signal -> SMS. A group has no single counterpart to cross to.
             if (thread.kind != "direct") return jsonResponse(Response.Status.OK, notFound)
+
+            // A link the user made by hand wins over any matching. It exists precisely for
+            // the pairs matching cannot see -- a contact whose Signal shares no number --
+            // and someone who has said these two are the same person should not be argued
+            // with by a number comparison.
+            signalRepository.linkedConversationId(thread.threadKey)?.let { linkedId ->
+                runCatching { conversationRepository.getConversation(linkedId) }.getOrNull()
+                    ?.let { conversation ->
+                        return jsonResponse(Response.Status.OK, JSONObject().apply {
+                            put("found", true)
+                            put("id", conversation.id)
+                            put("title", conversation.getTitle())
+                            put("rail", "sms")
+                            put("label", "SMS")
+                            put("linked", true)
+                        })
+                    }
+            }
+
             val number = thread.counterpartNumber.takeIf { it.isNotBlank() }
-                ?: return jsonResponse(Response.Status.OK, notFound)
+                ?: return jsonResponse(Response.Status.OK, JSONObject().put("found", false)
+                    .put("canLink", true))
             val conversation = runCatching {
                 conversationRepository.getConversation(listOf(number))
             }.getOrNull() ?: return jsonResponse(Response.Status.OK, notFound)
@@ -953,12 +976,31 @@ class DesktopSyncServer(
 
         val conversation = runCatching { conversationRepository.getConversation(threadId) }.getOrNull()
             ?: return jsonResponse(Response.Status.OK, notFound)
+
+        // The same hand-made link, read the other way round.
+        signalRepository.linkedThreadKeyFor(threadId)?.let { key ->
+            val linked = (signalRepository.getThreadsSnapshot(archived = false) +
+                signalRepository.getThreadsSnapshot(archived = true))
+                .firstOrNull { it.threadKey == key }
+            if (linked != null) {
+                return jsonResponse(Response.Status.OK, JSONObject().apply {
+                    put("found", true)
+                    put("id", InboxItem.signalStableId(linked.threadKey))
+                    put("title", linked.title.ifBlank { linked.counterpartNumber })
+                    put("rail", "signal")
+                    put("label", "Signal")
+                    put("linked", true)
+                })
+            }
+        }
+
         val recipients = conversation.recipients
         if (recipients.size != 1) return jsonResponse(Response.Status.OK, notFound)
         val address = recipients.firstOrNull()?.address?.takeIf { it.isNotBlank() }
             ?: return jsonResponse(Response.Status.OK, notFound)
         val signalThread = runCatching { signalRepository.findThreadForNumber(address) }.getOrNull()
-            ?: return jsonResponse(Response.Status.OK, notFound)
+            ?: return jsonResponse(Response.Status.OK, JSONObject().put("found", false)
+                .put("canLink", true))
         return jsonResponse(Response.Status.OK, JSONObject().apply {
             put("found", true)
             put("id", InboxItem.signalStableId(signalThread.threadKey))
@@ -1021,6 +1063,54 @@ class DesktopSyncServer(
             put("verified", identity.verified)
             put("changed", identity.changed)
         })
+    }
+
+    /**
+     * Tie a Signal thread to an SMS conversation by hand, or untie it.
+     *
+     * Takes either id as the thread in the path and the other in the body, so the browser
+     * can offer it from whichever side the reader is on. Sending 0 unties.
+     *
+     * This exists because matching by phone number cannot see every pair. A contact with
+     * Signal's phone-number privacy on gives an ACI and nothing else, so there is nothing
+     * to compare and no way across in either direction -- however plain the pairing is to
+     * the person reading both threads. Nothing here is guessed: the link is only ever what
+     * someone said it is.
+     */
+    private fun handleThreadLink(threadId: Long, session: IHTTPSession): Response {
+        val other = readSmallJsonField(session, "other", MAX_ACTION_BODY_BYTES)?.trim()?.toLongOrNull()
+            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "no thread given"))
+
+        val signalThread = signalThreadFor(threadId)
+        val (key, conversationId) = when {
+            signalThread != null -> signalThread.threadKey to other
+            else -> {
+                if (other == 0L) {
+                    // Untying from the SMS side: find whichever Signal thread points here.
+                    val existing = signalRepository.linkedThreadKeyFor(threadId)
+                        ?: return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+                    existing to 0L
+                } else {
+                    val target = signalThreadFor(other)
+                        ?: return jsonResponse(
+                            Response.Status.BAD_REQUEST,
+                            JSONObject().put("error", "that is not a Signal conversation")
+                        )
+                    target.threadKey to threadId
+                }
+            }
+        }
+
+        runCatching {
+            signalRepository.linkConversation(key, conversationId.takeIf { it != 0L })
+        }.exceptionOrNull()?.let { failure ->
+            Timber.w(failure, "Desktop Sync: link")
+            return jsonResponse(
+                Response.Status.INTERNAL_ERROR,
+                JSONObject().put("error", failure.message ?: "that did not work")
+            )
+        }
+        return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
     }
 
     private fun handleGetThreads(session: IHTTPSession): Response {

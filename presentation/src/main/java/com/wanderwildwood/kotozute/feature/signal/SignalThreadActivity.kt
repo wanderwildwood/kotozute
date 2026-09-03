@@ -635,19 +635,40 @@ class SignalThreadActivity : QkThemedActivity() {
             b.image.tag = id
             b.attachment.text = getString(R.string.signal_attachment_image)
             b.attachment.setVisible(true)
+
+            // One fetch per picture, however many times it is bound.
+            //
+            // Every bind used to start its own thread. The Find bar calls
+            // notifyDataSetChanged() on every keystroke and the Realm listener calls it on
+            // every change, so typing six characters in a thread with three pictures on
+            // screen started eighteen threads, each doing a full pinned-TLS handshake and
+            // downloading the same bytes again, each holding a decoded bitmap. Scrolling
+            // did the same, and with an eight-entry cache scrolling back up refetched
+            // everything. On the Kompakt that is thread and heap growth driven by typing.
+            if (!inFlight.add(id)) return
+
             thread(isDaemon = true) {
                 val bytes = signalRepo.loadAttachment(id)
                 val bmp = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
                 if (bmp != null) imageCache.put(id, bmp)
                 runOnUiThread {
-                    if (b.image.tag != id) return@runOnUiThread
+                    inFlight.remove(id)
+                    // The holder that started this may have been recycled onto another
+                    // message, so redraw the list rather than this one view: whichever row
+                    // now shows this picture picks it up from the cache on its next bind.
                     if (bmp == null) {
-                        b.attachment.text = getString(R.string.signal_attachment_unavailable)
+                        if (b.image.tag == id) {
+                            b.attachment.text = getString(R.string.signal_attachment_unavailable)
+                        }
                         return@runOnUiThread
                     }
-                    b.image.setImageBitmap(bmp)
-                    b.image.setVisible(true)
-                    b.attachment.setVisible(false)
+                    if (b.image.tag == id) {
+                        b.image.setImageBitmap(bmp)
+                        b.image.setVisible(true)
+                        b.attachment.setVisible(false)
+                    } else {
+                        adapter.notifyDataSetChanged()
+                    }
                 }
             }
         }
@@ -655,4 +676,7 @@ class SignalThreadActivity : QkThemedActivity() {
 
     /** Small: a handful of pictures in view at once, and e-ink shows few at a time. */
     private val imageCache = LruCache<String, android.graphics.Bitmap>(8)
+
+    /** Attachment ids currently being fetched, so a rebind does not fetch them again. */
+    private val inFlight = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 }

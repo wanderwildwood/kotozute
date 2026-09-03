@@ -17,6 +17,7 @@ import io.realm.Sort
 import timber.log.Timber
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.concurrent.thread
@@ -42,6 +43,30 @@ class SignalRepositoryImpl @Inject constructor(
     private val streamWanted = AtomicBoolean(false)
 
     /**
+     * Which stream loop is the current one.
+     *
+     * A single shared "wanted" flag was not enough to say that, because a loop told to stop
+     * is not stopped yet -- it can be inside a sleep, or between its latch and its next
+     * check. A startStream() landing in that window won the flag and started a second loop,
+     * and the first then read the flag as true again, carried on, and overwrote the new
+     * loop's Closeable. Two live connections against the bridge, only one of them closable,
+     * every inbound message stored twice, and the older loop publishing "cannot reach the
+     * bridge" over the newer one's healthy state. Whichever finished first cleared the
+     * shared flag and stopped the other.
+     *
+     * A loop now owns its generation. It runs while it is still the current one and stops
+     * the moment it is not, so a replacement can never be sabotaged by its predecessor.
+     */
+    private val streamGeneration = AtomicInteger(0)
+
+    /**
+     * Whether a live SSE stream is currently up. syncNow() runs on other threads -- the
+     * conversations screen fires one on every creation -- and its failures must not be
+     * allowed to say the bridge is unreachable while a stream is sitting there connected.
+     */
+    private val streamConnected = AtomicBoolean(false)
+
+    /**
      * Bumped whenever the pairing is torn down. A sync already in flight checks it between
      * pages and abandons the rest.
      *
@@ -49,7 +74,7 @@ class SignalRepositoryImpl @Inject constructor(
      * midway through paging the bridge. Unpair therefore used to stop the stream, wipe the
      * store, and then have the sync it did not interrupt write every message straight back.
      */
-    private val pairingEpoch = java.util.concurrent.atomic.AtomicInteger(0)
+    private val pairingEpoch = AtomicInteger(0)
 
     init {
         publishState(reachable = false, signalConnected = false, error = null)
@@ -277,7 +302,16 @@ class SignalRepositoryImpl @Inject constructor(
             publishState(reachable = true, signalConnected = remote.signalConnected, error = null)
         } catch (t: Throwable) {
             Timber.w(t, "signal sync failed")
-            publishState(reachable = false, signalConnected = false, error = t.message)
+            // Only when nothing better is known. syncNow() runs from other threads -- the
+            // conversations screen fires one on every creation -- and one timed-out call
+            // used to publish "cannot reach the bridge" straight over a live stream's
+            // healthy state. Nothing republishes on a timer and the bridge's keepalive is a
+            // comment line that never reaches onMessage, so on an account nobody happened
+            // to be messaging, both Signal screens sat with the composer disabled until
+            // someone else sent something.
+            if (!streamConnected.get()) {
+                publishState(reachable = false, signalConnected = false, error = t.message)
+            }
         }
         return written
     }
@@ -285,11 +319,16 @@ class SignalRepositoryImpl @Inject constructor(
     override fun startStream() {
         if (!prefs.signalEnabled.get() || !isConfigured()) return
         if (!streamWanted.compareAndSet(false, true)) return
-        thread(name = "signal-stream", isDaemon = true) { streamLoop() }
+        val generation = streamGeneration.incrementAndGet()
+        thread(name = "signal-stream-$generation", isDaemon = true) { streamLoop(generation) }
     }
 
     override fun stopStream() {
         streamWanted.set(false)
+        // Retires the running loop as well as clearing the flag, so a loop still alive in a
+        // backoff sleep cannot come back round and reconnect.
+        streamGeneration.incrementAndGet()
+        streamConnected.set(false)
         runCatching { stream?.close() }
         stream = null
     }
@@ -298,20 +337,26 @@ class SignalRepositoryImpl @Inject constructor(
      * Reconnects with backoff for as long as the stream is wanted. Every reconnect
      * re-sends the cursor, so a dropped connection is a delay and never a hole.
      */
-    private fun streamLoop() {
+    private fun streamLoop(generation: Int) {
         try {
-            streamLoopInner()
+            streamLoopInner(generation)
         } finally {
             // Whatever ended this -- a normal stop or something thrown -- the flag must not
             // be left set. startStream() refuses to start a second loop while it is, so a
             // thread that died holding it would mean the stream could never be revived.
-            streamWanted.set(false)
+            //
+            // Only if this loop is still the current one, though. A retired loop clearing
+            // the flag would stop whichever loop replaced it.
+            if (streamGeneration.get() == generation) {
+                streamConnected.set(false)
+                streamWanted.set(false)
+            }
         }
     }
 
-    private fun streamLoopInner() {
+    private fun streamLoopInner(generation: Int) {
         var backoff = 2_000L
-        while (streamWanted.get()) {
+        while (streamWanted.get() && streamGeneration.get() == generation) {
             val cfg = config()
             if (cfg == null) { streamWanted.set(false); return }
 
@@ -320,6 +365,10 @@ class SignalRepositoryImpl @Inject constructor(
             val done = java.util.concurrent.CountDownLatch(1)
             val client = BridgeClient(cfg)
             try {
+                // Assigned to the shared field only while this loop is still the current
+                // one, so a retired loop cannot overwrite its replacement's connection with
+                // one nothing can close.
+                if (streamGeneration.get() != generation) return
                 stream = client.openEvents(
                     sinceSeq = prefs.signalCursor.get(),
                     onMessage = { msg ->
@@ -330,21 +379,29 @@ class SignalRepositoryImpl @Inject constructor(
                         if (isNew) announce(listOf(msg))
                         if (msg.seq > prefs.signalCursor.get()) prefs.signalCursor.set(msg.seq)
                         prefs.signalLastSync.set(System.currentTimeMillis())
+                        streamConnected.set(true)
                         publishState(reachable = true, signalConnected = true, error = null)
                     },
                     onClosed = { err ->
+                        streamConnected.set(false)
                         if (err != null) Timber.d("signal stream closed: ${err.message}")
                         done.countDown()
                     }
                 )
                 backoff = 2_000L
+                // The connection is open; nothing has necessarily arrived on it yet, and on
+                // a quiet account nothing will for hours. Say so now rather than waiting for
+                // a message to prove it, or the composer sits disabled on a working link.
+                streamConnected.set(true)
+                publishState(reachable = true, signalConnected = true, error = null)
                 done.await()
             } catch (t: Throwable) {
                 Timber.w(t, "signal stream failed")
             }
 
+            streamConnected.set(false)
             publishState(reachable = false, signalConnected = false, error = null)
-            if (!streamWanted.get()) return
+            if (!streamWanted.get() || streamGeneration.get() != generation) return
             Thread.sleep(backoff)
             backoff = (backoff * 2).coerceAtMost(60_000L)
         }

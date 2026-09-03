@@ -202,7 +202,19 @@ class DesktopSyncService : Service() {
          */
         fun reachableAddresses(context: Context?): List<Pair<String, String>> {
             val found = LinkedHashMap<String, String>()   // address -> label, first label wins
-            findTailscaleAddress(context)?.let { found.putIfAbsent(it, LABEL_TAILSCALE) }
+
+            // What the carrier gave us, so it can be ruled out below. 100.64.0.0/10 is
+            // carrier-grade NAT and AT&T and Verizon both hand out addresses in it, so an
+            // interface scan cannot tell a real tailnet address from a mobile-data one --
+            // and some carriers use 10.x, which reads as an ordinary private LAN. Either
+            // way it is an address no computer can reach, and offering it sends the user
+            // to a page that will never load, in a list whose whole purpose is to stop
+            // exactly that.
+            val cellular = addressesOn(context, NetworkCapabilities.TRANSPORT_CELLULAR).orEmpty().toSet()
+
+            findTailscaleAddress(context)
+                ?.takeIf { it !in cellular }
+                ?.let { found.putIfAbsent(it, LABEL_TAILSCALE) }
             addressesOn(context, NetworkCapabilities.TRANSPORT_WIFI)
                 ?.filter { !isTailscale(it) && isPrivate(it) }
                 ?.forEach { found.putIfAbsent(it, LABEL_WIFI) }
@@ -214,7 +226,8 @@ class DesktopSyncService : Service() {
             // because an interface scan cannot tell Wi-Fi from wired and calling it Wi-Fi
             // would be claiming to know something we do not.
             if (found.isEmpty()) {
-                ipv4Addresses().firstOrNull { !isTailscale(it) && isPrivate(it) }
+                ipv4Addresses()
+                    .firstOrNull { !isTailscale(it) && isPrivate(it) && it !in cellular }
                     ?.let { found.putIfAbsent(it, LABEL_LOCAL) }
             }
             return found.map { (address, label) -> label to address }

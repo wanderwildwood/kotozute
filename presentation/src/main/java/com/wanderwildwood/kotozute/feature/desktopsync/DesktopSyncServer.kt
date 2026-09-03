@@ -16,6 +16,7 @@ import android.os.Build
 import android.telephony.PhoneNumberUtils
 import android.telephony.SubscriptionManager
 import android.webkit.MimeTypeMap
+import java.io.ByteArrayInputStream
 import java.io.InputStream
 import com.wanderwildwood.kotozute.compat.SubscriptionManagerCompat
 import com.wanderwildwood.kotozute.model.Attachment
@@ -308,6 +309,10 @@ class DesktopSyncServer(
         val threadSendMatch = Regex("^/api/threads/(-?\\d+)/send$").find(uri)
         val threadReadMatch = Regex("^/api/threads/(-?\\d+)/read$").find(uri)
         val partMatch = Regex("^/api/parts/(\\d+)$").find(uri)
+        // The same strict shape the bridge itself enforces on an id it serves: the value
+        // originates in a sender's attachment pointer, so nothing that could climb out of
+        // a directory is allowed to reach the fetch.
+        val signalPartMatch = Regex("^/api/signal/attachments/([A-Za-z0-9_-]+(?:\\.[A-Za-z0-9]+)?)$").find(uri)
 
         return when {
             uri == "/api/threads" && session.method == Method.GET -> handleGetThreads()
@@ -325,6 +330,8 @@ class DesktopSyncServer(
             uri == "/api/thread-for" && session.method == Method.GET -> handleThreadFor(session)
             partMatch != null && session.method == Method.GET ->
                 handlePart(partMatch.groupValues[1].toLong(), session)
+            signalPartMatch != null && session.method == Method.GET ->
+                handleSignalAttachment(signalPartMatch.groupValues[1])
             threadReadMatch != null && session.method == Method.POST ->
                 handleMarkRead(threadReadMatch.groupValues[1].toLong())
             else -> jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
@@ -673,13 +680,81 @@ class DesktopSyncServer(
         put("isMe", m.outgoing)
         put("read", m.read)
         put("rail", "signal")
-        if (m.attachments.isNotBlank() && m.attachments != "[]") {
-            put("attachmentNote", "\uD83D\uDCCE Attachment")
-        }
+        // Real attachments, not a note saying one exists. The browser was told only
+        // "attachment" for every Signal picture, video and voice note, so a photo someone
+        // sent was unviewable there for as long as the thread lived -- while the phone,
+        // reading the same rows, drew it.
+        signalAttachmentsJson(m)?.let { put("attachments", it) }
         if (senders.isNotEmpty() && !m.outgoing) {
             val name = senders[m.senderUuid]
                 ?: m.senderNumber.ifBlank { m.senderUuid.take(8) }
             if (name.isNotBlank()) put("from", name)
+        }
+    }
+
+    /**
+     * A Signal message's attachments, in the shape the browser already draws for MMS.
+     *
+     * The stored value is the bridge's own array, kept as text. Two things differ from the
+     * MMS side. The id is a string, not a row number, so these are fetched on their own
+     * route. And an attachment we sent ourselves has no id at all -- Signal assigns one on
+     * upload and never reports it back -- so there is nothing to fetch and the entry is
+     * described but not linked, the same compromise the phone makes.
+     */
+    private fun signalAttachmentsJson(m: SignalMessage): JSONArray? {
+        if (m.attachments.isBlank() || m.attachments == "[]") return null
+        val parsed = runCatching { JSONArray(m.attachments) }.getOrNull() ?: return null
+        val out = JSONArray()
+        for (i in 0 until parsed.length()) {
+            val a = parsed.optJSONObject(i) ?: continue
+            val id = a.optString("id")
+            val type = a.optString("contentType").ifBlank { "application/octet-stream" }
+            val name = a.optString("filename")
+            out.put(JSONObject().apply {
+                put("id", id)
+                if (id.isNotBlank()) put("url", "/api/signal/attachments/" + id)
+                put("type", type)
+                put("label", name.ifBlank { type })
+                put("isImage", type.startsWith("image"))
+                put("isVideo", type.startsWith("video"))
+            })
+        }
+        return out.takeIf { it.length() > 0 }
+    }
+
+    /**
+     * One Signal attachment, by the id the bridge serves it under.
+     *
+     * Fetched through the repository rather than off disk: the file lives on the bridge
+     * machine, not this phone, and the repository is what holds the pinned-TLS client that
+     * can ask for it. Whole in memory, which is what the phone's own thread screen already
+     * does -- Signal caps an attachment well below the point where that matters.
+     */
+    private fun handleSignalAttachment(id: String): Response {
+        if (!signalEnabled()) {
+            return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
+        }
+        val bytes = runCatching { signalRepository.loadAttachment(id) }.getOrNull()
+            ?: return jsonResponse(
+                Response.Status.NOT_FOUND,
+                JSONObject().put("error", "that attachment is no longer on the bridge")
+            )
+        // Sniffed, because the id does not carry the type and the row that named it is not
+        // to hand here. Only the three that matter for drawing: anything else is offered as
+        // a download, where the browser does not need to be told.
+        val mime = when {
+            bytes.size > 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "image/jpeg"
+            bytes.size > 8 && bytes[0] == 0x89.toByte() && bytes[1] == 'P'.code.toByte() -> "image/png"
+            bytes.size > 12 && String(bytes, 4, 4, Charsets.US_ASCII) == "ftyp" -> "video/mp4"
+            bytes.size > 3 && bytes[0] == 'G'.code.toByte() && bytes[1] == 'I'.code.toByte() -> "image/gif"
+            else -> "application/octet-stream"
+        }
+        return newFixedLengthResponse(
+            Response.Status.OK, mime, ByteArrayInputStream(bytes), bytes.size.toLong()
+        ).apply {
+            // The bytes never change under an id, so let the browser keep them rather than
+            // pulling every picture in a thread over the network on each poll.
+            addHeader("Cache-Control", "private, max-age=86400")
         }
     }
 
@@ -1316,6 +1391,11 @@ class DesktopSyncServer(
             .forEach { part ->
                 attachments.put(JSONObject().apply {
                     put("id", part.id)
+                    // Where to fetch it. Sent rather than assembled in the browser because
+                    // the two rails keep their attachments in different places and answer
+                    // on different routes -- letting the row say where it lives means the
+                    // browser draws a Signal photo and an MMS photo with the same code.
+                    put("url", "/api/parts/${'$'}{part.id}")
                     put("type", part.type)
                     put("label", part.getSummary() ?: part.type)
                     put("isImage", part.type.startsWith("image"))

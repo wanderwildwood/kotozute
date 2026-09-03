@@ -243,14 +243,22 @@ class ComposeViewModel @Inject constructor(
         // one-to-one thread: a Signal group and an MMS group are different groups with
         // different membership, not two views of one conversation.
         disposables += conversation
-            .observeOn(Schedulers.io())
             .distinctUntilChanged()
-            .doOnNext { conversation ->
-                val key = conversation.recipients
+            // The address is read HERE, before the hop to io. These are managed Realm
+            // objects and they belong to the thread that made them; touching one from an
+            // Rx worker throws "Realm access from incorrect thread" and takes the app down.
+            // Only the String crosses, so the lookup below never touches Realm at all.
+            .map { conversation ->
+                conversation.recipients
                     .takeIf { it.size == 1 }
                     ?.firstOrNull()
                     ?.address
-                    ?.let { address -> signalRepo.findThreadForNumber(address)?.threadKey }
+                    .orEmpty()
+            }
+            .observeOn(Schedulers.io())
+            .doOnNext { address ->
+                val key = address.takeIf { it.isNotBlank() }
+                    ?.let { signalRepo.findThreadForNumber(it)?.threadKey }
                 newState { copy(signalThreadKey = key) }
             }
             .subscribe()
@@ -260,12 +268,20 @@ class ComposeViewModel @Inject constructor(
         // appears and takes you to their Signal thread. The thread already exists -- Signal's
         // directory gives one per contact -- it simply has no messages in it yet.
         disposables += selectedChips
-            .observeOn(Schedulers.io())
+            // Same rule as above, and this is the one that actually bit: choosing a contact
+            // in the composer crashed the app outright, because the chip's Recipient was
+            // read on an io worker. The address comes off the chip on the thread that
+            // emitted it; only the String goes on to the lookup.
             .map { chips ->
                 chips.takeIf { it.size == 1 }
                     ?.firstOrNull()
                     ?.address
-                    ?.let { address -> signalRepo.findThreadForNumber(address)?.threadKey }
+                    .orEmpty()
+            }
+            .observeOn(Schedulers.io())
+            .map { address ->
+                address.takeIf { it.isNotBlank() }
+                    ?.let { signalRepo.findThreadForNumber(it)?.threadKey }
                     .orEmpty()
             }
             .distinctUntilChanged()
@@ -274,11 +290,14 @@ class ComposeViewModel @Inject constructor(
 
         // update recipient count whenever conversation changes
         disposables += conversation
-            .observeOn(Schedulers.io())
             .distinctUntilChanged()
-            .doOnNext { conversation ->
-                newState { copy (recipientCount = conversation.recipients.size) }
-            }
+            // Counted before the hop, for the reason above. Inherited from upstream with
+            // the read on the wrong side; it survived because a count of a RealmList often
+            // answers from cache, which makes it a crash that waits for the wrong moment
+            // rather than one that isn't there.
+            .map { conversation -> conversation.recipients.size }
+            .observeOn(Schedulers.io())
+            .doOnNext { count -> newState { copy(recipientCount = count) } }
             .subscribe()
 
         // When the conversation changes, mark read, and update the recipientId and the messages for the adapter

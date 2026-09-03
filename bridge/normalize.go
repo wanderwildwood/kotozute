@@ -99,6 +99,17 @@ type dataMessage struct {
 		Filename    string `json:"filename"`
 		Size        int64  `json:"size"`
 	} `json:"attachments"`
+	// A sticker is not an attachment and does not appear in the list above -- signal-cli
+	// reports it in its own object, with the message null. Without this field such an
+	// envelope unmarshalled to an empty body with no attachments and was discarded as a
+	// reaction artefact, so a sticker sent with no caption left a silent hole in the
+	// thread: nothing stored, nothing shown, nothing logged, and the sender with every
+	// reason to think it arrived.
+	Sticker *struct {
+		PackID    string `json:"packId"`
+		StickerID int    `json:"stickerId"`
+		Emoji     string `json:"emoji"`
+	} `json:"sticker"`
 }
 
 // normalize turns one signal-cli envelope into at most one Message plus any
@@ -251,6 +262,18 @@ func normalize(selfUUID string, raw json.RawMessage) (*Message, *Receipt, error)
 			})
 		}
 	}
+	// A sticker with no caption. The bridge cannot render the sticker itself -- the image
+	// lives in a pack signal-cli would have to fetch and the phone would have to draw --
+	// but a bubble saying which one it was is the truth, and a hole in the thread is not.
+	// The emoji the pack assigns is what Signal falls back to in its own notifications.
+	if m.Body == "" && dm.Sticker != nil {
+		if dm.Sticker.Emoji != "" {
+			m.Body = dm.Sticker.Emoji
+		} else {
+			m.Body = "(sticker)"
+		}
+	}
+
 	// An empty message with no attachments is a reaction/edit/receipt artefact -- unless
 	// it is view-once, where the emptiness is the point and the row says so.
 	if m.Body == "" && len(m.Attachments) == 0 && !m.ViewOnce {

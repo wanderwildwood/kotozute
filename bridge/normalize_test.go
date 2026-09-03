@@ -171,3 +171,55 @@ func TestASentSyncWithNoDestinationIsStillNoteToSelf(t *testing.T) {
 		t.Errorf("threadKey = %s, want Note to Self", m.ThreadKey)
 	}
 }
+
+// A sticker sent with no caption used to vanish: signal-cli reports it with the message
+// null and the sticker in its own object, which the envelope struct did not read, so it
+// looked like an empty message and was discarded as a reaction artefact. Nothing stored,
+// nothing logged, and a hole in the thread where the other person believes they sent
+// something.
+func TestAStickerWithNoCaptionIsNotASilentHole(t *testing.T) {
+	withFrozenClock(t)
+	m, _, err := normalize("self-uuid", envelopeJSON(t, map[string]any{
+		"timestamp": testNow,
+		"sticker":   map[string]any{"packId": "abcd", "stickerId": 3, "emoji": "🌲"},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m == nil {
+		t.Fatal("the sticker was dropped; the thread would show nothing at all")
+	}
+	if m.Body != "🌲" {
+		t.Errorf("body %q, want the sticker's own emoji", m.Body)
+	}
+}
+
+// A pack that assigns no emoji still has to say something rather than nothing.
+func TestAStickerWithNoEmojiStillSaysSomething(t *testing.T) {
+	withFrozenClock(t)
+	m, _, err := normalize("self-uuid", envelopeJSON(t, map[string]any{
+		"timestamp": testNow,
+		"sticker":   map[string]any{"packId": "abcd", "stickerId": 3},
+	}))
+	if err != nil || m == nil {
+		t.Fatalf("dropped: m=%v err=%v", m, err)
+	}
+	if m.Body != "(sticker)" {
+		t.Errorf("body %q", m.Body)
+	}
+}
+
+// And a caption still wins -- the emoji must not overwrite what was actually said.
+func TestACaptionedStickerKeepsItsCaption(t *testing.T) {
+	withFrozenClock(t)
+	m, _, err := normalize("self-uuid", envelopeJSON(t, map[string]any{
+		"timestamp": testNow, "message": "look at this",
+		"sticker": map[string]any{"packId": "abcd", "stickerId": 3, "emoji": "🌲"},
+	}))
+	if err != nil || m == nil {
+		t.Fatalf("dropped: m=%v err=%v", m, err)
+	}
+	if m.Body != "look at this" {
+		t.Errorf("body %q, want the caption", m.Body)
+	}
+}

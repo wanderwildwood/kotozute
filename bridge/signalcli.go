@@ -22,10 +22,18 @@ type SignalCLI struct {
 	addr    string
 	account string
 
+	// mu guards conn and pending. It is held briefly, never across a socket write: the
+	// reader loop needs it to dispatch every response, so anything slow underneath it
+	// stops the reader too.
 	mu      sync.Mutex
 	conn    net.Conn
 	pending map[int64]chan *rpcResp
 	nextID  atomic.Int64
+
+	// writeMu serialises the writes themselves. One JSON-RPC request is one line, so two
+	// calls writing at once would interleave into a line neither side can parse. This is
+	// separate from mu on purpose -- a write that stalls must not also stop the reader.
+	writeMu sync.Mutex
 
 	OnEvent func(json.RawMessage)
 
@@ -160,9 +168,29 @@ func (s *SignalCLI) call(method string, params any, out any) error {
 		return errors.New("signal-cli not connected")
 	}
 	s.pending[id] = ch
-	_, err = conn.Write(append(body, '\n'))
 	s.mu.Unlock()
+
+	// The write is deliberately outside the lock, and deliberately has a deadline.
+	//
+	// Held inside the lock it was a total deadlock waiting to happen: if signal-cli stops
+	// draining its socket -- a GC pause, a stuck call to Signal's servers -- a large write
+	// blocks in the kernel holding s.mu, and the reader loop takes that same lock for every
+	// response it dispatches, so it stops reading too. Nothing recovers; the 90-second
+	// timeout below is never reached, because it is only reached after the write returns.
+	// Every send, block, identity and account request then blocks for ever and the process
+	// has to be restarted. And the size is caller-controlled: a send carries up to 48 MB of
+	// base64 attachment in a single JSON-RPC line.
+	//
+	// The deadline is what actually bounds it. Without one a blocked write has no end.
+	s.writeMu.Lock()
+	_ = conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+	_, err = conn.Write(append(body, '\n'))
+	_ = conn.SetWriteDeadline(time.Time{})
+	s.writeMu.Unlock()
 	if err != nil {
+		s.mu.Lock()
+		delete(s.pending, id)
+		s.mu.Unlock()
 		return err
 	}
 

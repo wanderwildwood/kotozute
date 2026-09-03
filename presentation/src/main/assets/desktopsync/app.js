@@ -1283,6 +1283,13 @@ async function openSettings() {
     (v, b) => setSetting('unreadAtTop', v, b)));
 
   settingsPanelEl.append(heading('Signal'));
+  if (s.signalConfigured) {
+    settingsPanelEl.append(actionRow('Account',
+      'The number, and the devices on it', () => {
+        settingsPanelEl.hidden = true;
+        showSignalAccount();
+      }));
+  }
   if (!s.signalConfigured) {
     const p = document.createElement('div');
     p.className = 'row';
@@ -1400,6 +1407,72 @@ async function showScheduled() {
     wrap.append(row);
   });
   body.append(wrap);
+  panel.hidden = false;
+}
+
+/**
+ * The Signal account behind the bridge: its number and the devices signed in to it.
+ *
+ * Read-only. Removing a device is destructive and irreversible from here, and belongs
+ * where the person can see the account they are doing it to. Listing them is still worth
+ * having: a device on the account that should not be there is exactly the sort of thing
+ * nobody notices until they go looking.
+ */
+async function showSignalAccount() {
+  const panel = document.getElementById('infoPanel');
+  const body = document.getElementById('infoBody');
+  body.innerHTML = '';
+  body.append(heading2('Signal account'));
+
+  let d;
+  try {
+    const res = await api('/api/signal/account');
+    d = await res.json();
+  } catch (e) {
+    const p = document.createElement('p');
+    p.textContent = 'The phone did not answer.';
+    body.append(p);
+    panel.hidden = false;
+    return;
+  }
+
+  if (d.error) {
+    const p = document.createElement('p');
+    p.textContent = d.error;
+    body.append(p);
+    panel.hidden = false;
+    return;
+  }
+
+  const num = document.createElement('div');
+  num.className = 'acctNumber';
+  num.textContent = d.number || '(no number)';
+  body.append(num);
+
+  const h = document.createElement('p');
+  h.textContent = (d.devices || []).length === 1
+    ? 'One device is signed in.'
+    : (d.devices || []).length + ' devices are signed in.';
+  body.append(h);
+
+  const list = document.createElement('div');
+  list.id = 'devList';
+  (d.devices || []).forEach(dev => {
+    const row = document.createElement('div');
+    row.className = 'devRow';
+    const name = document.createElement('div');
+    name.className = 'devName';
+    name.textContent = dev.name + (dev.primary ? '  \u00b7  primary' : '');
+    row.append(name);
+    if (dev.created) {
+      const when = document.createElement('div');
+      when.className = 'devMeta';
+      when.textContent = 'added ' + new Date(dev.created).toLocaleDateString();
+      row.append(when);
+    }
+    list.append(row);
+  });
+  body.append(list);
   panel.hidden = false;
 }
 

@@ -343,6 +343,7 @@ class DesktopSyncServer(
             uri == "/api/threads" && session.method == Method.GET -> handleGetThreads(session)
             uri == "/api/search" && session.method == Method.GET -> handleSearch(session)
             uri == "/api/signal/state" && session.method == Method.GET -> handleSignalState()
+            uri == "/api/signal/account" && session.method == Method.GET -> handleSignalAccount()
             uri == "/api/settings" && session.method == Method.GET -> handleGetSettings()
             uri == "/api/settings" && session.method == Method.POST -> handleSetSetting(session)
             uri == "/api/sync" && session.method == Method.POST -> handleSyncMessages()
@@ -591,6 +592,48 @@ class DesktopSyncServer(
             .put("configured", signalRepository.isConfigured())
             .put("enabled", signalEnabled())
     )
+
+    /**
+     * The Signal account behind the bridge: its number, and the devices on it.
+     *
+     * The browser had a status dot and nothing else, so there was no way to answer "which
+     * number is this" or "what else is signed in" without picking the phone up. The device
+     * list is the part worth having: a device on the account that should not be there is
+     * exactly the sort of thing nobody notices until they go looking.
+     *
+     * Read-only. Removing a device is destructive, irreversible from here, and the kind of
+     * thing that should be done where the person can see the account they are doing it to.
+     *
+     * The bridge is asked live, so this reports what is true now rather than what was true
+     * when something was last cached -- and it says plainly when the bridge will not
+     * answer, rather than showing an empty account that looks like an account with nothing
+     * on it.
+     */
+    private fun handleSignalAccount(): Response {
+        if (!signalRepository.isConfigured()) {
+            return jsonResponse(Response.Status.OK, JSONObject().put("error", "no bridge paired"))
+        }
+        val account = runCatching { signalRepository.account() }.getOrElse { failure ->
+            Timber.w(failure, "Desktop Sync: account lookup")
+            return jsonResponse(
+                Response.Status.OK,
+                JSONObject().put("error", failure.message ?: "the bridge did not answer")
+            )
+        }
+        val devices = JSONArray()
+        account.devices.sortedBy { it.id }.forEach { d ->
+            devices.put(JSONObject().apply {
+                put("id", d.id)
+                put("name", d.name.ifBlank { "device " + d.id })
+                put("created", d.created)
+                put("primary", d.isPrimary)
+            })
+        }
+        return jsonResponse(Response.Status.OK, JSONObject().apply {
+            put("number", account.number)
+            put("devices", devices)
+        })
+    }
 
     /**
      * Pair the phone with a Signal bridge, from the browser.

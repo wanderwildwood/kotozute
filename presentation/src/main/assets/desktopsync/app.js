@@ -1686,10 +1686,18 @@ async function loadCrossRail(id) {
     if (!d.found || activeThreadId !== id) return;
     if (d.found) {
       crossTarget = d;
-      crossBtnEl.textContent = d.label + ' \u203a';
-      crossBtnEl.title = d.linked
-        ? 'Linked by hand. Right-click to unlink.'
-        : 'Same number on both rails';
+      // The rail this thread IS on, not the one the badge leads to. That is the phone's
+      // convention -- there the badge doubles as a rail marker, showing "Signal" plain
+      // when there is nowhere to cross and gaining an arrow when there is -- and the
+      // browser was doing the opposite. Which made it contradict itself as well as the
+      // phone: a Signal thread's row in the list is badged "Signal" while its own header
+      // said "SMS", for the same conversation.
+      const here = activeThreadRail === 'signal' ? 'Signal' : 'SMS';
+      const there = d.label;
+      crossBtnEl.textContent = here + ' \u203a';
+      crossBtnEl.title = (d.linked
+        ? 'Linked by hand — right-click to unlink. '
+        : '') + 'Go to their ' + there + ' conversation';
       crossBtnEl.hidden = false;
     } else if (d.canLink) {
       // No counterpart found by number, but this thread could have one. Matching only

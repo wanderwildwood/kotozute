@@ -598,3 +598,60 @@ func TestRoundTripKeepsQuoteLinks(t *testing.T) {
 			reply.QuoteTS)
 	}
 }
+
+// Retention prunes old attachments on purpose. A message whose only content was the
+// attachment then looked empty, and empty messages are discarded on import -- so the
+// message vanished from the backup, not merely its picture.
+func TestAMessageSurvivesItsAttachmentBeingPruned(t *testing.T) {
+	withFrozenClock(t)
+	const selfACI = "00000000-0000-4000-8000-000000000000"
+	const theirACI = "11111111-1111-4111-8111-111111111111"
+	key := "direct:" + theirACI
+
+	origin, err := OpenStore(filepath.Join(t.TempDir(), "a.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer origin.Close()
+	if err := origin.SetThreadMeta(key, "direct", "Ada Lovelace", nil); err != nil {
+		t.Fatal(err)
+	}
+	// No body, and the attachment file does not exist -- retention took it.
+	if _, _, err := origin.InsertMessage(&Message{
+		ID: theirACI + ":1700000000000", ThreadKey: key, TS: 1700000000000,
+		SenderUUID: theirACI, Source: "live", Read: true,
+		Attachments: []Attachment{{ID: "gone.jpg", Type: "image/jpeg", Size: 4242}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	if _, err := ExportStore(origin, dir, t.TempDir() /* empty attachment dir */, selfACI); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := OpenStore(filepath.Join(t.TempDir(), "b.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	st, err := ImportExport(fresh, dir, t.TempDir(), selfACI, "+15559998888")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Messages != 1 {
+		t.Fatalf("imported %d of 1 -- the message went with its pruned attachment; %s", st.Messages, st)
+	}
+	msgs, _ := fresh.ThreadMessages(key, 0, 10)
+	if len(msgs) != 1 {
+		t.Fatalf("store holds %d messages, want 1", len(msgs))
+	}
+	if len(msgs[0].Attachments) != 1 {
+		t.Fatalf("the surviving message lost its attachment reference entirely")
+	}
+	if msgs[0].Attachments[0].ID != "" {
+		t.Errorf("id = %q, want empty -- there is no file to fetch", msgs[0].Attachments[0].ID)
+	}
+	if msgs[0].Attachments[0].Type != "image/jpeg" {
+		t.Errorf("content type lost: %q", msgs[0].Attachments[0].Type)
+	}
+}

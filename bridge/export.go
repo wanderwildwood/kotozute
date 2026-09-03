@@ -272,9 +272,21 @@ func exportAttachments(m *Message, dir, attachDir string, st *ExportStats) []map
 		src := filepath.Join(attachDir, a.ID)
 		info, err := os.Stat(src)
 		if err != nil {
-			// Retention deletes old attachments on purpose, so this is expected on an
-			// older conversation rather than a fault. Counted, not shouted about.
+			// Retention deletes old attachments on purpose, so a missing file is expected on
+			// an older conversation rather than a fault. The reference is still written,
+			// with no file behind it: dropping it entirely made a message whose only content
+			// WAS the attachment look empty, and an empty message is discarded on the way
+			// back in -- so the message itself disappeared from the backup, not just its
+			// picture. An entry with no file reads as "attachment, not downloaded", which is
+			// exactly what it is and what the app already knows how to draw.
 			st.Missing++
+			out = append(out, map[string]any{
+				"pointer": map[string]any{
+					"contentType": a.Type,
+					"fileName":    a.Filename,
+					"locatorInfo": map[string]any{"size": a.Size},
+				},
+			})
 			continue
 		}
 		dst := filepath.Join(dir, "files", a.ID)

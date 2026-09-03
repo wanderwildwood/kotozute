@@ -334,10 +334,18 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 			}
 			name, ok := files.takeNamed(a.FileName, a.Pointer.LocatorInfo.Size, attachDir)
 			if !ok {
-				// The export references a file it did not write, or two files share a
-				// size. Attaching the wrong picture to a message is worse than attaching
-				// none, so an unresolved reference is dropped and counted.
+				// No file behind the reference: retention pruned it, or the export named a
+				// file it did not write. The reference is kept with an empty id, which is
+				// what our own sent attachments carry and what the app draws as "not
+				// downloaded". Dropping it instead made a message whose only content was
+				// the attachment look empty, and empty messages are discarded below -- so
+				// the message vanished rather than just its picture.
 				st.AttachmentsLost++
+				m.Attachments = append(m.Attachments, Attachment{
+					Type:     a.Pointer.ContentType,
+					Filename: a.Pointer.FileName,
+					Size:     a.Pointer.LocatorInfo.Size,
+				})
 				continue
 			}
 			m.Attachments = append(m.Attachments, Attachment{

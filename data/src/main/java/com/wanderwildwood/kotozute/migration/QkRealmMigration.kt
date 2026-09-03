@@ -433,6 +433,6 @@ class QkRealmMigration @Inject constructor(
 
     /** Same reasoning as addIfAbsent: a fresh realm already carries the index. */
     private fun RealmObjectSchema.addIndexIfAbsent(name: String): RealmObjectSchema =
-        if (!hasField(name) || isIndexed(name)) this else addIndex(name)
+        if (!hasField(name) || hasIndex(name)) this else addIndex(name)
 
 }

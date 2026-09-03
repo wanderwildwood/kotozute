@@ -94,7 +94,6 @@ if (new URLSearchParams(location.search).get('token')) {
    * get told where their own browser already hides the same feature: Chromium's "Create
    * shortcut / Install as app" makes a proper window over plain HTTP, unlike install
    * prompts. Safari's is "Add to Dock". */
-  const launcherBtn = document.getElementById('launcherBtn');
   const panel = document.getElementById('launcherPanel');
   const agent = navigator.userAgent;
   const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
@@ -141,16 +140,12 @@ if (new URLSearchParams(location.search).get('token')) {
     panel.querySelector('.close').addEventListener('click', () => { panel.hidden = true; });
   };
 
-  if (launcherBtn && panel) {
-    launcherBtn.addEventListener('click', () => {
-      if (!panel.hidden) { panel.hidden = true; return; }
-      panel.innerHTML = launcherHelp() + '<button type="button" class="close">Close</button>';
-      panel.hidden = false;
-      panel.querySelector('.close').addEventListener('click', () => { panel.hidden = true; });
-    });
+  // The launcher had its own header button until it moved into the settings menu. The
+  // dismiss-on-outside-click stays, keyed on the panel alone.
+  if (panel) {
     document.addEventListener('click', e => {
       if (panel.hidden) return;
-      if (!panel.contains(e.target) && e.target !== launcherBtn) panel.hidden = true;
+      if (!panel.contains(e.target)) panel.hidden = true;
     });
   }
 })();
@@ -1616,10 +1611,23 @@ async function selectThread(id, title) {
   bodyEl.value = drafts[String(id)] || '';
   clearAttachments();
   autoGrow();
-  await loadMessages();
-  // Reading it here should clear the unread dot and notification on the phone too
-  await markThreadRead(id);
-  await loadThreads();
+  // Wrapped, because this runs on a click rather than on the poll loop, and the poll loop
+  // is the only thing that was catching. Over a tailnet to a phone on mobile data an
+  // unreachable moment is ordinary, and without this one throws out of the middle of the
+  // sequence: the title says the new conversation, the composer is enabled and pointed at
+  // it, and the messages below are still the last one's. The status line already reports
+  // the connection, so the honest thing is to leave the pane empty rather than wrong.
+  try {
+    await loadMessages();
+    // Reading it here should clear the unread dot and notification on the phone too
+    await markThreadRead(id);
+    await loadThreads();
+  } catch (e) {
+    if (activeThreadId === id) {
+      messagesEl.innerHTML = '';
+      statusEl.textContent = 'could not load that conversation';
+    }
+  }
   loadCrossRail(id);
 }
 
@@ -1772,9 +1780,17 @@ async function markThreadRead(id) {
 
 async function loadMessages() {
   if (activeThreadId === null) return;
-  const res = await api('/api/threads/' + activeThreadId + '/messages?limit=' + messageLimit);
-  if (!res.ok) return;
+  // Which thread this request is for. Read once, up front, and checked again on arrival:
+  // the fetch is a round trip to the phone and the reader can pick another conversation
+  // while it is in flight. Read a second time afterwards, as this did, and one thread's
+  // messages get rendered under another thread's identity -- the wrong conversation on
+  // screen, with a signature that says it is the right one, so the next poll leaves it
+  // there.
+  const forThread = activeThreadId;
+  const res = await api('/api/threads/' + forThread + '/messages?limit=' + messageLimit);
+  if (!res.ok || activeThreadId !== forThread) return;
   const payload = await res.json();
+  if (activeThreadId !== forThread) return;
   // Response used to be a bare array; it's now {total, hasMore, messages}
   const messages = Array.isArray(payload) ? payload : (payload.messages || []);
   hasMoreMessages = Array.isArray(payload) ? false : !!payload.hasMore;
@@ -1782,10 +1798,10 @@ async function loadMessages() {
   // The poll runs every few seconds. Rebuilding the DOM each time would throw away
   // the reader's scroll position (and any in-flight image loads), so bail out when
   // nothing has actually changed.
-  const sig = activeThreadId + ':' + messageLimit + ':' + messages.length + ':' +
+  const sig = forThread + ':' + messageLimit + ':' + messages.length + ':' +
     (messages.length ? messages[messages.length - 1].id + ':' + messages[messages.length - 1].date : '');
   if (sig === lastMessagesSig) return;
-  const isNewThread = !lastMessagesSig.startsWith(activeThreadId + ':');
+  const isNewThread = !lastMessagesSig.startsWith(forThread + ':');
   lastMessagesSig = sig;
 
   // Only auto-scroll if they're already reading the bottom (or just opened the

@@ -222,7 +222,9 @@
   .thread .name { font-weight: 700; font-size: 15px; }
   /* Mirrors the phone's rail chip: filled, not outlined, so it reads at a glance. */
   #crossBtn {
-    margin-left: 8px; padding: 2px 7px; font-size: 11px; font-weight: 700;
+    /* auto, not a fixed gap: it takes the slack in the row and ends up hard right,
+       whatever else is or is not showing beside the title. */
+    margin-left: auto; padding: 3px 9px; font-size: 11px; font-weight: 700;
     background: var(--ink); color: var(--paper);
     border: 0; border-radius: 3px; cursor: pointer; white-space: nowrap;
   }
@@ -495,10 +497,6 @@
     <section id="pane">
       <div id="paneHeader">
         <span id="paneTitle">Select a conversation</span>
-        <!-- The phone's rail badge: one person, two conversations, a way across. Only for
-             a one-to-one thread, because a Signal group and an MMS group are different
-             groups rather than two views of one. -->
-        <button type="button" id="crossBtn" hidden></button>
         <span id="toWrap" hidden>
           <input type="text" id="toField" placeholder="Name or number" autocomplete="off">
           <div id="suggestions"></div>
@@ -507,6 +505,11 @@
              two of them, so a one-SIM phone never sees a choice it does not have. A reply
              needs no control: it goes out on the SIM the conversation is already on. -->
         <select id="simField" title="Send from" aria-label="Send from" hidden></select>
+        <!-- The phone's rail badge: one person, two conversations, a way across. Last in
+             the row and pushed right, so it sits in line with the contact name at the far
+             end rather than crowding it. Only for a one-to-one thread, because a Signal
+             group and an MMS group are different groups rather than two views of one. -->
+        <button type="button" id="crossBtn" hidden></button>
       </div>
       <div id="messages"><div id="empty">Nothing selected</div></div>
       <form id="composer">

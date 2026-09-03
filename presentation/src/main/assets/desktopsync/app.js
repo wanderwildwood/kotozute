@@ -145,6 +145,8 @@ const threadsEl = document.getElementById('threads');
 const messagesEl = document.getElementById('messages');
 const paneTitleEl = document.getElementById('paneTitle');
 const statusEl = document.getElementById('status');
+const crossBtnEl = document.getElementById('crossBtn');
+let crossTarget = null;
 const bodyEl = document.getElementById('body');
 const composerEl = document.getElementById('composer');
 const sendEl = document.getElementById('send');
@@ -1017,9 +1019,6 @@ async function selectThread(id, title) {
   await loadThreads();
   loadCrossRail(id);
 }
-
-const crossBtnEl = document.getElementById('crossBtn');
-let crossTarget = null;
 
 /**
  * The phone's rail badge, in the browser: if the person in this thread also has a

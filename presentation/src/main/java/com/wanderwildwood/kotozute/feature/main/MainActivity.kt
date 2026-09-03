@@ -361,7 +361,15 @@ class MainActivity : QkThemedActivity(), MainView {
                 ?.apply { setTint(Color.BLACK) }
             else -> null
         }
-        binding.settingsIcon.setVisible(!archived)
+
+        // Nothing that acts on the whole inbox belongs in the toolbar while rows are
+        // selected. The filter tabs already stand down for this; search and the cog did
+        // not, so a selection left six controls fighting for a 480px bar and put a route
+        // out of the screen next to the actions that operate on what is selected. What
+        // stays is only what acts on the selection.
+        val selecting = selectedConversations > 0
+        binding.settingsIcon.setVisible(!archived && !selecting)
+        binding.searchIcon.setVisible(!selecting)
 
         when (state.syncing) {
             is SyncRepository.SyncProgress.Idle -> {

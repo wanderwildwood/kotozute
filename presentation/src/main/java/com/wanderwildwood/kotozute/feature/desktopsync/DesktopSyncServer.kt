@@ -1778,6 +1778,19 @@ class DesktopSyncServer(
         } else {
             result.put("found", false)
         }
+
+        // Whether this person is also on Signal, so the composer can offer that rail.
+        // Without it, picking a contact in the browser always started an SMS -- while the
+        // phone, given the same contact, shows a badge and can begin a Signal conversation
+        // instead. Signal's directory gives a thread per contact, so it already exists; it
+        // simply has no messages in it yet.
+        if (signalEnabled()) {
+            runCatching { signalRepository.findThreadForNumber(address) }.getOrNull()
+                ?.let { thread ->
+                    result.put("signalThreadId", InboxItem.signalStableId(thread.threadKey))
+                    result.put("signalTitle", thread.title.ifBlank { thread.counterpartNumber })
+                }
+        }
         return jsonResponse(Response.Status.OK, result)
     }
 

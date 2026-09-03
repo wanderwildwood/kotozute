@@ -246,6 +246,19 @@ async function pickSuggestion(i) {
       if (info.found && info.threadId) {
         await selectThread(info.threadId, info.title || s.name);
         bodyEl.focus();
+        // If they are on Signal too, say so and offer it. Picking a contact here always
+        // began an SMS, while the phone given the same contact offers the other rail --
+        // and starting a Signal conversation was the one thing the browser could not do
+        // at all, because Signal's directory already holds the thread and nothing here
+        // pointed at it.
+        offerSignalRail(info);
+        return;
+      }
+      // No SMS history, but Signal may still know them. Signal's directory gives a thread
+      // per contact, so it exists already -- it simply has no messages in it yet.
+      if (info.signalThreadId) {
+        await selectThread(info.signalThreadId, info.signalTitle || s.name);
+        bodyEl.focus();
         return;
       }
     }
@@ -254,6 +267,22 @@ async function pickSuggestion(i) {
     console.warn('thread lookup failed', e);
   }
   bodyEl.focus();
+}
+
+/**
+ * After opening someone's SMS thread from the composer, point out that they are on Signal
+ * as well. The crossing badge does this for a thread reached from the list; reached from
+ * the composer, loadCrossRail has already run for the same thread, so this only has to
+ * make sure it is not missed -- the badge is in the header either way.
+ */
+function offerSignalRail(info) {
+  if (!info.signalThreadId) return;
+  statusEl.textContent = 'also on Signal — see the badge above';
+  setTimeout(() => {
+    if (statusEl.textContent === 'also on Signal — see the badge above') {
+      statusEl.textContent = statusEl.classList.contains('live') ? 'live' : '';
+    }
+  }, 6000);
 }
 
 async function lookupContacts(q) {

@@ -143,8 +143,28 @@ func (s *Store) InsertMessage(m *Message) (int64, bool, error) {
 	n, _ := res.RowsAffected()
 	if n == 0 {
 		var seq int64
-		err := s.db.QueryRow(`SELECT seq FROM messages WHERE msg_id=?`, m.ID).Scan(&seq)
-		return seq, false, err
+		if err := s.db.QueryRow(`SELECT seq FROM messages WHERE msg_id=?`, m.ID).Scan(&seq); err != nil {
+			return 0, false, err
+		}
+		// The row is already here, but this copy may know something it did not.
+		//
+		// A message sent from the browser is stored by the send path, which cannot know the
+		// thread's disappearing-message timer -- signal-cli applies that on the wire. The
+		// sync echo that comes back moments later does carry it, and has the same id, so
+		// INSERT OR IGNORE dropped the only copy that knew when the message should go. The
+		// sender's copy of every disappearing message they sent then lived for ever.
+		//
+		// Only ever fills a gap: a deadline already recorded is never moved, so this cannot
+		// be used to extend one.
+		if m.ExpiresAt > 0 {
+			if _, err := s.db.Exec(`
+				UPDATE messages SET expires_in = ?, expires_at = ?
+				WHERE msg_id = ? AND (expires_at = 0 OR expires_at IS NULL)`,
+				m.ExpiresInSeconds, m.ExpiresAt, m.ID); err != nil {
+				return seq, false, err
+			}
+		}
+		return seq, false, nil
 	}
 	seq, _ := res.LastInsertId()
 	if err := s.touchThread(m, seq); err != nil {

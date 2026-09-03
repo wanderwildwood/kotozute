@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -256,6 +257,16 @@ func exportAttachments(m *Message, dir, attachDir string, st *ExportStats) []map
 	var out []map[string]any
 	for _, a := range m.Attachments {
 		if a.ID == "" {
+			continue
+		}
+		// The id comes off the wire in the sender's AttachmentPointer and is stored as free
+		// text. The serving path rejects anything that is not [A-Za-z0-9_-] with an optional
+		// extension; this path did not, so an id of "../../data/accounts.json" made the
+		// export read from outside the attachment directory and write outside the export
+		// directory. On a primary-device setup that directory is the Signal account.
+		if !attachmentID.MatchString(a.ID) {
+			log.Printf("export: refusing an attachment id that is not a plain name: %q", a.ID)
+			st.Missing++
 			continue
 		}
 		src := filepath.Join(attachDir, a.ID)

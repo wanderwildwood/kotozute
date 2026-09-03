@@ -35,6 +35,11 @@ type Message struct {
 	// stored; the row is kept so the conversation does not have a silent hole in it.
 	ViewOnce bool `json:"viewOnce,omitempty"`
 
+	// Files signal-cli already wrote to disk for a view-once message, for the caller to
+	// remove. Not stored and not sent: keeping the row out of the database was never
+	// enough on its own, because the bytes were still there to be fetched.
+	ViewOnceFiles []string `json:"-"`
+
 	Raw string `json:"-"`
 }
 
@@ -219,8 +224,20 @@ func normalize(selfUUID string, raw json.RawMessage) (*Message, *Receipt, error)
 	if dm.Quote != nil {
 		m.QuoteTS = dm.Quote.ID
 	}
-	// A view-once attachment is not stored. Signal's promise is that it can be opened
-	// once, and a copy sitting in this database is a copy that can be opened for ever.
+	// A view-once attachment is not stored, and the file signal-cli already wrote is
+	// removed. Keeping the row out of the database was not enough: the bytes were still on
+	// disk under an id the raw envelope preserved, so anything that could read raw could
+	// still fetch it. Signal's promise is that it can be opened once.
+	if dm.ViewOnce {
+		for _, a := range dm.Attachments {
+			if a.ID != "" {
+				m.ViewOnceFiles = append(m.ViewOnceFiles, a.ID)
+			}
+		}
+		// The envelope names the attachment. Storing it would put the id of a file the
+		// sender meant to be seen once into a column anything can read.
+		m.Raw = ""
+	}
 	if !dm.ViewOnce {
 		for _, a := range dm.Attachments {
 			m.Attachments = append(m.Attachments, Attachment{

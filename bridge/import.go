@@ -301,9 +301,19 @@ func ImportExport(store *Store, dir, attachDir, selfUUID, selfNumber string) (Im
 			Source:  "import",
 			QuoteTS: quoteTS,
 		}
-		if it.ExpireStartDate > 0 && it.ExpiresInMs > 0 {
+		if it.ExpiresInMs > 0 {
 			m.ExpiresInSeconds = it.ExpiresInMs / 1000
-			m.ExpiresAt = it.ExpireStartDate + it.ExpiresInMs
+			if it.ExpireStartDate > 0 {
+				m.ExpiresAt = it.ExpireStartDate + it.ExpiresInMs
+			} else {
+				// Signal writes expireStartDate only once the timer has actually started, so
+				// an unread disappearing message carries a duration and no start. Requiring
+				// both meant such a message was imported as "never expires" -- turning every
+				// not-yet-started disappearing message in a history into a permanent record,
+				// which is the outcome this importer exists to avoid. Start the clock now:
+				// that expires no later than Signal would, which is the safe direction.
+				m.ExpiresAt = nowMs() + it.ExpiresInMs
+			}
 		}
 
 		// The id must match what normalize() would build for the same message arriving

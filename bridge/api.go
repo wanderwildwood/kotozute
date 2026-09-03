@@ -22,22 +22,46 @@ type API struct {
 	atts  *Attachments
 
 	subsMu sync.Mutex
-	subs   map[chan *Message]struct{}
+	subs   map[chan *Message]*subscriber
+}
+
+// subscriber is one attached phone's live stream.
+//
+// dropped is the whole point of the type. A phone advances its cursor from the messages it
+// actually receives, so a message the bridge quietly skipped is skipped for ever: the next
+// catch-up asks for everything after the message that DID arrive. Recording the drop lets
+// the stream end instead, and a reconnect resumes from the cursor the phone really reached.
+type subscriber struct {
+	ch      chan *Message
+	dropped bool
 }
 
 func NewAPI(st *Store, sc *SignalCLI, auth *Auth, self string, atts *Attachments) *API {
 	return &API{store: st, sc: sc, auth: auth, self: self, atts: atts,
-		subs: map[chan *Message]struct{}{}}
+		subs: map[chan *Message]*subscriber{}}
 }
 
 // Broadcast fans a newly stored message out to attached phones.
+//
+// A subscriber that cannot keep up is marked and its stream ended rather than skipped past.
+// The comment that used to sit here said the phone would "catch up by cursor instead"; it
+// would not. The phone's cursor is the seq of the last message it processed, so dropping one
+// and delivering the next moves the cursor past the gap and the missed message is never
+// asked for again. Ending the stream leaves the cursor where it truly is, and the reconnect
+// fetches everything after it.
 func (a *API) Broadcast(m *Message) {
 	a.subsMu.Lock()
 	defer a.subsMu.Unlock()
-	for ch := range a.subs {
+	for _, sub := range a.subs {
+		if sub.dropped {
+			continue
+		}
 		select {
-		case ch <- m:
-		default: // a phone that cannot keep up will catch up by cursor instead
+		case sub.ch <- m:
+		default:
+			sub.dropped = true
+			log.Printf("events: a subscriber fell behind at seq %d; ending its stream to force a catch-up", m.Seq)
+			close(sub.ch)
 		}
 	}
 }
@@ -147,12 +171,16 @@ func (a *API) events(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ch := make(chan *Message, 64)
+	sub := &subscriber{ch: ch}
 	a.subsMu.Lock()
-	a.subs[ch] = struct{}{}
+	a.subs[ch] = sub
 	a.subsMu.Unlock()
 	defer func() {
 		a.subsMu.Lock()
 		delete(a.subs, ch)
+		// Only the broadcaster closes the channel, and only once; marking it dropped here
+		// stops a close racing with a send after this handler has gone.
+		sub.dropped = true
 		a.subsMu.Unlock()
 	}()
 
@@ -162,7 +190,12 @@ func (a *API) events(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
-		case m := <-ch:
+		case m, open := <-ch:
+			if !open {
+				// Fell behind: end the response so the phone reconnects and asks for
+				// everything after the cursor it actually reached.
+				return
+			}
 			sseSend(w, fl, "message", m)
 		case <-ping.C:
 			fmt.Fprintf(w, ": ping\n\n")

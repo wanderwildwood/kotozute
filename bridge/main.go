@@ -152,6 +152,22 @@ func main() {
 			return
 		}
 		m.Seq = seq
+
+		// signal-cli has already written any attachment to disk by the time we see the
+		// envelope. For a view-once message that file must not survive: leaving it there
+		// while merely omitting it from the database is a copy that can still be fetched.
+		for _, id := range m.ViewOnceFiles {
+			if !attachmentID.MatchString(id) {
+				continue
+			}
+			path := filepath.Join(*scData, "attachments", id)
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				log.Printf("view-once: could not remove %s: %v", id, err)
+			} else if err == nil {
+				log.Printf("view-once: removed the attachment signal-cli had written")
+			}
+		}
+
 		if isNew {
 			api.Broadcast(m)
 		}

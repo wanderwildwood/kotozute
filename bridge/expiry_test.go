@@ -128,7 +128,7 @@ func TestPurgeRemovesExpiredAndKeepsTheRest(t *testing.T) {
 		t.Fatalf("reads returned %d messages, want 2 (the unexpired ones)", len(before))
 	}
 
-	n, err := store.PurgeExpired()
+	n, _, err := store.PurgeExpired()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,5 +294,73 @@ func TestADeadlineAlreadySetIsNeverExtended(t *testing.T) {
 	msgs, _ := store.ThreadMessages("direct:x", 0, 10)
 	if len(msgs) != 1 || msgs[0].ExpiresAt != testNow+30_000 {
 		t.Errorf("a recorded deadline was moved: %+v", msgs)
+	}
+}
+
+// Deleting the row was never the whole job: the picture stayed on disk, fetchable by id
+// through the attachment route long after the message had expired. And a thread whose
+// unread message expired kept counting it.
+func TestPurgeNamesItsFilesAndRecountsTheThread(t *testing.T) {
+	withFrozenClock(t)
+	store, err := OpenStore(filepath.Join(t.TempDir(), "p.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	key := "direct:11111111-1111-4111-8111-111111111111"
+
+	// One expiring, unread, with a picture; one ordinary and unread.
+	if _, _, err := store.InsertMessage(&Message{
+		ID: "a:1", ThreadKey: key, TS: testNow, Body: "going", Source: "live",
+		ExpiresAt: testNow - 1, ExpiresInSeconds: 30,
+		Attachments: []Attachment{{ID: "pic.jpg", Type: "image/jpeg"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.InsertMessage(&Message{
+		ID: "a:2", ThreadKey: key, TS: testNow, Body: "staying", Source: "live",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := store.Threads()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != 1 || before[0].Unread != 2 {
+		t.Fatalf("expected 2 unread before the purge, got %+v", before)
+	}
+
+	n, files, err := store.PurgeExpired()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("purged %d, want 1", n)
+	}
+	if len(files) != 1 || files[0] != "pic.jpg" {
+		t.Errorf("files to delete = %v, want [pic.jpg] -- the picture stays on disk otherwise", files)
+	}
+	after, _ := store.Threads()
+	if len(after) != 1 || after[0].Unread != 1 {
+		t.Errorf("unread after the purge = %v, want 1 -- the expired message is still counted", after)
+	}
+}
+
+// A blank title means "not resolved yet", not "this thread has no name".
+func TestABlankTitleDoesNotEraseAKnownOne(t *testing.T) {
+	withFrozenClock(t)
+	store, _ := OpenStore(filepath.Join(t.TempDir(), "t.db"))
+	defer store.Close()
+	key := "direct:11111111-1111-4111-8111-111111111111"
+	if err := store.SetThreadMeta(key, "direct", "Ada Lovelace", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetThreadMeta(key, "direct", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := store.Threads()
+	if len(rows) != 1 || rows[0].Title != "Ada Lovelace" {
+		t.Errorf("title = %q, want it kept -- a blank overwrote a known name", rows[0].Title)
 	}
 }

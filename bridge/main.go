@@ -70,10 +70,29 @@ func main() {
 	// clears the bridge. Deliberately not something the phone can ask for over the
 	// pairing -- a token that can erase the whole store is a different kind of token.
 	if *wipe {
+		// The files first: once the rows are gone nothing remembers which files belonged to
+		// this account, and "the store is empty" while every picture is still on disk is
+		// the wrong kind of true.
+		attDir := filepath.Join(*scData, "attachments")
+		ids, err := store.AllAttachmentIDs()
+		if err != nil {
+			fatal("wipe: could not list attachments: %v", err)
+		}
+		removed := 0
+		for _, id := range ids {
+			if !attachmentID.MatchString(id) {
+				continue
+			}
+			if err := os.Remove(filepath.Join(attDir, id)); err == nil {
+				removed++
+			} else if !os.IsNotExist(err) {
+				log.Printf("wipe: could not remove %s: %v", id, err)
+			}
+		}
 		if err := store.DeleteEverything(); err != nil {
 			fatal("wipe: %v", err)
 		}
-		log.Printf("wipe: the store is empty")
+		log.Printf("wipe: the store is empty; %d attachment file(s) removed", removed)
 		return
 	}
 
@@ -202,6 +221,7 @@ func main() {
 	stop := make(chan struct{})
 	go sc.Run(stop)
 	go NewRetention(*scData, *attDays, *attMB).Run(stop)
+	purgeAttachmentDir = filepath.Join(*scData, "attachments")
 	go sweepExpired(store, stop)
 
 	// Resolve our own UUID once connected; the sync/sent distinction depends on it.
@@ -322,6 +342,10 @@ func fatal(f string, a ...any) {
 	os.Exit(1)
 }
 
+// Where signal-cli keeps attachments, so the sweep can delete the files of messages it
+// removes. Set once at startup, before the sweep goroutine begins.
+var purgeAttachmentDir string
+
 // sweepExpired deletes disappearing messages whose time is up.
 //
 // Separate from the attachment retention sweep, which runs every six hours: a Signal timer
@@ -342,10 +366,20 @@ func sweepExpired(store *Store, stop <-chan struct{}) {
 }
 
 func purge(store *Store) {
-	n, err := store.PurgeExpired()
+	n, files, err := store.PurgeExpired()
 	if err != nil {
 		log.Printf("expiry sweep: %v", err)
 		return
+	}
+	// The row going was never the whole job: the picture stayed on disk, fetchable by id
+	// through the attachment route, long after the message it belonged to had expired.
+	for _, id := range files {
+		if !attachmentID.MatchString(id) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(purgeAttachmentDir, id)); err != nil && !os.IsNotExist(err) {
+			log.Printf("expiry sweep: could not remove %s: %v", id, err)
+		}
 	}
 	// Logged positively: a sweep that silently does nothing looks the same whether it is
 	// working or broken, and this one is only ever noticed when it has failed.

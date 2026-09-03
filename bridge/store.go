@@ -101,13 +101,99 @@ func (s *Store) Close() error { return s.db.Close() }
 // PurgeExpired removes messages whose disappearing-message timer has run out. Reads
 // already hide them, so this is what stops the database from being a record of
 // conversations that were meant to leave no record. Returns how many went.
-func (s *Store) PurgeExpired() (int64, error) {
-	res, err := s.db.Exec(
-		`DELETE FROM messages WHERE expires_at != 0 AND expires_at <= ?`, nowMs())
+// PurgeExpired removes messages whose disappearing-message timer has run out and returns
+// how many went, along with the attachment ids they referenced so the caller can delete the
+// files. Deleting the row alone left the picture on disk and fetchable by id.
+func (s *Store) PurgeExpired() (int64, []string, error) {
+	now := nowMs()
+
+	// Read what is about to go, so the files can be removed and the affected threads can
+	// have their counts re-derived. A count is not decremented; it is recomputed, because
+	// arithmetic on a number that other paths also write drifts.
+	rows, err := s.db.Query(
+		`SELECT COALESCE(attachments,''), thread_key FROM messages
+		 WHERE expires_at != 0 AND expires_at <= ?`, now)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	return res.RowsAffected()
+	var files []string
+	threads := map[string]struct{}{}
+	for rows.Next() {
+		var atts, key string
+		if err := rows.Scan(&atts, &key); err != nil {
+			rows.Close()
+			return 0, nil, err
+		}
+		threads[key] = struct{}{}
+		var parsed []Attachment
+		if json.Unmarshal([]byte(atts), &parsed) == nil {
+			for _, a := range parsed {
+				if a.ID != "" {
+					files = append(files, a.ID)
+				}
+			}
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, nil, err
+	}
+
+	res, err := s.db.Exec(
+		`DELETE FROM messages WHERE expires_at != 0 AND expires_at <= ?`, now)
+	if err != nil {
+		return 0, nil, err
+	}
+	n, _ := res.RowsAffected()
+
+	// A thread whose newest message just expired would otherwise keep showing it as unread
+	// and keep it as the preview.
+	for key := range threads {
+		if err := s.recountThread(key); err != nil {
+			return n, files, err
+		}
+	}
+	return n, files, nil
+}
+
+// recountThread re-derives a thread's unread count and last timestamp from the messages
+// that are actually still there.
+func (s *Store) recountThread(key string) error {
+	_, err := s.db.Exec(`
+		UPDATE threads SET
+		  unread = (SELECT COUNT(*) FROM messages
+		            WHERE thread_key = threads.thread_key AND outgoing = 0 AND read = 0),
+		  last_ts = COALESCE((SELECT MAX(ts) FROM messages
+		                      WHERE thread_key = threads.thread_key), 0)
+		WHERE thread_key = ?`, key)
+	return err
+}
+
+// AllAttachmentIDs lists every attachment id the store references, so a wipe can remove the
+// files as well as the rows. Reporting "the store is empty" while every picture is still on
+// disk is the wrong kind of true.
+func (s *Store) AllAttachmentIDs() ([]string, error) {
+	rows, err := s.db.Query(`SELECT COALESCE(attachments,'') FROM messages`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var atts string
+		if err := rows.Scan(&atts); err != nil {
+			return nil, err
+		}
+		var parsed []Attachment
+		if json.Unmarshal([]byte(atts), &parsed) == nil {
+			for _, a := range parsed {
+				if a.ID != "" {
+					out = append(out, a.ID)
+				}
+			}
+		}
+	}
+	return out, rows.Err()
 }
 
 // DeleteEverything empties the store: every message, thread, contact, and the cursor
@@ -167,6 +253,8 @@ func (s *Store) InsertMessage(m *Message) (int64, bool, error) {
 		return seq, false, nil
 	}
 	seq, _ := res.LastInsertId()
+	// If this fails the message is in and the thread row is not, so the inbox shows nothing
+	// for a message the store holds. Reported rather than swallowed; the caller logs it.
 	if err := s.touchThread(m, seq); err != nil {
 		return seq, true, err
 	}
@@ -199,7 +287,13 @@ func (s *Store) SetThreadMeta(key, kind, title string, members []string) error {
 		INSERT INTO threads (thread_key, kind, title, members)
 		VALUES (?,?,?,?)
 		ON CONFLICT(thread_key) DO UPDATE SET
-		  kind=excluded.kind, title=excluded.title, members=excluded.members`,
+		  kind=excluded.kind,
+		  -- A blank title is "I do not know", not "this thread has no name". signal-cli
+		  -- reports one for a contact it has not resolved yet, and letting that through
+		  -- erased a name the directory sync had already found, leaving a bare uuid.
+		  title=CASE WHEN excluded.title != '' THEN excluded.title ELSE threads.title END,
+		  members=CASE WHEN excluded.members NOT IN ('','null','[]')
+		               THEN excluded.members ELSE threads.members END`,
 		key, kind, title, string(mj))
 	return err
 }

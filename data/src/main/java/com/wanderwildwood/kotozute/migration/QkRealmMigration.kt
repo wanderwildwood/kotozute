@@ -27,6 +27,7 @@ import io.realm.DynamicRealmObject
 import io.realm.FieldAttribute
 import io.realm.RealmList
 import io.realm.RealmMigration
+import io.realm.RealmObjectSchema
 import io.realm.Sort
 import timber.log.Timber
 import javax.inject.Inject
@@ -343,6 +344,7 @@ class QkRealmMigration @Inject constructor(
             // Attachment metadata from the bridge. Existing rows get "": they were stored
             // before the client read the field, and the bridge still holds the originals.
             realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("attachments") }
                 ?.addField("attachments", String::class.java, FieldAttribute.REQUIRED)
                 ?.transform { msg -> msg.setString("attachments", "") }
 
@@ -353,8 +355,9 @@ class QkRealmMigration @Inject constructor(
             // Existing rows start blank and fill on the next message or sync; there is
             // nothing to back-fill them from without reading every message here.
             realm.schema.get("SignalThread")
+                ?.takeIf { !it.hasField("snippet") }
                 ?.addField("snippet", String::class.java, FieldAttribute.REQUIRED)
-                ?.addField("snippetOutgoing", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.addIfAbsent("snippetOutgoing", Boolean::class.java, FieldAttribute.REQUIRED)
                 ?.transform { t ->
                     t.setString("snippet", "")
                     t.setBoolean("snippetOutgoing", false)
@@ -367,8 +370,9 @@ class QkRealmMigration @Inject constructor(
             // Per-thread settings the SMS side has had all along. Defaults keep every
             // existing thread exactly as it behaves today: not pinned, not muted.
             realm.schema.get("SignalThread")
+                ?.takeIf { !it.hasField("pinned") }
                 ?.addField("pinned", Boolean::class.java, FieldAttribute.REQUIRED)
-                ?.addField("muted", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.addIfAbsent("muted", Boolean::class.java, FieldAttribute.REQUIRED)
                 ?.transform { t ->
                     t.setBoolean("pinned", false)
                     t.setBoolean("muted", false)
@@ -383,10 +387,11 @@ class QkRealmMigration @Inject constructor(
             // bridge has already deleted its own copies, so their deadlines are unknowable.
             // Only messages arriving from here on can be honoured.
             realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("expiresAt") }
                 ?.addField("expiresAt", Long::class.java, FieldAttribute.REQUIRED)
-                ?.addField("expiresInSeconds", Long::class.java, FieldAttribute.REQUIRED)
-                ?.addField("viewOnce", Boolean::class.java, FieldAttribute.REQUIRED)
-                ?.addIndex("expiresAt")
+                ?.addIfAbsent("expiresInSeconds", Long::class.java, FieldAttribute.REQUIRED)
+                ?.addIfAbsent("viewOnce", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.addIndexIfAbsent("expiresAt")
                 ?.transform { m ->
                     m.setLong("expiresAt", 0)
                     m.setLong("expiresInSeconds", 0)
@@ -408,5 +413,26 @@ class QkRealmMigration @Inject constructor(
         // else
         Timber.d("Realm migration from v$oldVersion to v$newVersion succeeded")
     }
+
+    /**
+     * Add a field only if the table does not already have it.
+     *
+     * Realm builds a NEW realm's tables from the model classes, not by replaying the
+     * migration chain, so a clean install of a build that shipped at schema 16 gets a
+     * version-16 file whose tables already carry every column the models declared at that
+     * commit. Upgrading that phone then runs step 16 against a table that already has the
+     * column, and addField throws -- so the app dies at launch, on every launch, with no
+     * way out but clearing its data. This branch shipped at 16, 17 and 18 on the way to
+     * 20, so three of these steps can be entered against tables that already match.
+     */
+    private fun RealmObjectSchema.addIfAbsent(
+        name: String,
+        type: Class<*>,
+        vararg attributes: FieldAttribute
+    ): RealmObjectSchema = if (hasField(name)) this else addField(name, type, *attributes)
+
+    /** Same reasoning as addIfAbsent: a fresh realm already carries the index. */
+    private fun RealmObjectSchema.addIndexIfAbsent(name: String): RealmObjectSchema =
+        if (!hasField(name) || isIndexed(name)) this else addIndex(name)
 
 }

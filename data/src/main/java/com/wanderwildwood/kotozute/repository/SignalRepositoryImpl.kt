@@ -24,6 +24,17 @@ import kotlin.concurrent.thread
 
 private const val ATTACHMENT_PREVIEW = "\uD83D\uDCCE Attachment"
 
+/**
+ * What a view-once message says instead of nothing.
+ *
+ * The bridge deliberately keeps the row -- "so the conversation does not have a silent hole
+ * in it" -- with an empty body and no attachment, because the picture is gone by design.
+ * Without a marker the phone reintroduced exactly the hole the bridge went out of its way
+ * to avoid: an empty bubble, a blank inbox snippet, and no way to tell a view-once photo
+ * you never saw from a rendering fault.
+ */
+private const val VIEW_ONCE_PREVIEW = "\uD83D\uDC41 View-once photo (not kept)"
+
 @Singleton
 class SignalRepositoryImpl @Inject constructor(
     private val prefs: Preferences,
@@ -261,8 +272,12 @@ class SignalRepositoryImpl @Inject constructor(
                                 .findFirst()
                                 ?.let { newest ->
                                     row.snippet = newest.body.ifBlank {
-                                        if (newest.attachments.isNotBlank() &&
-                                            newest.attachments != "[]") ATTACHMENT_PREVIEW else ""
+                                        when {
+                                            newest.viewOnce -> VIEW_ONCE_PREVIEW
+                                            newest.attachments.isNotBlank() &&
+                                                newest.attachments != "[]" -> ATTACHMENT_PREVIEW
+                                            else -> ""
+                                        }
                                     }
                                     row.snippetOutgoing = newest.outgoing
                                 }
@@ -458,13 +473,16 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /** What the inbox row shows. A picture with no caption still needs to say something. */
-    private fun previewOf(m: BridgeMessage): String = preview(m.body, m.attachmentsJson)
+    private fun previewOf(m: BridgeMessage): String =
+        preview(m.body, m.attachmentsJson, m.viewOnce)
 
     /** The same, from a stored row -- the sweep re-derives previews from what is left. */
-    private fun previewOf(m: SignalMessage): String = preview(m.body, m.attachments)
+    private fun previewOf(m: SignalMessage): String =
+        preview(m.body, m.attachments, m.viewOnce)
 
-    private fun preview(body: String, attachmentsJson: String): String = when {
+    private fun preview(body: String, attachmentsJson: String, viewOnce: Boolean): String = when {
         body.isNotBlank() -> body
+        viewOnce -> VIEW_ONCE_PREVIEW
         attachmentsJson.isNotBlank() && attachmentsJson != "[]" -> ATTACHMENT_PREVIEW
         else -> ""
     }

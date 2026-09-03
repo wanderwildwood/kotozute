@@ -257,7 +257,12 @@ class DesktopSyncServer(
         // port by fetching index.html.
         if (!peerAllowed(session.remoteIpAddress)) {
             Timber.w("Desktop Sync: request refused (peer not on the tailnet)")
-            return jsonResponse(Response.Status.FORBIDDEN, JSONObject().put("error", "not on the tailnet"))
+            // An empty 404, not a 403 explaining itself. The comment above says this check
+            // exists so an off-tailnet caller cannot tell a running relay from a closed
+            // port -- and then the refusal announced the relay, the bound port and the
+            // mode it was in, which is a better answer than the request deserved. A scan
+            // now learns only that there is nothing at this path.
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "")
         }
 
         // The static shell carries no message data, and the browser requests app.js
@@ -650,7 +655,16 @@ class DesktopSyncServer(
         put("rail", "signal")
     }
 
-    private fun signalMessageJson(m: SignalMessage) = JSONObject().apply {
+    /**
+     * [senders] maps a sender UUID to a display name, and is empty for a one-to-one thread
+     * -- the same rule the phone's own thread screen uses. Without it every incoming bubble
+     * in a Signal group read as one voice in the browser, while the phone showed the same
+     * conversation attributed and the SMS side already sent a name.
+     */
+    private fun signalMessageJson(
+        m: SignalMessage,
+        senders: Map<String, String> = emptyMap()
+    ) = JSONObject().apply {
         // The desktop list keys on this; Signal's own id is a string, so derive a stable
         // number from it the same way thread ids are derived.
         put("id", InboxItem.signalStableId(m.id))
@@ -661,6 +675,11 @@ class DesktopSyncServer(
         put("rail", "signal")
         if (m.attachments.isNotBlank() && m.attachments != "[]") {
             put("attachmentNote", "\uD83D\uDCCE Attachment")
+        }
+        if (senders.isNotEmpty() && !m.outgoing) {
+            val name = senders[m.senderUuid]
+                ?: m.senderNumber.ifBlank { m.senderUuid.take(8) }
+            if (name.isNotBlank()) put("from", name)
         }
     }
 
@@ -685,9 +704,17 @@ class DesktopSyncServer(
         signalThreadFor(threadId)?.let { thread ->
             val requested = session.parameters["limit"]?.firstOrNull()?.toIntOrNull()
             val limit = (requested ?: MESSAGE_PAGE_SIZE).coerceIn(1, MESSAGE_MAX_LIMIT)
+            // Only a group needs them; in a one-to-one thread the name is at the top of
+            // the screen and repeating it against every bubble is noise.
+            val senders = if (thread.kind == "group") {
+                runCatching { signalRepository.senderNamesFor(thread.threadKey) }
+                    .getOrDefault(emptyMap())
+            } else {
+                emptyMap()
+            }
             val array = JSONArray()
             signalRepository.getMessagesSnapshot(thread.threadKey, limit)
-                .forEach { array.put(signalMessageJson(it)) }
+                .forEach { array.put(signalMessageJson(it, senders)) }
             // The same envelope the SMS branch returns. A bare array here meant the browser
             // read hasMore as false for every Signal thread, so "Load older messages" was
             // never offered and a long conversation ended at its most recent page.

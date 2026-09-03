@@ -24,7 +24,7 @@ class DesktopSyncPairingTest {
 
     @After
     fun tearDown() {
-        DesktopSyncPairing.now = { System.currentTimeMillis() }
+        DesktopSyncPairing.now = { android.os.SystemClock.elapsedRealtime() }
         DesktopSyncPairing.clear()
     }
 
@@ -94,5 +94,29 @@ class DesktopSyncPairingTest {
         assertFalse(DesktopSyncPairing.redeem("12345"))
         assertFalse(DesktopSyncPairing.redeem(""))
         assertFalse(DesktopSyncPairing.redeem(null))
+    }
+
+    /**
+     * A code that appears to have more than its whole lifetime left is dead, not live.
+     *
+     * The deadline used to be stamped from the wall clock, which jumps. This is a phone
+     * that spends time switched off, and after a boot with a stale RTC it reads fast until
+     * the network corrects it -- and the relay comes up at boot, so a code shown in that
+     * window carried a deadline from the fast clock. When time then synced backwards by two
+     * hours, "now is past the deadline" stayed false for two hours and three minutes.
+     *
+     * The deadline is measured on elapsedRealtime now, which only counts forward, so this
+     * should be unreachable. It is checked anyway: the thing being prevented is a live
+     * pairing code sitting there for hours, and that is worth two comparisons.
+     */
+    @Test
+    fun `a code with more than its lifetime left is refused`() {
+        val code = DesktopSyncPairing.issue()
+        assertEquals(code, DesktopSyncPairing.current())
+
+        clock -= 2 * 60 * 60 * 1000L
+
+        assertNull(DesktopSyncPairing.current())
+        assertFalse(DesktopSyncPairing.redeem(code))
     }
 }

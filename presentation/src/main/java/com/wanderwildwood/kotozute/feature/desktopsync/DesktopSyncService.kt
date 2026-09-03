@@ -203,6 +203,15 @@ class DesktopSyncService : Service() {
         fun reachableAddresses(context: Context?): List<Pair<String, String>> {
             val found = LinkedHashMap<String, String>()   // address -> label, first label wins
 
+            // Not the Map method of the same name: that one is API 24, and every module
+            // here still declares minSdk 23, where it throws NoSuchMethodError -- with
+            // nothing on this path to catch it, so opening Settings would take the app
+            // down on an Android 6 phone. The build says nothing either, because
+            // presentation sets abortOnError false.
+            fun keep(address: String, label: String) {
+                if (!found.containsKey(address)) found[address] = label
+            }
+
             // What the carrier gave us, so it can be ruled out below. 100.64.0.0/10 is
             // carrier-grade NAT and AT&T and Verizon both hand out addresses in it, so an
             // interface scan cannot tell a real tailnet address from a mobile-data one --
@@ -214,13 +223,13 @@ class DesktopSyncService : Service() {
 
             findTailscaleAddress(context)
                 ?.takeIf { it !in cellular }
-                ?.let { found.putIfAbsent(it, LABEL_TAILSCALE) }
+                ?.let { keep(it, LABEL_TAILSCALE) }
             addressesOn(context, NetworkCapabilities.TRANSPORT_WIFI)
                 ?.filter { !isTailscale(it) && isPrivate(it) }
-                ?.forEach { found.putIfAbsent(it, LABEL_WIFI) }
+                ?.forEach { keep(it, LABEL_WIFI) }
             addressesOn(context, NetworkCapabilities.TRANSPORT_ETHERNET)
                 ?.filter { !isTailscale(it) && isPrivate(it) }
-                ?.forEach { found.putIfAbsent(it, LABEL_ETHERNET) }
+                ?.forEach { keep(it, LABEL_ETHERNET) }
             // Only where the system would not answer. A cellular address is still left out:
             // it would send someone to a page that can never load. Labelled neutrally,
             // because an interface scan cannot tell Wi-Fi from wired and calling it Wi-Fi
@@ -228,7 +237,7 @@ class DesktopSyncService : Service() {
             if (found.isEmpty()) {
                 ipv4Addresses()
                     .firstOrNull { !isTailscale(it) && isPrivate(it) && it !in cellular }
-                    ?.let { found.putIfAbsent(it, LABEL_LOCAL) }
+                    ?.let { keep(it, LABEL_LOCAL) }
             }
             return found.map { (address, label) -> label to address }
         }

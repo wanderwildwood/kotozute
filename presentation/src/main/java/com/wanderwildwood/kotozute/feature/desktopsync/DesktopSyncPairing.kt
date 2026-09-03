@@ -29,8 +29,18 @@ object DesktopSyncPairing {
     private var expiresAt: Long = 0
     private var attemptsLeft: Int = 0
 
-    /** Swappable so the tests can hold time still. */
-    var now: () -> Long = { System.currentTimeMillis() }
+    /**
+     * Swappable so the tests can hold time still.
+     *
+     * elapsedRealtime, not currentTimeMillis: the wall clock jumps. This is a phone that
+     * spends time switched off, and after a boot with a stale RTC it can read minutes or
+     * hours fast until the network corrects it -- and the relay comes up at boot, so a code
+     * shown in that window is stamped from the fast clock. When time then syncs backwards,
+     * "now >= expiresAt" stays false for however far it jumped, and a three-minute code
+     * stays live and redeemable for hours. elapsedRealtime counts since boot and only ever
+     * goes forward.
+     */
+    var now: () -> Long = { android.os.SystemClock.elapsedRealtime() }
 
     /**
      * Issue a code, replacing any outstanding one. Asking again on the phone is the natural
@@ -49,7 +59,13 @@ object DesktopSyncPairing {
     /** The outstanding code, or null if there is none or it has expired. */
     @Synchronized
     fun current(): String? {
-        if (digits != null && now() >= expiresAt) clear()
+        if (digits == null) return null
+        // Expired, or the clock moved backwards past the moment this was issued. The second
+        // check should be unreachable now that the deadline is measured on elapsedRealtime,
+        // which only counts forward -- but a code that appears to have more than its whole
+        // lifetime left is wrong however it got that way, and the failure it guards against
+        // is a live pairing code sitting there for hours.
+        if (now() >= expiresAt || expiresAt - now() > LIFETIME_MS) clear()
         return digits
     }
 

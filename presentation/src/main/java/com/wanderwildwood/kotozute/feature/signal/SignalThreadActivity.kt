@@ -524,8 +524,17 @@ class SignalThreadActivity : QkThemedActivity() {
         private val b: SignalMessageListItemBinding
     ) : RecyclerView.ViewHolder(b.root) {
         fun bind(m: SignalMessage, previous: SignalMessage?, next: SignalMessage?) {
-            b.body.text = m.body
-            b.body.setVisible(m.body.isNotEmpty())
+            // A view-once message has no body and no attachment on purpose -- the picture
+            // is gone, which is the whole promise. The bridge keeps the row so the thread
+            // does not have a silent hole in it; drawn as an empty bubble it was the hole
+            // anyway, and indistinguishable from a rendering fault.
+            val text = if (m.body.isEmpty() && m.viewOnce) {
+                getString(R.string.signal_view_once_received)
+            } else {
+                m.body
+            }
+            b.body.text = text
+            b.body.setVisible(text.isNotEmpty())
             b.timestamp.text = dateFormatter.getMessageTimestamp(m.date)
             // One timestamp above a run, not one per line. Anything less than the grouping
             // threshold since the last message is the same moment as far as reading goes.

@@ -773,6 +773,22 @@ function api(path, options) {
   });
 }
 
+/**
+ * How long a disappearing message has left, in the coarsest unit that is still true.
+ * "in 3 days" is more use than a count of hours, and a message already past its deadline
+ * is shown as going rather than as gone -- the sweep that removes it runs on its own
+ * schedule, and claiming it is gone while it is on screen would be the wrong kind of true.
+ */
+function expiryLabel(at) {
+  const left = at - Date.now();
+  if (left <= 0) return 'expiring';
+  const mins = Math.round(left / 60000);
+  if (mins < 60) return 'in ' + Math.max(1, mins) + 'm';
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return 'in ' + hours + 'h';
+  return 'in ' + Math.round(hours / 24) + 'd';
+}
+
 function formatTime(ms) {
   if (!ms) return '';
   const d = new Date(ms);
@@ -886,10 +902,14 @@ const markAllBtn = document.getElementById('markAllBtn');
  */
 function openThreadMenu(t, x, y) {
   const signal = t.rail === 'signal';
-  const items = [
+  const items = [];
+  // Only Signal has safety numbers; SMS has no such idea, so the item is not offered
+  // there rather than offered and refused.
+  if (signal) items.push(['Safety number\u2026', '@info']);
+  items.push(
     ['Mark unread', 'unread'],
     [t.pinned ? 'Unpin' : 'Pin', t.pinned ? 'unpin' : 'pin'],
-  ];
+  );
   if (signal) items.push([t.muted ? 'Unmute' : 'Mute', t.muted ? 'unmute' : 'mute']);
   items.push([t.archived ? 'Move to inbox' : 'Archive', t.archived ? 'unarchive' : 'archive']);
   items.push(null);
@@ -935,6 +955,8 @@ window.addEventListener('resize', closeThreadMenu);
 
 async function runThreadAction(t, action, label) {
   closeThreadMenu();
+  // Not a state change, so it does not go down the action route.
+  if (action === '@info') return showSafetyNumber(t);
   // The two that cannot be taken back ask first. Everything else is a toggle the same
   // menu will undo.
   if (action === 'delete' && !confirm('Delete this conversation? This cannot be undone.')) return;
@@ -982,6 +1004,67 @@ archiveBtn.addEventListener('click', async () => {
   bodyEl.disabled = true;
   crossBtnEl.hidden = true;
   await loadThreads();
+});
+
+/**
+ * The safety number for a one-to-one Signal thread, and whether the key behind it is still
+ * the accepted one.
+ *
+ * A changed safety number is the one thing in a messenger worth interrupting someone for:
+ * the key at the other end is not the key you last talked to, which is a reinstall or
+ * somebody in the middle. Asked of the bridge each time rather than remembered, because a
+ * stale safety number is worse than none -- it reassures.
+ */
+async function showSafetyNumber(t) {
+  let d;
+  try {
+    const res = await api('/api/threads/' + t.id + '/info');
+    d = await res.json();
+  } catch (e) {
+    statusEl.textContent = 'the phone did not answer';
+    return;
+  }
+  const panel = document.getElementById('infoPanel');
+  const body = document.getElementById('infoBody');
+  body.innerHTML = '';
+
+  const h = document.createElement('h2');
+  h.textContent = d.error ? 'Safety number' : 'Safety number with ' + (d.title || 'this contact');
+  body.append(h);
+
+  if (d.error || d.pending) {
+    const p = document.createElement('p');
+    p.textContent = d.error ||
+      'No safety number yet — one exists once you have exchanged a message with them ' +
+      'on Signal from this account.';
+    body.append(p);
+  } else {
+    // Monospaced and grouped in fives, the way Signal prints it, because the only thing
+    // anyone does with a safety number is read it aloud to compare.
+    const num = document.createElement('div');
+    num.className = 'safetyNumber';
+    num.textContent = d.safetyNumber;
+    body.append(num);
+
+    const state = document.createElement('p');
+    if (d.changed) {
+      state.className = 'changed';
+      state.textContent = 'This has CHANGED since you last spoke. That is a reinstall, a ' +
+        'new device, or someone in the middle. Check it with them over something other ' +
+        'than Signal before trusting it.';
+    } else {
+      state.textContent = d.verified ? 'Marked verified.' : 'Not verified yet.';
+    }
+    body.append(state);
+  }
+  panel.hidden = false;
+}
+
+document.getElementById('infoClose').addEventListener('click', () => {
+  document.getElementById('infoPanel').hidden = true;
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('infoPanel').hidden = true;
 });
 
 markAllBtn.addEventListener('click', async () => {
@@ -1114,6 +1197,17 @@ async function loadMessages() {
     const text = (m.body || '').trim();
     if (text) bubble.textContent = text;
 
+    // A view-once photo leaves a row with no body and no attachment, deliberately: the
+    // bridge keeps it so the conversation does not have a silent hole where a message was.
+    // Drawn without a marker that is the hole anyway, and indistinguishable from something
+    // failing to load.
+    if (!text && m.viewOnce) {
+      const note = document.createElement('div');
+      note.className = 'viewOnce';
+      note.textContent = '\u{1F441} View-once photo. Not kept.';
+      bubble.append(note);
+    }
+
     // Attachments, on either rail — without these a picture message is just an empty
     // bubble. Each row says where to fetch itself, because MMS parts and Signal
     // attachments live in different places and answer on different routes; the drawing
@@ -1208,7 +1302,11 @@ async function loadMessages() {
       + (m.status === 'failed' ? ' · not sent'
         : m.status === 'sending' ? ' · sending…'
         : '')
-      + (marksSim ? ' · ' + sim : '');
+      + (marksSim ? ' · ' + sim : '')
+      // A disappearing message says when it goes. Without it a thread that empties itself
+      // is indistinguishable from one that lost something, and the reader has no way to
+      // know a message they are looking at is on a clock.
+      + (m.expiresAt ? ' · ' + expiryLabel(m.expiresAt) : '');
     // In a group the phone sends who each received message is from; one-to-one threads
     // send nothing, because the name is already at the top of the screen.
     if (m.from) {

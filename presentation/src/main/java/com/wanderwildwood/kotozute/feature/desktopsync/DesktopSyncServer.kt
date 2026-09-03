@@ -315,6 +315,7 @@ class DesktopSyncServer(
         val threadReadMatch = Regex("^/api/threads/(-?\\d+)/read$").find(uri)
         val threadActionMatch = Regex("^/api/threads/(-?\\d+)/action$").find(uri)
         val threadCrossMatch = Regex("^/api/threads/(-?\\d+)/cross$").find(uri)
+        val threadInfoMatch = Regex("^/api/threads/(-?\\d+)/info$").find(uri)
         val partMatch = Regex("^/api/parts/(\\d+)$").find(uri)
         // The same strict shape the bridge itself enforces on an id it serves: the value
         // originates in a sender's attachment pointer, so nothing that could climb out of
@@ -345,6 +346,8 @@ class DesktopSyncServer(
                 handleThreadAction(threadActionMatch.groupValues[1].toLong(), session)
             threadCrossMatch != null && session.method == Method.GET ->
                 handleThreadCross(threadCrossMatch.groupValues[1].toLong())
+            threadInfoMatch != null && session.method == Method.GET ->
+                handleThreadInfo(threadInfoMatch.groupValues[1].toLong())
             uri == "/api/mark-all-read" && session.method == Method.POST -> handleMarkAllRead()
             else -> jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
         }
@@ -703,6 +706,16 @@ class DesktopSyncServer(
         // sent was unviewable there for as long as the thread lived -- while the phone,
         // reading the same rows, drew it.
         signalAttachmentsJson(m)?.let { put("attachments", it) }
+        // A view-once message has no body and no attachment on purpose: the picture is
+        // gone, which is the whole promise. Unflagged, the browser drew an empty bubble --
+        // the same hole the bridge keeps the row to avoid, and the same one the phone had
+        // until this morning. A disappearing message says when it goes, so the reader can
+        // tell a thread that empties itself from one that lost something.
+        if (m.viewOnce) put("viewOnce", true)
+        if (m.expiresAt > 0) {
+            put("expiresAt", m.expiresAt)
+            put("expiresInSeconds", m.expiresInSeconds)
+        }
         if (senders.isNotEmpty() && !m.outgoing) {
             val name = senders[m.senderUuid]
                 ?: m.senderNumber.ifBlank { m.senderUuid.take(8) }
@@ -952,6 +965,61 @@ class DesktopSyncServer(
             put("title", signalThread.title.ifBlank { signalThread.counterpartNumber })
             put("rail", "signal")
             put("label", "Signal")
+        })
+    }
+
+    /**
+     * What the phone's Signal thread info screen shows: the safety number, and whether the
+     * key behind it is still the one that was accepted.
+     *
+     * A changed safety number is the one thing in a messenger that is worth interrupting
+     * someone for -- it means the key at the other end is not the key you last talked to,
+     * which is either a reinstall or somebody in the middle. The browser had no way to see
+     * it at all, so a reader who lived in the browser would never learn.
+     *
+     * The bridge is asked live rather than read from a stored row: a safety number that is
+     * out of date is worse than no safety number, because it is reassuring.
+     */
+    private fun handleThreadInfo(threadId: Long): Response {
+        val thread = signalThreadFor(threadId)
+            ?: return jsonResponse(
+                Response.Status.NOT_FOUND,
+                JSONObject().put("error", "safety numbers are a Signal idea; this is an SMS thread")
+            )
+        if (thread.kind != "direct") {
+            return jsonResponse(
+                Response.Status.OK,
+                JSONObject().put("error", "a group has one safety number per member, not one for the group")
+            )
+        }
+        val identity = runCatching { signalRepository.identity(thread.threadKey) }.getOrElse { failure ->
+            Timber.w(failure, "Desktop Sync: identity lookup")
+            return jsonResponse(
+                Response.Status.OK,
+                JSONObject().put("error", failure.message ?: "the bridge did not answer")
+            )
+        }
+        // A contact who has never exchanged a message has no identity record, and the
+        // bridge says so with an empty string rather than an error. That is not a fault
+        // and must not be drawn as a blank safety number -- an empty monospace block looks
+        // like something that failed rather than something that does not exist yet.
+        val digits = identity.safetyNumber.filter { it.isDigit() }
+        if (digits.isEmpty()) {
+            return jsonResponse(Response.Status.OK, JSONObject().apply {
+                put("title", thread.title.ifBlank { thread.counterpartNumber })
+                put("pending", true)
+            })
+        }
+        return jsonResponse(Response.Status.OK, JSONObject().apply {
+            put("title", thread.title.ifBlank { thread.counterpartNumber })
+            put("number", thread.counterpartNumber)
+            // Grouped the way Signal prints it, five digits at a time, because the only
+            // thing anyone does with a safety number is read it aloud to compare. Chunked
+            // from the digits alone: the bridge hands it over already spaced, and chunking
+            // that gave ragged groups like "03884 6641 6 163".
+            put("safetyNumber", digits.chunked(5).joinToString(" "))
+            put("verified", identity.verified)
+            put("changed", identity.changed)
         })
     }
 

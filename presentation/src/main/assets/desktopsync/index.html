@@ -163,6 +163,26 @@
   #threadMenu button:hover { background: var(--line); }
   #threadMenu button.danger { color: #a00; }
   #threadMenu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--line); }
+  #infoPanel {
+    position: fixed; inset: 0; z-index: 60; display: flex;
+    align-items: center; justify-content: center; background: rgba(0,0,0,.4);
+  }
+  #infoCard {
+    max-width: 420px; margin: 20px; padding: 20px;
+    background: var(--paper); color: var(--ink);
+    border: 1px solid var(--ink); border-radius: 6px;
+  }
+  #infoCard h2 { margin: 0 0 12px; font-size: 16px; }
+  #infoCard p { margin: 12px 0 0; font-size: 13px; line-height: 1.5; }
+  #infoCard p.changed { font-weight: 700; }
+  .safetyNumber {
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    line-height: 1.7; letter-spacing: .5px; word-spacing: 6px;
+  }
+  #infoClose {
+    margin-top: 16px; padding: 6px 14px; font: inherit; font-size: 13px;
+    background: var(--ink); color: var(--paper); border: 0; border-radius: 4px; cursor: pointer;
+  }
   #pairGate { max-width: 340px; margin: 18vh auto; padding: 0 20px; text-align: center; }
   #pairGate h1 { font-size: 20px; margin: 0 0 12px; }
   #pairGate p { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 16px; }
@@ -302,6 +322,10 @@
   .msg .bubble .attachLink { display: inline-block; color: var(--ink); }
   .msg.me { justify-content: flex-end; }
   .msg.me .bubble { border-width: 3px; }
+  /* Said in the reader's own voice rather than the sender's: this is the app explaining
+     an absence, not something anyone typed. */
+  .viewOnce { font-style: italic; color: var(--muted); }
+  .expiry { margin-top: 4px; font-size: 11px; color: var(--muted); }
   .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
   .msg .stamp { font-size: 11px; color: var(--muted); margin-top: 4px; }
   .msg .bubble video.attach { display: block; max-width: 100%; height: auto; }
@@ -487,6 +511,14 @@
          row: the list is re-rendered on every poll and 300 hidden menus would be rebuilt
          with it. Right-click here is the phone's long-press. -->
     <div id="threadMenu" hidden role="menu"></div>
+
+    <!-- Safety numbers, and anything else about a thread worth a panel rather than a row. -->
+    <div id="infoPanel" hidden>
+      <div id="infoCard">
+        <div id="infoBody"></div>
+        <button type="button" id="infoClose">Close</button>
+      </div>
+    </div>
     <button type="button" id="newBtn" title="New conversation" aria-label="New conversation">
       <!-- The same pencil the phone's compose button uses, path and all, so "new message" reads
            as one thing on both. The only + left in this corner is the one that attaches. -->

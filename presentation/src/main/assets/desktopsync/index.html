@@ -145,6 +145,12 @@
     cursor: pointer;
   }
   #markAllBtn:hover { color: var(--ink); border-color: var(--ink); }
+  #archiveBtn {
+    margin-top: 8px; width: 100%; padding: 6px 8px; font-size: 13px;
+    background: none; color: var(--muted); border: 1px solid var(--line); border-radius: 4px;
+    cursor: pointer;
+  }
+  #archiveBtn:hover { color: var(--ink); border-color: var(--ink); }
   #threadMenu {
     position: fixed; z-index: 50; min-width: 160px; padding: 4px 0;
     background: var(--paper); border: 1px solid var(--ink); border-radius: 4px;
@@ -464,6 +470,7 @@
         <!-- Only when there is something unread, the same rule the phone uses: on a narrow
              pane a control that never has anything to do is just width spent. -->
         <button type="button" id="markAllBtn" hidden>Mark all read</button>
+        <button type="button" id="archiveBtn">Archived</button>
       </div>
       <div id="threads"></div>
     </aside>

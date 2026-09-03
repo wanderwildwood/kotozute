@@ -321,7 +321,7 @@ class DesktopSyncServer(
         val signalPartMatch = Regex("^/api/signal/attachments/([A-Za-z0-9_-]+(?:\\.[A-Za-z0-9]+)?)$").find(uri)
 
         return when {
-            uri == "/api/threads" && session.method == Method.GET -> handleGetThreads()
+            uri == "/api/threads" && session.method == Method.GET -> handleGetThreads(session)
             uri == "/api/search" && session.method == Method.GET -> handleSearch(session)
             uri == "/api/signal/state" && session.method == Method.GET -> handleSignalState()
             uri == "/api/signal/pair" && session.method == Method.POST -> handleSignalPair(session)
@@ -893,16 +893,25 @@ class DesktopSyncServer(
         return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
     }
 
-    private fun handleGetThreads(): Response {
-        val conversations = conversationRepository.getConversationsSnapshot(unreadAtTop = true)
+    /**
+     * The inbox, or the archive when asked for it.
+     *
+     * The archive shelf exists because the browser can now file a conversation away, and
+     * a place things go into needs a place to look at them -- without this, archiving from
+     * the browser meant the conversation left the list and could only be found again on
+     * the phone.
+     */
+    private fun handleGetThreads(session: IHTTPSession): Response {
+        val archived = session.parameters["archived"]?.firstOrNull() == "1"
+        val conversations = conversationRepository
+            .getConversationsSnapshot(unreadAtTop = !archived, archived = archived)
         val array = JSONArray()
         val rows = mutableListOf<Pair<Long, JSONObject>>()
-        conversations.filterNot { it.archived || it.blocked }.forEach { conversation ->
-            rows += conversation.date to conversationJson(conversation)
-        }
+        conversations
+            .filterNot { it.blocked }
+            .forEach { conversation -> rows += conversation.date to conversationJson(conversation) }
         if (signalEnabled()) {
-            signalRepository.getThreadsSnapshot()
-                .filterNot { it.archived }
+            signalRepository.getThreadsSnapshot(archived = archived)
                 .forEach { rows += it.lastTs to signalThreadJson(it) }
         }
         // One list, newest first, the same order the phone shows.

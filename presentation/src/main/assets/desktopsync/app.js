@@ -782,8 +782,13 @@ function formatTime(ms) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+// Which shelf the list is showing. The archive is a place things go into from the row
+// menu, so there has to be a way to look at it -- otherwise archiving in the browser means
+// the conversation leaves and can only be found again on the phone.
+let showingArchived = false;
+
 async function loadThreads() {
-  const res = await api('/api/threads');
+  const res = await api('/api/threads' + (showingArchived ? '?archived=1' : ''));
   if (!res.ok) {
     statusEl.textContent = res.status === 401 ? 'bad token' : 'error';
     statusEl.classList.remove('live');
@@ -796,7 +801,7 @@ async function loadThreads() {
   // position) on every poll tick when nothing changed. The filter text is part of
   // the signature so typing in the search box re-renders immediately.
   const sig = threads.map(t => t.id + ':' + t.date + ':' + (t.unread ? 'u' : 'r')).join('|') +
-    '#' + activeThreadId + '#' + filterQuery;
+    '#' + activeThreadId + '#' + filterQuery + '#' + showingArchived;
   if (sig === lastThreadsSig) return;
   lastThreadsSig = sig;
   renderThreads();
@@ -815,7 +820,7 @@ function renderThreads() {
   // Shown only when it has something to do, the same rule the phone applies to the same
   // item -- and judged on the whole inbox, not the filtered view, or searching would hide
   // a button whose job is the inbox.
-  markAllBtn.hidden = !lastThreads.some(t => t.unread);
+  markAllBtn.hidden = showingArchived || !lastThreads.some(t => t.unread);
 
   threadsEl.innerHTML = '';
   if (!threads.length) {
@@ -958,6 +963,22 @@ async function runThreadAction(t, action, label) {
     statusEl.textContent = 'the phone did not answer';
   }
 }
+
+const archiveBtn = document.getElementById('archiveBtn');
+
+archiveBtn.addEventListener('click', async () => {
+  showingArchived = !showingArchived;
+  archiveBtn.textContent = showingArchived ? '← Inbox' : 'Archived';
+  // The open conversation may not be on the shelf being shown; leaving it open would put
+  // a composer under a thread the list no longer contains.
+  activeThreadId = null;
+  lastMessagesSig = '';
+  lastThreadsSig = '';
+  messagesEl.innerHTML = '';
+  paneTitleEl.textContent = 'Select a conversation';
+  bodyEl.disabled = true;
+  await loadThreads();
+});
 
 markAllBtn.addEventListener('click', async () => {
   markAllBtn.disabled = true;

@@ -33,7 +33,11 @@ interface ConversationRepository {
 
     fun getUnknownConversations(unreadAtTop: Boolean, archived: Boolean = false): RealmResults<Conversation>
 
-    fun getConversationsSnapshot(unreadAtTop: Boolean): List<Conversation>
+    /**
+     * [archived] selects which shelf. It used to be fixed at the inbox, which meant a
+     * caller that wanted the archive silently got the inbox filtered down to nothing.
+     */
+    fun getConversationsSnapshot(unreadAtTop: Boolean, archived: Boolean = false): List<Conversation>
 
     fun getTopConversations(): List<Conversation>
 

@@ -106,9 +106,9 @@ class ConversationRepositoryImpl @Inject constructor(
             .findAllAsync()
     }
 
-    override fun getConversationsSnapshot(unreadAtTop: Boolean): List<Conversation> =
+    override fun getConversationsSnapshot(unreadAtTop: Boolean, archived: Boolean): List<Conversation> =
         Realm.getDefaultInstance().use { realm ->
-            getConversationsBase(realm, unreadAtTop, false)
+            getConversationsBase(realm, unreadAtTop, archived)
                 .findAll()
                 .let(realm::copyFromRealm)
         }

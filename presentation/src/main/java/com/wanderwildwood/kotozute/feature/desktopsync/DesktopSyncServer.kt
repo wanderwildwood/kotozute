@@ -69,6 +69,13 @@ class DesktopSyncServer(
 
     private companion object {
         /**
+         * A pairing code is six digits. This caps a body arriving at the one route that
+         * answers before the token is checked, so it is deliberately tiny: anything larger
+         * is not a pairing attempt.
+         */
+        private const val MAX_PAIR_BODY_BYTES = 512
+
+        /**
          * `bytes=START-[END]` out of a Range header. Only the single-range form, which
          * is the only one a video element ever asks for.
          */
@@ -361,8 +368,12 @@ class DesktopSyncServer(
      * telling them apart is only useful to someone guessing.
      */
     private fun handlePairCode(session: IHTTPSession): Response {
-        val submission = readSubmission(session)
-        val supplied = submission?.body?.trim()
+        // Deliberately NOT readSubmission(). That calls parseBody(), which for a multipart
+        // request writes every part to a temp file before anything looks at it -- so the one
+        // route that answers without a token would let an unauthenticated caller on the LAN
+        // fill the phone's storage. A pairing code is six digits; nothing here needs a body
+        // parser, a file, or more than a handful of bytes.
+        val supplied = readSmallJsonField(session, "body", MAX_PAIR_BODY_BYTES)?.trim()
         if (!DesktopSyncPairing.redeem(supplied)) {
             Timber.w("Desktop Sync: a pairing code was refused")
             return jsonResponse(
@@ -372,6 +383,32 @@ class DesktopSyncServer(
         }
         Timber.i("Desktop Sync: a pairing code was redeemed")
         return jsonResponse(Response.Status.OK, JSONObject().put("token", token))
+    }
+
+    /**
+     * Read one field out of a small JSON body, reading at most [limit] bytes and never
+     * touching disk. For the routes that must answer before the token is checked.
+     */
+    private fun readSmallJsonField(session: IHTTPSession, field: String, limit: Int): String? {
+        val declared = session.headers["content-length"]?.toIntOrNull() ?: 0
+        if (declared > limit) {
+            Timber.w("Desktop Sync: refused a %d-byte body on an unauthenticated route", declared)
+            return null
+        }
+        val buffer = ByteArray(limit)
+        var read = 0
+        return runCatching {
+            val input = session.inputStream
+            while (read < limit) {
+                // Stop at what was declared; NanoHTTPD's stream does not end at the body.
+                if (declared in 1..read) break
+                val n = input.read(buffer, read, limit - read)
+                if (n <= 0) break
+                read += n
+            }
+            val text = String(buffer, 0, read, Charsets.UTF_8)
+            JSONObject(text).optString(field).takeIf { it.isNotEmpty() }
+        }.getOrNull()
     }
 
     private fun tokenMatches(supplied: String?): Boolean {

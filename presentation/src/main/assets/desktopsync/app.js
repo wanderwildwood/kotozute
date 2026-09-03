@@ -956,6 +956,7 @@ async function runThreadAction(t, action, label) {
       paneTitleEl.textContent = 'Select a conversation';
       messagesEl.innerHTML = '';
       bodyEl.disabled = true;
+      crossBtnEl.hidden = true;
     }
     lastThreadsSig = '';
     await loadThreads();
@@ -977,6 +978,7 @@ archiveBtn.addEventListener('click', async () => {
   messagesEl.innerHTML = '';
   paneTitleEl.textContent = 'Select a conversation';
   bodyEl.disabled = true;
+  crossBtnEl.hidden = true;
   await loadThreads();
 });
 
@@ -1013,7 +1015,39 @@ async function selectThread(id, title) {
   // Reading it here should clear the unread dot and notification on the phone too
   await markThreadRead(id);
   await loadThreads();
+  loadCrossRail(id);
 }
+
+const crossBtnEl = document.getElementById('crossBtn');
+let crossTarget = null;
+
+/**
+ * The phone's rail badge, in the browser: if the person in this thread also has a
+ * conversation on the other rail, offer a way across to it.
+ *
+ * Asked once when a thread is opened rather than sent with the list. The list is hundreds
+ * of rows and polls every few seconds, and a directory lookup per row per tick is a lot of
+ * work to answer a question about the one thread being read. Not awaited by selectThread
+ * either -- the badge appearing a moment late is better than the messages arriving late.
+ */
+async function loadCrossRail(id) {
+  crossBtnEl.hidden = true;
+  crossTarget = null;
+  try {
+    const res = await api('/api/threads/' + id + '/cross');
+    if (!res.ok) return;
+    const d = await res.json();
+    // The thread may have been changed while this was in flight.
+    if (!d.found || activeThreadId !== id) return;
+    crossTarget = d;
+    crossBtnEl.textContent = d.label + ' \u203a';
+    crossBtnEl.hidden = false;
+  } catch (e) { /* no badge is the right failure here */ }
+}
+
+crossBtnEl.addEventListener('click', () => {
+  if (crossTarget) selectThread(crossTarget.id, crossTarget.title);
+});
 
 /** Tell the phone this thread has been read (clears its notification + badge). */
 async function markThreadRead(id) {

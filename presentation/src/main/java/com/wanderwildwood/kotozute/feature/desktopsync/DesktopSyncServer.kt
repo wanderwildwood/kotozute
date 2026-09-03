@@ -314,6 +314,7 @@ class DesktopSyncServer(
         val threadSendMatch = Regex("^/api/threads/(-?\\d+)/send$").find(uri)
         val threadReadMatch = Regex("^/api/threads/(-?\\d+)/read$").find(uri)
         val threadActionMatch = Regex("^/api/threads/(-?\\d+)/action$").find(uri)
+        val threadCrossMatch = Regex("^/api/threads/(-?\\d+)/cross$").find(uri)
         val partMatch = Regex("^/api/parts/(\\d+)$").find(uri)
         // The same strict shape the bridge itself enforces on an id it serves: the value
         // originates in a sender's attachment pointer, so nothing that could climb out of
@@ -342,6 +343,8 @@ class DesktopSyncServer(
                 handleMarkRead(threadReadMatch.groupValues[1].toLong())
             threadActionMatch != null && session.method == Method.POST ->
                 handleThreadAction(threadActionMatch.groupValues[1].toLong(), session)
+            threadCrossMatch != null && session.method == Method.GET ->
+                handleThreadCross(threadCrossMatch.groupValues[1].toLong())
             uri == "/api/mark-all-read" && session.method == Method.POST -> handleMarkAllRead()
             else -> jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
         }
@@ -901,6 +904,57 @@ class DesktopSyncServer(
      * the browser meant the conversation left the list and could only be found again on
      * the phone.
      */
+    /**
+     * The same person's conversation on the other rail, if they have one.
+     *
+     * This is what the phone's rail badge is built on: one person, two conversations, and
+     * a way across. Only for a one-to-one thread -- a Signal group and an MMS group are
+     * different groups with different membership, not two views of one conversation, which
+     * is why a group gets no badge on the phone either.
+     *
+     * Looked up when a thread is opened rather than sent with the list: the list is 339
+     * rows on this phone and polled every few seconds, and a directory lookup per row on
+     * every tick is a great deal of work to answer a question about the one thread someone
+     * is actually reading.
+     */
+    private fun handleThreadCross(threadId: Long): Response {
+        val notFound = JSONObject().put("found", false)
+        if (!signalEnabled()) return jsonResponse(Response.Status.OK, notFound)
+
+        signalThreadFor(threadId)?.let { thread ->
+            // Signal -> SMS. A group has no single counterpart to cross to.
+            if (thread.kind != "direct") return jsonResponse(Response.Status.OK, notFound)
+            val number = thread.counterpartNumber.takeIf { it.isNotBlank() }
+                ?: return jsonResponse(Response.Status.OK, notFound)
+            val conversation = runCatching {
+                conversationRepository.getConversation(listOf(number))
+            }.getOrNull() ?: return jsonResponse(Response.Status.OK, notFound)
+            return jsonResponse(Response.Status.OK, JSONObject().apply {
+                put("found", true)
+                put("id", conversation.id)
+                put("title", conversation.getTitle())
+                put("rail", "sms")
+                put("label", "SMS")
+            })
+        }
+
+        val conversation = runCatching { conversationRepository.getConversation(threadId) }.getOrNull()
+            ?: return jsonResponse(Response.Status.OK, notFound)
+        val recipients = conversation.recipients
+        if (recipients.size != 1) return jsonResponse(Response.Status.OK, notFound)
+        val address = recipients.firstOrNull()?.address?.takeIf { it.isNotBlank() }
+            ?: return jsonResponse(Response.Status.OK, notFound)
+        val signalThread = runCatching { signalRepository.findThreadForNumber(address) }.getOrNull()
+            ?: return jsonResponse(Response.Status.OK, notFound)
+        return jsonResponse(Response.Status.OK, JSONObject().apply {
+            put("found", true)
+            put("id", InboxItem.signalStableId(signalThread.threadKey))
+            put("title", signalThread.title.ifBlank { signalThread.counterpartNumber })
+            put("rail", "signal")
+            put("label", "Signal")
+        })
+    }
+
     private fun handleGetThreads(session: IHTTPSession): Response {
         val archived = session.parameters["archived"]?.firstOrNull() == "1"
         val conversations = conversationRepository

@@ -583,7 +583,11 @@ class DesktopSyncServer(
      */
     private fun signalThreadFor(id: Long): SignalThread? {
         if (!InboxItem.isSignalId(id) || !signalEnabled()) return null
-        return signalRepository.getThreadsSnapshot()
+        // Both shelves. Looking only at the inbox meant archiving a thread turned it, in the
+        // browser, into a conversation that opened blank and could not be replied to -- the
+        // id still resolved to a row the list had, and nothing here could find it.
+        return (signalRepository.getThreadsSnapshot(archived = false) +
+            signalRepository.getThreadsSnapshot(archived = true))
             .firstOrNull { InboxItem.signalStableId(it.threadKey) == id }
     }
 
@@ -677,6 +681,11 @@ class DesktopSyncServer(
 
         signalThreadFor(threadId)?.let { thread ->
             val body = submission.body.trim()
+            // A file that could not be staged never reaches submission.attachments, only
+            // submission.rejected. The SMS branch refuses the whole send for that reason;
+            // this one ignored it, so an unreadable picture was dropped and the browser was
+            // told the message went -- caption and all, photo silently missing.
+            rejectionResponse(submission)?.let { return it }
             if (body.isEmpty() && submission.attachments.isEmpty()) {
                 return jsonResponse(
                     Response.Status.BAD_REQUEST,

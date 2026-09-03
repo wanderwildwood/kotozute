@@ -151,8 +151,14 @@ func normalize(selfUUID string, raw json.RawMessage) (*Message, *Receipt, error)
 		return nil, nil, nil // typing, config sync, nothing to store
 	}
 
-	// A sent-sync with no destination and no group is a Note to Self.
-	if outgoing && counterpartUUID == "" && (dm.GroupInfo == nil || dm.GroupInfo.GroupID == "") {
+	// A sent-sync with no destination at all, and no group, is a Note to Self.
+	//
+	// Both halves of the destination have to be empty. Testing the uuid alone filed a
+	// message sent to a real person as Note to Self whenever signal-cli reported only their
+	// number -- which it does for a recipient it has not yet resolved to an ACI. The message
+	// then appeared in the wrong conversation, and a reply in that thread went to yourself.
+	if outgoing && counterpartUUID == "" && counterpartNumber == "" &&
+		(dm.GroupInfo == nil || dm.GroupInfo.GroupID == "") {
 		counterpartUUID = authorUUID // Note to Self
 		if counterpartUUID == "" {
 			counterpartUUID = selfUUID

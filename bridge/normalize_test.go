@@ -133,3 +133,41 @@ func TestIdIsStableAcrossRedelivery(t *testing.T) {
 		t.Errorf("ids differ across redelivery: %q vs %q", a.ID, b.ID)
 	}
 }
+
+// signal-cli reports a destination it has not resolved to an ACI by number alone. Testing
+// only the uuid filed such a message as Note to Self: it landed in the wrong conversation,
+// and a reply there went to yourself.
+func TestASentSyncWithOnlyANumberIsNotNoteToSelf(t *testing.T) {
+	raw := []byte(`{"envelope":{
+		"source":"+15559998888","sourceNumber":"+15559998888",
+		"sourceUuid":"00000000-0000-4000-8000-000000000000","timestamp":1700000000000,
+		"syncMessage":{"sentMessage":{
+			"timestamp":1700000000000,"message":"to a real person",
+			"destinationNumber":"+15550001111"
+		}}}}`)
+	m, _, err := normalize("00000000-0000-4000-8000-000000000000", raw)
+	if err != nil || m == nil {
+		t.Fatalf("expected a message, got %v %v", m, err)
+	}
+	if m.ThreadKey == "direct:00000000-0000-4000-8000-000000000000" {
+		t.Errorf("filed as Note to Self; want the recipient's thread. key=%s", m.ThreadKey)
+	}
+	if m.ThreadKey != "direct:+15550001111" {
+		t.Errorf("threadKey = %s, want direct:+15550001111", m.ThreadKey)
+	}
+}
+
+// With no destination at all it really is Note to Self.
+func TestASentSyncWithNoDestinationIsStillNoteToSelf(t *testing.T) {
+	raw := []byte(`{"envelope":{
+		"source":"+15559998888","sourceUuid":"00000000-0000-4000-8000-000000000000",
+		"timestamp":1700000000000,
+		"syncMessage":{"sentMessage":{"timestamp":1700000000000,"message":"a note"}}}}`)
+	m, _, err := normalize("00000000-0000-4000-8000-000000000000", raw)
+	if err != nil || m == nil {
+		t.Fatalf("expected a message, got %v %v", m, err)
+	}
+	if m.ThreadKey != "direct:00000000-0000-4000-8000-000000000000" {
+		t.Errorf("threadKey = %s, want Note to Self", m.ThreadKey)
+	}
+}

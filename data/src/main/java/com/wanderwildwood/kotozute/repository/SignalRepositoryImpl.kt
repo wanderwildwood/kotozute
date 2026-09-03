@@ -41,6 +41,16 @@ class SignalRepositoryImpl @Inject constructor(
     private var stream: Closeable? = null
     private val streamWanted = AtomicBoolean(false)
 
+    /**
+     * Bumped whenever the pairing is torn down. A sync already in flight checks it between
+     * pages and abandons the rest.
+     *
+     * stopStream() only closes the SSE connection; it cannot reach a syncNow() that is
+     * midway through paging the bridge. Unpair therefore used to stop the stream, wipe the
+     * store, and then have the sync it did not interrupt write every message straight back.
+     */
+    private val pairingEpoch = java.util.concurrent.atomic.AtomicInteger(0)
+
     init {
         publishState(reachable = false, signalConnected = false, error = null)
     }
@@ -66,6 +76,9 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     override fun unpair() = runOffThread {
+        // Before anything else: a sync in flight is paging the bridge right now, and it
+        // checks this between pages.
+        pairingEpoch.incrementAndGet()
         stopStream()
         prefs.signalEnabled.set(false)
         prefs.signalBridgeHost.set("")
@@ -165,6 +178,7 @@ class SignalRepositoryImpl @Inject constructor(
         // notifications about conversations they already know about. A later catch-up
         // does announce: those are messages genuinely missed.
         val firstSync = prefs.signalCursor.get() == 0L
+        val epoch = pairingEpoch.get()
         try {
             val remote = client.state()
 
@@ -234,6 +248,13 @@ class SignalRepositoryImpl @Inject constructor(
 
             var cursor = prefs.signalCursor.get()
             while (true) {
+                // Between pages, not only at the start: unpair can land at any point in a
+                // long catch-up, and everything after it would otherwise be written into a
+                // store the user has just emptied.
+                if (pairingEpoch.get() != epoch) {
+                    Timber.i("signal: sync abandoned, the pairing changed under it")
+                    return written
+                }
                 val (msgs, maxSeq) = client.changes(cursor, 200)
                 if (msgs.isEmpty()) {
                     if (maxSeq > cursor) prefs.signalCursor.set(maxSeq)

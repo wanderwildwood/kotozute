@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- A minimum width, not device-width. This is a two-pane desktop layout with no
+     responsive breakpoints, on purpose: the Kompakt has the native app and this is the
+     window onto it from a computer. Told device-width, a phone renders that layout
+     squeezed into 480px and the message pane comes out about 160px wide. Given a width
+     instead, the same phone scales the whole thing down to fit -- small, but complete and
+     correct, and it can be zoomed. A desktop is unaffected: the value is below any real
+     desktop window, so nothing is scaled there. -->
+<meta name="viewport" content="width=1024">
 <title>Messaging — Desktop Sync</title>
 <!-- Written by the phone with the token in start_url, so an installed window opens straight
      into the conversations instead of a refusal. app.js points this at the token it holds. -->

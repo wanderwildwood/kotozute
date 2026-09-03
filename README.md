@@ -37,10 +37,20 @@ An HTTP + WebSocket server runs *inside the app on the phone* and serves its own
 - Conversation list with instant search
 - Full thread history, paging back through long conversations
 - Send replies, and start new conversations with contact autocomplete (by name or number)
-- MMS pictures display inline
+- Pictures and video display inline and play in place, on both rails
+- Right-click a conversation for archive, pin, mute, mark unread, block or delete; right-click a message to copy, forward or delete it
+- An archive shelf and a blocked list, so nothing filed away is out of reach
+- Cross between someone's SMS and Signal threads from a badge in the thread header
+- Safety numbers, the Signal account and the devices on it
+- Settings: theme, unread-at-the-top, the Signal switches, Tailscale only, and a sync you can trigger from the browser
+- Scheduled messages: see what is waiting to go out, and cancel it
 - Reading a thread in the browser marks it read on the phone and clears its notification
 - Live updates over a WebSocket, with polling as a fallback
 - The access link can be reset if it leaks
+
+It is a page for a computer. There are no responsive breakpoints and none are planned: the
+phone that serves this already has the app on it. Opened on a phone anyway it scales the
+whole layout down to fit rather than breaking, but it will be small.
 
 ### Setup
 

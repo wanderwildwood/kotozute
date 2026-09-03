@@ -154,10 +154,11 @@ func exportThread(
 	key, chatID, recipientID, selfID string, senders map[string]string,
 	dir, attachDir string, st *ExportStats,
 ) error {
-	// Paged backwards from the newest, which is the only order ThreadMessages offers.
-	before := int64(0)
+	// Paged forwards by seq, not backwards by timestamp: an export must see every row
+	// exactly once, and timestamps are neither unique nor guaranteed non-zero.
+	after := int64(0)
 	for {
-		msgs, err := store.ThreadMessages(key, before, 500)
+		msgs, err := store.ThreadMessagesBySeq(key, after, 500)
 		if err != nil {
 			return err
 		}
@@ -202,7 +203,7 @@ func exportThread(
 			}
 			st.Messages++
 		}
-		before = msgs[len(msgs)-1].TS
+		after = msgs[len(msgs)-1].Seq
 	}
 }
 
@@ -223,9 +224,9 @@ func authorID(m *Message, recipientID, selfID string, senders map[string]string)
 func threadSenders(store *Store, key string) ([]string, error) {
 	seen := map[string]bool{}
 	var out []string
-	before := int64(0)
+	after := int64(0)
 	for {
-		msgs, err := store.ThreadMessages(key, before, 500)
+		msgs, err := store.ThreadMessagesBySeq(key, after, 500)
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +239,7 @@ func threadSenders(store *Store, key string) ([]string, error) {
 				out = append(out, m.SenderUUID)
 			}
 		}
-		before = msgs[len(msgs)-1].TS
+		after = msgs[len(msgs)-1].Seq
 	}
 }
 

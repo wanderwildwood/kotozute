@@ -276,6 +276,34 @@ func (s *Store) ThreadMessages(key string, beforeTS int64, limit int) ([]*Messag
 	return scanMessages(rows)
 }
 
+// ThreadMessagesBySeq pages a whole thread in insertion order, oldest first.
+//
+// ThreadMessages pages backwards by timestamp, which is right for a reader scrolling up and
+// wrong for anything that must see every row exactly once. Two messages can share a
+// timestamp -- ordinary in a group -- and a strict `ts <` boundary then skips whichever one
+// did not end the page. Worse, a message with ts = 0, which an import can produce from a
+// chatItem missing dateSent, pins the cursor at 0 for ever and the caller spins.
+//
+// seq is the autoincrement primary key: unique, strictly increasing, and never 0.
+func (s *Store) ThreadMessagesBySeq(key string, afterSeq int64, limit int) ([]*Message, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 500
+	}
+	rows, err := s.db.Query(`
+		SELECT seq, msg_id, thread_key, ts,
+		       COALESCE(sender_uuid,''), COALESCE(sender_num,''), outgoing,
+		       COALESCE(body,''), COALESCE(group_id,''), COALESCE(quote_ts,0),
+		       COALESCE(attachments,''), read, COALESCE(source,'live'),
+		       COALESCE(expires_in,0), COALESCE(expires_at,0), COALESCE(view_once,0)
+		FROM messages WHERE thread_key=? AND seq > ? AND (expires_at = 0 OR expires_at > ?)
+		ORDER BY seq LIMIT ?`,
+		key, afterSeq, nowMs(), limit)
+	if err != nil {
+		return nil, err
+	}
+	return scanMessages(rows)
+}
+
 type ThreadRow struct {
 	Key     string   `json:"threadKey"`
 	Kind    string   `json:"kind"`

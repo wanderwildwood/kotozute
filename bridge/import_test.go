@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The identifier trap: the export writes an ACI as base64 of the raw 16 bytes, signal-cli
@@ -391,5 +392,96 @@ func TestExportRoundTripsAGroupWithSeveralSenders(t *testing.T) {
 		if !senders[want] {
 			t.Errorf("sender %s did not survive; got %v", want, senders)
 		}
+	}
+}
+
+// A chatItem missing dateSent imports with ts = 0. Paging an export backwards by timestamp
+// then pins the cursor at 0 for ever -- the backup an operator takes right before something
+// irreversible never completes, at 100% CPU, with no error.
+func TestExportTerminatesWithATimestampOfZero(t *testing.T) {
+	withFrozenClock(t)
+	store, err := OpenStore(filepath.Join(t.TempDir(), "z.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.SetThreadMeta("direct:"+strings.Repeat("1", 8)+"-1111-4111-8111-111111111111",
+		"direct", "Ada Lovelace", nil); err != nil {
+		t.Fatal(err)
+	}
+	key := "direct:11111111-1111-4111-8111-111111111111"
+	for _, m := range []*Message{
+		{ID: "a:0", ThreadKey: key, TS: 0, Body: "no timestamp", Source: "import", Read: true},
+		{ID: "a:1", ThreadKey: key, TS: 1700000000000, Body: "ordinary", Source: "import", Read: true},
+	} {
+		if _, _, err := store.InsertMessage(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	done := make(chan ExportStats, 1)
+	errc := make(chan error, 1)
+	go func() {
+		st, err := ExportStore(store, t.TempDir(), t.TempDir(), "00000000-0000-4000-8000-000000000000")
+		if err != nil {
+			errc <- err
+			return
+		}
+		done <- st
+	}()
+	select {
+	case err := <-errc:
+		t.Fatal(err)
+	case st := <-done:
+		if st.Messages != 2 {
+			t.Errorf("exported %d messages, want 2", st.Messages)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("ExportStore did not terminate with a ts of 0 in the store")
+	}
+}
+
+// Two messages can share a timestamp -- ordinary in a group. A strict `ts <` page boundary
+// silently drops whichever of them did not end the page.
+func TestExportKeepsMessagesSharingATimestamp(t *testing.T) {
+	withFrozenClock(t)
+	store, err := OpenStore(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	key := "direct:11111111-1111-4111-8111-111111111111"
+	if err := store.SetThreadMeta(key, "direct", "Ada Lovelace", nil); err != nil {
+		t.Fatal(err)
+	}
+	// 502 messages. The old export paged backwards by timestamp 500 at a time, so the tie
+	// has to sit at descending positions 499 and 500 -- exactly the page edge -- for the
+	// boundary to cut between them. Anywhere else and both land on the same page and the
+	// bug does not show.
+	const total = 502
+	base := int64(1700000000000)
+	for i := 0; i < total; i++ {
+		var ts int64
+		switch {
+		case i < 499:
+			ts = base + int64(total-i) // strictly descending: positions 0..498
+		case i == 499 || i == 500:
+			ts = base + 2 // the tie, at descending positions 499 and 500
+		default:
+			ts = base + 1 // strictly below the tie
+		}
+		if _, _, err := store.InsertMessage(&Message{
+			ID: "a:" + strconv.Itoa(i), ThreadKey: key, TS: ts,
+			Body: "m" + strconv.Itoa(i), Source: "live", Read: true,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	st, err := ExportStore(store, t.TempDir(), t.TempDir(), "00000000-0000-4000-8000-000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Messages != total {
+		t.Errorf("exported %d of %d messages -- a tie at the page boundary was dropped", st.Messages, total)
 	}
 }

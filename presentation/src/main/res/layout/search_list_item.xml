@@ -22,9 +22,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?attr/selectableItemBackground"
+    android:background="@drawable/conversation_list_item_background"
+    android:foreground="?attr/selectableItemBackground"
     android:gravity="center_vertical"
-    android:orientation="horizontal">
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="8dp">
 
     <androidx.constraintlayout.widget.Group
         android:id="@+id/resultsHeader"
@@ -36,8 +41,10 @@
     <View
         android:id="@+id/resultsSeparator"
         android:layout_width="match_parent"
-        android:layout_height="3dp"
+        android:layout_height="1dp"
+        android:layout_marginStart="-12dp"
         android:layout_marginTop="12dp"
+        android:layout_marginEnd="-16dp"
         android:background="?android:attr/divider"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -45,9 +52,9 @@
         android:id="@+id/resultsTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
+        android:layout_marginStart="12dp"
         android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginEnd="0dp"
         android:text="@string/main_message_results_title"
         android:textColor="?android:attr/textColorSecondary"
         android:textStyle="bold"

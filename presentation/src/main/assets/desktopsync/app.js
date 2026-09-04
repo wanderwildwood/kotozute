@@ -1073,7 +1073,9 @@ function openMessageMenu(m, x, y) {
   const items = [];
   // Signal only. SMS has no reactions -- what looks like one there is a separate text
   // message reading "Liked ...", which is a different thing and not this button's job.
-  const canReact = activeThreadRail === 'signal' && m.id;
+  // Signal's own id, not the numeric one the list keys on -- that one is a hash of it and
+  // the phone cannot turn it back into a row.
+  const canReact = activeThreadRail === 'signal' && m.signalId;
   const mine = ((m.reactions || []).find(r => r.mine) || {}).emoji || '';
   if (text) items.push(['Copy text', () => copyText(text)]);
   if (text) items.push(['Forward\u2026', () => forwardText(text)]);
@@ -1141,7 +1143,7 @@ async function react(m, emoji, remove) {
     // off it rather than caught.
     const res = await api('/api/signal/react', {
       method: 'POST',
-      body: JSON.stringify({ id: m.id, emoji: emoji, remove: !!remove }),
+      body: JSON.stringify({ id: m.signalId, emoji: emoji, remove: !!remove }),
     });
     if (!res.ok) { statusEl.textContent = 'could not react'; return; }
     statusEl.textContent = remove ? 'reaction removed' : 'reacted';

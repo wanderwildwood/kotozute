@@ -840,6 +840,10 @@ class DesktopSyncServer(
         // The desktop list keys on this; Signal's own id is a string, so derive a stable
         // number from it the same way thread ids are derived.
         put("id", InboxItem.signalStableId(m.id))
+        // Signal's own id as well. The number above is a hash and cannot be turned back
+        // into the row it came from, so anything the browser asks the phone to do TO a
+        // particular message -- reacting to it -- needs the real one.
+        put("signalId", m.id)
         put("body", m.body)
         put("date", m.date)
         put("isMe", m.outgoing)

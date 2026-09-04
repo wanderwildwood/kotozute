@@ -439,8 +439,21 @@ class SignalThreadActivity : QkThemedActivity() {
      * complexity when you act on many messages at once, and here there is nothing yet that
      * takes more than one.
      */
-    private fun showMessageActions(body: String) {
-        val actions = listOf(
+    private fun showMessageActions(body: String, messageId: String, mine: String) {
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
+        if (mine.isNotEmpty()) {
+            actions += getString(R.string.signal_reaction_remove_mine, mine) to {
+                sendReaction(messageId, mine, remove = true)
+            }
+        }
+        if (body.isBlank()) {
+            AlertDialog.Builder(this)
+                .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
+                .show()
+            return
+        }
+        actions += listOf(
             getString(R.string.signal_message_copy) to {
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("Signal message", body))
@@ -470,48 +483,71 @@ class SignalThreadActivity : QkThemedActivity() {
      * 480px e-ink screen is not quick -- the phone's own emoji panel exists for the
      * composer, where somebody is actually writing.
      */
-    private fun askForReaction(messageId: String) {
+    private fun askForReaction(messageId: String, mine: String) {
         val choices = listOf("\u2764\ufe0f", "\uD83D\uDC4D", "\uD83D\uDC4E", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22")
-        val labels = (choices + getString(R.string.signal_reaction_remove)).toTypedArray()
 
-        AlertDialog.Builder(this)
-            .setItems(labels) { _, which ->
-                val remove = which == choices.size
-                val emoji = if (remove) mineOn(messageId) else choices[which]
-                if (emoji.isBlank()) return@setItems
-                thread(isDaemon = true) {
-                    val failure = runCatching { signalRepo.react(messageId, emoji, remove) }
-                        .exceptionOrNull()
-                    if (failure != null) {
-                        Timber.w(failure, "signal: reaction")
-                        runOnUiThread {
-                            Toast.makeText(
-                                this, getString(R.string.signal_reaction_failed), Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
+        // A row, not a list. Six list items would be six full-width rows on a 480px screen
+        // to hold six glyphs, and the eye has to travel the height of the display to read a
+        // choice that fits on one line.
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+        val row = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(dp(8), dp(16), dp(8), dp(16))
+        }
+        val dialog = AlertDialog.Builder(this).setView(row).show()
+        choices.forEach { emoji ->
+            val cell = com.wanderwildwood.kotozute.common.widget.QkTextView(this).apply {
+                text = emoji
+                textSize = 26f
+                gravity = Gravity.CENTER
+                setPadding(0, dp(8), 0, dp(8))
+                // The one already given is ringed, and tapping it takes it back -- which is
+                // what tapping it again does in Signal itself.
+                if (emoji == mine) {
+                    setBackgroundResource(R.drawable.rounded_rectangle_outline_4dp)
+                }
+                setOnClickListener {
+                    dialog.dismiss()
+                    sendReaction(messageId, emoji, remove = emoji == mine)
                 }
             }
-            .show()
+            row.addView(
+                cell,
+                android.widget.LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            )
+        }
+    }
+
+    private fun sendReaction(messageId: String, emoji: String, remove: Boolean) {
+        thread(isDaemon = true) {
+            val failure = runCatching { signalRepo.react(messageId, emoji, remove) }
+                .exceptionOrNull()
+            if (failure != null) {
+                Timber.w(failure, "signal: reaction")
+                runOnUiThread {
+                    Toast.makeText(
+                        this, getString(R.string.signal_reaction_failed), Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
     }
 
     /**
-     * Which emoji this account already put on a message, so "remove" knows what to take
-     * off -- Signal removes a specific reaction, not whatever happens to be there.
+     * Which emoji this account already put on a message, so "remove" knows what to take off
+     * -- Signal removes a specific reaction, not whatever happens to be there.
+     *
+     * Ours is recorded against "me" when the echo of it comes back, so this needs neither a
+     * network call nor a copy of the account's own uuid.
      */
-    private fun mineOn(messageId: String): String = runCatching {
-        io.realm.Realm.getDefaultInstance().use { realm ->
-            val row = realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
-                ?: return@use ""
-            val arr = JSONArray(row.reactions.ifBlank { "[]" })
-            // Ours is recorded as "me" when the echo of it comes back, so this needs no
-            // network call and no copy of the account's uuid.
-            for (i in 0 until arr.length()) {
-                val e = arr.optJSONObject(i) ?: continue
-                if (e.optString("who") == "me") return@use e.optString("emoji")
-            }
-            ""
+    private fun myReaction(m: SignalMessage): String = runCatching {
+        val arr = JSONArray(m.reactions.ifBlank { "[]" })
+        for (i in 0 until arr.length()) {
+            val e = arr.optJSONObject(i) ?: continue
+            if (e.optString("who") == "me") return@runCatching e.optString("emoji")
         }
+        ""
     }.getOrDefault("")
 
     private fun findSmsCounterpart() {
@@ -686,15 +722,6 @@ class SignalThreadActivity : QkThemedActivity() {
             b.body.setVisible(text.isNotEmpty())
             bindReactions(m)
 
-            // Hold a message to react to it, which is the gesture every other messenger
-            // uses for this. The id is captured now rather than read from the holder later:
-            // a holder is recycled onto another message and the menu would then act on
-            // whichever one had scrolled into its place.
-            val messageId = m.id
-            b.root.setOnLongClickListener {
-                askForReaction(messageId)
-                true
-            }
             b.timestamp.text = dateFormatter.getMessageTimestamp(m.date)
             // One timestamp above a run, not one per line. Anything less than the grouping
             // threshold since the last message is the same moment as far as reading goes.
@@ -721,7 +748,7 @@ class SignalThreadActivity : QkThemedActivity() {
             (b.root as? android.widget.LinearLayout)?.let { root ->
                 // The timestamp stays centred whichever side the message is on, so only the
                 // children below it follow the sender.
-                listOf(b.sender, b.image, b.attachment, b.body).forEach { child ->
+                listOf(b.sender, b.image, b.attachment, b.body, b.reactions).forEach { child ->
                     (child.layoutParams as? android.widget.LinearLayout.LayoutParams)
                         ?.let { lp -> lp.gravity = side; child.layoutParams = lp }
                 }
@@ -749,12 +776,23 @@ class SignalThreadActivity : QkThemedActivity() {
             )
 
             // A message you could read and not copy. The SMS side has had a selection mode
-            // since it was QKSMS; this is the small version of it -- the two things anyone
+            // since it was QKSMS; this is the small version of it -- the things anyone
             // actually reaches for, on the gesture they will already try.
-            b.body.setOnLongClickListener {
-                if (m.body.isNotBlank()) showMessageActions(m.body)
-                m.body.isNotBlank()
+            //
+            // The id and the reactions are read now rather than off the holder later: a
+            // holder is recycled onto another message, and the menu would then act on
+            // whichever one had scrolled into its place.
+            val messageId = m.id
+            val mine = myReaction(m)
+            val listener = android.view.View.OnLongClickListener {
+                showMessageActions(m.body, messageId, mine)
+                true
             }
+            b.body.setOnLongClickListener(listener)
+            // An attachment with no caption is still a message, and still something to react
+            // to. Without this it was the one kind that answered no gesture at all.
+            b.image.setOnLongClickListener(listener)
+            b.attachment.setOnLongClickListener(listener)
 
             bindAttachment(m)
         }

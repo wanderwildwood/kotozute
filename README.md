@@ -11,9 +11,10 @@ are all just the someone in the middle.
 
 It continues [QKSMS](https://github.com/moezbhatti/qksms) by way of [QUIK](https://github.com/octoshrimpy/quik), and branched off [InkMessage](https://github.com/lamdanAmiti/InkMessage), which is where the e-ink work started.
 
-| | | |
-|---|---|---|
-| ![The conversation list](screenshots/1-conversations.png) | ![A conversation, with a reply half written](screenshots/2-conversation.png) | ![Settings](screenshots/4-settings.png) |
+| | |
+|---|---|
+| ![The conversation list](screenshots/1-conversations.png) | ![A conversation, with a reply half written](screenshots/2-conversation.png) |
+| ![A Signal conversation, with a reaction on the last message](screenshots/5-signal.png) | ![Settings](screenshots/4-settings.png) |
 
 Desktop Sync, which is the page the phone serves to a browser on your own computer:
 
@@ -38,12 +39,13 @@ An HTTP + WebSocket server runs *inside the app on the phone* and serves its own
 - Full thread history, paging back through long conversations
 - Send replies, and start new conversations with contact autocomplete (by name or number)
 - Pictures and video display inline and play in place, on both rails
-- Right-click a conversation for archive, pin, mute, mark unread, block or delete; right-click a message to copy, forward or delete it
+- Right-click a conversation for archive, pin, mute, mark unread, block or delete; right-click a message to copy, forward, delete it, or put an emoji on it
 - An archive shelf and a blocked list, so nothing filed away is out of reach
 - Cross between someone's SMS and Signal threads from a badge in the thread header
 - Safety numbers, the Signal account and the devices on it
 - Settings: theme, unread-at-the-top, the Signal switches, Tailscale only, and a sync you can trigger from the browser
-- Scheduled messages: see what is waiting to go out, and cancel it
+- Scheduled messages on both rails: write one now, pick a time, and the phone sends it whether
+  or not the browser is still open — and see what is waiting, and cancel it
 - Reading a thread in the browser marks it read on the phone and clears its notification
 - Live updates over a WebSocket, with polling as a fallback
 - The access link can be reset if it leaks
@@ -88,6 +90,8 @@ the rows that came over Signal. Nothing is marked SMS: unmarked means SMS, which
 off nearly every row.
 
 - Send and receive, one-to-one and in groups, with pictures
+- React to a message: hold it and pick an emoji, or hold it again to take yours back
+- Write one now and send it later, from the same scheduled list your texts use
 - The same person's SMS and Signal threads are separate conversations, and the badge in either
   one crosses to the other
 - Search reaches message bodies on both rails at once, from the phone or the browser

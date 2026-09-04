@@ -21,6 +21,20 @@
 set -euo pipefail
 
 SIGNAL_CLI_VERSION="${SIGNAL_CLI_VERSION:-0.14.7}"
+
+# The SHA-256 of the tarball that version publishes.
+#
+# This script downloads a program and then runs it as root, holding a Signal account. HTTPS
+# proves the bytes came from GitHub; it does not prove they are the bytes this script was
+# written against, and that difference is the whole question once the answer becomes a root
+# service. Checked, a tampered or truncated download stops here rather than being installed.
+#
+# Override SIGNAL_CLI_VERSION and this goes unverified, because a hash pinned to one version
+# cannot vouch for another -- the script says so plainly rather than comparing against the
+# wrong thing. Anyone doing that should check the .asc signature GitHub publishes beside the
+# release instead.
+SIGNAL_CLI_SHA256="0e1eefdf4a2109edf7c899c9d1667167c54ac12c3ec824f27db7c1dac4fa7506"
+SIGNAL_CLI_SHA256_FOR="0.14.7"
 SIGNAL_CLI_DIR=/opt/signal-cli-dist
 SIGNAL_CLI="$SIGNAL_CLI_DIR/signal-cli-$SIGNAL_CLI_VERSION/bin/signal-cli"
 SIGNAL_CLI_DATA=/var/lib/signal-cli
@@ -64,6 +78,24 @@ else
   url="https://github.com/AsamK/signal-cli/releases/download/v$SIGNAL_CLI_VERSION/signal-cli-$SIGNAL_CLI_VERSION.tar.gz"
   tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
   curl -fsSL "$url" -o "$tmp/signal-cli.tar.gz" || die "Could not download $url"
+
+  if [ "$SIGNAL_CLI_VERSION" = "$SIGNAL_CLI_SHA256_FOR" ]; then
+    have sha256sum || die "sha256sum is needed to verify the download."
+    got=$(sha256sum "$tmp/signal-cli.tar.gz" | cut -d" " -f1)
+    if [ "$got" != "$SIGNAL_CLI_SHA256" ]; then
+      die "The signal-cli download does not match the checksum this script expects.
+  expected $SIGNAL_CLI_SHA256
+  got      $got
+Nothing has been installed. Either the download was corrupted, or it is not the file this
+script was written against -- and it would have been run as root, so it stops here."
+    fi
+    echo "  checksum verified"
+  else
+    echo "  !! SIGNAL_CLI_VERSION is $SIGNAL_CLI_VERSION, not the pinned $SIGNAL_CLI_SHA256_FOR."
+    echo "     This download is NOT being verified. Check the .asc signature beside the"
+    echo "     release yourself before trusting it: it becomes a root service."
+  fi
+
   tar -C "$SIGNAL_CLI_DIR" -xzf "$tmp/signal-cli.tar.gz"
   [ -x "$SIGNAL_CLI" ] || die "The archive did not contain $SIGNAL_CLI."
   echo "  installed to $SIGNAL_CLI"

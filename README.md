@@ -175,6 +175,17 @@ For updates without doing this by hand, add this repository to
 It will offer each new release as it appears. **The application id is settled** — updates
 install over what you have, keeping your settings and anything the app has stored.
 
+## Not affiliated with Signal
+
+This is not a Signal product, and has no connection to the Signal Foundation or Signal
+Messenger LLC. It does not implement the Signal protocol and does not speak to Signal's
+servers: it talks to [signal-cli](https://github.com/AsamK/signal-cli), a separate and
+unofficial project, which does that part.
+
+"Signal" is used here to name the service being reached, and for nothing else. Whether a
+third-party path suits you is your judgement to make, and worth making deliberately — an
+account reached this way is still your account, with everything that implies.
+
 ## Licence
 
 **GPL-3.0-only**, inherited from QKSMS by way of QUIK and InkMessage — see [LICENSE](LICENSE)

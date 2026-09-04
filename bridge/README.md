@@ -150,3 +150,22 @@ existence. Pass `--attachment-days 0` to keep everything, and size your backups 
 | `--export <dir>` | write the store out in that same shape |
 | `--wipe` | **destroy** every message, thread, contact and stored identity, then exit. No confirmation. This is the other half of the phone's "Delete Signal data", which clears only the phone. |
 | `--attachment-days`, `--attachment-max-mb` | see retention above |
+
+## Licence
+
+GPL-3.0-only, the same as the app it serves — see [LICENSE](../LICENSE) at the root of this
+repository. The bridge is its own Go module and can be built alone, which is why the terms
+are restated here rather than left to be inferred from a directory it happens to sit in.
+
+Its dependencies are permissive and compatible: modernc.org/sqlite, go-humanize, google/uuid,
+go-isatty, go-strftime, bigfft, golang.org/x/sys and modernc.org/libc, under BSD-3 or MIT.
+
+## Not affiliated with Signal
+
+This is not a Signal product and has nothing to do with the Signal Foundation or Signal
+Messenger LLC. It does not implement the Signal protocol and never speaks to Signal's servers
+itself: it talks to [signal-cli](https://github.com/AsamK/signal-cli), which is a separate,
+unofficial project, and signal-cli does the talking.
+
+"Signal" appears throughout this documentation because that is the name of the service being
+reached, and for no other reason.

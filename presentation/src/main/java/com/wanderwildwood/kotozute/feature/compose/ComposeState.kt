@@ -47,6 +47,7 @@ data class ComposeState(
     val remaining: String = "",
     val subscription: SubscriptionInfoCompat? = null,
     val canSend: Boolean = false,
+    val muted: Boolean = false,
     /** The same person has a Signal thread, so a way across can be offered. */
     val signalThreadKey: String? = null,
 

@@ -43,6 +43,7 @@ sealed class MainPage
 data class Inbox(
     val addContact: Boolean = false,
     val markPinned: Boolean = true,
+    val markMuted: Boolean = true,
     val markRead: Boolean = false,
     val data: List<InboxItem>? = null,
     val selected: Int = 0,
@@ -57,6 +58,7 @@ data class Searching(
 data class Archived(
     val addContact: Boolean = false,
     val markPinned: Boolean = true,
+    val markMuted: Boolean = true,
     val markRead: Boolean = false,
     val data: List<InboxItem>? = null,
     val selected: Int = 0

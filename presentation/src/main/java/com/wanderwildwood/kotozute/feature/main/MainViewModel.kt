@@ -565,6 +565,20 @@ class MainViewModel @Inject constructor(
                 .autoDisposable(view.scope())
                 .subscribe()
 
+        // Muting a conversation is turning its notifications off, which this app has
+        // always been able to do -- it was three screens down, under the conversation's
+        // own notification settings, where nobody would think to look for something they
+        // wanted to do in a hurry. Same switch, reachable from the selection.
+        view.optionsItemIntent
+                .filter { itemId -> itemId == R.id.mute || itemId == R.id.unmute }
+                .withLatestFrom(view.conversationsSelectedIntent) { itemId, conversations ->
+                    val notify = itemId == R.id.unmute
+                    conversations.forEach { id -> prefs.notifications(id).set(notify) }
+                    view.clearSelection()
+                }
+                .autoDisposable(view.scope())
+                .subscribe()
+
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.read }
                 .filter { permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() } }
@@ -610,6 +624,10 @@ class MainViewModel @Inject constructor(
                             ?.recipients?.first()
                             ?.takeIf { recipient -> recipient.contact == null } != null
                     val pin = conversations.sumBy { if (it.pinned) -1 else 1 } >= 0
+                    // Offer whichever the selection mostly is not, the same way pin does.
+                    val mute = conversations.sumBy {
+                        if (prefs.notifications(it.id).get()) 1 else -1
+                    } >= 0
                     val read = when (conversations.size) {
                         0    -> false
                         1    -> conversations[0].unread
@@ -619,12 +637,12 @@ class MainViewModel @Inject constructor(
 
                     when (state.page) {
                         is Inbox -> {
-                            val page = state.page.copy(addContact = add, markPinned = pin, markRead = read, selected = selected)
+                            val page = state.page.copy(addContact = add, markPinned = pin, markMuted = mute, markRead = read, selected = selected)
                             newState { copy(page = page) }
                         }
 
                         is Archived -> {
-                            val page = state.page.copy(addContact = add, markPinned = pin, markRead = read, selected = selected)
+                            val page = state.page.copy(addContact = add, markPinned = pin, markMuted = mute, markRead = read, selected = selected)
                             newState { copy(page = page) }
                         }
 

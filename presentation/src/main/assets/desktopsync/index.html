@@ -416,6 +416,15 @@
   }
   .reactRow button:hover { background: var(--hover); }
   .reactRow button.on { border-color: var(--ink); }
+  /* The send-later row. Same ink-on-paper treatment as the composer above it. */
+  #laterRow {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 10px; border-top: 1px solid var(--line); font-size: 13px;
+  }
+  #laterRow input {
+    font: inherit; padding: 4px 6px; border: 1px solid var(--line);
+    background: var(--paper); color: var(--ink); border-radius: 4px;
+  }
   .expiry { margin-top: 4px; font-size: 11px; color: var(--muted); }
   .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
   .msg .stamp { font-size: 11px; color: var(--muted); margin-top: 4px; }
@@ -660,7 +669,17 @@
                   aria-label="Attach a picture, video or contact" disabled>+</button>
           <button type="button" id="emojiBtn" title="Emoji" aria-label="Emoji" disabled>&#x1F642;</button>
           <textarea id="body" rows="1" placeholder="Write a message…" autocomplete="off" disabled></textarea>
+          <button type="button" id="later" title="Send later" aria-label="Send later" disabled>&#x1F553;</button>
           <button type="submit" id="send" disabled>Send</button>
+        </div>
+        <!-- Shown only once "Send later" is pressed. A row rather than a dialog: the time is
+             the only thing being chosen, and the message it belongs to should stay visible
+             while it is chosen. -->
+        <div id="laterRow" hidden>
+          <label for="laterAt">Send at</label>
+          <input type="datetime-local" id="laterAt">
+          <button type="button" id="laterConfirm">Schedule</button>
+          <button type="button" id="laterCancel">Cancel</button>
         </div>
       </form>
     </section>

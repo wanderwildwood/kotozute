@@ -170,6 +170,11 @@ const signalSetupErrorEl = document.getElementById('signalSetupError');
 const searchFieldEl = document.getElementById('searchField');
 const searchClearEl = document.getElementById('searchClear');
 const attachEl = document.getElementById('attach');
+const laterEl = document.getElementById('later');
+const laterRowEl = document.getElementById('laterRow');
+const laterAtEl = document.getElementById('laterAt');
+const laterConfirmEl = document.getElementById('laterConfirm');
+const laterCancelEl = document.getElementById('laterCancel');
 const fileFieldEl = document.getElementById('fileField');
 const attachmentsEl = document.getElementById('attachments');
 const emojiBtnEl = document.getElementById('emojiBtn');
@@ -636,7 +641,75 @@ function updateSendEnabled() {
   sendEl.disabled = !canSend;
   attachEl.disabled = bodyEl.disabled;
   emojiBtnEl.disabled = bodyEl.disabled;
+  // A scheduled message is text only, on both rails: an attachment would have to be kept
+  // somewhere until the alarm fires, and cleaned up if the message is cancelled, which is
+  // a queue with an owner rather than a field on a row.
+  laterEl.disabled = bodyEl.disabled || bodyEl.value.trim() === '' || pending.length > 0
+    || composeMode || activeThreadId === null;
+  if (laterEl.disabled && !laterRowEl.hidden) hideLater();
 }
+
+/* ── Send later ────────────────────────────────────────────────────────────────
+ * The phone holds the message and its own alarm sends it, which is the same thing
+ * that happens when one is scheduled on the phone -- so it still goes out if this
+ * browser is closed, and it appears in the phone's scheduled list either way. */
+
+function hideLater() {
+  laterRowEl.hidden = true;
+}
+
+laterEl.addEventListener('click', () => {
+  if (laterRowEl.hidden) {
+    // Default to an hour out, rounded to the next five minutes: a sensible starting
+    // point that is never in the past by the time anyone reads it.
+    const at = new Date(nowMs() + 3600 * 1000);
+    at.setMinutes(Math.ceil(at.getMinutes() / 5) * 5, 0, 0);
+    laterAtEl.value = localDatetimeValue(at);
+    laterRowEl.hidden = false;
+    laterAtEl.focus();
+  } else {
+    hideLater();
+  }
+});
+
+laterCancelEl.addEventListener('click', hideLater);
+
+/** What <input type="datetime-local"> wants: local wall-clock, no zone, no seconds. */
+function localDatetimeValue(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+    'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function nowMs() {
+  return new Date().getTime();
+}
+
+laterConfirmEl.addEventListener('click', async () => {
+  const text = bodyEl.value.trim();
+  if (!text || activeThreadId === null) return;
+  const at = new Date(laterAtEl.value).getTime();
+  if (!at || Number.isNaN(at)) { statusEl.textContent = 'pick a time'; return; }
+  if (at <= nowMs()) { statusEl.textContent = 'that time has gone'; return; }
+
+  // The phone's clock decides, not this browser's -- they can differ, and the alarm is
+  // the phone's. Sent as wall-clock milliseconds, which is what both agree on.
+  const sentThreadId = activeThreadId;
+  laterConfirmEl.disabled = true;
+  const res = await api('/api/threads/' + sentThreadId + '/send', Object.assign(
+    { method: 'POST' },
+    sendRequestBody({ body: text, at: String(at) })
+  ));
+  laterConfirmEl.disabled = false;
+  if (!res.ok) { await reportSendFailure(res); return; }
+  clearSendFailure();
+  clearDraft(sentThreadId);
+  if (activeThreadId === sentThreadId) bodyEl.value = '';
+  autoGrow();
+  hideLater();
+  updateSendEnabled();
+  statusEl.textContent = 'scheduled';
+});
 
 attachEl.addEventListener('click', () => fileFieldEl.click());
 fileFieldEl.addEventListener('change', () => addFiles(fileFieldEl.files));
@@ -947,7 +1020,9 @@ function openThreadMenu(t, x, y) {
     ['Mark unread', 'unread'],
     [t.pinned ? 'Unpin' : 'Pin', t.pinned ? 'unpin' : 'pin'],
   );
-  if (signal) items.push([t.muted ? 'Unmute' : 'Mute', t.muted ? 'unmute' : 'mute']);
+  // Both rails now. On Signal it is the thread's own mute flag; on SMS it is that
+  // conversation's notification preference, which is the same thing said differently.
+  items.push([t.muted ? 'Unmute' : 'Mute', t.muted ? 'unmute' : 'mute']);
   items.push([t.archived ? 'Move to inbox' : 'Archive', t.archived ? 'unarchive' : 'archive']);
   items.push(null);
   // SMS keeps a blocked flag on the row, so it can be a toggle. Signal's block lives on
@@ -1461,7 +1536,8 @@ async function showScheduled() {
 
     const meta = document.createElement('div');
     meta.className = 'schedMeta';
-    meta.textContent = new Date(m.date).toLocaleString() + ' \u2192 ' + (m.to || 'unknown');
+    meta.textContent = new Date(m.date).toLocaleString() + ' \u2192 ' + (m.to || 'unknown') +
+      (m.rail === 'signal' ? '  \u00b7 Signal' : '');
     row.append(meta);
 
     const text = document.createElement('div');

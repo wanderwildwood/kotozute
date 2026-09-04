@@ -1,5 +1,7 @@
 package com.wanderwildwood.kotozute.feature.signal
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -22,6 +24,8 @@ import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.databinding.SignalMessageListItemBinding
 import com.wanderwildwood.kotozute.databinding.SignalThreadActivityBinding
 import com.wanderwildwood.kotozute.model.SignalMessage
+import com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
+import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.common.util.DateFormatter
 import dagger.android.AndroidInjection
@@ -29,6 +33,7 @@ import io.reactivex.disposables.CompositeDisposable
 import io.realm.RealmResults
 import org.json.JSONArray
 import android.util.LruCache
+import java.util.Calendar
 import javax.inject.Inject
 import kotlin.concurrent.thread
 import timber.log.Timber
@@ -47,6 +52,8 @@ class SignalThreadActivity : QkThemedActivity() {
     @Inject lateinit var dateFormatter: DateFormatter
     @Inject lateinit var notifications: SignalNotifications
     @Inject lateinit var navigator: com.wanderwildwood.kotozute.common.Navigator
+    @Inject lateinit var scheduledMessageRepo: ScheduledMessageRepository
+    @Inject lateinit var updateScheduledMessageAlarms: UpdateScheduledMessageAlarms
 
     private lateinit var binding: SignalThreadActivityBinding
     private val disposables = CompositeDisposable()
@@ -127,6 +134,12 @@ class SignalThreadActivity : QkThemedActivity() {
         })
 
         binding.send.setOnClickListener { send() }
+        // Hold Send to send it later. A second button would cost a sixth of the composer
+        // row on a 480px screen to hold something used once a month.
+        binding.send.setOnLongClickListener {
+            scheduleSend()
+            true
+        }
         findSmsCounterpart()
 
         if (isGroup) {
@@ -201,6 +214,75 @@ class SignalThreadActivity : QkThemedActivity() {
         pendingAttachment = null
         pendingName = null
         binding.pending.setVisible(false)
+    }
+
+    /**
+     * Put what is in the box in the scheduled list instead of sending it now.
+     *
+     * Text only, and said so rather than silently dropping an attachment: an attachment is
+     * held as a data URI, and keeping a photo's worth of base64 in the database until
+     * Tuesday is not worth what it buys.
+     */
+    private fun scheduleSend() {
+        val body = binding.message.text?.toString().orEmpty().trim()
+        if (body.isEmpty()) {
+            Toast.makeText(this, R.string.signal_schedule_needs_text, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (pendingAttachment != null) {
+            Toast.makeText(this, R.string.signal_schedule_no_attachments, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val calendar = Calendar.getInstance()
+        DatePickerDialog(this, { _, year, month, day ->
+            TimePickerDialog(this, { _, hour, minute ->
+                calendar.set(Calendar.YEAR, year)
+                calendar.set(Calendar.MONTH, month)
+                calendar.set(Calendar.DAY_OF_MONTH, day)
+                calendar.set(Calendar.HOUR_OF_DAY, hour)
+                calendar.set(Calendar.MINUTE, minute)
+                calendar.set(Calendar.SECOND, 0)
+                commitSchedule(calendar.timeInMillis, body)
+            }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE),
+                android.text.format.DateFormat.is24HourFormat(this)).show()
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)).show()
+    }
+
+    private fun commitSchedule(at: Long, body: String) {
+        if (at <= System.currentTimeMillis()) {
+            Toast.makeText(this, R.string.signal_schedule_in_the_past, Toast.LENGTH_SHORT).show()
+            return
+        }
+        thread(isDaemon = true) {
+            val failure = runCatching {
+                // The thread's name rides along in recipients, which Signal does not
+                // otherwise use. Without it the scheduled list would have a uuid where a
+                // name should be, and no way to resolve one -- the row is read long after
+                // this screen is gone.
+                scheduledMessageRepo.saveScheduledMessage(
+                    date = at,
+                    subId = -1,
+                    recipients = listOf(binding.toolbarTitle.text.toString()),
+                    sendAsGroup = false,
+                    body = body,
+                    attachments = emptyList(),
+                    conversationId = 0,
+                    signalThreadKey = threadKey
+                )
+                updateScheduledMessageAlarms.execute(Unit)
+            }.exceptionOrNull()
+            runOnUiThread {
+                if (failure == null) {
+                    binding.message.setText("")
+                    Toast.makeText(this, R.string.signal_scheduled, Toast.LENGTH_SHORT).show()
+                } else {
+                    Timber.w(failure, "signal: schedule")
+                    Toast.makeText(this, R.string.signal_schedule_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun send() {

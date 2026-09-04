@@ -79,8 +79,19 @@ class ScheduledMessageAdapter @Inject constructor(
         // The avatar is gone from the row, so there is nothing to fill -- and this was the
         // one that cost most, building a Recipient per address to hand to a hidden view.
 
-        holder.binding.recipients.text = message.recipients.joinToString(",") { address ->
-            contactCache[address]?.name?.takeIf { it.isNotBlank() } ?: address
+        // A scheduled Signal message has no phone numbers to resolve -- Signal threads are
+        // keyed by uuid, and the thread's own name was stored here when it was scheduled.
+        // The rail is said out loud, because "why did that go by Signal" is the question a
+        // row like this otherwise invites.
+        holder.binding.recipients.text = if (message.signalThreadKey.isNotEmpty()) {
+            holder.binding.root.context.getString(
+                R.string.scheduled_via_signal,
+                message.recipients.firstOrNull().orEmpty()
+            )
+        } else {
+            message.recipients.joinToString(",") { address ->
+                contactCache[address]?.name?.takeIf { it.isNotBlank() } ?: address
+            }
         }
 
         holder.binding.date.text = dateFormatter.getScheduledTimestamp(message.date)

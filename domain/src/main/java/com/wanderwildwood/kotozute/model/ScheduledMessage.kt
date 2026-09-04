@@ -30,7 +30,11 @@ open class ScheduledMessage(
     var sendAsGroup: Boolean = true,
     var body: String = "",
     var attachments: RealmList<String> = RealmList(),
-    var conversationId: Long = 0
+    var conversationId: Long = 0,
+    // Empty for SMS, which is what every row was before Signal could be scheduled. A
+    // non-empty key means the message goes out over the bridge instead, and that the
+    // recipients list -- which Signal does not use -- is only there to name the thread.
+    var signalThreadKey: String = ""
 ) : RealmObject() {
 
     fun copy(

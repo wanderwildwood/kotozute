@@ -235,6 +235,12 @@ class MainActivity : QkThemedActivity(), MainView {
             else -> true
         }
 
+        val markMuted = when (state.page) {
+            is Inbox -> state.page.markMuted
+            is Archived -> state.page.markMuted
+            else -> true
+        }
+
         val markRead = when (state.page) {
             is Inbox -> state.page.markRead
             is Archived -> state.page.markRead
@@ -285,6 +291,8 @@ class MainActivity : QkThemedActivity(), MainView {
             findItem(R.id.add)?.isVisible = addContact && selectedConversations != 0
             findItem(R.id.pin)?.isVisible = markPinned && selectedConversations != 0
             findItem(R.id.unpin)?.isVisible = !markPinned && selectedConversations != 0
+            findItem(R.id.mute)?.isVisible = markMuted && selectedConversations != 0
+            findItem(R.id.unmute)?.isVisible = !markMuted && selectedConversations != 0
             findItem(R.id.read)?.isVisible = ( markRead && selectedConversations != 0 ) ||
                     selectedConversations > 1
             findItem(R.id.unread)?.isVisible = ( !markRead && selectedConversations != 0 ) ||

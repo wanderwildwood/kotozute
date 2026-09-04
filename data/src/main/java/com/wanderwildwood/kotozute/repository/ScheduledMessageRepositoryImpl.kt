@@ -22,7 +22,8 @@ class ScheduledMessageRepositoryImpl @Inject constructor() : ScheduledMessageRep
         sendAsGroup: Boolean,
         body: String,
         attachments: List<String>,
-        conversationId: Long
+        conversationId: Long,
+        signalThreadKey: String
     ): ScheduledMessage {
         Realm.getDefaultInstance().use { realm ->
             val id = (realm
@@ -35,7 +36,7 @@ class ScheduledMessageRepositoryImpl @Inject constructor() : ScheduledMessageRep
             val attachmentsRealmList = RealmList(*attachments.toTypedArray())
 
             val message = ScheduledMessage(id, date, subId, recipientsRealmList, sendAsGroup, body,
-                attachmentsRealmList, conversationId)
+                attachmentsRealmList, conversationId, signalThreadKey)
 
             realm.executeTransaction { realm.insertOrUpdate(message) }
 

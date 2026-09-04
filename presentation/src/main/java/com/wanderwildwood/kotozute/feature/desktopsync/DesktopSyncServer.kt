@@ -18,6 +18,7 @@ import android.telephony.SubscriptionManager
 import android.webkit.MimeTypeMap
 import com.wanderwildwood.kotozute.interactor.SyncMessages
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
+import com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
 import com.wanderwildwood.kotozute.util.Preferences
 import kotlin.concurrent.thread
 import java.io.ByteArrayInputStream
@@ -74,6 +75,8 @@ class DesktopSyncServer(
     private val syncMessages: SyncMessages,
     /** Messages waiting to go out later, which the phone can list and the browser could not. */
     private val scheduledMessageRepository: ScheduledMessageRepository,
+    /** Re-arms the alarms after the browser adds one, the same call the phone makes. */
+    private val updateScheduledMessageAlarms: UpdateScheduledMessageAlarms,
 ) : NanoWSD(port) {
 
     /**
@@ -993,8 +996,8 @@ class DesktopSyncServer(
      *
      * One route rather than eight, because the shape is identical every time and the only
      * real work is deciding which rail the id belongs to. The two rails do not offer quite
-     * the same set: Signal has mute and SMS does not, and Signal's "delete" clears only
-     * this device's copy, which the caller is told rather than left to assume.
+     * the same set -- SMS has delete, and Signal's "delete" would clear only this device's
+     * copy -- so each rail answers for the actions it actually has.
      */
     private fun handleThreadAction(threadId: Long, session: IHTTPSession): Response {
         val action = readSmallJsonField(session, "action", MAX_ACTION_BODY_BYTES)?.trim().orEmpty()
@@ -1037,6 +1040,10 @@ class DesktopSyncServer(
                 "unarchive" -> conversationRepository.markUnarchived(listOf(threadId))
                 "pin" -> conversationRepository.markPinned(threadId)
                 "unpin" -> conversationRepository.markUnpinned(threadId)
+                // Muting an SMS conversation is turning its notifications off. The phone
+                // writes the same preference, so the two surfaces cannot disagree.
+                "mute" -> prefs.notifications(threadId).set(false)
+                "unmute" -> prefs.notifications(threadId).set(true)
                 "unread" -> messageRepository.markUnread(listOf(threadId))
                 "block" -> conversationRepository.markBlocked(listOf(threadId), blockingManager(), null)
                 "unblock" -> conversationRepository.markUnblocked(threadId)
@@ -1393,16 +1400,87 @@ class DesktopSyncServer(
                     put("threadId", m.conversationId)
                     // Who it goes to, resolved to names where the address book knows them:
                     // a list of bare numbers is not something anyone can check at a glance.
-                    put("to", m.recipients.joinToString(", ") { address ->
+                    // A Signal row's "recipients" is the thread's name, not an address, so
+                    // there is nothing to look up -- and looking it up would turn a name
+                    // into whatever conversation happened to match it as a number.
+                    put("to", if (m.signalThreadKey.isNotEmpty()) {
+                        m.recipients.joinToString(", ")
+                    } else m.recipients.joinToString(", ") { address ->
                         val conversation = runCatching {
                             conversationRepository.getConversation(listOf(address))
                         }.getOrNull()
                         conversation?.getTitle()?.takeIf { it.isNotBlank() } ?: address
                     })
                     put("attachments", m.attachments.size)
+                    if (m.signalThreadKey.isNotEmpty()) put("rail", "signal")
                 })
             }
         return jsonResponse(Response.Status.OK, JSONObject().put("scheduled", array))
+    }
+
+    /**
+     * Put a message in the phone's scheduled list rather than sending it now.
+     *
+     * Text only, on both rails. An attachment staged here would have to survive until the
+     * alarm fires, which means copying it into the app's storage and cleaning it up if the
+     * message is later cancelled -- a queue with an owner, not a field on a row. Refused
+     * plainly instead, so nobody schedules a photo that quietly does not go.
+     */
+    private fun handleSchedule(threadId: Long, submission: Submission): Response {
+        if (submission.attachments.isNotEmpty() || submission.rejected > 0) {
+            return jsonResponse(
+                Response.Status.BAD_REQUEST,
+                JSONObject().put("error", "a scheduled message is text only")
+            )
+        }
+        val body = submission.body.trim()
+        if (body.isEmpty()) {
+            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "nothing to send"))
+        }
+        if (submission.at <= System.currentTimeMillis()) {
+            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "that time has gone"))
+        }
+
+        val signalThread = signalThreadFor(threadId)
+        val recipients: List<String>
+        val signalKey: String
+        val conversationId: Long
+        if (signalThread != null) {
+            // Signal threads are keyed by uuid and have no addresses. The thread's name
+            // rides in recipients so the scheduled list has something to show; nothing
+            // reads it as a number.
+            recipients = listOf(signalThread.title.ifBlank { "Signal" })
+            signalKey = signalThread.threadKey
+            conversationId = 0
+        } else {
+            val conversation = conversationRepository.getConversation(threadId)
+                ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "no such thread"))
+            recipients = conversation.recipients.map { it.address }
+            signalKey = ""
+            conversationId = conversation.id
+        }
+
+        return runCatching {
+            scheduledMessageRepository.saveScheduledMessage(
+                date = submission.at,
+                subId = submission.subId,
+                recipients = recipients,
+                sendAsGroup = recipients.size > 1 && signalKey.isEmpty(),
+                body = body,
+                attachments = emptyList(),
+                conversationId = conversationId,
+                signalThreadKey = signalKey
+            )
+            updateScheduledMessageAlarms.execute(Unit)
+            notifyChanged()
+            jsonResponse(Response.Status.OK, JSONObject().put("ok", true).put("scheduled", true))
+        }.getOrElse { failure ->
+            Timber.w(failure, "Desktop Sync: schedule")
+            jsonResponse(
+                Response.Status.INTERNAL_ERROR,
+                JSONObject().put("error", failure.message ?: "could not schedule that")
+            )
+        }
     }
 
     private fun handleCancelScheduled(id: Long): Response {
@@ -1527,6 +1605,13 @@ class DesktopSyncServer(
         val submission = readSubmission(session)
             ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
 
+        // Send it later. Handled before either rail's send, because from here on the two
+        // branches differ and the scheduling does not: the phone holds the message and its
+        // own alarm sends it, exactly as it would for one scheduled on the phone.
+        if (submission.at > 0) {
+            return handleSchedule(threadId, submission)
+        }
+
         signalThreadFor(threadId)?.let { thread ->
             val body = submission.body.trim()
             // A file that could not be staged never reaches submission.attachments, only
@@ -1603,7 +1688,9 @@ class DesktopSyncServer(
         /** Files that arrived but could not be used -- an image the phone cannot decode. */
         val rejected: Int = 0,
         /** The SIM the browser picked, or NO_SUB_ID to let the phone work it out. */
-        val subId: Int = NO_SUB_ID
+        val subId: Int = NO_SUB_ID,
+        /** When to send it, or 0 for now. Epoch milliseconds, the phone's own clock. */
+        val at: Long = 0
     )
 
     /**
@@ -1669,7 +1756,8 @@ class DesktopSyncServer(
             return Submission(
                 json.optString("body"), json.optString("to"), emptyList(),
                 // A string either way, so the JSON and multipart bodies carry it identically.
-                subId = json.optString("subId").toIntOrNull() ?: NO_SUB_ID
+                subId = json.optString("subId").toIntOrNull() ?: NO_SUB_ID,
+                at = json.optString("at").toLongOrNull() ?: 0
             )
         }
 
@@ -1687,7 +1775,8 @@ class DesktopSyncServer(
             to = multipartText(session, "to"),
             attachments = uploads.filterNotNull(),
             rejected = uploads.count { it == null },
-            subId = multipartText(session, "subId").toIntOrNull() ?: NO_SUB_ID
+            subId = multipartText(session, "subId").toIntOrNull() ?: NO_SUB_ID,
+            at = multipartText(session, "at").toLongOrNull() ?: 0
         )
     }
 
@@ -2044,6 +2133,7 @@ class DesktopSyncServer(
         // What the row's own menu needs to label itself: an item that says "Pin" on an
         // already-pinned conversation is worse than no item.
         put("pinned", conversation.pinned)
+        put("muted", !prefs.notifications(conversation.id).get())
         put("archived", conversation.archived)
         put("blocked", conversation.blocked)
     }

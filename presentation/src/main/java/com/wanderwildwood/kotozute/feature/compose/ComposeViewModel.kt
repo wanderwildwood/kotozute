@@ -323,6 +323,14 @@ class ComposeViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .subscribe { title -> newState { copy(conversationtitle = title) } }
 
+        // Which of Mute and Unmute the menu offers. Read from the preference rather than
+        // held only in the state, so a change made on the conversation's own notification
+        // screen is reflected here when the thread comes back to the front.
+        disposables += conversation
+                .map { conversation -> conversation.id }
+                .distinctUntilChanged()
+                .subscribe { id -> newState { copy(muted = !prefs.notifications(id).get()) } }
+
         disposables += conversation
                 .map { conversation -> conversation.id }
                 .distinctUntilChanged()
@@ -483,6 +491,19 @@ class ComposeViewModel @Inject constructor(
             }
             .autoDisposable(view.scope())
             .subscribe { navigator.makePhoneCall(it) }
+
+        // Mute, in the thread as well as in the list. It writes the same per-conversation
+        // notification preference the settings screen writes, so the two can never
+        // disagree about whether this conversation is quiet.
+        view.optionsItemIntent
+                .filter { it == R.id.mute || it == R.id.unmute }
+                .withLatestFrom(conversation) { itemId, conversation ->
+                    val notify = itemId == R.id.unmute
+                    prefs.notifications(conversation.id).set(notify)
+                    newState { copy(muted = !notify) }
+                }
+                .autoDisposable(view.scope())
+                .subscribe()
 
         // Open the conversation settings if info button is clicked
         view.optionsItemIntent

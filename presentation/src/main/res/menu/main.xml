@@ -80,6 +80,18 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/mute"
+        android:title="@string/signal_mute"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/unmute"
+        android:title="@string/signal_unmute"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/read"
         android:icon="@drawable/ic_drafts_black_24dp"
         android:title="@string/main_menu_read"

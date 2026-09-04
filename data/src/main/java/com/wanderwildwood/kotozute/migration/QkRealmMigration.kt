@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 21
+        const val SCHEMA_VERSION: Long = 22
     }
 
     @SuppressLint("ApplySharedPref")
@@ -409,6 +409,17 @@ class QkRealmMigration @Inject constructor(
                 ?.takeIf { !it.hasField("reactions") }
                 ?.addField("reactions", String::class.java, FieldAttribute.REQUIRED)
                 ?.transform { m -> m.setString("reactions", "") }
+
+            version++
+        }
+
+        if (version == 21L) {
+            // Which rail a scheduled message goes out on. Every existing row is SMS, which
+            // is what an empty key means, so there is nothing to decide per row.
+            realm.schema.get("ScheduledMessage")
+                ?.takeIf { !it.hasField("signalThreadKey") }
+                ?.addField("signalThreadKey", String::class.java, FieldAttribute.REQUIRED)
+                ?.transform { m -> m.setString("signalThreadKey", "") }
 
             version++
         }

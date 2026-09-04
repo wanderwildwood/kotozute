@@ -427,6 +427,12 @@ Either can be run twice without duplicating anything. An export written this way
     <string name="signal_attachment_unavailable">Attachment (not downloaded)</string>
     <string name="signal_view_once_received">View-once photo. Not kept.</string>
     <string name="signal_reaction_remove">Remove my reaction</string>
+    <string name="signal_scheduled">Scheduled</string>
+    <string name="signal_schedule_needs_text">Write something first</string>
+    <string name="signal_schedule_no_attachments">A scheduled Signal message is text only. Send the picture now, or remove it.</string>
+    <string name="signal_schedule_in_the_past">That time has gone</string>
+    <string name="signal_schedule_failed">Could not schedule that</string>
+    <string name="scheduled_via_signal">%1$s (Signal)</string>
     <string name="signal_reaction_failed">That reaction did not send</string>
     <plurals name="signal_unread">
         <item quantity="one">%d unread</item>

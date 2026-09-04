@@ -49,6 +49,16 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/mute"
+        android:title="@string/signal_mute"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/unmute"
+        android:title="@string/signal_unmute"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/viewScheduledMessages"
         android:icon="@drawable/ic_event_black_24dp"
         android:title="@string/compose_scheduled_view"

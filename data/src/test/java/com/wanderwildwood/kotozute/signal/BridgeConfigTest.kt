@@ -13,6 +13,10 @@ import org.junit.Test
  */
 class BridgeConfigTest {
 
+    // Invented, and shaped like the real thing only so the parser is exercised on the
+    // right lengths and alphabet. Never paste a working pairing link in here: the token is
+    // the whole credential -- the bridge has no second factor and no account behind it --
+    // and a test fixture is as public as the rest of the repository.
     private val token = "EXAMPLE0TOKEN0NOT0A0REAL0ONE0000000000000AA"
     private val fp = "0000000000000000000000000000000000000000000000000000000000000000"
 

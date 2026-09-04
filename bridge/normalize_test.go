@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 )
 
@@ -223,3 +224,89 @@ func TestACaptionedStickerKeepsItsCaption(t *testing.T) {
 		t.Errorf("body %q, want the caption", m.Body)
 	}
 }
+
+// Every reaction anyone sent was discarded in silence. signal-cli delivers one on an
+// otherwise empty dataMessage, which is exactly the shape the "empty means artefact" rule
+// throws away -- so a friend reacting to your message did nothing at all, while the same
+// gesture over SMS showed up, because that side parses the "Liked ..." text other clients
+// send. Visible on one rail, invisible on the other.
+func TestAReactionIsNotDiscarded(t *testing.T) {
+	withFrozenClock(t)
+	m, _, err := normalize("self-uuid", envelopeJSON(t, map[string]any{
+		"timestamp": testNow,
+		"reaction": map[string]any{
+			"emoji":               "❤️",
+			"targetAuthorUuid":    "self-uuid",
+			"targetSentTimestamp": testNow - 5000,
+			"isRemove":            false,
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m == nil {
+		t.Fatal("the reaction was dropped; nothing would ever show it")
+	}
+	if m.ReactionEmoji != "❤️" {
+		t.Errorf("emoji %q", m.ReactionEmoji)
+	}
+	if want := "self-uuid:" + itoa(testNow-5000); m.ReactionTarget != want {
+		t.Errorf("target %q, want %q -- the phone finds the row by this", m.ReactionTarget, want)
+	}
+	if m.ReactionRemove {
+		t.Error("marked as a removal when it is not one")
+	}
+}
+
+// Taking a reaction back has to reach the phone too, or the emoji stays for ever.
+func TestRemovingAReactionIsAlsoDelivered(t *testing.T) {
+	withFrozenClock(t)
+	m, _, err := normalize("self-uuid", envelopeJSON(t, map[string]any{
+		"timestamp": testNow,
+		"reaction": map[string]any{
+			"emoji": "\U0001F44D", "targetAuthorUuid": "self-uuid",
+			"targetSentTimestamp": testNow - 5000, "isRemove": true,
+		},
+	}))
+	if err != nil || m == nil {
+		t.Fatalf("dropped: %v %v", m, err)
+	}
+	if !m.ReactionRemove {
+		t.Error("a removal arrived looking like a new reaction")
+	}
+}
+
+// Two people reacting to one message are two rows; one person changing their mind replaces
+// their own. The id carries who reacted, not just what they reacted to.
+func TestOneReactionPerPersonPerMessage(t *testing.T) {
+	withFrozenClock(t)
+	mk := func(sender string) string {
+		raw, _ := json.Marshal(map[string]any{
+			"envelope": map[string]any{
+				"source": sender, "sourceNumber": sender, "sourceUuid": sender,
+				"timestamp": testNow,
+				"dataMessage": map[string]any{
+					"timestamp": testNow,
+					"reaction": map[string]any{
+						"emoji": "\U0001F44D", "targetAuthorUuid": "self-uuid",
+						"targetSentTimestamp": testNow - 5000,
+					},
+				},
+			},
+		})
+		m, _, _ := normalize("self-uuid", raw)
+		if m == nil {
+			t.Fatal("dropped")
+		}
+		return m.ID
+	}
+	a, b := mk("aaaaaaaa-0000-0000-0000-000000000001"), mk("aaaaaaaa-0000-0000-0000-000000000002")
+	if a == b {
+		t.Error("two people's reactions collide on one id; one would overwrite the other")
+	}
+	if a != mk("aaaaaaaa-0000-0000-0000-000000000001") {
+		t.Error("the same person reacting twice makes two rows instead of replacing")
+	}
+}
+
+func itoa(n int64) string { return strconv.FormatInt(n, 10) }

@@ -23,6 +23,13 @@ type Message struct {
 	Read         bool         `json:"read"`
 	Source       string       `json:"source"` // "live" | "import"
 
+	// A reaction to another message, rather than a message of its own. ReactionTarget is
+	// the msg_id of what it points at, built the same way any message id is, so the phone
+	// can find the row without knowing how ids are made. Empty on an ordinary message.
+	ReactionEmoji  string `json:"reactionEmoji,omitempty"`
+	ReactionTarget string `json:"reactionTarget,omitempty"`
+	ReactionRemove bool   `json:"reactionRemove,omitempty"`
+
 	// ExpiresInSeconds is the disappearing-message timer the sender set, 0 for none.
 	// ExpiresAt is when this copy must be gone, in ms; 0 means never. Signal starts the
 	// clock when the recipient reads the message, and we cannot know that moment for a
@@ -99,6 +106,20 @@ type dataMessage struct {
 		Filename    string `json:"filename"`
 		Size        int64  `json:"size"`
 	} `json:"attachments"`
+	// A reaction to one of your messages. signal-cli reports it in its own object on an
+	// otherwise empty dataMessage, which is exactly the shape the "empty means artefact"
+	// rule at the end of this function discards -- so every reaction anyone sent was
+	// dropped in silence. The SMS side has shown reactions all along, by parsing the
+	// "Liked ..." text other clients send, so the same gesture was visible on one rail and
+	// invisible on the other.
+	Reaction *struct {
+		Emoji               string `json:"emoji"`
+		TargetAuthor        string `json:"targetAuthor"`
+		TargetAuthorUUID    string `json:"targetAuthorUuid"`
+		TargetSentTimestamp int64  `json:"targetSentTimestamp"`
+		IsRemove            bool   `json:"isRemove"`
+	} `json:"reaction"`
+
 	// A sticker is not an attachment and does not appear in the list above -- signal-cli
 	// reports it in its own object, with the message null. Without this field such an
 	// envelope unmarshalled to an empty body with no attachments and was discarded as a
@@ -271,6 +292,28 @@ func normalize(selfUUID string, raw json.RawMessage) (*Message, *Receipt, error)
 			m.Body = dm.Sticker.Emoji
 		} else {
 			m.Body = "(sticker)"
+		}
+	}
+
+	// A reaction. It arrives on an otherwise empty dataMessage, so it has to be recognised
+	// before the emptiness rule below throws it away -- which is exactly what used to
+	// happen to every one of them.
+	if r := dm.Reaction; r != nil && r.Emoji != "" {
+		author := r.TargetAuthorUUID
+		if author == "" {
+			author = r.TargetAuthor
+		}
+		// The id of the message being reacted to, built the way ids are built everywhere
+		// here: author and the timestamp they sent it at.
+		if author != "" && r.TargetSentTimestamp != 0 {
+			m.ReactionEmoji = r.Emoji
+			m.ReactionTarget = fmt.Sprintf("%s:%d", author, r.TargetSentTimestamp)
+			m.ReactionRemove = r.IsRemove
+			// Its own id, so two people reacting to one message are two rows and removing
+			// a reaction replaces the one it removes rather than piling up beside it.
+			m.ID = fmt.Sprintf("react:%s:%s", m.ReactionTarget, authorUUID)
+			m.Raw = ""
+			return m, nil, nil
 		}
 	}
 

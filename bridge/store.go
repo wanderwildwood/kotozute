@@ -86,6 +86,13 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE messages ADD COLUMN expires_in INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE messages ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE messages ADD COLUMN view_once INTEGER NOT NULL DEFAULT 0`,
+		// A reaction is delivered as its own row rather than folded into the message it
+		// points at. seq is the rowid and cannot be reassigned, so an existing row cannot
+		// be moved to the head of the change stream to make the phone re-read it -- but a
+		// new row arrives there for free, and the phone applies it to the target.
+		`ALTER TABLE messages ADD COLUMN reaction_emoji TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE messages ADD COLUMN reaction_target TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE messages ADD COLUMN reaction_remove INTEGER NOT NULL DEFAULT 0`,
 	}
 	for _, stmt := range adds {
 		if _, err := db.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column") {
@@ -218,11 +225,13 @@ func (s *Store) InsertMessage(m *Message) (int64, bool, error) {
 		INSERT OR IGNORE INTO messages
 		  (msg_id, thread_key, ts, sender_uuid, sender_num, outgoing, body,
 		   group_id, quote_ts, attachments, read, source, raw,
-		   expires_in, expires_at, view_once)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		   expires_in, expires_at, view_once,
+		   reaction_emoji, reaction_target, reaction_remove)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		m.ID, m.ThreadKey, m.TS, m.SenderUUID, m.SenderNumber, b2i(m.Outgoing),
 		m.Body, m.GroupID, m.QuoteTS, string(atts), b2i(m.Read), m.Source, m.Raw,
-		m.ExpiresInSeconds, m.ExpiresAt, b2i(m.ViewOnce))
+		m.ExpiresInSeconds, m.ExpiresAt, b2i(m.ViewOnce),
+		m.ReactionEmoji, m.ReactionTarget, b2i(m.ReactionRemove))
 	if err != nil {
 		return 0, false, err
 	}
@@ -358,7 +367,9 @@ func (s *Store) Changes(sinceSeq int64, limit int) ([]*Message, error) {
 		       COALESCE(sender_uuid,''), COALESCE(sender_num,''), outgoing,
 		       COALESCE(body,''), COALESCE(group_id,''), COALESCE(quote_ts,0),
 		       COALESCE(attachments,''), read, COALESCE(source,'live'),
-		       COALESCE(expires_in,0), COALESCE(expires_at,0), COALESCE(view_once,0)
+		       COALESCE(expires_in,0), COALESCE(expires_at,0), COALESCE(view_once,0),
+		       COALESCE(reaction_emoji,''), COALESCE(reaction_target,''),
+		       COALESCE(reaction_remove,0)
 		-- Never hand out a message whose time is up, even if the sweep has not run yet.
 		FROM messages WHERE seq > ? AND (expires_at = 0 OR expires_at > ?)
 		ORDER BY seq LIMIT ?`, sinceSeq, nowMs(), limit)
@@ -380,7 +391,9 @@ func (s *Store) ThreadMessages(key string, beforeTS int64, limit int) ([]*Messag
 		       COALESCE(sender_uuid,''), COALESCE(sender_num,''), outgoing,
 		       COALESCE(body,''), COALESCE(group_id,''), COALESCE(quote_ts,0),
 		       COALESCE(attachments,''), read, COALESCE(source,'live'),
-		       COALESCE(expires_in,0), COALESCE(expires_at,0), COALESCE(view_once,0)
+		       COALESCE(expires_in,0), COALESCE(expires_at,0), COALESCE(view_once,0),
+		       COALESCE(reaction_emoji,''), COALESCE(reaction_target,''),
+		       COALESCE(reaction_remove,0)
 		FROM messages WHERE thread_key=? AND ts < ? AND (expires_at = 0 OR expires_at > ?)
 		ORDER BY ts DESC LIMIT ?`,
 		key, beforeTS, nowMs(), limit)
@@ -408,7 +421,9 @@ func (s *Store) ThreadMessagesBySeq(key string, afterSeq int64, limit int) ([]*M
 		       COALESCE(sender_uuid,''), COALESCE(sender_num,''), outgoing,
 		       COALESCE(body,''), COALESCE(group_id,''), COALESCE(quote_ts,0),
 		       COALESCE(attachments,''), read, COALESCE(source,'live'),
-		       COALESCE(expires_in,0), COALESCE(expires_at,0), COALESCE(view_once,0)
+		       COALESCE(expires_in,0), COALESCE(expires_at,0), COALESCE(view_once,0),
+		       COALESCE(reaction_emoji,''), COALESCE(reaction_target,''),
+		       COALESCE(reaction_remove,0)
 		FROM messages WHERE thread_key=? AND seq > ? AND (expires_at = 0 OR expires_at > ?)
 		ORDER BY seq LIMIT ?`,
 		key, afterSeq, nowMs(), limit)
@@ -506,13 +521,15 @@ func scanMessages(rows *sql.Rows) ([]*Message, error) {
 	for rows.Next() {
 		m := &Message{}
 		var atts string
-		var outg, read, viewOnce int
+		var outg, read, viewOnce, reactRemove int
 		if err := rows.Scan(&m.Seq, &m.ID, &m.ThreadKey, &m.TS, &m.SenderUUID,
 			&m.SenderNumber, &outg, &m.Body, &m.GroupID, &m.QuoteTS, &atts,
-			&read, &m.Source, &m.ExpiresInSeconds, &m.ExpiresAt, &viewOnce); err != nil {
+			&read, &m.Source, &m.ExpiresInSeconds, &m.ExpiresAt, &viewOnce,
+			&m.ReactionEmoji, &m.ReactionTarget, &reactRemove); err != nil {
 			return nil, err
 		}
 		m.Outgoing, m.Read, m.ViewOnce = outg == 1, read == 1, viewOnce == 1
+		m.ReactionRemove = reactRemove == 1
 		_ = json.Unmarshal([]byte(atts), &m.Attachments)
 		out = append(out, m)
 	}

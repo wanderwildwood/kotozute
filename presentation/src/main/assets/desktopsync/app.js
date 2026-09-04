@@ -1896,6 +1896,18 @@ async function loadMessages() {
       bubble.append(note);
     }
 
+    // Reactions others have put on this message. Under the bubble rather than overlapping
+    // it: the same reading the phone gives them, so one conversation looks like one
+    // conversation whichever screen it is on.
+    if ((m.reactions || []).length) {
+      const chips = document.createElement('div');
+      chips.className = 'reactions';
+      chips.textContent = m.reactions
+        .map(r => r.count === 1 ? r.emoji : r.emoji + '\u00a0' + r.count)
+        .join('  ');
+      bubble.append(chips);
+    }
+
     // Attachments, on either rail — without these a picture message is just an empty
     // bubble. Each row says where to fetch itself, because MMS parts and Signal
     // attachments live in different places and answer on different routes; the drawing

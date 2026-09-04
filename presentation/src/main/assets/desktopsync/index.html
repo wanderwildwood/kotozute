@@ -402,6 +402,11 @@
   /* Said in the reader's own voice rather than the sender's: this is the app explaining
      an absence, not something anyone typed. */
   .viewOnce { font-style: italic; color: var(--muted); }
+  .reactions {
+    margin-top: 4px; font-size: 13px; line-height: 1;
+    /* Its own line under the text, not hung off the bubble's corner: the browser bubble is
+       a plain flow box and a faked overlap would need absolute positioning to gain nothing. */
+  }
   .expiry { margin-top: 4px; font-size: 11px; color: var(--muted); }
   .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
   .msg .stamp { font-size: 11px; color: var(--muted); margin-top: 4px; }

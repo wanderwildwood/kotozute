@@ -550,6 +550,7 @@ class SignalThreadActivity : QkThemedActivity() {
             }
             b.body.text = text
             b.body.setVisible(text.isNotEmpty())
+            bindReactions(m)
             b.timestamp.text = dateFormatter.getMessageTimestamp(m.date)
             // One timestamp above a run, not one per line. Anything less than the grouping
             // threshold since the last message is the same moment as far as reading goes.
@@ -612,6 +613,36 @@ class SignalThreadActivity : QkThemedActivity() {
             }
 
             bindAttachment(m)
+        }
+
+        /**
+         * Reactions others have put on this message.
+         *
+         * Counted per emoji and shown most-used first, the same reading the SMS thread
+         * gives them -- but all of them rather than only the top one, because a Signal
+         * message can genuinely carry several and there is room on a line of its own.
+         */
+        private fun bindReactions(m: SignalMessage) {
+            if (m.reactions.isBlank()) {
+                b.reactions.setVisible(false)
+                return
+            }
+            val counts = LinkedHashMap<String, Int>()
+            runCatching { JSONArray(m.reactions) }.getOrNull()?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val emoji = arr.optJSONObject(i)?.optString("emoji").orEmpty()
+                    if (emoji.isNotEmpty()) counts[emoji] = (counts[emoji] ?: 0) + 1
+                }
+            }
+            if (counts.isEmpty()) {
+                b.reactions.setVisible(false)
+                return
+            }
+            b.reactions.text = counts.entries
+                .sortedByDescending { it.value }
+                // A non-breaking space, so the count cannot wrap away from its emoji.
+                .joinToString("  ") { (emoji, n) -> if (n == 1) emoji else "$emoji\u00a0$n" }
+            b.reactions.setVisible(true)
         }
 
         private fun bindAttachment(m: SignalMessage) {

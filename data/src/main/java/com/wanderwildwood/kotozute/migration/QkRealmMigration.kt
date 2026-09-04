@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 20
+        const val SCHEMA_VERSION: Long = 21
     }
 
     @SuppressLint("ApplySharedPref")
@@ -397,6 +397,18 @@ class QkRealmMigration @Inject constructor(
                     m.setLong("expiresInSeconds", 0)
                     m.setBoolean("viewOnce", false)
                 }
+
+            version++
+        }
+
+        if (version == 20L) {
+            // Reactions on a Signal message. Existing rows have none: the bridge discarded
+            // every reaction it was ever sent, so there is no history to back-fill from --
+            // only what arrives from here on.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("reactions") }
+                ?.addField("reactions", String::class.java, FieldAttribute.REQUIRED)
+                ?.transform { m -> m.setString("reactions", "") }
 
             version++
         }

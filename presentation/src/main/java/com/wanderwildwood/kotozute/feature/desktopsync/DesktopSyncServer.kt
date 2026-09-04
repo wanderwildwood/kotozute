@@ -815,6 +815,25 @@ class DesktopSyncServer(
         // the same hole the bridge keeps the row to avoid, and the same one the phone had
         // until this morning. A disappearing message says when it goes, so the reader can
         // tell a thread that empties itself from one that lost something.
+        // Reactions others have put on this message, counted per emoji. Counted here rather
+        // than in the browser so the phone and the page agree on the reading without two
+        // implementations of the same tally.
+        if (m.reactions.isNotBlank()) {
+            val counts = LinkedHashMap<String, Int>()
+            runCatching { JSONArray(m.reactions) }.getOrNull()?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val emoji = arr.optJSONObject(i)?.optString("emoji").orEmpty()
+                    if (emoji.isNotEmpty()) counts[emoji] = (counts[emoji] ?: 0) + 1
+                }
+            }
+            if (counts.isNotEmpty()) {
+                put("reactions", JSONArray().apply {
+                    counts.entries.sortedByDescending { it.value }.forEach { (emoji, n) ->
+                        put(JSONObject().put("emoji", emoji).put("count", n))
+                    }
+                })
+            }
+        }
         if (m.viewOnce) put("viewOnce", true)
         if (m.expiresAt > 0) {
             put("expiresAt", m.expiresAt)

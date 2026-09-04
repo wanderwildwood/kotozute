@@ -64,4 +64,13 @@ open class SignalMessage : RealmObject() {
 
     /** Signal intends this to be opened once; its attachment is never stored. */
     var viewOnce: Boolean = false
+
+    /**
+     * Reactions on this message, as JSON: [{"emoji":"...","who":"<uuid>"}].
+     *
+     * Held on the message rather than in a table of their own. A reaction is never read
+     * except while drawing the message it belongs to, and a handful of them per message is
+     * not a thing worth a join.
+     */
+    var reactions: String = ""
 }

@@ -14,6 +14,7 @@ import io.realm.Case
 import io.realm.Realm
 import io.realm.RealmResults
 import io.realm.Sort
+import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.Closeable
@@ -429,6 +430,15 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private fun store(realm: Realm, m: BridgeMessage): Boolean {
         if (m.id.isBlank()) return false
+
+        // A reaction is not a message. It arrives as its own row -- the bridge cannot move
+        // an existing one to the head of the change stream -- and belongs on the message it
+        // points at, not in the thread as a bubble of its own.
+        if (m.reactionEmoji.isNotEmpty() && m.reactionTarget.isNotEmpty()) {
+            applyReaction(realm, m)
+            // Never "new" in the sense that rings: a reaction is not a message arriving.
+            return false
+        }
         val existing = realm.where(SignalMessage::class.java).equalTo("id", m.id).findFirst()
         val isNew = existing == null
         val row = existing ?: realm.createObject(SignalMessage::class.java, m.id)
@@ -486,6 +496,38 @@ class SignalRepositoryImpl @Inject constructor(
         viewOnce -> VIEW_ONCE_PREVIEW
         attachmentsJson.isNotBlank() && attachmentsJson != "[]" -> ATTACHMENT_PREVIEW
         else -> ""
+    }
+
+    /**
+     * Put a reaction on the message it points at, or take it off again.
+     *
+     * Stored as JSON on the target rather than as rows of its own: reactions are only ever
+     * read while drawing the message they belong to, and a handful per message is not worth
+     * a table. Keyed on who reacted, so one person changing their mind replaces their own
+     * and two people are two entries.
+     *
+     * A reaction can outrun its message -- the bridge orders by arrival, not by what the
+     * reaction refers to -- and one whose target is not here yet is dropped rather than
+     * held. Signal resends nothing, so a queue would be a queue that never drains.
+     */
+    private fun applyReaction(realm: Realm, m: BridgeMessage) {
+        val target = realm.where(SignalMessage::class.java)
+            .equalTo("id", m.reactionTarget)
+            .findFirst() ?: return
+
+        val who = m.senderUuid.ifBlank { m.senderNumber }
+        val existing = runCatching { JSONArray(target.reactions.ifBlank { "[]" }) }
+            .getOrElse { JSONArray() }
+
+        val kept = JSONArray()
+        for (i in 0 until existing.length()) {
+            val e = existing.optJSONObject(i) ?: continue
+            if (e.optString("who") != who) kept.put(e)
+        }
+        if (!m.reactionRemove) {
+            kept.put(JSONObject().put("emoji", m.reactionEmoji).put("who", who))
+        }
+        target.reactions = if (kept.length() == 0) "" else kept.toString()
     }
 
     /**

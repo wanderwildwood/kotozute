@@ -5,6 +5,7 @@
      layout rather than a copy of it, drawn with the same bubble drawables and text styles
      so the two threads read as one app. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -63,5 +64,24 @@
         android:background="@drawable/message_in_only"
         android:gravity="start|center_vertical"
         android:minHeight="36dp" />
+
+    <!-- Reactions others have put on this message. Drawn under the bubble rather than
+         overlapping its corner as the SMS thread does: this is a LinearLayout, not the
+         RelativeLayout that lets that one hang a chip off the edge, and an overlap that has
+         to be faked with negative margins is worse than a line of its own. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/reactions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:background="@drawable/message_in_only"
+        android:paddingStart="8dp"
+        android:paddingTop="2dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="2dp"
+        android:textSize="14sp"
+        android:visibility="gone"
+        tools:text="❤️ 2"
+        tools:visibility="visible" />
 
 </LinearLayout>

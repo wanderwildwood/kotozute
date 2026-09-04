@@ -77,7 +77,12 @@ data class BridgeMessage(
     val expiresAt: Long = 0,
     val expiresInSeconds: Long = 0,
     /** Signal intends this to be opened once. Its attachment is never stored. */
-    val viewOnce: Boolean = false
+    val viewOnce: Boolean = false,
+
+    /** Set only on a reaction row, which points at another message rather than being one. */
+    val reactionEmoji: String = "",
+    val reactionTarget: String = "",
+    val reactionRemove: Boolean = false
 )
 
 /**
@@ -300,7 +305,10 @@ class BridgeClient(private val config: BridgeConfig) {
         attachmentsJson = o.optJSONArray("attachments")?.toString() ?: "",
         expiresAt = o.optLong("expiresAt"),
         expiresInSeconds = o.optLong("expiresInSeconds"),
-        viewOnce = o.optBoolean("viewOnce")
+        viewOnce = o.optBoolean("viewOnce"),
+        reactionEmoji = o.optString("reactionEmoji"),
+        reactionTarget = o.optString("reactionTarget"),
+        reactionRemove = o.optBoolean("reactionRemove")
     )
 
     private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")

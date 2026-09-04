@@ -31,6 +31,7 @@ import org.json.JSONArray
 import android.util.LruCache
 import javax.inject.Inject
 import kotlin.concurrent.thread
+import timber.log.Timber
 import kotlin.math.abs
 import java.util.concurrent.TimeUnit
 import com.wanderwildwood.kotozute.common.util.extensions.dpToPx
@@ -380,6 +381,57 @@ class SignalThreadActivity : QkThemedActivity() {
             .show()
     }
 
+    /**
+     * The short row of emoji Signal itself offers, and a way to take one back.
+     *
+     * Six, not a picker. A reaction is a quick thing and a grid of a thousand glyphs on a
+     * 480px e-ink screen is not quick -- the phone's own emoji panel exists for the
+     * composer, where somebody is actually writing.
+     */
+    private fun askForReaction(messageId: String) {
+        val choices = listOf("\u2764\ufe0f", "\uD83D\uDC4D", "\uD83D\uDC4E", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22")
+        val labels = (choices + getString(R.string.signal_reaction_remove)).toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setItems(labels) { _, which ->
+                val remove = which == choices.size
+                val emoji = if (remove) mineOn(messageId) else choices[which]
+                if (emoji.isBlank()) return@setItems
+                thread(isDaemon = true) {
+                    val failure = runCatching { signalRepo.react(messageId, emoji, remove) }
+                        .exceptionOrNull()
+                    if (failure != null) {
+                        Timber.w(failure, "signal: reaction")
+                        runOnUiThread {
+                            Toast.makeText(
+                                this, getString(R.string.signal_reaction_failed), Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+
+    /**
+     * Which emoji this account already put on a message, so "remove" knows what to take
+     * off -- Signal removes a specific reaction, not whatever happens to be there.
+     */
+    private fun mineOn(messageId: String): String = runCatching {
+        io.realm.Realm.getDefaultInstance().use { realm ->
+            val row = realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
+                ?: return@use ""
+            val arr = JSONArray(row.reactions.ifBlank { "[]" })
+            // Ours is recorded as "me" when the echo of it comes back, so this needs no
+            // network call and no copy of the account's uuid.
+            for (i in 0 until arr.length()) {
+                val e = arr.optJSONObject(i) ?: continue
+                if (e.optString("who") == "me") return@use e.optString("emoji")
+            }
+            ""
+        }
+    }.getOrDefault("")
+
     private fun findSmsCounterpart() {
         thread(isDaemon = true) {
             // A link made by hand wins over any matching, and is checked first. It exists
@@ -551,6 +603,16 @@ class SignalThreadActivity : QkThemedActivity() {
             b.body.text = text
             b.body.setVisible(text.isNotEmpty())
             bindReactions(m)
+
+            // Hold a message to react to it, which is the gesture every other messenger
+            // uses for this. The id is captured now rather than read from the holder later:
+            // a holder is recycled onto another message and the menu would then act on
+            // whichever one had scrolled into its place.
+            val messageId = m.id
+            b.root.setOnLongClickListener {
+                askForReaction(messageId)
+                true
+            }
             b.timestamp.text = dateFormatter.getMessageTimestamp(m.date)
             // One timestamp above a run, not one per line. Anything less than the grouping
             // threshold since the last message is the same moment as far as reading goes.

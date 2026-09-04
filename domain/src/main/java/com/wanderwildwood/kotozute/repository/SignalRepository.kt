@@ -133,6 +133,12 @@ interface SignalRepository {
      */
     fun identity(threadKey: String): SignalIdentity
 
+    /**
+     * React to a message, or take a reaction back. [messageId] is this app's own id for the
+     * message; the author and timestamp Signal needs are read off the stored row.
+     */
+    fun react(messageId: String, emoji: String, remove: Boolean)
+
     fun setBlocked(threadKey: String, blocked: Boolean)
 
     fun setPinned(threadKey: String, pinned: Boolean)

@@ -426,6 +426,8 @@ Either can be run twice without duplicating anything. An export written this way
     <string name="signal_attachment_other">Attachment: %s</string>
     <string name="signal_attachment_unavailable">Attachment (not downloaded)</string>
     <string name="signal_view_once_received">View-once photo. Not kept.</string>
+    <string name="signal_reaction_remove">Remove my reaction</string>
+    <string name="signal_reaction_failed">That reaction did not send</string>
     <plurals name="signal_unread">
         <item quantity="one">%d unread</item>
         <item quantity="other">%d unread</item>

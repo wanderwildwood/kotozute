@@ -991,9 +991,15 @@ function openThreadMenu(t, x, y) {
  * screen included, and the id the browser holds for one is a derived number rather than
  * the real one, so there would be nothing to address.
  */
+const REACTIONS = ['\u2764\ufe0f', '\uD83D\uDC4D', '\uD83D\uDC4E', '\uD83D\uDE02', '\uD83D\uDE2E', '\uD83D\uDE22'];
+
 function openMessageMenu(m, x, y) {
   const text = (m.body || '').trim();
   const items = [];
+  // Signal only. SMS has no reactions -- what looks like one there is a separate text
+  // message reading "Liked ...", which is a different thing and not this button's job.
+  const canReact = activeThreadRail === 'signal' && m.id;
+  const mine = ((m.reactions || []).find(r => r.mine) || {}).emoji || '';
   if (text) items.push(['Copy text', () => copyText(text)]);
   if (text) items.push(['Forward\u2026', () => forwardText(text)]);
   // The thread's rail, not the message's: an SMS message carries no rail field at all, so
@@ -1002,9 +1008,34 @@ function openMessageMenu(m, x, y) {
     items.push(null);
     items.push(['Delete', () => deleteMessage(m), true]);
   }
-  if (!items.length) return;
+  if (canReact && mine) items.push(['Remove my ' + mine, () => react(m, mine, true)]);
+  if (!items.length && !canReact) return;
 
   threadMenuEl.innerHTML = '';
+
+  // The emoji sit in a row at the top of the menu rather than as six more list items:
+  // picking a reaction is one glance and one click, and a stack of labelled rows would
+  // make it read like six separate commands.
+  if (canReact) {
+    const row = document.createElement('div');
+    row.className = 'reactRow';
+    REACTIONS.forEach(emoji => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = emoji;
+      // Clicking the one already given takes it back, which is what tapping it again
+      // does in Signal itself.
+      if (emoji === mine) b.className = 'on';
+      b.addEventListener('click', () => {
+        closeThreadMenu();
+        react(m, emoji, emoji === mine);
+      });
+      row.append(b);
+    });
+    threadMenuEl.append(row);
+    if (items.length) threadMenuEl.append(document.createElement('hr'));
+  }
+
   items.forEach(item => {
     if (!item) { threadMenuEl.append(document.createElement('hr')); return; }
     const [label, run, danger] = item;
@@ -1020,6 +1051,29 @@ function openMessageMenu(m, x, y) {
   const r = threadMenuEl.getBoundingClientRect();
   threadMenuEl.style.left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8)) + 'px';
   threadMenuEl.style.top = Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
+}
+
+/**
+ * Ask the phone to put an emoji on a Signal message, or take ours back off.
+ *
+ * Nothing is drawn optimistically. The reaction is only real once Signal has echoed it
+ * back, and a chip that appeared instantly and then vanished would be worse than one that
+ * took a second to arrive.
+ */
+async function react(m, emoji, remove) {
+  try {
+    // api() resolves with the response whatever the status, so a refusal has to be read
+    // off it rather than caught.
+    const res = await api('/api/signal/react', {
+      method: 'POST',
+      body: JSON.stringify({ id: m.id, emoji: emoji, remove: !!remove }),
+    });
+    if (!res.ok) { statusEl.textContent = 'could not react'; return; }
+    statusEl.textContent = remove ? 'reaction removed' : 'reacted';
+    lastMessagesSig = ''; // let the next poll redraw rather than waiting for a new message
+  } catch (e) {
+    statusEl.textContent = 'could not react';
+  }
 }
 
 async function copyText(text) {

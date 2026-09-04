@@ -350,6 +350,7 @@ class DesktopSyncServer(
             uri == "/api/scheduled" && session.method == Method.GET -> handleScheduled()
             uri == "/api/blocked" && session.method == Method.GET -> handleBlocked()
             uri == "/api/signal/pair" && session.method == Method.POST -> handleSignalPair(session)
+            uri == "/api/signal/react" && session.method == Method.POST -> handleSignalReact(session)
             threadMessagesMatch != null && session.method == Method.GET ->
                 handleGetMessages(threadMessagesMatch.groupValues[1].toLong(), session)
             threadSendMatch != null && session.method == Method.POST ->
@@ -662,6 +663,42 @@ class DesktopSyncServer(
      * on the phone itself still works from anywhere -- it is only the shortcut that is
      * withheld, and only where the shortcut is the thing that leaks.
      */
+    /**
+     * Put an emoji on a Signal message, or take this account's own back off.
+     *
+     * The phone does the work; this only carries the request. It is deliberately not
+     * offered for SMS, which has no such thing -- a "reaction" there is a whole separate
+     * text message reading "Liked ...", and sending one of those from here would be a
+     * different feature wearing this one's clothes.
+     */
+    private fun handleSignalReact(session: IHTTPSession): Response {
+        if (!signalEnabled() || !signalRepository.isConfigured()) {
+            return jsonResponse(
+                Response.Status.NOT_FOUND, JSONObject().put("error", "Signal is not set up")
+            )
+        }
+        val body = readSmallJson(session, 4096)
+            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
+        val id = body.optString("id")
+        val emoji = body.optString("emoji")
+        val remove = body.optBoolean("remove", false)
+        if (id.isBlank() || emoji.isBlank()) {
+            return jsonResponse(
+                Response.Status.BAD_REQUEST, JSONObject().put("error", "need a message and an emoji")
+            )
+        }
+        return runCatching {
+            signalRepository.react(id, emoji, remove)
+            jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+        }.getOrElse { failure ->
+            Timber.w(failure, "Desktop Sync: reaction")
+            jsonResponse(
+                Response.Status.INTERNAL_ERROR,
+                JSONObject().put("error", "the phone could not send that reaction")
+            )
+        }
+    }
+
     private fun handleSignalPair(session: IHTTPSession): Response {
         if (!DesktopSyncService.isAllowedPeer(session.remoteIpAddress)) {
             Timber.w("Desktop Sync: refused a bridge pairing over cleartext from %s", session.remoteIpAddress)
@@ -820,16 +857,24 @@ class DesktopSyncServer(
         // implementations of the same tally.
         if (m.reactions.isNotBlank()) {
             val counts = LinkedHashMap<String, Int>()
+            var mine = ""
             runCatching { JSONArray(m.reactions) }.getOrNull()?.let { arr ->
                 for (i in 0 until arr.length()) {
-                    val emoji = arr.optJSONObject(i)?.optString("emoji").orEmpty()
-                    if (emoji.isNotEmpty()) counts[emoji] = (counts[emoji] ?: 0) + 1
+                    val entry = arr.optJSONObject(i) ?: continue
+                    val emoji = entry.optString("emoji")
+                    if (emoji.isEmpty()) continue
+                    counts[emoji] = (counts[emoji] ?: 0) + 1
+                    // Marked so the page can show which one is this account's, and offer to
+                    // take that one back rather than guessing at somebody else's.
+                    if (entry.optString("who") == "me") mine = emoji
                 }
             }
             if (counts.isNotEmpty()) {
                 put("reactions", JSONArray().apply {
                     counts.entries.sortedByDescending { it.value }.forEach { (emoji, n) ->
-                        put(JSONObject().put("emoji", emoji).put("count", n))
+                        put(JSONObject().put("emoji", emoji).put("count", n).apply {
+                            if (emoji == mine) put("mine", true)
+                        })
                     }
                 })
             }

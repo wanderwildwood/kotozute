@@ -336,6 +336,41 @@ func (s *SignalCLI) SendReadReceipt(recipient string, timestamps []int64) error 
 	}, nil)
 }
 
+// SendReaction puts an emoji on somebody's message, or takes it off again.
+//
+// targetAuthor is whoever sent the message being reacted to -- not whoever is in the
+// thread. In a group those differ, and naming the thread's other party would put the
+// reaction on the wrong message or on none.
+//
+// recipient and groupID are exclusive: one names a person, the other a group, and exactly
+// one is sent. signal-cli takes a different parameter for each and rejects both together.
+// SendReaction puts an emoji on a message, or takes one of ours back off, and returns the
+// timestamp Signal gave the reaction. The caller needs that timestamp: as the primary
+// device nothing echoes our own reaction back to us, so it has to be recorded here or it
+// is never recorded at all.
+func (s *SignalCLI) SendReaction(
+	recipient, groupID, emoji, targetAuthor string, targetTimestamp int64, remove bool,
+) (int64, error) {
+	params := map[string]any{
+		"account":         s.account,
+		"emoji":           emoji,
+		"targetAuthor":    targetAuthor,
+		"targetTimestamp": targetTimestamp,
+		"remove":          remove,
+	}
+	if groupID != "" {
+		params["groupId"] = groupID
+	} else {
+		// An array, the same shape send uses. signal-cli accepts a bare string too, but
+		// the two calls disagreeing about it is the kind of difference that is only
+		// noticed when one of them stops working.
+		params["recipient"] = []string{recipient}
+	}
+	var r SendResult
+	err := s.call("sendReaction", params, &r)
+	return r.Timestamp, err
+}
+
 // SCDevice is one device linked to this Signal account. Device 1 is the primary; a linked
 // device cannot register, change the number, set the registration lock, or transfer the
 // account -- so which of these we are decides what the app can honestly offer.

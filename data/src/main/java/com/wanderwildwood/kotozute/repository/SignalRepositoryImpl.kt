@@ -515,7 +515,11 @@ class SignalRepositoryImpl @Inject constructor(
             .equalTo("id", m.reactionTarget)
             .findFirst() ?: return
 
-        val who = m.senderUuid.ifBlank { m.senderNumber }
+        // Our own reaction is recorded as "me" rather than as this account's uuid. The
+        // phone has no copy of that uuid, and the alternative -- asking the bridge for it
+        // whenever somebody wants to take a reaction back -- is a network call to answer a
+        // question the row already knows the answer to.
+        val who = if (m.outgoing) "me" else m.senderUuid.ifBlank { m.senderNumber }
         val existing = runCatching { JSONArray(target.reactions.ifBlank { "[]" }) }
             .getOrElse { JSONArray() }
 
@@ -764,6 +768,32 @@ class SignalRepositoryImpl @Inject constructor(
         val cfg = config() ?: throw IllegalStateException("no bridge paired")
         val i = BridgeClient(cfg).identity(threadKey)
         return SignalIdentity(i.safetyNumber, i.trustLevel)
+    }
+
+    override fun react(messageId: String, emoji: String, remove: Boolean) {
+        val cfg = config() ?: throw IllegalStateException("no bridge paired")
+
+        // Signal names a message by who wrote it and when they sent it. Our id is a thing
+        // this app made up, so the real identifiers are read off the row -- and for a
+        // message we sent ourselves the author is this account, which the row records as
+        // outgoing rather than by writing our own uuid into senderUuid.
+        val (threadKey, author, ts) = Realm.getDefaultInstance().use { realm ->
+            val row = realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
+                ?: throw IllegalStateException("no such message")
+            // Left empty for our own messages: the bridge knows this account's uuid and
+            // fills it in, so the phone does not have to carry a copy of it.
+            val who = when {
+                row.outgoing -> ""
+                else -> row.senderUuid.ifBlank { row.senderNumber }
+            }
+            Triple(row.threadKey, who, row.date)
+        }
+
+        BridgeClient(cfg).react(threadKey, emoji, author, ts, remove)
+        // Deliberately not written locally. signal-cli echoes the reaction back through the
+        // sync stream within moments and that echo takes the same path as anyone else's, so
+        // writing it here too would mean two sources of truth for one emoji -- and the echo
+        // is the one that reflects what Signal actually accepted.
     }
 
     override fun setBlocked(threadKey: String, blocked: Boolean) {

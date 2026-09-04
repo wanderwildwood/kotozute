@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -279,6 +280,8 @@ func (a *API) threadSub(w http.ResponseWriter, r *http.Request) {
 		a.send(w, r, key)
 	case action == "read" && r.Method == http.MethodPost:
 		a.markRead(w, r, key)
+	case action == "react" && r.Method == http.MethodPost:
+		a.react(w, r, key)
 	case action == "block" && r.Method == http.MethodPost:
 		a.setBlocked(w, r, key)
 	case action == "identity" && r.Method == http.MethodGet:
@@ -344,6 +347,99 @@ func (a *API) identity(w http.ResponseWriter, r *http.Request, key string) {
 	}
 	// Not an error: a contact who has never exchanged a message has no identity record.
 	writeJSON(w, 200, map[string]any{"safetyNumber": "", "trustLevel": "", "added": 0})
+}
+
+// react puts an emoji on a message in this thread, or takes one off.
+//
+// The caller names the message by its author and the timestamp they sent it at, which is
+// how Signal identifies a message everywhere -- not by our msg_id, which is a thing this
+// bridge invented and Signal has never heard of.
+//
+// The reaction is not written to the store here. signal-cli echoes it back through the
+// sync stream within moments, and that echo goes down the same path as anybody else's
+// reaction. Writing it twice would mean two sources of truth for one emoji, and the echo
+// is the one that reflects what Signal actually accepted.
+func (a *API) react(w http.ResponseWriter, r *http.Request, key string) {
+	var body struct {
+		Emoji           string `json:"emoji"`
+		TargetAuthor    string `json:"targetAuthor"`
+		TargetTimestamp int64  `json:"targetTimestamp"`
+		Remove          bool   `json:"remove"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request body"})
+		return
+	}
+	if body.Emoji == "" || body.TargetTimestamp == 0 {
+		writeJSON(w, http.StatusBadRequest,
+			map[string]string{"error": "emoji and targetTimestamp are both required"})
+		return
+	}
+	// Reacting to something you sent yourself. The phone has no reason to know this
+	// account's own ACI -- the bridge is the thing that knows it -- so an empty author
+	// means "me" rather than being an error the caller has to avoid.
+	if body.TargetAuthor == "" {
+		body.TargetAuthor = a.self.Get()
+		if body.TargetAuthor == "" {
+			writeJSON(w, http.StatusServiceUnavailable,
+				map[string]string{"error": "this account's own uuid is not known yet"})
+			return
+		}
+	}
+
+	var recipient, groupID string
+	if uuid, ok := strings.CutPrefix(key, "direct:"); ok {
+		recipient = uuid
+	} else if gid, ok := strings.CutPrefix(key, "group:"); ok {
+		groupID = gid
+	} else {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a thread"})
+		return
+	}
+
+	ts, err := a.sc.SendReaction(
+		recipient, groupID, body.Emoji, body.TargetAuthor, body.TargetTimestamp, body.Remove,
+	)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+
+	// Record our own reaction, for the same reason send does: as the primary device
+	// nothing echoes it back to us. Without this a reaction sent from the phone or the
+	// browser would leave no trace anywhere -- it would reach the other person and be
+	// invisible on the screen that sent it.
+	//
+	// It travels as its own row rather than as an edit of the target, because seq is the
+	// store's rowid and clients page on it; rewriting an old row would put a change
+	// behind the cursor every client has already passed.
+	m := &Message{
+		// Same shape the receive path builds, including the reaction's own timestamp --
+		// see normalize.go for why that last part matters.
+		ID: fmt.Sprintf("react:%s:%d:%s:%d",
+			body.TargetAuthor, body.TargetTimestamp, a.self.Get(), ts),
+		ThreadKey:      key,
+		TS:             ts,
+		SenderUUID:     a.self.Get(),
+		Outgoing:       true,
+		Read:           true,
+		Source:         "live",
+		ReactionEmoji:  body.Emoji,
+		ReactionTarget: fmt.Sprintf("%s:%d", body.TargetAuthor, body.TargetTimestamp),
+		ReactionRemove: body.Remove,
+	}
+	if groupID != "" {
+		m.GroupID = groupID
+	}
+	seq, isNew, serr := a.store.InsertMessage(m)
+	if serr != nil {
+		log.Printf("react: stored badly: %v", serr)
+	}
+	m.Seq = seq
+	if isNew {
+		a.Broadcast(m)
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "seq": seq})
 }
 
 // setBlocked blocks or unblocks the other party of a thread, on the Signal account itself

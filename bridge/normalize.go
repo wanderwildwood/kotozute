@@ -309,9 +309,14 @@ func normalize(selfUUID string, raw json.RawMessage) (*Message, *Receipt, error)
 			m.ReactionEmoji = r.Emoji
 			m.ReactionTarget = fmt.Sprintf("%s:%d", author, r.TargetSentTimestamp)
 			m.ReactionRemove = r.IsRemove
-			// Its own id, so two people reacting to one message are two rows and removing
-			// a reaction replaces the one it removes rather than piling up beside it.
-			m.ID = fmt.Sprintf("react:%s:%s", m.ReactionTarget, authorUUID)
+			// Its own id, so two people reacting to one message are two rows.
+			//
+			// The reaction's own timestamp is part of it. Without that, one person adding
+			// a reaction and then changing or removing it produces two rows with the same
+			// id, and the store inserts or ignores -- so the change was dropped and the
+			// first reaction stood for ever. Each reaction event is its own row; the
+			// client applies them in order and the last one wins.
+			m.ID = fmt.Sprintf("react:%s:%s:%d", m.ReactionTarget, authorUUID, m.TS)
 			m.Raw = ""
 			return m, nil, nil
 		}

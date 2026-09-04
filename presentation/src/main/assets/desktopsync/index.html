@@ -407,6 +407,15 @@
     /* Its own line under the text, not hung off the bubble's corner: the browser bubble is
        a plain flow box and a faked overlap would need absolute positioning to gain nothing. */
   }
+  /* The emoji row at the head of a message's menu. Big enough to hit without aiming; the
+     one already given is ringed rather than filled, since this page is ink on paper. */
+  .reactRow { display: flex; gap: 2px; padding: 2px; }
+  .reactRow button {
+    flex: 1; border: 2px solid transparent; background: none; cursor: pointer;
+    font-size: 20px; line-height: 1; padding: 6px 4px; border-radius: 4px;
+  }
+  .reactRow button:hover { background: var(--hover); }
+  .reactRow button.on { border-color: var(--ink); }
   .expiry { margin-top: 4px; font-size: 11px; color: var(--muted); }
   .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
   .msg .stamp { font-size: 11px; color: var(--muted); margin-top: 4px; }

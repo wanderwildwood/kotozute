@@ -201,6 +201,30 @@ class BridgeClient(private val config: BridgeConfig) {
      * here, so it holds on every device. Throws on failure: a block that quietly did not
      * happen would leave someone believing they had stopped hearing from a person.
      */
+    /**
+     * Put an emoji on a message, or take it off.
+     *
+     * The message is named the way Signal names one -- whoever wrote it and the moment they
+     * sent it -- rather than by the id this bridge invented, which Signal has never heard
+     * of. In a group the author is not the thread's other party, so it has to be passed
+     * rather than inferred.
+     */
+    fun react(
+        threadKey: String, emoji: String, targetAuthor: String,
+        targetTimestamp: Long, remove: Boolean
+    ) {
+        val body = JSONObject()
+            .put("emoji", emoji)
+            .put("targetAuthor", targetAuthor)
+            .put("targetTimestamp", targetTimestamp)
+            .put("remove", remove)
+            .toString().toRequestBody(JSON)
+        val req = authed("${config.baseUrl}/v1/threads/${enc(threadKey)}/react").post(body).build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("reaction failed (${resp.code})")
+        }
+    }
+
     fun setBlocked(threadKey: String, blocked: Boolean) {
         val body = JSONObject().put("blocked", blocked).toString().toRequestBody(JSON)
         val req = authed("${config.baseUrl}/v1/threads/${enc(threadKey)}/block").post(body).build()

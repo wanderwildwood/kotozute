@@ -19,22 +19,37 @@ sealed class InboxItem {
     /** Stable id for the adapter and for swipe. */
     abstract val stableId: Long
 
+    /**
+     * False once the row behind this item has been deleted.
+     *
+     * The list holds live Realm objects, so a deletion invalidates the item it is holding
+     * before the rebuilt list reaches the adapter. Reading any field of an invalidated
+     * object throws, and the read that happens first is RecyclerView's own, during the
+     * layout pass the deletion triggers. Every accessor below has to ask this first.
+     */
+    abstract val isValid: Boolean
+
     data class Sms(val conversation: Conversation) : InboxItem() {
-        override val sortDate: Long get() = conversation.date
-        override val pinned: Boolean get() = conversation.pinned
-        override val stableId: Long get() = conversation.id
+        override val isValid: Boolean get() = conversation.isValid
+        override val sortDate: Long get() = if (isValid) conversation.date else 0
+        override val pinned: Boolean get() = isValid && conversation.pinned
+        // Read once, here, while the row is certainly alive: two rows deleted together
+        // would otherwise both answer with the same fallback, and RecyclerView refuses
+        // to hold two view holders under one stable id.
+        override val stableId: Long = conversation.id
     }
 
     data class Signal(val thread: SignalThread) : InboxItem() {
-        override val sortDate: Long get() = thread.lastTs
-        override val pinned: Boolean get() = thread.pinned
+        override val isValid: Boolean get() = thread.isValid
+        override val sortDate: Long get() = if (isValid) thread.lastTs else 0
+        override val pinned: Boolean get() = isValid && thread.pinned
 
         /**
          * Negative, so it can never collide with a telephony thread id (always positive)
          * and never equals the -1 the adapter returns for "no item". The sign is also how
          * the swipe callback recognises a Signal row without reaching for the item.
          */
-        override val stableId: Long get() = signalStableId(thread.threadKey)
+        override val stableId: Long = signalStableId(thread.threadKey)
     }
 
     companion object {

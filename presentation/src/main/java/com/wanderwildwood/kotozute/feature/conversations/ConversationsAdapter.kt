@@ -101,6 +101,9 @@ class ConversationsAdapter @Inject constructor(
     }
 
     private fun applyFilter() {
+        // Deleted rows are dropped before anything reads a field off them. A list built
+        // from live Realm objects can already contain a corpse by the time it arrives.
+        val source = source.filter { it.isValid }
         items = when (filterMode) {
             // A Signal group is still a group; a Signal thread always has a counterpart,
             // so it is never "unknown" in the sense the Unknown tab means.
@@ -130,8 +133,10 @@ class ConversationsAdapter @Inject constructor(
     override fun getItemId(position: Int): Long = getItem(position)?.stableId ?: -1
 
     override fun getItemViewType(position: Int): Int = when (val item = getItem(position)) {
-        is InboxItem.Sms -> if (item.conversation.unread) 1 else 0
-        is InboxItem.Signal -> if (item.thread.unread > 0) 1 else 0
+        // Asked during the layout pass a deletion sets off, before the rebuilt list has
+        // reached the adapter, so the row here may already be gone from the database.
+        is InboxItem.Sms -> if (item.isValid && item.conversation.unread) 1 else 0
+        is InboxItem.Signal -> if (item.isValid && item.thread.unread > 0) 1 else 0
         null -> 0
     }
 
@@ -153,7 +158,8 @@ class ConversationsAdapter @Inject constructor(
     }
 
     fun toggleSelectAll() {
-        val selectable = items.filterIsInstance<InboxItem.Sms>().map { it.conversation.id }
+        val selectable = items.filterIsInstance<InboxItem.Sms>().filter { it.isValid }
+                .map { it.conversation.id }
         val needToSelectAll = selection.size != selectable.size
         selection.clear()
         if (needToSelectAll) selection.addAll(selectable)
@@ -188,7 +194,7 @@ class ConversationsAdapter @Inject constructor(
 
         return QkBindingViewHolder(binding).apply {
             view.setOnClickListener {
-                when (val item = getItem(adapterPosition)) {
+                when (val item = getItem(adapterPosition)?.takeIf { it.isValid }) {
                     is InboxItem.Sms -> {
                         val conversation = item.conversation
                         when (toggleSelection(conversation.id, false)) {
@@ -206,7 +212,7 @@ class ConversationsAdapter @Inject constructor(
                 }
             }
             view.setOnLongClickListener {
-                val item = getItem(adapterPosition) as? InboxItem.Sms
+                val item = (getItem(adapterPosition) as? InboxItem.Sms)?.takeIf { it.isValid }
                     ?: return@setOnLongClickListener true
                 toggleSelection(item.conversation.id)
                 view.isActivated = isSelected(item.conversation.id)
@@ -227,10 +233,22 @@ class ConversationsAdapter @Inject constructor(
         holder: QkBindingViewHolder<ConversationListItemBinding>,
         position: Int
     ) {
-        when (val item = getItem(position) ?: return) {
+        // A row whose conversation was deleted a moment ago is drawn blank rather than
+        // read from; the rebuilt list is already on its way and will remove it.
+        when (val item = getItem(position)?.takeIf { it.isValid } ?: return blank(holder)) {
             is InboxItem.Sms -> bindSms(holder, item)
             is InboxItem.Signal -> bindSignal(holder, item)
         }
+    }
+
+    private fun blank(holder: QkBindingViewHolder<ConversationListItemBinding>) {
+        holder.containerView.isActivated = false
+        holder.binding.rail.isVisible = false
+        holder.binding.title.text = null
+        holder.binding.date.text = null
+        holder.binding.snippet.text = null
+        holder.binding.scheduled.isVisible = false
+        holder.binding.pinned.isVisible = false
     }
 
     private fun bindSms(

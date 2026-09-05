@@ -128,11 +128,21 @@ cd kotozute/bridge
 sudo ./install.sh
 ```
 
-It installs signal-cli, builds the bridge, writes both systemd units, starts them, and prints
-the line you paste into Desktop Sync. It stops to let you link or register the Signal account,
-because those are not interchangeable and it will not choose for you. There is deliberately no
-`curl … | sudo bash`: this runs as root and ends up holding a Signal account, so it is worth
-reading the thing first — which is also why it verifies the checksum of what it downloads.
+It checks what it needs up front and gives you one `apt install` line if anything is missing;
+installs signal-cli; offers to link this computer to your Signal account, drawing the QR for
+you to scan; then writes both systemd units, starts them, and prints the line you paste into
+Desktop Sync. One run, start to finish.
+
+Go is not required — if it is installed the bridge is built from the source you just cloned,
+and if it is not, the binary published with the release is downloaded and checked against its
+published checksum.
+
+Linking is offered; **registering is not**, because it makes this computer *become* the
+account and ends Signal on your phone for that number. The script explains both and only
+does the safe one for you.
+
+There is deliberately no `curl … | sudo bash`: this runs as root and ends up holding a Signal
+account, so it is worth reading first — which is also why it verifies what it downloads.
 
 ### What is not possible
 

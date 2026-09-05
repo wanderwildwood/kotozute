@@ -43,8 +43,13 @@ to send while it is off.
 sudo ./install.sh
 ```
 
-It installs signal-cli, builds and installs the bridge, writes both systemd units, starts
-them, and prints the line you paste into the phone.
+One run. It checks its prerequisites together and hands you a single `apt install` line if
+any are missing, installs signal-cli, offers to link this computer to your Signal account and
+draws the QR for you to scan, then writes both systemd units, starts them, and prints the line
+you paste into the phone.
+
+Go is optional. With it, the bridge is built from the source beside the script; without it,
+the binary published with the release is fetched and checked against its published checksum.
 
 Re-running it is how you upgrade: it reinstalls the bridge, **rewrites both unit files** from
 that run's environment, and restarts both services. Any hand-editing of those units is lost,

@@ -47,8 +47,6 @@ say()  { printf '\n== %s\n' "$1"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 die()  { printf '\n%s\n' "$1" >&2; exit 1; }
 
-[ "$(id -u)" -eq 0 ] || die "Run this with sudo: it installs into /opt, /usr/local/bin and /etc/systemd."
-
 # --- the machine has to be x86-64 --------------------------------------------------------
 #
 # Checked here, first, because the failure otherwise comes much later and looks like
@@ -65,14 +63,28 @@ die()  { printf '\n%s\n' "$1" >&2; exit 1; }
 # work -- download verified, units written, services started -- and then signal-cli would die
 # on its first message inside a Java stack trace about a missing native library. Better to
 # say so now.
+OS="$(uname -s)"
 ARCH="$(uname -m)"
+
+# macOS is fine for signal-cli -- the jar carries both an Intel and an Apple Silicon dylib --
+# but this installer writes systemd units, which macOS does not have. Say which of those two
+# things is the problem, because they have different answers.
+if [ "$OS" != "Linux" ]; then
+  die "This installer is Linux-only: it writes systemd units, and this is $OS.
+
+signal-cli itself runs fine on $OS -- the Signal native library ships for macOS on both Intel
+and Apple Silicon, and for Windows on x86-64. What is missing here is only the service
+plumbing. Run the two pieces by hand, or under launchd, following \"Doing it by hand\" in
+bridge/README.md. On Windows, WSL2 is x86-64 Linux and this script works there unchanged."
+fi
+
 case "$ARCH" in
   x86_64|amd64) ;;
   *)
-    die "This machine is $ARCH, and signal-cli ships no Signal native library for Linux on it.
+    die "This machine is Linux on $ARCH, and signal-cli ships no Signal native library for it.
 
-Only x86-64 Linux is covered by the official build. Everything here would install cleanly on
-$ARCH and then fail at the first message, which is why this stops now rather than later.
+On Linux only x86-64 is covered by the official build. Everything here would install cleanly
+on $ARCH and then fail at the first message, which is why this stops now rather than later.
 
 Your options:
   - Run the bridge on an x86-64 machine instead. It does not need to be always on: messages
@@ -82,6 +94,32 @@ Your options:
     See https://github.com/AsamK/signal-cli/wiki/Provide-native-lib-for-libsignal"
     ;;
 esac
+
+[ "$(id -u)" -eq 0 ] || die "Run this with sudo: it installs into /opt, /usr/local/bin and /etc/systemd."
+
+# --- everything this run will need, checked together ------------------------------------
+#
+# One list, before any work happens. Discovered one at a time these arrive at the worst
+# moments -- qrencode, in particular, was only missed after signal-cli had been installed
+# and the user had already said yes to linking.
+missing=""
+for t in curl sha256sum; do have "$t" || missing="$missing $t"; done
+have java || missing="$missing default-jre-headless(java)"
+# Only needed to link here, which is the usual path, so it is asked for now rather than
+# halfway through. Go is deliberately absent: without it the bridge is downloaded instead.
+have qrencode || missing="$missing qrencode"
+if [ -n "$missing" ]; then
+  pkgs=$(printf '%s' "$missing" | sed 's/default-jre-headless(java)/openjdk-21-jre-headless/')
+  die "This needs a few things that are not installed:$missing
+
+On Debian or Ubuntu:
+
+    sudo apt install$pkgs
+
+java must be 21 or newer. qrencode is only used to draw the QR code when you link this
+computer to your Signal account here; if you link by hand elsewhere you can skip it."
+fi
+
 have systemctl || die "This script sets up systemd services and this machine does not have systemd.
 The pieces still work by hand: run signal-cli's daemon on $RPC_ADDR with
 --receive-mode on-connection, and kotozute-bridge pointing at it. See README.md."
@@ -146,10 +184,35 @@ elif [ -x "$here/kotozute-bridge" ]; then
   echo "  using the prebuilt binary beside this script"
   install -m0755 "$here/kotozute-bridge" "$BRIDGE_BIN"
 else
-  die "No way to get a bridge binary: Go is not installed and there is no prebuilt
-kotozute-bridge next to this script. Install Go, or build it elsewhere with
-  CGO_ENABLED=0 go build -o kotozute-bridge .
-and put the result beside install.sh."
+  # No Go, no binary beside the script: fetch the one the release publishes. Go used to be a
+  # hard prerequisite for something the project builds on every release anyway.
+  #
+  # The checksum is published beside the binary rather than pinned in here, because a hash
+  # written into this file cannot know about a release made after it. That proves the bytes
+  # arrived intact, not that they are the bytes you would get by compiling -- which is why
+  # building from source is still preferred, and still what happens whenever Go is present.
+  have curl || die "curl is needed to download the bridge, and Go is not installed to build it."
+  url="https://github.com/wanderwildwood/kotozute/releases/latest/download/kotozute-bridge-linux-amd64"
+  echo "  Go is not installed; downloading the published bridge instead"
+  tmpb=$(mktemp -d); trap 'rm -rf "$tmpb"' RETURN 2>/dev/null || true
+  curl -fsSL "$url" -o "$tmpb/kotozute-bridge" \
+    || die "Could not download $url
+Install Go and run this again to build it from the source you already have, or build it
+elsewhere with CGO_ENABLED=0 go build -o kotozute-bridge . and put the result beside this
+script."
+  if curl -fsSL "$url.sha256" -o "$tmpb/sum" 2>/dev/null && have sha256sum; then
+    want=$(awk '{print $1}' "$tmpb/sum")
+    got=$(sha256sum "$tmpb/kotozute-bridge" | awk '{print $1}')
+    [ "$want" = "$got" ] || die "The downloaded bridge does not match its published checksum.
+  expected $want
+  got      $got
+Nothing has been installed."
+    echo "  checksum verified"
+  else
+    echo "  WARNING: could not check the download against a published checksum"
+  fi
+  install -m0755 "$tmpb/kotozute-bridge" "$BRIDGE_BIN"
+  rm -rf "$tmpb"
 fi
 mkdir -p "$BRIDGE_DATA"; chmod 700 "$BRIDGE_DATA"
 echo "  installed to $BRIDGE_BIN"
@@ -174,9 +237,68 @@ fi
 if [ -n "$ACCOUNT" ]; then
   say "Signal account $ACCOUNT is already set up on this machine"
 else
-  say "No Signal account on this machine yet"
+  # Linking happens here rather than being described and deferred. This used to end the run:
+  # you were told to link, you linked in another terminal, you ran the script again. Three
+  # invocations to install one thing. Now it offers, does it, and carries straight on.
+  #
+  # LINK=1 skips the question, for anyone scripting this.
+  do_link=""
+  if [ -n "${LINK:-}" ]; then
+    do_link=1
+  elif [ -t 0 ]; then
+    say "No Signal account on this machine yet"
+    cat <<'EOF'
+  The usual choice is to LINK: this computer becomes an extra device on the Signal account
+  your phone already has, exactly like Signal Desktop. Nothing about your existing Signal
+  changes, and you can unlink it later from the phone.
+
+  The other way is to REGISTER, which makes this computer BECOME the account -- Signal's own
+  app stops working for that number and there is no phone app afterwards. That is not
+  something to pick by accident, so this only offers to link.
+
+EOF
+    printf '  Link this computer to your Signal account now? [y/N] '
+    read -r reply </dev/tty || reply=""
+    case "$reply" in [yY]*) do_link=1 ;; esac
+  fi
+
+  if [ -n "$do_link" ]; then
+    have qrencode || die "Linking needs qrencode to draw the QR code for your phone to scan.
+  On Debian or Ubuntu: apt install qrencode. Then run this again."
+    say "Linking this computer to your Signal account"
+    cat <<'EOF'
+  A QR code will appear below. On your phone: Signal -> Settings -> Linked devices -> +,
+  and scan it. The code expires after a few minutes; if that happens, run this again.
+
+EOF
+    # signal-cli prints the URI and then blocks until the scan completes, so the URI has to be
+    # picked out of the stream as it goes rather than waited for. PIPESTATUS, because the exit
+    # status that matters belongs to signal-cli and not to the loop reading its output.
+    set +e
+    "$SIGNAL_CLI" --config "$SIGNAL_CLI_DATA" link -n "kotozute" 2>&1 | while IFS= read -r line; do
+      case "$line" in
+        sgnl://*|tsdevice:*) printf '\n'; qrencode -t utf8 "$line"; printf '\n  Waiting for the scan...\n' ;;
+        *) printf '  %s\n' "$line" ;;
+      esac
+    done
+    rc=${PIPESTATUS[0]}
+    set -e
+    [ "$rc" -eq 0 ] || die "Linking did not complete. Nothing else has been changed; run this again to retry."
+
+    ACCOUNT=$(grep -oE '"number"[[:space:]]*:[[:space:]]*"\+[0-9]+"' \
+                "$SIGNAL_CLI_DATA/data/accounts.json" 2>/dev/null \
+              | grep -oE '\+[0-9]+' | head -1 || true)
+    [ -n "$ACCOUNT" ] || die "Linking reported success but no account appeared in $SIGNAL_CLI_DATA.
+  Run this again; if it persists, link by hand and re-run."
+    say "Linked as $ACCOUNT -- carrying on"
+  fi
+fi
+
+if [ -z "$ACCOUNT" ]; then
+
+  say "Nothing installed yet -- the Signal account comes first"
   cat <<EOF
-  Do that now, in another terminal, then run this script again.
+  Set the account up, then run this script again and it will finish in one go.
 
   There are two ways in and they are NOT interchangeable. Read both before choosing.
 
@@ -185,10 +307,17 @@ else
   Signal account your phone already holds. Nothing about your existing Signal
   changes. If that phone ever stops being registered, this stops working too.
 
+  Run this script again with LINK=1 and it does the whole thing: starts the
+  link, draws the QR in this terminal, and waits while you scan it with Signal
+  on your phone (Settings -> Linked devices -> +).
+
+      sudo LINK=1 $0
+
+  By hand instead, if you would rather see each part:
+
       $SIGNAL_CLI --config $SIGNAL_CLI_DATA link -n "kotozute"
 
-  It prints an sgnl:// URI. Turn it into a QR and scan it with Signal on your
-  phone (Settings -> Linked devices -> +):
+  and turn the sgnl:// URI it prints into a QR to scan:
 
       qrencode -t utf8 '<the sgnl:// URI it printed>'
   ---------------------------------------------------------------------------

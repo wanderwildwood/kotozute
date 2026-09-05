@@ -38,6 +38,7 @@ import io.reactivex.schedulers.Schedulers
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
+import com.wanderwildwood.kotozute.feature.signal.SignalStreamService
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import android.text.format.DateUtils
 import javax.inject.Inject
@@ -60,6 +61,9 @@ class SettingsPresenter @Inject constructor(
 
         disposables += prefs.signalReadReceipts.asObservable()
                 .subscribe { on -> newState { copy(signalReadReceipts = on) } }
+
+        disposables += prefs.signalKeepConnected.asObservable()
+                .subscribe { on -> newState { copy(signalKeepConnected = on) } }
 
         disposables += prefs.signalWeave.asObservable()
                 .subscribe { on -> newState { copy(signalWeave = on) } }
@@ -259,6 +263,15 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalReceipts ->
                             prefs.signalReadReceipts.set(!prefs.signalReadReceipts.get())
+
+                        // The service is started and stopped from here rather than by
+                        // watching the preference, so the thing that flips the switch is the
+                        // thing that acts on it and there is no second source of truth.
+                        R.id.signalKeepConnected -> {
+                            val on = !prefs.signalKeepConnected.get()
+                            prefs.signalKeepConnected.set(on)
+                            SignalStreamService.sync(context, on)
+                        }
 
                         R.id.signalWeave -> prefs.signalWeave.set(!prefs.signalWeave.get())
 

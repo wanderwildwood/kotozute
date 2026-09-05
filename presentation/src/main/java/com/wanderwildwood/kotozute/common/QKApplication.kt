@@ -18,6 +18,8 @@
  */
 package com.wanderwildwood.kotozute.common
 
+import com.wanderwildwood.kotozute.feature.signal.SignalStreamService
+import com.wanderwildwood.kotozute.worker.SignalSyncWorker
 import android.app.Activity
 import android.app.Application
 import android.app.Service
@@ -107,6 +109,13 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         signalNotifications.start()
         if (prefs.signalEnabled.get()) {
             signalRepo.startStream()
+            // The stream above is a thread in this process and dies with it, which is for
+            // however long Android allows. These two decide what happens after that: the
+            // service holds the process open if it was asked to, and the worker bounds the
+            // delay if it was not. Both are idempotent, and this runs on every process start
+            // -- including the one a BOOT_COMPLETED broadcast creates, which is how Signal
+            // comes back after the phone has been off.
+            SignalStreamService.sync(this, prefs.signalKeepConnected.get())
         }
 
         // Disappearing messages have to be swept here, not only on the bridge. The bridge
@@ -161,6 +170,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         // register, or re-register, housekeeping work manager
         HousekeepingWorker.register(applicationContext)
+
+        // Down here, not up with the rest of the Signal setup: WorkManager's own initialiser
+        // is disabled in the manifest and it is built by hand just above, so asking for
+        // getInstance() any earlier throws and takes the whole application down with it.
+        SignalSyncWorker.sync(applicationContext, prefs.signalEnabled.get())
     }
 
     override fun activityInjector(): AndroidInjector<Activity> {

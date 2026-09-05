@@ -232,6 +232,14 @@
             android:name=".feature.desktopsync.DesktopSyncService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <!-- Holds the Signal connection open while "Keep Signal connected" is on. dataSync
+             for the same reason Desktop Sync is: it is a network connection kept alive on
+             the user's behalf, not media or location. -->
+        <service
+            android:name=".feature.signal.SignalStreamService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <service
             android:name=".feature.widget.WidgetService"
             android:permission="android.permission.BIND_REMOTEVIEWS" />

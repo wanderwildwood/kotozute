@@ -51,6 +51,7 @@ data class SettingsState(
     val signalBridgeSummary: String = "",
     val signalEnabled: Boolean = false,
     val signalStatusSummary: String = "",
+    val signalKeepConnected: Boolean = false,
     val signalWeave: Boolean = true,
     val signalReadReceipts: Boolean = false
 )

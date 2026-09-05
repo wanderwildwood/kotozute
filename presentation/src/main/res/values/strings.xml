@@ -317,6 +317,12 @@
     <string name="settings_signal_pair_summary">Signal needs a bridge running on a computer that stays on</string>
     <string name="settings_signal_paired_summary">Paired with %s</string>
     <string name="settings_signal_pair_dialog_title">Paste the pairing link</string>
+    <string name="settings_signal_keep_title">Keep Signal connected</string>
+    <string name="settings_signal_keep_summary">Messages arrive as they are sent, at the cost of a permanent notification. Off, Signal catches up every so often and when you open the app.</string>
+    <string name="signal_stream_channel">Signal connection</string>
+    <string name="signal_stream_title">Signal is connected</string>
+    <string name="signal_stream_text">Messages arrive as they are sent</string>
+    <string name="signal_stream_stop">Stop</string>
     <string name="settings_signal_pair_scan">Scan</string>
     <string name="settings_signal_pair_scan_prompt">Point the camera at the QR code the installer printed</string>
     <string name="settings_signal_pair_scan_denied">Without the camera there is nothing to scan with. Paste the link instead.</string>

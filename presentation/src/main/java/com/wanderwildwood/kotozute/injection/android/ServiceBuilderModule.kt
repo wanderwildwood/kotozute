@@ -22,6 +22,7 @@ import dagger.Module
 import dagger.android.ContributesAndroidInjector
 import com.wanderwildwood.kotozute.feature.backup.RestoreBackupService
 import com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService
+import com.wanderwildwood.kotozute.feature.signal.SignalStreamService
 import com.wanderwildwood.kotozute.injection.scope.ActivityScope
 import com.wanderwildwood.kotozute.service.HeadlessSmsSendService
 import com.wanderwildwood.kotozute.service.AutoDeleteService
@@ -44,5 +45,9 @@ abstract class ServiceBuilderModule {
     @ActivityScope
     @ContributesAndroidInjector
     abstract fun bindDesktopSyncService(): DesktopSyncService
+
+    @ActivityScope
+    @ContributesAndroidInjector
+    abstract fun bindSignalStreamService(): SignalStreamService
 
 }

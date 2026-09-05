@@ -149,6 +149,19 @@ class Preferences @Inject constructor(
     val signalWeave = rxPrefs.getBoolean("signalWeave", true)
 
     /**
+     * Whether to hold the Signal connection open in the background.
+     *
+     * Off, the stream lives only as long as the app's process does -- which is however long
+     * Android feels like, so a message arrives when something next wakes the app rather than
+     * when it was sent. A periodic sync bounds that; it does not remove it.
+     *
+     * On, a foreground service owns the connection and messages arrive as they are sent. The
+     * price is a permanent notification, which on this phone is a real cost and the reason
+     * this is a choice rather than a default.
+     */
+    val signalKeepConnected = rxPrefs.getBoolean("signalKeepConnected", false)
+
+    /**
      * Signal threads tied to an SMS conversation by hand, as JSON: {"direct:<aci>": <id>}.
      *
      * The badge finds the other rail by phone number and only by phone number, because

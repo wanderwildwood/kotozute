@@ -323,6 +323,15 @@
                 app:title="@string/settings_signal_account_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalKeepConnected"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_keep_summary"
+                app:title="@string/settings_signal_keep_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalWeave"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

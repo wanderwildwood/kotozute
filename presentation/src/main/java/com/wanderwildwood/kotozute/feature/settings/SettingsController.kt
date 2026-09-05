@@ -257,6 +257,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalOpen.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalHistory.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalAccount.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalKeepConnected.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalKeepConnected.checkbox.isChecked = state.signalKeepConnected
         binding.signalWeave.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalWeave.checkbox.isChecked = state.signalWeave
         binding.signalReceipts.setVisible(state.signalPaired && state.signalEnabled)

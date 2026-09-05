@@ -40,6 +40,12 @@
             android:orientation="vertical">
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/markAllRead"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/main_menu_mark_all_read" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/archived"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

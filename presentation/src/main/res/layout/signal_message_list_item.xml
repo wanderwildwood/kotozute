@@ -54,6 +54,22 @@
         android:textSize="12sp"
         android:visibility="gone" />
 
+    <!-- What this message is replying to, when it quotes something. Above the bubble and
+         set in the muted colour, so it reads as context rather than as another message: a
+         reply that answers nothing visible is the thing this exists to prevent. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/quote"
+        style="@style/TextSecondary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="2dp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
     <!-- The bubble. Its background is chosen per message so a run from one person draws as
          one shape, the same four-way first/middle/last/only the SMS thread uses. -->
     <com.wanderwildwood.kotozute.common.widget.TightTextView

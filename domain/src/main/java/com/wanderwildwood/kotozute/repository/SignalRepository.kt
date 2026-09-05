@@ -106,6 +106,14 @@ interface SignalRepository {
     fun getMessagesSnapshot(threadKey: String, limit: Int): List<SignalMessage>
 
     /**
+     * One message in a thread by its timestamp, detached, or null if it is not held.
+     *
+     * What a quoted reply needs: Signal names what it answers by timestamp, and the answer
+     * is usually older than whatever page is on screen.
+     */
+    fun getMessageAt(threadKey: String, date: Long): SignalMessage?
+
+    /**
      * How many unexpired messages this thread holds, so a caller showing only the tail can
      * say whether there is older history behind it.
      */

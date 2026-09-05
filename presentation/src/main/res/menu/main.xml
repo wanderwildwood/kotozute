@@ -20,10 +20,10 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <!-- Not a selection action like the rest of this menu: it acts on the whole inbox,
-         and it is only present when there is something unread. On a 480px screen an
-         overflow button costs the filter tabs their full names, so it earns its place
-         only when it has something to do. -->
+    <!-- Not a selection action like the rest of this menu, since it acts on the whole
+         inbox, but it rides with them. On a 480px screen an overflow button costs the
+         filter tabs their full names, and this was the only thing outside selection mode
+         keeping that button on screen. Settings has it for the ordinary case. -->
     <item
         android:id="@+id/markAllRead"
         android:title="@string/main_menu_mark_all_read"

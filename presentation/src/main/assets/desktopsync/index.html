@@ -428,6 +428,12 @@
     font: inherit; padding: 4px 6px; border: 1px solid var(--line);
     background: var(--paper); color: var(--ink); border-radius: 4px;
   }
+  /* A quoted reply's antecedent. Muted and clipped to two lines: it is there to say what
+     is being answered, not to be read again in full. */
+  .quote {
+    font-size: 12px; color: var(--muted); margin-bottom: 4px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
   .expiry { margin-top: 4px; font-size: 11px; color: var(--muted); }
   .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
   .msg .stamp { font-size: 11px; color: var(--muted); margin-top: 4px; }

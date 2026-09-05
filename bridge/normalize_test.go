@@ -18,6 +18,44 @@ func norm(t *testing.T, raw string) (*Message, *Receipt) {
 	return m, r
 }
 
+// A reply that quotes what it answers. The quoted timestamp has to survive normalising:
+// without it a reply arrives as a bare message and, in a group, answers nothing visible.
+//
+// Untested until now, and the live store held zero of these across 1,634 messages -- which
+// could mean nobody quotes him, or could mean this never worked. It works.
+func TestQuotedReplyKeepsWhatItAnswers(t *testing.T) {
+	m, _ := norm(t, `{"envelope":{"sourceUuid":"`+other+`","timestamp":3000,
+		"dataMessage":{"timestamp":3000,"message":"the second one",
+		"quote":{"id":2500,"author":"`+self+`","authorUuid":"`+self+`","text":"which one?"}}}}`)
+	if m == nil {
+		t.Fatal("expected a message")
+	}
+	if m.QuoteTS != 2500 {
+		t.Errorf("quoteTs = %d, want 2500 -- the reply lost what it was answering", m.QuoteTS)
+	}
+	if m.Body != "the second one" {
+		t.Errorf("body = %q; the quote must not swallow the reply", m.Body)
+	}
+}
+
+// The same, arriving as a sync because it was sent from another of our own devices. This is
+// the shape his Signal Desktop produces, and the one most likely to be exercised in practice.
+func TestQuotedReplyFromOurOwnOtherDevice(t *testing.T) {
+	m, _ := norm(t, `{"envelope":{"sourceUuid":"`+self+`","timestamp":4000,
+		"syncMessage":{"sentMessage":{"timestamp":4000,"message":"answering that",
+		"destinationUuid":"`+other+`",
+		"quote":{"id":3900,"authorUuid":"`+other+`","text":"a question"}}}}}`)
+	if m == nil {
+		t.Fatal("expected a message")
+	}
+	if !m.Outgoing {
+		t.Error("a sent sync must be outgoing")
+	}
+	if m.QuoteTS != 3900 {
+		t.Errorf("quoteTs = %d, want 3900", m.QuoteTS)
+	}
+}
+
 // A message from someone else. Must be incoming, or it never notifies and sits on the
 // wrong side of the thread.
 func TestIncomingDataMessage(t *testing.T) {

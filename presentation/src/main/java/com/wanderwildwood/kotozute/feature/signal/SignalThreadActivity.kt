@@ -156,7 +156,14 @@ class SignalThreadActivity : QkThemedActivity() {
         // you are on either way, and when this person also has an SMS thread it gains an
         // arrow and a tap takes you there.
         binding.railBadge.setOnClickListener {
-            if (smsThreadId != 0L) navigator.showConversation(smsThreadId)
+            if (smsThreadId != 0L) {
+                navigator.showConversation(smsThreadId)
+                // Crossing rails replaces this screen rather than stacking on top of it.
+                // Without this, hopping SMS -> Signal -> SMS -> Signal left four thread
+                // screens on the stack and back walked all the way down through them; from a
+                // conversation, back should mean the conversation list.
+                finish()
+            }
         }
         showRailBadge()
         binding.searchClose.setOnClickListener { closeSearch() }
@@ -720,6 +727,7 @@ class SignalThreadActivity : QkThemedActivity() {
             }
             b.body.text = text
             b.body.setVisible(text.isNotEmpty())
+            bindQuote(m)
             bindReactions(m)
 
             b.timestamp.text = dateFormatter.getMessageTimestamp(m.date)
@@ -748,7 +756,7 @@ class SignalThreadActivity : QkThemedActivity() {
             (b.root as? android.widget.LinearLayout)?.let { root ->
                 // The timestamp stays centred whichever side the message is on, so only the
                 // children below it follow the sender.
-                listOf(b.sender, b.image, b.attachment, b.body, b.reactions).forEach { child ->
+                listOf(b.sender, b.image, b.attachment, b.quote, b.body, b.reactions).forEach { child ->
                     (child.layoutParams as? android.widget.LinearLayout.LayoutParams)
                         ?.let { lp -> lp.gravity = side; child.layoutParams = lp }
                 }
@@ -795,6 +803,44 @@ class SignalThreadActivity : QkThemedActivity() {
             b.attachment.setOnLongClickListener(listener)
 
             bindAttachment(m)
+        }
+
+        /**
+         * What this message is replying to.
+         *
+         * Signal identifies a quote by the timestamp of what it answers, so the original is
+         * found by date within this thread -- two messages sharing a millisecond in one
+         * conversation is not a case worth carrying an author column for.
+         *
+         * A thread starts empty and fills from the day the bridge was paired, so the quoted
+         * message is often simply not here. That says so rather than showing nothing, because
+         * a reply with no visible antecedent is the confusion this is meant to remove.
+         */
+        private fun bindQuote(m: SignalMessage) {
+            if (m.quoteTs == 0L) {
+                b.quote.setVisible(false)
+                return
+            }
+            val original = messages?.firstOrNull { it.date == m.quoteTs }
+            b.quote.text = when {
+                original == null -> getString(R.string.signal_quote_missing)
+                else -> {
+                    // senderNames is only filled for groups -- in a one-to-one thread the
+                    // name is already at the top of the screen. Without this fallback the
+                    // quote line named the other person by a slice of their uuid.
+                    val who = when {
+                        original.outgoing -> getString(R.string.signal_quote_you)
+                        else -> senderNames[original.senderUuid]
+                            ?: binding.toolbarTitle.text?.toString()?.takeIf { it.isNotBlank() }
+                            ?: original.senderNumber.ifBlank { original.senderUuid.take(8) }
+                    }
+                    val snippet = original.body.replace("\n", " ").trim().ifEmpty {
+                        getString(R.string.signal_quote_no_text)
+                    }
+                    getString(R.string.signal_quote, who, snippet)
+                }
+            }
+            b.quote.setVisible(true)
         }
 
         /**

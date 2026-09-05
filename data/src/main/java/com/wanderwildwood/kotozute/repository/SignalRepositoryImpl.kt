@@ -886,6 +886,15 @@ class SignalRepositoryImpl @Inject constructor(
             realm.copyFromRealm(all.subList(from, all.size))
         }
 
+    override fun getMessageAt(threadKey: String, date: Long): SignalMessage? =
+        Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .equalTo("date", date)
+                .findFirst()
+                ?.let(realm::copyFromRealm)
+        }
+
     override fun countMessages(threadKey: String): Int =
         Realm.getDefaultInstance().use { realm ->
             realm.where(SignalMessage::class.java)

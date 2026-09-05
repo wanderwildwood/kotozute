@@ -50,5 +50,8 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showSignalPairFailed()
     fun askSignalUnpair()
     fun showSection(container: Int, title: Int)
+    /** Says the inbox was cleared; without it the row looks like it did nothing. */
+    fun showMarkAllReadDone()
+
     fun showSwipeActions()
 }

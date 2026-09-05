@@ -802,6 +802,14 @@ class DesktopSyncServer(
      * and matches. There are dozens, not thousands, and the alternative is a second
      * identifier to keep in step with the one the inbox already uses.
      */
+    /** A Signal thread's own name, for the one-to-one case where there is no sender map. */
+    private fun signalThreadTitle(threadKey: String): String? = runCatching {
+        (signalRepository.getThreadsSnapshot(archived = false) +
+            signalRepository.getThreadsSnapshot(archived = true))
+            .firstOrNull { it.threadKey == threadKey }
+            ?.title?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
     private fun signalThreadFor(id: Long): SignalThread? {
         if (!InboxItem.isSignalId(id) || !signalEnabled()) return null
         // Both shelves. Looking only at the inbox meant archiving a thread turned it, in the
@@ -885,6 +893,28 @@ class DesktopSyncServer(
                     }
                 })
             }
+        }
+        // What this message replies to, resolved here rather than in the browser. The page
+        // holds one screen of messages and the original is often older than that; the phone
+        // has the whole thread and can answer in one lookup.
+        if (m.quoteTs != 0L) {
+            val original = runCatching {
+                signalRepository.getMessageAt(m.threadKey, m.quoteTs)
+            }.getOrNull()
+            put("quote", JSONObject().apply {
+                if (original == null) {
+                    put("missing", true)
+                } else {
+                    // senders is only filled for groups; in a one-to-one thread the name is
+                    // the thread's own, not a slice of a uuid.
+                    put("from", if (original.outgoing) "You" else {
+                        senders[original.senderUuid]
+                            ?: signalThreadTitle(original.threadKey)
+                            ?: original.senderNumber.ifBlank { original.senderUuid.take(8) }
+                    })
+                    put("body", original.body.replace("\n", " ").trim())
+                }
+            })
         }
         if (m.viewOnce) put("viewOnce", true)
         if (m.expiresAt > 0) {

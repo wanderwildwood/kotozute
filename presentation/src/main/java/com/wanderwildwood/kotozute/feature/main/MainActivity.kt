@@ -263,10 +263,12 @@ class MainActivity : QkThemedActivity(), MainView {
         // which is what actually populates the title.
 
         // Show/hide filter tabs - only visible on Inbox page when not searching and no selection
-        // Only when there is something to do; see the note in main.xml about the width an
-        // overflow button costs the filter tabs.
+        // Only while something is selected. It used to be the one item outside selection
+        // mode, which meant a whole overflow button — and the width it costs the filter
+        // tabs — for a single entry. It lives in Settings for the ordinary case now, and
+        // appears here alongside the rest of the selection's actions.
         binding.toolbar.menu.findItem(R.id.markAllRead)?.isVisible =
-            state.hasUnread && state.page is Inbox && selectedConversations == 0
+            state.hasUnread && state.page is Inbox && selectedConversations != 0
 
         val showFilterTabs = state.page is Inbox && !searchVisible && selectedConversations == 0
         binding.filterTabs.setVisible(showFilterTabs)

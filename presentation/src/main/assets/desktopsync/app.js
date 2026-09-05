@@ -2028,6 +2028,18 @@ async function loadMessages() {
       bubble.append(note);
     }
 
+    // What this message replies to, above the text and in the muted colour so it reads as
+    // context rather than as another message. The phone resolved it -- it holds the whole
+    // thread, while this page holds one page of it.
+    if (m.quote) {
+      const q = document.createElement('div');
+      q.className = 'quote';
+      q.textContent = m.quote.missing
+        ? '\u21b3 Replying to a message from before this thread synced'
+        : '\u21b3 ' + m.quote.from + ': ' + (m.quote.body || '(a picture)');
+      bubble.prepend(q);
+    }
+
     // Reactions others have put on this message. Under the bubble rather than overlapping
     // it: the same reading the phone gives them, so one conversation looks like one
     // conversation whichever screen it is on.

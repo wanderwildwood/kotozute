@@ -426,7 +426,12 @@ Either can be run twice without duplicating anything. An export written this way
     <string name="signal_attachment_other">Attachment: %s</string>
     <string name="signal_attachment_unavailable">Attachment (not downloaded)</string>
     <string name="signal_view_once_received">View-once photo. Not kept.</string>
+    <string name="settings_mark_all_read_done">Inbox marked read</string>
     <string name="signal_react">React\u2026</string>
+    <string name="signal_quote">\u21b3 %1$s: %2$s</string>
+    <string name="signal_quote_you">You</string>
+    <string name="signal_quote_missing">\u21b3 Replying to a message from before this thread synced</string>
+    <string name="signal_quote_no_text">(a picture)</string>
     <string name="signal_reaction_remove_mine">Remove my %1$s</string>
     <string name="signal_scheduled">Scheduled</string>
     <string name="signal_schedule_needs_text">Write something first</string>

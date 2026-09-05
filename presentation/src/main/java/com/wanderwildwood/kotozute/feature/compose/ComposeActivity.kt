@@ -222,7 +222,12 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             }
 
             binding.railBadge.setOnClickListener {
-                signalThreadKey?.let { key -> navigator.showSignalThread(key, "") }
+                signalThreadKey?.let { key ->
+                    navigator.showSignalThread(key, "")
+                    // Replace this screen rather than stack on it -- see the matching note in
+                    // SignalThreadActivity. Back from a conversation means the list.
+                    finish()
+                }
             }
 
             theme

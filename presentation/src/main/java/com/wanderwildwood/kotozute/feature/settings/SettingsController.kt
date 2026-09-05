@@ -492,6 +492,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalUnpair.postDelayed(disarmUnpairRunnable, ARM_TIMEOUT_MS)
     }
 
+    override fun showMarkAllReadDone() {
+        Toast.makeText(activity, R.string.settings_mark_all_read_done, Toast.LENGTH_SHORT).show()
+    }
+
     override fun showSwipeActions() {
         router.pushController(RouterTransaction.with(SwipeActionsController())
                 .pushChangeHandler(QkChangeHandler())

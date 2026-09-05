@@ -28,6 +28,7 @@ import com.wanderwildwood.kotozute.common.util.extensions.makeToast
 import com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService
 import com.wanderwildwood.kotozute.interactor.DeleteOldMessages
 import com.wanderwildwood.kotozute.interactor.SyncMessages
+import com.wanderwildwood.kotozute.repository.ConversationRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
 import com.wanderwildwood.kotozute.repository.SyncRepository
 import com.wanderwildwood.kotozute.service.AutoDeleteService
@@ -45,6 +46,7 @@ class SettingsPresenter @Inject constructor(
     syncRepo: SyncRepository,
     private val context: Context,
     private val deleteOldMessages: DeleteOldMessages,
+    private val conversationRepo: ConversationRepository,
     private val messageRepo: MessageRepository,
     private val navigator: Navigator,
     private val prefs: Preferences,
@@ -191,6 +193,27 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.categorySignal ->
                             view.showSection(R.id.sectionSignal, R.string.settings_category_signal)
+
+                        // Moved here from the conversation list's overflow, which held
+                        // nothing else -- a whole menu button for one item. Both rails, the
+                        // same as the browser's version of it.
+                        R.id.markAllRead -> {
+                            val ids = conversationRepo.getConversationsSnapshot(unreadAtTop = false)
+                                .filter { it.unread }
+                                .map { it.id }
+                            if (ids.isNotEmpty()) messageRepo.markRead(ids)
+                            if (prefs.signalEnabled.get()) {
+                                // Signal reads up to a moment rather than by id: the bridge's
+                                // receipt means "everything in this thread until now".
+                                val now = System.currentTimeMillis()
+                                runCatching {
+                                    signalRepo.getThreadsSnapshot(archived = false)
+                                        .filter { it.unread > 0 }
+                                        .forEach { signalRepo.markRead(it.threadKey, now) }
+                                }
+                            }
+                            view.showMarkAllReadDone()
+                        }
 
                         R.id.archived -> navigator.showArchived()
 

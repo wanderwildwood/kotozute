@@ -187,7 +187,17 @@ from `"import"`. A backup arrives backwards in time; nothing has to be rewritten
 it. The thread preview is guarded on the timestamp for the same reason -- an old imported
 message must not overwrite a newer preview.
 
-## Open items
-- [ ] Design and build the authenticating bridge (token + method allowlist)
-- [ ] Attachment path: fetch, cache, retention policy on the eMMC
-- [ ] Decide thread merge vs. side-by-side rails per contact
+## What became of the open items
+
+All three were settled by the build, and this note is kept for the reasoning rather than as
+a plan. Signal shipped publicly in 1.8.0.
+
+- **The authenticating bridge** exists: `bridge/`, TLS with a pinned self-signed certificate,
+  a bearer token, and a structural allowlist rather than a proxy, so the destructive
+  signal-cli methods are not reachable at all.
+- **Attachments** are fetched, cached and swept — `--attachment-days` and
+  `--attachment-max-mb`, and a view-once attachment is never written down.
+- **Rails, not merged threads.** The same person's SMS and Signal conversations stay separate,
+  with a badge in each that crosses to the other. Merging would have meant one composer
+  silently deciding which network a reply went out on, which is the one thing a messaging app
+  must never guess.

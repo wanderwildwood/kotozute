@@ -22,6 +22,21 @@ Run it on the same host as signal-cli, which must be started with
 servers whether or not anything is listening, and anything arriving while the bridge is
 down is lost. On-connection leaves them queued server-side instead.
 
+## What the host has to be
+
+**x86-64 Linux, with systemd.** signal-cli is Java and its tarball installs anywhere, but the
+Signal protocol underneath is a Rust library loaded through JNI, and the only Linux build
+inside `libsignal-client` is x86-64 — there is no arm64 one. A Raspberry Pi or an ARM NAS will
+install this cleanly and then fail on the first message, so `install.sh` checks `uname -m`
+before it downloads anything and stops there instead. Building
+[libsignal](https://github.com/signalapp/libsignal) for your architecture is a real option;
+it is also then yours to rebuild on every upgrade.
+
+**It does not have to be on all the time.** With `--receive-mode on-connection` (which
+`install.sh` sets) messages stay queued on Signal's servers until the bridge next connects, so
+a desktop that is on in the evenings loses nothing — only the time in between, and the ability
+to send while it is off.
+
 ## Setting it up
 
 ```

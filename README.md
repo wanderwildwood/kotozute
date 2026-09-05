@@ -104,13 +104,35 @@ off nearly every row.
 ### What it needs
 
 The Kompakt cannot run Signal — the app needs services the phone does not have. So Signal runs
-on **a computer that stays on**, and the phone talks to it. That computer needs
+on **a computer of your own**, and the phone talks to it. That computer needs
 [signal-cli](https://github.com/AsamK/signal-cli) and this repository's bridge; `bridge/install.sh`
 sets both up and prints a line you paste into Desktop Sync.
 See [bridge/README.md](bridge/README.md).
 
-If that computer is off, Signal is off. Messages are not lost — they queue on Signal's servers and
-arrive when it comes back — but nothing new appears on the phone meanwhile.
+**It does not have to be on all the time.** Messages queue on Signal's servers and arrive when
+the bridge next connects, so a desktop that is on in the evenings gives you Signal on the phone
+in the evenings, with nothing missing when it wakes. What you lose while it is off is
+timeliness, and sending: the app says so plainly rather than accepting a message it cannot
+deliver.
+
+It has to be **x86-64 Linux**. signal-cli is Java and installs anywhere, but the Signal protocol
+underneath it is a Rust library, and the only Linux build published is x86-64 — there is none
+for arm64, so a Raspberry Pi or an ARM NAS will not do unless you build that library yourself.
+`bridge/install.sh` checks this first and says so rather than letting it fail later.
+
+On that computer, start to finish:
+
+```sh
+git clone https://github.com/wanderwildwood/kotozute
+cd kotozute/bridge
+sudo ./install.sh
+```
+
+It installs signal-cli, builds the bridge, writes both systemd units, starts them, and prints
+the line you paste into Desktop Sync. It stops to let you link or register the Signal account,
+because those are not interchangeable and it will not choose for you. There is deliberately no
+`curl … | sudo bash`: this runs as root and ends up holding a Signal account, so it is worth
+reading the thing first — which is also why it verifies the checksum of what it downloads.
 
 ### What is not possible
 

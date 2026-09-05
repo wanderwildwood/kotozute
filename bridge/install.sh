@@ -48,6 +48,40 @@ have() { command -v "$1" >/dev/null 2>&1; }
 die()  { printf '\n%s\n' "$1" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "Run this with sudo: it installs into /opt, /usr/local/bin and /etc/systemd."
+
+# --- the machine has to be x86-64 --------------------------------------------------------
+#
+# Checked here, first, because the failure otherwise comes much later and looks like
+# something else entirely. signal-cli is Java, so the tarball installs and the checksum
+# passes on any architecture -- but the Signal protocol itself is a Rust library loaded
+# through JNI, and the only Linux build inside libsignal-client is x86-64:
+#
+#   libsignal_jni_amd64.so        Linux, x86-64
+#   libsignal_jni_amd64.dylib     macOS, x86-64
+#   libsignal_jni_aarch64.dylib   macOS, arm64
+#   signal_jni_amd64.dll          Windows, x86-64
+#
+# There is no Linux arm64. On a Raspberry Pi or an ARM NAS everything below would appear to
+# work -- download verified, units written, services started -- and then signal-cli would die
+# on its first message inside a Java stack trace about a missing native library. Better to
+# say so now.
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64|amd64) ;;
+  *)
+    die "This machine is $ARCH, and signal-cli ships no Signal native library for Linux on it.
+
+Only x86-64 Linux is covered by the official build. Everything here would install cleanly on
+$ARCH and then fail at the first message, which is why this stops now rather than later.
+
+Your options:
+  - Run the bridge on an x86-64 machine instead. It does not need to be always on: messages
+    queue on Signal's servers and arrive when it next connects.
+  - Or build libsignal for $ARCH yourself from https://github.com/signalapp/libsignal and
+    point signal-cli at it. That works, and it is yours to maintain across every upgrade.
+    See https://github.com/AsamK/signal-cli/wiki/Provide-native-lib-for-libsignal"
+    ;;
+esac
 have systemctl || die "This script sets up systemd services and this machine does not have systemd.
 The pieces still work by hand: run signal-cli's daemon on $RPC_ADDR with
 --receive-mode on-connection, and kotozute-bridge pointing at it. See README.md."

@@ -18,13 +18,18 @@
  */
 package com.wanderwildwood.kotozute.feature.settings
 
+import android.Manifest
 import android.animation.ObjectAnimator
+import android.content.pm.PackageManager
 import android.app.TimePickerDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import android.text.format.DateFormat
+import androidx.core.content.ContextCompat
+import com.journeyapps.barcodescanner.ScanIntentResult
+import com.journeyapps.barcodescanner.ScanOptions
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.View
@@ -66,6 +71,9 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import com.wanderwildwood.kotozute.databinding.SettingsControllerBinding
+
+private const val CAMERA_FOR_PAIRING = 4801
+private const val SCAN_PAIRING_QR = 4802
 
 class SettingsController : QkController<SettingsView, SettingsState, SettingsPresenter>(), SettingsView {
 
@@ -469,10 +477,62 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 .setTitle(R.string.settings_signal_pair_dialog_title)
                 .setView(input)
                 .setNegativeButton(R.string.button_cancel, null)
+                // Scanning is the neutral button because pasting is what someone arriving
+                // from the browser does, and that path must not get harder. install.sh draws
+                // the same link as a QR, which is what this reads.
+                .setNeutralButton(R.string.settings_signal_pair_scan) { _, _ -> scanPairingQr() }
                 .setPositiveButton(android.R.string.ok) { _, _ ->
                     signalPairSubject.onNext(input.text.toString())
                 }
                 .show()
+    }
+
+    /**
+     * Read the pairing link off the QR the installer draws.
+     *
+     * The alternative is getting 140 characters, two thirds of them a certificate
+     * fingerprint, from a terminal onto a phone -- which meant pairing a browser to the
+     * phone first, purely to have somewhere to paste.
+     */
+    private fun scanPairingQr() {
+        val a = activity ?: return
+        if (ContextCompat.checkSelfPermission(a, Manifest.permission.CAMERA)
+            != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_FOR_PAIRING)
+            return
+        }
+        // startActivityForResult rather than the AndroidX result API: this is a Conductor
+        // Controller, not an Activity or a Fragment, so there is no registry to register with.
+        val intent = ScanOptions()
+            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            .setPrompt(a.getString(R.string.settings_signal_pair_scan_prompt))
+            .setBeepEnabled(false)
+            .setOrientationLocked(true)
+            .createScanIntent(a)
+        startActivityForResult(intent, SCAN_PAIRING_QR)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != SCAN_PAIRING_QR) return
+        val contents = ScanIntentResult.parseActivityResult(resultCode, data)?.contents
+        // Cancelled scans come back with null contents; that is not a failure worth a toast.
+        if (contents.isNullOrBlank()) return
+        signalPairSubject.onNext(contents)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CAMERA_FOR_PAIRING) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                scanPairingQr()
+            } else {
+                Toast.makeText(activity, R.string.settings_signal_pair_scan_denied,
+                    Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     override fun showSignalPairFailed() {

@@ -141,6 +141,12 @@ configurations {
 }
 
 dependencies {
+    // Scanning the bridge's pairing QR. Pure Java, no Play Services, no Kotlin metadata to
+    // trip over -- 148 KB of scanner and the ZXing decoder behind it. The alternative was
+    // reading a 140-character link off a terminal and getting it onto the phone somehow.
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    implementation 'com.google.zxing:core:3.5.3'
+
     // lifecycle
     implementation "androidx.lifecycle:lifecycle-extensions:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycle_version"

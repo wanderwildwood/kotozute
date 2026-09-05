@@ -317,6 +317,9 @@
     <string name="settings_signal_pair_summary">Signal needs a bridge running on a computer that stays on</string>
     <string name="settings_signal_paired_summary">Paired with %s</string>
     <string name="settings_signal_pair_dialog_title">Paste the pairing link</string>
+    <string name="settings_signal_pair_scan">Scan</string>
+    <string name="settings_signal_pair_scan_prompt">Point the camera at the QR code the installer printed</string>
+    <string name="settings_signal_pair_scan_denied">Without the camera there is nothing to scan with. Paste the link instead.</string>
     <string name="settings_signal_pair_dialog_hint">kotozute-bridge://…</string>
     <string name="settings_signal_pair_failed">That is not a pairing link</string>
     <string name="settings_signal_enabled_title">Show Signal conversations</string>

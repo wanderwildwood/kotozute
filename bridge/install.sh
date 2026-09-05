@@ -448,14 +448,31 @@ fi
 
 # --- pairing ------------------------------------------------------------------------------
 say "Pair your phone"
-cat <<EOF
+PAYLOAD=$("$BRIDGE_BIN" --account "$ACCOUNT" --data "$BRIDGE_DATA" --signal-cli-data "$SIGNAL_CLI_DATA" \
+  --advertise "$ADVERTISE" --port "$BRIDGE_PORT" --pairing | tail -1)
+
+if have qrencode; then
+  cat <<'EOF'
+On the phone: Messaging -> Settings -> Signal -> Connect a bridge -> Scan, and point it at
+this. Nothing to type, and no browser in the middle.
+
+EOF
+  qrencode -t utf8 "$PAYLOAD"
+  cat <<'EOF'
+
+Or, if you would rather paste it: open Desktop Sync in a browser (Settings -> Desktop Sync
+-> Show link) and paste the line below into the box at the top of the conversation list.
+
+EOF
+else
+  cat <<'EOF'
 Open Desktop Sync in a browser (Messaging -> Settings -> Desktop Sync -> Show link) and
 paste the line below into the box at the top of the conversation list. Do not type it into
 the phone: two thirds of it is a fingerprint.
 
 EOF
-"$BRIDGE_BIN" --account "$ACCOUNT" --data "$BRIDGE_DATA" --signal-cli-data "$SIGNAL_CLI_DATA" \
-  --advertise "$ADVERTISE" --port "$BRIDGE_PORT" --pairing
+fi
+printf '%s\n' "$PAYLOAD"
 cat <<EOF
 
 Then in Messaging: Settings -> Signal -> turn it on.

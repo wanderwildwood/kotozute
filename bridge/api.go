@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +41,9 @@ type API struct {
 	auth  *Auth
 	self  *SelfUUID
 	atts  *Attachments
+	// signal-cli's data directory, so the account screen can say which of the devices on
+	// the account this bridge actually is.
+	signalCliData string
 
 	subsMu sync.Mutex
 	subs   map[chan *Message]*subscriber
@@ -55,9 +60,10 @@ type subscriber struct {
 	dropped bool
 }
 
-func NewAPI(st *Store, sc *SignalCLI, auth *Auth, self *SelfUUID, atts *Attachments) *API {
+func NewAPI(st *Store, sc *SignalCLI, auth *Auth, self *SelfUUID, atts *Attachments, signalCliData string) *API {
 	return &API{store: st, sc: sc, auth: auth, self: self, atts: atts,
-		subs: map[chan *Message]*subscriber{}}
+		signalCliData: signalCliData,
+		subs:          map[chan *Message]*subscriber{}}
 }
 
 // Broadcast fans a newly stored message out to attached phones.
@@ -310,6 +316,14 @@ func (a *API) account(w http.ResponseWriter, r *http.Request) {
 		"number":   a.sc.Account(),
 		"selfUuid": a.store.GetMeta("selfUuid"),
 		"devices":  devices,
+	}
+	// Which of those devices this bridge is. signal-cli will not say -- listDevices
+	// describes the account, not the caller -- but its own account file knows, and the
+	// answer is the difference between a list the reader can place themselves in and one
+	// they cannot. A registered bridge is device 1 and has no name, because Signal only
+	// asks for a name when a device is *linked*; without this it shows as "unnamed".
+	if id := a.thisDeviceID(); id > 0 {
+		out["thisDeviceId"] = id
 	}
 	if devices == nil {
 		out["devices"] = []SCDevice{}
@@ -692,4 +706,33 @@ func logging(h http.Handler) http.Handler {
 		// is useful in a log; who it was about is not.
 		log.Printf("%s %s %s", r.Method, redactPath(r.URL.Path), time.Since(start).Round(time.Millisecond))
 	})
+}
+
+// thisDeviceID reads the device id signal-cli registered or linked as, from its own account
+// file. Zero when it cannot be read, which is not an error worth surfacing: the account
+// screen simply falls back to naming the devices without pointing at one.
+func (a *API) thisDeviceID() int {
+	raw, err := os.ReadFile(filepath.Join(a.signalCliData, "data", "accounts.json"))
+	if err != nil {
+		return 0
+	}
+	var index struct {
+		Accounts []struct {
+			Path string `json:"path"`
+		} `json:"accounts"`
+	}
+	if json.Unmarshal(raw, &index) != nil || len(index.Accounts) == 0 {
+		return 0
+	}
+	acct, err := os.ReadFile(filepath.Join(a.signalCliData, "data", index.Accounts[0].Path))
+	if err != nil {
+		return 0
+	}
+	var detail struct {
+		DeviceID int `json:"deviceId"`
+	}
+	if json.Unmarshal(acct, &detail) != nil {
+		return 0
+	}
+	return detail.DeviceID
 }

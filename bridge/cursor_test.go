@@ -39,7 +39,7 @@ func TestACursorNeverJumpsPastAMessageItWasNotSent(t *testing.T) {
 
 	self := &SelfUUID{}
 	self.Set("self")
-	api := NewAPI(store, nil, nil, self, nil)
+	api := NewAPI(store, nil, nil, self, nil, "")
 
 	// The arrival. It lands after the handler has begun and before it has finished --
 	// which is precisely the window the old ordering could not survive.

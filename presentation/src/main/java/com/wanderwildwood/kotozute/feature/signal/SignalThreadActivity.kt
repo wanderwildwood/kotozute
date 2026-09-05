@@ -28,6 +28,7 @@ import com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.common.util.DateFormatter
+import com.wanderwildwood.kotozute.common.util.MessageLinks
 import dagger.android.AndroidInjection
 import io.reactivex.disposables.CompositeDisposable
 import io.realm.RealmResults
@@ -67,6 +68,10 @@ class SignalThreadActivity : QkThemedActivity() {
 
     /** Only groups need these; resolved once per load rather than per drawn row. */
     private var senderNames: Map<String, String> = emptyMap()
+
+    /** Ask-mode link taps land here; the subscription in onCreate answers them. */
+    private val messageLinkClicks: io.reactivex.subjects.Subject<android.net.Uri> =
+        io.reactivex.subjects.PublishSubject.create()
     private val isGroup: Boolean get() = threadKey.startsWith("group:")
     private lateinit var threadKey: String
 
@@ -131,6 +136,22 @@ class SignalThreadActivity : QkThemedActivity() {
                 binding.send.isEnabled = blocked == null
                 binding.message.isEnabled = blocked == null
             }
+        })
+
+        // The same dialog the SMS thread shows, worded identically, because it is the same
+        // question about the same kind of message.
+        disposables.add(messageLinkClicks.subscribe { uri ->
+            AlertDialog.Builder(this)
+                .setTitle(R.string.messageLinkHandling_dialog_title)
+                .setMessage(getString(R.string.messageLinkHandling_dialog_body, uri.toString()))
+                .setPositiveButton(R.string.messageLinkHandling_dialog_positive) { _, _ ->
+                    runCatching { startActivity(Intent(Intent.ACTION_VIEW).setData(uri)) }
+                        .onFailure {
+                            Toast.makeText(this, R.string.signal_link_no_app, Toast.LENGTH_SHORT).show()
+                        }
+                }
+                .setNegativeButton(R.string.messageLinkHandling_dialog_negative, null)
+                .show()
         })
 
         binding.send.setOnClickListener { send() }
@@ -725,7 +746,10 @@ class SignalThreadActivity : QkThemedActivity() {
             } else {
                 m.body
             }
-            b.body.text = text
+            // Links, on the same terms as the SMS thread: blocked, asked about, or opened,
+            // whichever the one preference says. A Signal message is likelier than a text to
+            // carry a link worth following, and until now it was something to retype.
+            b.body.text = MessageLinks.apply(b.body, text, prefs, messageLinkClicks)
             b.body.setVisible(text.isNotEmpty())
             bindQuote(m)
             bindReactions(m)

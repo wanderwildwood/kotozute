@@ -189,7 +189,9 @@ data class SignalDevice(val id: Int, val name: String, val created: Long) {
 data class SignalAccount(
     val number: String,
     val selfUuid: String,
-    val devices: List<SignalDevice>
+    val devices: List<SignalDevice>,
+    /** Which of [devices] the bridge itself is, or 0 when it could not be worked out. */
+    val thisDeviceId: Int = 0
 )
 
 /** A contact's safety number, and whether their key is still the one that was accepted. */

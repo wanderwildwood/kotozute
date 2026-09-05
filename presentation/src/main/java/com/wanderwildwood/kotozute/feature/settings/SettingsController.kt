@@ -361,11 +361,22 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     if (account.selfUuid.isNotBlank()) append(account.selfUuid).append('\n')
                     append('\n')
                     account.devices.forEach { d ->
+                        val isThisBridge = d.id == account.thisDeviceId
+                        // A registered bridge is device 1 and carries no name at all --
+                        // Signal only asks for one when a device is *linked* -- so the row
+                        // that matters most read "unnamed", which is the least useful thing
+                        // it could say about the device that is the account.
                         val name = d.name.ifBlank {
-                            activity.getString(R.string.signal_account_unnamed)
+                            activity.getString(
+                                if (isThisBridge) R.string.signal_account_this_bridge
+                                else R.string.signal_account_unnamed
+                            )
                         }
                         val tags = buildList {
                             if (d.isPrimary) add(activity.getString(R.string.signal_account_primary))
+                            if (isThisBridge && d.name.isNotBlank()) {
+                                add(activity.getString(R.string.signal_account_this_one))
+                            }
                         }
                         append("· ").append(name)
                         if (tags.isNotEmpty()) append(" (").append(tags.joinToString(", ")).append(')')
@@ -552,10 +563,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalUnpair.title = activity?.getString(R.string.settings_signal_unpair_armed).orEmpty()
         binding.signalUnpair.summary = activity?.getString(R.string.settings_signal_unpair_armed_summary)
         binding.signalUnpair.postDelayed(disarmUnpairRunnable, ARM_TIMEOUT_MS)
-    }
-
-    override fun showMarkAllReadDone() {
-        Toast.makeText(activity, R.string.settings_mark_all_read_done, Toast.LENGTH_SHORT).show()
     }
 
     override fun showSwipeActions() {

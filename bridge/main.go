@@ -165,7 +165,7 @@ func main() {
 
 	selfUUID.Set(self)
 
-	api := NewAPI(store, sc, auth, selfUUID, NewAttachments(*scData))
+	api := NewAPI(store, sc, auth, selfUUID, NewAttachments(*scData), *scData)
 
 	// Every envelope signal-cli pushes lands here. This is the only writer of
 	// live messages, so ordering and idempotency are settled in one place.

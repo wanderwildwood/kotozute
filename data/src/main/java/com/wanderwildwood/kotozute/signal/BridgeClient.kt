@@ -31,7 +31,9 @@ data class BridgeDevice(val id: Int, val name: String, val created: Long) {
 data class BridgeAccount(
     val number: String,
     val selfUuid: String,
-    val devices: List<BridgeDevice>
+    val devices: List<BridgeDevice>,
+    /** Which of [devices] the bridge itself is, or 0 when it could not be worked out. */
+    val thisDeviceId: Int = 0
 )
 
 data class BridgeState(
@@ -180,7 +182,8 @@ class BridgeClient(private val config: BridgeConfig) {
         return BridgeAccount(
             number = o.optString("number").orEmpty(),
             selfUuid = o.optString("selfUuid").orEmpty(),
-            devices = devices.sortedBy { it.id }
+            devices = devices.sortedBy { it.id },
+            thisDeviceId = o.optInt("thisDeviceId", 0)
         )
     }
 

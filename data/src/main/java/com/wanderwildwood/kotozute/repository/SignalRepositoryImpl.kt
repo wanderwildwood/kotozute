@@ -760,7 +760,8 @@ class SignalRepositoryImpl @Inject constructor(
         return SignalAccount(
             number = a.number,
             selfUuid = a.selfUuid,
-            devices = a.devices.map { SignalDevice(it.id, it.name, it.created) }
+            devices = a.devices.map { SignalDevice(it.id, it.name, it.created) },
+            thisDeviceId = a.thisDeviceId
         )
     }
 

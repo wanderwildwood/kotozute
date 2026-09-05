@@ -767,6 +767,58 @@ function clearSendFailure() {
   statusEl.textContent = statusEl.classList.contains('live') ? 'live' : 'reconnecting…';
 }
 
+/*
+ * Links in a message body, made clickable.
+ *
+ * Built out of text nodes and anchor elements, never innerHTML. Message bodies are the one
+ * thing on this page written by someone else, and the moment they are parsed as markup a
+ * text someone sends you can run script here. So the text is split, and only the parts that
+ * matched a URL become links -- everything else stays a text node and cannot be anything else.
+ *
+ * The scheme is checked too. A body reading `javascript:alert(1)` matches nothing below, but
+ * the check is on the href rather than on the pattern so that widening the pattern later
+ * cannot quietly widen what is allowed to be an href.
+ */
+const LINK_PATTERN = /\b((?:https?:\/\/|www\.)[^\s<>"']+|[^\s<>"'@]+@[^\s<>"'@.]+\.[^\s<>"'@]+)/gi;
+
+function safeHref(raw) {
+  const candidate = /^www\./i.test(raw) ? 'https://' + raw
+    : raw.includes('@') && !/^[a-z][a-z0-9+.-]*:/i.test(raw) ? 'mailto:' + raw
+    : raw;
+  try {
+    const u = new URL(candidate);
+    return (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'mailto:')
+      ? u.href : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function appendLinkified(parent, text) {
+  let last = 0;
+  text.replace(LINK_PATTERN, (match, _g, offset) => {
+    // Trailing punctuation is far more often the sentence's than the URL's.
+    let url = match;
+    const trailing = url.match(/[.,;:!?)\]]+$/);
+    if (trailing) url = url.slice(0, -trailing[0].length);
+
+    const href = safeHref(url);
+    if (!href) return match;
+
+    if (offset > last) parent.appendChild(document.createTextNode(text.slice(last, offset)));
+    const a = document.createElement('a');
+    a.href = href;
+    a.textContent = url;          // shown as written, not as resolved
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.className = 'msgLink';
+    parent.appendChild(a);
+    last = offset + url.length;
+    return match;
+  });
+  if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+}
+
 function sendRequestBody(fields) {
   if (pending.length === 0) {
     return {
@@ -2015,7 +2067,7 @@ async function loadMessages() {
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     const text = (m.body || '').trim();
-    if (text) bubble.textContent = text;
+    if (text) appendLinkified(bubble, text);
 
     // A view-once photo leaves a row with no body and no attachment, deliberately: the
     // bridge keeps it so the conversation does not have a silent hole where a message was.

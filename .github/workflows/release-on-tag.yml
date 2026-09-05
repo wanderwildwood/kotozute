@@ -37,10 +37,23 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # The tag is the single source of truth for the version. versionCode is derived from
-      # it rather than from the run number so it stays monotonic and reproducible: v1.2.3
-      # becomes 10203. A workflow_dispatch run has a branch name here, not a version, so it
-      # falls through to the defaults in presentation/build.gradle.
+      # Built before the signing key is written into the tree. Afterwards the checkout is
+      # dirty and the binary's own build info says vcs.modified=true, which reads as "built from
+      # changed source" to anyone who inspects it -- true, but about a file that has
+      # nothing to do with this program.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: bridge/go.mod
+          cache: false
+
+      - name: Build the bridge
+        run: |
+          ( cd bridge && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
+              -o ../kotozute-bridge-linux-amd64 . )
+          sha256sum kotozute-bridge-linux-amd64 > kotozute-bridge-linux-amd64.sha256
+          ls -l kotozute-bridge-linux-amd64
+
       # There is no fallback key any more, so without these the build would produce an
       # unsigned APK and happily attach it to a release. Fail loudly instead.
       - name: Restore signing key
@@ -62,6 +75,10 @@ jobs:
             echo "KEY_PASSWORD=$KEY_PASSWORD"
           } > signing/signing.properties
 
+      # The tag is the single source of truth for the version. versionCode is derived from
+      # it rather than from the run number so it stays monotonic and reproducible: v1.2.3
+      # becomes 10203. A workflow_dispatch run has a branch name here, not a version, so it
+      # falls through to the defaults in presentation/build.gradle.
       - name: Build release APK
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -119,19 +136,6 @@ jobs:
       # that bought nothing: signal-cli arrives as a tarball and Java is a package, but the
       # bridge could only be had by compiling it. Static, no cgo, so it runs on any x86-64
       # Linux whatever its libc.
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: bridge/go.mod
-          cache: false
-
-      - name: Build the bridge
-        run: |
-          ( cd bridge && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
-              -o ../kotozute-bridge-linux-amd64 . )
-          sha256sum kotozute-bridge-linux-amd64 > kotozute-bridge-linux-amd64.sha256
-          ls -l kotozute-bridge-linux-amd64
-
       # The generated notes are a list of commits; they cannot say what someone has to do
       # before installing. This goes above them, and can be emptied once nobody is still
       # upgrading from a build signed with the checked-in key.

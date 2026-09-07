@@ -125,3 +125,24 @@
 # upstream had no rules because it didn't bundle an embedded server.
 -dontwarn fi.iki.elonen.**
 -keep class fi.iki.elonen.** { *; }
+
+# EXPERIMENT (signal-on-the-phone branch). AGP 9 refuses proguard-android.txt because it
+# carries -dontoptimize, so the optimize variant is now in use and R8 optimises where it did
+# not before. Realm does not survive that: its static initialiser dies with an
+# ArrayIndexOutOfBoundsException before the app draws anything, because the optimiser has
+# taken apart something the generated module lookup depends on.
+#
+# This is the escape hatch AGP's own error message points at. It buys back the old behaviour
+# at the cost of the optimisation the newer file exists to enable -- which is the right trade
+# only until someone works out what Realm actually needs kept.
+-dontoptimize
+-keep class io.realm.** { *; }
+-keep class * extends io.realm.RealmObject { *; }
+-keepnames class io.realm.** { *; }
+
+# Second casualty of the same change. Room finds its generated implementation by building a
+# class name from the canonical one and looking it up reflectively, which R8 cannot see, so
+# under the newer optimiser WorkManager's database fails to instantiate before the app starts.
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep class androidx.work.impl.WorkDatabase_Impl { *; }
+-keepnames class androidx.work.impl.** { *; }

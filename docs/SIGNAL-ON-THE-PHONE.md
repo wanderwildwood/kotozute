@@ -134,6 +134,28 @@ The functional answer holds; the performance one does not follow from it.
 into a Timber with no trees. Worth remembering: a diagnostic that runs early in `onCreate` has
 no logger yet.)
 
+### The release build: three R8 casualties, none of them libsignal
+
+A minified release compiles and signs with the right certificate on the first try. Running it
+is where the AGP 9 optimiser change earns the warning above — it crashed twice before starting:
+
+1. **Realm's static initialiser**, `ArrayIndexOutOfBoundsException` in
+   `RealmConfiguration.<clinit>`, before the app drew anything.
+2. **WorkManager's Room database**, *"Failed to create an instance of class
+   androidx.work.impl.WorkDatabase.canonicalName"* — Room builds its generated implementation's
+   name from the canonical one and looks it up reflectively, which R8 cannot see.
+
+Both needed keep rules, and `-dontoptimize` had to be reinstated in `proguard-rules.pro` —
+which is the escape hatch AGP's own error suggests, and which switches off the optimisation
+the newer default file exists to enable. **That is debt, not a fix.** Whatever Realm and Room
+actually need kept has not been worked out; it has been papered over.
+
+With those in place: **zero fatals, and libsignal generates and verifies under R8 in 15 ms.**
+
+Worth stating plainly, since it was the thing being tested: **libsignal was never the problem.**
+It survived minification untouched. Everything that broke was this app's existing machinery
+meeting an optimiser it had not met before.
+
 ### What this does not show
 
 - **No Signal code exists.** libsignal is linked and unused. This says the toolchain and the

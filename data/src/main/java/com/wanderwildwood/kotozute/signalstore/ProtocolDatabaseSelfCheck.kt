@@ -106,8 +106,29 @@ object ProtocolDatabaseSelfCheck {
             val distributionId = java.util.UUID.randomUUID()
             val unknownSenderKeyIsNull = senderKeys.loadSenderKey(groupSender, distributionId) == null
 
+            // The account. The behaviour worth pinning is that allocation advances the
+            // counter and writes the keys as one transaction -- the case the research warned
+            // about, where a process death between the two hands out an id twice.
+            val account = SignalAccountStore(db)
+            val beforeLink = !account.credentials().complete
+            account.saveCredentials("+15550001234", "aci-uuid", "pni-uuid", 2, "a-password")
+            val creds = account.credentials()
+            val credentialsRoundTrip = creds.complete && creds.deviceId == 2 && creds.password == "a-password"
+
+            account.saveIdentity(aci, idKeys, 4242)
+            val identityRoundTrip = account.identityKeyPair(aci)?.publicKey == idKeys.publicKey
+            val registrationIdKept = SignalIdentityKeyStore(db, aci).localRegistrationId == 4242
+
+            var allocated: List<Int> = emptyList()
+            account.allocatePreKeyIds(aci, 3) { ids -> allocated = ids }
+            var next: List<Int> = emptyList()
+            account.allocatePreKeyIds(aci, 3) { ids -> next = ids }
+            val idsDoNotRepeat = allocated.intersect(next.toSet()).isEmpty()
+
             db.close()
-            "${tables.size} tables, seeded=$identities | senderkeys: unknown-is-null=$unknownSenderKeyIsNull " +
+            "${tables.size} tables, seeded=$identities | account: empty-before-link=$beforeLink " +
+                "credentials=$credentialsRoundTrip identity=$identityRoundTrip regid=$registrationIdKept " +
+                "ids-do-not-repeat=$idsDoNotRepeat | senderkeys: unknown-is-null=$unknownSenderKeyIsNull " +
                 "| prekeys: roundtrip=$preKeyRoundTrips " +
                 "onetime-consumed=$oneTimeConsumed missing-throws=$missingPreKeyThrows " +
                 "signed-keeps-timestamp=$signedKeepsTimestamp kyber-onetime-consumed=$kyberOneTimeGone " +

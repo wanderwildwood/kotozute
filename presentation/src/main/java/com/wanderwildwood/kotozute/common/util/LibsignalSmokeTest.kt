@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.common.util
 
+import com.wanderwildwood.kotozute.signalstore.ProtocolDatabaseSelfCheck
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.whispersystems.signalservice.internal.crypto.SecondaryProvisioningCipher
 import org.whispersystems.signalservice.api.provisioning.ProvisioningSocket
@@ -23,13 +24,17 @@ import timber.log.Timber
 object LibsignalSmokeTest {
 
 
-    fun run() {
+    fun run(context: android.content.Context) {
         // The service layer logs through its own Log, which defaults to a no-op. Every
         // diagnostic it emits while provisioning -- "Macs do not match", "Version does not
         // match expected" -- goes nowhere until this is pointed somewhere. Without it a
         // failed link reports only that it failed.
         runCatching {
             SignalServiceLog.route()
+            // And the store the whole port stands on: create it, open it encrypted, read the
+            // tables back. A schema that compiles but will not open is worth nothing, and the
+            // failure would otherwise surface much later, during linking, looking unrelated.
+            Timber.i("signal store: %s", ProtocolDatabaseSelfCheck.describe(context))
         }.onFailure { Timber.w(it, "libsignal-service: could not route its logging") }
 
         val started = System.currentTimeMillis()

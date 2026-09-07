@@ -178,7 +178,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // EXPERIMENT: release too, on this branch only. R8 strips what it cannot see being
         // used, and a native method reached over JNI is exactly that -- so whether libsignal
         // survives minification is a question the debug build cannot answer.
-        LibsignalSmokeTest.run()
+        LibsignalSmokeTest.run(this)
 
         // configure emoji compatibility with bundled package
         // (bundled library works with no play-services/gsm os versions)

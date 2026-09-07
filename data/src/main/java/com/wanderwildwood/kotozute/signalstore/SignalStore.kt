@@ -84,16 +84,18 @@ class SignalStore(private val context: Context) {
      */
     fun receive(
         userAgent: String,
-        certificateValidator: org.signal.libsignal.metadata.certificate.CertificateValidator
+        certificateValidator: org.signal.libsignal.metadata.certificate.CertificateValidator,
+        file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int
     ): String {
         val connection = connection(userAgent)
         connection.connect()
         return try {
             val result = SignalReceiver(
-                database, account, SignalDataStore(database, account), connection, certificateValidator
+                database, account, SignalDataStore(database, account), connection,
+                certificateValidator, file
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
-                "queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
+                "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
         } finally {
             connection.disconnect()
         }

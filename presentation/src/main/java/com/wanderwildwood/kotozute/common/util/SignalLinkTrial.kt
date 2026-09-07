@@ -34,7 +34,12 @@ object SignalLinkTrial {
 
     private const val MARKER = "link-now"
 
-    fun runIfRequested(context: Context, deviceName: String) {
+    fun runIfRequested(
+        context: Context,
+        deviceName: String,
+        file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
+        threads: () -> String
+    ) {
         val marker = File(context.filesDir, MARKER)
         if (!marker.exists()) return
         // Before anything is issued, not after. A URL that outlives its request is the thing
@@ -55,10 +60,15 @@ object SignalLinkTrial {
                     .onSuccess { Timber.i("signal keys: %s", it) }
                     .onFailure { Timber.e(it, "signal keys: threw") }
                 runCatching {
-                    store.receive(SignalNetworkConfig.USER_AGENT, SignalNetworkConfig.certificateValidator())
+                    store.receive(SignalNetworkConfig.USER_AGENT, SignalNetworkConfig.certificateValidator(), file)
                 }
                     .onSuccess { Timber.i("signal receive: %s", it) }
                     .onFailure { Timber.e(it, "signal receive: threw") }
+                // What actually landed in Realm, asked of the rail rather than inferred from
+                // the return value -- storing and being visible are different claims.
+                runCatching { threads() }
+                    .onSuccess { Timber.i("signal receive: threads in realm = %s", it) }
+                    .onFailure { Timber.w(it, "signal receive: could not read threads") }
             }
             return
         }

@@ -207,6 +207,25 @@ class SignalRepositoryImpl @Inject constructor(
      * Pull everything after our cursor. Runs on the caller's thread and opens its own
      * Realm, because Realm instances belong to the thread that created them.
      */
+    /**
+     * The same transaction and the same [store] the bridge sync uses.
+     *
+     * Deliberately not a parallel path. Every rule about threads, previews, reactions and
+     * expiry lives in [store]; a second writer with its own copy of them would drift, and the
+     * drift would show up as duplicate threads rather than as an error.
+     */
+    override fun ingest(messages: List<BridgeMessage>): Int {
+        if (messages.isEmpty()) return 0
+        val fresh = mutableListOf<BridgeMessage>()
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                messages.forEach { if (store(r, it)) fresh.add(it) }
+            }
+        }
+        announce(fresh)
+        return fresh.size
+    }
+
     override fun syncNow(): Int {
         val cfg = config() ?: return 0
         val client = BridgeClient(cfg)

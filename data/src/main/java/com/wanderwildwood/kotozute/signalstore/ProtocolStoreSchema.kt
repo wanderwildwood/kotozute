@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 1
+    const val VERSION = 2
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -176,6 +176,30 @@ internal object ProtocolStoreSchema {
         ) STRICT;
     """
 
+    /**
+     * Envelopes taken off the socket but not yet handled.
+     *
+     * Exists because of an ordering rule that is easy to get backwards: **an envelope is
+     * written here before it is acknowledged to the server.** The server deletes a message the
+     * moment it is acked and will not send it again, so acking first and crashing second loses
+     * it permanently -- not delayed, gone, with the sender believing it was delivered.
+     *
+     * So the sequence is: receive, write here, ack, then decrypt and file at leisure. A crash
+     * anywhere after the write costs a repeat of the work, never the message.
+     *
+     * `server_guid` is unique so that a redelivery -- which happens when the ack itself is
+     * lost -- replaces the row instead of queueing the same message twice.
+     */
+    const val ENVELOPE = """
+        CREATE TABLE envelope (
+          _id INTEGER PRIMARY KEY,
+          server_guid TEXT UNIQUE,
+          serialized BLOB NOT NULL,
+          server_delivered_timestamp INTEGER NOT NULL,
+          stored_timestamp INTEGER NOT NULL
+        ) STRICT;
+    """
+
     /** Order matters only in that account_identity is seeded after account exists. */
     val ALL = listOf(
         ACCOUNT,
@@ -186,7 +210,23 @@ internal object ProtocolStoreSchema {
         KYBER_PRE_KEY,
         SESSION,
         SENDER_KEY,
-        SENDER_KEY_SHARED
+        SENDER_KEY_SHARED,
+        ENVELOPE
+    )
+
+    /**
+     * Migrations, keyed by the version they upgrade *to*.
+     *
+     * Explicit and additive. This database holds key material that cannot be refetched -- an
+     * identity, sessions, the device's own password -- so there is no "drop and recreate"
+     * fallback available here the way there is for the message database. A version with no
+     * entry is still an error, deliberately: an unhandled upgrade must be loud rather than
+     * leave a half-known schema in place.
+     */
+    val MIGRATIONS: Map<Int, List<String>> = mapOf(
+        // v2 added the envelope queue, so that an envelope can be written down before it is
+        // acknowledged to the server. Purely additive: nothing existing is touched.
+        2 to listOf(ENVELOPE)
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

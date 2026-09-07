@@ -22,10 +22,16 @@ import timber.log.Timber
  */
 object LibsignalSmokeTest {
 
-    /** Signal rejects clients that do not identify themselves. */
-    private const val USER_AGENT = "kotozute-experiment"
 
     fun run() {
+        // The service layer logs through its own Log, which defaults to a no-op. Every
+        // diagnostic it emits while provisioning -- "Macs do not match", "Version does not
+        // match expected" -- goes nowhere until this is pointed somewhere. Without it a
+        // failed link reports only that it failed.
+        runCatching {
+            SignalServiceLog.route()
+        }.onFailure { Timber.w(it, "libsignal-service: could not route its logging") }
+
         val started = System.currentTimeMillis()
         runCatching {
             val identity = IdentityKeyPair.generate()

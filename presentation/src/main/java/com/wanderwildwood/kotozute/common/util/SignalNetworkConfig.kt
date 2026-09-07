@@ -84,6 +84,21 @@ object SignalNetworkConfig {
         override fun getKeyStorePassword(): String = "whisper"
     }
 
+    /**
+     * Signal identifies clients by this and nothing else.
+     *
+     * It has to be an interceptor: nothing in this stack takes a user-agent parameter. The
+     * provisioning socket builds its own OkHttp client from the configuration and installs
+     * only the interceptors found here, so a user agent held anywhere else -- a constant next
+     * to the call site, say -- is simply never sent. That was the shape of the bug this
+     * replaces: the string existed and reached nothing.
+     */
+    private val userAgentInterceptor = Interceptor { chain ->
+        chain.proceed(chain.request().newBuilder().header("User-Agent", USER_AGENT).build())
+    }
+
+    const val USER_AGENT = "kotozute/1.11.2"
+
     /** Signal's production servers. */
     fun production(): SignalServiceConfiguration = SignalServiceConfiguration(
         arrayOf(SignalServiceUrl(URL, trustStore)),
@@ -95,7 +110,7 @@ object SignalNetworkConfig {
         arrayOf(SignalStorageUrl(STORAGE_URL, trustStore)),
         arrayOf(SignalCdsiUrl(CDSI_URL, trustStore)),
         arrayOf(SignalSvr2Url(SVR2_URL, trustStore, null, null)),
-        emptyList<Interceptor>(),
+        listOf(userAgentInterceptor),
         Optional.empty<Dns>(),
         Optional.empty<SignalProxy>(),
         Optional.empty<org.signal.network.config.HttpProxy>(),

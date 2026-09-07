@@ -77,6 +77,16 @@ allprojects {
         // including the Realm plugin, which Maven Central serves perfectly well. Four
         // dependencies really do live here (ExoPlayer r2.9.0, realm-android-adapters, and
         // a 961-byte annotation shim), so it stays; it just no longer gets asked first.
+        // Signal's own artifact host, for libsignal. Maven Central carries this library but
+        // stops at 0.76.1, years behind. Narrowed with content{} so it is only ever asked
+        // about org.signal -- the jitpack outage on 2026-08-28 was the lesson that a
+        // repository which answers everything becomes a single point of failure for
+        // everything.
+        maven {
+            name 'signal'
+            url 'https://build-artifacts.signal.org/libraries/maven'
+            content { includeGroup 'org.signal' }
+        }
         maven { url "https://jitpack.io" }
     }
 }

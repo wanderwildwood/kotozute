@@ -424,8 +424,10 @@ Either can be run twice without duplicating anything. An export written this way
     <string name="signal_composer_hint">Message</string>
     <string name="signal_send">Send</string>
     <string name="signal_cannot_send_bridge">Cannot reach the bridge — you can read, but not send</string>
+    <string name="signal_cannot_send_refused">The bridge refused this phone — pair it again in Settings</string>
     <string name="signal_cannot_send_signal">The bridge is not connected to Signal — you can read, but not send</string>
     <string name="signal_send_failed">Not sent: %s</string>
+    <string name="signal_send_refused">Not sent — the bridge refused this phone. Pair it again in Settings.</string>
     <string name="signal_you">You</string>
     <string name="signal_switch_to_sms">Switch to SMS</string>
     <string name="signal_archive">Archive conversation</string>

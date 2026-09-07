@@ -68,6 +68,7 @@ class SignalConversationsActivity : QkThemedActivity() {
         disposables += signalRepo.connectionState()
             .subscribe { conn ->
                 val msg = when {
+                    conn.rejected -> getString(R.string.signal_cannot_send_refused)
                     !conn.bridgeReachable -> getString(R.string.signal_cannot_send_bridge)
                     !conn.signalConnected -> getString(R.string.signal_cannot_send_signal)
                     else -> null

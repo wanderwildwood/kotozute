@@ -284,14 +284,12 @@ dependencies {
     // EXPERIMENT (signal-on-the-phone branch): does this toolchain accept the library at
     // all? libsignal's classes are Java 21 bytecode and AGP here is 8.2.2. Nothing uses it
     // yet -- this is here to find out what actually breaks, not to build anything.
-    implementation 'org.signal:libsignal-android:0.102.0'
     // EXPERIMENT: the exact artifact and version signal-cli 0.14.7 builds on, read out of its
     // own gradle files rather than guessed. Two corrections live here: the module is
     // signal-network, not signal-service-java (which it pulls in transitively), and the
     // version is 152 -- Maven Central's *search index* stops at 126 and is simply wrong, as
     // the maven-metadata.xml shows 189 published versions. There is also a
     // signal-service-android, abandoned at 88; it is not the path.
-    implementation 'com.github.turasa:signal-network:2.15.3_unofficial_152'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
     implementation project(':data')

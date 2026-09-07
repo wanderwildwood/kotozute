@@ -91,6 +91,12 @@ dependencies {
     // EXPERIMENT (signal-on-the-phone branch). The Signal protocol store lives in its own
     // encrypted SQLite database rather than in Realm -- see docs/DECISION-protocol-store.md.
     // Same engine Molly and Signal-Android use for the same data.
+    // The protocol stores are here, so libsignal is here. `api`, not `implementation`: the
+    // stores' own types are libsignal's, so anything consuming them needs it on its classpath
+    // too -- hiding it would only force the layer above to re-declare it.
+    api 'org.signal:libsignal-android:0.102.0'
+    api 'com.github.turasa:signal-network:2.15.3_unofficial_152'
+
     implementation 'net.zetetic:sqlcipher-android:4.9.0'
     implementation 'androidx.sqlite:sqlite:2.4.0'
     implementation 'io.michaelrocks:libphonenumber-android:8.13.47'

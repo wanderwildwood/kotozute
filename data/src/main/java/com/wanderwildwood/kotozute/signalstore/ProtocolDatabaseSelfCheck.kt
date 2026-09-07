@@ -3,6 +3,7 @@ package com.wanderwildwood.kotozute.signalstore
 import android.content.Context
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.signal.libsignal.protocol.state.IdentityKeyStore
+import org.signal.libsignal.protocol.state.SessionRecord
 import java.security.SecureRandom
 
 /**
@@ -44,8 +45,31 @@ object ProtocolDatabaseSelfCheck {
             val changeReported =
                 store.saveIdentity(peer, first) == IdentityKeyStore.IdentityChange.REPLACED_EXISTING
 
+            // Sessions. The behaviours checked are the ones that are wrong-but-plausible:
+            // an unknown peer must yield an empty record rather than null, containsSession
+            // must ask about the sender chain rather than the row, an incomplete device list
+            // must fail loudly, and the primary must not appear among the sub-devices.
+            val sessions = SignalSessionStore(db, ProtocolDatabase.ACCOUNT_ID_TYPE_ACI)
+            val a1 = org.signal.libsignal.protocol.SignalProtocolAddress("+15550002222", 1)
+            val a2 = org.signal.libsignal.protocol.SignalProtocolAddress("+15550002222", 2)
+
+            val unknownIsEmptyNotNull = sessions.loadSession(a1).let { !it.hasSenderChain() }
+            sessions.storeSession(a1, SessionRecord())
+            sessions.storeSession(a2, SessionRecord())
+            val rowExistsButNotUsable = !sessions.containsSession(a1)
+            val subDevicesExcludePrimary = sessions.getSubDeviceSessions("+15550002222") == listOf(2)
+            val missingSessionThrows = try {
+                sessions.loadExistingSessions(
+                    listOf(a1, org.signal.libsignal.protocol.SignalProtocolAddress("+15550009999", 1))
+                ); false
+            } catch (e: org.signal.libsignal.protocol.NoSessionException) { true }
+            sessions.deleteAllSessions("+15550002222")
+            val deletedAll = sessions.getSubDeviceSessions("+15550002222").isEmpty()
+
             db.close()
-            "${tables.size} tables, seeded=$identities | trust: first-sighting=$trustedOnFirstSighting " +
+            "${tables.size} tables, seeded=$identities | sessions: empty-not-null=$unknownIsEmptyNotNull " +
+                "row-without-chain-not-usable=$rowExistsButNotUsable subdevices-exclude-primary=$subDevicesExcludePrimary " +
+                "missing-throws=$missingSessionThrows delete-all=$deletedAll | trust: first-sighting=$trustedOnFirstSighting " +
                 "changed-refused-on-receive=$changedKeyRefusedOnReceive " +
                 "changed-blocked-on-send=$changedKeyBlockedOnSend " +
                 "readback=$readBack change-reported=$changeReported"

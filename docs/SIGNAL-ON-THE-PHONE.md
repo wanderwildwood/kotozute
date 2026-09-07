@@ -254,6 +254,31 @@ and SVR2 URLs, a trust store, and three base64 server public-params blobs. signa
 them in `LiveConfig.java` (GPL-3.0, so portable into this app). That file is the next piece of
 work, and until it exists no socket can be opened.
 
+### The configuration is ported; the build box now needs a newer JDK
+
+`SignalNetworkConfig.kt` is a port of signal-cli's `LiveConfig.java` — GPL-3.0 into GPL-3.0,
+so a licence-compatible copy, and marked as one in the file. It carries Signal's service, CDN,
+storage, CDSI and SVR2 URLs, the three server public-params blobs, and `whisper.store`
+unmodified beside it (Signal pins its own CA, so the platform trust store is not enough).
+
+Two things worth keeping:
+
+- The store is **BKS** format, which Android reads. A JKS one would not have loaded at all, so
+  that was worth checking before porting rather than after.
+- It loads off the **classpath**, the way signal-cli does, which works because AGP packages
+  `src/main/resources` into the APK — and means the configuration needs no Context and stays
+  a plain object.
+
+**These values go stale.** Signal rotates enclaves and moves hosts, and a client carrying old
+ones stops working. They should be re-checked against signal-cli on every upgrade, not treated
+as constants.
+
+⚠ **The branch does not currently build.** kapt generates javac stubs, and javac on JDK 17
+cannot read the Java 21 class files this dependency ships: *"class file has wrong version 65.0,
+should be 61.0"*. The build box has only JDK 17. So the list of entry requirements gains one more:
+**JDK 21+ on the build machine**, which is what Signal-Android uses. That is an install on
+someone else's laptop, so it is left as a decision rather than done.
+
 ### What this does not show
 
 - **No Signal code exists.** libsignal is linked and unused. This says the toolchain and the

@@ -2,6 +2,7 @@ package com.wanderwildwood.kotozute.common.util
 
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.whispersystems.signalservice.internal.crypto.SecondaryProvisioningCipher
+import org.whispersystems.signalservice.internal.push.ProvisioningSocket
 import timber.log.Timber
 
 /**
@@ -20,6 +21,9 @@ import timber.log.Timber
  * the app down would be a worse bug than the one it is looking for.
  */
 object LibsignalSmokeTest {
+
+    /** Signal rejects clients that do not identify themselves. */
+    private const val USER_AGENT = "kotozute-experiment"
 
     fun run() {
         val started = System.currentTimeMillis()
@@ -49,6 +53,14 @@ object LibsignalSmokeTest {
                 "libsignal-service: provisioning cipher built, device key %d bytes",
                 devicePublicKey.serialize().size
             )
+            // The real thing: open a provisioning socket against Signal's own servers and ask
+            // for a provisioning address. Nothing is linked and no account is touched -- this
+            // is the anonymous half of the handshake, the half that produces the QR a primary
+            // device scans. If it returns, then the ported configuration, the pinned trust
+            // store, the websocket and TLS to Signal all work from this phone.
+            val socket = ProvisioningSocket(SignalNetworkConfig.production(), USER_AGENT)
+            val address = socket.provisioningUuid
+            Timber.i("signal-net: provisioning address obtained, uuid begins %s", address.uuid.take(8))
         }.onFailure {
             // An UnsatisfiedLinkError here is the whole answer: the library did not load, and
             // no amount of client code would change that.

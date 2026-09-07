@@ -517,12 +517,7 @@ class DesktopSyncServer(
         }.getOrNull()
     }
 
-    private fun tokenMatches(supplied: String?): Boolean {
-        if (supplied == null) return false
-        if (supplied == token) return true
-        if (token.any { it.isLowerCase() }) return false
-        return supplied.equals(token, ignoreCase = true)
-    }
+    private fun tokenMatches(supplied: String?): Boolean = tokenMatches(supplied, token)
 
     private fun serveManifest(session: IHTTPSession): Response {
         val supplied = session.parameters["token"]?.firstOrNull()

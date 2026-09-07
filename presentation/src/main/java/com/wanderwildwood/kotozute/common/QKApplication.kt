@@ -55,6 +55,7 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.common.util.LibsignalSmokeTest
+import com.wanderwildwood.kotozute.common.util.SignalLinkTrial
 import com.wanderwildwood.kotozute.common.util.RealmEncryption
 
 class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverInjector, HasServiceInjector {
@@ -179,6 +180,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // used, and a native method reached over JNI is exactly that -- so whether libsignal
         // survives minification is a question the debug build cannot answer.
         LibsignalSmokeTest.run(this)
+        SignalLinkTrial.runIfRequested(this, "kotozute")
 
         // configure emoji compatibility with bundled package
         // (bundled library works with no play-services/gsm os versions)

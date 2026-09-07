@@ -6,8 +6,15 @@ import org.signal.libsignal.protocol.util.KeyHelper
 import org.signal.network.api.RegistrationApiV2
 import org.signal.network.config.SignalServiceConfiguration
 import org.signal.network.rest.SignalRestClient
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.whispersystems.signalservice.api.provisioning.ProvisioningSocket
 import org.whispersystems.signalservice.api.util.CredentialsProvider
+import org.whispersystems.signalservice.internal.crypto.SecondaryProvisioningCipher
+import org.whispersystems.signalservice.internal.push.ProvisionMessage
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import timber.log.Timber
 import java.security.SecureRandom
 import java.util.Base64
@@ -31,7 +38,7 @@ import java.util.Base64
  * provisioning message and never returned by the server, and it is half this device's
  * credential for as long as it exists.
  */
-internal class DeviceLinker(
+class DeviceLinker internal constructor(
     private val configuration: SignalServiceConfiguration,
     private val userAgent: String,
     private val accounts: SignalAccountStore
@@ -48,43 +55,86 @@ internal class DeviceLinker(
     }
 
     /**
-     * Runs the whole exchange. Suspending, because the socket is: the URL arrives before the
-     * provisioning message does, and the gap between them is however long it takes somebody to
-     * pick up their phone and scan.
+     * Runs the whole exchange.
+     *
+     * Suspending because the socket is, and because the wait in the middle is a person: the
+     * URL arrives immediately, the provisioning message only once somebody redeems it. The
+     * socket's own lifespan is **90 seconds**, so the URL is worth showing the moment it
+     * arrives rather than after any further setup.
+     *
+     * `ProvisioningSocket.start` looks synchronous and is not. It launches the block on a
+     * scope of its own and hands back a `Closeable` that **cancels that scope** -- so the
+     * obvious `.use { }` around it closes the socket before the block has run, and the
+     * exchange fails having never opened. It cost a full round trip to find, because the
+     * symptom is a link that fails instantly with no URL and no error. The Closeable is
+     * therefore held and closed once, at the end, and on cancellation.
      */
     suspend fun link(deviceName: String, onUrl: UrlListener): Result {
         val provisioningKeys = IdentityKeyPair.generate()
         val password = generatePassword()
 
-        var message: org.whispersystems.signalservice.internal.push.ProvisionMessage? = null
-        var failure: String? = null
+        val provision = try {
+            awaitProvisionMessage(provisioningKeys, onUrl)
+        } catch (t: Throwable) {
+            return Result.Failed(t.message ?: t::class.java.simpleName)
+        } ?: return Result.Failed("the provisioning message could not be decrypted")
 
-        ProvisioningSocket.start<Any>(
+        return register(provision, password, deviceName)
+    }
+
+    private suspend fun awaitProvisionMessage(
+        provisioningKeys: IdentityKeyPair,
+        onUrl: UrlListener
+    ): ProvisionMessage? = suspendCancellableCoroutine { continuation ->
+        // The socket resumes this from its own coroutine and the exception handler resumes it
+        // from another; whichever arrives first wins and the rest are dropped. Without that a
+        // failure after a success -- the socket closing normally, say -- would resume twice
+        // and throw from inside the library's scope.
+        // Held so that whichever path finishes first can also close the socket. It is
+        // assigned just below, but the exception handler can in principle fire before start()
+        // has returned, so it is a reference rather than a val and closing tolerates null --
+        // the `closed` flag then makes the assignment close it instead.
+        val socket = AtomicReference<java.io.Closeable?>(null)
+        val done = AtomicBoolean(false)
+        val closed = AtomicBoolean(false)
+        fun closeSocket() {
+            if (closed.compareAndSet(false, true)) socket.get()?.close()
+        }
+        fun finish(block: () -> Unit) {
+            if (done.compareAndSet(false, true)) {
+                block()
+                closeSocket()
+            }
+        }
+
+        val closeable = ProvisioningSocket.start<ProvisionMessage>(
             ProvisioningSocket.Mode.Link(false),
             provisioningKeys,
             configuration,
             { id, t ->
-                failure = t.message ?: t::class.java.simpleName
                 Timber.w(t, "signal link: provisioning socket %d failed", id)
+                finish { continuation.resumeWithException(t) }
             }
         ) { socket ->
             onUrl.onUrl(socket.getProvisioningUrl())
-            when (val decrypted = socket.getProvisioningMessageDecryptResult()) {
-                is org.whispersystems.signalservice.internal.crypto.SecondaryProvisioningCipher.ProvisioningDecryptResult.Success<*> ->
-                    message = decrypted.message as? org.whispersystems.signalservice.internal.push.ProvisionMessage
-                else ->
-                    // The reason only ever reaches the service layer's own log, which is why
-                    // that is routed into Timber before any of this runs.
-                    failure = "the provisioning message could not be decrypted"
+            val decrypted = socket.getProvisioningMessageDecryptResult()
+            finish {
+                continuation.resume(
+                    (decrypted as? SecondaryProvisioningCipher.ProvisioningDecryptResult.Success)?.message
+                )
             }
-        }.use { /* closed as soon as the exchange ends, successfully or not */ }
+        }
 
-        val provision = message ?: return Result.Failed(failure ?: "no provisioning message")
-        return register(provision, password, deviceName)
+        socket.set(closeable)
+        // Closed on every exit, including the caller giving up. The socket is a live offer to
+        // join the account; leaving one open because nobody cancelled it is the wrong default.
+        // If the exchange already finished while start() was returning, close it now.
+        if (done.get()) closeSocket()
+        continuation.invokeOnCancellation { closeSocket() }
     }
 
     private suspend fun register(
-        provision: org.whispersystems.signalservice.internal.push.ProvisionMessage,
+        provision: ProvisionMessage,
         password: String,
         deviceName: String
     ): Result {
@@ -121,7 +171,22 @@ internal class DeviceLinker(
             aciRegistrationId,
             pniRegistrationId,
             encryptDeviceName(deviceName, aciIdentity),
-            RegistrationApiV2.AccountAttributes.Capabilities(false, false, false, false, false, false)
+            // Not optional, and not a wish list. All six declared false is what the server
+            // answers with `MissingCapability`, which is how this was found: the link is
+            // refused outright rather than degraded. These are the values signal-cli sends
+            // for a secondary device, and they are promises this app now owes:
+            //
+            //   storage                   -- the encrypted storage service (contacts, groups)
+            //   versionedExpirationTimer  -- versioned disappearing-message timers
+            //   attachmentBackfill        -- answering backfill requests for attachments
+            //   spqr                      -- the sparse post-quantum ratchet
+            //   usernameChangeSyncMessage -- username-change sync messages
+            //   optionalPhoneNumber       -- working without a visible phone number
+            //
+            // A linked device is expected to speak all of them, so there is no honest smaller
+            // claim to make; what is left is to actually handle each, and where the app does
+            // not yet, that is a gap to close rather than a flag to unset.
+            RegistrationApiV2.AccountAttributes.Capabilities(true, true, true, true, true, true)
         )
 
         return when (val result = api.registerAsSecondaryDevice(
@@ -198,13 +263,13 @@ internal class DeviceLinker(
 }
 
 /** The provisioning message carries both identities as separate public and private halves. */
-private fun org.whispersystems.signalservice.internal.push.ProvisionMessage.aciIdentityKeyPair() =
+private fun ProvisionMessage.aciIdentityKeyPair() =
     IdentityKeyPair(
         org.signal.libsignal.protocol.IdentityKey(aciIdentityKeyPublic!!.toByteArray()),
         org.signal.libsignal.protocol.ecc.ECPrivateKey(aciIdentityKeyPrivate!!.toByteArray())
     )
 
-private fun org.whispersystems.signalservice.internal.push.ProvisionMessage.pniIdentityKeyPair() =
+private fun ProvisionMessage.pniIdentityKeyPair() =
     IdentityKeyPair(
         org.signal.libsignal.protocol.IdentityKey(pniIdentityKeyPublic!!.toByteArray()),
         org.signal.libsignal.protocol.ecc.ECPrivateKey(pniIdentityKeyPrivate!!.toByteArray())

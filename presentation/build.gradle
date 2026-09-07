@@ -110,6 +110,10 @@ android {
     }
 
     compileOptions {
+        // libsignal's own classes are Java 21 bytecode and its AAR metadata says plainly
+        // that it needs this. Desugaring is what lets a minSdk-23 app use the newer library
+        // APIs those classes call; it is a build-time rewrite, not a toolchain upgrade.
+        coreLibraryDesugaringEnabled true
         sourceCompatibility 1.8
         targetCompatibility 1.8
     }
@@ -247,6 +251,12 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation project(":android-smsmms")
     implementation project(":common")
+    // EXPERIMENT (signal-on-the-phone branch): does this toolchain accept the library at
+    // all? libsignal's classes are Java 21 bytecode and AGP here is 8.2.2. Nothing uses it
+    // yet -- this is here to find out what actually breaks, not to build anything.
+    implementation 'org.signal:libsignal-android:0.102.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+
     implementation project(':data')
     implementation project(':domain')
 

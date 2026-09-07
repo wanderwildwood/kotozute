@@ -121,6 +121,21 @@ internal class SignalAccountStore(private val db: ProtocolDatabase) {
             setCounter(accountIdType, "next_pre_key_id", (next + count) % MAX_KEY_ID)
         }
 
+    /**
+     * The Kyber equivalent, with the same guarantee and for the same reason.
+     *
+     * Deliberately an allocator rather than a "give me the next id" plus a separate "advance
+     * by n": those two calls have a gap between them, and the gap is precisely the race the
+     * transaction exists to close.
+     */
+    fun allocateKyberPreKeyIds(accountIdType: Int, count: Int, insert: (List<Int>) -> Unit) =
+        inTransaction {
+            val next = counter(accountIdType, "next_kyber_pre_key_id")
+            val ids = (0 until count).map { (next + it) % MAX_KEY_ID }
+            insert(ids)
+            setCounter(accountIdType, "next_kyber_pre_key_id", (next + count) % MAX_KEY_ID)
+        }
+
     fun nextSignedPreKeyId(accountIdType: Int): Int = withLock {
         counter(accountIdType, "next_signed_pre_key_id")
     }

@@ -1,0 +1,94 @@
+package com.wanderwildwood.kotozute.signalstore
+
+import org.signal.core.models.ServiceId
+import org.signal.core.util.UptimeSleepTimer
+import org.signal.libsignal.net.Network
+import org.whispersystems.signalservice.api.keys.KeysApi
+import org.whispersystems.signalservice.api.util.CredentialsProvider
+import org.whispersystems.signalservice.api.websocket.SignalWebSocket
+import org.whispersystems.signalservice.internal.websocket.LibSignalChatConnection
+import timber.log.Timber
+import java.util.concurrent.TimeUnit
+
+/**
+ * The account's connection to Signal: the authenticated websocket, and the APIs that ride it.
+ *
+ * This is the piece the bridge used to be. Everything the app previously asked a computer on
+ * the LAN to do -- fetch messages, upload keys, send -- goes through here instead.
+ *
+ * Two sockets, not one, and the distinction is not incidental. The **authenticated** one
+ * carries this device's credentials and is how messages addressed to us arrive. The
+ * **unauthenticated** one carries none, and exists so that sealed-sender traffic is not tied
+ * to our identity by the mere fact of the connection it arrived on. Collapsing them would
+ * hand the server exactly the metadata sealed sender is designed to withhold.
+ */
+internal class SignalConnection(
+    private val accounts: SignalAccountStore,
+    private val userAgent: String
+) {
+
+    /**
+     * Built from the store on every call rather than captured once.
+     *
+     * The device id and password are written at linking, and anything constructed before that
+     * would authenticate as device 0 with no password for the life of the process -- which
+     * fails in a way that looks like a rejected account rather than a stale object.
+     */
+    private val credentials = object : CredentialsProvider {
+        override fun getAci(): ServiceId.ACI? = ServiceId.ACI.parseOrNull(accounts.credentials().aci)
+        override fun getPni(): ServiceId.PNI? = ServiceId.PNI.parseOrNull(accounts.credentials().pni)
+        override fun getE164(): String? = accounts.credentials().e164
+        override fun getDeviceId(): Int = accounts.credentials().deviceId
+        override fun getPassword(): String? = accounts.credentials().password
+    }
+
+    private val network by lazy {
+        Network(Network.Environment.PRODUCTION, userAgent, emptyMap(), Network.BuildVariant.PRODUCTION)
+    }
+
+    val authenticated: SignalWebSocket.AuthenticatedWebSocket by lazy {
+        val timer = UptimeSleepTimer()
+        val monitor = SignalSocketHealthMonitor(timer)
+        SignalWebSocket.AuthenticatedWebSocket(
+            { LibSignalChatConnection("normal", network, credentials, ALLOW_STORIES, monitor) },
+            { true },
+            timer,
+            DISCONNECT_TIMEOUT_MS
+        ).also(monitor::monitor)
+    }
+
+    val unauthenticated: SignalWebSocket.UnauthenticatedWebSocket by lazy {
+        val timer = UptimeSleepTimer()
+        val monitor = SignalSocketHealthMonitor(timer)
+        SignalWebSocket.UnauthenticatedWebSocket(
+            { LibSignalChatConnection("unidentified", network, null, ALLOW_STORIES, monitor) },
+            { true },
+            timer,
+            DISCONNECT_TIMEOUT_MS
+        ).also(monitor::monitor)
+    }
+
+    val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
+
+    fun connect() {
+        Timber.i("signal socket: connecting as device %d", credentials.deviceId)
+        authenticated.connect()
+        unauthenticated.connect()
+    }
+
+    fun disconnect() {
+        authenticated.disconnect()
+        unauthenticated.disconnect()
+    }
+
+    companion object {
+        /**
+         * False. Stories are a whole feature -- their own storage, expiry and UI -- and this
+         * app has none of it. Claiming otherwise would have the server deliver story traffic
+         * that goes nowhere.
+         */
+        private const val ALLOW_STORIES = false
+
+        private val DISCONNECT_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30)
+    }
+}

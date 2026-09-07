@@ -47,6 +47,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.appcompat.app.AlertDialog
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 
 class SignalThreadActivity : QkThemedActivity() {
 
@@ -109,6 +110,9 @@ class SignalThreadActivity : QkThemedActivity() {
         val lm = LinearLayoutManager(this).apply { stackFromEnd = true }
         binding.recyclerView.layoutManager = lm
         binding.recyclerView.adapter = adapter
+        // As in an SMS thread: by pixels, so a bubble taller than the screen takes two pages
+        // rather than being skipped.
+        binding.recyclerView.turnsAPageOnSwipe()
 
         val results = signalRepo.getMessages(threadKey)
         messages = results

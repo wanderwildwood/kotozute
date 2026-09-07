@@ -22,6 +22,7 @@ import io.realm.RealmResults
 import javax.inject.Inject
 import android.view.Menu
 import android.view.MenuItem
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 
 /**
  * The Signal rail on its own, until Signal threads are interleaved into the main
@@ -62,6 +63,10 @@ class SignalConversationsActivity : QkThemedActivity() {
         adapter = ThreadAdapter()
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
+        // The Signal list turns a page like the SMS one. Both rails are the same app on the
+        // same panel, and a list that scrolls freely next to one that does not is the kind of
+        // difference a person feels without being able to name.
+        binding.recyclerView.turnsAPageOnSwipe()
 
         bindShelf()
 

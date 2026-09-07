@@ -45,6 +45,7 @@ import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.ContactsActivityBinding
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 
 class ContactsActivity : QkThemedActivity(), ContactsContract {
 
@@ -90,6 +91,9 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
         viewModel.bindView(this)
 
         binding.contacts.adapter = contactsAdapter
+        // Asked for on the forum alongside the conversation list, and the same reasoning
+        // applies: this is a long list on a panel that redraws in full.
+        binding.contacts.turnsAPageOnSwipe()
 
         val callback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {

@@ -30,16 +30,7 @@ interface SignalRepository {
          * case of a host that is switched off and will come back on its own. This one
          * will not, so it is the only state worth interrupting anybody about.
          */
-        val rejected: Boolean = false,
-        /**
-         * The last sync reached the sequence number the bridge said it held.
-         *
-         * False means the catch-up stopped short of what is there -- a dropped connection
-         * part-way through a long backlog, or a page that failed. Nothing is lost, because
-         * the cursor only advances over what actually landed, but the phone is behind and
-         * should try again rather than wait out the next round.
-         */
-        val caughtUp: Boolean = true
+        val rejected: Boolean = false
     ) {
         /** Only then may the composer offer to send. */
         val canSend: Boolean get() = enabled && bridgeReachable && signalConnected
@@ -57,6 +48,20 @@ interface SignalRepository {
 
     /** Pulls everything after our cursor. Safe to call repeatedly; it is idempotent. */
     fun syncNow(): Int
+
+    /**
+     * Whether the last [syncNow] reached the sequence the bridge said it was holding.
+     *
+     * False means the catch-up stopped short -- a dropped connection part-way through a
+     * backlog, or a page that failed. Nothing is lost, because the cursor only advances over
+     * what actually landed, but the phone is behind and should come back for the rest rather
+     * than wait out the next round.
+     *
+     * Its own answer rather than a flag on [ConnectionState]: nine other things publish that
+     * object, every one of them with this at its default, so a state change between the sync
+     * and the reader would report the opposite of what happened.
+     */
+    fun lastSyncCaughtUp(): Boolean
 
     /** Holds the bridge's event stream open, reconnecting as needed. */
     fun startStream()

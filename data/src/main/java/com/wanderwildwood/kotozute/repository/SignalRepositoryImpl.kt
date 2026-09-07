@@ -326,14 +326,12 @@ class SignalRepositoryImpl @Inject constructor(
                 Timber.w("signal: sync stopped short, cursor=%d bridge=%d",
                     prefs.signalCursor.get(), remote.maxSeq)
             }
-            publishState(
-                reachable = true,
-                signalConnected = remote.signalConnected,
-                error = null,
-                caughtUp = caughtUp
-            )
+            syncCaughtUp = caughtUp
+            publishState(reachable = true, signalConnected = remote.signalConnected, error = null)
         } catch (t: Throwable) {
             Timber.w(t, "signal sync failed")
+            // A sync that threw did not draw level, whatever it managed before it stopped.
+            syncCaughtUp = false
             // Only when nothing better is known. syncNow() runs from other threads -- the
             // conversations screen fires one on every creation -- and one timed-out call
             // used to publish "cannot reach the bridge" straight over a live stream's
@@ -958,6 +956,11 @@ class SignalRepositoryImpl @Inject constructor(
             .sort("date", Sort.ASCENDING)
             .findAllAsync()
 
+    /** Written at the end of a sync, read by the worker that scheduled it. */
+    @Volatile private var syncCaughtUp: Boolean = true
+
+    override fun lastSyncCaughtUp(): Boolean = syncCaughtUp
+
     override fun connectionState(): Observable<SignalRepository.ConnectionState> = state
 
     override fun newIncoming(): Observable<SignalMessage> = incoming
@@ -966,8 +969,7 @@ class SignalRepositoryImpl @Inject constructor(
         reachable: Boolean,
         signalConnected: Boolean,
         error: String?,
-        rejected: Boolean = false,
-        caughtUp: Boolean = true
+        rejected: Boolean = false
     ) {
         state.onNext(
             SignalRepository.ConnectionState(
@@ -977,8 +979,7 @@ class SignalRepositoryImpl @Inject constructor(
                 signalConnected = signalConnected,
                 lastSyncedAt = prefs.signalLastSync.get(),
                 error = error,
-                rejected = rejected,
-                caughtUp = caughtUp
+                rejected = rejected
             )
         )
     }

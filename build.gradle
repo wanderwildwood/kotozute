@@ -18,7 +18,7 @@ buildscript {
     ext.exoplayer_version = "r2.9.0"
     ext.glide_version = "4.16.0"
     ext.junit_version = '4.12'
-    ext.kotlin_version = '1.7.21'
+    ext.kotlin_version = '2.2.20'
     ext.lifecycle_version = '2.1.0'
     ext.material_version = '1.0.0'
     ext.mockito_version = '2.18.3'
@@ -54,7 +54,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.2.2'
+        classpath 'com.android.tools.build:gradle:9.2.1'
         classpath 'com.google.firebase:firebase-crashlytics-gradle:2.5.2'
         classpath 'com.google.gms:google-services:4.3.14'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
@@ -105,6 +105,24 @@ subprojects {
                     option("-target", "8")
                 }
             }
+        }
+    }
+}
+
+// Kotlin 2.x stops defaulting its JVM target to the Java one, and the modules here never all
+// said what they wanted -- two of the five said nothing at all. Rather than write the same
+// pair into each build file, say it once. 1.8 because that is what this project has always
+// compiled to and changing it is a separate decision from upgrading the compiler.
+subprojects {
+    plugins.withId('org.jetbrains.kotlin.android') {
+        android {
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_1_8
+                targetCompatibility JavaVersion.VERSION_1_8
+            }
+        }
+        tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
         }
     }
 }

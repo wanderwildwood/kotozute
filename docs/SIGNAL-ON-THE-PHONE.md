@@ -39,6 +39,40 @@ own classes and concluding "not a Kotlin problem" was wrong, and only building r
 - **Licence.** AGPL §13 permits the combination and leaves the GPL part GPL. What attaches is
   an obligation to offer source to anyone using Desktop Sync — a footer link.
 
+## Then the toolchain was actually upgraded, and it went further than expected
+
+**Realm Java survives Kotlin 2.1 + AGP 8.7.3 + Gradle 8.9.** The whole project compiled --
+every module, kapt and all -- which was the big unknown and is the good news here. Realm Java
+has not been touched upstream since September 2025, so this was not safe to assume.
+
+What it needed on the way: the JVM target said once for every module (Kotlin 2.x stops
+defaulting it, and two of the five modules never said what they wanted).
+
+**But libsignal wants newer than AGP 8.7.** D8 there cannot desugar its Java records:
+*"Attempt to create a global synthetic for 'Record desugaring' without a global-synthetics
+consumer."* `android.enableGlobalSyntheticGeneration=true` does not turn that pipeline on --
+the dexing attributes still report `enableGlobalSynthetics=false`.
+
+**Signal themselves ship on AGP 9.2.1, Kotlin 2.2.20, Gradle 9.4.1** (checked in their own
+build files), with `-Xmx12g`. So the working configuration for this library is AGP 9, not 8.
+
+**AGP 9 is a structural migration, and the Realm question reopens under it.** The first thing
+it says is that `org.jetbrains.kotlin.android` must be removed from every module — Kotlin
+support is built in from AGP 9.0. That is a rewrite of all five build files, and it is
+*before* finding out whether the Realm Gradle plugin, last touched in 2025, works with AGP 9
+at all.
+
+## Where this leaves it
+
+The entry price is an **AGP 9 migration**, and the open question underneath is whether Realm
+survives it. If it does not, route 3 means replacing the persistence layer of the whole app --
+both rails, every screen, the schema and its 22 migrations. That would no longer be "add
+Signal to the app"; it would be rebuilding the app to add Signal.
+
+That question is answerable on this branch, cheaply, before anything else: bump to AGP 9,
+strip the kotlin plugins, and see whether Realm's plugin loads. Worth doing before the battery
+measurement, because a negative answer ends the route regardless of what the battery says.
+
 ## The question this branch has not answered
 
 Whether the phone can hold the Signal websocket without ruining the battery. That is

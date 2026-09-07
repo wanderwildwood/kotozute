@@ -175,6 +175,7 @@ class BridgeClient(private val config: BridgeConfig) {
         val req = authed("${config.baseUrl}/v1/threads/${enc(threadKey)}/send").post(body).build()
         client.newCall(req).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
+            refusedCheck(resp.code, "sending")
             if (!resp.isSuccessful) {
                 val reason = runCatching { JSONObject(text).optString("error") }.getOrNull()
                 throw IOException("send failed (${resp.code}): ${reason ?: text.take(120)}")
@@ -190,6 +191,7 @@ class BridgeClient(private val config: BridgeConfig) {
             .toString().toRequestBody(JSON)
         val req = authed("${config.baseUrl}/v1/threads/${enc(threadKey)}/read").post(body).build()
         client.newCall(req).execute().use { resp ->
+            refusedCheck(resp.code, "the read receipt")
             if (!resp.isSuccessful) throw IOException("markRead failed (${resp.code})")
         }
     }
@@ -258,6 +260,7 @@ class BridgeClient(private val config: BridgeConfig) {
             .toString().toRequestBody(JSON)
         val req = authed("${config.baseUrl}/v1/threads/${enc(threadKey)}/react").post(body).build()
         client.newCall(req).execute().use { resp ->
+            refusedCheck(resp.code, "the reaction")
             if (!resp.isSuccessful) throw IOException("reaction failed (${resp.code})")
         }
     }
@@ -266,6 +269,7 @@ class BridgeClient(private val config: BridgeConfig) {
         val body = JSONObject().put("blocked", blocked).toString().toRequestBody(JSON)
         val req = authed("${config.baseUrl}/v1/threads/${enc(threadKey)}/block").post(body).build()
         client.newCall(req).execute().use { resp ->
+            refusedCheck(resp.code, "the block")
             if (!resp.isSuccessful) throw IOException("block failed (${resp.code})")
         }
     }
@@ -298,9 +302,7 @@ class BridgeClient(private val config: BridgeConfig) {
             var err: Throwable? = null
             try {
                 call.execute().use { resp ->
-                    if (resp.code == 401 || resp.code == 403) {
-                        throw BridgeRejected(resp.code, "the event stream refused us (${resp.code})")
-                    }
+                    refusedCheck(resp.code, "the event stream")
                     if (!resp.isSuccessful) throw IOException("events failed (${resp.code})")
                     val source = resp.body?.source() ?: throw IOException("no body")
                     var data = StringBuilder()
@@ -338,15 +340,25 @@ class BridgeClient(private val config: BridgeConfig) {
     fun fetchAttachment(id: String): ByteArray {
         val req = authed("${config.baseUrl}/v1/attachments/${enc(id)}").build()
         client.newCall(req).execute().use { resp ->
+            refusedCheck(resp.code, "the attachment")
             if (!resp.isSuccessful) throw IOException("attachment ${resp.code}")
             return resp.body?.bytes() ?: throw IOException("empty attachment")
         }
     }
 
+    /**
+     * A refusal means the same thing whatever was being asked for, so every path checks it
+     * before its own error. Without this a rotated token reads as "send failed (401)" in
+     * one place and a pairing problem in another, and only one of those is true.
+     */
+    private fun refusedCheck(code: Int, what: String) {
+        if (code == 401 || code == 403) throw BridgeRejected(code, "$what refused us ($code)")
+    }
+
     private fun getJson(url: String): JSONObject {
         client.newCall(authed(url).build()).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
-            if (resp.code == 401 || resp.code == 403) throw BridgeRejected(resp.code, "$url refused us (${resp.code})")
+            refusedCheck(resp.code, url)
             if (!resp.isSuccessful) throw IOException("${resp.code} from $url")
             return JSONObject(text)
         }

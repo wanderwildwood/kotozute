@@ -580,7 +580,17 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun send(threadKey: String, body: String, attachments: List<String>): Long {
         val cfg = config() ?: throw IllegalStateException("no bridge paired")
-        return BridgeClient(cfg).send(threadKey, body, attachments)
+        try {
+            return BridgeClient(cfg).send(threadKey, body, attachments)
+        } catch (t: Throwable) {
+            // Pressing send is the moment someone is most likely to be looking, and it can
+            // easily come before any poll has noticed. Publish here rather than let them
+            // watch a failure the rest of the app has not heard about yet.
+            if (isTerminalBridgeFailure(t)) {
+                publishState(reachable = false, signalConnected = false, error = t.message, rejected = true)
+            }
+            throw t
+        }
     }
 
     /**

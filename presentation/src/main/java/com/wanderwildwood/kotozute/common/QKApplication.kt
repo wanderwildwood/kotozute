@@ -175,7 +175,10 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // EXPERIMENT (signal-on-the-phone branch): after planting, deliberately. Run before
         // it, Timber has no trees and the answer goes nowhere -- which is how the first
         // attempt at this reported nothing at all.
-        if (com.wanderwildwood.kotozute.BuildConfig.DEBUG) LibsignalSmokeTest.run()
+        // EXPERIMENT: release too, on this branch only. R8 strips what it cannot see being
+        // used, and a native method reached over JNI is exactly that -- so whether libsignal
+        // survives minification is a question the debug build cannot answer.
+        LibsignalSmokeTest.run()
 
         // configure emoji compatibility with bundled package
         // (bundled library works with no play-services/gsm os versions)

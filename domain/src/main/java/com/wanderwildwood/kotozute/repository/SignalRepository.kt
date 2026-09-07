@@ -23,7 +23,14 @@ interface SignalRepository {
         /** The bridge says signal-cli is connected to Signal. */
         val signalConnected: Boolean,
         val lastSyncedAt: Long,
-        val error: String? = null
+        val error: String? = null,
+        /**
+         * The bridge answered and refused us -- a wrong token, or a pairing that was
+         * revoked. Distinct from [bridgeReachable] being false, which is the ordinary
+         * case of a host that is switched off and will come back on its own. This one
+         * will not, so it is the only state worth interrupting anybody about.
+         */
+        val rejected: Boolean = false
     ) {
         /** Only then may the composer offer to send. */
         val canSend: Boolean get() = enabled && bridgeReachable && signalConnected

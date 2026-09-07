@@ -317,7 +317,21 @@ class SignalRepositoryImpl @Inject constructor(
             }
 
             prefs.signalLastSync.set(System.currentTimeMillis())
-            publishState(reachable = true, signalConnected = remote.signalConnected, error = null)
+            // Did the catch-up actually reach what the bridge said it was holding? The loop
+            // above ends either because it drew level or because a page stopped early, and
+            // those two look identical from outside. Saying which lets the worker try again
+            // now instead of leaving the phone quietly behind until the next round.
+            val caughtUp = prefs.signalCursor.get() >= remote.maxSeq
+            if (!caughtUp) {
+                Timber.w("signal: sync stopped short, cursor=%d bridge=%d",
+                    prefs.signalCursor.get(), remote.maxSeq)
+            }
+            publishState(
+                reachable = true,
+                signalConnected = remote.signalConnected,
+                error = null,
+                caughtUp = caughtUp
+            )
         } catch (t: Throwable) {
             Timber.w(t, "signal sync failed")
             // Only when nothing better is known. syncNow() runs from other threads -- the
@@ -952,7 +966,8 @@ class SignalRepositoryImpl @Inject constructor(
         reachable: Boolean,
         signalConnected: Boolean,
         error: String?,
-        rejected: Boolean = false
+        rejected: Boolean = false,
+        caughtUp: Boolean = true
     ) {
         state.onNext(
             SignalRepository.ConnectionState(
@@ -962,7 +977,8 @@ class SignalRepositoryImpl @Inject constructor(
                 signalConnected = signalConnected,
                 lastSyncedAt = prefs.signalLastSync.get(),
                 error = error,
-                rejected = rejected
+                rejected = rejected,
+                caughtUp = caughtUp
             )
         )
     }

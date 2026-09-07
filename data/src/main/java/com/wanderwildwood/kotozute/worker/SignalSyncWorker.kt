@@ -1,6 +1,7 @@
 package com.wanderwildwood.kotozute.worker
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -38,10 +39,22 @@ class SignalSyncWorker(appContext: Context, params: WorkerParameters) : Worker(a
 
         return runCatching { signalRepo.syncNow() }
             .fold(
-                onSuccess = { Result.success() },
+                onSuccess = {
+                    // Drawing level is the point of the round, so a round that stopped short
+                    // asks for another rather than leaving the phone behind for the next
+                    // fifteen minutes. WorkManager backs this off on its own and the request
+                    // already carries a network constraint, so it is a retry, not a spin.
+                    when (signalRepo.connectionState().blockingFirst().caughtUp) {
+                        true -> Result.success()
+                        false -> Result.retry()
+                    }
+                },
                 onFailure = { t ->
-                    // The bridge being unreachable is ordinary — a laptop that is off, a phone
-                    // off the network — and not something to retry in a tight loop over.
+                    // Still not a retry. A host that is off is the ordinary case and stays
+                    // off for hours; asking WorkManager to back off over it would push the
+                    // next attempt further out than the fifteen-minute round it replaced,
+                    // which is the opposite of the point. The round is the right instrument
+                    // for "come back later"; retry is for "come back now".
                     Timber.d(t, "signal: periodic sync could not reach the bridge")
                     Result.success()
                 }
@@ -66,6 +79,10 @@ class SignalSyncWorker(appContext: Context, params: WorkerParameters) : Worker(a
                 WORKER_TAG,
                 ExistingPeriodicWorkPolicy.KEEP,
                 PeriodicWorkRequest.Builder(SignalSyncWorker::class.java, 15, TimeUnit.MINUTES)
+                    // Linear and short, because the only thing that asks for a retry is a
+                    // catch-up that stopped short of a bridge which is up and holding more.
+                    // That wants trying again in a moment, not in an hour.
+                    .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.SECONDS)
                     .setConstraints(
                         Constraints.Builder()
                             .setRequiredNetworkType(NetworkType.CONNECTED)

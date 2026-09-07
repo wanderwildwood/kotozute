@@ -62,6 +62,34 @@ support is built in from AGP 9.0. That is a rewrite of all five build files, and
 *before* finding out whether the Realm Gradle plugin, last touched in 2025, works with AGP 9
 at all.
 
+## Under AGP 9: Realm's plugin does load
+
+The gate was "does Realm survive AGP 9", and as far as the build has gone, yes.
+
+Getting there took two things. AGP 9 refuses `kotlin-android` (Kotlin support is built in) and
+then refuses `kotlin-kapt` alongside it. Every annotation processor here runs through kapt --
+Dagger, Glide, Realm -- and none has a KSP path on the pinned versions, so the built-in
+support is declined instead: `android.builtInKotlin=false` and `android.newDsl=false`, which
+AGP documents for exactly this. With that, `apply plugin: 'realm-android'` applies without
+complaint under **AGP 9.2.1, Gradle 9.4.1, Kotlin 2.2.20**.
+
+**Be precise about what that proves.** The plugin *applies*. Whether Realm's bytecode
+transformer runs correctly under AGP 9's pipeline is still unknown, because the build has not
+reached it — it is still failing in this project's own build files. Plugin application is not
+a working build, and the difference is where an EOL plugin would be expected to break.
+
+What is failing now is an ordinary AGP 9 DSL migration, one removal at a time:
+
+- `archivesBaseName` is gone from `defaultConfig` → moved to the `base` extension. Worth care:
+  the APK name is load-bearing, since the release workflow and every published checksum are
+  keyed to `kotozute-v<version>`.
+- `proguardFiles getDefaultProguardFile(...)` is the next one, and there will be more.
+- Realm's annotation processor is declared on `annotationProcessor` somewhere as well as
+  `kapt`, which AGP 9 warns about.
+
+That is bounded, tedious work rather than a wall — but it is a migration of this project's
+build, and it should be done deliberately rather than as a side effect of an experiment.
+
 ## Where this leaves it
 
 The entry price is an **AGP 9 migration**, and the open question underneath is whether Realm

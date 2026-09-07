@@ -114,7 +114,7 @@ subprojects {
 // pair into each build file, say it once. 1.8 because that is what this project has always
 // compiled to and changing it is a separate decision from upgrading the compiler.
 subprojects {
-    plugins.withId('org.jetbrains.kotlin.android') {
+    plugins.withId('com.android.base') {
         android {
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_1_8

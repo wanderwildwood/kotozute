@@ -279,6 +279,10 @@ dependencies {
     // all? libsignal's classes are Java 21 bytecode and AGP here is 8.2.2. Nothing uses it
     // yet -- this is here to find out what actually breaks, not to build anything.
     implementation 'org.signal:libsignal-android:0.102.0'
+    // EXPERIMENT: the service layer signal-cli builds on. It is a JVM library, not an Android
+    // one -- it asks for okhttp-jvm 5.0.0-alpha and Jackson, and pins libsignal-client 0.76.0
+    // against the 0.102.0 above. Adding it to find out what that collision actually costs.
+    implementation 'com.github.turasa:signal-service-java:2.15.3_unofficial_126'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
     implementation project(':data')

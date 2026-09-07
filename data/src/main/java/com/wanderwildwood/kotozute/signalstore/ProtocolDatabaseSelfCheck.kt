@@ -2,6 +2,9 @@ package com.wanderwildwood.kotozute.signalstore
 
 import android.content.Context
 import org.signal.libsignal.protocol.IdentityKeyPair
+import org.signal.libsignal.protocol.InvalidKeyIdException
+import org.signal.libsignal.protocol.ecc.ECKeyPair
+import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.IdentityKeyStore
 import org.signal.libsignal.protocol.state.SessionRecord
 import java.security.SecureRandom
@@ -66,8 +69,40 @@ object ProtocolDatabaseSelfCheck {
             sessions.deleteAllSessions("+15550002222")
             val deletedAll = sessions.getSubDeviceSessions("+15550002222").isEmpty()
 
+            // Pre keys. The behaviour that matters is the asymmetry between a one-time key
+            // and a last-resort one: consuming the first must delete it, consuming the second
+            // must not, or the account loses the fallback it exists to have.
+            val aci = ProtocolDatabase.ACCOUNT_ID_TYPE_ACI
+            val preKeys = SignalPreKeyStore(db, aci)
+            val signed = SignalSignedPreKeyStore(db, aci)
+            val kyber = SignalKyberPreKeyStore(db, aci)
+            val idKeys = IdentityKeyPair.generate()
+
+            preKeys.storePreKey(7, PreKeyRecord(7, ECKeyPair.generate()))
+            val preKeyRoundTrips = preKeys.loadPreKey(7).id == 7
+            preKeys.removePreKey(7)
+            val oneTimeConsumed = !preKeys.containsPreKey(7)
+            val missingPreKeyThrows =
+                try { preKeys.loadPreKey(999); false } catch (e: InvalidKeyIdException) { true }
+
+            val sp = KeyUtilsForCheck.signedPreKey(11, idKeys.privateKey)
+            signed.storeSignedPreKey(11, sp)
+            val signedKeepsTimestamp = signed.loadSignedPreKey(11).timestamp == sp.timestamp
+
+            val oneTime = KeyUtilsForCheck.kyberPreKey(21, idKeys.privateKey)
+            val lastResort = KeyUtilsForCheck.kyberPreKey(22, idKeys.privateKey)
+            kyber.storeKyberPreKey(21, oneTime)
+            kyber.storeLastResortKyberPreKey(22, lastResort)
+            kyber.markKyberPreKeyUsed(21, 11, idKeys.publicKey.publicKey)
+            kyber.markKyberPreKeyUsed(22, 11, idKeys.publicKey.publicKey)
+            val kyberOneTimeGone = !kyber.containsKyberPreKey(21)
+            val lastResortSurvives = kyber.containsKyberPreKey(22)
+
             db.close()
-            "${tables.size} tables, seeded=$identities | sessions: empty-not-null=$unknownIsEmptyNotNull " +
+            "${tables.size} tables, seeded=$identities | prekeys: roundtrip=$preKeyRoundTrips " +
+                "onetime-consumed=$oneTimeConsumed missing-throws=$missingPreKeyThrows " +
+                "signed-keeps-timestamp=$signedKeepsTimestamp kyber-onetime-consumed=$kyberOneTimeGone " +
+                "last-resort-survives=$lastResortSurvives | sessions: empty-not-null=$unknownIsEmptyNotNull " +
                 "row-without-chain-not-usable=$rowExistsButNotUsable subdevices-exclude-primary=$subDevicesExcludePrimary " +
                 "missing-throws=$missingSessionThrows delete-all=$deletedAll | trust: first-sighting=$trustedOnFirstSighting " +
                 "changed-refused-on-receive=$changedKeyRefusedOnReceive " +

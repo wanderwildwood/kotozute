@@ -319,6 +319,39 @@ account, and anyone who scans it before it expires becomes a device on it.
 - Realm was exercised lightly: one SMS in, one list rendered. The encryption migration and the
   Signal rail were not re-run under the new toolchain.
 
+## The protocol store, and a bug that hid inside a passing test
+
+The nine tables, the six stores, and the `SignalServiceAccountDataStore` facade over them all
+run on device; the self-check makes 25 assertions and they pass. Two things are worth writing
+down because neither would have been found by reading the code.
+
+**`rawQuery` does not bind a `ByteArray` as a blob.** `execSQL` does. So a row written with a
+16-byte `distribution_id` was in the table -- verified, `typeof` = blob, `length` = 16 -- and
+`WHERE distribution_id = ?` with the same bytes matched nothing at all. Nothing throws. The
+argument is bound as its `toString()`, `[B@1f2e3d`, and the row is simply never found.
+Measured on device, the identical lookup returned **2 rows as an `x'...'` literal and 0 as a
+bound argument**.
+
+The reason this matters beyond one query: `SignalSenderKeyStore.loadSenderKey` had it too, and
+its self-check passed. That check asserted only that an *unknown* sender key comes back null --
+which it does, whether lookups work or not. A store can pass every check it has and still be
+unable to find anything it wrote. Downstream that is every group message failing to decrypt,
+with nothing pointing here. The check now stores a real sender key through
+`GroupSessionBuilder` and reads it back, which is the assertion that would have caught it.
+
+**The stale-key sweep keeps back the newest keys counting fresh ones first.** signal-cli ranks
+*all* of an account's keys, `stale_timestamp IS NULL` sorting ahead, and keeps the top
+`minCount`. The obvious reading -- rank only the stale keys -- protects the newest stale keys
+permanently, so they are never swept: the table grows without bound and keys the server has
+long since retired stay usable locally. Written wrong first, then corrected against
+signal-cli's SQL and pinned with a test that discriminates the two (five stale, three fresh,
+keep three: all five stale must go).
+
+**`archiveSession` completes.** It is the one operation that reaches from the session store
+into the sender-key-shared table, from inside a libsignal callback that already holds the
+store lock. That it returns rather than deadlocking is the single reentrant lock in
+`ProtocolDatabase` doing the job it was chosen for, and it is now asserted rather than assumed.
+
 ## Where this leaves it
 
 The entry price is an **AGP 9 migration**, and the open question underneath is whether Realm

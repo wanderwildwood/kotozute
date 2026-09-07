@@ -76,3 +76,49 @@ class ProtocolDatabase(
         }
     }
 }
+
+/**
+ * Takes the store's one lock for the duration of [body].
+ *
+ * Every store method goes through here. The lock is reentrant because libsignal will call back
+ * into a store from inside an operation that already holds it -- see [ProtocolDatabase.lock].
+ */
+internal inline fun <T> withStoreLock(db: ProtocolDatabase, body: () -> T): T {
+    db.lock.lock()
+    try {
+        return body()
+    } finally {
+        db.lock.unlock()
+    }
+}
+
+/**
+ * A UUID as 16 raw bytes, big-endian, matching signal-cli's `UuidUtil.toByteArray`.
+ *
+ * Distribution ids are stored as BLOBs, and the text form would simply never match a lookup --
+ * surfacing as group messages that fail to decrypt rather than as an error pointing here.
+ */
+internal fun java.util.UUID.toByteArray(): ByteArray =
+    java.nio.ByteBuffer.allocate(16)
+        .putLong(mostSignificantBits)
+        .putLong(leastSignificantBits)
+        .array()
+
+/**
+ * The same 16 bytes as a SQL blob literal, `x'...'`, for use inline in a query.
+ *
+ * Necessary, not stylistic. `execSQL` binds a `ByteArray` argument as a blob, but `rawQuery`
+ * binds it as its `toString()` -- `[B@1f2e3d` -- so `WHERE distribution_id = ?` with a byte
+ * array silently matches nothing. Nothing throws; the row is simply never found. Measured on
+ * device: the same lookup returns 2 rows as a literal and 0 as a bound argument.
+ *
+ * That failure is invisible in exactly the tests one writes first. A lookup for a key that was
+ * never stored returns null either way, so a store can pass its round of checks and still be
+ * unable to find anything it wrote. Downstream it surfaces as group messages that will not
+ * decrypt, a long way from here.
+ *
+ * Safe to interpolate: the output is 32 hex characters derived from a UUID's own bytes, so
+ * there is no path by which caller data reaches the SQL.
+ */
+internal fun java.util.UUID.toSqlBlobLiteral(): String =
+    toByteArray().joinToString(separator = "", prefix = "x'", postfix = "'") { "%02x".format(it) }

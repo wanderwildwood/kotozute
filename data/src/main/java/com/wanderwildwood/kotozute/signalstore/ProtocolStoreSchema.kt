@@ -157,6 +157,25 @@ internal object ProtocolStoreSchema {
         ) STRICT;
     """
 
+    /**
+     * Who already has each sender key.
+     *
+     * Separate from [SENDER_KEY] because it answers a different question: that table holds the
+     * keys themselves, this one records which devices have been *given* one. Sending a group
+     * message means distributing the key to anyone not in here first -- and a row wrongly
+     * present means a device that never receives the key and silently cannot read the group.
+     */
+    const val SENDER_KEY_SHARED = """
+        CREATE TABLE sender_key_shared (
+          _id INTEGER PRIMARY KEY,
+          address TEXT NOT NULL,
+          device_id INTEGER NOT NULL,
+          distribution_id BLOB NOT NULL,
+          timestamp INTEGER NOT NULL,
+          UNIQUE(address, device_id, distribution_id)
+        ) STRICT;
+    """
+
     /** Order matters only in that account_identity is seeded after account exists. */
     val ALL = listOf(
         ACCOUNT,
@@ -166,7 +185,8 @@ internal object ProtocolStoreSchema {
         SIGNED_PRE_KEY,
         KYBER_PRE_KEY,
         SESSION,
-        SENDER_KEY
+        SENDER_KEY,
+        SENDER_KEY_SHARED
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

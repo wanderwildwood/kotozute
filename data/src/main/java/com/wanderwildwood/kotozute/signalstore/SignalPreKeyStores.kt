@@ -221,13 +221,3 @@ private fun ProtocolDatabase.exists(table: String, accountIdType: Int, keyId: In
         "SELECT 1 FROM $table WHERE account_id_type = ? AND key_id = ?",
         arrayOf(accountIdType.toString(), keyId.toString())
     ).use { it.moveToFirst() }
-
-/** The one store-wide lock, not a lock per store. See ProtocolDatabase. */
-private inline fun <T> withStoreLock(db: ProtocolDatabase, body: () -> T): T {
-    db.lock.lock()
-    try {
-        return body()
-    } finally {
-        db.lock.unlock()
-    }
-}

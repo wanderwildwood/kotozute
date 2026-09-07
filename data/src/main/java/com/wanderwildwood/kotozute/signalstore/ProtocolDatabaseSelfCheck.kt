@@ -105,6 +105,13 @@ object ProtocolDatabaseSelfCheck {
             val groupSender = org.signal.libsignal.protocol.SignalProtocolAddress("+15550003333", 1)
             val distributionId = java.util.UUID.randomUUID()
             val unknownSenderKeyIsNull = senderKeys.loadSenderKey(groupSender, distributionId) == null
+            // And a stored one must come back. Worth stating separately because the not-found
+            // case passes even when lookups are wholly broken -- which they were: rawQuery
+            // binds a byte array as its toString(), so matching on the BLOB distribution id
+            // found nothing at all. Asserting only the null case hid that completely.
+            org.signal.libsignal.protocol.groups.GroupSessionBuilder(senderKeys)
+                .create(groupSender, distributionId)
+            val storedSenderKeyIsFound = senderKeys.loadSenderKey(groupSender, distributionId) != null
 
             // The account. The behaviour worth pinning is that allocation advances the
             // counter and writes the keys as one transaction -- the case the research warned
@@ -125,10 +132,49 @@ object ProtocolDatabaseSelfCheck {
             account.allocatePreKeyIds(aci, 3) { ids -> next = ids }
             val idsDoNotRepeat = allocated.intersect(next.toSet()).isEmpty()
 
+
+            // The facade -- the object the service layer is actually handed. Three things are
+            // checked here because all three fail silently in the field.
+            val facade = SignalAccountDataStore(
+                db, aci, SignalIdentityKeyStore(db, aci), sessions, preKeys, signed, kyber, senderKeys
+            )
+            val dId = org.whispersystems.signalservice.api.push.DistributionId.from(distributionId)
+
+            // 1. Sender-key sharing round-trips through a BLOB distribution id. A row wrongly
+            //    absent re-sends a key needlessly; a row wrongly present means a device that
+            //    never receives one and quietly cannot read the group.
+            facade.markSenderKeySharedWith(dId, listOf(a1, a2))
+            val sharingRoundTrips = facade.getSenderKeySharedWith(dId) == setOf(a1, a2)
+            // 2. archiveSession forgets that sharing. This is the cross-store call inside a
+            //    libsignal callback that the single reentrant lock exists for: it completing
+            //    at all is half the assertion.
+            sessions.storeSession(a1, SessionRecord())
+            val archiveClearsSharing = try {
+                facade.archiveSession(a1)
+                facade.getSenderKeySharedWith(dId) == setOf(a2)
+            } catch (e: Exception) {
+                false
+            }
+            facade.clearSenderKeySharedWith(listOf(a2))
+            val clearedAll = facade.getSenderKeySharedWith(dId).isEmpty()
+
+            // 3. Stale sweeping keeps back the newest keys counting FRESH ones first. Ranking
+            //    only the stale keys instead -- the obvious reading -- protects the newest
+            //    stale keys forever, so they are never swept and retired keys stay usable.
+            //    Five stale, three fresh, keep three: all five stale must go.
+            (100..104).forEach { preKeys.storePreKey(it, PreKeyRecord(it, ECKeyPair.generate())) }
+            facade.markAllOneTimeEcPreKeysStaleIfNecessary(1_000L)
+            (105..107).forEach { preKeys.storePreKey(it, PreKeyRecord(it, ECKeyPair.generate())) }
+            facade.deleteAllStaleOneTimeEcPreKeys(2_000L, 3)
+            val staleSwept = (100..104).none { preKeys.containsPreKey(it) } &&
+                (105..107).all { preKeys.containsPreKey(it) }
+
             db.close()
-            "${tables.size} tables, seeded=$identities | account: empty-before-link=$beforeLink " +
+            "${tables.size} tables, seeded=$identities | facade: sharing-roundtrip=$sharingRoundTrips " +
+                "archive-clears-sharing=$archiveClearsSharing cleared-all=$clearedAll stale-swept=$staleSwept " +
+                "| account: empty-before-link=$beforeLink " +
                 "credentials=$credentialsRoundTrip identity=$identityRoundTrip regid=$registrationIdKept " +
-                "ids-do-not-repeat=$idsDoNotRepeat | senderkeys: unknown-is-null=$unknownSenderKeyIsNull " +
+                "ids-do-not-repeat=$idsDoNotRepeat | senderkeys: unknown-is-null=$unknownSenderKeyIsNull found-after-store=$storedSenderKeyIsFound " +
                 "| prekeys: roundtrip=$preKeyRoundTrips " +
                 "onetime-consumed=$oneTimeConsumed missing-throws=$missingPreKeyThrows " +
                 "signed-keeps-timestamp=$signedKeepsTimestamp kyber-onetime-consumed=$kyberOneTimeGone " +

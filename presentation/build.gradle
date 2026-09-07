@@ -17,6 +17,7 @@
  * along with QKSMS.  If not, see <http://www.gnu.org/licenses/>.
  */
 apply plugin: 'com.android.application'
+apply plugin: 'base'
 apply plugin: 'realm-android' // Realm needs to be before Kotlin or the build will fail
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
@@ -36,6 +37,13 @@ if (realSigningPropsFile.isFile()) {
     realSigningPropsFile.withInputStream { realSigningProps.load(it) }
 }
 
+// AGP 9 removed archivesBaseName from defaultConfig. The APK name is load-bearing -- the
+// release workflow and every published checksum are keyed to `kotozute-v<version>` -- so it
+// moves to the base extension rather than being dropped.
+base {
+    archivesName = "kotozute-v${project.findProperty('appVersionName') ?: '1.0.1'}"
+}
+
 android {
     compileSdk 34
 
@@ -50,7 +58,6 @@ android {
         // (Reset to 1.0.0 for this fork's first release; upstream InkMessage was at 0.0.4.)
         versionCode project.findProperty('appVersionCode')?.toInteger() ?: 2
         versionName project.findProperty('appVersionName') ?: '1.0.1'
-        setProperty("archivesBaseName", "kotozute-v${versionName}")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 

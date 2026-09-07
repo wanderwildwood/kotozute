@@ -352,6 +352,53 @@ into the sender-key-shared table, from inside a libsignal callback that already 
 store lock. That it returns rather than deadlocking is the single reentrant lock in
 `ProtocolDatabase` doing the job it was chosen for, and it is now asserted rather than assumed.
 
+## It links. Device 3 on the real account, with no bridge in the path.
+
+The whole exchange runs against Signal's own servers, with signal-cli on a server as the
+primary redeeming the URL. Confirmed from the primary's own `listDevices`: **id 3, name
+"kotozute"** — which also proves `encryptDeviceName` round-trips, since the primary decrypted
+it. After a force-stop the app reports `already linked`, so the sealed key unseals and the
+encrypted store reads back across a process death.
+
+This is the thing the branch existed to answer. The bridge is no longer structurally required.
+
+Two obstacles, both of which cost a round trip and neither of which is visible in the code:
+
+**`ProvisioningSocket.start` looks synchronous and is not.** It launches the block on a scope
+of its own and returns a `Closeable` that **cancels that scope**. So the obvious `.use { }`
+around it closes the socket before the block has run. The symptom is a link that fails
+instantly, with no URL and no error — it points nowhere, because nothing failed; the socket
+was simply cancelled. It is now awaited through `suspendCancellableCoroutine`, closed once, on
+whichever path finishes first.
+
+**A linked device must declare all six capabilities.** All false — the value that looks like
+"claim nothing until it is implemented" — is refused outright with `MissingCapability`, not
+degraded. `storage`, `versionedExpirationTimer`, `attachmentBackfill`, `spqr`,
+`usernameChangeSyncMessage`, `optionalPhoneNumber`. There is no honest smaller claim to make:
+the server will not admit a device that does not speak them. They are promises the app now
+owes, and where it does not yet keep one, that is a gap to close rather than a flag to unset.
+
+### What is linked, and what that device still cannot do
+
+It registered with one signed pre key and one last-resort Kyber key per identity, and **no
+one-time pre keys** — the batch of 100 is a separate upload, and `KeysApi` needs an
+authenticated websocket, which does not exist here yet. So new sessions with this device fall
+back to the last-resort key. It works; it is the degraded path.
+
+That authenticated websocket is the next milestone, and it is the same machinery the receive
+pipeline needs — so pre keys, receiving and sending all arrive behind one piece of work rather
+than three.
+
+### The linked device is an emulator, on purpose
+
+Not the phone. The phone's release build owns the SMS role, and a debug build sideloaded
+beside it asks for that role — on the emulator it put up `RequestRoleActivity` and blocked
+startup until it was answered. Doing that to the daily driver to save writing a QR screen is
+the wrong trade. The phone gets linked when there is a real screen in a real build.
+
+⚠ **Device 3 is a live device on the account** and it never fetches. Harmless, and removable
+from the primary at any time (`removeDevice`), but it is there.
+
 ## Where this leaves it
 
 The entry price is an **AGP 9 migration**, and the open question underneath is whether Realm

@@ -156,6 +156,22 @@ Worth stating plainly, since it was the thing being tested: **libsignal was neve
 It survived minification untouched. Everything that broke was this app's existing machinery
 meeting an optimiser it had not met before.
 
+### Regression-checked, on the minified branch build
+
+Everything master does, this branch still does — checked rather than assumed, because R8 now
+optimises differently and Realm has hand-written keep rules holding it up:
+
+- **71 unit tests, zero failures** on Kotlin 2.2 / AGP 9.
+- **The encryption migration still works.** Published 1.11.1 upgraded in place by this
+  branch's minified release: 2 readable hits → 0, marker set, both conversations intact,
+  first launch 1502 ms, no crash.
+- **The Signal rail still syncs.** Paired against a real bridge and pulled the whole 20,000
+  message backlog — 102 requests, 100 `/v1/changes` calls — with certificate pinning, OkHttp
+  and the JSON parsing all under minification. Threads render with their badge.
+
+That last one mattered most: pinning, HTTP and reflective JSON are the classic R8 casualties,
+and this app had just changed optimiser behaviour underneath them.
+
 ### What this does not show
 
 - **No Signal code exists.** libsignal is linked and unused. This says the toolchain and the

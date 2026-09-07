@@ -172,6 +172,34 @@ optimises differently and Realm has hand-written keep rules holding it up:
 That last one mattered most: pinning, HTTP and reflective JSON are the classic R8 casualties,
 and this app had just changed optimiser behaviour underneath them.
 
+### The service layer resolves — and drags a JVM dependency set onto Android
+
+`com.github.turasa:signal-service-java:2.15.3_unofficial_126` — the layer signal-cli builds on
+— adds to the project and compiles. But read its POM before celebrating:
+
+| it wants | the app has |
+|---|---|
+| `okhttp-jvm` **5.0.0-alpha.16** | `okhttp` 4.10.0 |
+| `libsignal-client` **0.76.0** | 0.102.0, via the AAR |
+| `jackson-databind` + `jackson-module-kotlin` 2.19.1 | nothing |
+| `libphonenumber` 8.13.50 | nothing |
+
+**Gradle resolves both conflicts upward and says nothing.** The app would be built against an
+**alpha** OkHttp 5 in place of the 4.10.0 its bridge client was written for, and the service
+layer would run against libsignal 0.102 having been compiled against 0.76 — twenty-six minor
+versions adrift.
+
+It survives a smoke test: the app starts, libsignal signs and verifies, and the bridge client
+made pinned HTTPS requests under OkHttp 5 alpha without a `NoSuchMethod` in sight. That is
+three requests, not a validation — the SSE streaming path was not exercised, and an alpha
+dependency under an app that pins certificates deserves more than a glance.
+
+The deeper point is what the POM says about shape: **this is a JVM library, and Signal-Android
+does not use it.** Signal vendors its own service layer into the app. Jackson in particular is
+heavy and reflective, which is precisely what R8 has already been shown to mishandle here.
+"You would not reimplement the service layer" — which is what I said earlier — is true only if
+you accept that dependency set.
+
 ### What this does not show
 
 - **No Signal code exists.** libsignal is linked and unused. This says the toolchain and the

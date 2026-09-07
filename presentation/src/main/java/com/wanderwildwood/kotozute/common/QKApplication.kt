@@ -54,6 +54,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
+import com.wanderwildwood.kotozute.common.util.RealmEncryption
 
 class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverInjector, HasServiceInjector {
 
@@ -85,11 +86,40 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         appComponent.inject(this)
 
         Realm.init(this)
-        Realm.setDefaultConfiguration(RealmConfiguration.Builder()
-                .compactOnLaunch()
-                .migration(realmMigration)
-                .schemaVersion(QkRealmMigration.SCHEMA_VERSION)
-                .build())
+
+        // One builder, used three times: to read the plaintext database during the one-time
+        // conversion, to prove the encrypted copy opens, and to install the real thing. They
+        // have to agree on schema and migration or the conversion would be reading a
+        // different database from the one the app goes on to use.
+        val realmConfig = {
+            RealmConfiguration.Builder()
+                    .compactOnLaunch()
+                    .migration(realmMigration)
+                    .schemaVersion(QkRealmMigration.SCHEMA_VERSION)
+        }
+
+        val key = RealmEncryption.keyOrNull(this)
+        if (key != null) RealmEncryption.encryptExistingRealm(this, key, realmConfig)
+
+        // Ask what is actually on disk rather than assuming the conversion ran. It declines
+        // rather than risks anything, and opening a plaintext file with a key fails just as
+        // surely as opening an encrypted one without.
+        Realm.setDefaultConfiguration(
+                realmConfig()
+                        .apply { if (key != null && RealmEncryption.isEncrypted(this@QKApplication)) encryptionKey(key) }
+                        .build()
+        )
+
+        // A keystore that lost its key leaves a database nobody can read. Both rails can be
+        // filled again from elsewhere, so starting over beats an app that will not open.
+        runCatching { Realm.getDefaultInstance().use { it.isEmpty } }.onFailure {
+            RealmEncryption.discardUnreadableRealm(this)
+            val fresh = RealmEncryption.keyOrNull(this)
+            if (fresh != null) RealmEncryption.encryptExistingRealm(this, fresh, realmConfig)
+            Realm.setDefaultConfiguration(
+                    realmConfig().apply { if (fresh != null) encryptionKey(fresh) }.build()
+            )
+        }
 
         qkMigration.performMigration()
 

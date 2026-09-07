@@ -96,7 +96,7 @@ android {
         release {
             minifyEnabled true
             shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (realSigningProps != null) signingConfig signingConfigs.release
         }
         debug {
@@ -109,7 +109,7 @@ android {
         fdroid {
             minifyEnabled true
             shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (realSigningProps != null) signingConfig signingConfigs.release
             matchingFallbacks = ['release']
             applicationIdSuffix ".fdroid"
@@ -134,9 +134,26 @@ android {
         checkReleaseBuilds false
     }
     namespace 'com.wanderwildwood.kotozute'
+    packaging {
+        // libsignal ships far more than an Android app can use. The testing library is a
+        // second full copy of the engine; the .dylib files are macOS builds that arrive
+        // through the JVM jar's resources and can never load here. Left in, they take the
+        // APK past a gigabyte.
+        jniLibs {
+            excludes += ['**/libsignal_jni_testing*']
+        }
+        resources {
+            excludes += ['**/*.dylib', '**/*.dll', 'libsignal_jni*', 'signal_jni*']
+        }
+    }
+
     buildFeatures {
         buildConfig true
         viewBinding true
+        // Off by default from AGP 9, and this project uses them: the debug build type sets
+        // resource values. Silently disabled, they would not fail — they would just stop
+        // existing, which is the worse outcome.
+        resValues true
     }
 //    if (System.getenv("CI") == "true") {
 //        signingConfigs.release.storePassword = System.getenv("keystore_password")

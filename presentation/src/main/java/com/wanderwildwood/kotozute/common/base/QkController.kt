@@ -28,7 +28,8 @@ import com.bluelinelabs.conductor.archlifecycle.LifecycleController
 import com.wanderwildwood.kotozute.common.widget.QkTextView
 import com.wanderwildwood.kotozute.R
 
-abstract class QkController<ViewContract : QkViewContract<State>, State, Presenter : QkPresenter<ViewContract, State>> : LifecycleController() {
+// `State : Any` follows QkPresenter, which now requires it.
+abstract class QkController<ViewContract : QkViewContract<State>, State : Any, Presenter : QkPresenter<ViewContract, State>> : LifecycleController() {
 
     abstract var presenter: Presenter
 

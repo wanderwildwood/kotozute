@@ -10,6 +10,8 @@ import org.signal.network.config.SignalServiceUrl
 import org.signal.network.config.SignalStorageUrl
 import org.signal.network.config.SignalSvr2Url
 import org.signal.network.config.TrustStore
+import org.signal.libsignal.metadata.certificate.CertificateValidator
+import org.signal.libsignal.protocol.ecc.ECPublicKey
 import java.io.InputStream
 import java.util.Base64
 import java.util.Optional
@@ -75,6 +77,25 @@ object SignalNetworkConfig {
      * `src/main/resources` into the APK -- and which means this needs no Context, so the
      * configuration stays a plain object.
      */
+    /**
+     * The roots that sign sender certificates, for sealed sender.
+     *
+     * **Two, not one, and both are current.** Signal rotated the root and kept the old one
+     * valid, so a certificate may be signed by either. Carrying only the newer would reject
+     * every message from a sender whose certificate predates the rotation -- as an
+     * `InvalidMetadataMessageException`, which reads like a corrupt message rather than a
+     * missing key.
+     *
+     * These are the trust anchors for *who sent a message* when the envelope deliberately does
+     * not say. Without them there is no sealed sender at all, only the identified path.
+     */
+    private val unidentifiedSenderTrustRoots: List<ECPublicKey> = listOf(
+        "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF",
+        "BUkY0I+9+oPgDCn4+Ac6Iu813yvqkDr/ga8DzLxFxuk6"
+    ).map { ECPublicKey(Base64.getDecoder().decode(it)) }
+
+    fun certificateValidator(): CertificateValidator = CertificateValidator(unidentifiedSenderTrustRoots)
+
     private val trustStore = object : TrustStore {
         override fun getKeyStoreInputStream(): InputStream =
             requireNotNull(SignalNetworkConfig::class.java.getResourceAsStream("/com/wanderwildwood/kotozute/signalnet/whisper.store")) {

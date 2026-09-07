@@ -46,11 +46,19 @@ object SignalLinkTrial {
             // Already a device on the account, so the marker means the other half of linking:
             // publish a batch of one-time pre keys. Safe to repeat -- a fresh batch replaces
             // what the server holds rather than adding to it.
-            Timber.i("signal link: already linked; uploading pre keys")
+            Timber.i("signal link: already linked; publishing keys, then receiving")
             CoroutineScope(Dispatchers.IO).launch {
+                // Keys first. Receiving before the server and this device agree on the
+                // repeated-use keys just produces undecryptable envelopes, and they are acked
+                // on the way past -- so the order matters more than it looks.
                 runCatching { store.uploadPreKeys(SignalNetworkConfig.USER_AGENT) }
                     .onSuccess { Timber.i("signal keys: %s", it) }
                     .onFailure { Timber.e(it, "signal keys: threw") }
+                runCatching {
+                    store.receive(SignalNetworkConfig.USER_AGENT, SignalNetworkConfig.certificateValidator())
+                }
+                    .onSuccess { Timber.i("signal receive: %s", it) }
+                    .onFailure { Timber.e(it, "signal receive: threw") }
             }
             return
         }

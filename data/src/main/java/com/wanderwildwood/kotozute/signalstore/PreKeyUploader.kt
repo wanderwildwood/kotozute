@@ -24,6 +24,7 @@ internal class PreKeyUploader(
     private val accounts: SignalAccountStore,
     private val connection: SignalConnection,
     private val preKeys: (Int) -> SignalPreKeyStore,
+    private val signedPreKeys: (Int) -> SignalSignedPreKeyStore,
     private val kyberPreKeys: (Int) -> SignalKyberPreKeyStore
 ) {
 
@@ -72,8 +73,21 @@ internal class PreKeyUploader(
         val ecKeys = generateEcPreKeys(accountIdType)
         val kyberKeys = generateKyberPreKeys(accountIdType, identity)
 
+        // The repeated-use keys are rotated here too, not just the one-time batches.
+        //
+        // They need rotating periodically anyway, but this also repairs a device whose stored
+        // copy is missing: linking generates a signed pre key and a last-resort Kyber key,
+        // sends them, and the private halves exist only where they were stored. If they were
+        // not, the server keeps advertising a key nobody holds and every new session fails at
+        // `no signed pre key <n>`. Replacing both is the only repair, since the originals are
+        // unrecoverable.
+        val signedId = accounts.nextSignedPreKeyId(accountIdType)
+        val signed = KeyUtilsForCheck.signedPreKey(signedId, identity.privateKey)
+        val lastResortId = accounts.nextKyberPreKeyId(accountIdType)
+        val lastResort = KeyUtilsForCheck.kyberPreKey(lastResortId, identity.privateKey)
+
         val result = connection.keys.setPreKeysSync(
-            PreKeyUpload(serviceIdType, null, ecKeys, null, kyberKeys)
+            PreKeyUpload(serviceIdType, signed, ecKeys, lastResort, kyberKeys)
         )
         if (result !is NetworkResult.Success) {
             // Nothing has been written, so nothing needs undoing -- but the counter has moved,
@@ -85,9 +99,15 @@ internal class PreKeyUploader(
         return try {
             ecKeys.forEach { preKeys(accountIdType).storePreKey(it.id, it) }
             kyberKeys.forEach { kyberPreKeys(accountIdType).storeKyberPreKey(it.id, it) }
+            signedPreKeys(accountIdType).storeSignedPreKey(signedId, signed)
+            kyberPreKeys(accountIdType).storeLastResortKyberPreKey(lastResortId, lastResort)
+            accounts.recordActiveSignedPreKey(accountIdType, signedId)
+            accounts.recordActiveLastResortKyberPreKey(accountIdType, lastResortId)
             Timber.i(
-                "signal keys: uploaded %d ec and %d kyber pre keys for %s",
-                ecKeys.size, kyberKeys.size, serviceIdType
+                "signal keys: %s uploaded ec=%d kyber=%d signedId=%d readback=%s lastResortId=%d readback=%s",
+                serviceIdType, ecKeys.size, kyberKeys.size,
+                signedId, signedPreKeys(accountIdType).containsSignedPreKey(signedId),
+                lastResortId, kyberPreKeys(accountIdType).containsKyberPreKey(lastResortId)
             )
             Result.Uploaded
         } catch (t: Throwable) {

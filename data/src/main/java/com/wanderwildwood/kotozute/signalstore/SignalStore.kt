@@ -61,6 +61,7 @@ class SignalStore(private val context: Context) {
                 account,
                 connection,
                 { SignalPreKeyStore(database, it) },
+                { SignalSignedPreKeyStore(database, it) },
                 { SignalKyberPreKeyStore(database, it) }
             )
             val before = uploader.serverCounts()
@@ -76,8 +77,36 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /**
+     * Connects, drains whatever the server is holding, and decrypts it.
+     *
+     * The receive half of what the bridge used to do, end to end.
+     */
+    fun receive(
+        userAgent: String,
+        certificateValidator: org.signal.libsignal.metadata.certificate.CertificateValidator
+    ): String {
+        val connection = connection(userAgent)
+        connection.connect()
+        return try {
+            val result = SignalReceiver(
+                database, account, SignalDataStore(database, account), connection, certificateValidator
+            ).drain()
+            "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
+                "queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     fun linker(
         configuration: org.signal.network.config.SignalServiceConfiguration,
         userAgent: String
-    ): DeviceLinker = DeviceLinker(configuration, userAgent, account)
+    ): DeviceLinker = DeviceLinker(
+        configuration,
+        userAgent,
+        account,
+        { SignalSignedPreKeyStore(database, it) },
+        { SignalKyberPreKeyStore(database, it) }
+    )
 }

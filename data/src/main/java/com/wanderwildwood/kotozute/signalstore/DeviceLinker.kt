@@ -41,7 +41,9 @@ import java.util.Base64
 class DeviceLinker internal constructor(
     private val configuration: SignalServiceConfiguration,
     private val userAgent: String,
-    private val accounts: SignalAccountStore
+    private val accounts: SignalAccountStore,
+    private val signedPreKeys: (Int) -> SignalSignedPreKeyStore,
+    private val kyberPreKeys: (Int) -> SignalKyberPreKeyStore
 ) {
 
     /** What the caller shows as a QR while it waits. */
@@ -235,6 +237,15 @@ class DeviceLinker internal constructor(
         val kyberId = accounts.nextKyberPreKeyId(accountIdType)
         val signed = KeyUtilsForCheck.signedPreKey(signedId, identity.privateKey)
         val kyber = KeyUtilsForCheck.kyberPreKey(kyberId, identity.privateKey)
+
+        // Stored, not merely counted. Recording the ids as active without keeping the keys
+        // leaves the server advertising a signed pre key whose private half exists nowhere --
+        // and the symptom is a long way from here: the first person to message this device
+        // gets through to `no signed pre key 1` at decryption time, which reads as a corrupt
+        // message rather than a missing key. Found exactly that way.
+        signedPreKeys(accountIdType).storeSignedPreKey(signedId, signed)
+        kyberPreKeys(accountIdType).storeLastResortKyberPreKey(kyberId, kyber)
+
         accounts.recordActiveSignedPreKey(accountIdType, signedId)
         accounts.recordActiveLastResortKyberPreKey(accountIdType, kyberId)
         return RegistrationApiV2.PreKeyCollection(identity.publicKey, signed, kyber)

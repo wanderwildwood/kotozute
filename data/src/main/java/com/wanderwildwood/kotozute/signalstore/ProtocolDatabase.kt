@@ -53,13 +53,21 @@ class ProtocolDatabase(
         ProtocolStoreSchema.SEED.forEach(db::execSQL)
     }
 
+    /**
+     * Steps forward one version at a time, and refuses to guess.
+     *
+     * A missing step still throws. This database holds key material that cannot be refetched
+     * -- the identity, the sessions, the device's own password -- so there is no "drop and
+     * recreate" available here the way there is for the message database. An unhandled upgrade
+     * must be loud rather than leave a half-known schema behind.
+     */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Nothing to migrate yet, and a silent no-op would be the wrong default here: this
-        // database holds key material that cannot be refetched, so an unhandled upgrade must
-        // be loud rather than leave a half-known schema in place.
-        throw IllegalStateException(
-            "no migration from protocol store v$oldVersion to v$newVersion"
-        )
+        ((oldVersion + 1)..newVersion).forEach { version ->
+            val steps = ProtocolStoreSchema.MIGRATIONS[version]
+                ?: throw IllegalStateException("no migration for protocol store v$version")
+            Timber.i("signal store: migrating protocol database to v%d", version)
+            steps.forEach(db::execSQL)
+        }
     }
 
     companion object {

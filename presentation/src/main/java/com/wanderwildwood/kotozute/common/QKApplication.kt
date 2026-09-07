@@ -54,6 +54,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
+import com.wanderwildwood.kotozute.common.util.LibsignalSmokeTest
 import com.wanderwildwood.kotozute.common.util.RealmEncryption
 
 class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverInjector, HasServiceInjector {
@@ -170,6 +171,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         // configure timber logging
         Timber.plant(Timber.DebugTree(), fileLoggingTree)
+
+        // EXPERIMENT (signal-on-the-phone branch): after planting, deliberately. Run before
+        // it, Timber has no trees and the answer goes nowhere -- which is how the first
+        // attempt at this reported nothing at all.
+        if (com.wanderwildwood.kotozute.BuildConfig.DEBUG) LibsignalSmokeTest.run()
 
         // configure emoji compatibility with bundled package
         // (bundled library works with no play-services/gsm os versions)

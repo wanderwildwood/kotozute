@@ -118,6 +118,22 @@ optimise where it previously did not. **A release built this way needs re-verify
 rebuilding** — Realm, Dagger and anything reached reflectively are where that shows up. No
 release build has been attempted here at all.
 
+### And libsignal itself runs
+
+Being linked and dexed is not the same as being loadable, so a smoke test at startup generates
+a real identity key, signs with it and verifies the signature — all of which cross the JNI
+boundary into 112 MB of Rust:
+
+    LibsignalSmokeTest: libsignal: identity generated, signature verified, in 64 ms
+
+So the library loads and the curve arithmetic runs. **On x86_64, on an emulator** — that number
+says nothing about a four-core A53, and the arm64 slice has not been exercised on the phone.
+The functional answer holds; the performance one does not follow from it.
+
+(First attempt at this reported nothing at all, because it ran before `Timber.plant` and logged
+into a Timber with no trees. Worth remembering: a diagnostic that runs early in `onCreate` has
+no logger yet.)
+
 ### What this does not show
 
 - **No Signal code exists.** libsignal is linked and unused. This says the toolchain and the

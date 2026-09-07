@@ -23,7 +23,9 @@ import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 
-class GlideCompletionListener<T>(private val listener: () -> Unit) : RequestListener<T> {
+// `T : Any` for the same reason as QkPresenter: Glide declares the resource non-null, and an
+// unbounded parameter is not.
+class GlideCompletionListener<T : Any>(private val listener: () -> Unit) : RequestListener<T> {
     override fun onLoadFailed(
         e: GlideException?,
         model: Any?,

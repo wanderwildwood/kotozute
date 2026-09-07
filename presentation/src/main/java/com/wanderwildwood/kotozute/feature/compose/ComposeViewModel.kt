@@ -722,8 +722,12 @@ class ComposeViewModel @Inject constructor(
         // toggle the group sending mode and update the conversation saved value
         view.sendAsGroupIntent
             .observeOn(Schedulers.io())
+            // The lambda's last expression returns Unit, and RxJava's combiner is declared
+            // to return a non-null R -- which Kotlin 2 will no longer infer as Unit. Saying
+            // so explicitly is the whole fix; the behaviour is unchanged.
             .withLatestFrom(conversation, state) { _, conversation, state ->
                 conversationRepo.updateSendAsGroup(conversation.id, !state.sendAsGroup)
+                Unit
             }
             .autoDisposable(view.scope())
             .subscribe()

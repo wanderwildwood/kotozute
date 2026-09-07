@@ -90,6 +90,46 @@ What is failing now is an ordinary AGP 9 DSL migration, one removal at a time:
 That is bounded, tedious work rather than a wall — but it is a migration of this project's
 build, and it should be done deliberately rather than as a side effect of an experiment.
 
+## It builds, and it runs
+
+**On Gradle 9.4.1, AGP 9.2.1 and Kotlin 2.2.20 — Signal's own toolchain — with Realm 10.15.0
+and libsignal-android 0.102.0 in the APK, the app compiles, installs, launches, receives an
+SMS and shows it.** Zero crashes.
+
+Realm is the headline. It is end-of-life, untouched upstream since September 2025, and it came
+through all three levels: the plugin applies, `debugRealmAccessorsTransformer` runs, and the
+database reads and writes at runtime under the new toolchain.
+
+**The Kotlin 1.7 → 2.2 jump cost nine compile errors in the whole app**, all mechanical:
+
+- `QkPresenter`, `QkController`, `GlideCompletionListener` — unbounded type parameters meeting
+  Java `@NonNull`. `State : Any` and `T : Any`. The values were never null; this only says so.
+- One RxJava `withLatestFrom` combiner whose last expression is `Unit`, which Kotlin 2 will no
+  longer infer. An explicit `Unit`.
+
+Other AGP 9 removals met on the way: `archivesBaseName` off `defaultConfig` (careful — the APK
+name is load-bearing for the release workflow and every published checksum), `resValues` now
+off by default, a compileSdk that had to match across modules, and `kotlin-kapt` declined in
+favour of keeping kapt via `android.builtInKotlin=false`.
+
+⚠ **One change is behavioural, not cosmetic.** AGP 9 refuses `proguard-android.txt` because it
+carries `-dontoptimize`, so the build now uses `proguard-android-optimize.txt`. R8 will
+optimise where it previously did not. **A release built this way needs re-verifying, not just
+rebuilding** — Realm, Dagger and anything reached reflectively are where that shows up. No
+release build has been attempted here at all.
+
+### What this does not show
+
+- **No Signal code exists.** libsignal is linked and unused. This says the toolchain and the
+  database survive; it says nothing about writing a client.
+- **The APK is ~1 GB** because packaging was never tuned: four ABIs, the 134 MB testing
+  engine, and Windows and macOS natives arriving through the JVM jar's resources. Excludes
+  were attempted and partly worked; `abiFilters` did not take. None of this is interesting —
+  the shippable figure is **22.5 MB packed for arm64**, measured from the AAR's own compressed
+  entry, and it stands.
+- Realm was exercised lightly: one SMS in, one list rendered. The encryption migration and the
+  Signal rail were not re-run under the new toolchain.
+
 ## Where this leaves it
 
 The entry price is an **AGP 9 migration**, and the open question underneath is whether Realm

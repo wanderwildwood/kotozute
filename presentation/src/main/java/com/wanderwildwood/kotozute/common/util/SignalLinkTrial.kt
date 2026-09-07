@@ -43,7 +43,15 @@ object SignalLinkTrial {
 
         val store = SignalStore(context)
         if (store.isLinked()) {
-            Timber.i("signal link: already linked; ignoring the marker")
+            // Already a device on the account, so the marker means the other half of linking:
+            // publish a batch of one-time pre keys. Safe to repeat -- a fresh batch replaces
+            // what the server holds rather than adding to it.
+            Timber.i("signal link: already linked; uploading pre keys")
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching { store.uploadPreKeys(SignalNetworkConfig.USER_AGENT) }
+                    .onSuccess { Timber.i("signal keys: %s", it) }
+                    .onFailure { Timber.e(it, "signal keys: threw") }
+            }
             return
         }
 

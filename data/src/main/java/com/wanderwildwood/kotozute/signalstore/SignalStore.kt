@@ -40,6 +40,42 @@ class SignalStore(private val context: Context) {
      * along with the trust store it reads off the classpath; that is a move on its own, not
      * something to fold into a linking change.
      */
+    /**
+     * The connection to Signal, and the APIs on it. Built from [userAgent] because the
+     * network configuration still lives a module up; see the note on [linker].
+     */
+    internal fun connection(userAgent: String) = SignalConnection(account, userAgent)
+
+    /**
+     * Publishes a batch of one-time pre keys for both identities.
+     *
+     * Not part of linking, because the registration request carries only a signed and a
+     * last-resort key. Until this has run the device is reachable but on the degraded path,
+     * every new session reusing the last-resort key.
+     */
+    fun uploadPreKeys(userAgent: String): String {
+        val connection = connection(userAgent)
+        connection.connect()
+        return try {
+            val uploader = PreKeyUploader(
+                account,
+                connection,
+                { SignalPreKeyStore(database, it) },
+                { SignalKyberPreKeyStore(database, it) }
+            )
+            val before = uploader.serverCounts()
+            val outcome = when (val result = uploader.uploadAll()) {
+                is PreKeyUploader.Result.Uploaded -> "uploaded"
+                is PreKeyUploader.Result.Failed -> result.reason
+            }
+            // Asked of the server, before and after. The upload's own 200 says the request was
+            // accepted; this says the keys are there to be handed out.
+            "$outcome | server before: $before | after: ${uploader.serverCounts()}"
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     fun linker(
         configuration: org.signal.network.config.SignalServiceConfiguration,
         userAgent: String

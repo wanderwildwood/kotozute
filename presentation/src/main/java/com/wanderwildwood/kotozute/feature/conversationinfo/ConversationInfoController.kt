@@ -38,6 +38,7 @@ import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.ConversationInfoControllerBinding
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 
 class ConversationInfoController(
     val threadId: Long = 0
@@ -68,6 +69,9 @@ class ConversationInfoController(
 
     override fun onViewCreated() {
         binding.recyclerView.adapter = adapter
+        // Same as the lists it was reached from. This one carries a media grid, and the
+        // extension moves by pixels, so a row of thumbnails still decoding cannot throw it.
+        binding.recyclerView.turnsAPageOnSwipe()
         binding.recyclerView.addItemDecoration(GridSpacingItemDecoration(adapter, activity!!))
         binding.recyclerView.layoutManager = GridLayoutManager(activity, 3).apply {
             spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {

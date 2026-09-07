@@ -200,6 +200,24 @@ heavy and reflective, which is precisely what R8 has already been shown to misha
 "You would not reimplement the service layer" — which is what I said earlier — is true only if
 you accept that dependency set.
 
+### The version mismatch does not bite at the linking entry point
+
+`SecondaryProvisioningCipher` is the first step of linking a device: the secondary generates a
+key, shows its public half in the QR, and decrypts what the primary sends back. It is compiled
+against libsignal 0.76 and was handed a key from 0.102 — the mismatch Gradle resolved without
+mentioning. On the device:
+
+    libsignal: identity generated, signature verified, in 33 ms
+    libsignal-service: provisioning cipher built, device key 33 bytes
+
+33 bytes is the right answer — a Curve25519 public key with its type prefix. So the service
+layer runs against a libsignal twenty-six minor versions ahead of the one it was built for, at
+the exact point route 3 would start.
+
+**One class and one call.** It shows the drift is not categorically fatal; it does not show it
+is safe. The websocket, the protobuf shapes and zkgroup are all still untested, and any of them
+could disagree.
+
 ### What this does not show
 
 - **No Signal code exists.** libsignal is linked and unused. This says the toolchain and the

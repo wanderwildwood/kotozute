@@ -6,6 +6,7 @@ import com.wanderwildwood.kotozute.model.SignalThread
 import com.wanderwildwood.kotozute.signal.BridgeClient
 import com.wanderwildwood.kotozute.signal.BridgeConfig
 import com.wanderwildwood.kotozute.signal.BridgeMessage
+import com.wanderwildwood.kotozute.signal.isTerminalBridgeFailure
 import com.wanderwildwood.kotozute.util.PhoneNumberUtils
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Observable
@@ -327,7 +328,12 @@ class SignalRepositoryImpl @Inject constructor(
             // to be messaging, both Signal screens sat with the composer disabled until
             // someone else sent something.
             if (!streamConnected.get()) {
-                publishState(reachable = false, signalConnected = false, error = t.message)
+                publishState(
+                    reachable = false,
+                    signalConnected = false,
+                    error = t.message,
+                    rejected = isTerminalBridgeFailure(t)
+                )
             }
         }
         return written
@@ -380,6 +386,11 @@ class SignalRepositoryImpl @Inject constructor(
             syncNow() // catch up before going live
 
             val done = java.util.concurrent.CountDownLatch(1)
+            // Why the stream ended, so the loop below can tell a refusal from a dropped
+            // network. Written on the stream's own thread and read on this one, which is
+            // safe because the write happens before the countDown that releases the await
+            // below -- the latch is the ordering, not a lucky read.
+            var closedBy: Throwable? = null
             val client = BridgeClient(cfg)
             try {
                 // Assigned to the shared field only while this loop is still the current
@@ -402,6 +413,7 @@ class SignalRepositoryImpl @Inject constructor(
                     onClosed = { err ->
                         streamConnected.set(false)
                         if (err != null) Timber.d("signal stream closed: ${err.message}")
+                        closedBy = err
                         done.countDown()
                     }
                 )
@@ -414,10 +426,19 @@ class SignalRepositoryImpl @Inject constructor(
                 done.await()
             } catch (t: Throwable) {
                 Timber.w(t, "signal stream failed")
+                closedBy = t
             }
 
             streamConnected.set(false)
-            publishState(reachable = false, signalConnected = false, error = null)
+            // A stream that is refused keeps being refused, and the backoff below would
+            // retry it every minute for as long as the phone is on without ever saying
+            // why. Publishing it is what turns that into something visible.
+            publishState(
+                reachable = false,
+                signalConnected = false,
+                error = closedBy?.message.takeIf { isTerminalBridgeFailure(closedBy) },
+                rejected = isTerminalBridgeFailure(closedBy)
+            )
             if (!streamWanted.get() || streamGeneration.get() != generation) return
             Thread.sleep(backoff)
             backoff = (backoff * 2).coerceAtMost(60_000L)
@@ -917,7 +938,12 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun newIncoming(): Observable<SignalMessage> = incoming
 
-    private fun publishState(reachable: Boolean, signalConnected: Boolean, error: String?) {
+    private fun publishState(
+        reachable: Boolean,
+        signalConnected: Boolean,
+        error: String?,
+        rejected: Boolean = false
+    ) {
         state.onNext(
             SignalRepository.ConnectionState(
                 configured = isConfigured(),
@@ -925,10 +951,12 @@ class SignalRepositoryImpl @Inject constructor(
                 bridgeReachable = reachable,
                 signalConnected = signalConnected,
                 lastSyncedAt = prefs.signalLastSync.get(),
-                error = error
+                error = error,
+                rejected = rejected
             )
         )
     }
+
 }
 
 /**

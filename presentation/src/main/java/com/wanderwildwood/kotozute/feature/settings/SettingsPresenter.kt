@@ -391,6 +391,11 @@ class SettingsPresenter @Inject constructor(
             )
         }
         return when {
+            // "Cannot reach the bridge" would be a lie here: it answered, and said no. The
+            // difference matters because one of the two is fixed by waiting and the other
+            // never is.
+            conn.rejected ->
+                context.getString(R.string.settings_signal_status_rejected) + " · " + last
             !conn.bridgeReachable ->
                 context.getString(R.string.settings_signal_status_no_bridge) + " · " + last
             !conn.signalConnected ->

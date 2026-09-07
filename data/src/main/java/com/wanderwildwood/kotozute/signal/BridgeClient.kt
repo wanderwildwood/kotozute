@@ -91,6 +91,40 @@ data class BridgeMessage(
  * Talks to a kotozute-bridge. Every call carries the bearer token, and the TLS trust
  * is a pin on the bridge's own certificate -- see [pinnedClient].
  */
+
+/**
+ * The bridge answered and refused us.
+ *
+ * Worth its own type because it is the one failure that will never fix itself: a bridge
+ * that is off, a phone with no network, a 500 -- all of those come right on their own and
+ * are not worth telling anybody about. A refusal means the token or the pairing is wrong
+ * and it will still be wrong tomorrow, so it is the only case that has earned the right
+ * to interrupt someone.
+ */
+class BridgeRejected(val code: Int, message: String) : IOException(message)
+
+/**
+ * Whether a failure is one that will still be a failure tomorrow.
+ *
+ * A refused request means the token or the pairing is wrong; a certificate that no longer
+ * matches the pinned one means the bridge is not the machine we paired with. Neither comes
+ * right on its own. Everything else -- a host that is switched off, no network, a bridge
+ * mid-restart -- does, and is not worth interrupting anyone about.
+ *
+ * Walks the cause chain, because OkHttp wraps a pinning failure in an SSLHandshakeException
+ * and the reason is only ever underneath. Guarded against a chain that loops back on itself.
+ */
+fun isTerminalBridgeFailure(t: Throwable?): Boolean {
+    var cause = t
+    val seen = mutableSetOf<Throwable>()
+    while (cause != null && seen.add(cause)) {
+        if (cause is BridgeRejected) return true
+        if (cause is CertificateException) return true
+        cause = cause.cause
+    }
+    return false
+}
+
 class BridgeClient(private val config: BridgeConfig) {
 
     private val client: OkHttpClient = pinnedClient(config.fingerprint)
@@ -264,6 +298,9 @@ class BridgeClient(private val config: BridgeConfig) {
             var err: Throwable? = null
             try {
                 call.execute().use { resp ->
+                    if (resp.code == 401 || resp.code == 403) {
+                        throw BridgeRejected(resp.code, "the event stream refused us (${resp.code})")
+                    }
                     if (!resp.isSuccessful) throw IOException("events failed (${resp.code})")
                     val source = resp.body?.source() ?: throw IOException("no body")
                     var data = StringBuilder()
@@ -309,6 +346,7 @@ class BridgeClient(private val config: BridgeConfig) {
     private fun getJson(url: String): JSONObject {
         client.newCall(authed(url).build()).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
+            if (resp.code == 401 || resp.code == 403) throw BridgeRejected(resp.code, "$url refused us (${resp.code})")
             if (!resp.isSuccessful) throw IOException("${resp.code} from $url")
             return JSONObject(text)
         }

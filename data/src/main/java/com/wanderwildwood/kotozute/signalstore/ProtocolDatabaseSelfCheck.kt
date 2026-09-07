@@ -1,6 +1,7 @@
 package com.wanderwildwood.kotozute.signalstore
 
 import android.content.Context
+import org.signal.core.models.ServiceId
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.signal.libsignal.protocol.InvalidKeyIdException
 import org.signal.libsignal.protocol.ecc.ECKeyPair
@@ -169,8 +170,21 @@ object ProtocolDatabaseSelfCheck {
             val staleSwept = (100..104).none { preKeys.containsPreKey(it) } &&
                 (105..107).all { preKeys.containsPreKey(it) }
 
+            // The pair store. `saveCredentials` above wrote a real ACI and a **bare** PNI,
+            // which is the form the provisioning message carries -- so this also pins that a
+            // bare PNI resolves, the case a string comparison would silently fail.
+            val pair = SignalDataStore(db, account)
+            val aciUuid = java.util.UUID.randomUUID()
+            val pniUuid = java.util.UUID.randomUUID()
+            account.saveCredentials("+15550001234", aciUuid.toString(), pniUuid.toString(), 2, "a-password")
+            val aciResolves = pair.get(ServiceId.ACI.from(aciUuid)) === pair.aci()
+            val barePniResolves = pair.get(ServiceId.PNI.from(pniUuid)) === pair.pni()
+            val strangerRejected = try {
+                pair.get(ServiceId.ACI.from(java.util.UUID.randomUUID())); false
+            } catch (e: IllegalArgumentException) { true }
+
             db.close()
-            "${tables.size} tables, seeded=$identities | facade: sharing-roundtrip=$sharingRoundTrips " +
+            "${tables.size} tables, seeded=$identities | pair: aci=$aciResolves bare-pni=$barePniResolves stranger-rejected=$strangerRejected | facade: sharing-roundtrip=$sharingRoundTrips " +
                 "archive-clears-sharing=$archiveClearsSharing cleared-all=$clearedAll stale-swept=$staleSwept " +
                 "| account: empty-before-link=$beforeLink " +
                 "credentials=$credentialsRoundTrip identity=$identityRoundTrip regid=$registrationIdKept " +

@@ -33,7 +33,9 @@ internal class SignalReceiver(
     private val accounts: SignalAccountStore,
     private val protocol: SignalDataStore,
     private val connection: SignalConnection,
-    private val certificateValidator: CertificateValidator
+    private val certificateValidator: CertificateValidator,
+    /** Where a decrypted message goes. The same path the bridge sync files through. */
+    private val file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int
 ) {
 
     /**
@@ -54,7 +56,9 @@ internal class SignalReceiver(
         val decrypted: Int,
         val failed: Int,
         val queueEmptied: Boolean,
-        val senders: Set<String>
+        val senders: Set<String>,
+        /** Decrypted *and* something a thread can hold -- receipts and typing are neither. */
+        val stored: Int
     )
 
     /**
@@ -94,18 +98,24 @@ internal class SignalReceiver(
         }
 
         // Only now, with everything acked and safely on disk.
+        val messages = mutableListOf<com.wanderwildwood.kotozute.signal.BridgeMessage>()
         pending().forEach { (id, envelope, serverDeliveredTimestamp) ->
-            when (val sender = decrypt(envelope, serverDeliveredTimestamp)) {
+            when (val result = decrypt(envelope, serverDeliveredTimestamp)) {
                 null -> failed++
                 else -> {
                     decrypted++
-                    senders += sender
+                    senders += result.first
+                    result.second?.let { messages += it }
                 }
             }
             delete(id)
         }
+        // Filed in one transaction after the whole batch, not one at a time. The rail
+        // announces what it stored, and a notification per message would be a notification
+        // per message on a device catching up after a day offline.
+        val stored = if (messages.isEmpty()) 0 else file(messages)
 
-        return Received(envelopes, decrypted, failed, emptied, senders)
+        return Received(envelopes, decrypted, failed, emptied, senders, stored)
     }
 
     /**
@@ -152,7 +162,10 @@ internal class SignalReceiver(
      * ones behind it, and the envelope is already acked, so there is nothing to retry against
      * the server anyway.
      */
-    private fun decrypt(envelope: Envelope, serverDeliveredTimestamp: Long): String? {
+    private fun decrypt(
+        envelope: Envelope,
+        serverDeliveredTimestamp: Long
+    ): Pair<String, com.wanderwildwood.kotozute.signal.BridgeMessage?>? {
         val credentials = accounts.credentials()
         val aci = ServiceId.ACI.parseOrNull(credentials.aci) ?: return null
 
@@ -173,12 +186,13 @@ internal class SignalReceiver(
         )
         return try {
             cipher.decrypt(envelope, serverDeliveredTimestamp)?.let { result ->
+                val message = ContentNormalizer.normalize(result.content, result.metadata, credentials.aci, credentials.e164)
                 Timber.i(
-                    "signal receive: decrypted a %s from %s",
-                    result.content.dataMessage?.let { "message" } ?: "sync/other",
-                    result.metadata.sourceServiceId
+                    "signal receive: decrypted from %s -> %s",
+                    result.metadata.sourceServiceId,
+                    message?.let { "${it.threadKey} ts=${it.ts}" } ?: "nothing to store"
                 )
-                result.metadata.sourceServiceId.toString()
+                result.metadata.sourceServiceId.toString() to message
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal receive: could not decrypt an envelope; dropping it")

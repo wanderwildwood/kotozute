@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.repository
 
+import com.wanderwildwood.kotozute.signal.BridgeMessage
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.model.SignalThread
 import io.reactivex.Observable
@@ -47,6 +48,18 @@ interface SignalRepository {
     fun setEnabled(enabled: Boolean)
 
     /** Pulls everything after our cursor. Safe to call repeatedly; it is idempotent. */
+    /**
+     * Files messages that arrived some other way than the bridge -- currently the device's own
+     * Signal connection.
+     *
+     * The same storage path the bridge sync uses, on purpose. Threads, previews, reactions and
+     * expiry all key off the same rules, so a second writer with its own idea of them would
+     * produce a second set of threads beside the real ones.
+     *
+     * @return how many were new.
+     */
+    fun ingest(messages: List<BridgeMessage>): Int
+
     fun syncNow(): Int
 
     /**

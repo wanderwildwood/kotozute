@@ -180,7 +180,19 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // used, and a native method reached over JNI is exactly that -- so whether libsignal
         // survives minification is a question the debug build cannot answer.
         LibsignalSmokeTest.run(this)
-        SignalLinkTrial.runIfRequested(this, "kotozute")
+        SignalLinkTrial.runIfRequested(
+            this,
+            "kotozute",
+            { signalRepo.ingest(it) },
+            {
+                io.realm.Realm.getDefaultInstance().use { realm ->
+                    realm.where(com.wanderwildwood.kotozute.model.SignalThread::class.java)
+                        .findAll()
+                        .joinToString(", ") { t -> "${t.threadKey}(${t.snippet})" }
+                        .ifBlank { "none" }
+                }
+            }
+        )
 
         // configure emoji compatibility with bundled package
         // (bundled library works with no play-services/gsm os versions)

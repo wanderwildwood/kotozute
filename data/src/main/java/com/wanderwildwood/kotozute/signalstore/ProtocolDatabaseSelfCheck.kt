@@ -98,8 +98,17 @@ object ProtocolDatabaseSelfCheck {
             val kyberOneTimeGone = !kyber.containsKyberPreKey(21)
             val lastResortSurvives = kyber.containsKyberPreKey(22)
 
+            // Sender keys. The behaviour to pin is the UUID round trip: the column is a BLOB
+            // and a UUID written as text would never match a lookup, which would surface as
+            // group messages that will not decrypt rather than as an error pointing here.
+            val senderKeys = SignalSenderKeyStore(db)
+            val groupSender = org.signal.libsignal.protocol.SignalProtocolAddress("+15550003333", 1)
+            val distributionId = java.util.UUID.randomUUID()
+            val unknownSenderKeyIsNull = senderKeys.loadSenderKey(groupSender, distributionId) == null
+
             db.close()
-            "${tables.size} tables, seeded=$identities | prekeys: roundtrip=$preKeyRoundTrips " +
+            "${tables.size} tables, seeded=$identities | senderkeys: unknown-is-null=$unknownSenderKeyIsNull " +
+                "| prekeys: roundtrip=$preKeyRoundTrips " +
                 "onetime-consumed=$oneTimeConsumed missing-throws=$missingPreKeyThrows " +
                 "signed-keeps-timestamp=$signedKeepsTimestamp kyber-onetime-consumed=$kyberOneTimeGone " +
                 "last-resort-survives=$lastResortSurvives | sessions: empty-not-null=$unknownIsEmptyNotNull " +

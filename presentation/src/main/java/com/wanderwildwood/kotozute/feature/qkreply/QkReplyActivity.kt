@@ -50,6 +50,7 @@ import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.QkreplyActivityBinding
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 
 class QkReplyActivity : QkThemedActivity(), QkReplyView {
 
@@ -100,6 +101,7 @@ class QkReplyActivity : QkThemedActivity(), QkReplyView {
         binding.toolbar.clipToOutline = true
 
         binding.messages.adapter = adapter
+        binding.messages.turnsAPageOnSwipe()
         binding.messages.adapter?.autoScrollToStart(binding.messages)
         binding.messages.adapter?.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
             override fun onChanged() = binding.messages.scrollToPosition(adapter.itemCount - 1)

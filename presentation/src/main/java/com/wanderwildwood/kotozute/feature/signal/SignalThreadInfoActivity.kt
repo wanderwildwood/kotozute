@@ -23,6 +23,7 @@ import dagger.android.AndroidInjection
 import org.json.JSONArray
 import javax.inject.Inject
 import kotlin.concurrent.thread
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 
 /**
  * What the SMS side calls Details, for a Signal thread: who this is, the pictures the
@@ -155,6 +156,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             if (pictures.isNotEmpty()) {
                 binding.media.layoutManager = GridLayoutManager(this, MEDIA_COLUMNS)
                 binding.media.adapter = MediaAdapter(pictures)
+                binding.media.turnsAPageOnSwipe()
             }
             renderArchive()
         }

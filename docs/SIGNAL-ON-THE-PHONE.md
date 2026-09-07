@@ -218,6 +218,42 @@ the exact point route 3 would start.
 is safe. The websocket, the protobuf shapes and zkgroup are all still untested, and any of them
 could disagree.
 
+### The dependency was wrong twice, and the right one has its own entry price
+
+`com.github.turasa:signal-service-java:2.15.3_unofficial_126` — which is what I added first —
+is the wrong module at the wrong version. Read out of signal-cli's own gradle files instead:
+
+- The module is **`signal-network`**, which pulls `signal-service-java` transitively.
+- The version is **`2.15.3_unofficial_152`**. Maven Central's *search index* stops at 126 and
+  is simply wrong; `maven-metadata.xml` lists 189 published versions. **Do not trust the search
+  index for this group.**
+- There is a `signal-service-android`, abandoned at 88. It is not the path.
+
+On the correct artifact, two hard requirements appear that are not preferences:
+
+| requirement | why | cost |
+|---|---|---|
+| **minSdk 23 → 26** | `jackson-module-kotlin` uses `MethodHandle.invoke`; D8 refuses it below API 26 | none for the Kompakt (API 31); drops Android 5.1–7.1 for anyone else |
+| **compileSdk 34 → 36** | `io.arrow-kt:arrow-core-android` demands it | none at runtime — compileSdk is not targetSdk |
+
+With those, it builds, and on the device: libsignal signs and verifies in 23 ms and the
+provisioning cipher builds, on signal-cli's exact dependency set.
+
+APK is 148 MB for arm64 alone, 270 MB with x86_64 added for emulator testing. Note the earlier
+22.5 MB figure was wrong: **Android stores native libraries uncompressed** so they can be
+mapped, so the real device cost is ~96 MB, not the AAR's compressed entry.
+
+### Next: the configuration, which nobody ships
+
+`ProvisioningSocket(SignalServiceConfiguration, userAgent)` has exactly two calls —
+`getProvisioningUuid()` and `getProvisioningMessage(identityKeyPair)`. That is the whole
+linking handshake, and it is already written.
+
+What is not shipped by anyone is the `SignalServiceConfiguration`: service, CDN, storage, CDSI
+and SVR2 URLs, a trust store, and three base64 server public-params blobs. signal-cli carries
+them in `LiveConfig.java` (GPL-3.0, so portable into this app). That file is the next piece of
+work, and until it exists no socket can be opened.
+
 ### What this does not show
 
 - **No Signal code exists.** libsignal is linked and unused. This says the toolchain and the

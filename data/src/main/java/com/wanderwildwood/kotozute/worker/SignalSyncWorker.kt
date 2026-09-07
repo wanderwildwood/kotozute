@@ -44,7 +44,7 @@ class SignalSyncWorker(appContext: Context, params: WorkerParameters) : Worker(a
                     // asks for another rather than leaving the phone behind for the next
                     // fifteen minutes. WorkManager backs this off on its own and the request
                     // already carries a network constraint, so it is a retry, not a spin.
-                    when (signalRepo.connectionState().blockingFirst().caughtUp) {
+                    when (signalRepo.lastSyncCaughtUp()) {
                         true -> Result.success()
                         false -> Result.retry()
                     }

@@ -1,6 +1,7 @@
 package com.wanderwildwood.kotozute.common.util
 
 import org.signal.libsignal.protocol.IdentityKeyPair
+import org.whispersystems.signalservice.internal.crypto.SecondaryProvisioningCipher
 import timber.log.Timber
 
 /**
@@ -35,6 +36,18 @@ object LibsignalSmokeTest {
                 "libsignal: identity generated, signature %s, in %d ms",
                 if (verified) "verified" else "DID NOT VERIFY",
                 elapsed
+            )
+            // Now cross the version boundary. SecondaryProvisioningCipher is the first step
+            // of linking a device -- the secondary generates a key, shows its public half in
+            // the QR, and decrypts what the primary sends back. It comes from a service layer
+            // compiled against libsignal 0.76 and is here being handed a key from 0.102, which
+            // is the mismatch Gradle resolved silently. If twenty-six minor versions of drift
+            // matter, this is where a NoSuchMethodError appears.
+            val cipher = SecondaryProvisioningCipher(identity)
+            val devicePublicKey = cipher.secondaryDevicePublicKey
+            Timber.i(
+                "libsignal-service: provisioning cipher built, device key %d bytes",
+                devicePublicKey.serialize().size
             )
         }.onFailure {
             // An UnsatisfiedLinkError here is the whole answer: the library did not load, and

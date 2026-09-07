@@ -2,7 +2,7 @@ package com.wanderwildwood.kotozute.common.util
 
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.whispersystems.signalservice.internal.crypto.SecondaryProvisioningCipher
-import org.whispersystems.signalservice.internal.push.ProvisioningSocket
+import org.whispersystems.signalservice.api.provisioning.ProvisioningSocket
 import timber.log.Timber
 
 /**
@@ -53,14 +53,26 @@ object LibsignalSmokeTest {
                 "libsignal-service: provisioning cipher built, device key %d bytes",
                 devicePublicKey.serialize().size
             )
-            // The real thing: open a provisioning socket against Signal's own servers and ask
-            // for a provisioning address. Nothing is linked and no account is touched -- this
-            // is the anonymous half of the handshake, the half that produces the QR a primary
-            // device scans. If it returns, then the ported configuration, the pinned trust
+            // The real thing: open a provisioning socket to Signal's own servers and ask for
+            // the linking URL -- the string that becomes the QR a primary device scans.
+            // Nothing is linked and no account is touched: this is the anonymous half of the
+            // handshake. If a URL comes back, then the ported configuration, the pinned trust
             // store, the websocket and TLS to Signal all work from this phone.
-            val socket = ProvisioningSocket(SignalNetworkConfig.production(), USER_AGENT)
-            val address = socket.provisioningUuid
-            Timber.i("signal-net: provisioning address obtained, uuid begins %s", address.uuid.take(8))
+            ProvisioningSocket.start<Any>(
+                // linkAndSyncCapable=false: that flag offers to pull the primary's message
+                // history across at link time. This app has never claimed to backfill history
+                // -- it says threads "start empty and fill from today" -- so claiming the
+                // capability would be a promise it cannot keep.
+                ProvisioningSocket.Mode.Link(false),
+                identity,
+                SignalNetworkConfig.production(),
+                { id, t -> Timber.w(t, "signal-net: provisioning socket %d failed", id) }
+            ) { socket ->
+                val url = socket.getProvisioningUrl()
+                // Logged truncated on purpose. The full string is a live linking offer for
+                // this account -- anyone who scans it before it expires becomes a device on it.
+                Timber.i("signal-net: linking url obtained, begins %s", url.take(24))
+            }
         }.onFailure {
             // An UnsatisfiedLinkError here is the whole answer: the library did not load, and
             // no amount of client code would change that.

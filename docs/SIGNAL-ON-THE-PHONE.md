@@ -279,6 +279,34 @@ should be 61.0"*. The build box has only JDK 17. So the list of entry requiremen
 **JDK 21+ on the build machine**, which is what Signal-Android uses. That is an install on
 someone else's laptop, so it is left as a decision rather than done.
 
+## It talks to Signal
+
+    signal-net: linking url obtained, begins sgnl://linkdevice?uuid=E
+
+The app opened a websocket to **Signal's production servers**, through the ported
+configuration and the pinned trust store, and was handed a real linking URL — the string that
+becomes the QR a primary device scans. Nothing was linked and no account was touched: this is
+the anonymous half of the handshake.
+
+**Feasibility is settled from here.** Everything remaining is client implementation, not a
+question of whether the phone can speak Signal. It can.
+
+What it took, beyond the toolchain already recorded above:
+
+- **JDK 21 on the build box.** kapt generates javac stubs and javac cannot read class files
+  newer than its own JDK. Installed alongside 17 and selected via `org.gradle.java.home` in
+  this branch only — the machine's default is still 17, because every other app on it builds
+  on 17 and moving them all for this one would be a poor trade.
+- **The API moved between versions.** At 152 `ProvisioningSocket` is in
+  `api.provisioning`, not `internal.push`; it is a Kotlin class with suspend functions,
+  started through `Companion.start(Mode, IdentityKeyPair, config, handler) { }`; and
+  `Mode.Link` is a data class taking `linkAndSyncCapable`. Passed `false` there deliberately:
+  that flag offers to pull the primary's history across, and this app has always said threads
+  start empty and fill from today.
+
+The linking URL is logged truncated on purpose — in full it is a live offer to join the
+account, and anyone who scans it before it expires becomes a device on it.
+
 ### What this does not show
 
 - **No Signal code exists.** libsignal is linked and unused. This says the toolchain and the

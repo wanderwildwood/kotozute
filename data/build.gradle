@@ -87,6 +87,12 @@ dependencies {
     implementation "com.squareup.moshi:moshi:$moshi_version"
     kapt "com.squareup.moshi:moshi-kotlin-codegen:$moshi_version"
     implementation "com.squareup.okhttp3:okhttp:$okhttp3_version"
+
+    // EXPERIMENT (signal-on-the-phone branch). The Signal protocol store lives in its own
+    // encrypted SQLite database rather than in Realm -- see docs/DECISION-protocol-store.md.
+    // Same engine Molly and Signal-Android use for the same data.
+    implementation 'net.zetetic:sqlcipher-android:4.9.0'
+    implementation 'androidx.sqlite:sqlite:2.4.0'
     implementation 'io.michaelrocks:libphonenumber-android:8.13.47'
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 

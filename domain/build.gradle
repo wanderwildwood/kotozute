@@ -22,7 +22,7 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 
 android {
-    compileSdk 34
+    compileSdk 36
 
     compileOptions {
         sourceCompatibility 1.8
@@ -30,7 +30,7 @@ android {
     }
 
     defaultConfig {
-        minSdk 23
+        minSdk 26
         targetSdkVersion 33
     }
     namespace 'com.wanderwildwood.kotozute.domain'

@@ -45,11 +45,11 @@ base {
 }
 
 android {
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.wanderwildwood.kotozute'
-        minSdkVersion 23
+        minSdkVersion 26
         targetSdkVersion 33
         // Released builds take their version from the git tag: the release workflow derives
         // both values from it and passes them in. Hand-editing this file was a release step
@@ -59,6 +59,12 @@ android {
         versionCode project.findProperty('appVersionCode')?.toInteger() ?: 2
         versionName project.findProperty('appVersionName') ?: '1.0.1'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+            // EXPERIMENT: the Kompakt is arm64-v8a. A universal APK carrying four copies of
+            // a 112 MB engine is not something anyone would install, and it is what made the
+            // first builds of this branch a gigabyte.
+            // arm64 is the phone; x86_64 is the emulator, and without it the smoke test
+            // cannot run here at all. A shipping build would drop x86_64.
+            ndk { abiFilters 'arm64-v8a', 'x86_64' }
     }
 
     signingConfigs {
@@ -279,10 +285,13 @@ dependencies {
     // all? libsignal's classes are Java 21 bytecode and AGP here is 8.2.2. Nothing uses it
     // yet -- this is here to find out what actually breaks, not to build anything.
     implementation 'org.signal:libsignal-android:0.102.0'
-    // EXPERIMENT: the service layer signal-cli builds on. It is a JVM library, not an Android
-    // one -- it asks for okhttp-jvm 5.0.0-alpha and Jackson, and pins libsignal-client 0.76.0
-    // against the 0.102.0 above. Adding it to find out what that collision actually costs.
-    implementation 'com.github.turasa:signal-service-java:2.15.3_unofficial_126'
+    // EXPERIMENT: the exact artifact and version signal-cli 0.14.7 builds on, read out of its
+    // own gradle files rather than guessed. Two corrections live here: the module is
+    // signal-network, not signal-service-java (which it pulls in transitively), and the
+    // version is 152 -- Maven Central's *search index* stops at 126 and is simply wrong, as
+    // the maven-metadata.xml shows 189 published versions. There is also a
+    // signal-service-android, abandoned at 88; it is not the path.
+    implementation 'com.github.turasa:signal-network:2.15.3_unofficial_152'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
     implementation project(':data')

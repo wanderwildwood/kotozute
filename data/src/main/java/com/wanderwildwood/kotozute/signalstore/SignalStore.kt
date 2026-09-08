@@ -47,7 +47,34 @@ class SignalStore(private val context: Context) {
      * The connection to Signal, and the APIs on it. Built from [userAgent] because the
      * network configuration still lives a module up; see the note on [linker].
      */
-    internal fun connection() = SignalConnection(account, SignalNetworkConfig.USER_AGENT)
+    /**
+     * **One** connection for the whole process, shared by everything that needs the socket.
+     *
+     * Not one per operation, which is what this was. Signal allows a single authenticated
+     * websocket per device, so opening a second one does not add a connection -- it displaces
+     * the first. The symptom was a send knocking the receive loop off the air: the listen loop
+     * failed with `Connection closed!` at the exact moment a message was sent, and then
+     * reconnected on its backoff, so messages arrived late rather than not at all and the
+     * cause looked like a flaky network.
+     */
+    /**
+     * Whoever holds this may read the socket. Nobody else may.
+     *
+     * A flag was not enough. Two readers arose from the ordering between `startStream()` and a
+     * `syncNow()` that arrived in the same millisecond, and every attempt to guard it with a
+     * boolean lost the race somewhere else -- because a boolean tested and then acted on is
+     * two operations. This is one.
+     *
+     * Two threads calling readMessageBatch on one connection race for each message and the
+     * loser's read fails; the library's own source warns about it. The visible symptom was a
+     * reconnect every sixty seconds with healthy keepalives either side, which reads as a
+     * flaky network and is not one.
+     */
+    private val socketReader = java.util.concurrent.locks.ReentrantLock()
+
+    internal val connection: SignalConnection by lazy {
+        SignalConnection(account, SignalNetworkConfig.USER_AGENT)
+    }
 
     /**
      * Publishes a batch of one-time pre keys for both identities.
@@ -57,7 +84,6 @@ class SignalStore(private val context: Context) {
      * every new session reusing the last-resort key.
      */
     fun uploadPreKeys(): String {
-        val connection = connection()
         connection.connect()
         return try {
             val uploader = PreKeyUploader(
@@ -76,7 +102,9 @@ class SignalStore(private val context: Context) {
             // accepted; this says the keys are there to be handed out.
             "$outcome | server before: $before | after: ${uploader.serverCounts()}"
         } finally {
-            connection.disconnect()
+            // Not disconnected: the socket is shared and long-lived. Closing is [disconnect],
+            // called by whoever knows nobody wants it any more.
+            socketReader.unlock()
         }
     }
 
@@ -87,9 +115,12 @@ class SignalStore(private val context: Context) {
      */
     fun receive(
         file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
-        onNamesLearned: () -> Unit = {}
+        onNamesLearned: () -> Unit = {},
+        receipts: (String, List<Long>, Boolean) -> Unit = { _, _, _ -> }
     ): String {
-        val connection = connection()
+        // If a listen loop already has the socket there is nothing to catch up on -- it is
+        // reading continuously -- and joining in would only take messages away from it.
+        if (!socketReader.tryLock()) return "already listening"
         connection.connect()
         return try {
             val result = SignalReceiver(
@@ -100,12 +131,15 @@ class SignalStore(private val context: Context) {
                     // threads -- only if something was actually learned, so a quiet batch
                     // does not walk the whole thread list for nothing.
                     if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
-                }
+                },
+                receipts
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
         } finally {
-            connection.disconnect()
+            // Not disconnected: the socket is shared and long-lived. Closing is [disconnect],
+            // called by whoever knows nobody wants it any more.
+            socketReader.unlock()
         }
     }
 
@@ -115,7 +149,6 @@ class SignalStore(private val context: Context) {
     fun send(recipient: String, body: String): String {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
             ?: return "not a service id: $recipient"
-        val connection = connection()
         connection.connect()
         return try {
             when (val result = SignalSender(
@@ -125,40 +158,47 @@ class SignalStore(private val context: Context) {
                 is SignalSender.Result.Failed -> result.reason
             }
         } finally {
-            connection.disconnect()
+            // Not disconnected: the socket is shared and long-lived. Closing is [disconnect],
+            // called by whoever knows nobody wants it any more.
+            socketReader.unlock()
         }
     }
 
     /**
      * Holds the connection open and files messages as they arrive.
      *
-     * Blocks for as long as [keepGoing] says to, so the caller owns the thread. The connection
-     * is closed on the way out however this ends -- a socket left open by a loop that stopped
-     * is a socket nothing will ever close.
+     * Blocks for as long as [keepGoing] says to, so the caller owns the thread.
+     *
+     * Does **not** close the connection on the way out. The socket is shared and outlives any
+     * one pass of this loop: the loop exits on every reconnect, and closing here meant each
+     * retry tore down a socket the next retry immediately rebuilt. Closing is [disconnect],
+     * called by whoever knows nobody wants it any more.
      */
     fun listen(
         keepGoing: () -> Boolean,
         file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
         onNamesLearned: () -> Unit,
+        receipts: (String, List<Long>, Boolean) -> Unit,
         onBatch: (String) -> Unit
     ) {
-        val connection = connection()
-        connection.connect()
+        socketReader.lock()
         try {
-            SignalReceiver(
-                database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts,
-                {
-                    // Fetch whatever names became fetchable, then let the caller rename its
-                    // threads -- only if something was actually learned, so a quiet batch
-                    // does not walk the whole thread list for nothing.
-                    if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
-                }
-            ).listen(keepGoing) { r ->
-                onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
-            }
+        connection.connect()
+        SignalReceiver(
+            database, account, SignalDataStore(database, account), connection,
+            SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts,
+            {
+                // Fetch whatever names became fetchable, then let the caller rename its
+                // threads -- only if something was actually learned, so a quiet batch does
+                // not walk the whole thread list for nothing.
+                if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
+            },
+            receipts
+        ).listen(keepGoing) { r ->
+            onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
+        }
         } finally {
-            connection.disconnect()
+            socketReader.unlock()
         }
     }
 
@@ -177,7 +217,6 @@ class SignalStore(private val context: Context) {
 
     /** Asks the primary for its contacts. The answer arrives later, through the socket. */
     fun requestContacts(): String {
-        val connection = connection()
         connection.connect()
         return try {
             when (val r = SignalSender(
@@ -188,7 +227,9 @@ class SignalStore(private val context: Context) {
                 is SignalSender.Result.Failed -> r.reason
             }
         } finally {
-            connection.disconnect()
+            // Not disconnected: the socket is shared and long-lived. Closing is [disconnect],
+            // called by whoever knows nobody wants it any more.
+            socketReader.unlock()
         }
     }
 
@@ -198,6 +239,16 @@ class SignalStore(private val context: Context) {
     /** The bytes of a downloaded attachment, or null if it was never fetched. */
     fun readAttachment(id: String): ByteArray? =
         SignalAttachments(context) { error("no download needed to read") }.read(id)
+
+    /**
+     * Closes the shared socket.
+     *
+     * Only the thing that knows nobody wants it any more should call this -- which is
+     * stopStream(), not the listen loop. The loop exits on every reconnect, and disconnecting
+     * there meant each retry tore down a socket another retry was about to rebuild, so the
+     * connection spent its life closing and reopening and messages arrived late.
+     */
+    fun disconnect() = runCatching { connection.disconnect() }.getOrNull()
 
     fun linker(): DeviceLinker = DeviceLinker(
         SignalNetworkConfig.production(),

@@ -83,6 +83,16 @@ interface SignalRepository {
 
     fun refresh()
 
+    /**
+     * Records that messages we sent reached, or were read by, the far end.
+     *
+     * Keyed by the send timestamp, because that is the only identifier a receipt carries --
+     * a receipt says "the message you sent at T arrived", and says nothing else about it.
+     *
+     * @return how many rows changed.
+     */
+    fun applyReceipts(senderUuid: String, timestamps: List<Long>, read: Boolean): Int
+
     fun ingest(messages: List<BridgeMessage>): Int
 
     fun syncNow(): Int

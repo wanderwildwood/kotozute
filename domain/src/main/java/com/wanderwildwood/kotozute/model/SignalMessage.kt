@@ -72,5 +72,15 @@ open class SignalMessage : RealmObject() {
      * except while drawing the message it belongs to, and a handful of them per message is
      * not a thing worth a join.
      */
+    /**
+     * When the far end acknowledged this message, and when it was read there. Zero for
+     * neither, and for every message that predates receipts being handled at all.
+     *
+     * Only meaningful on an outgoing message: a receipt is something other people send about
+     * ours.
+     */
+    var deliveredAt: Long = 0
+    var readAt: Long = 0
+
     var reactions: String = ""
 }

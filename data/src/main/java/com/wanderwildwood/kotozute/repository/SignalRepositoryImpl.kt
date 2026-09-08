@@ -328,6 +328,89 @@ class SignalRepositoryImpl @Inject constructor(
         )
     }
 
+    /**
+     * Sends on this device's own authority, and writes the message down.
+     *
+     * The second half is not optional, and it is the difference from the bridge path. A
+     * message we send does not come back to us -- Signal does not deliver a message to the
+     * device that sent it -- so nothing else will ever produce this row. The bridge got away
+     * without it because the bridge stored the message on its own side and the phone read it
+     * back on the next sync.
+     */
+    private fun sendDirect(threadKey: String, body: String, attachments: List<String>): Long {
+        if (!threadKey.startsWith("direct:")) {
+            // Group sending needs sender-key distribution to every member, which is a
+            // different operation from a one-to-one send and is not written yet. Failing
+            // loudly beats sending nothing and reporting success.
+            throw IllegalStateException("sending to groups is not supported on a direct link yet")
+        }
+        if (attachments.isNotEmpty()) {
+            // Uploading an attachment is its own path -- encrypt, allocate a CDN slot, upload,
+            // then reference it -- and none of it exists here yet. Silently dropping the
+            // picture and sending the text would be worse than not sending.
+            throw IllegalStateException("sending attachments is not supported on a direct link yet")
+        }
+
+        val recipient = threadKey.removePrefix("direct:")
+        val result = signalStore.send(recipient, body)
+        val timestamp = Regex("ts=(\\d+)").find(result)?.groupValues?.get(1)?.toLongOrNull()
+            ?: throw IllegalStateException(result)
+
+        val selfAci = signalStore.selfAciOrNull().orEmpty()
+        ingest(
+            listOf(
+                com.wanderwildwood.kotozute.signal.BridgeMessage(
+                    // The same (author, timestamp) identity every other device will use for
+                    // this message, so a sync of it -- should one ever arrive -- replaces this
+                    // row instead of duplicating it.
+                    id = "$selfAci:$timestamp",
+                    seq = 0,
+                    threadKey = threadKey,
+                    ts = timestamp,
+                    senderUuid = selfAci,
+                    senderNumber = "",
+                    outgoing = true,
+                    body = body,
+                    groupId = "",
+                    quoteTs = 0,
+                    read = true,
+                    source = "live",
+                    attachmentsJson = ""
+                )
+            )
+        )
+        return timestamp
+    }
+
+    override fun applyReceipts(senderUuid: String, timestamps: List<Long>, read: Boolean): Int {
+        if (timestamps.isEmpty()) return 0
+        var changed = 0
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalMessage::class.java)
+                    .equalTo("outgoing", true)
+                    .`in`("date", timestamps.toTypedArray())
+                    .findAll()
+                    .forEach { message ->
+                        // A read receipt implies delivery -- it cannot have been read without
+                        // arriving -- so it fills in a delivery time that may never have been
+                        // recorded, rather than leaving a message that is read but not
+                        // delivered.
+                        if (message.deliveredAt == 0L) {
+                            message.deliveredAt = System.currentTimeMillis()
+                            changed++
+                        }
+                        if (read && message.readAt == 0L) {
+                            message.readAt = System.currentTimeMillis()
+                            changed++
+                        }
+                    }
+            }
+        }
+        if (changed > 0) Timber.i("signal receipts: %d applied (read=%s)", changed, read)
+        return changed
+    }
+
     override fun ingest(messages: List<BridgeMessage>): Int {
         if (messages.isEmpty()) return 0
         val fresh = mutableListOf<BridgeMessage>()
@@ -349,8 +432,21 @@ class SignalRepositoryImpl @Inject constructor(
      * file through the same [store] the bridge path uses, so both produce one set of threads
      * rather than two.
      */
-    private fun syncDirect(): Int = try {
-        val summary = signalStore.receive({ ingest(it) }, ::renameThreadsFromContacts)
+    // streamWanted, not streamConnected. The flag is set synchronously inside startStream()
+    // before any thread exists, whereas streamConnected is set by the loop once it is already
+    // running -- so a syncNow() arriving in that window saw "not connected", opened its own
+    // reader, and produced exactly the two-reader race this guard exists to prevent. Observed:
+    // two "connecting as device 3" lines in the same millisecond, from different threads.
+    private fun syncDirect(): Int = if (streamWanted.get()) {
+        // The listen loop already owns the socket and is reading it continuously, so there is
+        // nothing for a catch-up to do -- and doing it anyway is actively harmful: two threads
+        // calling readMessageBatch on one connection race for each message, and the loser sees
+        // the read fail. The symptom was a reconnect roughly every seventy seconds with
+        // healthy keepalives on either side of it, which looks like a network problem and is
+        // not one. The library's own comment warns about exactly this race.
+        0
+    } else try {
+        val summary = signalStore.receive({ ingest(it) }, ::renameThreadsFromContacts, ::applyReceipts)
         Timber.i("signal: direct sync %s", summary)
         prefs.signalLastSync.set(System.currentTimeMillis())
         syncCaughtUp = true
@@ -546,6 +642,9 @@ class SignalRepositoryImpl @Inject constructor(
         streamConnected.set(false)
         runCatching { stream?.close() }
         stream = null
+        // The direct rail's socket is shared and outlives any one listen loop, so this is the
+        // only place that closes it.
+        if (config() == null) runCatching { signalStore.disconnect() }
     }
 
     /**
@@ -565,6 +664,7 @@ class SignalRepositoryImpl @Inject constructor(
                         keepGoing = { streamWanted.get() && streamGeneration.get() == generation },
                         file = { ingest(it) },
                         onNamesLearned = ::renameThreadsFromContacts,
+                        receipts = { sender, timestamps, read -> applyReceipts(sender, timestamps, read) },
                         onBatch = { Timber.i("signal: received %s", it) }
                     )
                     backoff = 2_000L
@@ -820,6 +920,7 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     override fun send(threadKey: String, body: String, attachments: List<String>): Long {
+        if (linkedDirectly() && config() == null) return sendDirect(threadKey, body, attachments)
         val cfg = config() ?: throw IllegalStateException("no bridge paired")
         try {
             return BridgeClient(cfg).send(threadKey, body, attachments)

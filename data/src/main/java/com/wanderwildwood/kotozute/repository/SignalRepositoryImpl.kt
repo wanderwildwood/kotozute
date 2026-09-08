@@ -253,6 +253,29 @@ class SignalRepositoryImpl @Inject constructor(
      * expiry lives in [store]; a second writer with its own copy of them would drift, and the
      * drift would show up as duplicate threads rather than as an error.
      */
+    /**
+     * Renames threads once names are known.
+     *
+     * Threads are created the moment a message arrives, which is usually before the contacts
+     * sync has been answered -- so naming only at creation would leave every conversation
+     * that predates the sync showing a service id forever.
+     */
+    private fun renameThreadsFromContacts() {
+        val names = signalStore.contactNames()
+        if (names.isEmpty()) return
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalThread::class.java).equalTo("kind", "direct").findAll().forEach { thread ->
+                    val name = names[thread.counterpartUuid] ?: return@forEach
+                    // Only fills a gap. A title the user's own address book supplied, or one
+                    // the bridge resolved, is the better answer and must not be overwritten by
+                    // whatever the primary happens to call the same person.
+                    if (thread.title.isBlank()) thread.title = name
+                }
+            }
+        }
+    }
+
     override fun refresh() = runOffThread {
         Timber.i(
             "signal: refresh -- bridge=%s linked=%s configured=%s",
@@ -274,6 +297,8 @@ class SignalRepositoryImpl @Inject constructor(
             }
         }
         announce(fresh)
+        // A contacts sync can have landed in the same batch as the messages it names.
+        renameThreadsFromContacts()
         return fresh.size
     }
 
@@ -459,6 +484,14 @@ class SignalRepositoryImpl @Inject constructor(
         // device holds its own websocket to Signal instead. Same shape, different socket.
         if (config() == null) {
             Timber.i("signal: linked directly; holding our own socket")
+            // Ask once per start. A linked device knows nobody until the primary answers, and
+            // the answer arrives through the socket below -- so the ask has to happen before
+            // the loop, not as part of it.
+            runOffThread {
+                runCatching { signalStore.requestContacts() }
+                    .onSuccess { Timber.i("signal contacts: %s", it) }
+                    .onFailure { Timber.w(it, "signal contacts: could not ask") }
+            }
             thread(name = "signal-listen-$generation", isDaemon = true) { listenLoop(generation) }
         } else {
             thread(name = "signal-stream-$generation", isDaemon = true) { streamLoop(generation) }
@@ -645,10 +678,14 @@ class SignalRepositoryImpl @Inject constructor(
                 // connection has none -- there is no profile fetching yet -- so it would
                 // otherwise show a bare ACI in the inbox. Naming our own account is the one
                 // case that needs no lookup, and it is the one a user meets first.
-                if (counterpartUuid.isNotBlank() &&
-                    counterpartUuid == signalStore.selfAciOrNull()
-                ) {
-                    title = noteToSelfTitle
+                title = when {
+                    counterpartUuid.isBlank() -> ""
+                    counterpartUuid == signalStore.selfAciOrNull() -> noteToSelfTitle
+                    // From the primary's contacts sync -- the only place a linked device can
+                    // learn a name. Blank until that sync arrives, which the UI renders as the
+                    // service id; naming happens again in renameThreadsFromContacts() once it
+                    // does, so a thread created before the sync is not stuck nameless.
+                    else -> signalStore.contactName(counterpartUuid).orEmpty()
                 }
             }
         // Only the newest message speaks for the thread. Messages can arrive out of

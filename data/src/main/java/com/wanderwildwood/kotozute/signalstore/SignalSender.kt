@@ -78,6 +78,38 @@ internal class SignalSender(
         )
     }
 
+    /**
+     * Asks the primary to send its contacts.
+     *
+     * A linked device starts knowing nobody: it has no address book and cannot resolve an ACI
+     * on its own. The primary answers with a sync message carrying a blob, which arrives like
+     * any other message and is handled on the receive side.
+     *
+     * A request, not a query -- there is no reply to wait for here. The answer comes back
+     * minutes or seconds later through the socket, so this returns as soon as the ask is sent.
+     */
+    fun requestContactsSync(): Result {
+        val request = org.whispersystems.signalservice.internal.push.SyncMessage.Request.Builder()
+            .type(org.whispersystems.signalservice.internal.push.SyncMessage.Request.Type.CONTACTS)
+            .build()
+        return try {
+            val result = sender.sendSyncMessage(
+                org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage.forRequest(
+                    org.whispersystems.signalservice.api.messages.multidevice.RequestMessage(request)
+                )
+            )
+            if (result.isSuccess) {
+                Timber.i("signal contacts: requested a sync from the primary")
+                Result.Sent(System.currentTimeMillis())
+            } else {
+                Result.Failed("the primary refused the contacts request")
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal contacts: request threw")
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
     sealed interface Result {
         data class Sent(val timestamp: Long) : Result
         data class Failed(val reason: String) : Result

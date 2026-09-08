@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 2
+    const val VERSION = 3
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -211,8 +211,30 @@ internal object ProtocolStoreSchema {
         SESSION,
         SENDER_KEY,
         SENDER_KEY_SHARED,
-        ENVELOPE
+        ENVELOPE,
+        CONTACT
     )
+
+    /**
+     * Names for the people on the other end.
+     *
+     * Populated from the contacts sync the primary device sends, which is the only way a
+     * linked device learns them -- it has no address book of its own and, for a contact known
+     * only by ACI, nothing local to match against.
+     *
+     * `aci` is the key rather than the number because that is what a message carries: under
+     * sealed sender the phone number is frequently absent, so a contact table keyed by number
+     * would fail to name exactly the conversations that arrive most privately.
+     */
+    const val CONTACT = """
+        CREATE TABLE contact (
+          _id INTEGER PRIMARY KEY,
+          aci TEXT UNIQUE,
+          e164 TEXT,
+          name TEXT,
+          updated_timestamp INTEGER NOT NULL
+        ) STRICT;
+    """
 
     /**
      * Migrations, keyed by the version they upgrade *to*.
@@ -226,7 +248,9 @@ internal object ProtocolStoreSchema {
     val MIGRATIONS: Map<Int, List<String>> = mapOf(
         // v2 added the envelope queue, so that an envelope can be written down before it is
         // acknowledged to the server. Purely additive: nothing existing is touched.
-        2 to listOf(ENVELOPE)
+        2 to listOf(ENVELOPE),
+        // v3: names from the primary's contacts sync. Additive.
+        3 to listOf(CONTACT)
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

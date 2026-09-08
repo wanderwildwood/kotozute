@@ -183,8 +183,19 @@ object ProtocolDatabaseSelfCheck {
                 pair.get(ServiceId.ACI.from(java.util.UUID.randomUUID())); false
             } catch (e: IllegalArgumentException) { true }
 
+            // Group ids. The wire carries a master key; the id is what you get by deriving
+            // secret params from it and taking the public group identifier. Base64 of the
+            // master key is stable, plausible and wrong -- the bridge files the same group
+            // under the derived id, so the two rails would split every group in two.
+            val masterKey = ByteArray(32) { it.toByte() }
+            val derivedGroupId = ContentNormalizer.groupIdForCheck(masterKey)
+            val rawMasterKeyB64 = android.util.Base64.encodeToString(masterKey, android.util.Base64.NO_WRAP)
+            val groupIdIsDerived = derivedGroupId.isNotBlank() && derivedGroupId != rawMasterKeyB64
+            // A GroupIdentifier is 32 bytes, so its base64 is 44 characters with padding.
+            val groupIdLooksRight = derivedGroupId.length == 44
+
             db.close()
-            "${tables.size} tables, seeded=$identities | pair: aci=$aciResolves bare-pni=$barePniResolves stranger-rejected=$strangerRejected | facade: sharing-roundtrip=$sharingRoundTrips " +
+            "${tables.size} tables, seeded=$identities | groups: derived=$groupIdIsDerived shape=$groupIdLooksRight | pair: aci=$aciResolves bare-pni=$barePniResolves stranger-rejected=$strangerRejected | facade: sharing-roundtrip=$sharingRoundTrips " +
                 "archive-clears-sharing=$archiveClearsSharing cleared-all=$clearedAll stale-swept=$staleSwept " +
                 "| account: empty-before-link=$beforeLink " +
                 "credentials=$credentialsRoundTrip identity=$identityRoundTrip regid=$registrationIdKept " +

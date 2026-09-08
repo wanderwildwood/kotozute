@@ -73,6 +73,7 @@ class SettingsPresenter @Inject constructor(
                             signalPaired = conn.configured,
                             signalEnabled = conn.enabled,
                             signalLinkedDirectly = conn.linkedDirectly,
+                            signalBridgePaired = prefs.signalBridgeHost.get().isNotBlank(),
                             signalBridgeSummary = signalBridgeSummary(conn.configured),
                             signalStatusSummary = signalStatusSummary(conn)
                         )
@@ -232,6 +233,7 @@ class SettingsPresenter @Inject constructor(
                         R.id.desktopSyncReset -> view.askDesktopSyncReset()
 
                         R.id.signalLink -> view.showSignalLink()
+                        R.id.signalStopBridge -> view.confirmStopUsingBridge()
                         R.id.signalPair -> view.showSignalPairDialog()
 
                         R.id.signalOpen -> navigator.showSignalConversations()
@@ -366,6 +368,10 @@ class SettingsPresenter @Inject constructor(
                     view.showSignalPairFailed()
                 }
             }
+
+        view.stopUsingBridgeConfirmed()
+            .autoDisposable(view.scope())
+            .subscribe { signalRepo.stopUsingBridge() }
 
         view.signalUnpairConfirmed()
             .autoDisposable(view.scope())

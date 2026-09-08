@@ -53,6 +53,16 @@ interface SignalRepository {
     fun pair(payload: String): Boolean
 
     /** Forgets the bridge and every Signal row it gave us. */
+    /**
+     * Stops using the bridge, and keeps everything else.
+     *
+     * Distinct from [unpair], which is titled "Delete Signal data" and means it -- messages,
+     * threads and the pairing all go. That was the only exit while the bridge *was* Signal.
+     * A phone that is also a linked device needs the other thing: drop the bridge, keep the
+     * conversations, and carry on over its own connection.
+     */
+    fun stopUsingBridge()
+
     fun unpair()
 
     fun setEnabled(enabled: Boolean)

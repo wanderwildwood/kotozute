@@ -28,6 +28,18 @@ interface SignalRepository {
          * abandons this one's keys.
          */
         val linkedDirectly: Boolean = false,
+        /**
+         * Which rail is actually carrying messages. Distinct from [linkedDirectly]: a phone
+         * can be linked and still be going through a bridge, and the difference decides what
+         * a failure means and what to tell someone to do about it.
+         */
+        val usingBridge: Boolean = true,
+        /**
+         * Envelopes that arrived and could not be decrypted, and are being kept in case a
+         * fix can read them. Surfaced because a release build logs nothing and this is the
+         * one early sign of a message shape the app cannot handle.
+         */
+        val undecryptable: Int = 0,
         val enabled: Boolean,
         /** The bridge answered us. */
         val bridgeReachable: Boolean,

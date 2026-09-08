@@ -36,7 +36,8 @@ internal class SignalReceiver(
     private val certificateValidator: CertificateValidator,
     /** Where a decrypted message goes. The same path the bridge sync files through. */
     private val file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
-    private val attachments: SignalAttachments
+    private val attachments: SignalAttachments,
+    private val contacts: SignalContactStore
 ) {
 
     /**
@@ -213,6 +214,11 @@ internal class SignalReceiver(
         )
         return try {
             cipher.decrypt(envelope, serverDeliveredTimestamp)?.let { result ->
+                // A contacts sync is not a message and never becomes one -- it is the
+                // primary answering a request, and the only way this device learns anybody's
+                // name. Handled before normalizing, which would find nothing to store in it.
+                result.content.syncMessage?.contacts?.let { handleContactsSync(it) }
+
                 val normalized = ContentNormalizer.normalize(
                     result.content, result.metadata, credentials.aci, credentials.e164
                 )
@@ -231,6 +237,41 @@ internal class SignalReceiver(
             Timber.w(t, "signal receive: could not decrypt an envelope; dropping it")
             null
         }
+    }
+
+    /**
+     * Streams the contacts blob and stores what is in it.
+     *
+     * Streamed rather than kept: this is a snapshot that is parsed once and superseded by the
+     * next sync, so writing it to disk would leave the whole address book sitting in a file
+     * for no benefit.
+     */
+    private fun handleContactsSync(
+        contactsMessage: org.whispersystems.signalservice.internal.push.SyncMessage.Contacts
+    ) {
+        val pointer = contactsMessage.blob ?: return
+        val parsed = attachments.streamOnce(pointer) { input ->
+            val stream = org.whispersystems.signalservice.api.messages.multidevice
+                .DeviceContactsInputStream(input)
+            val found = mutableListOf<SignalContactStore.Contact>()
+            while (true) {
+                val contact = try {
+                    stream.read() ?: break
+                } catch (e: java.io.IOException) {
+                    // signal-cli skips these rather than abandoning the sync: one malformed
+                    // entry should not cost every name after it in the stream.
+                    if (e.message?.contains("Missing contact address") == true) continue else throw e
+                }
+                val aci = contact.aci.orElse(null)?.toString() ?: continue
+                found += SignalContactStore.Contact(
+                    aci = aci,
+                    e164 = contact.e164.orElse(null),
+                    name = contact.name.orElse(null)
+                )
+            }
+            found
+        }
+        parsed?.takeIf { it.isNotEmpty() }?.let { contacts.store(it) }
     }
 
     /**

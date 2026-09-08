@@ -91,7 +91,7 @@ class SignalStore(private val context: Context) {
         return try {
             val result = SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection)
+                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -137,7 +137,7 @@ class SignalStore(private val context: Context) {
         try {
             SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection)
+                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts
             ).listen(keepGoing) { r ->
                 onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
             }
@@ -150,6 +150,32 @@ class SignalStore(private val context: Context) {
      * Bound to a connection because downloading needs one, and a connection is per-operation
      * here rather than a long-lived singleton.
      */
+    /** Names for the people on the other end, from the primary's contacts sync. */
+    internal val contacts: SignalContactStore by lazy { SignalContactStore(database) }
+
+    /** The name known for a service id, or null. */
+    fun contactName(aci: String): String? = runCatching { contacts.nameFor(aci) }.getOrNull()
+
+    /** Every name known, for renaming threads in one pass after a sync. */
+    fun contactNames(): Map<String, String> = runCatching { contacts.all() }.getOrDefault(emptyMap())
+
+    /** Asks the primary for its contacts. The answer arrives later, through the socket. */
+    fun requestContacts(): String {
+        val connection = connection()
+        connection.connect()
+        return try {
+            when (val r = SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection
+            ).requestContactsSync()) {
+                is SignalSender.Result.Sent -> "requested"
+                is SignalSender.Result.Failed -> r.reason
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private fun attachmentsFor(connection: SignalConnection) =
         SignalAttachments(context) { connection.messageReceiver }
 

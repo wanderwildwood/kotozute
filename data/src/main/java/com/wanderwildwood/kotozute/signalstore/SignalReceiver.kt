@@ -68,7 +68,10 @@ internal class SignalReceiver(
      * false rather than by any message. That signal is the only way to know a device has
      * caught up.
      */
-    fun drain(maxBatches: Int = 20, timeout: Long = TimeUnit.SECONDS.toMillis(20)): Received {
+    fun drain(maxBatches: Int = 20, timeout: Long = TimeUnit.SECONDS.toMillis(20)): Received =
+        drainOnce(timeout, maxBatches)
+
+    private fun drainOnce(timeout: Long, maxBatches: Int = 1): Received {
         var envelopes = 0
         var decrypted = 0
         var failed = 0
@@ -116,6 +119,29 @@ internal class SignalReceiver(
         val stored = if (messages.isEmpty()) 0 else file(messages)
 
         return Received(envelopes, decrypted, failed, emptied, senders, stored)
+    }
+
+    /**
+     * Stays on the socket, handling messages as they arrive, until [keepGoing] says stop.
+     *
+     * The difference from [drain] is only that the connection is held open. `readMessageBatch`
+     * blocks until a message arrives or the timeout elapses, so this loop *is* the persistent
+     * connection -- there is no separate "listen" call to make.
+     *
+     * A long timeout rather than a short one on purpose. Each expiry is a wakeup that does
+     * nothing, and on a phone that is battery spent to learn that nothing happened; the
+     * keepalive in [SignalSocketHealthMonitor] is what actually notices a dead socket, and it
+     * does that on its own schedule regardless of what this timeout is.
+     *
+     * @param onBatch called after each batch is stored, with what was filed.
+     */
+    fun listen(keepGoing: () -> Boolean, onBatch: (Received) -> Unit) {
+        while (keepGoing()) {
+            val result = drainOnce(READ_TIMEOUT_MS)
+            // A batch that produced nothing is the common case -- the timeout expiring with an
+            // empty queue -- and announcing it would wake everything downstream for no reason.
+            if (result.envelopes > 0) onBatch(result)
+        }
     }
 
     /**
@@ -202,5 +228,8 @@ internal class SignalReceiver(
 
     companion object {
         private const val BATCH_SIZE = 10
+
+        /** Long, deliberately: every expiry is a wakeup that learned nothing. See [listen]. */
+        private val READ_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(1)
     }
 }

@@ -399,6 +399,47 @@ the wrong trade. The phone gets linked when there is a real screen in a real bui
 ⚠ **Device 3 is a live device on the account** and it never fetches. Harmless, and removable
 from the primary at any time (`removeDevice`), but it is there.
 
+## Trying it on a real phone
+
+Everything below has been verified on an emulator against the real account. Two things have
+not been, and cannot be from here.
+
+### What has never been run
+
+- **The arm64 build.** It compiles and is signed with the release key
+  (`f4adf9a4ba3644c7…`, confirmed with `apksigner`, not by trusting the build script), but only
+  the x86_64 release has been *run*. libsignal's arm64 binary is a different artefact.
+- **Anything needing a second person**: group traffic, profile names, delivery and read
+  receipts, sealed sender. All of it is blocked by the same thing -- the test account has one
+  contact and no groups, and Signal does not generate receipts for your own messages. The code
+  exists for profiles and receipts; it has never executed.
+
+### The one-way step
+
+The Realm schema goes **22 → 23** (the receipt columns). Once this build opens the message
+database, the `master` build will refuse it: Realm will not open a file newer than its schema.
+Back up first, and keep the current APK.
+
+### The reversible step, and why it exists
+
+`useBridge()` returns true whenever a bridge is paired, and every rail decision goes through
+it. So **installing this build on a phone that still has its bridge changes nothing about how
+messages flow** -- same rail, same code path as today. What it does prove is the part that
+cannot be proven here: that the arm64 build launches, that libsignal loads on the device, and
+that a real message database migrates.
+
+Unpair the bridge and link only once that has been uneventful. The bridge can be re-paired.
+
+It installs as an upgrade rather than a reinstall -- same signing key, same versionCode 11102
+-- so it keeps its data.
+
+### The size
+
+Signal is not free. The release APK for arm64 is **147 MB against 50 MB** for the same app
+without it, and the difference is almost entirely `libsignal_jni.so` at 112 MB. Packaging is
+already as tight as it goes: one ABI, no foreign natives, nothing stray. That is simply what
+shipping the protocol costs.
+
 ## Where this leaves it
 
 The entry price is an **AGP 9 migration**, and the open question underneath is whether Realm

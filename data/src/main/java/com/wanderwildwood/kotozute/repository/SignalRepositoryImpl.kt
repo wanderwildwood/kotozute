@@ -345,9 +345,7 @@ class SignalRepositoryImpl @Inject constructor(
             throw IllegalStateException("sending to groups is not supported on a direct link yet")
         }
         val recipient = threadKey.removePrefix("direct:")
-        val result = signalStore.send(recipient, body, attachments)
-        val timestamp = Regex("ts=(\\d+)").find(result)?.groupValues?.get(1)?.toLongOrNull()
-            ?: throw IllegalStateException(result)
+        val timestamp = signalStore.send(recipient, body, attachments)
 
         val selfAci = signalStore.selfAciOrNull().orEmpty()
         ingest(

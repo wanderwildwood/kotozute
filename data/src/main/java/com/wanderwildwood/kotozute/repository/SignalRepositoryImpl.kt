@@ -282,6 +282,16 @@ class SignalRepositoryImpl @Inject constructor(
         }
         when (result) {
             is com.wanderwildwood.kotozute.signalstore.DeviceLinker.Result.Linked -> {
+                // Linking registers ONE signed pre key and ONE last-resort Kyber key -- that
+                // is all the registration request carries. Without a batch of one-time keys
+                // every new conversation falls back to the last-resort key, which is reuse and
+                // is exactly what one-time keys exist to prevent. Nothing else does this, so
+                // omitting it leaves a device permanently on the degraded path while looking
+                // entirely healthy.
+                runCatching { signalStore.uploadPreKeys() }
+                    .onSuccess { Timber.i("signal keys: %s", it) }
+                    .onFailure { Timber.w(it, "signal keys: could not publish after linking") }
+
                 // The state has changed in a way nothing else will notice: this device was
                 // not a Signal device a moment ago and now is. Publishing it here is what
                 // makes the settings screen stop offering to link.

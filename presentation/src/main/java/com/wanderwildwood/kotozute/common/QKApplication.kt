@@ -55,7 +55,6 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.common.util.LibsignalSmokeTest
-import com.wanderwildwood.kotozute.common.util.SignalLinkTrial
 import com.wanderwildwood.kotozute.common.util.RealmEncryption
 
 class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverInjector, HasServiceInjector {
@@ -183,19 +182,6 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // nothing else would say so at startup.
         signalRepo.refresh()
         LibsignalSmokeTest.run(this)
-        SignalLinkTrial.runIfRequested(
-            this,
-            "kotozute",
-            { signalRepo.ingest(it) },
-            {
-                io.realm.Realm.getDefaultInstance().use { realm ->
-                    realm.where(com.wanderwildwood.kotozute.model.SignalThread::class.java)
-                        .findAll()
-                        .joinToString(", ") { t -> "${t.threadKey}(${t.snippet})" }
-                        .ifBlank { "none" }
-                }
-            }
-        )
 
         // configure emoji compatibility with bundled package
         // (bundled library works with no play-services/gsm os versions)

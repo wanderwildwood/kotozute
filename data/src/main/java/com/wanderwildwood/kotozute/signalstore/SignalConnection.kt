@@ -72,6 +72,20 @@ internal class SignalConnection(
 
     val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
 
+    /** Profiles need the zk operations as well as the sockets: the fetch is versioned. */
+    val profiles: org.whispersystems.signalservice.api.profiles.ProfileApi by lazy {
+        org.whispersystems.signalservice.api.profiles.ProfileApi(
+            authenticated,
+            unauthenticated,
+            org.whispersystems.signalservice.internal.push.PushServiceSocket(
+                configuration, credentials, userAgent, true
+            ),
+            org.signal.libsignal.zkgroup.profiles.ClientZkProfileOperations(
+                org.signal.libsignal.zkgroup.ServerPublicParams(configuration.zkGroupServerPublicParams)
+            )
+        )
+    }
+
     /**
      * Attachments come over plain HTTPS to a CDN, not over either websocket, so this needs its
      * own socket rather than reusing one of theirs.

@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 3
+    const val VERSION = 4
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -232,6 +232,10 @@ internal object ProtocolStoreSchema {
           aci TEXT UNIQUE,
           e164 TEXT,
           name TEXT,
+          -- The key that decrypts this person's profile, which is where their name actually
+          -- lives. It arrives in the contacts sync; without it a profile fetch returns
+          -- ciphertext and nothing else.
+          profile_key BLOB,
           updated_timestamp INTEGER NOT NULL
         ) STRICT;
     """
@@ -250,7 +254,10 @@ internal object ProtocolStoreSchema {
         // acknowledged to the server. Purely additive: nothing existing is touched.
         2 to listOf(ENVELOPE),
         // v3: names from the primary's contacts sync. Additive.
-        3 to listOf(CONTACT)
+        3 to listOf(CONTACT),
+        // v4: profile keys. Names live in profiles, not in the contact record's
+        // legacy name field, which modern clients have largely stopped filling.
+        4 to listOf("ALTER TABLE contact ADD COLUMN profile_key BLOB;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

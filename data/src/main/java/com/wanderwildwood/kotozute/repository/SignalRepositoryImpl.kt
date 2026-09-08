@@ -310,7 +310,7 @@ class SignalRepositoryImpl @Inject constructor(
      * rather than two.
      */
     private fun syncDirect(): Int = try {
-        val summary = signalStore.receive { ingest(it) }
+        val summary = signalStore.receive({ ingest(it) }, ::renameThreadsFromContacts)
         Timber.i("signal: direct sync %s", summary)
         prefs.signalLastSync.set(System.currentTimeMillis())
         syncCaughtUp = true
@@ -524,6 +524,7 @@ class SignalRepositoryImpl @Inject constructor(
                     signalStore.listen(
                         keepGoing = { streamWanted.get() && streamGeneration.get() == generation },
                         file = { ingest(it) },
+                        onNamesLearned = ::renameThreadsFromContacts,
                         onBatch = { Timber.i("signal: received %s", it) }
                     )
                     backoff = 2_000L

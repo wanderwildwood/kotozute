@@ -11,7 +11,12 @@ import timber.log.Timber
  */
 internal class SignalContactStore(private val db: ProtocolDatabase) {
 
-    data class Contact(val aci: String, val e164: String?, val name: String?)
+    data class Contact(
+        val aci: String,
+        val e164: String?,
+        val name: String?,
+        val profileKey: ByteArray? = null
+    )
 
     /**
      * Upserts on ACI.
@@ -27,14 +32,17 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             contacts.forEach { c ->
                 database.execSQL(
                     """
-                    INSERT INTO contact (aci, e164, name, updated_timestamp)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO contact (aci, e164, name, profile_key, updated_timestamp)
+                    VALUES (?, ?, ?, ?, ?)
                     ON CONFLICT(aci) DO UPDATE SET
                       e164 = COALESCE(NULLIF(excluded.e164, ''), contact.e164),
                       name = COALESCE(NULLIF(excluded.name, ''), contact.name),
+                      profile_key = COALESCE(excluded.profile_key, contact.profile_key),
                       updated_timestamp = excluded.updated_timestamp
                     """.trimIndent(),
-                    arrayOf<Any?>(c.aci, c.e164.orEmpty(), c.name.orEmpty(), System.currentTimeMillis())
+                    arrayOf<Any?>(
+                        c.aci, c.e164.orEmpty(), c.name.orEmpty(), c.profileKey, System.currentTimeMillis()
+                    )
                 )
             }
             database.setTransactionSuccessful()
@@ -49,6 +57,16 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         db.readableDatabase.rawQuery(
             "SELECT name FROM contact WHERE aci = ?", arrayOf(aci)
         ).use { c -> if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() } else null }
+    }
+
+    /** Contacts whose profile could be fetched, and whose name we do not already have. */
+    fun needingProfile(): List<Pair<String, ByteArray>> = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT aci, profile_key FROM contact WHERE profile_key IS NOT NULL AND (name IS NULL OR name = '')",
+            null
+        ).use { c ->
+            generateSequence { if (c.moveToNext()) c.getString(0) to c.getBlob(1) else null }.toList()
+        }
     }
 
     /** Every name known, for renaming threads in one pass after a sync. */

@@ -37,7 +37,16 @@ internal class SignalReceiver(
     /** Where a decrypted message goes. The same path the bridge sync files through. */
     private val file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
     private val attachments: SignalAttachments,
-    private val contacts: SignalContactStore
+    private val contacts: SignalContactStore,
+    /**
+     * Called after each batch, once anything new is on disk.
+     *
+     * A batch can bring a contacts sync, a profile key, or both, and either can make a name
+     * fetchable that was not a moment ago. Running this per batch rather than only after a
+     * sync is what keeps a conversation from staying nameless until something unrelated
+     * happens to trigger a refresh.
+     */
+    private val afterBatch: () -> Unit
 ) {
 
     /**
@@ -119,6 +128,9 @@ internal class SignalReceiver(
         // announces what it stored, and a notification per message would be a notification
         // per message on a device catching up after a day offline.
         val stored = if (messages.isEmpty()) 0 else file(messages)
+        // After filing, while the connection is still up: a name learned now is a name the
+        // inbox shows on this pass rather than the next one.
+        if (envelopes > 0) runCatching { afterBatch() }.onFailure { Timber.w(it, "signal: after-batch") }
 
         return Received(envelopes, decrypted, failed, emptied, senders, stored)
     }
@@ -207,13 +219,13 @@ internal class SignalReceiver(
             sessionLock,
             certificateValidator
         )
-        Timber.i(
-            "signal receive: envelope dest=%s type=%s using=%s",
-            envelope.destinationServiceId, envelope.type,
-            if (envelope.destinationServiceId?.startsWith("PNI:") == true) "pni" else "aci"
-        )
         return try {
             cipher.decrypt(envelope, serverDeliveredTimestamp)?.let { result ->
+                // Profile keys ride on ordinary messages, from the person whose profile they
+                // open. This is the only route: the contacts sync does not carry them, and
+                // without one a profile fetch returns ciphertext.
+                rememberProfileKey(result.content, result.metadata)
+
                 // A contacts sync is not a message and never becomes one -- it is the
                 // primary answering a request, and the only way this device learns anybody's
                 // name. Handled before normalizing, which would find nothing to store in it.
@@ -237,6 +249,31 @@ internal class SignalReceiver(
             Timber.w(t, "signal receive: could not decrypt an envelope; dropping it")
             null
         }
+    }
+
+    /**
+     * Notes the sender's profile key when a message carries one.
+     *
+     * Signal shares these deliberately -- a person's key comes with their messages once they
+     * have chosen to share their profile with you -- so this is not something that can be
+     * asked for. It has to be taken when offered, which means every message, not just the
+     * first: a rotated key arrives the same way and a stale one decrypts nothing.
+     */
+    private fun rememberProfileKey(
+        content: org.whispersystems.signalservice.internal.push.Content,
+        metadata: org.whispersystems.signalservice.api.crypto.EnvelopeMetadata
+    ) {
+        // Either shape. An incoming message carries the sender's key; a sync of our own send
+        // carries ours. In both cases it belongs to whoever the envelope says sent it, so one
+        // attribution is right for both -- and taking only the first shape means never
+        // learning our own profile at all.
+        val key = (content.dataMessage?.profileKey ?: content.syncMessage?.sent?.message?.profileKey)
+            ?.toByteArray()
+            ?.takeIf { it.size == PROFILE_KEY_BYTES }
+            ?: return
+        val aci = metadata.sourceServiceId.toString().takeIf { it.isNotBlank() } ?: return
+        Timber.i("signal profile: noted a profile key from %s", aci)
+        contacts.store(listOf(SignalContactStore.Contact(aci = aci, e164 = null, name = null, profileKey = key)))
     }
 
     /**
@@ -267,6 +304,10 @@ internal class SignalReceiver(
                     aci = aci,
                     e164 = contact.e164.orElse(null),
                     name = contact.name.orElse(null)
+                    // No profile key here. DeviceContact carries aci, e164, name, avatar and
+                    // the expiration timer -- and nothing else. Profile keys travel on
+                    // DataMessage instead, shared by the person themselves; see
+                    // rememberProfileKey().
                 )
             }
             found
@@ -305,6 +346,9 @@ internal class SignalReceiver(
 
     companion object {
         private const val BATCH_SIZE = 10
+
+        /** A profile key is exactly this; anything else is not one. */
+        private const val PROFILE_KEY_BYTES = 32
 
         /** Long, deliberately: every expiry is a wakeup that learned nothing. See [listen]. */
         private val READ_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(1)

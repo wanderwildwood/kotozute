@@ -64,6 +64,18 @@ object SignalLinkTrial {
                 }
                     .onSuccess { Timber.i("signal receive: %s", it) }
                     .onFailure { Timber.e(it, "signal receive: threw") }
+                // And the send path, to our own account -- the only recipient that can be
+                // tested without involving somebody else's phone.
+                runCatching {
+                    val self = java.io.File(context.filesDir, "send-to").takeIf { it.exists() }?.readText()?.trim()
+                    if (self.isNullOrBlank()) "no send-to marker; skipped"
+                    else store.send(
+                        SignalNetworkConfig.USER_AGENT, SignalNetworkConfig.production(),
+                        self, "sent from kotozute"
+                    )
+                }
+                    .onSuccess { Timber.i("signal send: %s", it) }
+                    .onFailure { Timber.e(it, "signal send: threw") }
                 // What actually landed in Realm, asked of the rail rather than inferred from
                 // the return value -- storing and being visible are different claims.
                 runCatching { threads() }

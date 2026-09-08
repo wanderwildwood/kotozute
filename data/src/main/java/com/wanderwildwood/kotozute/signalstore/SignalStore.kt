@@ -101,6 +101,31 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /**
+     * Sends one message, on this device's own authority. The primary is not in the path.
+     */
+    fun send(
+        userAgent: String,
+        configuration: org.signal.network.config.SignalServiceConfiguration,
+        recipient: String,
+        body: String
+    ): String {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
+            ?: return "not a service id: $recipient"
+        val connection = connection(userAgent)
+        connection.connect()
+        return try {
+            when (val result = SignalSender(
+                configuration, userAgent, account, database, SignalDataStore(database, account), connection
+            ).send(serviceId, body)) {
+                is SignalSender.Result.Sent -> "sent ts=${result.timestamp}"
+                is SignalSender.Result.Failed -> result.reason
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     fun linker(
         configuration: org.signal.network.config.SignalServiceConfiguration,
         userAgent: String

@@ -370,11 +370,20 @@ class SettingsPresenter @Inject constructor(
             .subscribe { signalRepo.unpair() }
     }
 
+    /**
+     * Says which way Signal actually reaches this phone.
+     *
+     * "Paired" used to mean one thing, so this could read the bridge host unconditionally.
+     * Now a device can be linked to the account directly, and doing that produced
+     * **"Paired with :8422"** -- a host that is the empty string, next to a port nothing is
+     * listening on. A row that describes a connection the app is not using is worse than one
+     * that says nothing.
+     */
     private fun signalBridgeSummary(paired: Boolean): String {
         if (!paired) return context.getString(R.string.settings_signal_pair_summary)
         val host = prefs.signalBridgeHost.get()
-        val port = prefs.signalBridgePort.get()
-        return context.getString(R.string.settings_signal_paired_summary, "$host:$port")
+        if (host.isBlank()) return context.getString(R.string.settings_signal_linked_summary)
+        return context.getString(R.string.settings_signal_paired_summary, "$host:${prefs.signalBridgePort.get()}")
     }
 
     /**

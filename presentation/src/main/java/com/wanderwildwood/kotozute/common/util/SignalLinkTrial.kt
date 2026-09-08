@@ -56,11 +56,11 @@ object SignalLinkTrial {
                 // Keys first. Receiving before the server and this device agree on the
                 // repeated-use keys just produces undecryptable envelopes, and they are acked
                 // on the way past -- so the order matters more than it looks.
-                runCatching { store.uploadPreKeys(SignalNetworkConfig.USER_AGENT) }
+                runCatching { store.uploadPreKeys() }
                     .onSuccess { Timber.i("signal keys: %s", it) }
                     .onFailure { Timber.e(it, "signal keys: threw") }
                 runCatching {
-                    store.receive(SignalNetworkConfig.USER_AGENT, SignalNetworkConfig.certificateValidator(), file)
+                    store.receive(file)
                 }
                     .onSuccess { Timber.i("signal receive: %s", it) }
                     .onFailure { Timber.e(it, "signal receive: threw") }
@@ -69,10 +69,7 @@ object SignalLinkTrial {
                 runCatching {
                     val self = java.io.File(context.filesDir, "send-to").takeIf { it.exists() }?.readText()?.trim()
                     if (self.isNullOrBlank()) "no send-to marker; skipped"
-                    else store.send(
-                        SignalNetworkConfig.USER_AGENT, SignalNetworkConfig.production(),
-                        self, "sent from kotozute"
-                    )
+                    else store.send(self, "sent from kotozute")
                 }
                     .onSuccess { Timber.i("signal send: %s", it) }
                     .onFailure { Timber.e(it, "signal send: threw") }
@@ -87,7 +84,7 @@ object SignalLinkTrial {
 
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
-                val linker = store.linker(SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT)
+                val linker = store.linker()
                 val result = linker.link(deviceName) { url ->
                     // In full, and only here. This is the string a primary device redeems.
                     Timber.i("signal link: URL %s", url)

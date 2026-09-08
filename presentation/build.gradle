@@ -64,7 +64,22 @@ android {
             // first builds of this branch a gigabyte.
             // arm64 is the phone; x86_64 is the emulator, and without it the smoke test
             // cannot run here at all. A shipping build would drop x86_64.
-            ndk { abiFilters 'arm64-v8a', 'x86_64' }
+            //
+            // Overridable with -PabiFilter=x86_64 (or arm64-v8a) to build for one target.
+            // It has to be set **here** rather than in buildTypes.debug: AGP takes the
+            // *union* of defaultConfig's abiFilters and the build type's, so narrowing it in
+            // a build type does nothing at all. That is the "abiFilters did not take" note in
+            // the branch docs, and the cost was a 400 MB debug APK that stopped installing
+            // when the emulator filled up -- `adb install` reports that as an exception trace
+            // rather than a clear message, so the visible symptom was testing a stale build
+            // while believing it was current.
+            ndk {
+                if (project.hasProperty('abiFilter')) {
+                    abiFilters project.property('abiFilter')
+                } else {
+                    abiFilters 'arm64-v8a', 'x86_64'
+                }
+            }
     }
 
     signingConfigs {

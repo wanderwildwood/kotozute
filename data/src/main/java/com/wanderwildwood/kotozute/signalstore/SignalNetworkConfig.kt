@@ -1,4 +1,4 @@
-package com.wanderwildwood.kotozute.common.util
+package com.wanderwildwood.kotozute.signalstore
 
 import okhttp3.Dns
 import okhttp3.Interceptor

@@ -179,6 +179,9 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // EXPERIMENT: release too, on this branch only. R8 strips what it cannot see being
         // used, and a native method reached over JNI is exactly that -- so whether libsignal
         // survives minification is a question the debug build cannot answer.
+        // Signal may be reachable through this device's own link rather than a bridge, and
+        // nothing else would say so at startup.
+        signalRepo.refresh()
         LibsignalSmokeTest.run(this)
         SignalLinkTrial.runIfRequested(
             this,

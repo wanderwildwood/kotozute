@@ -46,7 +46,9 @@ internal class SignalReceiver(
      * sync is what keeps a conversation from staying nameless until something unrelated
      * happens to trigger a refresh.
      */
-    private val afterBatch: () -> Unit
+    private val afterBatch: () -> Unit,
+    /** Records that messages we sent arrived, or were read, at the far end. */
+    private val receipts: (String, List<Long>, Boolean) -> Unit
 ) {
 
     /**
@@ -221,6 +223,20 @@ internal class SignalReceiver(
         )
         return try {
             cipher.decrypt(envelope, serverDeliveredTimestamp)?.let { result ->
+                // A receipt is about a message we already have, not a new one, so it is
+                // handled here and never reaches the normalizer -- which would find nothing
+                // in it and drop it silently.
+                result.content.receiptMessage?.let { receipt ->
+                    val timestamps = receipt.timestamp
+                    if (timestamps.isNotEmpty()) {
+                        receipts(
+                            result.metadata.sourceServiceId.toString(),
+                            timestamps,
+                            receipt.type == org.whispersystems.signalservice.internal.push.ReceiptMessage.Type.READ
+                        )
+                    }
+                }
+
                 // Profile keys ride on ordinary messages, from the person whose profile they
                 // open. This is the only route: the contacts sync does not carry them, and
                 // without one a profile fetch returns ciphertext.

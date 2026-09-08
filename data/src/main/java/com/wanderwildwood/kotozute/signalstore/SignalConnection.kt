@@ -100,6 +100,20 @@ internal class SignalConnection(
 
     fun connect() {
         Timber.i("signal socket: connecting as device %d", credentials.deviceId)
+        // Registered BEFORE connecting, and the order is the whole point.
+        //
+        // Two separate things depend on this token. The health monitor will not send
+        // keepalives without one -- `shouldSendKeepAlives()` is false while the set is empty,
+        // so the keepalive thread never starts. And `connect()` itself schedules a *delayed
+        // disconnect* if no token is registered at the moment it runs, on the reasoning that
+        // a socket nobody is holding open is a socket nobody wants.
+        //
+        // Registering afterwards leaves both: no keepalives for the first pass, and a
+        // teardown already scheduled. The symptom is a connection that drops every thirty to
+        // forty seconds and reconnects on backoff -- messages still arrive, late, and it
+        // reads as a flaky network rather than as an ordering mistake here.
+        authenticated.registerKeepAliveToken(SignalWebSocket.FOREGROUND_KEEPALIVE)
+        unauthenticated.registerKeepAliveToken(SignalWebSocket.FOREGROUND_KEEPALIVE)
         authenticated.connect()
         unauthenticated.connect()
     }

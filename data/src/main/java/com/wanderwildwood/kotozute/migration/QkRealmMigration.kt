@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 22
+        const val SCHEMA_VERSION: Long = 23
     }
 
     @SuppressLint("ApplySharedPref")
@@ -420,6 +420,25 @@ class QkRealmMigration @Inject constructor(
                 ?.takeIf { !it.hasField("signalThreadKey") }
                 ?.addField("signalThreadKey", String::class.java, FieldAttribute.REQUIRED)
                 ?.transform { m -> m.setString("signalThreadKey", "") }
+
+            version++
+        }
+
+        if (version == 22L) {
+            // When a message we sent reached the other end, and when it was read there.
+            //
+            // Zero on every existing row, and it has to be: a receipt is a live notification
+            // and is not stored anywhere to back-fill from. The bridge discarded them, so the
+            // history genuinely does not exist -- an older message will simply never show a
+            // tick, which is truthful rather than a guess.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("deliveredAt") }
+                ?.addField("deliveredAt", Long::class.java, FieldAttribute.REQUIRED)
+                ?.transform { m -> m.setLong("deliveredAt", 0) }
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("readAt") }
+                ?.addField("readAt", Long::class.java, FieldAttribute.REQUIRED)
+                ?.transform { m -> m.setLong("readAt", 0) }
 
             version++
         }

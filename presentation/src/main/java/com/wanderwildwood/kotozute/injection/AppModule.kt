@@ -201,7 +201,25 @@ class AppModule(private var application: Application) {
     fun provideMessageRepository(repository: MessageRepositoryImpl): MessageRepository = repository
 
 
+    /**
+     * The only repository here that is a singleton, and it has to be.
+     *
+     * The others are stateless -- a second instance costs an allocation and behaves
+     * identically. This one owns a websocket, the flags that say whether a stream is running,
+     * and the BehaviorSubject every Signal screen observes. Handing out separate instances
+     * meant separate everything: two listen loops on a device Signal only lets hold **one**
+     * authenticated socket, each displacing the other, which showed up as a reconnect every
+     * sixty seconds with healthy keepalives on both sides of it.
+     *
+     * It was invisible on the bridge rail, where a second server-sent-events connection is
+     * simply a second connection and the server does not mind. Only the direct link, with one
+     * socket per device, made it fail.
+     *
+     * The state subject is the other half: publishing on one instance never reached a screen
+     * holding another.
+     */
     @Provides
+    @Singleton
     fun provideSignalRepository(repository: SignalRepositoryImpl): SignalRepository = repository
 
     @Provides

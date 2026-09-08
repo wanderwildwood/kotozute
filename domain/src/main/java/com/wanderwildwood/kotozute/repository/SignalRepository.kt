@@ -18,6 +18,16 @@ interface SignalRepository {
 
     data class ConnectionState(
         val configured: Boolean,
+        /**
+         * This device is itself a device on the Signal account.
+         *
+         * Independent of [configured] and of whether a bridge is paired: a phone can be both
+         * linked and bridged, and while the bridge decides which rail carries messages, it
+         * does not change the fact of the link. Conflating the two told a linked phone it was
+         * not linked, and offered to link it again -- which registers a second device and
+         * abandons this one's keys.
+         */
+        val linkedDirectly: Boolean = false,
         val enabled: Boolean,
         /** The bridge answered us. */
         val bridgeReachable: Boolean,

@@ -72,7 +72,7 @@ class SettingsPresenter @Inject constructor(
                         copy(
                             signalPaired = conn.configured,
                             signalEnabled = conn.enabled,
-                            signalLinkedDirectly = conn.configured && prefs.signalBridgeHost.get().isBlank(),
+                            signalLinkedDirectly = conn.linkedDirectly,
                             signalBridgeSummary = signalBridgeSummary(conn.configured),
                             signalStatusSummary = signalStatusSummary(conn)
                         )

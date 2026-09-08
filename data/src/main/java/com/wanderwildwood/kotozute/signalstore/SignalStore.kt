@@ -102,9 +102,14 @@ class SignalStore(private val context: Context) {
             // accepted; this says the keys are there to be handed out.
             "$outcome | server before: $before | after: ${uploader.serverCounts()}"
         } finally {
-            // Not disconnected: the socket is shared and long-lived. Closing is [disconnect],
-            // called by whoever knows nobody wants it any more.
-            socketReader.unlock()
+            // The socket is shared and long-lived, so it is not disconnected here; closing is
+            // [disconnect]. Nor is the reader lock touched: this sends and requests, it never
+            // calls readMessageBatch, so it was never a reader.
+            //
+            // It used to unlock anyway, which throws IllegalMonitorStateException from a
+            // finally -- after the network work had already succeeded. The message went out
+            // and then the exception ate the code that files it, so a sent message reached
+            // everybody else and never appeared in the sender's own thread.
         }
     }
 
@@ -137,8 +142,10 @@ class SignalStore(private val context: Context) {
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
         } finally {
-            // Not disconnected: the socket is shared and long-lived. Closing is [disconnect],
-            // called by whoever knows nobody wants it any more.
+            // Paired with the tryLock above. This one IS a reader -- it calls drain(), which
+            // calls readMessageBatch -- so it holds the lock for the duration and must give
+            // it back. The socket itself stays open: it is shared, and closing is
+            // [disconnect].
             socketReader.unlock()
         }
     }
@@ -146,21 +153,35 @@ class SignalStore(private val context: Context) {
     /**
      * Sends one message, on this device's own authority. The primary is not in the path.
      */
-    fun send(recipient: String, body: String, attachments: List<String> = emptyList()): String {
+    /**
+     * @return the send timestamp, which is also the message's identity.
+     * @throws IllegalStateException with the reason if the send did not happen.
+     *
+     * A value rather than a sentence. This used to return a human-readable string that the
+     * caller pulled the timestamp back out of with a regular expression -- so a change to the
+     * wording would have silently stopped messages being filed, with no compiler complaint
+     * and no failure at the point of the change.
+     */
+    fun send(recipient: String, body: String, attachments: List<String> = emptyList()): Long {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
-            ?: return "not a service id: $recipient"
+            ?: throw IllegalStateException("not a service id: $recipient")
         connection.connect()
         return try {
             when (val result = SignalSender(
                 SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection
             ).send(serviceId, body, attachments)) {
-                is SignalSender.Result.Sent -> "sent ts=${result.timestamp}"
-                is SignalSender.Result.Failed -> result.reason
+                is SignalSender.Result.Sent -> result.timestamp
+                is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
             }
         } finally {
-            // Not disconnected: the socket is shared and long-lived. Closing is [disconnect],
-            // called by whoever knows nobody wants it any more.
-            socketReader.unlock()
+            // The socket is shared and long-lived, so it is not disconnected here; closing is
+            // [disconnect]. Nor is the reader lock touched: this sends and requests, it never
+            // calls readMessageBatch, so it was never a reader.
+            //
+            // It used to unlock anyway, which throws IllegalMonitorStateException from a
+            // finally -- after the network work had already succeeded. The message went out
+            // and then the exception ate the code that files it, so a sent message reached
+            // everybody else and never appeared in the sender's own thread.
         }
     }
 
@@ -227,9 +248,14 @@ class SignalStore(private val context: Context) {
                 is SignalSender.Result.Failed -> r.reason
             }
         } finally {
-            // Not disconnected: the socket is shared and long-lived. Closing is [disconnect],
-            // called by whoever knows nobody wants it any more.
-            socketReader.unlock()
+            // The socket is shared and long-lived, so it is not disconnected here; closing is
+            // [disconnect]. Nor is the reader lock touched: this sends and requests, it never
+            // calls readMessageBatch, so it was never a reader.
+            //
+            // It used to unlock anyway, which throws IllegalMonitorStateException from a
+            // finally -- after the network work had already succeeded. The message went out
+            // and then the exception ate the code that files it, so a sent message reached
+            // everybody else and never appeared in the sender's own thread.
         }
     }
 

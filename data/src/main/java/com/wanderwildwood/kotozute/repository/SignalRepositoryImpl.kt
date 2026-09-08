@@ -64,6 +64,21 @@ class SignalRepositoryImpl @Inject constructor(
     private val noteToSelfTitle: String
         get() = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_note_to_self)
 
+    /**
+     * Which rail this device should use, when it could use either.
+     *
+     * One answer, consulted everywhere. syncNow() used to prefer the direct link while
+     * startStream() preferred the bridge, so a phone with both -- which is exactly what a
+     * phone that has been using a bridge and then links looks like -- would catch up over one
+     * and stream over the other. Both write the same rows through store(), so it deduplicates
+     * rather than duplicating, but two writers racing for the same conversation is not a
+     * thing to leave in place because it happens to be survivable.
+     *
+     * The bridge wins while one is configured. It is the rail already in use on such a phone,
+     * and unpairing it is a deliberate act the user can take when they want the other.
+     */
+    private fun useBridge(): Boolean = config() != null
+
     /** True when this device is itself a device on the account. */
     private fun linkedDirectly(): Boolean = try {
         signalStore.isLinked()
@@ -482,7 +497,7 @@ class SignalRepositoryImpl @Inject constructor(
         // A directly linked device fetches for itself. The bridge is only consulted when
         // there is no link -- asking both would deliver every message twice, and while
         // store() would deduplicate them, the two would still race to write the same rows.
-        if (linkedDirectly()) return syncDirect()
+        if (!useBridge() && linkedDirectly()) return syncDirect()
 
         val cfg = config() ?: return 0
         val client = BridgeClient(cfg)
@@ -637,7 +652,7 @@ class SignalRepositoryImpl @Inject constructor(
 
         // A bridge's stream is server-sent events from another machine. A directly linked
         // device holds its own websocket to Signal instead. Same shape, different socket.
-        if (config() == null) {
+        if (!useBridge()) {
             Timber.i("signal: linked directly; holding our own socket")
             // Ask once per start. A linked device knows nobody until the primary answers, and
             // the answer arrives through the socket below -- so the ask has to happen before
@@ -663,7 +678,7 @@ class SignalRepositoryImpl @Inject constructor(
         stream = null
         // The direct rail's socket is shared and outlives any one listen loop, so this is the
         // only place that closes it.
-        if (config() == null) runCatching { signalStore.disconnect() }
+        if (!useBridge()) runCatching { signalStore.disconnect() }
     }
 
     /**
@@ -965,7 +980,7 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     override fun send(threadKey: String, body: String, attachments: List<String>): Long {
-        if (linkedDirectly() && config() == null) return sendDirect(threadKey, body, attachments)
+        if (!useBridge() && linkedDirectly()) return sendDirect(threadKey, body, attachments)
         val cfg = config() ?: throw IllegalStateException("no bridge paired")
         try {
             return BridgeClient(cfg).send(threadKey, body, attachments)

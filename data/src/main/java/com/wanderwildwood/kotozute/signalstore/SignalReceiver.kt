@@ -117,19 +117,26 @@ internal class SignalReceiver(
         val messages = mutableListOf<com.wanderwildwood.kotozute.signal.BridgeMessage>()
         pending().forEach { (id, envelope, serverDeliveredTimestamp) ->
             when (val result = decrypt(envelope, serverDeliveredTimestamp)) {
+                // Kept, not deleted. The envelope was acknowledged on the way past -- the
+                // server has forgotten it and will never send it again -- so deleting a row
+                // we failed to decrypt destroys the message permanently. A decryption that
+                // fails today may succeed after a fix, and the ciphertext is the only copy
+                // left anywhere. Swept by age below rather than kept for ever.
                 null -> failed++
                 else -> {
                     decrypted++
                     senders += result.first
                     result.second?.let { messages += it }
+                    delete(id)
                 }
             }
-            delete(id)
         }
         // Filed in one transaction after the whole batch, not one at a time. The rail
         // announces what it stored, and a notification per message would be a notification
         // per message on a device catching up after a day offline.
         val stored = if (messages.isEmpty()) 0 else file(messages)
+        sweepUndecryptable()
+
         // After filing, while the connection is still up: a name learned now is a name the
         // inbox shows on this pass rather than the next one.
         if (envelopes > 0) runCatching { afterBatch() }.onFailure { Timber.w(it, "signal: after-batch") }
@@ -189,6 +196,25 @@ internal class SignalReceiver(
                 if (c.moveToNext()) Triple(c.getLong(0), Envelope.ADAPTER.decode(c.getBlob(1)), c.getLong(2))
                 else null
             }.toList()
+        }
+    }
+
+    /**
+     * Drops envelopes that have sat undecrypted for too long.
+     *
+     * They are kept in the first place because the ciphertext is the only copy left once the
+     * server has been acknowledged, and a fix might yet read them. But a message that has been
+     * unreadable for a fortnight is not going to become readable, and keeping every one for
+     * ever turns a decryption bug into unbounded growth in a database holding key material.
+     */
+    private fun sweepUndecryptable() = withStoreLock(db) {
+        val cutoff = System.currentTimeMillis() - UNDECRYPTABLE_RETENTION_MS
+        db.writableDatabase.execSQL(
+            "DELETE FROM envelope WHERE stored_timestamp < ?", arrayOf<Any?>(cutoff)
+        )
+        db.readableDatabase.rawQuery("SELECT count(*) FROM envelope", null).use { c ->
+            val stuck = if (c.moveToFirst()) c.getInt(0) else 0
+            if (stuck > 0) Timber.w("signal receive: %d envelope(s) still undecrypted", stuck)
         }
     }
 
@@ -365,6 +391,9 @@ internal class SignalReceiver(
 
         /** A profile key is exactly this; anything else is not one. */
         private const val PROFILE_KEY_BYTES = 32
+
+        /** How long to keep an envelope that will not decrypt, in case a fix arrives. */
+        private val UNDECRYPTABLE_RETENTION_MS = TimeUnit.DAYS.toMillis(14)
 
         /** Long, deliberately: every expiry is a wakeup that learned nothing. See [listen]. */
         private val READ_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(1)

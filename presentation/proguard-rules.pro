@@ -146,3 +146,26 @@
 -keep class * extends androidx.room.RoomDatabase { *; }
 -keep class androidx.work.impl.WorkDatabase_Impl { *; }
 -keepnames class androidx.work.impl.** { *; }
+
+# EXPERIMENT (signal-on-the-phone branch). Signal's service layer brings Jackson, which
+# references java.beans annotations that exist on the JVM and not on Android. R8 treats the
+# dangling references as an error and refuses to build; they are never reached at runtime
+# because the code that would use them is JVM-only.
+-dontwarn java.beans.ConstructorProperties
+-dontwarn java.beans.Transient
+
+# libsignal is a JNI library: the Rust core calls back into these classes by name, and R8
+# cannot see a call that originates outside the dex. Renaming or removing them produces a
+# NoSuchMethodError from native code at the first cipher operation -- which reads as the
+# library failing to load rather than as a keep rule being absent.
+-keep class org.signal.libsignal.** { *; }
+-keepclassmembers class org.signal.libsignal.** {
+    native <methods>;
+    <init>(...);
+}
+
+# The service layer's wire types are deserialised by name, by Jackson and by wire protobuf
+# adapters that look up their generated companions reflectively.
+-keep class org.whispersystems.signalservice.** { *; }
+-keep class org.signal.network.** { *; }
+-keepclassmembers class * extends com.squareup.wire.Message { *; }

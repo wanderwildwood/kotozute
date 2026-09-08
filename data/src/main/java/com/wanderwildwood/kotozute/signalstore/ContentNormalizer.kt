@@ -80,38 +80,14 @@ internal object ContentNormalizer {
 
         val groupId = groupIdOf(dataMessage)
 
-        // Note to Self, by whichever identifier the envelope happens to carry.
-        //
-        // The bridge only had to handle the destination being absent entirely, because that is
-        // what signal-cli reports. The raw protobuf is not so tidy: a note to self arrives with
-        // the destination **populated with our own number**, so testing for absence alone filed
-        // it under `direct:+1555...` while the bridge filed the same conversation under
-        // `direct:<aci>` -- two Note to Self threads for one conversation. Measured, not
-        // hypothetical.
-        //
-        // So: no destination at all, or a destination that is us, both mean Note to Self, and
-        // both key off the ACI so the two rails agree.
-        //
-        // **Both** halves must be checked. Testing the uuid alone filed a message sent to a
-        // real person as Note to Self whenever only their number was known -- which happens for
-        // a recipient not yet resolved to an ACI -- and a reply in that thread then went to
-        // yourself.
-        val destinationIsSelf = (counterpartUuid.isNotBlank() && counterpartUuid == selfAci) ||
-            (counterpartNumber.isNotBlank() && counterpartNumber == selfE164)
-        val destinationIsAbsent = counterpartUuid.isBlank() && counterpartNumber.isBlank()
-        if (outgoing && groupId.isBlank() && (destinationIsAbsent || destinationIsSelf)) {
-            counterpartUuid = selfAci.orEmpty().ifBlank { authorUuid }
-            counterpartNumber = ""
-        }
-
-        val threadKey = when {
-            groupId.isNotBlank() -> "group:$groupId"
-            else -> {
-                val id = counterpartUuid.ifBlank { counterpartNumber }
-                // Nothing to hang a thread on.
-                if (id.isBlank()) return null else "direct:$id"
-            }
-        }
+        val threadKey = threadKeyFor(
+            outgoing = outgoing,
+            counterpartUuid = counterpartUuid,
+            counterpartNumber = counterpartNumber,
+            groupId = groupId,
+            selfAci = selfAci,
+            selfE164 = selfE164
+        ) ?: return null
 
         // A timer change carries no message. Signal shows it as an event in the thread; kept
         // as a message it would be an empty bubble, and kept as one that never expires it
@@ -142,10 +118,7 @@ internal object ContentNormalizer {
         }
 
         return BridgeMessage(
-            // Identity of a Signal message is (author, timestamp). Stable across the several
-            // notifications one message produces, and across a re-import -- which is what
-            // keeps a redelivered envelope from becoming a second copy in the thread.
-            id = "${authorUuid.ifBlank { authorNumber }}:$timestamp",
+            id = messageIdFor(authorUuid, authorNumber, timestamp),
             seq = 0,
             threadKey = threadKey,
             ts = timestamp,
@@ -172,6 +145,60 @@ internal object ContentNormalizer {
             reactionRemove = reaction?.remove == true
         )
     }
+
+    /**
+     * Which conversation a message belongs to.
+     *
+     * Extracted from the protobuf handling because every rule in it was arrived at by
+     * something going wrong once, and because none of them need a protobuf, a network or a
+     * native library to state -- so they can be tested, which the rest of this file cannot be
+     * (deriving a group id calls into zkgroup).
+     *
+     * @return the thread key, or null when there is nothing to hang a thread on.
+     */
+    internal fun threadKeyFor(
+        outgoing: Boolean,
+        counterpartUuid: String,
+        counterpartNumber: String,
+        groupId: String,
+        selfAci: String?,
+        selfE164: String?
+    ): String? {
+        if (groupId.isNotBlank()) return "group:$groupId"
+
+        // Note to Self, by whichever identifier the envelope happens to carry.
+        //
+        // The bridge only had to handle the destination being absent entirely, because that
+        // is what signal-cli reports. The raw protobuf is not so tidy: a note to self arrives
+        // with the destination **populated with our own number**, so testing for absence
+        // alone filed it under `direct:+1555...` while the bridge filed the same conversation
+        // under `direct:<aci>` -- two threads for one conversation. Measured, not
+        // hypothetical.
+        //
+        // **Both** halves must be checked. Testing the uuid alone filed a message sent to a
+        // real person as Note to Self whenever only their number was known -- which happens
+        // for a recipient not yet resolved to an ACI -- and a reply in that thread then went
+        // to yourself.
+        val isSelf = (counterpartUuid.isNotBlank() && counterpartUuid == selfAci) ||
+            (counterpartNumber.isNotBlank() && counterpartNumber == selfE164)
+        val isAbsent = counterpartUuid.isBlank() && counterpartNumber.isBlank()
+        if (outgoing && (isAbsent || isSelf)) {
+            val self = selfAci.orEmpty().ifBlank { counterpartUuid }
+            return if (self.isBlank()) null else "direct:$self"
+        }
+
+        val id = counterpartUuid.ifBlank { counterpartNumber }
+        return if (id.isBlank()) null else "direct:$id"
+    }
+
+    /**
+     * The identity of a message: its author and its timestamp.
+     *
+     * Stable across the several notifications one message produces, and across a re-import --
+     * which is what keeps a redelivered envelope from becoming a second copy in the thread.
+     */
+    internal fun messageIdFor(authorUuid: String, authorNumber: String, timestamp: Long): String =
+        "${authorUuid.ifBlank { authorNumber }}:$timestamp"
 
     /**
      * The group's id, derived the way signal-cli derives it.

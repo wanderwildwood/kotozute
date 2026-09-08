@@ -72,6 +72,7 @@ class SettingsPresenter @Inject constructor(
                         copy(
                             signalPaired = conn.configured,
                             signalEnabled = conn.enabled,
+                            signalLinkedDirectly = conn.configured && prefs.signalBridgeHost.get().isBlank(),
                             signalBridgeSummary = signalBridgeSummary(conn.configured),
                             signalStatusSummary = signalStatusSummary(conn)
                         )
@@ -230,6 +231,7 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.desktopSyncReset -> view.askDesktopSyncReset()
 
+                        R.id.signalLink -> view.showSignalLink()
                         R.id.signalPair -> view.showSignalPairDialog()
 
                         R.id.signalOpen -> navigator.showSignalConversations()

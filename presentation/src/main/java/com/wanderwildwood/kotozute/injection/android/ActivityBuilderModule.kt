@@ -23,6 +23,7 @@ import dagger.android.ContributesAndroidInjector
 import com.wanderwildwood.kotozute.feature.backup.BackupActivity
 import com.wanderwildwood.kotozute.feature.blocking.BlockingActivity
 import com.wanderwildwood.kotozute.feature.signal.SignalConversationsActivity
+import com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity
 import com.wanderwildwood.kotozute.feature.signal.SignalThreadActivity
 import com.wanderwildwood.kotozute.feature.signal.SignalThreadInfoActivity
 import com.wanderwildwood.kotozute.feature.compose.ComposeActivity
@@ -94,6 +95,9 @@ abstract class ActivityBuilderModule {
     @ActivityScope
     @ContributesAndroidInjector(modules = [])
     abstract fun bindSignalConversationsActivity(): SignalConversationsActivity
+
+    @ContributesAndroidInjector
+    abstract fun bindSignalLinkActivity(): SignalLinkActivity
 
 
     @ActivityScope

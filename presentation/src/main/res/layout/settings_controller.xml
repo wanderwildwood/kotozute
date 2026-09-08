@@ -277,6 +277,18 @@
             android:orientation="vertical"
             android:visibility="gone">
 
+            <!--
+              Above the bridge row on purpose. Linking directly is the route that needs no
+              second computer, so it is the one to meet first; the bridge stays for anyone
+              already using one.
+            -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalLink"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_signal_link_summary"
+                app:title="@string/settings_signal_link_title" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalPair"
                 android:layout_width="match_parent"

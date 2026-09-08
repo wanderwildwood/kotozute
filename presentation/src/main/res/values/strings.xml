@@ -317,6 +317,15 @@
     <string name="settings_signal_pair_summary">Signal needs a bridge running on a computer that stays on</string>
     <string name="settings_signal_paired_summary">Paired with %s</string>
     <string name="settings_signal_linked_summary">Linked to your Signal account</string>
+    <string name="settings_signal_link_title">Link this phone to Signal</string>
+    <string name="settings_signal_link_summary">Scan the code with Signal on your other phone</string>
+    <string name="settings_signal_link_relinked">Already linked. Linking again replaces this device.</string>
+    <string name="signal_link_title">Link this phone</string>
+    <string name="signal_link_instructions">On your other phone, open Signal, then Settings \u2192 Linked devices \u2192 Link new device, and scan this code.</string>
+    <string name="signal_link_waiting">Waiting for the code to be scanned\u2026</string>
+    <string name="signal_link_expired">The code expired. Close this and try again.</string>
+    <string name="signal_link_success">Linked. Your Signal conversations will start arriving.</string>
+    <string name="signal_link_failed">Could not link: %s</string>
     <string name="settings_signal_pair_dialog_title">Paste the pairing link</string>
     <string name="settings_signal_keep_title">Keep Signal connected</string>
     <string name="settings_signal_keep_summary">Messages arrive as they are sent, at the cost of a permanent notification. Off, Signal catches up every so often and when you open the app.</string>

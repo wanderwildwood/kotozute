@@ -249,6 +249,12 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.desktopSyncTailscaleOnly.checkbox.isChecked = state.desktopSyncTailscaleOnly
         binding.desktopSyncReset.setVisible(state.desktopSyncEnabled)
 
+        // Linking again is not additive -- it registers a new device and abandons the old
+        // one's keys -- so a device that already has a link is told that before it taps.
+        binding.signalLink.summary = context.getString(
+            if (state.signalLinkedDirectly) R.string.settings_signal_link_relinked
+            else R.string.settings_signal_link_summary
+        )
         binding.signalPair.summary = state.signalBridgeSummary
         binding.signalEnabled.setVisible(state.signalPaired)
         binding.signalEnabled.checkbox.isChecked = state.signalEnabled
@@ -480,6 +486,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * and a 64-character fingerprint, and neither is something to key in on a phone.
      * Run `kotozute-bridge --pairing` on the bridge host to print it.
      */
+    override fun showSignalLink() {
+        activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity.intent(it)) }
+    }
+
     override fun showSignalPairDialog() {
         val input = EditText(activity!!).apply {
             setHint(R.string.settings_signal_pair_dialog_hint)

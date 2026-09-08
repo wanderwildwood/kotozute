@@ -344,15 +344,8 @@ class SignalRepositoryImpl @Inject constructor(
             // loudly beats sending nothing and reporting success.
             throw IllegalStateException("sending to groups is not supported on a direct link yet")
         }
-        if (attachments.isNotEmpty()) {
-            // Uploading an attachment is its own path -- encrypt, allocate a CDN slot, upload,
-            // then reference it -- and none of it exists here yet. Silently dropping the
-            // picture and sending the text would be worse than not sending.
-            throw IllegalStateException("sending attachments is not supported on a direct link yet")
-        }
-
         val recipient = threadKey.removePrefix("direct:")
-        val result = signalStore.send(recipient, body)
+        val result = signalStore.send(recipient, body, attachments)
         val timestamp = Regex("ts=(\\d+)").find(result)?.groupValues?.get(1)?.toLongOrNull()
             ?: throw IllegalStateException(result)
 
@@ -375,11 +368,39 @@ class SignalRepositoryImpl @Inject constructor(
                     quoteTs = 0,
                     read = true,
                     source = "live",
-                    attachmentsJson = ""
+                    // What we sent, so the row can draw it. Marked not pending: unlike a
+                    // received attachment this one is not on disk under an id -- it was
+                    // uploaded from the composer's own copy -- so there is nothing to fetch
+                    // and nothing to say is missing.
+                    attachmentsJson = outgoingAttachmentsJson(attachments)
                 )
             )
         )
         return timestamp
+    }
+
+    /**
+     * Describes what was attached to a message we sent.
+     *
+     * Deliberately minimal: the type only, and no id. A received attachment records an id the
+     * repository can turn into bytes; a sent one has no such copy, and inventing an id that
+     * resolves to nothing would make the row claim a file it cannot produce.
+     */
+    private fun outgoingAttachmentsJson(attachments: List<String>): String {
+        if (attachments.isEmpty()) return ""
+        val array = org.json.JSONArray()
+        attachments.forEach { dataUri ->
+            val type = dataUri.substringAfter("data:", "").substringBefore(';')
+            array.put(
+                org.json.JSONObject()
+                    .put("id", "")
+                    .put("type", type.ifBlank { "application/octet-stream" })
+                    .put("filename", "")
+                    .put("size", 0)
+                    .put("pending", false)
+            )
+        }
+        return array.toString()
     }
 
     override fun applyReceipts(senderUuid: String, timestamps: List<Long>, read: Boolean): Int {

@@ -72,6 +72,23 @@ internal class SignalConnection(
 
     val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
 
+    /** Reused by the sender: uploading an attachment needs a slot on the CDN first. */
+    val restClient: org.signal.network.rest.SignalRestClient by lazy {
+        org.signal.network.rest.SignalRestClient(configuration, userAgent, credentials)
+    }
+
+    val cdn: org.signal.network.service.CdnService by lazy {
+        org.signal.network.service.CdnService(
+            restClient,
+            org.signal.network.api.AttachmentApi(
+                authenticated,
+                org.whispersystems.signalservice.internal.push.PushServiceSocket(
+                    configuration, credentials, userAgent, true
+                )
+            )
+        )
+    }
+
     /** Profiles need the zk operations as well as the sockets: the fetch is versioned. */
     val profiles: org.whispersystems.signalservice.api.profiles.ProfileApi by lazy {
         org.whispersystems.signalservice.api.profiles.ProfileApi(

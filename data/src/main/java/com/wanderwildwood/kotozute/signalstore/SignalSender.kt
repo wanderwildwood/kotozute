@@ -6,6 +6,7 @@ import org.whispersystems.signalservice.api.SignalServiceMessageSender
 import org.whispersystems.signalservice.api.SignalSessionLock
 import org.whispersystems.signalservice.api.crypto.ContentHint
 import org.whispersystems.signalservice.api.messages.SendMessageResult
+import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream
 import org.whispersystems.signalservice.api.messages.SignalServiceDataMessage
 import org.whispersystems.signalservice.api.push.SignalServiceAddress
 import org.whispersystems.signalservice.api.message.MessageApi
@@ -123,11 +124,21 @@ internal class SignalSender(
      * our own other devices when this send comes back to them as a sync. So it is generated
      * once, here, and returned -- not read back from anything.
      */
-    fun send(recipient: ServiceId, body: String): Result {
+    fun send(recipient: ServiceId, body: String, attachments: List<String> = emptyList()): Result {
         val timestamp = System.currentTimeMillis()
+        val streams = try {
+            attachments.mapNotNull { attachmentStream(it) }
+        } catch (t: Throwable) {
+            // Before the message is sent, not after. A message that goes out without the
+            // picture someone attached is worse than one that does not go out at all: the
+            // sender believes the picture was delivered.
+            Timber.w(t, "signal send: could not prepare an attachment")
+            return Result.Failed("could not prepare the attachment: ${t.message}")
+        }
         val message = SignalServiceDataMessage.newBuilder()
             .withBody(body)
             .withTimestamp(timestamp)
+            .apply { if (streams.isNotEmpty()) withAttachments(streams) }
             .build()
 
         return try {
@@ -164,6 +175,43 @@ internal class SignalSender(
             Timber.w(t, "signal send: threw")
             Result.Failed(t.message ?: t::class.java.simpleName)
         }
+    }
+
+    /**
+     * Turns the app's `data:` URI into something the sender can upload.
+     *
+     * The composer hands attachments across as data URIs -- that is what the bridge accepted,
+     * and changing it would mean touching the picker, the preview and the scheduling path for
+     * no gain here.
+     *
+     * A CDN slot is reserved **before** the send. The sender needs somewhere to put the bytes
+     * and will not go and get one itself; without a spec it falls back to a path that has no
+     * upload location at all.
+     */
+    private fun attachmentStream(dataUri: String): SignalServiceAttachmentStream? {
+        val comma = dataUri.indexOf(',')
+        if (!dataUri.startsWith("data:") || comma < 0) {
+            throw IllegalArgumentException("attachment is not a data URI")
+        }
+        val header = dataUri.substring("data:".length, comma)
+        val contentType = header.substringBefore(';').ifBlank { "application/octet-stream" }
+        val bytes = android.util.Base64.decode(dataUri.substring(comma + 1), android.util.Base64.DEFAULT)
+        if (bytes.isEmpty()) return null
+
+        // The reserved size is the *ciphertext* length, not the file's. Reserving the
+        // plaintext size leaves the upload short of room by the padding and MAC.
+        val spec = connection.cdn.getResumableUploadSpecBlocking(
+            org.whispersystems.signalservice.api.crypto.AttachmentCipherStreamUtil
+                .getCiphertextLength(bytes.size.toLong())
+        )
+
+        return org.whispersystems.signalservice.api.messages.SignalServiceAttachment.newStreamBuilder()
+            .withStream(java.io.ByteArrayInputStream(bytes))
+            .withContentType(contentType)
+            .withLength(bytes.size.toLong())
+            .withUploadTimestamp(System.currentTimeMillis())
+            .withResumableUploadSpec(spec)
+            .build()
     }
 
     companion object {

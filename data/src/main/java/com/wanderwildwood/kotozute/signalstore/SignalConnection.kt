@@ -114,6 +114,10 @@ internal class SignalConnection(
         // reads as a flaky network rather than as an ordering mistake here.
         authenticated.registerKeepAliveToken(SignalWebSocket.FOREGROUND_KEEPALIVE)
         unauthenticated.registerKeepAliveToken(SignalWebSocket.FOREGROUND_KEEPALIVE)
+        // registerKeepAliveToken() connects on its own -- registering a token *is* saying the
+        // connection should be up -- so these are belt and braces rather than the thing that
+        // opens the socket. Worth knowing when reading the log: the "connecting" line above
+        // can precede a connection that the register call already started.
         authenticated.connect()
         unauthenticated.connect()
     }

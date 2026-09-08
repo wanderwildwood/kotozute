@@ -102,6 +102,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val autoDeleteSubject: Subject<Int> = PublishSubject.create()
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
     private val signalPairSubject: Subject<String> = PublishSubject.create()
+    private val stopBridgeSubject: Subject<Unit> = PublishSubject.create()
     private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
     private val aboutLongClickSubject: Subject<Unit> = PublishSubject.create()
 
@@ -188,6 +189,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun signalPairPayload(): Observable<String> = signalPairSubject
 
+    override fun stopUsingBridgeConfirmed(): Observable<Unit> = stopBridgeSubject
+
     override fun signalUnpairConfirmed(): Observable<*> = signalUnpairSubject
 
     private companion object {
@@ -255,6 +258,9 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             if (state.signalLinkedDirectly) R.string.settings_signal_link_relinked
             else R.string.settings_signal_link_summary
         )
+        // Only where it is a real choice: this phone is a Signal device in its own right and
+        // is still going through a bridge it no longer needs.
+        binding.signalStopBridge.setVisible(state.signalLinkedDirectly && state.signalBridgePaired)
         binding.signalPair.summary = state.signalBridgeSummary
         binding.signalEnabled.setVisible(state.signalPaired)
         binding.signalEnabled.checkbox.isChecked = state.signalEnabled
@@ -486,6 +492,17 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * and a 64-character fingerprint, and neither is something to key in on a phone.
      * Run `kotozute-bridge --pairing` on the bridge host to print it.
      */
+    override fun confirmStopUsingBridge() {
+        activity?.let { context ->
+            androidx.appcompat.app.AlertDialog.Builder(context)
+                .setTitle(R.string.settings_signal_stop_bridge_title)
+                .setMessage(R.string.settings_signal_stop_bridge_summary)
+                .setNegativeButton(R.string.button_cancel, null)
+                .setPositiveButton(R.string.button_continue) { _, _ -> stopBridgeSubject.onNext(Unit) }
+                .show()
+        }
+    }
+
     override fun showSignalLink() {
         activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity.intent(it)) }
     }

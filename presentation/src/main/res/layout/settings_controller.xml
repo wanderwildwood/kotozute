@@ -364,6 +364,14 @@
                 app:title="@string/settings_signal_status_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalStopBridge"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_stop_bridge_summary"
+                app:title="@string/settings_signal_stop_bridge_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalUnpair"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

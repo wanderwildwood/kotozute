@@ -168,6 +168,28 @@ class SignalRepositoryImpl @Inject constructor(
         return true
     }
 
+    override fun stopUsingBridge() = runOffThread {
+        // The in-flight sync checks this between pages, so it stops paging a bridge that is
+        // about to be forgotten.
+        pairingEpoch.incrementAndGet()
+        stopStream()
+
+        prefs.signalBridgeHost.set("")
+        prefs.signalBridgeToken.set("")
+        prefs.signalBridgeFingerprint.set("")
+        // The cursor and instance describe a position in *that* bridge's stream and mean
+        // nothing without it. Messages and threads are deliberately untouched: they are the
+        // user's conversations, not the bridge's cache.
+        prefs.signalCursor.set(0L)
+        prefs.signalBridgeInstance.set("")
+        prefs.signalLastSync.set(0L)
+
+        // useBridge() is false from here, so this starts the device's own socket rather than
+        // reconnecting to the bridge that just went away.
+        publishState(reachable = false, signalConnected = false, error = null)
+        if (prefs.signalEnabled.get()) startStream()
+    }
+
     override fun unpair() = runOffThread {
         // Before anything else: a sync in flight is paging the bridge right now, and it
         // checks this between pages.

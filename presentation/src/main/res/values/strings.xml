@@ -352,6 +352,8 @@
     <string name="settings_signal_status_last_synced">Last synced %s</string>
     <!-- Named for what it destroys, not for the pairing it happens to end. Someone looking
          for a way to remove their Signal data will not find it under "Forget this bridge". -->
+    <string name="settings_signal_stop_bridge_title">Stop using the bridge</string>
+    <string name="settings_signal_stop_bridge_summary">Signal carries on over this phone\'s own connection. Your conversations stay.</string>
     <string name="settings_signal_unpair_title">Delete Signal data</string>
     <string name="settings_signal_unpair_summary">Removes every Signal message on this phone, and the saved bridge and account details</string>
     <string name="settings_signal_unpair_armed">Delete Signal data — tap again</string>

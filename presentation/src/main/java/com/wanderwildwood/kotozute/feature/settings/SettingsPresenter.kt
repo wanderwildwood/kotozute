@@ -407,6 +407,26 @@ class SettingsPresenter @Inject constructor(
                 DateUtils.getRelativeTimeSpanString(t).toString()
             )
         }
+        // Envelopes that arrived and could not be decrypted. Kept rather than dropped -- they
+        // were acknowledged, so the ciphertext is the only copy left -- and surfaced here
+        // because a release build logs nothing, and this count is the one early sign of a
+        // message shape the app cannot yet read.
+        val stuck = conn.undecryptable
+            .takeIf { it > 0 }
+            ?.let { " · " + context.getString(R.string.settings_signal_status_stuck, it) }
+            .orEmpty()
+
+        // A phone that is its own Signal device has no bridge to be unreachable or to refuse
+        // it, and saying otherwise sends someone to re-pair something that does not exist.
+        if (!conn.usingBridge) {
+            return when {
+                !conn.signalConnected ->
+                    context.getString(R.string.settings_signal_status_direct_offline) + " · " + last + stuck
+                else ->
+                    context.getString(R.string.settings_signal_status_direct_ok) + " · " + last + stuck
+            }
+        }
+
         return when {
             // "Cannot reach the bridge" would be a lie here: it answered, and said no. The
             // difference matters because one of the two is fixed by waiting and the other

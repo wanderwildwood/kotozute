@@ -79,6 +79,16 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private fun useBridge(): Boolean = config() != null
 
+    /**
+     * How many envelopes are sitting undecrypted.
+     *
+     * Cheap and swallowing: this runs on every state publish, and a store that will not open
+     * must not make the settings screen fail -- the number is a diagnostic, not a fact the
+     * app depends on.
+     */
+    private fun undecryptableCount(): Int =
+        if (useBridge()) 0 else runCatching { signalStore.undecryptableCount() }.getOrDefault(0)
+
     /** True when this device is itself a device on the account. */
     private fun linkedDirectly(): Boolean = try {
         signalStore.isLinked()
@@ -1395,6 +1405,8 @@ class SignalRepositoryImpl @Inject constructor(
             SignalRepository.ConnectionState(
                 configured = isConfigured(),
                 linkedDirectly = linkedDirectly(),
+                usingBridge = useBridge(),
+                undecryptable = undecryptableCount(),
                 enabled = prefs.signalEnabled.get(),
                 bridgeReachable = reachable,
                 signalConnected = signalConnected,

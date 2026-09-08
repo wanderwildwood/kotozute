@@ -32,6 +32,12 @@ class SignalStore(private val context: Context) {
 
     /** True once this device has a device id and a password -- that is, once it is linked. */
     /** This device's own ACI, or null when it is not linked. Cheap enough to ask per thread. */
+    /** Envelopes kept because they would not decrypt. See [SignalReceiver]. */
+    fun undecryptableCount(): Int = withStoreLock(database) {
+        database.readableDatabase.rawQuery("SELECT count(*) FROM envelope", null)
+            .use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+    }
+
     fun selfAciOrNull(): String? = runCatching { account.credentials().aci }.getOrNull()
 
     fun isLinked(): Boolean = ProtocolStoreKey.exists(context) && account.credentials().complete

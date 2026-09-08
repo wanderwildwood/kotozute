@@ -449,24 +449,20 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun startStream() {
         if (!prefs.signalEnabled.get() || !isConfigured()) return
-        // The stream loop is the bridge's server-sent-events connection and nothing else. A
-        // directly linked device has its own persistent socket to build, and starting this
-        // one without a bridge configured would loop on a connection that cannot exist.
-        // Until that socket is written, a linked device catches up through syncNow().
-        if (config() == null) {
-            // No bridge, so no stream to open -- but "start Signal" still has to mean
-            // something. Without this a directly linked device only caught up when the
-            // Signal screen happened to be opened, or when the 15-minute worker next ran:
-            // enabling Signal appeared to do nothing at all. A persistent socket of its own
-            // is the real answer and is not written yet; a catch-up now is the honest
-            // interim, and the worker keeps it fed.
-            Timber.i("signal: linked directly; catching up instead of opening a bridge stream")
-            runOffThread { syncNow() }
-            return
-        }
+        // Claimed before either branch, so both rails take the flag and the generation the
+        // same way. stopStream() and a second startStream() then behave identically whichever
+        // one is live, and neither can start while the other is running.
         if (!streamWanted.compareAndSet(false, true)) return
         val generation = streamGeneration.incrementAndGet()
-        thread(name = "signal-stream-$generation", isDaemon = true) { streamLoop(generation) }
+
+        // A bridge's stream is server-sent events from another machine. A directly linked
+        // device holds its own websocket to Signal instead. Same shape, different socket.
+        if (config() == null) {
+            Timber.i("signal: linked directly; holding our own socket")
+            thread(name = "signal-listen-$generation", isDaemon = true) { listenLoop(generation) }
+        } else {
+            thread(name = "signal-stream-$generation", isDaemon = true) { streamLoop(generation) }
+        }
     }
 
     override fun stopStream() {
@@ -480,9 +476,43 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /**
-     * Reconnects with backoff for as long as the stream is wanted. Every reconnect
-     * re-sends the cursor, so a dropped connection is a delay and never a hole.
+     * The direct-link equivalent of [streamLoop].
+     *
+     * Reconnects on failure with the same backoff shape as the bridge loop, and gives up its
+     * generation the same way, so the two rails cannot both believe they are current.
      */
+    private fun listenLoop(generation: Int) {
+        var backoff = 2_000L
+        try {
+            while (streamWanted.get() && streamGeneration.get() == generation) {
+                try {
+                    streamConnected.set(true)
+                    publishState(reachable = true, signalConnected = true, error = null)
+                    signalStore.listen(
+                        keepGoing = { streamWanted.get() && streamGeneration.get() == generation },
+                        file = { ingest(it) },
+                        onBatch = { Timber.i("signal: received %s", it) }
+                    )
+                    backoff = 2_000L
+                } catch (t: Throwable) {
+                    if (!streamWanted.get() || streamGeneration.get() != generation) break
+                    Timber.w(t, "signal: listen failed; retrying in %d ms", backoff)
+                    streamConnected.set(false)
+                    publishState(reachable = false, signalConnected = false, error = t.message)
+                    Thread.sleep(backoff)
+                    // Capped, because a phone that has been out of signal for an hour should
+                    // not then wait an hour more once it is back.
+                    backoff = (backoff * 2).coerceAtMost(60_000L)
+                }
+            }
+        } finally {
+            if (streamGeneration.get() == generation) {
+                streamConnected.set(false)
+                streamWanted.set(false)
+            }
+        }
+    }
+
     private fun streamLoop(generation: Int) {
         try {
             streamLoopInner(generation)

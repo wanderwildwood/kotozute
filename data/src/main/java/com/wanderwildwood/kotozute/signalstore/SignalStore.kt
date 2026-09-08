@@ -120,6 +120,32 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /**
+     * Holds the connection open and files messages as they arrive.
+     *
+     * Blocks for as long as [keepGoing] says to, so the caller owns the thread. The connection
+     * is closed on the way out however this ends -- a socket left open by a loop that stopped
+     * is a socket nothing will ever close.
+     */
+    fun listen(
+        keepGoing: () -> Boolean,
+        file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
+        onBatch: (String) -> Unit
+    ) {
+        val connection = connection()
+        connection.connect()
+        try {
+            SignalReceiver(
+                database, account, SignalDataStore(database, account), connection,
+                SignalNetworkConfig.certificateValidator(), file
+            ).listen(keepGoing) { r ->
+                onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     fun linker(): DeviceLinker = DeviceLinker(
         SignalNetworkConfig.production(),
         SignalNetworkConfig.USER_AGENT,

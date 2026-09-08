@@ -657,6 +657,7 @@ class SignalRepositoryImpl @Inject constructor(
         var backoff = 2_000L
         try {
             while (streamWanted.get() && streamGeneration.get() == generation) {
+                val connectedAt = System.currentTimeMillis()
                 try {
                     streamConnected.set(true)
                     publishState(reachable = true, signalConnected = true, error = null)
@@ -670,8 +671,25 @@ class SignalRepositoryImpl @Inject constructor(
                     backoff = 2_000L
                 } catch (t: Throwable) {
                     if (!streamWanted.get() || streamGeneration.get() != generation) break
-                    Timber.w(t, "signal: listen failed; retrying in %d ms", backoff)
                     streamConnected.set(false)
+
+                    // A read that ended after the socket had been up a while is not evidence
+                    // of a broken network, and treating it as one is actively harmful: the
+                    // backoff grows to seconds and then tens of seconds, and every one of
+                    // those is a message arriving late.
+                    //
+                    // This happens routinely and is not understood: the socket wrapper reports
+                    // CONNECTED throughout while the read reports the connection closed, so
+                    // the two disagree somewhere inside the library. It recovers immediately
+                    // and delivery is unaffected. Backing off would be the only real damage.
+                    val wasStable = System.currentTimeMillis() - connectedAt > STABLE_CONNECTION_MS
+                    if (wasStable) {
+                        Timber.d(t, "signal: read ended after a stable connection; reconnecting")
+                        backoff = 2_000L
+                        continue
+                    }
+
+                    Timber.w(t, "signal: listen failed; retrying in %d ms", backoff)
                     publishState(reachable = false, signalConnected = false, error = t.message)
                     Thread.sleep(backoff)
                     // Capped, because a phone that has been out of signal for an hour should
@@ -686,6 +704,14 @@ class SignalRepositoryImpl @Inject constructor(
             }
         }
     }
+
+    /**
+     * How long a connection must have lasted for its ending to count as routine rather than
+     * as a failure. Comfortably longer than a connect-and-immediately-fail, and shorter than
+     * the read timeout, so a socket that survived a full read window is never treated as a
+     * network problem.
+     */
+    private val STABLE_CONNECTION_MS = 30_000L
 
     private fun streamLoop(generation: Int) {
         try {

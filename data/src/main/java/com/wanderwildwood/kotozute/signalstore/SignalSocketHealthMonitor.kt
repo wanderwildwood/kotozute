@@ -35,11 +35,16 @@ import kotlin.math.abs
 internal class SignalSocketHealthMonitor(private val sleepTimer: SleepTimer) : HealthMonitor {
 
     private val executor = Executors.newSingleThreadExecutor()
-    private var webSocket: SignalWebSocket? = null
+    @Volatile private var webSocket: SignalWebSocket? = null
 
     @Volatile private var keepAliveSender: KeepAliveSender? = null
-    private var needsKeepAlive = false
-    private var lastKeepAliveReceived = 0L
+    @Volatile private var needsKeepAlive = false
+    /**
+     * Written on the executor, read from the keepalive thread. Volatile because those are
+     * different threads: a stale read here means the sender concludes every keepalive went
+     * unanswered and tears down a healthy socket.
+     */
+    @Volatile private var lastKeepAliveReceived = 0L
 
     fun monitor(webSocket: SignalWebSocket) {
         check(this.webSocket == null) { "monitor can only be called once" }
@@ -55,6 +60,7 @@ internal class SignalSocketHealthMonitor(private val sleepTimer: SleepTimer) : H
     }
 
     private fun onStateChanged(connectionState: WebSocketConnectionState) {
+        Timber.d("signal socket: state -> %s", connectionState)
         executor.execute {
             needsKeepAlive = connectionState == WebSocketConnectionState.CONNECTED
             updateKeepAliveSenderStatus()

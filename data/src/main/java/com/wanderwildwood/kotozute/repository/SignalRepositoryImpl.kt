@@ -292,13 +292,21 @@ class SignalRepositoryImpl @Inject constructor(
                     .onSuccess { Timber.i("signal keys: %s", it) }
                     .onFailure { Timber.w(it, "signal keys: could not publish after linking") }
 
+                // Linking is an explicit act that means "I want Signal on this phone", so the
+                // rail goes on with it. Leaving it off left a device that had just linked
+                // successfully showing no conversations and no explanation -- the user having
+                // to find a second switch to make the first one mean anything.
+                //
+                // Pairing a bridge stays a separate step, because that one can be done to
+                // point at a machine that is not ready yet.
+                prefs.signalEnabled.set(true)
                 // The state has changed in a way nothing else will notice: this device was
                 // not a Signal device a moment ago and now is. Publishing it here is what
                 // makes the settings screen stop offering to link.
                 publishState(reachable = true, signalConnected = true, error = null)
-                // And start receiving, if Signal is switched on. Without this the first
-                // messages wait for the next launch, which reads as linking not having worked.
-                if (prefs.signalEnabled.get()) startStream()
+                // And start receiving. Without this the first messages wait for the next
+                // launch, which reads as linking not having worked.
+                startStream()
                 "linked as device ${result.deviceId}"
             }
             is com.wanderwildwood.kotozute.signalstore.DeviceLinker.Result.Failed -> result.reason

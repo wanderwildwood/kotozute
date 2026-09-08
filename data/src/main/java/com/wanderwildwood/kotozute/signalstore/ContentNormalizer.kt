@@ -28,6 +28,17 @@ import org.whispersystems.signalservice.internal.push.DataMessage
 internal object ContentNormalizer {
 
     /**
+     * Exposed for the self-check. The derivation is the part worth pinning: it is a pure
+     * function of the master key, and getting it wrong produces a stable, plausible, wrong
+     * thread key rather than an error.
+     */
+    internal fun groupIdForCheck(masterKey: ByteArray): String =
+        groupIdOf(DataMessage(groupV2 = org.whispersystems.signalservice.internal.push.GroupContextV2(
+            masterKey = okio.ByteString.of(*masterKey)
+        )))
+
+
+    /**
      * @return the message to store, or null for traffic that is not one -- typing indicators,
      *   config sync, receipts, and expiration-timer changes.
      */
@@ -67,9 +78,7 @@ internal object ContentNormalizer {
             else -> return null
         }
 
-        val groupId = dataMessage.groupV2?.masterKey?.let { key ->
-            android.util.Base64.encodeToString(key.toByteArray(), android.util.Base64.NO_WRAP)
-        }.orEmpty()
+        val groupId = groupIdOf(dataMessage)
 
         // Note to Self, by whichever identifier the envelope happens to carry.
         //
@@ -162,6 +171,36 @@ internal object ContentNormalizer {
             }.orEmpty(),
             reactionRemove = reaction?.remove == true
         )
+    }
+
+    /**
+     * The group's id, derived the way signal-cli derives it.
+     *
+     * **Not the master key.** The wire carries a master key; the id is what you get by
+     * deriving secret params from it and taking the public group identifier. Base64 of the
+     * master key would be a perfectly stable, perfectly wrong thread key -- the bridge files
+     * the same group under the derived id, so the two rails would split every group
+     * conversation into two threads, exactly as they briefly did for Note to Self.
+     *
+     * Standard base64, not URL-safe and not unpadded, because that is what signal-cli's
+     * `GroupId.toBase64()` produces and the thread key has to match it character for
+     * character.
+     */
+    private fun groupIdOf(dataMessage: DataMessage): String {
+        val masterKeyBytes = dataMessage.groupV2?.masterKey?.toByteArray() ?: return ""
+        return runCatching {
+            val masterKey = org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKeyBytes)
+            val identifier = org.signal.libsignal.zkgroup.groups.GroupSecretParams
+                .deriveFromMasterKey(masterKey)
+                .publicParams
+                .groupIdentifier
+                .serialize()
+            android.util.Base64.encodeToString(identifier, android.util.Base64.NO_WRAP)
+        }.getOrElse {
+            // A group whose id cannot be derived has nothing to hang a thread on, and
+            // guessing one would file the message in a thread nothing else will ever match.
+            ""
+        }
     }
 
     /**

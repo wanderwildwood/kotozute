@@ -782,7 +782,15 @@ class SignalRepositoryImpl @Inject constructor(
             .onFailure { Timber.d("markRead not delivered: ${it.message}") }
     }
 
+    /**
+     * Bytes for an attachment, from whichever rail brought it in.
+     *
+     * The local store is asked first. A bridge fetch is a network round trip to another
+     * machine, and on a directly linked device the file is already on disk -- so trying the
+     * bridge first would be slower when it worked and wrong when there is no bridge at all.
+     */
     override fun loadAttachment(id: String): ByteArray? {
+        signalStore.readAttachment(id)?.let { return it }
         val cfg = config() ?: return null
         return runCatching { BridgeClient(cfg).fetchAttachment(id) }
             .onFailure { Timber.d("attachment $id: ${it.message}") }

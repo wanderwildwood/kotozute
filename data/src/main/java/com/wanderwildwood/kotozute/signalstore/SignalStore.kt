@@ -91,7 +91,7 @@ class SignalStore(private val context: Context) {
         return try {
             val result = SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file
+                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection)
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -137,7 +137,7 @@ class SignalStore(private val context: Context) {
         try {
             SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file
+                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection)
             ).listen(keepGoing) { r ->
                 onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
             }
@@ -145,6 +145,17 @@ class SignalStore(private val context: Context) {
             connection.disconnect()
         }
     }
+
+    /**
+     * Bound to a connection because downloading needs one, and a connection is per-operation
+     * here rather than a long-lived singleton.
+     */
+    private fun attachmentsFor(connection: SignalConnection) =
+        SignalAttachments(context) { connection.messageReceiver }
+
+    /** The bytes of a downloaded attachment, or null if it was never fetched. */
+    fun readAttachment(id: String): ByteArray? =
+        SignalAttachments(context) { error("no download needed to read") }.read(id)
 
     fun linker(): DeviceLinker = DeviceLinker(
         SignalNetworkConfig.production(),

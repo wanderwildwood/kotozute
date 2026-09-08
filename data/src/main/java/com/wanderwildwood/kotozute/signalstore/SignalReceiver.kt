@@ -35,7 +35,8 @@ internal class SignalReceiver(
     private val connection: SignalConnection,
     private val certificateValidator: CertificateValidator,
     /** Where a decrypted message goes. The same path the bridge sync files through. */
-    private val file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int
+    private val file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
+    private val attachments: SignalAttachments
 ) {
 
     /**
@@ -212,7 +213,13 @@ internal class SignalReceiver(
         )
         return try {
             cipher.decrypt(envelope, serverDeliveredTimestamp)?.let { result ->
-                val message = ContentNormalizer.normalize(result.content, result.metadata, credentials.aci, credentials.e164)
+                val normalized = ContentNormalizer.normalize(
+                    result.content, result.metadata, credentials.aci, credentials.e164
+                )
+                // Downloaded now, while the CDN still has them. See SignalAttachments: a
+                // pointer is only good for a window, so fetching lazily when a bubble is drawn
+                // fails for exactly the attachments worth keeping.
+                val message = normalized?.let { withAttachments(it, result.content) }
                 Timber.i(
                     "signal receive: decrypted from %s -> %s",
                     result.metadata.sourceServiceId,
@@ -224,6 +231,35 @@ internal class SignalReceiver(
             Timber.w(t, "signal receive: could not decrypt an envelope; dropping it")
             null
         }
+    }
+
+    /**
+     * Replaces the placeholder attachment metadata with what was actually fetched.
+     *
+     * A pointer that fails to download leaves the row saying an attachment exists but is not
+     * here, rather than dropping it: a message that silently loses its picture reads as if the
+     * sender never sent one.
+     */
+    private fun withAttachments(
+        message: com.wanderwildwood.kotozute.signal.BridgeMessage,
+        content: org.whispersystems.signalservice.internal.push.Content
+    ): com.wanderwildwood.kotozute.signal.BridgeMessage {
+        val dataMessage = content.syncMessage?.sent?.message ?: content.dataMessage ?: return message
+        if (dataMessage.attachments.isEmpty() || message.viewOnce) return message
+
+        val array = org.json.JSONArray()
+        dataMessage.attachments.forEach { pointer ->
+            val id = attachments.download(pointer)
+            array.put(
+                org.json.JSONObject()
+                    .put("id", id.orEmpty())
+                    .put("type", pointer.contentType.orEmpty())
+                    .put("filename", pointer.fileName.orEmpty())
+                    .put("size", pointer.size ?: 0)
+                    .put("pending", id == null)
+            )
+        }
+        return message.copy(attachmentsJson = array.toString())
     }
 
     companion object {

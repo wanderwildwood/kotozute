@@ -276,6 +276,28 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun linkDevice(deviceName: String, onUrl: (String) -> Unit): String? = try {
+        val result = kotlinx.coroutines.runBlocking {
+            signalStore.linker().link(deviceName) { url -> onUrl(url) }
+        }
+        when (result) {
+            is com.wanderwildwood.kotozute.signalstore.DeviceLinker.Result.Linked -> {
+                // The state has changed in a way nothing else will notice: this device was
+                // not a Signal device a moment ago and now is. Publishing it here is what
+                // makes the settings screen stop offering to link.
+                publishState(reachable = true, signalConnected = true, error = null)
+                // And start receiving, if Signal is switched on. Without this the first
+                // messages wait for the next launch, which reads as linking not having worked.
+                if (prefs.signalEnabled.get()) startStream()
+                "linked as device ${result.deviceId}"
+            }
+            is com.wanderwildwood.kotozute.signalstore.DeviceLinker.Result.Failed -> result.reason
+        }
+    } catch (t: Throwable) {
+        Timber.w(t, "signal: linking threw")
+        t.message ?: t::class.java.simpleName
+    }
+
     override fun refresh() = runOffThread {
         Timber.i(
             "signal: refresh -- bridge=%s linked=%s configured=%s",

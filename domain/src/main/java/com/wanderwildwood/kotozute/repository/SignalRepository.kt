@@ -69,6 +69,18 @@ interface SignalRepository {
      * Does its work off the calling thread: answering it opens the keystore and an encrypted
      * database, which is not a main-thread question.
      */
+    /**
+     * Links this phone to a Signal account as a secondary device.
+     *
+     * Blocks until the exchange finishes or the code expires, so the caller owns the thread.
+     * [onUrl] is called once, as soon as there is something to show -- the wait after that is
+     * a person picking up their other phone, so showing the code late wastes the window.
+     *
+     * @return a description of what happened, beginning "linked" on success, or null if
+     *   nothing came back before the code expired.
+     */
+    fun linkDevice(deviceName: String, onUrl: (String) -> Unit): String?
+
     fun refresh()
 
     fun ingest(messages: List<BridgeMessage>): Int

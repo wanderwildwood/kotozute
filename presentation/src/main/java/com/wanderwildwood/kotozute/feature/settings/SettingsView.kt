@@ -46,6 +46,8 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun askDesktopSyncReset()
     fun showSignalAccountDialog(account: com.wanderwildwood.kotozute.repository.SignalAccount?)
     fun showSignalHistoryDialog()
+    fun showSignalLink()
+
     fun showSignalPairDialog()
     fun showSignalPairFailed()
     fun askSignalUnpair()

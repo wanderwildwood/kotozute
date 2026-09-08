@@ -50,6 +50,8 @@ data class SettingsState(
     val signalPaired: Boolean = false,
     val signalBridgeSummary: String = "",
     val signalEnabled: Boolean = false,
+    /** Linked to the account itself, as opposed to reaching it through a bridge. */
+    val signalLinkedDirectly: Boolean = false,
     val signalStatusSummary: String = "",
     val signalKeepConnected: Boolean = false,
     val signalWeave: Boolean = true,

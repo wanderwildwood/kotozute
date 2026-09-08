@@ -24,7 +24,9 @@ import java.util.concurrent.TimeUnit
  */
 internal class SignalConnection(
     private val accounts: SignalAccountStore,
-    private val userAgent: String
+    private val userAgent: String,
+    private val configuration: org.signal.network.config.SignalServiceConfiguration =
+        SignalNetworkConfig.production()
 ) {
 
     /**
@@ -69,6 +71,18 @@ internal class SignalConnection(
     }
 
     val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
+
+    /**
+     * Attachments come over plain HTTPS to a CDN, not over either websocket, so this needs its
+     * own socket rather than reusing one of theirs.
+     */
+    val messageReceiver: org.whispersystems.signalservice.api.SignalServiceMessageReceiver by lazy {
+        org.whispersystems.signalservice.api.SignalServiceMessageReceiver(
+            org.whispersystems.signalservice.internal.push.PushServiceSocket(
+                configuration, credentials, userAgent, true
+            )
+        )
+    }
 
     fun connect() {
         Timber.i("signal socket: connecting as device %d", credentials.deviceId)

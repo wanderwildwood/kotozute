@@ -1372,6 +1372,7 @@ class SignalRepositoryImpl @Inject constructor(
         state.onNext(
             SignalRepository.ConnectionState(
                 configured = isConfigured(),
+                linkedDirectly = linkedDirectly(),
                 enabled = prefs.signalEnabled.get(),
                 bridgeReachable = reachable,
                 signalConnected = signalConnected,

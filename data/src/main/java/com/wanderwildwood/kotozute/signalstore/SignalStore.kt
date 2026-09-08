@@ -31,6 +31,9 @@ class SignalStore(private val context: Context) {
     val protocol: SignalServiceDataStore by lazy { SignalDataStore(database, account) }
 
     /** True once this device has a device id and a password -- that is, once it is linked. */
+    /** This device's own ACI, or null when it is not linked. Cheap enough to ask per thread. */
+    fun selfAciOrNull(): String? = runCatching { account.credentials().aci }.getOrNull()
+
     fun isLinked(): Boolean = ProtocolStoreKey.exists(context) && account.credentials().complete
 
     /**
@@ -44,7 +47,7 @@ class SignalStore(private val context: Context) {
      * The connection to Signal, and the APIs on it. Built from [userAgent] because the
      * network configuration still lives a module up; see the note on [linker].
      */
-    internal fun connection(userAgent: String) = SignalConnection(account, userAgent)
+    internal fun connection() = SignalConnection(account, SignalNetworkConfig.USER_AGENT)
 
     /**
      * Publishes a batch of one-time pre keys for both identities.
@@ -53,8 +56,8 @@ class SignalStore(private val context: Context) {
      * last-resort key. Until this has run the device is reachable but on the degraded path,
      * every new session reusing the last-resort key.
      */
-    fun uploadPreKeys(userAgent: String): String {
-        val connection = connection(userAgent)
+    fun uploadPreKeys(): String {
+        val connection = connection()
         connection.connect()
         return try {
             val uploader = PreKeyUploader(
@@ -82,17 +85,13 @@ class SignalStore(private val context: Context) {
      *
      * The receive half of what the bridge used to do, end to end.
      */
-    fun receive(
-        userAgent: String,
-        certificateValidator: org.signal.libsignal.metadata.certificate.CertificateValidator,
-        file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int
-    ): String {
-        val connection = connection(userAgent)
+    fun receive(file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int): String {
+        val connection = connection()
         connection.connect()
         return try {
             val result = SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                certificateValidator, file
+                SignalNetworkConfig.certificateValidator(), file
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -104,19 +103,14 @@ class SignalStore(private val context: Context) {
     /**
      * Sends one message, on this device's own authority. The primary is not in the path.
      */
-    fun send(
-        userAgent: String,
-        configuration: org.signal.network.config.SignalServiceConfiguration,
-        recipient: String,
-        body: String
-    ): String {
+    fun send(recipient: String, body: String): String {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
             ?: return "not a service id: $recipient"
-        val connection = connection(userAgent)
+        val connection = connection()
         connection.connect()
         return try {
             when (val result = SignalSender(
-                configuration, userAgent, account, database, SignalDataStore(database, account), connection
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection
             ).send(serviceId, body)) {
                 is SignalSender.Result.Sent -> "sent ts=${result.timestamp}"
                 is SignalSender.Result.Failed -> result.reason
@@ -126,12 +120,9 @@ class SignalStore(private val context: Context) {
         }
     }
 
-    fun linker(
-        configuration: org.signal.network.config.SignalServiceConfiguration,
-        userAgent: String
-    ): DeviceLinker = DeviceLinker(
-        configuration,
-        userAgent,
+    fun linker(): DeviceLinker = DeviceLinker(
+        SignalNetworkConfig.production(),
+        SignalNetworkConfig.USER_AGENT,
         account,
         { SignalSignedPreKeyStore(database, it) },
         { SignalKyberPreKeyStore(database, it) }

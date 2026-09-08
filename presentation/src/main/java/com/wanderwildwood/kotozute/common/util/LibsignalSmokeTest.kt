@@ -1,6 +1,8 @@
 package com.wanderwildwood.kotozute.common.util
 
 import com.wanderwildwood.kotozute.signalstore.ProtocolDatabaseSelfCheck
+import com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig
+import com.wanderwildwood.kotozute.signalstore.SignalServiceLog
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.whispersystems.signalservice.internal.crypto.SecondaryProvisioningCipher
 import org.whispersystems.signalservice.api.provisioning.ProvisioningSocket

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The name of the conversation with yourself.
+
+      Here rather than in the presentation module because the thread is named where it is
+      created, which is in this module. Signal's own clients use the same words.
+    -->
+    <string name="signal_note_to_self">Note to Self</string>
+</resources>

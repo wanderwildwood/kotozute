@@ -316,6 +316,7 @@
     <string name="settings_signal_pair_title">Connect a bridge</string>
     <string name="settings_signal_pair_summary">Signal needs a bridge running on a computer that stays on</string>
     <string name="settings_signal_paired_summary">Paired with %s</string>
+    <string name="settings_signal_linked_summary">Linked to your Signal account</string>
     <string name="settings_signal_pair_dialog_title">Paste the pairing link</string>
     <string name="settings_signal_keep_title">Keep Signal connected</string>
     <string name="settings_signal_keep_summary">Messages arrive as they are sent, at the cost of a permanent notification. Off, Signal catches up every so often and when you open the app.</string>

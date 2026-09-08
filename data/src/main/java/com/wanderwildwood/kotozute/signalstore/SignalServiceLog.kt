@@ -1,4 +1,4 @@
-package com.wanderwildwood.kotozute.common.util
+package com.wanderwildwood.kotozute.signalstore
 
 import org.signal.core.util.logging.Log
 import timber.log.Timber

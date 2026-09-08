@@ -40,9 +40,40 @@ private const val VIEW_ONCE_PREVIEW = "\uD83D\uDC41 View-once photo (not kept)"
 
 @Singleton
 class SignalRepositoryImpl @Inject constructor(
+    private val context: android.content.Context,
     private val prefs: Preferences,
     private val phoneNumberUtils: PhoneNumberUtils
 ) : SignalRepository {
+
+    /**
+     * This device's own Signal connection, when it has one.
+     *
+     * There are now two ways Signal can reach this app: a bridge on another machine, or this
+     * device being a linked device itself. The second is the destination; the first is what
+     * it replaces. Both are supported at once because a phone that is already paired to a
+     * bridge should not lose its messages the day it learns to fetch its own.
+     *
+     * Lazy, and it must stay lazy: constructing it opens the keystore and the encrypted
+     * database, and this repository is built during startup on the main thread.
+     */
+    private val signalStore by lazy { com.wanderwildwood.kotozute.signalstore.SignalStore(context) }
+
+    /**
+     * "Note to Self", read from resources so it follows the phone's language.
+     */
+    private val noteToSelfTitle: String
+        get() = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_note_to_self)
+
+    /** True when this device is itself a device on the account. */
+    private fun linkedDirectly(): Boolean = try {
+        signalStore.isLinked()
+    } catch (t: Throwable) {
+        // A store that will not open is not a linked device, and it must not be a crash at
+        // startup either. See ProtocolStoreKey: the key is deliberately not recoverable, so
+        // the honest answer here is "no Signal" rather than a dead app.
+        Timber.w(t, "signal: could not read the protocol store")
+        false
+    }
 
     private val state = BehaviorSubject.createDefault(
         SignalRepository.ConnectionState(
@@ -102,7 +133,15 @@ class SignalRepositoryImpl @Inject constructor(
         return if (cfg.isValid()) cfg else null
     }
 
-    override fun isConfigured(): Boolean = config() != null
+    /**
+     * Configured by **either** route.
+     *
+     * Every screen keys its Signal UI off this, and it used to mean "a bridge is paired".
+     * Leaving it that way would have left a device that is itself linked to the account
+     * showing no Signal at all -- messages arriving into Realm and nothing displaying them,
+     * which is exactly what happened.
+     */
+    override fun isConfigured(): Boolean = config() != null || linkedDirectly()
 
     override fun pair(payload: String): Boolean {
         val cfg = BridgeConfig.parse(payload) ?: return false
@@ -214,6 +253,18 @@ class SignalRepositoryImpl @Inject constructor(
      * expiry lives in [store]; a second writer with its own copy of them would drift, and the
      * drift would show up as duplicate threads rather than as an error.
      */
+    override fun refresh() = runOffThread {
+        Timber.i(
+            "signal: refresh -- bridge=%s linked=%s configured=%s",
+            config() != null, linkedDirectly(), isConfigured()
+        )
+        publishState(
+            reachable = state.value?.bridgeReachable ?: false,
+            signalConnected = state.value?.signalConnected ?: false,
+            error = state.value?.error
+        )
+    }
+
     override fun ingest(messages: List<BridgeMessage>): Int {
         if (messages.isEmpty()) return 0
         val fresh = mutableListOf<BridgeMessage>()
@@ -226,7 +277,33 @@ class SignalRepositoryImpl @Inject constructor(
         return fresh.size
     }
 
+    /**
+     * Fetches from this device's own connection.
+     *
+     * The direct equivalent of a bridge sync: drain what the server is holding, decrypt, and
+     * file through the same [store] the bridge path uses, so both produce one set of threads
+     * rather than two.
+     */
+    private fun syncDirect(): Int = try {
+        val summary = signalStore.receive { ingest(it) }
+        Timber.i("signal: direct sync %s", summary)
+        prefs.signalLastSync.set(System.currentTimeMillis())
+        syncCaughtUp = true
+        publishState(reachable = true, signalConnected = true, error = null)
+        0
+    } catch (t: Throwable) {
+        Timber.w(t, "signal: direct sync failed")
+        syncCaughtUp = false
+        publishState(reachable = false, signalConnected = false, error = t.message)
+        0
+    }
+
     override fun syncNow(): Int {
+        // A directly linked device fetches for itself. The bridge is only consulted when
+        // there is no link -- asking both would deliver every message twice, and while
+        // store() would deduplicate them, the two would still race to write the same rows.
+        if (linkedDirectly()) return syncDirect()
+
         val cfg = config() ?: return 0
         val client = BridgeClient(cfg)
         var written = 0
@@ -372,6 +449,21 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun startStream() {
         if (!prefs.signalEnabled.get() || !isConfigured()) return
+        // The stream loop is the bridge's server-sent-events connection and nothing else. A
+        // directly linked device has its own persistent socket to build, and starting this
+        // one without a bridge configured would loop on a connection that cannot exist.
+        // Until that socket is written, a linked device catches up through syncNow().
+        if (config() == null) {
+            // No bridge, so no stream to open -- but "start Signal" still has to mean
+            // something. Without this a directly linked device only caught up when the
+            // Signal screen happened to be opened, or when the 15-minute worker next ran:
+            // enabling Signal appeared to do nothing at all. A persistent socket of its own
+            // is the real answer and is not written yet; a catch-up now is the honest
+            // interim, and the worker keeps it fed.
+            Timber.i("signal: linked directly; catching up instead of opening a bridge stream")
+            runOffThread { syncNow() }
+            return
+        }
         if (!streamWanted.compareAndSet(false, true)) return
         val generation = streamGeneration.incrementAndGet()
         thread(name = "signal-stream-$generation", isDaemon = true) { streamLoop(generation) }
@@ -518,6 +610,16 @@ class SignalRepositoryImpl @Inject constructor(
             ?: realm.createObject(SignalThread::class.java, m.threadKey).apply {
                 kind = if (m.groupId.isNotEmpty()) "group" else "direct"
                 counterpartUuid = m.threadKey.substringAfter("direct:", "")
+                // A thread created by the bridge arrived with a name, resolved by signal-cli
+                // from its own contact store. A thread created by this device's own
+                // connection has none -- there is no profile fetching yet -- so it would
+                // otherwise show a bare ACI in the inbox. Naming our own account is the one
+                // case that needs no lookup, and it is the one a user meets first.
+                if (counterpartUuid.isNotBlank() &&
+                    counterpartUuid == signalStore.selfAciOrNull()
+                ) {
+                    title = noteToSelfTitle
+                }
             }
         // Only the newest message speaks for the thread. Messages can arrive out of
         // order -- a reconnect replays by cursor, and an imported backup arrives

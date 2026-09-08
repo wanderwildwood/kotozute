@@ -58,6 +58,19 @@ interface SignalRepository {
      *
      * @return how many were new.
      */
+    /**
+     * Recomputes and republishes the connection state.
+     *
+     * Needed because the state starts as a literal "nothing is configured" and is otherwise
+     * only republished by an event -- pairing, a sync, a stream change. A device that is
+     * itself linked to the account has no such event at startup, so without this every Signal
+     * screen would keep offering to connect a bridge while messages arrived behind it.
+     *
+     * Does its work off the calling thread: answering it opens the keystore and an encrypted
+     * database, which is not a main-thread question.
+     */
+    fun refresh()
+
     fun ingest(messages: List<BridgeMessage>): Int
 
     fun syncNow(): Int

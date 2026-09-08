@@ -85,13 +85,22 @@ class SignalStore(private val context: Context) {
      *
      * The receive half of what the bridge used to do, end to end.
      */
-    fun receive(file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int): String {
+    fun receive(
+        file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
+        onNamesLearned: () -> Unit = {}
+    ): String {
         val connection = connection()
         connection.connect()
         return try {
             val result = SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts
+                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts,
+                {
+                    // Fetch whatever names became fetchable, then let the caller rename its
+                    // threads -- only if something was actually learned, so a quiet batch
+                    // does not walk the whole thread list for nothing.
+                    if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
+                }
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -130,6 +139,7 @@ class SignalStore(private val context: Context) {
     fun listen(
         keepGoing: () -> Boolean,
         file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
+        onNamesLearned: () -> Unit,
         onBatch: (String) -> Unit
     ) {
         val connection = connection()
@@ -137,7 +147,13 @@ class SignalStore(private val context: Context) {
         try {
             SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts
+                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts,
+                {
+                    // Fetch whatever names became fetchable, then let the caller rename its
+                    // threads -- only if something was actually learned, so a quiet batch
+                    // does not walk the whole thread list for nothing.
+                    if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
+                }
             ).listen(keepGoing) { r ->
                 onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
             }

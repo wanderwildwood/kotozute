@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Registering a number, for a phone that is going to be the only Signal there is.
+
+    One column, one step visible at a time. The steps are hidden and shown rather than pushed
+    as separate screens, because the flow can go backwards — a captcha can be asked for twice,
+    a code can be resent — and a back stack that has to be unwound to do that is a worse
+    machine than a few visibilities.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        style="@style/Toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/toolbarTitle"
+            style="@style/ToolbarText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/signal_register_title"
+            android:textSize="16sp" />
+
+    </androidx.appcompat.widget.Toolbar>
+
+    <com.wanderwildwood.kotozute.common.widget.PagingScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Said before anything is typed, not after. Registering deregisters Signal wherever
+             else this number is, and that is not recoverable by tapping back. -->
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/warning"
+            style="@style/TextPrimary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="16dp"
+            android:text="@string/signal_register_warning" />
+
+        <LinearLayout
+            android:id="@+id/numberStep"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="4dp"
+                android:text="@string/signal_register_number_hint" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkEditText
+                android:id="@+id/number"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="phone"
+                android:maxLines="1"
+                tools:text="+15550001234" />
+
+            <Button
+                android:id="@+id/send"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/signal_register_send" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/codeStep"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="4dp"
+                android:text="@string/signal_register_code_hint" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkEditText
+                android:id="@+id/code"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:maxLines="1"
+                tools:text="123456" />
+
+            <Button
+                android:id="@+id/verify"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/signal_register_verify" />
+
+            <!-- A number that cannot receive texts is a normal thing to be registering. -->
+            <Button
+                android:id="@+id/callInstead"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/signal_register_call_instead" />
+
+        </LinearLayout>
+
+        <!--
+            Signal's own captcha page. It is a web page by necessity: the challenge is served
+            and scored by Signal, and the only thing this app does with it is catch the
+            signalcaptcha:// URL the page finishes on.
+        -->
+        <WebView
+            android:id="@+id/captcha"
+            android:layout_width="match_parent"
+            android:layout_height="420dp"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"
+            tools:visibility="gone" />
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/status"
+            style="@style/TextSecondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="16dp"
+            tools:text="Sending a code…" />
+
+    </LinearLayout>
+
+    </com.wanderwildwood.kotozute.common.widget.PagingScrollView>
+
+</LinearLayout>

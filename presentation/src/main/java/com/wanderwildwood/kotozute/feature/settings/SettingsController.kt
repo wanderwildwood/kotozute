@@ -292,6 +292,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // asks for a computer that stays on and the phone has not needed one since it became
         // a Signal device itself.
         bridgePaired = state.signalBridgePaired
+        // Only while there is no Signal here yet. Once the phone has an account, this row
+        // would be an offer to re-register -- which is the same destructive act again, with
+        // nothing gained.
+        binding.signalRegister.setVisible(!state.signalLinkedDirectly)
+
         val bridgeOnShow = state.signalBridgePaired || advancedShown
         binding.signalAdvanced.setVisible(!bridgeOnShow)
         binding.signalPair.setVisible(bridgeOnShow)
@@ -539,6 +544,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun showSignalLink() {
         activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity.intent(it)) }
+    }
+
+    override fun showSignalRegister() {
+        activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalRegisterActivity.intent(it)) }
     }
 
     override fun showBridgeOption() {

@@ -117,6 +117,37 @@ interface SignalRepository {
      */
     fun linkDevice(deviceName: String, onUrl: (String) -> Unit): String?
 
+    /**
+     * Where a registration has got to.
+     *
+     * The session id travels with it rather than living in the repository, so abandoning half
+     * way leaves nothing behind and a rebuilt screen can carry on where it was.
+     */
+    sealed interface Registration {
+        data class NeedsCaptcha(val sessionId: String) : Registration
+        data class CodeSent(val sessionId: String) : Registration
+        data class Registered(val e164: String) : Registration
+        data class Failed(val reason: String) : Registration
+    }
+
+    /**
+     * Starts registering [e164] as this phone's own Signal account.
+     *
+     * ⚠ This takes the number over: Signal allows one primary per number, so any Signal
+     * already registered to it is deregistered, along with every device linked to it. The
+     * caller must have said so plainly before this is called.
+     */
+    suspend fun registerBegin(e164: String): Registration
+
+    /** Hands back a captcha solved from Signal's own page. */
+    suspend fun registerCaptcha(sessionId: String, token: String): Registration
+
+    /** Asks for the code again, by text or by voice call. */
+    suspend fun registerResend(sessionId: String, voice: Boolean): Registration
+
+    /** Submits the code and, if it is right, completes registration. */
+    suspend fun registerVerify(sessionId: String, code: String, e164: String): Registration
+
     fun refresh()
 
     /**

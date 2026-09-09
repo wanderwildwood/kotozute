@@ -4,7 +4,7 @@ import org.signal.core.util.logging.Log
 import timber.log.Timber
 
 /**
- * EXPERIMENT (signal-on-the-phone branch). Points the Signal service layer's logging at Timber.
+ * Points the Signal service layer's logging at Timber.
  *
  * That layer logs through its own `Log`, which starts as a no-op. Everything it has to say
  * while linking or receiving -- "Macs do not match", "Version does not match expected",

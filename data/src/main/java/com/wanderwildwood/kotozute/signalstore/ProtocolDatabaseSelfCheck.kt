@@ -11,7 +11,7 @@ import org.signal.libsignal.protocol.state.SessionRecord
 import java.security.SecureRandom
 
 /**
- * EXPERIMENT (signal-on-the-phone branch). Proves the protocol database creates and opens.
+ * Proves the protocol database creates and opens.
  *
  * Lives here rather than in the presentation layer because SQLCipher is an implementation
  * detail of this module and should stay one -- the app above has no business holding a

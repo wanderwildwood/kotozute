@@ -3,7 +3,6 @@ package com.wanderwildwood.kotozute.common.widget
 import android.content.Context
 import android.util.AttributeSet
 import android.view.MotionEvent
-import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.ScrollView
@@ -135,68 +134,46 @@ class PagingScrollView @JvmOverloads constructor(
         // The slack is not chrome and must not shrink the page, or every turn would fall a
         // little short of a screen and slowly lose its place.
         val page = height - paddingTop - (paddingBottom - slack)
-        if (page <= 0) return
-
-        // The ends are terminal, and have to be said explicitly.
-        //
-        // A page that already reaches the bottom of the column has nowhere to go, and moving
-        // anyway is what made the last page flicker: the scroll ran into the slack, was pulled
-        // back to a row edge, and the next swipe overshot and was pulled back to a *different*
-        // row -- so one swipe forward could travel backwards, and the two positions alternated
-        // for as long as you kept swiping. Refusing the move outright is both correct and the
-        // only version of this that settles.
         val column = getChildAt(0) ?: return
-        if (forward && scrollY + page >= column.height) return
-        if (!forward && scrollY <= 0) return
+        val (container, offset) = rowContainer() ?: return
 
-        scrollBy(0, if (forward) page else -page)
+        val rows = (0 until container.childCount)
+            .map { container.getChildAt(it) }
+            .filter { it.visibility != GONE }
+            .map { PageTurn.Row(top = offset + it.top, height = it.height) }
 
-        val top = scrollY
-        var container = getChildAt(0) as? ViewGroup ?: return
+        val target = PageTurn.target(
+            current = scrollY,
+            page = page,
+            maxScroll = (column.height + slack - page).coerceAtLeast(0),
+            contentHeight = column.height,
+            rows = rows,
+            forward = forward
+        ) ?: return
+
+        scrollTo(0, target)
+    }
+
+    /**
+     * The view whose children are the rows, and its top in this view's coordinates.
+     *
+     * Not always the scroll view's own child. The settings screen keeps every section in one
+     * layout and swaps them in place, so one level down is a wrapper holding six sections of
+     * which five are GONE — measuring there measures sections, not rows, and a page could
+     * never align to anything. Descending while there is exactly one visible child that could
+     * hold rows finds the section actually on screen, at whatever depth it sits.
+     */
+    private fun rowContainer(): Pair<ViewGroup, Int>? {
+        var container = getChildAt(0) as? ViewGroup ?: return null
         var offset = 0
-
-        // Descend to the row, rather than assuming the scroll view's own child is one.
-        //
-        // These screens do not all nest the same way: the settings screen keeps every section
-        // in one layout and swaps them in place, so one level down is a wrapper holding six
-        // sections of which five are GONE. Looking only there found a single child taller than
-        // any page, which straddles every boundary and is far too tall to pull into view, so
-        // no page ever aligned to anything. Walking down finds the row at whatever depth it is.
         while (true) {
-            var found: View? = null
-            for (i in 0 until container.childCount) {
-                val child = container.getChildAt(i)
-                if (child.visibility == GONE) continue
-                val childTop = offset + child.top
-                if (childTop < top && childTop + child.height > top) {
-                    found = child
-                    break
-                }
-            }
-
-            // Nothing straddles the top: the page already begins on an edge, which is what
-            // happens at the very top of the column and out in the slack past its end.
-            val child = found ?: return
-            val childTop = offset + child.top
-
-            // Whatever row the page landed part-way through comes fully into view, so a page
-            // opens on a whole row and carries a line of overlap from the page before. The
-            // slack past the end of the column is what lets this happen on the last page too,
-            // without pushing the final rows out of reach.
-            if (child.height <= page) {
-                scrollTo(0, childTop)
-                return
-            }
-
-            // Taller than the screen. If it is a container, the row is inside it; if it is a
-            // single view that simply does not fit, it is the one that takes two pages, and
-            // this page ends part-way down it.
-            if (child is ViewGroup && child.childCount > 0) {
-                container = child
-                offset = childTop
-            } else {
-                return
-            }
+            val visible = (0 until container.childCount)
+                .map { container.getChildAt(it) }
+                .filter { it.visibility != GONE }
+            val only = visible.singleOrNull() as? ViewGroup ?: return container to offset
+            if (only.childCount == 0) return container to offset
+            offset += only.top
+            container = only
         }
     }
 

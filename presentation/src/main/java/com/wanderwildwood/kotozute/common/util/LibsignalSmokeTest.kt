@@ -9,7 +9,11 @@ import org.whispersystems.signalservice.api.provisioning.ProvisioningSocket
 import timber.log.Timber
 
 /**
- * EXPERIMENT (signal-on-the-phone branch). Does libsignal actually work on this phone?
+ * Does libsignal actually work on this phone?
+ *
+ * Debug builds only: the question was answered on real hardware and the answer is yes, so
+ * this now exists to catch a dependency bump breaking the native path, not to prove the
+ * route is possible.
  *
  * Being linked and dexed is not the same as being loadable. The library is 112 MB of Rust
  * behind a JNI boundary, built for arm64-v8a against an NDK of Signal's choosing, and the

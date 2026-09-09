@@ -42,6 +42,8 @@ interface SignalRepository {
         val undecryptable: Int = 0,
         /** Why they would not decrypt, distinct, newest first. Empty when there are none. */
         val undecryptableReasons: List<String> = emptyList(),
+        /** Contacts known, how many carry a profile key, how many are named. Diagnostic. */
+        val contactSummary: String = "",
         val enabled: Boolean,
         /** The bridge answered us. */
         val bridgeReachable: Boolean,

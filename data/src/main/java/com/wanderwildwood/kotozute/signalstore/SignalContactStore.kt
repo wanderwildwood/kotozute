@@ -76,6 +76,20 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         }
     }
 
+    /** How many contacts are known, how many have a profile key, and how many have a name. */
+    fun counts(): Triple<Int, Int, Int> = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            """
+            SELECT count(*),
+                   sum(CASE WHEN profile_key IS NOT NULL THEN 1 ELSE 0 END),
+                   sum(CASE WHEN name IS NOT NULL AND name != '' THEN 1 ELSE 0 END)
+            FROM contact
+            """.trimIndent(), null
+        ).use { c ->
+            if (c.moveToFirst()) Triple(c.getInt(0), c.getInt(1), c.getInt(2)) else Triple(0, 0, 0)
+        }
+    }
+
     /** Every name known, for renaming threads in one pass after a sync. */
     fun all(): Map<String, String> = withStoreLock(db) {
         db.readableDatabase.rawQuery(

@@ -300,6 +300,12 @@ class SignalStore(private val context: Context) {
         SignalIdentityKeyStore(database, ProtocolDatabase.ACCOUNT_ID_TYPE_ACI).acceptIdentity(aci)
     }.getOrDefault(false)
 
+    /** "known/with-key/named", for the Connection screen. Names come from profiles. */
+    fun contactSummary(): String = runCatching {
+        val (known, keys, named) = contacts.counts()
+        "$known contact(s), $keys with a profile key, $named named"
+    }.getOrDefault("")
+
     fun contactName(aci: String): String? = runCatching { contacts.nameFor(aci) }.getOrNull()
 
     /** Every name known, for renaming threads in one pass after a sync. */

@@ -31,6 +31,7 @@ import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.extensions.setBackgroundTint
 import com.wanderwildwood.kotozute.common.util.extensions.setTint
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
@@ -66,6 +67,7 @@ class ScheduledActivity : QkThemedActivity(), ScheduledView {
 
         scheduledMessageAdapter.emptyView = binding.empty
         binding.messages.adapter = scheduledMessageAdapter
+        binding.messages.turnsAPageOnSwipe()
 
         colors.theme().let { theme ->
             binding.sampleMessage.setBackgroundTint(theme.theme)

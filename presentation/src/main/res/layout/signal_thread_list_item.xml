@@ -17,6 +17,7 @@
 
         <com.wanderwildwood.kotozute.common.widget.QkTextView
             android:id="@+id/title"
+            style="@style/TextPrimary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -28,21 +29,20 @@
              said the same thing 55 times; the time is what a row here was missing. -->
         <com.wanderwildwood.kotozute.common.widget.QkTextView
             android:id="@+id/timestamp"
-            style="@style/TextSecondary"
+            style="@style/TextTertiary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="8dp"
-            android:textSize="12sp" />
+            android:paddingStart="8dp" />
 
     </LinearLayout>
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/subtitle"
+        style="@style/TextSecondary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:maxLines="1"
-        android:paddingTop="2dp"
-        android:textSize="13sp" />
+        android:paddingTop="2dp" />
 
 </LinearLayout>

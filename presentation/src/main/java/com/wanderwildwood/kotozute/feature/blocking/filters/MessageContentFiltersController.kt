@@ -29,6 +29,7 @@ import com.wanderwildwood.kotozute.common.base.QkController
 import com.wanderwildwood.kotozute.common.util.Colors
 import com.wanderwildwood.kotozute.common.util.extensions.setBackgroundTint
 import com.wanderwildwood.kotozute.common.util.extensions.setTint
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.common.widget.PreferenceView
 import com.wanderwildwood.kotozute.injection.appComponent
 import com.wanderwildwood.kotozute.model.MessageContentFilterData
@@ -69,6 +70,7 @@ class MessageContentFiltersController : QkController<MessageContentFiltersView, 
         binding.add.setTint(colors.theme().textPrimary)
         adapter.emptyView = binding.empty
         binding.filters.adapter = adapter
+        binding.filters.turnsAPageOnSwipe()
     }
 
     override fun render(state: MessageContentFiltersState) {

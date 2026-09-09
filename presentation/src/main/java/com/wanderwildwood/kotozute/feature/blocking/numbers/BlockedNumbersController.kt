@@ -27,6 +27,7 @@ import com.wanderwildwood.kotozute.common.base.QkController
 import com.wanderwildwood.kotozute.common.util.Colors
 import com.wanderwildwood.kotozute.common.util.extensions.setBackgroundTint
 import com.wanderwildwood.kotozute.common.util.extensions.setTint
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.injection.appComponent
 import com.wanderwildwood.kotozute.util.PhoneNumberUtils
 import io.reactivex.Observable
@@ -67,6 +68,7 @@ class BlockedNumbersController : QkController<BlockedNumbersView, BlockedNumbers
         binding.add.setTint(colors.theme().textPrimary)
         adapter.emptyView = binding.empty
         binding.numbers.adapter = adapter
+        binding.numbers.turnsAPageOnSwipe()
     }
 
     override fun render(state: BlockedNumbersState) {

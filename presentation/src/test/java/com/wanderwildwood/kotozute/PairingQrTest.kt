@@ -19,8 +19,8 @@ import org.junit.Test
 class PairingQrTest {
 
     private val payload =
-        "kotozute-bridge://192.168.1.50:8422/?token=XGru129jhVnOU_cXEYclcJl_mnHJLLUELkm_06MqM_Y" +
-            "&fp=" + "A0A5EAD44D577E07798A5BFCE6B09725A790E48B441B18834FE1A6997826986E"
+        "kotozute-bridge://192.168.1.50:8422/?token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "&fp=" + "0000000000000000000000000000000000000000000000000000000000000000"
 
     private fun roundTrip(size: Int): String {
         val matrix = MultiFormatWriter().encode(payload, BarcodeFormat.QR_CODE, size, size)

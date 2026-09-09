@@ -100,4 +100,18 @@
         tools:text="❤️ 2"
         tools:visibility="visible" />
 
+    <!-- Words, not ticks. Two grey check marks are a convention people learn from other apps
+         and read badly at this size on a low-contrast panel; "Delivered" needs no legend.
+         Shown only on our own messages, and only once something is actually known. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/status"
+        style="@style/TextSecondary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:textSize="12sp"
+        android:visibility="gone"
+        tools:text="Delivered"
+        tools:visibility="visible" />
+
 </LinearLayout>

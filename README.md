@@ -234,3 +234,22 @@ and offering the corresponding source.
 Copyright in the work added by this fork is held by wander wildwood. The upstream copyrights —
 Moez Bhatti's on QKSMS, and those of the QUIK and InkMessage contributors — are untouched and
 still apply to the code they cover.
+
+### The Signal libraries, and what they add
+
+Builds that include Signal support link two further sets of code, and one of them is not GPL:
+
+- **libsignal** (`org.signal:libsignal-android`) is **AGPL-3.0**.
+- **signal-service** (`com.github.turasa:signal-network`, a fork of Signal's own service
+  layer) is **GPL-3.0**.
+
+GPLv3 §13 expressly permits combining a GPLv3 work with an AGPLv3 one, so the combination is
+allowed. It does not make the AGPL part GPL: libsignal stays AGPL-3.0 inside the result, and
+its terms — including the network-use clause — continue to apply to it. Saying the built
+application is simply "GPL-3.0-only" would therefore be inaccurate about part of what is
+inside it.
+
+The practical obligation is the one this project already meets: the corresponding source for
+everything distributed is available, libsignal's included, and neither library is modified
+here. Anyone redistributing a build should carry this notice with it rather than restate the
+licence as GPL alone.

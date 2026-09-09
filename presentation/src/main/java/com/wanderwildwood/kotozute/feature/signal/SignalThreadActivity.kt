@@ -784,11 +784,22 @@ class SignalThreadActivity : QkThemedActivity() {
             // Which side a message sits on is what tells the two apart once the labels
             // are gone. Without this, dropping the "You:" prefix left a one-to-one
             // thread where both halves of the conversation look identical.
+            // Delivery, on our own messages only: a receipt is something other people send
+            // about ours. Nothing is shown until something is known -- an empty state would
+            // otherwise read as "not delivered", which is a different and alarming claim.
+            b.status.setVisible(m.outgoing && (m.readAt > 0 || m.deliveredAt > 0))
+            if (m.outgoing) {
+                b.status.setText(
+                    if (m.readAt > 0) R.string.signal_message_read
+                    else R.string.signal_message_delivered
+                )
+            }
+
             val side = if (m.outgoing) Gravity.END else Gravity.START
             (b.root as? android.widget.LinearLayout)?.let { root ->
                 // The timestamp stays centred whichever side the message is on, so only the
                 // children below it follow the sender.
-                listOf(b.sender, b.image, b.attachment, b.quote, b.body, b.reactions).forEach { child ->
+                listOf(b.sender, b.image, b.attachment, b.quote, b.body, b.reactions, b.status).forEach { child ->
                     (child.layoutParams as? android.widget.LinearLayout.LayoutParams)
                         ?.let { lp -> lp.gravity = side; child.layoutParams = lp }
                 }

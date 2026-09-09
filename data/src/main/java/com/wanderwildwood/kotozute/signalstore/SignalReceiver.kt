@@ -378,7 +378,11 @@ internal class SignalReceiver(
             ?.takeIf { it.size == PROFILE_KEY_BYTES }
             ?: return
         val aci = metadata.sourceServiceId.toString().takeIf { it.isNotBlank() } ?: return
-        Timber.i("signal profile: noted a profile key from %s", aci)
+        // Deliberately without the account id. This is a Signal client in a release build that
+        // plants a logging tree, so anything written here is written down: who is talking to
+        // this phone is exactly the metadata the rest of the app goes to some length not to
+        // hand anyone, and it should not be in a log to buy a slightly better debug line.
+        Timber.i("signal profile: noted a profile key")
         contacts.store(listOf(SignalContactStore.Contact(aci = aci, e164 = null, name = null, profileKey = key)))
     }
 

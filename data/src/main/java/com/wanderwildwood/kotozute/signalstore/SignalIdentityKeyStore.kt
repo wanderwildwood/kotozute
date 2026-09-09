@@ -1,8 +1,10 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import org.signal.core.models.ServiceId
 import org.signal.libsignal.protocol.IdentityKey
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.signal.libsignal.protocol.SignalProtocolAddress
+import org.signal.libsignal.protocol.fingerprint.NumericFingerprintGenerator
 import org.signal.libsignal.protocol.state.IdentityKeyStore
 import timber.log.Timber
 
@@ -108,6 +110,50 @@ internal class SignalIdentityKeyStore(
     // --- storage ---------------------------------------------------------------------------
 
     private class Known(val key: IdentityKey, val trustLevel: Int)
+
+    /**
+     * What is known about a peer's key: the safety number to read aloud, and whether the key
+     * is still the one that was accepted.
+     *
+     * @return null when nobody has ever messaged this address, which is not the same as a
+     *   changed key and must not be shown as one.
+     */
+    fun identityFor(address: String, selfServiceId: ServiceId): Identity? = db.lock.withLockReentrant {
+        val known = loadIdentity(address) ?: return@withLockReentrant null
+        val peer = ServiceId.parseOrNull(address) ?: return@withLockReentrant null
+        val mine = identityKeyPair.publicKey
+
+        // Version 2, service-id bytes, 5200 iterations -- the same numbers Signal's own
+        // clients use. Any of the three differing produces a number that is stable, plausible
+        // and will not match what the other person is reading off their screen, which defeats
+        // the entire purpose of comparing them.
+        val fingerprint = NumericFingerprintGenerator(5200).createFor(
+            2,
+            selfServiceId.toByteArray(), mine,
+            peer.toByteArray(), known.key
+        )
+        Identity(fingerprint.displayableFingerprint.displayText, known.trustLevel)
+    }
+
+    /**
+     * Accepts a peer's current key, so messages can be sent to them again.
+     *
+     * Only ever called because a person looked at a changed safety number and said yes. It
+     * records TRUSTED_UNVERIFIED rather than TRUSTED_VERIFIED: they have chosen to proceed,
+     * which is not the same as having compared the number with the person in front of them,
+     * and claiming the stronger of the two would be the app putting words in their mouth.
+     *
+     * @return false if there is no key stored for the address, so a caller cannot report
+     *   success for something that did not happen.
+     */
+    fun acceptIdentity(address: String): Boolean = db.lock.withLockReentrant {
+        val known = loadIdentity(address) ?: return@withLockReentrant false
+        insertIdentity(address, known.key, TRUSTED_UNVERIFIED)
+        Timber.i("signal store: accepted a changed identity for a peer")
+        true
+    }
+
+    data class Identity(val safetyNumber: String, val trustLevel: Int)
 
     private fun loadIdentity(address: String): Known? =
         db.readableDatabase.rawQuery(

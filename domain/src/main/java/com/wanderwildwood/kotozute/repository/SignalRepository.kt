@@ -243,6 +243,18 @@ interface SignalRepository {
     fun identity(threadKey: String): SignalIdentity
 
     /**
+     * Accepts a contact's changed key, so messages can be sent to them again.
+     *
+     * Exists because refusing to send to a changed key is only half of what a Signal client
+     * owes: the other half is telling someone it happened and letting them decide. Without
+     * this the conversation is permanently unsendable, and a changed key is routine -- it is
+     * what a reinstall or a new phone produces.
+     *
+     * @return false if nothing was accepted, so a caller cannot report success wrongly.
+     */
+    fun acceptIdentity(threadKey: String): Boolean
+
+    /**
      * React to a message, or take a reaction back. [messageId] is this app's own id for the
      * message; the author and timestamp Signal needs are read off the stored row.
      */

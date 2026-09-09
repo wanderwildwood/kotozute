@@ -21,11 +21,14 @@ class RegistrationNumberTest {
 
     private fun accepts(number: String) = SignalRegistrar.E164.matches(number)
 
+    // The numbers here are from ranges reserved for fiction -- Ofcom's 020 7946 0xxx for the
+    // UK, 555 for the US -- rather than invented ones that could turn out to belong to
+    // somebody. This is a public repository.
     @Test
     fun `a plain international number is accepted`() {
         assertTrue(accepts("+15550001234"))
-        assertTrue(accepts("+442071838750"))
-        assertTrue(accepts("+81312345678"))
+        assertTrue(accepts("+442079460958"))
+        assertTrue(accepts("+81300001234"))
     }
 
     @Test

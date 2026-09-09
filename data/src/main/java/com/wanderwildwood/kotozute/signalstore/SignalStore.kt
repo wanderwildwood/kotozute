@@ -351,6 +351,21 @@ class SignalStore(private val context: Context) {
      */
     fun disconnect() = runCatching { connection.disconnect() }.getOrNull()
 
+    /**
+     * Registering this phone as an account of its own, rather than joining one.
+     *
+     * Built the same way as [linker] and from the same stores, because the two flows end in
+     * the same place: an identity, a set of pre keys, and credentials this device can use.
+     * They differ only in how the server is persuaded to issue them.
+     */
+    fun registrar(): SignalRegistrar = SignalRegistrar(
+        SignalNetworkConfig.production(),
+        SignalNetworkConfig.USER_AGENT,
+        account,
+        { SignalSignedPreKeyStore(database, it) },
+        { SignalKyberPreKeyStore(database, it) }
+    )
+
     fun linker(): DeviceLinker = DeviceLinker(
         SignalNetworkConfig.production(),
         SignalNetworkConfig.USER_AGENT,

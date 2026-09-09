@@ -52,6 +52,13 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         }
     }
 
+    /** A contact's profile key, or null. Sealed sender needs it; see [SealedSender]. */
+    fun profileKeyFor(aci: String): ByteArray? = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT profile_key FROM contact WHERE aci = ?", arrayOf(aci)
+        ).use { c -> if (c.moveToFirst()) c.getBlob(0) else null }
+    }
+
     /** The name for one service id, or null when nobody has told us. */
     fun nameFor(aci: String): String? = withStoreLock(db) {
         db.readableDatabase.rawQuery(

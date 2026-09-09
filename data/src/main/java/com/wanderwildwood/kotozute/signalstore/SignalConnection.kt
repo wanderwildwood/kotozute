@@ -72,6 +72,11 @@ internal class SignalConnection(
 
     val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
 
+    /** Sender certificates, for sealed sender. */
+    val certificates: org.signal.network.api.CertificateApi by lazy {
+        org.signal.network.api.CertificateApi(authenticated)
+    }
+
     /** Reused by the sender: uploading an attachment needs a slot on the CDN first. */
     val restClient: org.signal.network.rest.SignalRestClient by lazy {
         org.signal.network.rest.SignalRestClient(configuration, userAgent, credentials)

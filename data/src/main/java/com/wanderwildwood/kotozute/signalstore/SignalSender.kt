@@ -31,8 +31,11 @@ internal class SignalSender(
     private val accounts: SignalAccountStore,
     private val db: ProtocolDatabase,
     private val protocol: SignalDataStore,
-    private val connection: SignalConnection
+    private val connection: SignalConnection,
+    private val contacts: SignalContactStore
 ) {
+
+    private val sealedSender by lazy { SealedSender(connection, contacts) }
 
     /** The store's own lock, for the same reason the receiver uses it. See [SignalReceiver]. */
     private val sessionLock = SignalSessionLock {
@@ -144,11 +147,12 @@ internal class SignalSender(
         return try {
             val result: SendMessageResult = sender.sendDataMessage(
                 SignalServiceAddress(recipient),
-                // No sealed sender. It needs a sender certificate fetched from the server and
-                // an access key derived from the recipient's profile key -- neither of which
-                // this device fetches yet. Sending identified is correct, just less private:
-                // the server learns who sent it, which it would anyway for a first message.
-                null,
+                // Sealed sender when we can, identified when we cannot. Null here is not a
+                // decision to leak: it means this person has not shared their profile with us,
+                // or the certificate could not be fetched, and Signal's own clients fall back
+                // the same way. Refusing to send instead would trade a metadata leak for a
+                // message that never arrives.
+                sealedSender.accessFor(recipient.toString()),
                 ContentHint.RESENDABLE,
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,

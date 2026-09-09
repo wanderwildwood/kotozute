@@ -174,7 +174,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         return try {
             when (val result = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection, contacts
             ).send(serviceId, body, attachments)) {
                 is SignalSender.Result.Sent -> result.timestamp
                 is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
@@ -261,7 +261,7 @@ class SignalStore(private val context: Context) {
         return try {
             when (val r = SignalSender(
                 SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
-                SignalDataStore(database, account), connection
+                SignalDataStore(database, account), connection, contacts
             ).requestContactsSync()) {
                 is SignalSender.Result.Sent -> "requested"
                 is SignalSender.Result.Failed -> r.reason

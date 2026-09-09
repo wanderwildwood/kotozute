@@ -313,6 +313,8 @@
     <string name="settings_desktop_sync_link_copied">Link copied</string>
 
     <string name="settings_category_signal">Signal</string>
+    <string name="settings_signal_advanced_title">Advanced</string>
+    <string name="settings_signal_advanced_summary">The older way in, for a Signal that runs on a computer that stays on</string>
     <string name="settings_signal_pair_title">Connect a bridge</string>
     <string name="settings_signal_pair_summary">Signal needs a bridge running on a computer that stays on</string>
     <string name="settings_signal_paired_summary">Paired with %s</string>

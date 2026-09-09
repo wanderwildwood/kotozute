@@ -159,12 +159,37 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * exists in one layout, so the presenter's render() keeps working untouched. It also avoids a
      * push animation, which this app deliberately does not want on e-ink.
      */
+    /**
+     * Whether the bridge has been asked for on this visit.
+     *
+     * Deliberately not a preference: it is not a setting, it is "I went looking for it just
+     * now". Returning to the screen puts it away again, which is the right default for a
+     * feature on its way out.
+     */
+    private var advancedShown: Boolean = false
+
+    /**
+     * Whether a bridge is currently paired, as of the last render.
+     *
+     * Kept because the disclosure is closed from [showSection], which has no state to consult
+     * and gets no new one -- nothing about the account changed by moving between sections, so
+     * render() is not called again and the rows would keep whatever visibility they were last
+     * given by hand.
+     */
+    private var bridgePaired: Boolean = false
+
     private var openSection: Int = 0
     private var openTitle: Int = R.string.title_settings
 
     override fun showSection(container: Int, title: Int) {
         openSection = container
         openTitle = title
+        // Sections swap in place, so this controller outlives any one of them and the
+        // disclosure would otherwise stay open for the rest of the visit. Leaving the Signal
+        // section and coming back should present the same screen a new install does.
+        advancedShown = false
+        binding.signalAdvanced.setVisible(!bridgePaired)
+        binding.signalPair.setVisible(bridgePaired)
         sectionContainers().forEach { section -> section.isVisible = section.id == container }
         setTitle(title)
         setAboutVisible(themedActivity?.toolbar?.menu)
@@ -261,6 +286,15 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // Only where it is a real choice: this phone is a Signal device in its own right and
         // is still going through a bridge it no longer needs.
         binding.signalStopBridge.setVisible(state.signalLinkedDirectly && state.signalBridgePaired)
+
+        // The bridge is kept, not promoted. Someone already using one keeps seeing it exactly
+        // where it was; someone who is not never meets it unless they go looking, because it
+        // asks for a computer that stays on and the phone has not needed one since it became
+        // a Signal device itself.
+        bridgePaired = state.signalBridgePaired
+        val bridgeOnShow = state.signalBridgePaired || advancedShown
+        binding.signalAdvanced.setVisible(!bridgeOnShow)
+        binding.signalPair.setVisible(bridgeOnShow)
         binding.signalPair.summary = state.signalBridgeSummary
         binding.signalEnabled.setVisible(state.signalPaired)
         binding.signalEnabled.checkbox.isChecked = state.signalEnabled
@@ -505,6 +539,14 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun showSignalLink() {
         activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity.intent(it)) }
+    }
+
+    override fun showBridgeOption() {
+        advancedShown = true
+        // Swapped here rather than waiting for the next state: nothing about the account has
+        // changed, so there is no new state coming to render this.
+        binding.signalAdvanced.setVisible(false)
+        binding.signalPair.setVisible(true)
     }
 
     override fun showSignalPairDialog() {

@@ -289,6 +289,17 @@
                 app:summary="@string/settings_signal_link_summary"
                 app:title="@string/settings_signal_link_title" />
 
+            <!-- The bridge is on its way out: it wants a computer that never sleeps, and the
+                 phone no longer needs one. It stays because it is the way back if the direct
+                 rail misbehaves, but it is not something to put in front of someone who has
+                 just installed this. Hidden behind here unless one is already paired. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalAdvanced"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_signal_advanced_summary"
+                app:title="@string/settings_signal_advanced_title" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalPair"
                 android:layout_width="match_parent"

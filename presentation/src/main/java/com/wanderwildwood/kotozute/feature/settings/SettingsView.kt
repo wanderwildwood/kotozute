@@ -52,6 +52,9 @@ interface SettingsView : QkViewContract<SettingsState> {
 
     fun showSignalLink()
 
+    /** Reveals the bridge row, which is not offered until someone asks for it. */
+    fun showBridgeOption()
+
     fun showSignalPairDialog()
     fun showSignalPairFailed()
     fun askSignalUnpair()

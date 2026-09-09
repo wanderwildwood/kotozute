@@ -434,7 +434,18 @@ class MainActivity : QkThemedActivity(), MainView {
     }
 
     override fun onResume() =
-        super.onResume().also { activityResumedIntent.onNext(true) }
+        super.onResume().also {
+            activityResumedIntent.onNext(true)
+            // A foreground start is allowed where a background one is not, so this is where
+            // the persistent Signal connection recovers if the process was brought up by a
+            // broadcast and refused the service then. Idempotent, and cheap.
+            runCatching {
+                if (prefs.signalEnabled.get()) {
+                    com.wanderwildwood.kotozute.feature.signal.SignalStreamService
+                        .sync(this, prefs.signalKeepConnected.get())
+                }
+            }
+        }
 
     override fun onPause() =
         super.onPause().also { activityResumedIntent.onNext(false) }

@@ -105,13 +105,39 @@ class SignalStreamService : android.app.Service() {
         private const val NOTIFICATION_ID = 5190
         private const val ACTION_STOP = "ACTION_STOP"
 
-        /** Starts or stops the service to match the setting. Safe to call at any time. */
+        /**
+         * Starts or stops the service to match the setting.
+         *
+         * **This must never throw, and once it did.** It is called from
+         * `QKApplication.onCreate`, which runs on *every* process start — including the ones
+         * Android makes in the background to deliver a broadcast. Android 12 refuses a
+         * foreground service started from the background, and the refusal is a
+         * `ForegroundServiceStartNotAllowedException`; thrown out of `onCreate` it does not
+         * fail the service, it fails **the creation of the application**, so the process dies
+         * before any receiver runs.
+         *
+         * The cost of that was not a missing notification. It was every incoming SMS: the
+         * platform started the process to hand over `SMS_DELIVER`, the application threw on
+         * the way up, and the text was never given to the app at all — it sat in the system's
+         * own store until something opened the app and swept it in. A whole day of messages
+         * arrived at once that way.
+         *
+         * So a refusal is now what it should always have been: this rail goes without its
+         * persistent service until the app is next in the foreground, and everything else
+         * carries on. The catch is on `IllegalStateException` deliberately — that is the
+         * parent of the not-allowed exception, so it needs no version check and it also
+         * covers the other ways a background start can be refused.
+         */
         fun sync(context: Context, wanted: Boolean) {
             val intent = Intent(context, SignalStreamService::class.java)
-            if (wanted) {
+            if (!wanted) {
+                runCatching { context.stopService(intent) }
+                return
+            }
+            try {
                 androidx.core.content.ContextCompat.startForegroundService(context, intent)
-            } else {
-                context.stopService(intent)
+            } catch (e: IllegalStateException) {
+                Timber.w(e, "signal: not allowed to start the stream service from the background")
             }
         }
     }

@@ -59,7 +59,7 @@ android {
         versionCode project.findProperty('appVersionCode')?.toInteger() ?: 2
         versionName project.findProperty('appVersionName') ?: '1.0.1'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-            // EXPERIMENT: the Kompakt is arm64-v8a. A universal APK carrying four copies of
+            // The Kompakt is arm64-v8a. A universal APK carrying four copies of
             // a 112 MB engine is not something anyone would install, and it is what made the
             // first builds of this branch a gigabyte.
             // arm64 is the phone; x86_64 is the emulator, and without it the smoke test
@@ -306,10 +306,11 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation project(":android-smsmms")
     implementation project(":common")
-    // EXPERIMENT (signal-on-the-phone branch): does this toolchain accept the library at
-    // all? libsignal's classes are Java 21 bytecode and AGP here is 8.2.2. Nothing uses it
-    // yet -- this is here to find out what actually breaks, not to build anything.
-    // EXPERIMENT: the exact artifact and version signal-cli 0.14.7 builds on, read out of its
+    // libsignal's classes are Java 21 bytecode, which is why this module builds on JDK 21 --
+    // see the note in gradle.properties. It went in to find out whether the toolchain would
+    // accept the library at all; it now carries the whole Signal rail.
+    //
+    // The exact artifact and version signal-cli 0.14.7 builds on, read out of its
     // own gradle files rather than guessed. Two corrections live here: the module is
     // signal-network, not signal-service-java (which it pulls in transitively), and the
     // version is 152 -- Maven Central's *search index* stops at 126 and is simply wrong, as

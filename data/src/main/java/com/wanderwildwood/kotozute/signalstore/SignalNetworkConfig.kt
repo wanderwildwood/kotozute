@@ -17,7 +17,7 @@ import java.util.Base64
 import java.util.Optional
 
 /**
- * EXPERIMENT (signal-on-the-phone branch). Where to point at Signal.
+ * Where to point at Signal.
  *
  * The service layer can open a provisioning socket in two calls, but it will not tell you
  * which servers to open it against: no artifact ships production configuration. Every client

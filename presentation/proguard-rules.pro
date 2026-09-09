@@ -126,7 +126,7 @@
 -dontwarn fi.iki.elonen.**
 -keep class fi.iki.elonen.** { *; }
 
-# EXPERIMENT (signal-on-the-phone branch). AGP 9 refuses proguard-android.txt because it
+# AGP 9 refuses proguard-android.txt because it
 # carries -dontoptimize, so the optimize variant is now in use and R8 optimises where it did
 # not before. Realm does not survive that: its static initialiser dies with an
 # ArrayIndexOutOfBoundsException before the app draws anything, because the optimiser has
@@ -165,7 +165,7 @@
 -keep class * extends androidx.work.InputMerger { <init>(); }
 -keep class androidx.work.InputMerger { <init>(); }
 
-# EXPERIMENT (signal-on-the-phone branch). Signal's service layer brings Jackson, which
+# Signal's service layer brings Jackson, which
 # references java.beans annotations that exist on the JVM and not on Android. R8 treats the
 # dangling references as an error and refuses to build; they are never reached at runtime
 # because the code that would use them is JVM-only.

@@ -142,7 +142,8 @@ internal object ContentNormalizer {
             reactionTarget = reaction?.let { r ->
                 "${r.targetAuthorAciBinary?.let { ServiceIdText.of(it) } ?: ""}:${r.targetSentTimestamp ?: 0}"
             }.orEmpty(),
-            reactionRemove = reaction?.remove == true
+            reactionRemove = reaction?.remove == true,
+            groupMasterKey = dataMessage.groupV2?.masterKey?.toByteArray()
         )
     }
 

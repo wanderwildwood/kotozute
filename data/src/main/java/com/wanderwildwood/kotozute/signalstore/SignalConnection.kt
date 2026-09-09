@@ -72,6 +72,20 @@ internal class SignalConnection(
 
     val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
 
+    /** Group operations need the zk parameters as well as the socket. */
+    val groups: org.whispersystems.signalservice.api.groupsv2.GroupsV2Api by lazy {
+        org.whispersystems.signalservice.api.groupsv2.GroupsV2Api(
+            authenticated,
+            org.whispersystems.signalservice.internal.push.PushServiceSocket(
+                configuration, credentials, userAgent, true
+            ),
+            org.whispersystems.signalservice.api.groupsv2.GroupsV2Operations(
+                org.whispersystems.signalservice.api.groupsv2.ClientZkOperations.create(configuration),
+                GROUP_MAX_SIZE
+            )
+        )
+    }
+
     /** Sender certificates, for sealed sender. */
     val certificates: org.signal.network.api.CertificateApi by lazy {
         org.signal.network.api.CertificateApi(authenticated)
@@ -158,5 +172,8 @@ internal class SignalConnection(
         private const val ALLOW_STORIES = false
 
         private val DISCONNECT_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30)
+
+        /** signal-cli's value. Used only to size the operations helper. */
+        private const val GROUP_MAX_SIZE = 1001
     }
 }

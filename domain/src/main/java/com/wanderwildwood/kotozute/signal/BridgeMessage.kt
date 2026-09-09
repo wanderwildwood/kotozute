@@ -37,6 +37,15 @@ data class BridgeMessage(
     /** Set only on a reaction row, which points at another message rather than being one. */
     val reactionEmoji: String = "",
     val reactionTarget: String = "",
-    val reactionRemove: Boolean = false
+    val reactionRemove: Boolean = false,
+
+    /**
+     * The group's master key, when this arrived in a group over the device's own connection.
+     *
+     * Carried only so the group's name and members can be fetched: a group message names the
+     * group by a key, and everything readable about it lives on the server. Empty on the
+     * bridge rail, which resolved names on the other side.
+     */
+    val groupMasterKey: ByteArray? = null
 )
 

@@ -83,6 +83,64 @@ internal class SignalSender(
     }
 
     /**
+     * Sends to every member of a group.
+     *
+     * Fan-out: the message is encrypted to each member separately, with the group's context
+     * attached so their clients file it in the right conversation. Signal's own clients prefer
+     * sender keys, which encrypt once and let the server fan out -- cheaper for large groups,
+     * and a whole distribution mechanism to get right. This is the path Signal itself falls
+     * back to when sender keys are not usable, and for a group of a few people the difference
+     * is bandwidth rather than behaviour.
+     *
+     * @return the timestamp on success, or a failure naming who it could not reach. Partial
+     *   delivery is reported as failure: saying "sent" when one member did not get it is the
+     *   kind of lie that only shows up later, in an argument about who said what.
+     */
+    fun sendToGroup(
+        masterKey: ByteArray,
+        members: List<ServiceId>,
+        body: String
+    ): Result {
+        if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
+        val timestamp = System.currentTimeMillis()
+
+        val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
+            .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+            .withRevision(0)
+            .build()
+
+        val message = SignalServiceDataMessage.newBuilder()
+            .withBody(body)
+            .withTimestamp(timestamp)
+            .asGroupMessage(group)
+            .build()
+
+        return try {
+            val results = sender.sendDataMessage(
+                members.map { SignalServiceAddress(it) },
+                members.map { sealedSender.accessFor(it.toString()) },
+                false,
+                ContentHint.RESENDABLE,
+                message,
+                SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
+                null,
+                null,
+                false
+            )
+            val failed = results.filterNot { it.isSuccess }
+            if (failed.isEmpty()) {
+                Timber.i("signal send: delivered to %d group members ts=%d", results.size, timestamp)
+                Result.Sent(timestamp)
+            } else {
+                Result.Failed("could not reach ${failed.size} of ${results.size} group members")
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal send: group send threw")
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
+    /**
      * Asks the primary to send its contacts.
      *
      * A linked device starts knowing nobody: it has no address book and cannot resolve an ACI

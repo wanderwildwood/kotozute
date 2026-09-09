@@ -307,6 +307,52 @@ class SignalRepositoryImpl @Inject constructor(
      * sync has been answered -- so naming only at creation would leave every conversation
      * that predates the sync showing a service id forever.
      */
+    /**
+     * Names group threads that have none.
+     *
+     * Separate from filing, and after it, for two reasons: it asks the server, which must not
+     * happen inside a Realm transaction; and a group thread that already existed would
+     * otherwise keep showing its own identifier for ever, because a title is only chosen when
+     * a thread is created.
+     */
+    private fun nameGroupThreads() {
+        if (useBridge()) return
+        val toName = mutableListOf<Pair<String, ByteArray>>()
+        Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java)
+                .equalTo("kind", "group")
+                .findAll()
+                .filter { it.title.isBlank() }
+                .forEach { thread ->
+                    realm.where(SignalMessage::class.java)
+                        .equalTo("threadKey", thread.threadKey)
+                        .findAll()
+                        .firstOrNull { it.groupMasterKey != null }
+                        ?.groupMasterKey
+                        ?.let { toName += thread.threadKey to it }
+                }
+        }
+        if (toName.isEmpty()) return
+
+        // Fetched outside any transaction, then written in one.
+        val names = toName.mapNotNull { (key, master) ->
+            signalStore.groupFor(master)?.title?.takeIf { it.isNotBlank() }?.let { key to it }
+        }
+        if (names.isEmpty()) return
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                names.forEach { (threadKey, title) ->
+                    r.where(SignalThread::class.java)
+                        .equalTo("threadKey", threadKey)
+                        .findFirst()
+                        ?.takeIf { it.title.isBlank() }
+                        ?.title = title
+                }
+            }
+        }
+        Timber.i("signal groups: named %d thread(s)", names.size)
+    }
+
     private fun renameThreadsFromContacts() {
         val names = signalStore.contactNames()
         if (names.isEmpty()) return
@@ -385,11 +431,9 @@ class SignalRepositoryImpl @Inject constructor(
      * back on the next sync.
      */
     private fun sendDirect(threadKey: String, body: String, attachments: List<String>): Long {
+        if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments)
         if (!threadKey.startsWith("direct:")) {
-            // Group sending needs sender-key distribution to every member, which is a
-            // different operation from a one-to-one send and is not written yet. Failing
-            // loudly beats sending nothing and reporting success.
-            throw IllegalStateException("sending to groups is not supported on a direct link yet")
+            throw IllegalStateException("cannot send to $threadKey")
         }
         val recipient = threadKey.removePrefix("direct:")
         val timestamp = signalStore.send(recipient, body, attachments)
@@ -431,6 +475,51 @@ class SignalRepositoryImpl @Inject constructor(
      * repository can turn into bytes; a sent one has no such copy, and inventing an id that
      * resolves to nothing would make the row claim a file it cannot produce.
      */
+    /**
+     * Sends to a group over this device's own connection.
+     *
+     * The master key comes from a message already in the thread: it is what a group message
+     * carries, and it is the only handle the server will answer questions about the group
+     * with. A thread with no message in it therefore cannot be sent to, which is a real limit
+     * and is reported rather than guessed around.
+     */
+    private fun sendDirectToGroup(threadKey: String, body: String, attachments: List<String>): Long {
+        if (attachments.isNotEmpty()) {
+            throw IllegalStateException("sending attachments to a group is not supported yet")
+        }
+        val masterKey = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .findAll()
+                .firstOrNull { it.groupMasterKey != null }
+                ?.groupMasterKey
+        } ?: throw IllegalStateException("no group key on this thread yet")
+
+        val timestamp = signalStore.sendToGroup(masterKey, body)
+        val selfAci = signalStore.selfAciOrNull().orEmpty()
+        ingest(
+            listOf(
+                com.wanderwildwood.kotozute.signal.BridgeMessage(
+                    id = "$selfAci:$timestamp",
+                    seq = 0,
+                    threadKey = threadKey,
+                    ts = timestamp,
+                    senderUuid = selfAci,
+                    senderNumber = "",
+                    outgoing = true,
+                    body = body,
+                    groupId = threadKey.removePrefix("group:"),
+                    quoteTs = 0,
+                    read = true,
+                    source = "live",
+                    attachmentsJson = "",
+                    groupMasterKey = masterKey
+                )
+            )
+        )
+        return timestamp
+    }
+
     private fun outgoingAttachmentsJson(attachments: List<String>): String {
         if (attachments.isEmpty()) return ""
         val array = org.json.JSONArray()
@@ -488,6 +577,7 @@ class SignalRepositoryImpl @Inject constructor(
         announce(fresh)
         // A contacts sync can have landed in the same batch as the messages it names.
         renameThreadsFromContacts()
+        runCatching { nameGroupThreads() }.onFailure { Timber.w(it, "signal groups: naming failed") }
         return fresh.size
     }
 
@@ -911,6 +1001,11 @@ class SignalRepositoryImpl @Inject constructor(
                 // connection has none -- there is no profile fetching yet -- so it would
                 // otherwise show a bare ACI in the inbox. Naming our own account is the one
                 // case that needs no lookup, and it is the one a user meets first.
+                // Deliberately no group name here. Naming a group means asking the server,
+                // and this runs inside a Realm transaction -- a network round trip would hold
+                // the write open for as long as the network felt like taking. Groups are named
+                // afterwards, in nameGroupThreads(), which also catches the threads that
+                // already existed before there was a name to give them.
                 title = when {
                     counterpartUuid.isBlank() -> ""
                     counterpartUuid == signalStore.selfAciOrNull() -> noteToSelfTitle
@@ -929,6 +1024,7 @@ class SignalRepositoryImpl @Inject constructor(
             thread.snippet = previewOf(m)
             thread.snippetOutgoing = m.outgoing
         }
+        if (m.groupMasterKey != null) row.groupMasterKey = m.groupMasterKey
         thread.unread = realm.where(SignalMessage::class.java)
             .equalTo("threadKey", m.threadKey)
             .equalTo("outgoing", false)

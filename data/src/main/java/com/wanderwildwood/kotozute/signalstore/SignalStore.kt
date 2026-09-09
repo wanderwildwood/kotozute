@@ -185,6 +185,31 @@ class SignalStore(private val context: Context) {
      * wording would have silently stopped messages being filed, with no compiler complaint
      * and no failure at the point of the change.
      */
+    /**
+     * Sends to a group, fetching its membership first.
+     *
+     * @throws IllegalStateException naming the reason if it could not be sent.
+     */
+    fun sendToGroup(masterKey: ByteArray, body: String): Long {
+        connection.connect()
+        val group = SignalGroups(connection, account).fetch(masterKey)
+            ?: throw IllegalStateException("could not read the group's members")
+        val members = group.members
+            .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+            // Not ourselves: our own devices get the message as a sync, and encrypting to
+            // our own address as though we were a peer is not the same thing.
+            .filter { it.toString() != account.credentials().aci }
+        return when (
+            val r = SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).sendToGroup(masterKey, members, body)
+        ) {
+            is SignalSender.Result.Sent -> r.timestamp
+            is SignalSender.Result.Failed -> throw IllegalStateException(r.reason)
+        }
+    }
+
     fun send(recipient: String, body: String, attachments: List<String> = emptyList()): Long {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
             ?: throw IllegalStateException("not a service id: $recipient")
@@ -255,6 +280,14 @@ class SignalStore(private val context: Context) {
 
     /** The name known for a service id, or null. */
     /** A peer's safety number and trust level, or null if they are unknown to the store. */
+    /**
+     * A group's name and members, fetched from the server using the master key a message
+     * carried. Null when it cannot be had -- a group whose details are unavailable should
+     * still receive messages.
+     */
+    internal fun groupFor(masterKey: ByteArray): SignalGroups.Group? =
+        runCatching { SignalGroups(connection, account).fetch(masterKey) }.getOrNull()
+
     internal fun identityFor(aci: String): SignalIdentityKeyStore.Identity? = runCatching {
         val self = org.signal.core.models.ServiceId.parseOrNull(account.credentials().aci)
             ?: return@runCatching null

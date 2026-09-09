@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 23
+        const val SCHEMA_VERSION: Long = 24
     }
 
     @SuppressLint("ApplySharedPref")
@@ -439,6 +439,19 @@ class QkRealmMigration @Inject constructor(
                 ?.takeIf { !it.hasField("readAt") }
                 ?.addField("readAt", Long::class.java, FieldAttribute.REQUIRED)
                 ?.transform { m -> m.setLong("readAt", 0) }
+
+            version++
+        }
+
+        if (version == 23L) {
+            // The group's master key, on messages that arrive over the device's own
+            // connection. Null on every existing row and on everything the bridge delivered:
+            // the bridge resolved groups on its own side and never sent the key, so there is
+            // nothing to back-fill and a bridge-era group thread simply cannot be sent to
+            // until a message arrives on the new rail.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("groupMasterKey") }
+                ?.addField("groupMasterKey", ByteArray::class.java)
 
             version++
         }

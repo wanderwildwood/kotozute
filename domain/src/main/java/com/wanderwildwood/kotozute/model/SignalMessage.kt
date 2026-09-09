@@ -79,6 +79,16 @@ open class SignalMessage : RealmObject() {
      * Only meaningful on an outgoing message: a receipt is something other people send about
      * ours.
      */
+    /**
+     * The group's master key, on a message that arrived in a group over this device's own
+     * connection.
+     *
+     * Kept because it is the only handle the server will answer questions about the group
+     * with -- its name, its members -- and a message is the only place it ever arrives.
+     * Without it a group can be read and not replied to.
+     */
+    var groupMasterKey: ByteArray? = null
+
     var deliveredAt: Long = 0
     var readAt: Long = 0
 

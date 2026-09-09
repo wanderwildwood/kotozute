@@ -423,12 +423,17 @@ class SettingsPresenter @Inject constructor(
 
         // A phone that is its own Signal device has no bridge to be unreachable or to refuse
         // it, and saying otherwise sends someone to re-pair something that does not exist.
+        // Contacts, on the direct rail only. Names come from profiles, and whether a profile
+        // key has arrived is invisible from the outside -- this is the only way to tell
+        // "nobody has shared one" apart from "the fetch is broken".
+        val who = conn.contactSummary.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+
         if (!conn.usingBridge) {
             return when {
                 !conn.signalConnected ->
-                    context.getString(R.string.settings_signal_status_direct_offline) + " · " + last + stuck
+                    context.getString(R.string.settings_signal_status_direct_offline) + " · " + last + stuck + who
                 else ->
-                    context.getString(R.string.settings_signal_status_direct_ok) + " · " + last + stuck
+                    context.getString(R.string.settings_signal_status_direct_ok) + " · " + last + stuck + who
             }
         }
 

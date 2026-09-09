@@ -43,6 +43,7 @@ import com.wanderwildwood.kotozute.injection.appComponent
 import com.wanderwildwood.kotozute.interactor.SpeakThreads
 import com.wanderwildwood.kotozute.manager.ReferralManager
 import com.wanderwildwood.kotozute.migration.QkMigration
+import com.wanderwildwood.kotozute.BuildConfig
 import com.wanderwildwood.kotozute.migration.QkRealmMigration
 import com.wanderwildwood.kotozute.util.NightModeManager
 import com.wanderwildwood.kotozute.worker.HousekeepingWorker
@@ -178,16 +179,16 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // configure timber logging
         Timber.plant(Timber.DebugTree(), fileLoggingTree)
 
-        // EXPERIMENT (signal-on-the-phone branch): after planting, deliberately. Run before
-        // it, Timber has no trees and the answer goes nowhere -- which is how the first
-        // attempt at this reported nothing at all.
-        // EXPERIMENT: release too, on this branch only. R8 strips what it cannot see being
-        // used, and a native method reached over JNI is exactly that -- so whether libsignal
-        // survives minification is a question the debug build cannot answer.
-        // Signal may be reachable through this device's own link rather than a bridge, and
-        // nothing else would say so at startup.
         signalRepo.refresh()
-        LibsignalSmokeTest.run(this)
+
+        // Debug only now. This ran in release to answer one question -- whether libsignal's
+        // native half survives R8 and loads on the phone -- and that question is answered: it
+        // links, loads and does curve arithmetic on the device. Keeping it in a shipped build
+        // would mean generating a throwaway identity key on every single launch, and writing
+        // the shape of the protocol store into the log, to re-prove something already known.
+        // It stays for debug builds, where it is still the fastest way to find out that a
+        // dependency bump has broken the native path.
+        if (BuildConfig.DEBUG) LibsignalSmokeTest.run(this)
 
         // configure emoji compatibility with bundled package
         // (bundled library works with no play-services/gsm os versions)

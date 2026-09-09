@@ -193,7 +193,25 @@ internal class SignalReceiver(
      */
     fun listen(keepGoing: () -> Boolean, onBatch: (Received) -> Unit) {
         while (keepGoing()) {
-            val result = drainOnce(READ_TIMEOUT_MS)
+            val result = try {
+                drainOnce(READ_TIMEOUT_MS)
+            } catch (e: java.util.concurrent.TimeoutException) {
+                // Nothing arrived inside the read window, which is the ordinary state of a
+                // quiet account and not a broken socket. The read is the only thing that
+                // ended; the connection is still up and its keepalives are still going.
+                //
+                // Letting this out unwound the whole listen, and the loop above it treated
+                // that as a dead connection and built a new authenticated websocket. On a
+                // phone that is not being messaged every minute, that was a full reconnect
+                // every sixty seconds -- 1,440 a day, each one a handshake on the radio, for
+                // a socket that was never broken. Measured on the device: exactly 60.0s
+                // apart, all day.
+                //
+                // Caught narrowly on purpose. A timeout means "carry on reading"; anything
+                // else still unwinds and still reconnects, which is what should happen when
+                // the socket really has gone.
+                continue
+            }
             // A batch that produced nothing is the common case -- the timeout expiring with an
             // empty queue -- and announcing it would wake everything downstream for no reason.
             if (result.envelopes > 0) onBatch(result)

@@ -1239,9 +1239,30 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     override fun identity(threadKey: String): SignalIdentity {
+        if (!useBridge()) {
+            val aci = threadKey.removePrefix("direct:")
+            val local = signalStore.identityFor(aci)
+                ?: return SignalIdentity("", "")
+            return SignalIdentity(
+                local.safetyNumber,
+                when (local.trustLevel) {
+                    0 -> "UNTRUSTED"
+                    2 -> "TRUSTED_VERIFIED"
+                    else -> "TRUSTED_UNVERIFIED"
+                }
+            )
+        }
         val cfg = config() ?: throw IllegalStateException("no bridge paired")
         val i = BridgeClient(cfg).identity(threadKey)
         return SignalIdentity(i.safetyNumber, i.trustLevel)
+    }
+
+    override fun acceptIdentity(threadKey: String): Boolean {
+        if (!threadKey.startsWith("direct:")) return false
+        // Only the direct rail: on a bridge the keys live on the bridge, and pretending to
+        // accept one here would report success for something that did not happen.
+        if (useBridge()) return false
+        return signalStore.acceptIdentity(threadKey.removePrefix("direct:"))
     }
 
     override fun react(messageId: String, emoji: String, remove: Boolean) {

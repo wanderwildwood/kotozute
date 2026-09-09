@@ -237,6 +237,19 @@ class SignalStore(private val context: Context) {
     internal val contacts: SignalContactStore by lazy { SignalContactStore(database) }
 
     /** The name known for a service id, or null. */
+    /** A peer's safety number and trust level, or null if they are unknown to the store. */
+    internal fun identityFor(aci: String): SignalIdentityKeyStore.Identity? = runCatching {
+        val self = org.signal.core.models.ServiceId.parseOrNull(account.credentials().aci)
+            ?: return@runCatching null
+        SignalIdentityKeyStore(database, ProtocolDatabase.ACCOUNT_ID_TYPE_ACI)
+            .identityFor(aci, self)
+    }.getOrNull()
+
+    /** Accepts a peer's changed key so messages can be sent to them again. */
+    fun acceptIdentity(aci: String): Boolean = runCatching {
+        SignalIdentityKeyStore(database, ProtocolDatabase.ACCOUNT_ID_TYPE_ACI).acceptIdentity(aci)
+    }.getOrDefault(false)
+
     fun contactName(aci: String): String? = runCatching { contacts.nameFor(aci) }.getOrNull()
 
     /** Every name known, for renaming threads in one pass after a sync. */

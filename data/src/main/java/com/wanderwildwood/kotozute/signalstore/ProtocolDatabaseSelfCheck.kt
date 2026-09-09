@@ -183,6 +183,33 @@ object ProtocolDatabaseSelfCheck {
                 pair.get(ServiceId.ACI.from(java.util.UUID.randomUUID())); false
             } catch (e: IllegalArgumentException) { true }
 
+            // Safety numbers. The number itself must be stable for a given pair of keys --
+            // two people compare them aloud, so a number that varies is worse than none --
+            // and accepting a changed key must actually unblock sending, which is the half
+            // that did not exist until now: a changed key blocked sends forever with no way
+            // back.
+            val selfId = org.signal.core.models.ServiceId.ACI.from(java.util.UUID.randomUUID())
+            val peerId = org.signal.core.models.ServiceId.ACI.from(java.util.UUID.randomUUID())
+            val peerAddr = org.signal.libsignal.protocol.SignalProtocolAddress(peerId.toString(), 1)
+            val idStore = SignalIdentityKeyStore(db, aci)
+            account.saveIdentity(aci, idKeys, 4242)
+            idStore.saveIdentity(peerAddr, IdentityKeyPair.generate().publicKey)
+            val sn1 = idStore.identityFor(peerId.toString(), selfId)
+            val sn2 = idStore.identityFor(peerId.toString(), selfId)
+            val safetyNumberStable = sn1 != null && sn1.safetyNumber == sn2?.safetyNumber
+            val safetyNumberShape = sn1?.safetyNumber?.count { it.isDigit() } == 60
+
+            // Now change their key, as a reinstall would.
+            idStore.saveIdentity(peerAddr, IdentityKeyPair.generate().publicKey)
+            val blockedAfterChange =
+                !idStore.isTrustedIdentity(peerAddr, idStore.getIdentity(peerAddr)!!, IdentityKeyStore.Direction.SENDING)
+            val accepted = idStore.acceptIdentity(peerId.toString())
+            val sendableAfterAccept =
+                idStore.isTrustedIdentity(peerAddr, idStore.getIdentity(peerAddr)!!, IdentityKeyStore.Direction.SENDING)
+            // Accepting is not verifying.
+            val acceptedNotVerified = idStore.identityFor(peerId.toString(), selfId)?.trustLevel ==
+                SignalIdentityKeyStore.TRUSTED_UNVERIFIED
+
             // Group ids. The wire carries a master key; the id is what you get by deriving
             // secret params from it and taking the public group identifier. Base64 of the
             // master key is stable, plausible and wrong -- the bridge files the same group
@@ -195,7 +222,7 @@ object ProtocolDatabaseSelfCheck {
             val groupIdLooksRight = derivedGroupId.length == 44
 
             db.close()
-            "${tables.size} tables, seeded=$identities | groups: derived=$groupIdIsDerived shape=$groupIdLooksRight | pair: aci=$aciResolves bare-pni=$barePniResolves stranger-rejected=$strangerRejected | facade: sharing-roundtrip=$sharingRoundTrips " +
+            "${tables.size} tables, seeded=$identities | safety: stable=$safetyNumberStable shape=$safetyNumberShape blocked=$blockedAfterChange accepted=$accepted sendable=$sendableAfterAccept not-verified=$acceptedNotVerified | groups: derived=$groupIdIsDerived shape=$groupIdLooksRight | pair: aci=$aciResolves bare-pni=$barePniResolves stranger-rejected=$strangerRejected | facade: sharing-roundtrip=$sharingRoundTrips " +
                 "archive-clears-sharing=$archiveClearsSharing cleared-all=$clearedAll stale-swept=$staleSwept " +
                 "| account: empty-before-link=$beforeLink " +
                 "credentials=$credentialsRoundTrip identity=$identityRoundTrip regid=$registrationIdKept " +

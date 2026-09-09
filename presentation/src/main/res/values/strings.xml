@@ -414,6 +414,12 @@
          here, and the reason losing the primary would take this device with it. -->
     <string name="signal_account_linked_note">Registering the number, changing it, the registration-lock PIN and transferring the account all belong to the primary device. If the primary is unregistered, every other device on the account stops working.</string>
     <string name="signal_safety_number">Safety number</string>
+    <string name="signal_safety_accept_title">Accept the new key</string>
+    <string name="signal_safety_accept_summary">Only after you have checked the digits with them another way. Until you do, messages to them will not send.</string>
+    <string name="signal_safety_accept_confirm">Accept this key?</string>
+    <string name="signal_safety_accept_confirm_body">You will be able to send to them again. If you have not checked the digits with them, someone else could be reading what you send.</string>
+    <string name="signal_safety_accepted">Key accepted. You can send to them again.</string>
+    <string name="signal_safety_accept_failed">Could not accept the key.</string>
     <string name="signal_safety_verified">Verified. Compare these digits with theirs to confirm.</string>
     <string name="signal_safety_unverified">Not verified yet. Compare these digits with theirs in person or over a call you trust.</string>
     <string name="signal_safety_changed">⚠ Their key has changed since you last accepted it. This happens on a reinstall or a new phone, and it is also what interception would look like. Compare the digits before sending anything private.</string>

@@ -191,7 +191,47 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                 }
             )
             binding.safetyState.setVisible(true)
+
+            // Only when it has changed. Offering it the rest of the time would make accepting
+            // a habit rather than a decision, and the decision is the whole mechanism.
+            binding.safetyAccept.setVisible(identity.changed)
+            if (identity.changed) {
+                binding.safetyAccept.setOnClickListener { confirmAcceptIdentity() }
+            }
         }
+    }
+
+    /**
+     * Asks before accepting, and says what accepting means.
+     *
+     * Deliberately not a one-tap action. A changed key is what a reinstall looks like and also
+     * what interception looks like, and the app cannot tell them apart -- only the person can,
+     * by checking the digits some other way. The dialog says that plainly rather than asking
+     * "are you sure?", which tells nobody anything.
+     */
+    private fun confirmAcceptIdentity() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.signal_safety_accept_confirm)
+            .setMessage(R.string.signal_safety_accept_confirm_body)
+            .setNegativeButton(R.string.button_cancel, null)
+            .setPositiveButton(R.string.button_continue) { _, _ ->
+                thread(isDaemon = true) {
+                    val accepted = runCatching { signalRepo.acceptIdentity(threadKey) }.getOrDefault(false)
+                    runOnUiThread {
+                        if (isFinishing) return@runOnUiThread
+                        Toast.makeText(
+                            this,
+                            if (accepted) R.string.signal_safety_accepted
+                            else R.string.signal_safety_accept_failed,
+                            Toast.LENGTH_LONG
+                        ).show()
+                        // Re-read rather than assume: the row must disappear because the
+                        // store says so, not because a tap was registered.
+                        if (accepted) thread(isDaemon = true) { loadIdentity() }
+                    }
+                }
+            }
+            .show()
     }
 
     private fun renderArchive() {

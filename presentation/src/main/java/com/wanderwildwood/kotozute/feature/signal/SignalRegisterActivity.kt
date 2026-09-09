@@ -40,9 +40,25 @@ class SignalRegisterActivity : QkThemedActivity() {
 
     private lateinit var binding: SignalRegisterActivityBinding
 
-    /** Carried rather than kept in the repository, so abandoning leaves nothing behind. */
+    /**
+     * Carried rather than kept in the repository, so abandoning leaves nothing behind.
+     *
+     * In memory only, which means it does **not** survive the activity being destroyed: a
+     * rebuilt screen starts a new session and a new captcha. That is the honest limit of this
+     * -- an earlier version of this comment claimed the opposite.
+     */
     private var sessionId: String? = null
     private var number: String = ""
+
+    /**
+     * Which way the last code was asked for.
+     *
+     * The screen said "Code sent" either way, so asking to be called looked exactly like
+     * doing nothing -- and on a number that cannot receive short-code texts, which is the
+     * whole reason the voice option exists, that is the moment someone most needs to be told
+     * something is happening.
+     */
+    private var askedForACall = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -53,6 +69,7 @@ class SignalRegisterActivity : QkThemedActivity() {
         showBackButton(true)
 
         binding.send.setOnClickListener {
+            askedForACall = false
             number = binding.number.text.toString().trim()
             step(R.string.signal_register_working) { signalRepo.registerBegin(number) }
         }
@@ -64,6 +81,7 @@ class SignalRegisterActivity : QkThemedActivity() {
         }
 
         binding.callInstead.setOnClickListener {
+            askedForACall = true
             val id = sessionId ?: return@setOnClickListener
             step(R.string.signal_register_working) { signalRepo.registerResend(id, voice = true) }
         }
@@ -106,7 +124,10 @@ class SignalRegisterActivity : QkThemedActivity() {
             binding.captcha.setVisible(false)
             binding.numberStep.setVisible(false)
             binding.codeStep.setVisible(true)
-            binding.status.setText(R.string.signal_register_code_sent)
+            binding.status.setText(
+                if (askedForACall) R.string.signal_register_calling
+                else R.string.signal_register_code_sent
+            )
         }
 
         is SignalRepository.Registration.Registered -> {

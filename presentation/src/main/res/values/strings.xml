@@ -329,11 +329,13 @@
     <string name="signal_register_number_hint">Your number, with the country code</string>
     <string name="signal_register_send">Send me a code</string>
     <string name="signal_register_code_hint">The code you were sent</string>
+    <string name="signal_register_no_code">No code? Signal sends it from a short code, and numbers that forward texts — Google Voice and most other internet numbers — often cannot receive those, or the calls either. A number on a normal mobile plan will work.</string>
     <string name="signal_register_verify">Register</string>
     <string name="signal_register_call_instead">Call me with the code instead</string>
     <string name="signal_register_working">Working…</string>
     <string name="signal_register_captcha">Signal wants a puzzle solved first.</string>
-    <string name="signal_register_code_sent">Code sent. It can take a minute.</string>
+    <string name="signal_register_code_sent">Code sent by text. It can take a minute.</string>
+    <string name="signal_register_calling">Calling you with the code. Answer and write it down.</string>
     <string name="signal_register_done">Registered. Signal on this phone is yours now.</string>
     <string name="signal_register_failed">%s</string>
     <string name="signal_link_title">Link this phone</string>

@@ -110,6 +110,17 @@
                 android:layout_marginTop="16dp"
                 android:text="@string/signal_register_verify" />
 
+            <!-- Said here rather than in a help page, because this is where someone is sitting
+                 waiting for a code that is never going to arrive. Found the hard way: a Google
+                 Voice number received neither the text nor the call. -->
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/noCode"
+                style="@style/TextTertiary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="16dp"
+                android:text="@string/signal_register_no_code" />
+
             <!-- A number that cannot receive texts is a normal thing to be registering. -->
             <Button
                 android:id="@+id/callInstead"

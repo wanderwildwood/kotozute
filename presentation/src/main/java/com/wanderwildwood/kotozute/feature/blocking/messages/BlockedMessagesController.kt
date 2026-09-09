@@ -27,6 +27,7 @@ import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkController
 import com.wanderwildwood.kotozute.common.util.Colors
+import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.feature.blocking.BlockingDialog
 import com.wanderwildwood.kotozute.injection.appComponent
 import io.reactivex.subjects.PublishSubject
@@ -62,6 +63,7 @@ class BlockedMessagesController : QkController<BlockedMessagesView, BlockedMessa
         super.onViewCreated()
         blockedMessagesAdapter.emptyView = binding.empty
         binding.conversations.adapter = blockedMessagesAdapter
+        binding.conversations.turnsAPageOnSwipe()
     }
 
     override fun onAttach(view: View) {

@@ -47,12 +47,15 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.appcompat.app.AlertDialog
+import com.wanderwildwood.kotozute.common.util.TextViewStyler
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
+import com.wanderwildwood.kotozute.feature.extensions.isEmojiOnly
 
 class SignalThreadActivity : QkThemedActivity() {
 
     @Inject lateinit var signalRepo: SignalRepository
     @Inject lateinit var dateFormatter: DateFormatter
+    @Inject lateinit var textViewStyler: com.wanderwildwood.kotozute.common.util.TextViewStyler
     @Inject lateinit var notifications: SignalNotifications
     @Inject lateinit var navigator: com.wanderwildwood.kotozute.common.Navigator
     @Inject lateinit var scheduledMessageRepo: ScheduledMessageRepository
@@ -759,6 +762,15 @@ class SignalThreadActivity : QkThemedActivity() {
             // carry a link worth following, and until now it was something to retype.
             b.body.text = MessageLinks.apply(b.body, text, prefs, messageLinkClicks)
             b.body.setVisible(text.isNotEmpty())
+
+            // Emoji on their own are drawn large and without a bubble on the SMS side. This
+            // thread hardcoded emojiOnly = false, so the same message arriving over Signal
+            // came out as small glyphs in a box. Same rule, same look, either rail.
+            val emojiOnly = text.isEmojiOnly()
+            textViewStyler.setTextSize(
+                b.body,
+                if (emojiOnly) TextViewStyler.SIZE_EMOJI else TextViewStyler.SIZE_PRIMARY
+            )
             bindQuote(m)
             bindReactions(m)
 
@@ -811,7 +823,7 @@ class SignalThreadActivity : QkThemedActivity() {
             // uses, so a run of messages draws as one form rather than a stack of pills.
             b.body.setBackgroundResource(
                 BubbleUtils.getBubble(
-                    emojiOnly = false,
+                    emojiOnly = emojiOnly,
                     canGroupWithPrevious = canGroup(m, previous),
                     canGroupWithNext = canGroup(m, next),
                     isMe = m.outgoing

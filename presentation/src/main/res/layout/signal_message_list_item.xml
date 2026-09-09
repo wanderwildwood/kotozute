@@ -26,13 +26,12 @@
     <!-- Only ever visible in a group thread; a one-to-one thread's title already says. -->
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/sender"
+        style="@style/TextTertiary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
         android:layout_marginEnd="12dp"
         android:layout_marginBottom="2dp"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="11sp"
         android:visibility="gone" />
 
     <ImageView
@@ -47,11 +46,10 @@
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/attachment"
+        style="@style/TextTertiary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="2dp"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="12sp"
         android:visibility="gone" />
 
     <!-- What this message is replying to, when it quotes something. Above the bubble and
@@ -67,7 +65,7 @@
         android:ellipsize="end"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        android:textSize="13sp"
+
         android:visibility="gone" />
 
     <!-- The bubble. Its background is chosen per message so a run from one person draws as
@@ -95,7 +93,7 @@
         android:paddingTop="2dp"
         android:paddingEnd="8dp"
         android:paddingBottom="2dp"
-        android:textSize="14sp"
+        android:textSize="16sp"
         android:visibility="gone"
         tools:text="❤️ 2"
         tools:visibility="visible" />
@@ -109,7 +107,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="1dp"
-        android:textSize="12sp"
         android:visibility="gone"
         tools:text="Delivered"
         tools:visibility="visible" />

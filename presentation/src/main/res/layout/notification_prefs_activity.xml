@@ -36,7 +36,7 @@
 
     </androidx.appcompat.widget.Toolbar>
 
-    <ScrollView
+    <com.wanderwildwood.kotozute.common.widget.PagingScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -165,7 +165,7 @@
 
         </LinearLayout>
 
-    </ScrollView>
+    </com.wanderwildwood.kotozute.common.widget.PagingScrollView>
 
     <View
         android:layout_width="match_parent"

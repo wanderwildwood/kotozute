@@ -23,7 +23,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <ScrollView
+    <com.wanderwildwood.kotozute.common.widget.PagingScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:paddingTop="8dp"
@@ -134,7 +134,7 @@
 
         </LinearLayout>
 
-    </ScrollView>
+    </com.wanderwildwood.kotozute.common.widget.PagingScrollView>
 
     <LinearLayout
         android:id="@+id/fab"

@@ -413,7 +413,12 @@ class SettingsPresenter @Inject constructor(
         // message shape the app cannot yet read.
         val stuck = conn.undecryptable
             .takeIf { it > 0 }
-            ?.let { " · " + context.getString(R.string.settings_signal_status_stuck, it) }
+            ?.let {
+                // The reason as well as the count. A number alone is a report nobody can act
+                // on, and this is the only channel a release build has.
+                val why = conn.undecryptableReasons.firstOrNull()?.let { r -> " ($r)" }.orEmpty()
+                " · " + context.getString(R.string.settings_signal_status_stuck, it) + why
+            }
             .orEmpty()
 
         // A phone that is its own Signal device has no bridge to be unreachable or to refuse

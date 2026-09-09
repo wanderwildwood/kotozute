@@ -369,6 +369,51 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    // --- registering this phone as its own account ---------------------------------------
+
+    private fun stepToRegistration(step: Any): SignalRepository.Registration = when (step) {
+        is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.NeedsCaptcha ->
+            SignalRepository.Registration.NeedsCaptcha(step.sessionId)
+        is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.CodeSent ->
+            SignalRepository.Registration.CodeSent(step.sessionId)
+        is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Registered ->
+            SignalRepository.Registration.Registered(step.e164)
+        is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Failed ->
+            SignalRepository.Registration.Failed(step.reason)
+        else -> SignalRepository.Registration.Failed("unexpected registration state")
+    }
+
+    private suspend fun registrationStep(
+        body: suspend (com.wanderwildwood.kotozute.signalstore.SignalRegistrar) -> Any
+    ): SignalRepository.Registration = try {
+        val step = body(signalStore.registrar())
+        // Registering ends in the same place linking does -- an account this device can use --
+        // so the same things have to follow it, for the same reasons documented on linkDevice.
+        if (step is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Registered) {
+            runCatching { signalStore.uploadPreKeys() }
+                .onSuccess { Timber.i("signal keys: %s", it) }
+                .onFailure { Timber.w(it, "signal keys: could not publish after registering") }
+            prefs.signalEnabled.set(true)
+            publishState(reachable = true, signalConnected = true, error = null)
+            startStream()
+        }
+        stepToRegistration(step)
+    } catch (t: Throwable) {
+        Timber.w(t, "signal: registration threw")
+        SignalRepository.Registration.Failed(t.message ?: t::class.java.simpleName)
+    }
+
+    override suspend fun registerBegin(e164: String) = registrationStep { it.begin(e164) }
+
+    override suspend fun registerCaptcha(sessionId: String, token: String) =
+        registrationStep { it.submitCaptcha(sessionId, token) }
+
+    override suspend fun registerResend(sessionId: String, voice: Boolean) =
+        registrationStep { it.requestCode(sessionId, voice) }
+
+    override suspend fun registerVerify(sessionId: String, code: String, e164: String) =
+        registrationStep { it.verifyAndRegister(sessionId, code, e164) }
+
     override fun linkDevice(deviceName: String, onUrl: (String) -> Unit): String? = try {
         val result = kotlinx.coroutines.runBlocking {
             signalStore.linker().link(deviceName) { url -> onUrl(url) }

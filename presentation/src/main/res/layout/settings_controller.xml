@@ -289,6 +289,16 @@
                 app:summary="@string/settings_signal_link_summary"
                 app:title="@string/settings_signal_link_title" />
 
+            <!-- The second way in, for someone with no other phone to link to. Below linking
+                 because almost everyone has the other phone, and above the bridge because
+                 this one is a real answer rather than a legacy path. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalRegister"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/signal_register_setting_summary"
+                app:title="@string/signal_register_setting_title" />
+
             <!-- The bridge is on its way out: it wants a computer that never sleeps, and the
                  phone no longer needs one. It stays because it is the way back if the direct
                  rail misbehaves, but it is not something to put in front of someone who has

@@ -234,6 +234,7 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalLink -> view.showSignalLink()
                         R.id.signalStopBridge -> view.confirmStopUsingBridge()
+                        R.id.signalRegister -> view.showSignalRegister()
                         R.id.signalAdvanced -> view.showBridgeOption()
                         R.id.signalPair -> view.showSignalPairDialog()
 

@@ -137,6 +137,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // announce what arrived -- silent until the next launch, which is exactly the
         // session someone has just finished setting it up in. Posting is still gated,
         // inside the notifier.
+        // Signal is a feature of this app; SMS is the app. Nothing in here may be allowed to
+        // stop the application being created, because a process that fails to start cannot
+        // receive a text either -- which is exactly what happened when the stream service
+        // threw on a background start and took every incoming SMS down with it.
+        runCatching {
         signalNotifications.start()
         if (prefs.signalEnabled.get()) {
             signalRepo.startStream()
@@ -148,6 +153,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
             // comes back after the phone has been off.
             SignalStreamService.sync(this, prefs.signalKeepConnected.get())
         }
+        }.onFailure { Timber.w(it, "signal: startup failed, carrying on without it") }
 
         // Disappearing messages have to be swept here, not only on the bridge. The bridge
         // deletes its own row on time, but the phone's copy is the one anybody reads -- and

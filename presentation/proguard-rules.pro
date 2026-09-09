@@ -147,6 +147,24 @@
 -keep class androidx.work.impl.WorkDatabase_Impl { *; }
 -keepnames class androidx.work.impl.** { *; }
 
+# Third casualty, and the expensive one: WorkManager builds a worker's input merger by
+# constructing a class name and calling the no-argument constructor reflectively. Nothing
+# references that constructor, so R8 removed it, and every worker started with input data
+# died before it ran:
+#
+#   NoSuchMethodException: androidx.work.OverwritingInputMerger.<init> []
+#   WM-WorkerWrapper: Could not create Input Merger
+#
+# What that cost was every incoming SMS. The broadcast arrived and the receiver filed the
+# message, but the worker that puts it in front of anyone never started -- so texts sat
+# unseen until something swept them in, and a whole day of them appeared at once. The rule
+# above did not cover it twice over: this class is in `androidx.work`, not
+# `androidx.work.impl`, and `-keepnames` permits members to be removed regardless.
+#
+# Kept by supertype rather than by name so a merger this app has not met yet is covered too.
+-keep class * extends androidx.work.InputMerger { <init>(); }
+-keep class androidx.work.InputMerger { <init>(); }
+
 # EXPERIMENT (signal-on-the-phone branch). Signal's service layer brings Jackson, which
 # references java.beans annotations that exist on the JVM and not on Android. R8 treats the
 # dangling references as an error and refuses to build; they are never reached at runtime

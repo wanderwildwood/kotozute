@@ -822,7 +822,15 @@ class SignalRepositoryImpl @Inject constructor(
                         file = { ingest(it) },
                         onNamesLearned = ::renameThreadsFromContacts,
                         receipts = { sender, timestamps, read -> applyReceipts(sender, timestamps, read) },
-                        onBatch = { Timber.i("signal: received %s", it) }
+                        onBatch = {
+                            Timber.i("signal: received %s", it)
+                            // The only place the direct rail can record that traffic is
+                            // genuinely flowing. syncDirect() also writes this, but it
+                            // returns early whenever this loop owns the socket -- which is
+                            // the steady state -- so without this the phone reported "Not
+                            // synced yet" forever while receiving messages perfectly well.
+                            prefs.signalLastSync.set(System.currentTimeMillis())
+                        }
                     )
                     backoff = 2_000L
                 } catch (t: Throwable) {

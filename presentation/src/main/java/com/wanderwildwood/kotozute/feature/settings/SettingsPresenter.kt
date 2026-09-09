@@ -407,6 +407,19 @@ class SettingsPresenter @Inject constructor(
                 DateUtils.getRelativeTimeSpanString(t).toString()
             )
         }
+
+        // The direct rail does not sync; it holds a socket open and messages arrive on it. So
+        // the timestamp means "when something last came through", and the wording follows --
+        // "Last synced" describes a poll that does not happen here. And when nothing has come
+        // through yet, that is not a fault worth reporting: a quiet account looks exactly the
+        // same as a broken one from here, so this says nothing rather than something wrong.
+        val received = when (val t = conn.lastSyncedAt) {
+            0L -> ""
+            else -> " · " + context.getString(
+                R.string.settings_signal_status_last_received,
+                DateUtils.getRelativeTimeSpanString(t).toString()
+            )
+        }
         // Envelopes that arrived and could not be decrypted. Kept rather than dropped -- they
         // were acknowledged, so the ciphertext is the only copy left -- and surfaced here
         // because a release build logs nothing, and this count is the one early sign of a
@@ -431,9 +444,9 @@ class SettingsPresenter @Inject constructor(
         if (!conn.usingBridge) {
             return when {
                 !conn.signalConnected ->
-                    context.getString(R.string.settings_signal_status_direct_offline) + " · " + last + stuck + who
+                    context.getString(R.string.settings_signal_status_direct_offline) + received + stuck + who
                 else ->
-                    context.getString(R.string.settings_signal_status_direct_ok) + " · " + last + stuck + who
+                    context.getString(R.string.settings_signal_status_direct_ok) + received + stuck + who
             }
         }
 

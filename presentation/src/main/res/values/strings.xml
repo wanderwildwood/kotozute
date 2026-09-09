@@ -359,6 +359,7 @@
     <string name="settings_signal_status_stuck">%d message(s) could not be read</string>
     <string name="settings_signal_status_never">Not synced yet</string>
     <string name="settings_signal_status_last_synced">Last synced %s</string>
+    <string name="settings_signal_status_last_received">Last message %s</string>
     <!-- Named for what it destroys, not for the pairing it happens to end. Someone looking
          for a way to remove their Signal data will not find it under "Forget this bridge". -->
     <string name="settings_signal_stop_bridge_title">Stop using the bridge</string>

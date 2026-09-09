@@ -11,7 +11,7 @@ import org.junit.Test
 class DesktopSyncTokenTest {
 
     /** The shape tokens have had since the move to Crockford's alphabet: no lowercase. */
-    private val token = "Q6P88KBSJVEQPB199C3K2RY7"
+    private val token = "TESTTESTTESTTESTTEST0000"
 
     @Test
     fun `the right token is accepted`() {
@@ -22,7 +22,7 @@ class DesktopSyncTokenTest {
     fun `an uppercase-only token matches whatever case it is typed in`() {
         // Someone types this by hand, and a keyboard that capitalises should not lock them out.
         assertTrue(tokenMatches(token.lowercase(), token))
-        assertTrue(tokenMatches("q6p88kbsjveqpb199c3k2ry7", token))
+        assertTrue(tokenMatches("testtesttesttesttest0000", token))
     }
 
     @Test

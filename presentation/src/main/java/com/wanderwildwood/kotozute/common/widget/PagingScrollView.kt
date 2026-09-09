@@ -39,6 +39,34 @@ class PagingScrollView @JvmOverloads constructor(
     private var turned = false
 
     /**
+     * Blank space past the end of the column, so the last page can begin on a row edge.
+     *
+     * Without it the last page is the one place a page cannot land on a row edge: the scroll
+     * stops when the content runs out, wherever that leaves the top, and on a long settings
+     * section that left a row cut through the middle of a line under the toolbar. Aligning
+     * that page without the slack would push the final rows off the screen with no way back
+     * to them, because the next swipe lands in the same place and is pulled up again.
+     *
+     * It is a fixed measure, deliberately. The first attempt worked it out at layout time —
+     * exactly enough to end on a boundary — and recomputing on every layout moved the scroll
+     * range underneath the scroll position: pages flipped between two places, and one swipe
+     * forward could travel backwards. A constant cannot do that.
+     *
+     * The only thing it must satisfy is **slack ≥ the tallest row**, which is what guarantees
+     * that pulling the last page up to a row edge still leaves every real row on screen. The
+     * tallest row in these menus is a three-line summary, a little over 80dp; 144dp clears it
+     * and is still far short of a page, which is what keeps a row on screen to align to.
+     */
+    private val slack = (SLACK_DP * resources.displayMetrics.density).toInt()
+
+    init {
+        // The slack is scrollable space, not a margin around the content, so the column has to
+        // be allowed to draw through it rather than be clipped to it.
+        clipToPadding = false
+        setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom + slack)
+    }
+
+    /**
      * Letting go stops the page rather than throwing the column across several screens of
      * settings. Without this the ScrollView's own fling survives the intercept and undoes
      * the whole point.
@@ -104,14 +132,24 @@ class PagingScrollView @JvmOverloads constructor(
      * nothing here has to know how tall anything is in advance.
      */
     private fun turnPage(forward: Boolean) {
-        val page = height - paddingTop - paddingBottom
+        // The slack is not chrome and must not shrink the page, or every turn would fall a
+        // little short of a screen and slowly lose its place.
+        val page = height - paddingTop - (paddingBottom - slack)
         if (page <= 0) return
-        scrollBy(0, if (forward) page else -page)
 
-        // At either end the page stops where the column stops, and pulling a row into view
-        // would push the last of the settings back off the bottom, where the next swipe
-        // cannot reach them either because it lands in the same place.
-        if (!canScrollVertically(if (forward) 1 else -1)) return
+        // The ends are terminal, and have to be said explicitly.
+        //
+        // A page that already reaches the bottom of the column has nowhere to go, and moving
+        // anyway is what made the last page flicker: the scroll ran into the slack, was pulled
+        // back to a row edge, and the next swipe overshot and was pulled back to a *different*
+        // row -- so one swipe forward could travel backwards, and the two positions alternated
+        // for as long as you kept swiping. Refusing the move outright is both correct and the
+        // only version of this that settles.
+        val column = getChildAt(0) ?: return
+        if (forward && scrollY + page >= column.height) return
+        if (!forward && scrollY <= 0) return
+
+        scrollBy(0, if (forward) page else -page)
 
         val top = scrollY
         var container = getChildAt(0) as? ViewGroup ?: return
@@ -119,12 +157,11 @@ class PagingScrollView @JvmOverloads constructor(
 
         // Descend to the row, rather than assuming the scroll view's own child is one.
         //
-        // These screens do not all nest the same way: some hold their rows directly, others
-        // wrap them in a section or two first. Looking only one level down found, on the
-        // settings screen, a single child 1139px tall holding everything — which straddles
-        // every page boundary there is and is far too tall to pull into view, so the guard
-        // below refused it and no page ever aligned to anything. Walking down through
-        // whatever wrappers exist finds the actual row at whatever depth it lives.
+        // These screens do not all nest the same way: the settings screen keeps every section
+        // in one layout and swaps them in place, so one level down is a wrapper holding six
+        // sections of which five are GONE. Looking only there found a single child taller than
+        // any page, which straddles every boundary and is far too tall to pull into view, so
+        // no page ever aligned to anything. Walking down finds the row at whatever depth it is.
         while (true) {
             var found: View? = null
             for (i in 0 until container.childCount) {
@@ -137,11 +174,15 @@ class PagingScrollView @JvmOverloads constructor(
                 }
             }
 
+            // Nothing straddles the top: the page already begins on an edge, which is what
+            // happens at the very top of the column and out in the slack past its end.
             val child = found ?: return
             val childTop = offset + child.top
 
             // Whatever row the page landed part-way through comes fully into view, so a page
-            // opens on a whole row and carries a line of overlap from the page before.
+            // opens on a whole row and carries a line of overlap from the page before. The
+            // slack past the end of the column is what lets this happen on the last page too,
+            // without pushing the final rows out of reach.
             if (child.height <= page) {
                 scrollTo(0, childTop)
                 return
@@ -157,5 +198,10 @@ class PagingScrollView @JvmOverloads constructor(
                 return
             }
         }
+    }
+
+    private companion object {
+        /** See [slack]: must clear the tallest row, and stay well short of a page. */
+        const val SLACK_DP = 144f
     }
 }

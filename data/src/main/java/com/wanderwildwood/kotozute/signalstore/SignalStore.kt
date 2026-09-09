@@ -33,6 +33,23 @@ class SignalStore(private val context: Context) {
     /** True once this device has a device id and a password -- that is, once it is linked. */
     /** This device's own ACI, or null when it is not linked. Cheap enough to ask per thread. */
     /** Envelopes kept because they would not decrypt. See [SignalReceiver]. */
+    /**
+     * Why the kept envelopes would not decrypt, most recent first.
+     *
+     * Distinct reasons only: ten copies of the same failure is one fact, and a screen that
+     * repeats it ten times buries anything else.
+     */
+    fun undecryptableReasons(limit: Int = 3): List<String> = runCatching {
+        withStoreLock(database) {
+            database.readableDatabase.rawQuery(
+                "SELECT DISTINCT failure FROM envelope WHERE failure IS NOT NULL ORDER BY _id DESC LIMIT ?",
+                arrayOf(limit.toString())
+            ).use { c ->
+                generateSequence { if (c.moveToNext()) c.getString(0) else null }.toList()
+            }
+        }
+    }.getOrDefault(emptyList())
+
     fun undecryptableCount(): Int = withStoreLock(database) {
         database.readableDatabase.rawQuery("SELECT count(*) FROM envelope", null)
             .use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }

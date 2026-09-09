@@ -116,13 +116,46 @@ internal class SignalReceiver(
         // Only now, with everything acked and safely on disk.
         val messages = mutableListOf<com.wanderwildwood.kotozute.signal.BridgeMessage>()
         pending().forEach { (id, envelope, serverDeliveredTimestamp) ->
+            // The server's own delivery receipt: type SERVER_DELIVERY_RECEIPT, whose content
+            // is empty by definition. It is not a message and there is nothing in it to
+            // decrypt -- it says "what you sent at this timestamp reached them".
+            //
+            // This was being treated as a message that would not decrypt, and kept. Two bugs
+            // in one: a growing pile of envelopes reported to the user as unreadable messages,
+            // and the delivery signal itself discarded -- the very thing deliveredAt exists to
+            // record. It is what "1 message(s) could not be read (unknown)" turned out to be.
+            if (envelope.type == Envelope.Type.SERVER_DELIVERY_RECEIPT) {
+                val from = envelope.sourceServiceId.orEmpty()
+                // clientTimestamp, not the server's: a receipt identifies the message by the
+                // timestamp its *sender* stamped on it, which is the same value stored as the
+                // message's own id and date. The server's timestamp would match nothing.
+                val at = envelope.clientTimestamp ?: 0L
+                if (from.isNotBlank() && at > 0) {
+                    runCatching { receipts(from, listOf(at), false) }
+                        .onFailure { Timber.w(it, "signal receive: could not record a delivery receipt") }
+                }
+                delete(id)
+                return@forEach
+            }
+
             when (val result = decrypt(envelope, serverDeliveredTimestamp)) {
                 // Kept, not deleted. The envelope was acknowledged on the way past -- the
                 // server has forgotten it and will never send it again -- so deleting a row
                 // we failed to decrypt destroys the message permanently. A decryption that
                 // fails today may succeed after a fix, and the ciphertext is the only copy
                 // left anywhere. Swept by age below rather than kept for ever.
-                null -> failed++
+                null -> {
+                    // Kept only when decryption actually threw. A null with nothing recorded
+                    // means there was no content to decrypt, and keeping those is how an
+                    // ordinary event becomes a permanent "message could not be read".
+                    val why = lastFailure
+                    if (why == null) {
+                        delete(id)
+                    } else {
+                        failed++
+                        recordFailure(id, why)
+                    }
+                }
                 else -> {
                     decrypted++
                     senders += result.first
@@ -218,6 +251,12 @@ internal class SignalReceiver(
         }
     }
 
+    private fun recordFailure(id: Long, reason: String) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "UPDATE envelope SET failure = ? WHERE _id = ?", arrayOf<Any?>(reason, id)
+        )
+    }
+
     private fun delete(id: Long) = withStoreLock(db) {
         db.writableDatabase.execSQL("DELETE FROM envelope WHERE _id = ?", arrayOf<Any?>(id))
     }
@@ -230,6 +269,9 @@ internal class SignalReceiver(
      * ones behind it, and the envelope is already acked, so there is nothing to retry against
      * the server anyway.
      */
+    /** Set by [decrypt] when it fails, so the caller can record it against the row. */
+    private var lastFailure: String? = null
+
     private fun decrypt(
         envelope: Envelope,
         serverDeliveredTimestamp: Long
@@ -288,7 +330,11 @@ internal class SignalReceiver(
                 result.metadata.sourceServiceId.toString() to message
             }
         } catch (t: Throwable) {
-            Timber.w(t, "signal receive: could not decrypt an envelope; dropping it")
+            // Recorded against the row, not just logged: on a release build the log goes
+            // nowhere, and "one message could not be read" without a reason is a report
+            // nobody can act on.
+            lastFailure = "${t::class.java.simpleName}: ${t.message?.take(120).orEmpty()}"
+            Timber.w(t, "signal receive: could not decrypt an envelope; keeping it")
             null
         }
     }

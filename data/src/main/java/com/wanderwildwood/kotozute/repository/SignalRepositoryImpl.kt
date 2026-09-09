@@ -1428,6 +1428,8 @@ class SignalRepositoryImpl @Inject constructor(
                 linkedDirectly = linkedDirectly(),
                 usingBridge = useBridge(),
                 undecryptable = undecryptableCount(),
+                undecryptableReasons = if (useBridge()) emptyList()
+                    else runCatching { signalStore.undecryptableReasons() }.getOrDefault(emptyList()),
                 enabled = prefs.signalEnabled.get(),
                 bridgeReachable = reachable,
                 signalConnected = signalConnected,

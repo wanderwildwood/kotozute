@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 4
+    const val VERSION = 5
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -196,7 +196,9 @@ internal object ProtocolStoreSchema {
           server_guid TEXT UNIQUE,
           serialized BLOB NOT NULL,
           server_delivered_timestamp INTEGER NOT NULL,
-          stored_timestamp INTEGER NOT NULL
+          stored_timestamp INTEGER NOT NULL,
+          -- Why it would not decrypt, when it would not. Null while untried.
+          failure TEXT
         ) STRICT;
     """
 
@@ -257,7 +259,11 @@ internal object ProtocolStoreSchema {
         3 to listOf(CONTACT),
         // v4: profile keys. Names live in profiles, not in the contact record's
         // legacy name field, which modern clients have largely stopped filling.
-        4 to listOf("ALTER TABLE contact ADD COLUMN profile_key BLOB;")
+        4 to listOf("ALTER TABLE contact ADD COLUMN profile_key BLOB;"),
+        // v5: why an envelope would not decrypt. "One message could not be read" is the right
+        // thing to show a person and the wrong thing to hand a developer -- a release build
+        // logs nothing, so without this the only report from the field is a number.
+        5 to listOf("ALTER TABLE envelope ADD COLUMN failure TEXT;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

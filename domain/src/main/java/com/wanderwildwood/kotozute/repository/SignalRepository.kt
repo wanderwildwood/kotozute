@@ -227,6 +227,39 @@ interface SignalRepository {
     fun getThreadsSnapshot(archived: Boolean = false): List<SignalThread>
 
     /**
+     * What an import of a Signal export did, in terms a person can check against what they
+     * expected to get back.
+     */
+    data class ImportStats(
+        val messages: Int = 0,
+        val alreadyPresent: Int = 0,
+        val attachments: Int = 0,
+        val attachmentsLost: Int = 0,
+        val skippedEvents: Int = 0,
+        val skippedDeleted: Int = 0,
+        val skippedExpired: Int = 0,
+        val skippedNoThread: Int = 0,
+        val skippedNoAuthor: Int = 0,
+        val skippedUnknownGroup: Int = 0
+    )
+
+    /** The chosen folder held no Signal export. */
+    class NotAnExport : Exception()
+
+    /**
+     * Reads a Signal Desktop "export chat history" folder into this phone's Signal threads.
+     *
+     * Blocking, and slow: a history is thousands of messages and their pictures. [folder] is
+     * what the document picker returned. [onProgress] reports the running count of messages
+     * taken in, sparsely.
+     *
+     * Adds only. A message this phone already holds is left exactly as it is, whether it
+     * arrived live or from an earlier run of this, so importing twice -- or importing a
+     * window that overlaps what is already here -- changes nothing.
+     */
+    fun importHistory(folder: String, onProgress: (Int) -> Unit = {}): ImportStats
+
+    /**
      * Someone this account can write to. [threadKey] is where the conversation with them
      * lives, whether or not it has anything in it yet; [name] is never blank, because a row
      * in a list has to say something.

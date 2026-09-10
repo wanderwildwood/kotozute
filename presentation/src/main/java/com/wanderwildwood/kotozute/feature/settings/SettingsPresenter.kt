@@ -375,6 +375,24 @@ class SettingsPresenter @Inject constructor(
             .autoDisposable(view.scope())
             .subscribe { signalRepo.stopUsingBridge() }
 
+        // Reading an export is thousands of rows and their pictures, so it runs on a thread
+        // of its own and reports as it goes. Not a worker: it needs the folder the picker
+        // just granted this process, and it is over when the reader closes the screen or it
+        // finishes -- there is nothing here worth surviving a restart to resume.
+        view.signalExportFolderChosen()
+                .autoDisposable(view.scope())
+                .subscribe { folder ->
+                    Thread {
+                        val stats = runCatching {
+                            signalRepo.importHistory(folder) { taken ->
+                                view.showSignalImportProgress(taken)
+                            }
+                        }
+                        view.showSignalImportResult(stats.getOrNull())
+                        stats.exceptionOrNull()?.let { Timber.w(it, "signal import failed") }
+                    }.apply { isDaemon = true }.start()
+                }
+
         view.signalUnpairConfirmed()
             .autoDisposable(view.scope())
             .subscribe { signalRepo.unpair() }

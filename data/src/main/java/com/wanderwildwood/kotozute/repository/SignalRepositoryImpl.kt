@@ -1368,6 +1368,101 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun importHistory(
+        folder: String,
+        onProgress: (Int) -> Unit
+    ): SignalRepository.ImportStats {
+        val source = com.wanderwildwood.kotozute.signalstore.TreeExportSource(
+            context, android.net.Uri.parse(folder)
+        )
+        // The account's own identifiers. The bridge had to be told these -- an export
+        // carries a profile and settings but no identifier for the account itself -- and it
+        // is the reason importing needed an operator at a keyboard. On the phone they are
+        // simply known: this device is the account.
+        val importer = com.wanderwildwood.kotozute.signalstore.SignalHistoryImporter(
+            source = source,
+            sink = RealmImportSink(),
+            selfUuid = signalStore.selfAciOrNull().orEmpty(),
+            selfNumber = signalStore.selfNumberOrNull().orEmpty()
+        )
+        val stats = try {
+            importer.run(onProgress)
+        } catch (e: com.wanderwildwood.kotozute.signalstore.SignalHistoryImporter.NotAnExport) {
+            throw SignalRepository.NotAnExport()
+        }
+        // The same two passes a sync ends with: a thread named from this phone's own address
+        // book beats one named from the export, and a group that arrived nameless can be
+        // asked about now that it has messages in it.
+        renameThreadsFromContacts()
+        runCatching { nameGroupThreads() }.onFailure { Timber.w(it, "signal groups: naming failed") }
+        Timber.i("signal import: %d message(s), %d already present", stats.messages, stats.alreadyPresent)
+        return SignalRepository.ImportStats(
+            messages = stats.messages,
+            alreadyPresent = stats.alreadyPresent,
+            attachments = stats.attachments,
+            attachmentsLost = stats.attachmentsLost,
+            skippedEvents = stats.skippedEvents,
+            skippedDeleted = stats.skippedDeleted,
+            skippedExpired = stats.skippedExpired,
+            skippedNoThread = stats.skippedNoThread,
+            skippedNoAuthor = stats.skippedNoAuthor,
+            skippedUnknownGroup = stats.skippedUnknownGroup
+        )
+    }
+
+    /**
+     * The phone's side of an import.
+     *
+     * Deliberately not [ingest]: that announces what it stored, and a history arriving is not
+     * news -- it would ring for every message in it. It writes through the same [store] so
+     * there is still one place that turns a message into a row.
+     */
+    private inner class RealmImportSink :
+        com.wanderwildwood.kotozute.signalstore.SignalHistoryImporter.Sink {
+
+        override fun groupThreadsByTitle(): Map<String, String> =
+            Realm.getDefaultInstance().use { realm ->
+                realm.where(SignalThread::class.java)
+                    .equalTo("kind", "group")
+                    .findAll()
+                    .filter { it.title.isNotBlank() }
+                    .associate { it.title.lowercase() to it.threadKey }
+            }
+
+        override fun insert(messages: List<BridgeMessage>): Int {
+            var inserted = 0
+            Realm.getDefaultInstance().use { realm ->
+                realm.executeTransaction { r ->
+                    messages.forEach { message ->
+                        // Insert-only. store() updates a row it finds, which is right for a
+                        // message arriving again over the wire and wrong here: an imported
+                        // copy would overwrite what live delivery knows about the same
+                        // message -- its read state, an attachment it actually downloaded.
+                        val held = r.where(SignalMessage::class.java)
+                            .equalTo("id", message.id)
+                            .findFirst() != null
+                        if (!held && store(r, message)) inserted++
+                    }
+                }
+            }
+            return inserted
+        }
+
+        override fun nameThreadIfUnnamed(threadKey: String, title: String) {
+            Realm.getDefaultInstance().use { realm ->
+                realm.executeTransaction { r ->
+                    r.where(SignalThread::class.java)
+                        .equalTo("threadKey", threadKey)
+                        .findFirst()
+                        ?.let { thread -> if (thread.title.isBlank()) thread.title = title }
+                }
+            }
+        }
+
+        override fun storeAttachment(name: String, open: () -> java.io.InputStream): String? =
+            signalStore.keepImportedAttachment(name, open)
+    }
+
     override fun people(): List<SignalRepository.Person> {
         val threads = Realm.getDefaultInstance().use { realm ->
             realm.where(SignalThread::class.java)

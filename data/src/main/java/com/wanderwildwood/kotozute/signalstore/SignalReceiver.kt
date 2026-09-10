@@ -340,10 +340,15 @@ internal class SignalReceiver(
                 // pointer is only good for a window, so fetching lazily when a bubble is drawn
                 // fails for exactly the attachments worth keeping.
                 val message = normalized?.let { withAttachments(it, result.content) }
+                // Without the sender and without the thread key. Both identify a person, the
+                // thread key because it is derived from exactly that -- and this is a release
+                // build with a logging tree planted, so anything here is written down. Who is
+                // talking to this phone is the metadata the rest of this protects; it is not
+                // worth a better debug line. That it decrypted, and whether there was anything
+                // to keep, is what this line was actually for.
                 Timber.i(
-                    "signal receive: decrypted from %s -> %s",
-                    result.metadata.sourceServiceId,
-                    message?.let { "${it.threadKey} ts=${it.ts}" } ?: "nothing to store"
+                    "signal receive: decrypted -> %s",
+                    if (message != null) "stored" else "nothing to store"
                 )
                 result.metadata.sourceServiceId.toString() to message
             }

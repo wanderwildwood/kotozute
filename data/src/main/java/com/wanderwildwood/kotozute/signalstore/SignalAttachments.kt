@@ -71,6 +71,22 @@ internal class SignalAttachments(
 
     fun read(id: String): ByteArray? = File(dir, id).takeIf { it.isFile }?.readBytes()
 
+    /**
+     * Keeps bytes that arrived without being downloaded -- an import reading them out of a
+     * folder -- under an id the rest of the app can ask for. Already there is success: the
+     * same file referenced by two messages is one file.
+     */
+    fun keep(id: String, open: () -> InputStream): Boolean = try {
+        val destination = File(dir, id)
+        if (!destination.isFile) {
+            open().use { source -> destination.outputStream().use { source.copyTo(it) } }
+        }
+        true
+    } catch (t: Throwable) {
+        Timber.w(t, "signal attachment: could not keep %s", id)
+        false
+    }
+
     /** Downloads to a stream without keeping it: for blobs that are parsed once, like a contacts sync. */
     fun <T> streamOnce(pointer: AttachmentPointer, consume: (InputStream) -> T): T? = try {
         val servicePointer = AttachmentPointerUtil.createSignalAttachmentPointer(pointer)

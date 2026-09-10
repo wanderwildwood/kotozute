@@ -74,6 +74,7 @@ import com.wanderwildwood.kotozute.databinding.SettingsControllerBinding
 
 private const val CAMERA_FOR_PAIRING = 4801
 private const val SCAN_PAIRING_QR = 4802
+private const val PICK_EXPORT_FOLDER = 4803
 
 class SettingsController : QkController<SettingsView, SettingsState, SettingsPresenter>(), SettingsView {
 
@@ -102,6 +103,19 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val autoDeleteSubject: Subject<Int> = PublishSubject.create()
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
     private val signalPairSubject: Subject<String> = PublishSubject.create()
+    private val signalExportFolderSubject: Subject<String> = PublishSubject.create()
+
+    /**
+     * A result that arrives while nobody is listening.
+     *
+     * The intents the presenter subscribes to are bound in onAttach and torn down when this
+     * screen stops -- which is exactly what opening a picker or a scanner does to it. The
+     * result then comes back before the screen is attached again, so a value handed straight
+     * to its subject is handed to nothing: the folder was chosen, and no import ran. Held
+     * here instead, and given up once there is somebody to give it to.
+     */
+    private var pendingExportFolder: String? = null
+    private var pendingPairPayload: String? = null
     private val stopBridgeSubject: Subject<Unit> = PublishSubject.create()
     private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
     private val aboutLongClickSubject: Subject<Unit> = PublishSubject.create()
@@ -130,6 +144,16 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun onAttach(view: View) {
         super.onAttach(view)
         presenter.bindIntents(this)
+        // After the intents are bound, never before: these are the results that came back
+        // while this screen was stopped.
+        pendingExportFolder?.let { folder ->
+            pendingExportFolder = null
+            signalExportFolderSubject.onNext(folder)
+        }
+        pendingPairPayload?.let { payload ->
+            pendingPairPayload = null
+            signalPairSubject.onNext(payload)
+        }
         // the view is retained across detach, so restore whichever section was open
         setTitle(openTitle)
         showBackButton(true)
@@ -213,6 +237,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
 
     override fun signalPairPayload(): Observable<String> = signalPairSubject
+
+    override fun signalExportFolderChosen(): Observable<String> = signalExportFolderSubject
 
     override fun stopUsingBridgeConfirmed(): Observable<Unit> = stopBridgeSubject
 
@@ -306,7 +332,15 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalUnpair.setVisible(state.signalPaired)
         // The status line only means anything once Signal is actually switched on.
         binding.signalOpen.setVisible(state.signalPaired && state.signalEnabled)
-        binding.signalHistory.setVisible(state.signalPaired && state.signalEnabled)
+        // Not only when a bridge is paired. Importing used to run on the bridge's machine, so
+        // the row was only of use to someone who had one; it runs here now, and a linked
+        // phone is exactly the case with no history to begin with.
+        // Not only when a bridge is paired. Importing used to run on the bridge's machine, so
+        // the row was of use only to someone who had one; it runs here now, and a linked
+        // phone is exactly the case that starts with no history at all.
+        binding.signalHistory.setVisible(
+            (state.signalPaired || state.signalLinkedDirectly) && state.signalEnabled
+        )
         binding.signalAccount.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalKeepConnected.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalKeepConnected.checkbox.isChecked = state.signalKeepConnected
@@ -389,14 +423,82 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun showSignalHistoryDialog() {
         val activity = activity ?: return
-        val dialog = AlertDialog.Builder(activity)
+        AlertDialog.Builder(activity)
             .setTitle(R.string.settings_signal_history_title)
             .setMessage(R.string.settings_signal_history_body)
-            .setPositiveButton(android.R.string.ok, null)
+            .setPositiveButton(R.string.settings_signal_history_choose) { _, _ ->
+                chooseSignalExportFolder()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
-        // Selectable, because the whole point is the two commands in it.
-        dialog.findViewById<android.widget.TextView>(android.R.id.message)
-            ?.setTextIsSelectable(true)
+    }
+
+    override fun chooseSignalExportFolder() {
+        // A folder, not a file: an export is main.jsonl beside the pictures it names, and
+        // picking the file alone would import a history with every attachment missing.
+        val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
+        startActivityForResult(intent, PICK_EXPORT_FOLDER)
+    }
+
+    /**
+     * On the row rather than in a dialog. It is the only thing happening, the reader is
+     * looking at the row they just tapped, and a dialog that cannot be dismissed while
+     * thousands of messages are read is a locked screen with a number on it.
+     */
+    override fun showSignalImportProgress(messages: Int) {
+        activity?.runOnUiThread {
+            binding.signalHistory.summary =
+                activity?.getString(R.string.settings_signal_history_working, messages)
+        }
+    }
+
+    override fun showSignalImportResult(
+        stats: com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?
+    ) {
+        activity?.runOnUiThread {
+            val activity = activity ?: return@runOnUiThread
+            binding.signalHistory.summary = activity.getString(R.string.settings_signal_history_summary)
+            val message = if (stats == null) {
+                activity.getString(R.string.settings_signal_history_not_an_export)
+            } else {
+                buildString {
+                    append(activity.resources.getQuantityString(
+                        R.plurals.settings_signal_history_imported, stats.messages, stats.messages
+                    ))
+                    if (stats.alreadyPresent > 0) {
+                        append('\n').append(activity.getString(
+                            R.string.settings_signal_history_already, stats.alreadyPresent
+                        ))
+                    }
+                    if (stats.attachments > 0) {
+                        append('\n').append(activity.resources.getQuantityString(
+                            R.plurals.settings_signal_history_attachments,
+                            stats.attachments, stats.attachments
+                        ))
+                    }
+                    if (stats.attachmentsLost > 0) {
+                        append('\n').append(activity.resources.getQuantityString(
+                            R.plurals.settings_signal_history_attachments_lost,
+                            stats.attachmentsLost, stats.attachmentsLost
+                        ))
+                    }
+                    // Only the skips a person can do something about. The rest -- events,
+                    // tombstones, messages whose timer had already run out -- are things
+                    // that were never going to be messages here, and listing them reads as
+                    // loss where there was none.
+                    if (stats.skippedUnknownGroup > 0) {
+                        append('\n').append(activity.getString(
+                            R.string.settings_signal_history_groups, stats.skippedUnknownGroup
+                        ))
+                    }
+                }
+            }
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.settings_signal_history_title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
     }
 
     override fun showSignalAccountDialog(
@@ -605,11 +707,16 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == PICK_EXPORT_FOLDER) {
+            // A cancelled pick is not a failure worth saying anything about.
+            data?.data?.let { folder -> pendingExportFolder = folder.toString() }
+            return
+        }
         if (requestCode != SCAN_PAIRING_QR) return
         val contents = ScanIntentResult.parseActivityResult(resultCode, data)?.contents
         // Cancelled scans come back with null contents; that is not a failure worth a toast.
         if (contents.isNullOrBlank()) return
-        signalPairSubject.onNext(contents)
+        pendingPairPayload = contents
     }
 
     override fun onRequestPermissionsResult(

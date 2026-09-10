@@ -57,6 +57,9 @@ class SignalStore(private val context: Context) {
 
     fun selfAciOrNull(): String? = runCatching { account.credentials().aci }.getOrNull()
 
+    /** This account's own number, for the messages an export attributes to it. */
+    fun selfNumberOrNull(): String? = runCatching { account.credentials().e164 }.getOrNull()
+
     fun isLinked(): Boolean = ProtocolStoreKey.exists(context) && account.credentials().complete
 
     /**
@@ -343,6 +346,25 @@ class SignalStore(private val context: Context) {
 
     private fun attachmentsFor(connection: SignalConnection) =
         SignalAttachments(context) { connection.messageReceiver }
+
+    /**
+     * Files an attachment that came from an import rather than from the network, returning
+     * the id to record on the message, or null if it could not be kept.
+     *
+     * The id becomes the filename, so it is built from the export's own name with anything
+     * that is not a plain filename character removed -- the same shape the download path
+     * produces, because the reader ends up in one attachment store either way.
+     */
+    fun keepImportedAttachment(name: String, open: () -> java.io.InputStream): String? {
+        val safe = name.map { if (it.isLetterOrDigit() || it == '.' || it == '_' || it == '-') it else '_' }
+            .joinToString("")
+            .takeIf { it.isNotBlank() && it != "." && it != ".." }
+            ?: return null
+        val id = "import-$safe"
+        return id.takeIf {
+            SignalAttachments(context) { error("no download needed to keep") }.keep(it, open)
+        }
+    }
 
     /** The bytes of a downloaded attachment, or null if it was never fetched. */
     fun readAttachment(id: String): ByteArray? =

@@ -54,6 +54,8 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     companion object {
         const val SHARING_KEY = "sharing"
         const val CHIPS_KEY = "chips"
+        const val SIGNAL_THREAD_KEY = "signalThreadKey"
+        const val SIGNAL_THREAD_TITLE = "signalThreadTitle"
     }
 
     @Inject lateinit var contactsAdapter: ComposeItemAdapter
@@ -130,6 +132,20 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     override fun finish(result: HashMap<String, String?>) {
         binding.search.hideKeyboard()
         val intent = Intent().putExtra(CHIPS_KEY, result)
+        setResult(Activity.RESULT_OK, intent)
+        finish()
+    }
+
+    /**
+     * Handed back to the composer rather than opened here, so that the composer can stand
+     * aside as it does for the rail badge: a Signal conversation reached this way has the
+     * conversation list behind it, not an empty new message nobody asked to keep.
+     */
+    override fun finishWithSignalThread(threadKey: String, title: String) {
+        binding.search.hideKeyboard()
+        val intent = Intent()
+                .putExtra(SIGNAL_THREAD_KEY, threadKey)
+                .putExtra(SIGNAL_THREAD_TITLE, title)
         setResult(Activity.RESULT_OK, intent)
         finish()
     }

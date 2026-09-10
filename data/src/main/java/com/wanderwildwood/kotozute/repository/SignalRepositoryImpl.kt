@@ -27,6 +27,7 @@ import kotlin.concurrent.thread
 
 private const val ATTACHMENT_PREVIEW = "\uD83D\uDCCE Attachment"
 
+
 /**
  * What a view-once message says instead of nothing.
  *
@@ -1309,7 +1310,7 @@ class SignalRepositoryImpl @Inject constructor(
                     ?.title
                     ?.takeIf { it.isNotBlank() }
 
-                out[uuid] = fromContacts ?: fromThread ?: number.ifBlank { uuid.take(8) }
+                out[uuid] = fromContacts ?: fromThread ?: number.ifBlank { uuid.take(SignalDirectory.SHORT_SERVICE_ID) }
             }
         }
         return out
@@ -1367,14 +1368,31 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun threadDirectory(): List<SignalThread> =
-        Realm.getDefaultInstance().use { realm ->
-            realm.copyFromRealm(
-                realm.where(SignalThread::class.java)
-                    .equalTo("kind", "direct")
-                    .findAll()
-            ).sortedBy { it.title.lowercase() }
+    override fun people(): List<SignalRepository.Person> {
+        val threads = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java)
+                .equalTo("kind", "direct")
+                .findAll()
+                .map { thread ->
+                    SignalDirectory.Row(
+                        uuid = thread.counterpartUuid
+                            .ifBlank { thread.threadKey.substringAfter("direct:", "") },
+                        name = thread.title,
+                        number = thread.counterpartNumber
+                    )
+                }
         }
+
+        val contacts = signalStore.contactDirectory().map { contact ->
+            SignalDirectory.Row(
+                uuid = contact.aci,
+                name = contact.name.orEmpty(),
+                number = contact.e164.orEmpty()
+            )
+        }
+
+        return SignalDirectory.merge(threads, contacts, signalStore.selfAciOrNull())
+    }
 
     override fun account(): SignalAccount {
         val cfg = config() ?: throw IllegalStateException("no bridge paired")

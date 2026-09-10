@@ -483,6 +483,10 @@ Either can be run twice without duplicating anything. An export written this way
     <string name="signal_archived_toast">Archived — find it under Archived</string>
     <string name="signal_unarchived_toast">Back in the inbox</string>
     <string name="signal_switch_to_signal">Switch to Signal</string>
+    <!-- The second line of a person in the new-message list who is reachable on Signal.
+         The same name can appear twice, once per rail, and this is what tells them apart. -->
+    <string name="compose_signal_person">Signal</string>
+    <string name="compose_signal_person_number">Signal · %s</string>
     <string name="signal_attach">+</string>
     <string name="signal_attached">Attached: %s — tap to remove</string>
     <string name="signal_attach_failed">Could not read that file</string>

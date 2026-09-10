@@ -90,7 +90,39 @@ class ComposeItemAdapter @Inject constructor(
             is ComposeItem.Starred -> bindStarred(holder, item.value, prevItem)
             is ComposeItem.Person -> bindPerson(holder, item.value, prevItem)
             is ComposeItem.Group -> bindGroup(holder, item.value, prevItem)
+            is ComposeItem.SignalPerson -> bindSignalPerson(holder, item, prevItem)
         }
+    }
+
+    /**
+     * A person on the Signal rail. The row says so on its second line, because the same name
+     * can be in the list twice -- once for each rail -- and which one is being chosen is the
+     * whole of the difference between the two rows.
+     */
+    private fun bindSignalPerson(
+        holder: QkBindingViewHolder<ContactListItemBinding>,
+        person: ComposeItem.SignalPerson,
+        prev: ComposeItem?
+    ) {
+        holder.binding.index.isVisible = false
+
+        holder.binding.icon.isVisible = false
+
+        holder.binding.avatar.recipients = listOf(Recipient(address = person.number))
+
+        holder.binding.title.text = person.name
+
+        holder.binding.subtitle.isVisible = true
+        holder.binding.subtitle.text = when {
+            // Not when the row is already showing the number as its name: "Signal ·
+            // +15550148" under "+15550148" is the same fact twice.
+            person.number.isNotBlank() && person.number != person.name ->
+                holder.itemView.context.getString(R.string.compose_signal_person_number, person.number)
+            else -> holder.itemView.context.getString(R.string.compose_signal_person)
+        }
+        holder.binding.subtitle.collapseEnabled = false
+
+        holder.binding.numbers.isVisible = false
     }
 
     private fun bindNew(holder: QkBindingViewHolder<ContactListItemBinding>, contact: Contact) {
@@ -198,6 +230,13 @@ class ComposeItemAdapter @Inject constructor(
     }
 
     override fun areItemsTheSame(old: ComposeItem, new: ComposeItem): Boolean {
+        // A Signal person has no contacts to be identified by, so every one of them would
+        // otherwise look like the same item as every other -- and as any other empty row.
+        if (old is ComposeItem.SignalPerson || new is ComposeItem.SignalPerson) {
+            return old is ComposeItem.SignalPerson && new is ComposeItem.SignalPerson &&
+                    old.threadKey == new.threadKey
+        }
+
         val oldIds = old.getContacts().map { contact -> contact.lookupKey }
         val newIds = new.getContacts().map { contact -> contact.lookupKey }
         return oldIds == newIds

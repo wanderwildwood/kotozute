@@ -311,6 +311,13 @@ class SignalStore(private val context: Context) {
     /** Every name known, for renaming threads in one pass after a sync. */
     fun contactNames(): Map<String, String> = runCatching { contacts.all() }.getOrDefault(emptyMap())
 
+    /**
+     * Everyone the primary has told us about: service id, number and name, named or not.
+     * This is the whole of a linked device's directory -- there is no lookup of its own.
+     */
+    internal fun contactDirectory(): List<SignalContactStore.Contact> =
+        runCatching { contacts.everyone() }.getOrDefault(emptyList())
+
     /** Asks the primary for its contacts. The answer arrives later, through the socket. */
     fun requestContacts(): String {
         connection.connect()

@@ -103,17 +103,51 @@ off nearly every row.
 
 ### What it needs
 
-The Kompakt cannot run Signal — the app needs services the phone does not have. So Signal runs
-on **a computer of your own**, and the phone talks to it. That computer needs
-[signal-cli](https://github.com/AsamK/signal-cli) and this repository's bridge; `bridge/install.sh`
-sets both up and prints a line you paste into Desktop Sync.
-See [bridge/README.md](bridge/README.md).
+Nothing but the phone. Signal runs in the app: it holds a Signal identity of its own and talks
+to Signal's servers directly, with nothing in between.
 
-**It does not have to be on all the time.** Messages queue on Signal's servers and arrive when
-the bridge next connects, so a desktop that is on in the evenings gives you Signal on the phone
-in the evenings, with nothing missing when it wakes. What you lose while it is off is
-timeliness, and sending: the app says so plainly rather than accepting a message it cannot
-deliver.
+There are two ways in, both under Settings → Signal.
+
+**Link this phone**, which is the ordinary one. On a phone that already has your Signal, open
+Settings → Linked devices → Link new device, and scan the code this one shows — the same
+exchange that links Signal Desktop.
+
+**Register this number**, for a phone that is the only Signal you have. This makes it *become*
+the account for that number: if that number is on Signal anywhere else, that stops working and
+its linked devices are dropped, and the messages already on the other phone stay there. It
+needs a number that can receive a text from a short code — Google Voice and most other
+internet numbers cannot, and neither can they take the call — and there is a "call me with the
+code instead" option for when the text does not come.
+
+**There is no push, so the app collects its own messages.** Signal does not send notifications
+to anything but its own clients, so how quickly a message arrives is decided by **Keep Signal
+connected**. On, a foreground service holds the connection open and messages arrive as they are
+sent, at the cost of a permanent notification. Off, which is the default, Signal catches up
+every so often and when you open the app. Measured on the phone in forced deep idle, with the
+app backgrounded: with the switch on the message arrives, with it off nothing arrives until
+the next catch-up.
+
+**Threads start empty.** Signal's servers do not hold history and a newly linked device is not
+sent any, so conversations fill from the day you pair. Importing a Signal Desktop export is how
+you get the rest.
+
+#### The bridge, the older way in
+
+Before the app could be a Signal device in its own right, Signal ran on a computer of your own
+and the phone talked to it over a bridge. That still works and still ships: it is the way back
+if the direct path misbehaves, and it suits anyone who would rather not have a socket held open
+on the phone. It is no longer what a fresh install is offered — it sits behind **Advanced** in
+the same settings section, and anyone who already has one paired sees the row where it always
+was.
+
+That computer needs [signal-cli](https://github.com/AsamK/signal-cli) and this repository's
+bridge; `bridge/install.sh` sets both up and prints a line you paste into Desktop Sync. See
+[bridge/README.md](bridge/README.md).
+
+It does not have to be on all the time. Messages queue on Signal's servers and arrive when the
+bridge next connects, so a desktop that is on in the evenings gives you Signal on the phone in
+the evenings, with nothing missing when it wakes. What you lose while it is off is timeliness,
+and sending: the app says so plainly rather than accepting a message it cannot deliver.
 
 It has to be **x86-64 Linux**. signal-cli is Java and installs anywhere, but the Signal protocol
 underneath it is a Rust library, and the only Linux build published is x86-64 — there is none
@@ -137,24 +171,31 @@ Go is not required — if it is installed the bridge is built from the source yo
 and if it is not, the binary published with the release is downloaded and checked against its
 published checksum.
 
-Linking is offered; **registering is not**, because it makes this computer *become* the
+Linking is offered; **registering is not**, because it makes that computer *become* the
 account and ends Signal on your phone for that number. The script explains both and only
 does the safe one for you.
 
 There is deliberately no `curl … | sudo bash`: this runs as root and ends up holding a Signal
 account, so it is worth reading first — which is also why it verifies what it downloads.
 
+**Coming off the bridge keeps your conversations.** Settings → Signal → **Stop using the
+bridge** moves you to the phone's own connection and leaves the messages where they are. That
+is the row to use. "Delete Signal data" is the other thing entirely: it removes every Signal
+message on the phone.
+
 ### What is not possible
 
 Worth saying plainly, so nobody goes looking:
 
-- **No Signal calls.** signal-cli carries no audio, and the audio would be on the wrong machine
-  anyway.
-- **No PIN, registration lock, number change or account transfer** — unless the bridge is itself
-  the account's primary device. Linked to a phone that already has Signal, those all belong to
-  that phone.
-- **A linked bridge dies with its primary.** If the phone holding the Signal account is ever
-  unregistered, the bridge stops with it.
+- **No Signal calls.** The app registers itself as carrying neither voice nor video, and there
+  is no audio path in it.
+- **No PIN, registration lock, number change or account transfer.** Linked to a phone that
+  already has Signal, those all belong to that phone. Registered here, they are simply not
+  implemented — registration is done without a registration lock, and setting one afterwards
+  needs a client that supports it.
+- **A linked device dies with its primary.** If the phone holding the Signal account is ever
+  unregistered, this one stops with it. That does not apply if this phone registered the number
+  itself, because then it is the primary.
 - **History does not arrive by itself.** Signal's servers do not hold it and a newly linked device
   is not sent any, so threads start empty and fill from the day you pair. Importing an export is
   how you get the rest.
@@ -214,13 +255,16 @@ install over what you have, keeping your settings and anything the app has store
 ## Not affiliated with Signal
 
 This is not a Signal product, and has no connection to the Signal Foundation or Signal
-Messenger LLC. It does not implement the Signal protocol and does not speak to Signal's
-servers: it talks to [signal-cli](https://github.com/AsamK/signal-cli), a separate and
-unofficial project, which does that part.
+Messenger LLC. It is an unofficial, third-party client. It speaks to Signal's servers directly,
+as a device linked to or registered on your account, using Signal's own published libraries —
+libsignal, and a fork of Signal's service layer. On the older bridge path it instead talks to
+[signal-cli](https://github.com/AsamK/signal-cli), which is also a separate and unofficial
+project.
 
 "Signal" is used here to name the service being reached, and for nothing else. Whether a
-third-party path suits you is your judgement to make, and worth making deliberately — an
-account reached this way is still your account, with everything that implies.
+third-party client suits you is your judgement to make, and worth making deliberately — an
+account reached this way is still your account, with everything that implies, and none of this
+code has been reviewed by anyone at Signal.
 
 ## Licence
 

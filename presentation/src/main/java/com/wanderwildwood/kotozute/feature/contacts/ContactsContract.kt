@@ -39,4 +39,7 @@ interface ContactsContract : QkView<ContactsState> {
     fun openKeyboard()
     fun finish(result: HashMap<String, String?>)
 
+    /** Leave for a Signal conversation instead of returning a recipient. */
+    fun finishWithSignalThread(threadKey: String, title: String)
+
 }

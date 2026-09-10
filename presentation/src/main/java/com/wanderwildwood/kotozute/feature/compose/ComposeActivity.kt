@@ -785,6 +785,20 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
         when (requestCode) {
             ComposeView.SELECT_CONTACT_REQUEST_CODE -> {
+                // Someone chosen on Signal rather than a recipient for this composer. Replace
+                // this screen rather than stack on it, the same way the rail badge does: back
+                // from a conversation means the conversation list, not a new message nobody
+                // asked to keep.
+                val signalThreadKey = data?.getStringExtra(ContactsActivity.SIGNAL_THREAD_KEY)
+                if (!signalThreadKey.isNullOrBlank()) {
+                    navigator.showSignalThread(
+                        signalThreadKey,
+                        data.getStringExtra(ContactsActivity.SIGNAL_THREAD_TITLE).orEmpty()
+                    )
+                    finish()
+                    return
+                }
+
                 chipsSelectedIntent.onNext(data?.getSerializableExtra(ContactsActivity.CHIPS_KEY)
                     ?.let { serializable -> serializable as? HashMap<String, String?> }
                     ?: hashMapOf())

@@ -227,10 +227,18 @@ interface SignalRepository {
     fun getThreadsSnapshot(archived: Boolean = false): List<SignalThread>
 
     /**
-     * Everyone Signal knows on this account, whether or not there is a conversation --
-     * the recipient list for starting one. The conversation lists exclude these on purpose.
+     * Someone this account can write to. [threadKey] is where the conversation with them
+     * lives, whether or not it has anything in it yet; [name] is never blank, because a row
+     * in a list has to say something.
      */
-    fun threadDirectory(): List<SignalThread>
+    data class Person(val threadKey: String, val name: String, val number: String)
+
+    /**
+     * Everyone Signal knows on this account, whether or not there is a conversation --
+     * the recipient list for starting one. The conversation lists exclude the empty ones on
+     * purpose; this is the one place they are wanted.
+     */
+    fun people(): List<Person>
 
     /**
      * Threads whose title or messages match [query]. Returns each thread once, with how

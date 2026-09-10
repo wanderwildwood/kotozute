@@ -36,12 +36,16 @@ import com.wanderwildwood.kotozute.model.PhoneNumber
 import com.wanderwildwood.kotozute.model.Recipient
 import com.wanderwildwood.kotozute.repository.ContactRepository
 import com.wanderwildwood.kotozute.repository.ConversationRepository
+import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.util.PhoneNumberUtils
+import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.Observables
 import io.reactivex.schedulers.Schedulers
 import io.realm.RealmList
+import io.reactivex.subjects.PublishSubject
+import io.reactivex.subjects.Subject
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.rx2.awaitFirst
 import javax.inject.Inject
@@ -54,7 +58,9 @@ class ContactsViewModel @Inject constructor(
     private val contactsRepo: ContactRepository,
     private val conversationRepo: ConversationRepository,
     private val phoneNumberUtils: PhoneNumberUtils,
-    private val setDefaultPhoneNumber: SetDefaultPhoneNumber
+    private val prefs: Preferences,
+    private val setDefaultPhoneNumber: SetDefaultPhoneNumber,
+    private val signalRepo: SignalRepository
 ) : QkViewModel<ContactsContract, ContactsState>(ContactsState()) {
 
     private val contactGroups: Observable<List<ContactGroup>> by lazy { contactsRepo.getUnmanagedContactGroups() }
@@ -63,6 +69,41 @@ class ContactsViewModel @Inject constructor(
         if (sharing) conversationRepo.getUnmanagedConversations() else Observable.just(listOf())
     }
     private val starredContacts: Observable<List<Contact>> by lazy { contactsRepo.getUnmanagedContacts(true) }
+
+    /**
+     * Everyone reachable on Signal, which is otherwise a list nothing in the app offers: a
+     * Signal conversation could only be started by picking someone this phone already had an
+     * SMS thread with, so anyone who had never texted was out of reach until they wrote
+     * first.
+     *
+     * Read once, on a worker: the directory is a contacts sync and a Realm read, and it does
+     * not move while a name is being typed.
+     *
+     * Not while sharing. The shared text goes into the SMS composer this screen returns to,
+     * and choosing a Signal person leaves that screen for the other rail -- offering it here
+     * would be offering to drop what is being shared.
+     */
+    private val signalPeople: Observable<List<ComposeItem.SignalPerson>> by lazy {
+        if (sharing || !prefs.signalEnabled.get()) {
+            Observable.just(listOf())
+        } else {
+            Observable.fromCallable {
+                signalRepo.people().map { person ->
+                    ComposeItem.SignalPerson(person.threadKey, person.name, person.number)
+                }
+            }
+                    .subscribeOn(Schedulers.io())
+                    .onErrorReturnItem(listOf())
+                    // Nothing, until it is read. Reading it opens the keystore and the
+                    // encrypted store behind it, which is deliberately not done until it is
+                    // wanted -- and combineLatest holds every other source until its slowest
+                    // one has spoken, so without this the address book waits on Signal.
+                    .startWith(listOf<ComposeItem.SignalPerson>())
+        }
+    }
+
+    /** Chosen from the list; handled apart from the chips, which cannot hold one. */
+    private val signalPersonPicked: Subject<ComposeItem.SignalPerson> = PublishSubject.create()
 
     private val selectedChips = Observable.just(serializedChips)
             .observeOn(Schedulers.io())
@@ -96,8 +137,9 @@ class ContactsViewModel @Inject constructor(
         // that have already been selected
         Observables
                 .combineLatest(
-                        view.queryChangedIntent, recents, starredContacts, contactGroups, contacts, selectedChips
-                ) { query, recents, starredContacts, contactGroups, contacts, selectedChips ->
+                        view.queryChangedIntent, recents, starredContacts, contactGroups, contacts, selectedChips,
+                        signalPeople
+                ) { query, recents, starredContacts, contactGroups, contacts, selectedChips, signalPeople ->
                     val composeItems = mutableListOf<ComposeItem>()
                     if (query.isBlank()) {
                         composeItems += recents
@@ -129,6 +171,12 @@ class ContactsViewModel @Inject constructor(
                         composeItems += contacts
                                 .filter { contact -> selectedChips.none { it.contact?.lookupKey == contact.lookupKey } }
                                 .map(ComposeItem::Person)
+
+                        // Last, and after the address book rather than mixed into it. Most
+                        // of these people are in that list already under the other rail, and
+                        // a list that answers "who can I text" should not be reordered by a
+                        // second answer to a different question.
+                        composeItems += signalPeople
                     } else {
                         // If the entry is a valid destination, allow it as a recipient
                         if (phoneNumberUtils.isPossibleNumber(query.toString())) {
@@ -161,6 +209,9 @@ class ContactsViewModel @Inject constructor(
                                 .filter { contact -> selectedChips.none { it.contact?.lookupKey == contact.lookupKey } }
                                 .filter { contact -> contactFilter.filter(contact, normalizedQuery) }
                                 .map(ComposeItem::Person)
+
+                        composeItems += signalPeople
+                                .filter { person -> matches(person, query.toString(), normalizedQuery) }
                     }
 
                     composeItems
@@ -178,6 +229,15 @@ class ContactsViewModel @Inject constructor(
                 .mergeWith(view.composeItemPressedIntent)
                 .map { composeItem -> composeItem to false }
                 .mergeWith(view.composeItemLongPressedIntent.map { composeItem -> composeItem to true })
+                // A Signal person is not a recipient: there is no chip that would send to
+                // them, and the message goes out over the other rail entirely. Taken out of
+                // the stream here rather than subscribed to separately, because a second
+                // subscription to the editor action would replace the first one's listener
+                // and the keyboard's done key would stop choosing anybody.
+                .doOnNext { (composeItem, _) ->
+                    (composeItem as? ComposeItem.SignalPerson)?.let(signalPersonPicked::onNext)
+                }
+                .filter { (composeItem, _) -> composeItem !is ComposeItem.SignalPerson }
                 .observeOn(Schedulers.io())
                 .map { (composeItem, force) ->
                     HashMap(composeItem.getContacts().associate { contact ->
@@ -210,6 +270,28 @@ class ContactsViewModel @Inject constructor(
                 .observeOn(AndroidSchedulers.mainThread())
                 .autoDisposable(view.scope())
                 .subscribe { result -> view.finish(result) }
+
+        // Chosen on Signal: leave for their Signal conversation, which exists whether or not
+        // anything has been said in it yet.
+        signalPersonPicked
+                .observeOn(AndroidSchedulers.mainThread())
+                .autoDisposable(view.scope())
+                .subscribe { person -> view.finishWithSignalThread(person.threadKey, person.name) }
     }
 
+}
+
+/**
+ * Whether a Signal person answers to what has been typed. Their name is matched the way a
+ * contact's is, and their number by its digits alone -- what is stored is E.164 and what
+ * gets typed is rarely written the same way.
+ */
+internal fun matches(
+    person: ComposeItem.SignalPerson,
+    query: String,
+    normalizedQuery: String
+): Boolean {
+    if (person.name.removeAccents().contains(normalizedQuery, ignoreCase = true)) return true
+    val typed = query.filter { character -> character.isDigit() }
+    return typed.isNotEmpty() && person.number.filter { character -> character.isDigit() }.contains(typed)
 }

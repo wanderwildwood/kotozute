@@ -49,4 +49,19 @@ sealed class ComposeItem {
     data class Person(val value: Contact) : ComposeItem() {
         override fun getContacts(): List<Contact> = listOf(value)
     }
+
+    /**
+     * Someone reachable on Signal. Not a contact: this composer sends SMS, and a Signal
+     * person is not a recipient it can hold. Choosing one opens the conversation with them
+     * on the other rail instead, which is why [getContacts] is empty rather than a Contact
+     * carrying their number -- an SMS to the same number is a different message to a
+     * different place, and the picker must not quietly send one for the other.
+     */
+    data class SignalPerson(
+        val threadKey: String,
+        val name: String,
+        val number: String
+    ) : ComposeItem() {
+        override fun getContacts(): List<Contact> = emptyList()
+    }
 }

@@ -90,6 +90,22 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         }
     }
 
+    /**
+     * Everyone the primary has told us about, named or not.
+     *
+     * [all] answers a different question -- it is for renaming threads, so it drops anyone
+     * without a name. Starting a conversation cannot drop them: an unnamed contact is still
+     * a person this account can write to, and on an account where no profile key has ever
+     * arrived that is most of them.
+     */
+    fun everyone(): List<Contact> = withStoreLock(db) {
+        db.readableDatabase.rawQuery("SELECT aci, e164, name FROM contact", null).use { c ->
+            generateSequence {
+                if (c.moveToNext()) Contact(c.getString(0), c.getString(1), c.getString(2)) else null
+            }.toList()
+        }
+    }
+
     /** Every name known, for renaming threads in one pass after a sync. */
     fun all(): Map<String, String> = withStoreLock(db) {
         db.readableDatabase.rawQuery(

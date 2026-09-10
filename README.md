@@ -266,6 +266,12 @@ third-party client suits you is your judgement to make, and worth making deliber
 account reached this way is still your account, with everything that implies, and none of this
 code has been reviewed by anyone at Signal.
 
+## Support
+
+This is free software and it stays free; there is nothing here to buy. If you would like to
+send something somewhere anyway, there are some llamas in Hot Springs, North Carolina who go
+through a great deal of hay: <https://hotspringsllamas.org/donate/>
+
 ## Licence
 
 **GPL-3.0-only**, inherited from QKSMS by way of QUIK and InkMessage — see [LICENSE](LICENSE)

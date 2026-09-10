@@ -165,6 +165,10 @@ android {
         checkReleaseBuilds false
     }
     namespace 'com.wanderwildwood.kotozute'
+    // Named so AGP can find the strip tool. Without an NDK it skips stripping silently, and
+    // libsignal's engine ships unstripped: 113 MB of native library, 100 MB of which is debug
+    // information that cannot be used on a phone and that no user should be downloading.
+    ndkVersion '24.0.8215888'
     packaging {
         // libsignal ships far more than an Android app can use. The testing library is a
         // second full copy of the engine; the .dylib files are macOS builds that arrive

@@ -23,13 +23,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # JDK 17, NOT 21: this project's Kotlin/kapt toolchain dies on 21 with
-      # "IllegalAccessError ... com.sun.tools.javac".
-      - name: Set up JDK 17
+      # JDK 21, and it has to be: libsignal and the Signal service layer ship Java 21
+      # bytecode, and kapt's javac cannot read class files newer than its own JDK -- on 17
+      # the build fails with "class file has wrong version 65.0, should be 61.0". The older
+      # note here said the opposite, that kapt died on 21; that stopped being true.
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
+
+      # The NDK the build pins, because AGP strips native libraries with its tool and skips
+      # stripping silently without one. Unstripped, libsignal's engine is 113 MB of which
+      # 100 MB is debug information, and the APK goes from 43 MB to 147 MB.
+      - name: Install the pinned NDK
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;24.0.8215888"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

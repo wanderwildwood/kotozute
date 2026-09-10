@@ -75,6 +75,7 @@ import com.wanderwildwood.kotozute.databinding.SettingsControllerBinding
 private const val CAMERA_FOR_PAIRING = 4801
 private const val SCAN_PAIRING_QR = 4802
 private const val PICK_EXPORT_FOLDER = 4803
+private const val PICK_BACKUP_FOLDER = 4804
 
 class SettingsController : QkController<SettingsView, SettingsState, SettingsPresenter>(), SettingsView {
 
@@ -104,6 +105,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
     private val signalPairSubject: Subject<String> = PublishSubject.create()
     private val signalExportFolderSubject: Subject<String> = PublishSubject.create()
+    private val signalBackupFolderSubject: Subject<String> = PublishSubject.create()
 
     /**
      * A result that arrives while nobody is listening.
@@ -115,6 +117,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * here instead, and given up once there is somebody to give it to.
      */
     private var pendingExportFolder: String? = null
+    private var pendingBackupFolder: String? = null
     private var pendingPairPayload: String? = null
     private val stopBridgeSubject: Subject<Unit> = PublishSubject.create()
     private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
@@ -149,6 +152,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         pendingExportFolder?.let { folder ->
             pendingExportFolder = null
             signalExportFolderSubject.onNext(folder)
+        }
+        pendingBackupFolder?.let { folder ->
+            pendingBackupFolder = null
+            signalBackupFolderSubject.onNext(folder)
         }
         pendingPairPayload?.let { payload ->
             pendingPairPayload = null
@@ -239,6 +246,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun signalPairPayload(): Observable<String> = signalPairSubject
 
     override fun signalExportFolderChosen(): Observable<String> = signalExportFolderSubject
+
+    override fun signalBackupFolderChosen(): Observable<String> = signalBackupFolderSubject
 
     override fun stopUsingBridgeConfirmed(): Observable<Unit> = stopBridgeSubject
 
@@ -338,9 +347,13 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // Not only when a bridge is paired. Importing used to run on the bridge's machine, so
         // the row was of use only to someone who had one; it runs here now, and a linked
         // phone is exactly the case that starts with no history at all.
-        binding.signalHistory.setVisible(
-            (state.signalPaired || state.signalLinkedDirectly) && state.signalEnabled
-        )
+        // Not only when a bridge is paired. Importing used to run on the bridge's machine, so
+        // these were of use only to someone who had one; they run here now, and a linked
+        // phone is exactly the case that starts with no history and holds the only copy of
+        // what it has since been given.
+        val signalSetUp = (state.signalPaired || state.signalLinkedDirectly) && state.signalEnabled
+        binding.signalHistoryImport.setVisible(signalSetUp)
+        binding.signalHistoryExport.setVisible(signalSetUp)
         binding.signalAccount.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalKeepConnected.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalKeepConnected.checkbox.isChecked = state.signalKeepConnected
@@ -421,23 +434,60 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun showMessageLinkHandlingDialogPicker() = messageLinkHandlingDialog.show(activity!!)
 
-    override fun showSignalHistoryDialog() {
-        val activity = activity ?: return
-        AlertDialog.Builder(activity)
-            .setTitle(R.string.settings_signal_history_title)
-            .setMessage(R.string.settings_signal_history_body)
-            .setPositiveButton(R.string.settings_signal_history_choose) { _, _ ->
-                chooseSignalExportFolder()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
     override fun chooseSignalExportFolder() {
         // A folder, not a file: an export is main.jsonl beside the pictures it names, and
         // picking the file alone would import a history with every attachment missing.
         val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
         startActivityForResult(intent, PICK_EXPORT_FOLDER)
+    }
+
+    override fun chooseSignalBackupFolder() {
+        val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
+        startActivityForResult(intent, PICK_BACKUP_FOLDER)
+    }
+
+    override fun showSignalExportProgress(messages: Int) {
+        activity?.runOnUiThread {
+            binding.signalHistoryExport.summary =
+                activity?.getString(R.string.settings_signal_history_writing, messages)
+        }
+    }
+
+    override fun showSignalExportResult(
+        stats: com.wanderwildwood.kotozute.repository.SignalRepository.ExportStats?
+    ) {
+        activity?.runOnUiThread {
+            val activity = activity ?: return@runOnUiThread
+            binding.signalHistoryExport.summary =
+                activity.getString(R.string.settings_signal_export_summary)
+            val message = if (stats == null) {
+                activity.getString(R.string.settings_signal_history_not_written)
+            } else {
+                buildString {
+                    append(
+                        activity.resources.getQuantityString(
+                            R.plurals.settings_signal_history_written, stats.messages, stats.messages
+                        )
+                    )
+                    append('\n').append(
+                        activity.getString(R.string.settings_signal_history_written_where, stats.folder)
+                    )
+                    if (stats.missing > 0) {
+                        append('\n').append(
+                            activity.resources.getQuantityString(
+                                R.plurals.settings_signal_history_written_missing,
+                                stats.missing, stats.missing
+                            )
+                        )
+                    }
+                }
+            }
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.settings_signal_history_title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
     }
 
     /**
@@ -447,7 +497,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      */
     override fun showSignalImportProgress(messages: Int) {
         activity?.runOnUiThread {
-            binding.signalHistory.summary =
+            binding.signalHistoryImport.summary =
                 activity?.getString(R.string.settings_signal_history_working, messages)
         }
     }
@@ -457,7 +507,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     ) {
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread
-            binding.signalHistory.summary = activity.getString(R.string.settings_signal_history_summary)
+            binding.signalHistoryImport.summary =
+                activity.getString(R.string.settings_signal_import_summary)
             val message = if (stats == null) {
                 activity.getString(R.string.settings_signal_history_not_an_export)
             } else {
@@ -481,6 +532,17 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                             R.plurals.settings_signal_history_attachments_lost,
                             stats.attachmentsLost, stats.attachmentsLost
                         ))
+                    }
+                    // A message the export could not attribute is the one silence worth
+                    // breaking: on an account that knows itself this is always zero, so
+                    // seeing it at all means something was lost rather than merely refused.
+                    if (stats.skippedNoAuthor > 0) {
+                        append('\n').append(
+                            activity.resources.getQuantityString(
+                                R.plurals.settings_signal_history_no_author,
+                                stats.skippedNoAuthor, stats.skippedNoAuthor
+                            )
+                        )
                     }
                     // Only the skips a person can do something about. The rest -- events,
                     // tombstones, messages whose timer had already run out -- are things
@@ -710,6 +772,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         if (requestCode == PICK_EXPORT_FOLDER) {
             // A cancelled pick is not a failure worth saying anything about.
             data?.data?.let { folder -> pendingExportFolder = folder.toString() }
+            return
+        }
+        if (requestCode == PICK_BACKUP_FOLDER) {
+            data?.data?.let { folder -> pendingBackupFolder = folder.toString() }
             return
         }
         if (requestCode != SCAN_PAIRING_QR) return

@@ -35,8 +35,11 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun signalPairPayload(): Observable<String>
     fun signalUnpairConfirmed(): Observable<*>
 
-    /** The folder the reader picked out of the document picker, as a tree uri. */
+    /** The folder the reader picked to read an export from, as a tree uri. */
     fun signalExportFolderChosen(): Observable<String>
+
+    /** The folder the reader picked to write a copy into. */
+    fun signalBackupFolderChosen(): Observable<String>
 
     fun showTextSizePicker()
     fun showDelayDurationDialog()
@@ -48,12 +51,16 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>)
     fun askDesktopSyncReset()
     fun showSignalAccountDialog(account: com.wanderwildwood.kotozute.repository.SignalAccount?)
-    fun showSignalHistoryDialog()
     fun chooseSignalExportFolder()
+    fun chooseSignalBackupFolder()
 
     /** How far an import has got, on the row itself: it is the only thing that is happening. */
     fun showSignalImportProgress(messages: Int)
     fun showSignalImportResult(stats: com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?)
+
+    /** How far a copy has got, and what it came to. */
+    fun showSignalExportProgress(messages: Int)
+    fun showSignalExportResult(stats: com.wanderwildwood.kotozute.repository.SignalRepository.ExportStats?)
     fun confirmStopUsingBridge()
 
     fun stopUsingBridgeConfirmed(): Observable<Unit>

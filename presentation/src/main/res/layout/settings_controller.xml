@@ -335,12 +335,20 @@
                 app:title="@string/settings_signal_open_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalHistory"
+                android:id="@+id/signalHistoryImport"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="gone"
-                app:summary="@string/settings_signal_history_summary"
-                app:title="@string/settings_signal_history_title" />
+                app:summary="@string/settings_signal_import_summary"
+                app:title="@string/settings_signal_import_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalHistoryExport"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_export_summary"
+                app:title="@string/settings_signal_export_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalAccount"

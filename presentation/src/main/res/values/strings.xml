@@ -445,13 +445,18 @@
     <string name="signal_safety_unverified">Not verified yet. Compare these digits with theirs in person or over a call you trust.</string>
     <string name="signal_safety_changed">⚠ Their key has changed since you last accepted it. This happens on a reinstall or a new phone, and it is also what interception would look like. Compare the digits before sending anything private.</string>
     <string name="settings_signal_history_title">Chat history</string>
-    <string name="settings_signal_history_summary">Bring older messages in from a Signal export</string>
-    <string name="settings_signal_history_choose">Choose the folder</string>
-    <!-- Said plainly because it is the question people arrive with: a linked phone gets no
-         history from Signal, and this is the only way back to what came before. -->
-    <string name="settings_signal_history_body">Signal threads on this phone start empty and fill from the day it was linked. Older messages can be brought in from a Signal Desktop export — Signal Desktop → Settings → Chats → Export chat history — copied onto this phone.\n\nChoose the folder the export made, the one holding main.jsonl. Nothing already here is changed or replaced, and running it twice imports nothing twice.</string>
+    <!-- Two rows rather than one door with a dialog behind it. The dialog had to say which
+         of the two you meant, and a body long enough to explain them both did not fit the
+         screen: the buttons fell off the bottom of it. -->
+    <string name="settings_signal_import_title">Bring history in</string>
+    <string name="settings_signal_import_summary">From a Signal Desktop export copied onto this phone. Threads here start on the day this phone was linked; Signal gives a linked device nothing older</string>
+    <string name="settings_signal_export_title">Write a copy out</string>
+    <string name="settings_signal_export_summary">Every Signal message held here, into a folder this can read back. Not encrypted: whatever can read the folder can read the messages</string>
     <string name="settings_signal_history_working">Reading the export — %d message(s) so far</string>
+    <string name="settings_signal_history_writing">Writing a copy — %d message(s) so far</string>
     <string name="settings_signal_history_not_an_export">There is no Signal export in that folder. The folder to choose is the one holding main.jsonl.</string>
+    <string name="settings_signal_history_not_written">The copy could not be written. Choose a folder this phone can write to.</string>
+    <string name="settings_signal_history_written_where">Written to %s, in the folder you chose.</string>
     <plurals name="settings_signal_history_imported">
         <item quantity="one">%d message brought in.</item>
         <item quantity="other">%d messages brought in.</item>
@@ -464,6 +469,18 @@
     <plurals name="settings_signal_history_attachments_lost">
         <item quantity="one">%d referred to a file the export did not carry.</item>
         <item quantity="other">%d referred to files the export did not carry.</item>
+    </plurals>
+    <plurals name="settings_signal_history_written">
+        <item quantity="one">%d message written out.</item>
+        <item quantity="other">%d messages written out.</item>
+    </plurals>
+    <plurals name="settings_signal_history_written_missing">
+        <item quantity="one">%d attachment had no file on this phone and is named but not carried.</item>
+        <item quantity="other">%d attachments had no file on this phone and are named but not carried.</item>
+    </plurals>
+    <plurals name="settings_signal_history_no_author">
+        <item quantity="one">%d could not be placed: nothing in the export says who wrote it.</item>
+        <item quantity="other">%d could not be placed: nothing in the export says who wrote them.</item>
     </plurals>
     <string name="settings_signal_history_groups">%d group conversations were skipped: this phone has no thread for them yet. Open the group here once and import again.</string>
     <string name="settings_desktop_sync_code_intro">On the computer, open:</string>

@@ -267,7 +267,9 @@ class SettingsPresenter @Inject constructor(
                             }.apply { isDaemon = true }.start()
                         }
 
-                        R.id.signalHistory -> view.showSignalHistoryDialog()
+                        R.id.signalHistoryImport -> view.chooseSignalExportFolder()
+
+                        R.id.signalHistoryExport -> view.chooseSignalBackupFolder()
 
                         R.id.signalUnpair -> view.askSignalUnpair()
 
@@ -390,6 +392,20 @@ class SettingsPresenter @Inject constructor(
                         }
                         view.showSignalImportResult(stats.getOrNull())
                         stats.exceptionOrNull()?.let { Timber.w(it, "signal import failed") }
+                    }.apply { isDaemon = true }.start()
+                }
+
+        view.signalBackupFolderChosen()
+                .autoDisposable(view.scope())
+                .subscribe { folder ->
+                    Thread {
+                        val stats = runCatching {
+                            signalRepo.exportHistory(folder) { written ->
+                                view.showSignalExportProgress(written)
+                            }
+                        }
+                        view.showSignalExportResult(stats.getOrNull())
+                        stats.exceptionOrNull()?.let { Timber.w(it, "signal export failed") }
                     }.apply { isDaemon = true }.start()
                 }
 

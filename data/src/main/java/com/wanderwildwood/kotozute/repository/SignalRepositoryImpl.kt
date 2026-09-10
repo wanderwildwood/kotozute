@@ -1410,6 +1410,98 @@ class SignalRepositoryImpl @Inject constructor(
         )
     }
 
+    override fun exportHistory(
+        folder: String,
+        onProgress: (Int) -> Unit
+    ): SignalRepository.ExportStats {
+        val day = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            .format(java.util.Date())
+        val destination = com.wanderwildwood.kotozute.signalstore.TreeExportDestination(
+            context, android.net.Uri.parse(folder), "kotozute-export-$day"
+        )
+        val stats = com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter(
+            source = RealmExportSource(),
+            destination = destination,
+            selfUuid = signalStore.selfAciOrNull().orEmpty()
+        ).run(onProgress)
+        Timber.i(
+            "signal export: %d message(s) in %d thread(s), %d attachment(s), %d missing",
+            stats.messages, stats.threads, stats.attachments, stats.missing
+        )
+        return SignalRepository.ExportStats(
+            threads = stats.threads,
+            messages = stats.messages,
+            attachments = stats.attachments,
+            missing = stats.missing,
+            folder = stats.folder
+        )
+    }
+
+    /**
+     * The phone's side of an export.
+     *
+     * One Realm instance for the whole run, opened on the thread the export runs on: it is
+     * a consistent snapshot, so a message arriving while a history is being written cannot
+     * land halfway through and be written twice or not at all.
+     */
+    private inner class RealmExportSource :
+        com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source {
+
+        override fun threads(): List<com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Thread> =
+            Realm.getDefaultInstance().use { realm ->
+                realm.where(SignalThread::class.java)
+                    .findAll()
+                    .map { thread ->
+                        com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Thread(
+                            key = thread.threadKey,
+                            title = thread.title,
+                            number = thread.counterpartNumber
+                        )
+                    }
+            }
+
+        override fun eachMessage(
+            threadKey: String,
+            consume: (com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Message) -> Unit
+        ) {
+            Realm.getDefaultInstance().use { realm ->
+                realm.where(SignalMessage::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .findAll()
+                    // Oldest first, and by id where two share a timestamp -- which is
+                    // ordinary in a group. Sorting on the timestamp alone leaves the order
+                    // of a tie to the database, and a backup that reorders a conversation
+                    // every time it is written is a backup nobody can compare.
+                    .sort(arrayOf("date", "id"), arrayOf(Sort.ASCENDING, Sort.ASCENDING))
+                    .forEach { message ->
+                        consume(
+                            com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Message(
+                                ts = message.date,
+                                senderUuid = message.senderUuid,
+                                outgoing = message.outgoing,
+                                body = message.body,
+                                read = message.read,
+                                quoteTs = message.quoteTs,
+                                expiresAt = message.expiresAt,
+                                expiresInSeconds = message.expiresInSeconds,
+                                attachmentsJson = message.attachments
+                            )
+                        )
+                    }
+            }
+        }
+
+        override fun attachment(
+            id: String
+        ): com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Attachment? {
+            val bytes = signalStore.readAttachment(id) ?: return null
+            return com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Attachment(
+                size = bytes.size.toLong(),
+                open = { java.io.ByteArrayInputStream(bytes) }
+            )
+        }
+    }
+
     /**
      * The phone's side of an import.
      *

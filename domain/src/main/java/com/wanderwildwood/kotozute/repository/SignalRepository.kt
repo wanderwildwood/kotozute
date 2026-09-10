@@ -246,6 +246,16 @@ interface SignalRepository {
     /** The chosen folder held no Signal export. */
     class NotAnExport : Exception()
 
+    /** What an export wrote, and where. */
+    data class ExportStats(
+        val threads: Int = 0,
+        val messages: Int = 0,
+        val attachments: Int = 0,
+        /** References with no file behind them: never downloaded, or gone since. */
+        val missing: Int = 0,
+        val folder: String = ""
+    )
+
     /**
      * Reads a Signal Desktop "export chat history" folder into this phone's Signal threads.
      *
@@ -258,6 +268,15 @@ interface SignalRepository {
      * window that overlaps what is already here -- changes nothing.
      */
     fun importHistory(folder: String, onProgress: (Int) -> Unit = {}): ImportStats
+
+    /**
+     * Writes this phone's Signal messages into [folder] as an export [importHistory] reads
+     * back exactly. Blocking, and slow for the same reason.
+     *
+     * Signal gives a linked device no history, so once these messages are here the phone is
+     * the only place they exist. This is the way out.
+     */
+    fun exportHistory(folder: String, onProgress: (Int) -> Unit = {}): ExportStats
 
     /**
      * Someone this account can write to. [threadKey] is where the conversation with them

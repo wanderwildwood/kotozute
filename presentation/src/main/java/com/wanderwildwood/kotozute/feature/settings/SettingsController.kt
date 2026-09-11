@@ -320,6 +320,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // phone is exactly the case that starts with no history and holds the only copy of
         // what it has since been given.
         val signalSetUp = (state.signalPaired || state.signalLinkedDirectly) && state.signalEnabled
+        binding.signalFetchContacts.setVisible(signalSetUp)
         binding.signalHistoryImport.setVisible(signalSetUp)
         binding.signalHistoryExport.setVisible(signalSetUp)
         binding.signalAccount.setVisible(state.signalPaired && state.signalEnabled)
@@ -513,6 +514,17 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * looking at the row they just tapped, and a dialog that cannot be dismissed while
      * thousands of messages are read is a locked screen with a number on it.
      */
+    override fun showSignalFetchResult(what: String) {
+        activity?.runOnUiThread {
+            val activity = activity ?: return@runOnUiThread
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.settings_signal_fetch_contacts_title)
+                .setMessage(what)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
+    }
+
     override fun showSignalImportProgress(messages: Int) {
         activity?.runOnUiThread {
             binding.signalHistoryImport.summary =

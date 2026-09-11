@@ -172,11 +172,15 @@ class ContactsViewModel @Inject constructor(
                                 .filter { contact -> selectedChips.none { it.contact?.lookupKey == contact.lookupKey } }
                                 .map(ComposeItem::Person)
 
-                        // Last, and after the address book rather than mixed into it. Most
-                        // of these people are in that list already under the other rail, and
-                        // a list that answers "who can I text" should not be reordered by a
-                        // second answer to a different question.
-                        composeItems += signalPeople
+                        // Last, and after the address book rather than mixed into it: a list
+                        // that answers "who can I text" should not be reordered by a second
+                        // answer to a different question. But last needs saying out loud --
+                        // after a few hundred contacts, unannounced is indistinguishable from
+                        // absent, which is how somebody came to report this as not working.
+                        if (signalPeople.isNotEmpty()) {
+                            composeItems += ComposeItem.SignalHeader
+                            composeItems += signalPeople
+                        }
                     } else {
                         // If the entry is a valid destination, allow it as a recipient
                         if (phoneNumberUtils.isPossibleNumber(query.toString())) {
@@ -210,8 +214,12 @@ class ContactsViewModel @Inject constructor(
                                 .filter { contact -> contactFilter.filter(contact, normalizedQuery) }
                                 .map(ComposeItem::Person)
 
-                        composeItems += signalPeople
+                        val matching = signalPeople
                                 .filter { person -> matches(person, query.toString(), normalizedQuery) }
+                        if (matching.isNotEmpty()) {
+                            composeItems += ComposeItem.SignalHeader
+                            composeItems += matching
+                        }
                     }
 
                     composeItems

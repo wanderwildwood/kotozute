@@ -610,14 +610,12 @@ class SignalRepositoryImpl @Inject constructor(
                     .onFailure { Timber.w(it, "signal contacts: could not ask") }
                 // Only while it is missing. This is the account's own key material and there
                 // is no reason to have it sent again once it is here.
-                if (!signalStore.storageKeyKnown()) {
-                    runCatching { signalStore.requestKeys() }
-                        .onSuccess { Timber.i("signal keys: %s", it) }
-                        .onFailure { Timber.w(it, "signal keys: could not ask") }
-                } else {
-                    // Where the key is already here, the list is read now rather than waiting
-                    // for another sync: a contacts sync is what modern Signal stopped
-                    // sending, and this is what replaced it.
+                // No asking for the account's keys here. An empty contact list does not say
+                // whether Signal failed to send one or there is nobody in it, and the keys
+                // are not something to fetch on a guess -- they are asked for by a person who
+                // can see the list is missing, in Settings. Where they are already here, the
+                // list is read, because by then somebody has asked for exactly that.
+                if (signalStore.storageKeyKnown()) {
                     runCatching { signalStore.readStorage() }
                         .onSuccess { Timber.i("signal storage: %s", it) }
                         .onFailure { Timber.w(it, "signal storage: could not read") }
@@ -1073,6 +1071,26 @@ class SignalRepositoryImpl @Inject constructor(
     override fun isBlocked(threadKey: String): Boolean = runCatching {
         threadKey.startsWith("direct:") && signalStore.isBlocked(threadKey.removePrefix("direct:"))
     }.getOrDefault(false)
+
+    /**
+     * Asks Signal for the account's contact list, the way modern Signal keeps it.
+     *
+     * Deliberately a thing somebody does rather than a thing that happens: it fetches the
+     * account's key material, and an account whose contacts arrive the ordinary way should
+     * never send it. Returns a sentence saying what happened, including when the answer has
+     * to arrive later.
+     */
+    override fun fetchContactsFromSignal(): String = when {
+        !linkedDirectly() -> "This phone is not linked to Signal yet"
+        signalStore.storageKeyKnown() -> signalStore.readStorage()
+        else -> {
+            val asked = runCatching { signalStore.requestKeys() }.getOrElse { it.message.orEmpty() }
+            Timber.i("signal keys: %s", asked)
+            // The answer comes back through the socket, and reading the list follows it; see
+            // the callback in SignalStore.
+            "Asked Signal for the contact list. It arrives in a moment, if your Signal answers"
+        }
+    }
 
     override fun canBlock(): Boolean = runCatching { signalStore.blockedListKnown() }.getOrDefault(false)
 

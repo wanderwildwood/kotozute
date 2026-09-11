@@ -60,6 +60,9 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showSignalImportProgress(messages: Int)
     fun showSignalImportResult(stats: com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?)
 
+    /** What asking Signal for the contact list came to. */
+    fun showSignalFetchResult(what: String)
+
     /** Ask for the digits that open a backup this app wrote. */
     fun askSignalBackupKey(folder: String)
     fun showSignalBackupKeyWrong(folder: String)

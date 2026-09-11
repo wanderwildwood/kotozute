@@ -44,10 +44,14 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     private lateinit var threadKey: String
     private var isArchived = false
     private var blockArmed = false
+    /** What the row does: block, or take a block back. Read from the list this device holds. */
+    private var blocked = false
     private val disarmBlock = Runnable {
         blockArmed = false
-        binding.block.title = getString(R.string.info_block)
+        binding.block.title = getString(blockRowTitle())
     }
+
+    private fun blockRowTitle() = if (blocked) R.string.info_unblock else R.string.info_block
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -83,7 +87,13 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         // opens the protocol store.
         thread(isDaemon = true) {
             val canBlock = runCatching { signalRepo.canBlock() }.getOrDefault(false)
-            runOnUiThread { if (!isFinishing) binding.block.setVisible(canBlock) }
+            val alreadyBlocked = runCatching { signalRepo.isBlocked(threadKey) }.getOrDefault(false)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                blocked = alreadyBlocked
+                binding.block.title = getString(blockRowTitle())
+                binding.block.setVisible(canBlock)
+            }
         }
 
         // Blocking reaches the Signal account, so it arms and confirms rather than acting
@@ -92,26 +102,39 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         binding.block.setOnClickListener {
             if (!blockArmed) {
                 blockArmed = true
-                binding.block.title = getString(R.string.signal_block_armed)
+                binding.block.title = getString(
+                    if (blocked) R.string.signal_unblock_armed else R.string.signal_block_armed
+                )
                 binding.block.postDelayed(disarmBlock, ARM_TIMEOUT_MS)
                 return@setOnClickListener
             }
             binding.block.removeCallbacks(disarmBlock)
             blockArmed = false
-            binding.block.title = getString(R.string.info_block)
+            binding.block.title = getString(blockRowTitle())
+            val wanted = !blocked
             thread(isDaemon = true) {
-                val result = runCatching { signalRepo.setBlocked(threadKey, true) }
+                val result = runCatching { signalRepo.setBlocked(threadKey, wanted) }
                 runOnUiThread {
                     if (isFinishing) return@runOnUiThread
                     // Said either way. A block that failed silently would leave someone
                     // believing they had stopped hearing from a person they had not.
                     Toast.makeText(
                         this,
-                        if (result.isSuccess) R.string.signal_blocked_toast
-                        else R.string.signal_block_failed,
+                        when {
+                            result.isFailure && wanted -> R.string.signal_block_failed
+                            result.isFailure -> R.string.signal_unblock_failed
+                            wanted -> R.string.signal_blocked_toast
+                            else -> R.string.signal_unblocked_toast
+                        },
                         Toast.LENGTH_LONG
                     ).show()
-                    if (result.isSuccess) finish()
+                    if (result.isSuccess) {
+                        blocked = wanted
+                        binding.block.title = getString(blockRowTitle())
+                        // Leaving is right for a block -- the conversation is one you have
+                        // just stopped -- and wrong for taking one back.
+                        if (wanted) finish()
+                    }
                 }
             }
         }

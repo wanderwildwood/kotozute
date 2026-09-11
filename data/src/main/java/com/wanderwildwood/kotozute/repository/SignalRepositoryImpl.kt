@@ -1050,6 +1050,10 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun isBlocked(threadKey: String): Boolean = runCatching {
+        threadKey.startsWith("direct:") && signalStore.isBlocked(threadKey.removePrefix("direct:"))
+    }.getOrDefault(false)
+
     override fun canBlock(): Boolean = runCatching { signalStore.blockedListKnown() }.getOrDefault(false)
 
     override fun isLockedBackup(folder: String): Boolean = runCatching {

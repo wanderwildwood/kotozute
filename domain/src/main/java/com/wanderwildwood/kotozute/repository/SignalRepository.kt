@@ -258,6 +258,9 @@ interface SignalRepository {
      */
     fun canBlock(): Boolean
 
+    /** Whether this person is on the account's blocked list, as this device last heard it. */
+    fun isBlocked(threadKey: String): Boolean
+
     /** Whether [folder] holds a backup this app wrote, which cannot be read without its key. */
     fun isLockedBackup(folder: String): Boolean
 

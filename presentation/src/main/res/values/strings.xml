@@ -351,6 +351,12 @@
          whose contacts arrive the ordinary way should never send it. -->
     <string name="settings_signal_fetch_contacts_title">Fetch contacts from Signal</string>
     <string name="settings_signal_fetch_contacts_failed">Signal would not answer. Nothing was changed.</string>
+    <string name="info_delete_summary">Removes this phone\'s copy. Signal gives a linked device no history, so there is no other copy to get it back from</string>
+    <string name="info_delete_armed_summary">This phone holds the only copy. Write a copy out first if you want to keep it</string>
+    <string name="info_delete_both">Their texts go too, since the two are one conversation here</string>
+    <string name="info_deleted_toast">Deleted %1$d message(s) from this phone</string>
+    <string name="info_delete_failed">Nothing was deleted</string>
+    <string name="info_block_both">Stops their texts as well, since the two are one conversation here</string>
     <string name="info_link">Link to a text conversation</string>
     <string name="info_link_linked">Linked to %s</string>
     <string name="info_link_pick">Which conversation is the same person?</string>

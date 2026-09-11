@@ -131,57 +131,25 @@ the next catch-up.
 sent any, so conversations fill from the day you pair. Importing a Signal Desktop export is how
 you get the rest.
 
-#### The bridge, the older way in
+#### The bridge, which used to be the way in
 
 Before the app could be a Signal device in its own right, Signal ran on a computer of your own
-and the phone talked to it over a bridge. That still works and still ships: it is the way back
-if the direct path misbehaves, and it suits anyone who would rather not have a socket held open
-on the phone. It is no longer what a fresh install is offered — it sits behind **Advanced** in
-the same settings section, and anyone who already has one paired sees the row where it always
-was.
+and the phone talked to it over a bridge. **The app no longer has a bridge in it.** There is
+nothing to pair and nothing behind Advanced; the phone holds its own place on the account and
+that is the only path.
 
-That computer needs [signal-cli](https://github.com/AsamK/signal-cli) and this repository's
-bridge; `bridge/install.sh` sets both up and prints a line you paste into Desktop Sync. See
-[bridge/README.md](bridge/README.md).
+The bridge itself is still in this repository, and it is still worth one thing: a phone that
+used to be on a bridge has messages whose pictures were never on it — the phone kept the
+attachment's id and asked the bridge for the file when you opened it. Nobody is left to ask.
+`kotozute-bridge --export <folder>` writes those files out, and **Settings → Signal → Bring
+history in** reads that folder and keeps them for good. Do that before retiring the bridge,
+not after.
 
-It does not have to be on all the time. Messages queue on Signal's servers and arrive when the
-bridge next connects, so a desktop that is on in the evenings gives you Signal on the phone in
-the evenings, with nothing missing when it wakes. What you lose while it is off is timeliness,
-and sending: the app says so plainly rather than accepting a message it cannot deliver.
-
-It has to be **x86-64 Linux**. signal-cli is Java and installs anywhere, but the Signal protocol
-underneath it is a Rust library, and the only Linux build published is x86-64 — there is none
-for arm64, so a Raspberry Pi or an ARM NAS will not do unless you build that library yourself.
-`bridge/install.sh` checks this first and says so rather than letting it fail later.
-
-On that computer, start to finish:
-
-```sh
-git clone https://github.com/wanderwildwood/kotozute
-cd kotozute/bridge
-sudo ./install.sh
-```
-
-It checks what it needs up front and gives you one `apt install` line if anything is missing;
-installs signal-cli; offers to link this computer to your Signal account, drawing the QR for
-you to scan; then writes both systemd units, starts them, and prints the line you paste into
-Desktop Sync. One run, start to finish.
-
-Go is not required — if it is installed the bridge is built from the source you just cloned,
-and if it is not, the binary published with the release is downloaded and checked against its
-published checksum.
-
-Linking is offered; **registering is not**, because it makes that computer *become* the
-account and ends Signal on your phone for that number. The script explains both and only
-does the safe one for you.
-
-There is deliberately no `curl … | sudo bash`: this runs as root and ends up holding a Signal
-account, so it is worth reading first — which is also why it verifies what it downloads.
-
-**Coming off the bridge keeps your conversations.** Settings → Signal → **Stop using the
-bridge** moves you to the phone's own connection and leaves the messages where they are. That
-is the row to use. "Delete Signal data" is the other thing entirely: it removes every Signal
-message on the phone.
+Nothing else is lost by it going. Reactions, blocking and read receipts were the bridge's to
+send and the phone sends them itself now. The one thing that did not survive is the list of
+other devices on the account: the bridge could ask signal-cli, and the phone's Signal library
+has no way to ask at all, so the account screen says which device this phone is and stops
+there.
 
 ### What is not possible
 
@@ -257,7 +225,7 @@ install over what you have, keeping your settings and anything the app has store
 This is not a Signal product, and has no connection to the Signal Foundation or Signal
 Messenger LLC. It is an unofficial, third-party client. It speaks to Signal's servers directly,
 as a device linked to or registered on your account, using Signal's own published libraries —
-libsignal, and a fork of Signal's service layer. On the older bridge path it instead talks to
+libsignal, and a fork of Signal's service layer. Before the bridge was removed it could instead talk to
 [signal-cli](https://github.com/AsamK/signal-cli), which is also a separate and unofficial
 project.
 

@@ -313,12 +313,6 @@
     <string name="settings_desktop_sync_link_copied">Link copied</string>
 
     <string name="settings_category_signal">Signal</string>
-    <string name="settings_signal_advanced_title">Advanced</string>
-    <string name="settings_signal_advanced_summary">The older way in, for a Signal that runs on a computer that stays on</string>
-    <string name="settings_signal_pair_title">Connect a bridge</string>
-    <string name="settings_signal_pair_summary">Signal needs a bridge running on a computer that stays on</string>
-    <string name="settings_signal_paired_summary">Paired with %s</string>
-    <string name="settings_signal_linked_summary">Linked to your Signal account</string>
     <string name="settings_signal_link_title">Link this phone to Signal</string>
     <string name="settings_signal_link_summary">Scan the code with Signal on your other phone</string>
     <string name="settings_signal_link_relinked">Already linked. Linking again replaces this device.</string>
@@ -344,28 +338,15 @@
     <string name="signal_link_expired">The code expired. Close this and try again.</string>
     <string name="signal_link_success">Linked. Your Signal conversations will start arriving.</string>
     <string name="signal_link_failed">Could not link: %s</string>
-    <string name="settings_signal_pair_dialog_title">Paste the pairing link</string>
     <string name="settings_signal_keep_title">Keep Signal connected</string>
     <string name="settings_signal_keep_summary">Messages arrive as they are sent, at the cost of a permanent notification. Off, Signal catches up every so often and when you open the app.</string>
     <string name="signal_stream_channel">Signal connection</string>
     <string name="signal_stream_title">Signal is connected</string>
     <string name="signal_stream_text">Messages arrive as they are sent</string>
     <string name="signal_stream_stop">Stop</string>
-    <string name="settings_signal_pair_scan">Scan</string>
-    <string name="settings_signal_pair_scan_prompt">Point the camera at the QR code the installer printed</string>
-    <string name="settings_signal_pair_scan_denied">Without the camera there is nothing to scan with. Paste the link instead.</string>
-    <string name="settings_signal_pair_dialog_hint">kotozute-bridge://…</string>
-    <string name="settings_signal_pair_failed">That is not a pairing link</string>
     <string name="settings_signal_enabled_title">Show Signal conversations</string>
     <string name="settings_signal_enabled_summary">Signal threads start empty and fill from today; older messages stay in Signal</string>
     <string name="settings_signal_status_title">Connection</string>
-    <string name="settings_signal_status_ok">Connected</string>
-    <string name="settings_signal_status_no_bridge">Cannot reach the bridge — Signal is read-only</string>
-    <string name="settings_signal_status_rejected">The bridge refused this phone — pair it again</string>
-    <string name="signal_rejected_title">Signal is not connected</string>
-    <string name="signal_rejected_text">The bridge refused this phone. Pair it again to start receiving Signal messages.</string>
-    <string name="signal_rejected_channel">Signal problems</string>
-    <string name="settings_signal_status_no_signal">Bridge is up but not connected to Signal — read-only</string>
     <!--
       The direct rail's equivalents. Every string above talks about a bridge, which is a lie
       on a phone that is its own Signal device: it would tell someone to re-pair a thing that
@@ -378,10 +359,6 @@
     <string name="settings_signal_status_never">Not synced yet</string>
     <string name="settings_signal_status_last_synced">Last synced %s</string>
     <string name="settings_signal_status_last_received">Last message %s</string>
-    <!-- Named for what it destroys, not for the pairing it happens to end. Someone looking
-         for a way to remove their Signal data will not find it under "Forget this bridge". -->
-    <string name="settings_signal_stop_bridge_title">Stop using the bridge</string>
-    <string name="settings_signal_stop_bridge_summary">Signal carries on over this phone\'s own connection. Your conversations stay.</string>
     <string name="settings_signal_unpair_title">Delete Signal data</string>
     <string name="settings_signal_unpair_summary">Removes every Signal message on this phone, and the saved bridge and account details</string>
     <string name="settings_signal_unpair_armed">Delete Signal data — tap again</string>
@@ -425,11 +402,6 @@
     <string name="settings_signal_account_summary">The number, and the devices on it</string>
     <string name="signal_account_unreachable">Could not reach the bridge, so the account could not be read.</string>
     <string name="signal_account_this_device_is">This phone is device %d on the account. The other devices on it are not listed here: that is a question only Signal can answer, and this phone cannot ask it.</string>
-    <string name="signal_account_this_device">this one</string>
-    <string name="signal_account_primary">primary</string>
-    <string name="signal_account_unnamed">unnamed</string>
-    <string name="signal_account_this_bridge">this bridge</string>
-    <string name="signal_account_this_one">this bridge</string>
     <!-- Said plainly, because it is the reason several settings people look for are not
          here, and the reason losing the primary would take this device with it. -->
     <string name="signal_account_linked_note">Registering the number, changing it, the registration-lock PIN and transferring the account all belong to the primary device. If the primary is unregistered, every other device on the account stops working.</string>
@@ -502,11 +474,8 @@
     <string name="signal_empty">No Signal conversations yet.\n\nThreads begin when a message arrives; anything older stays in Signal.</string>
     <string name="signal_composer_hint">Message</string>
     <string name="signal_send">Send</string>
-    <string name="signal_cannot_send_bridge">Cannot reach the bridge — you can read, but not send</string>
-    <string name="signal_cannot_send_refused">The bridge refused this phone — pair it again in Settings</string>
     <string name="signal_cannot_send_signal">The bridge is not connected to Signal — you can read, but not send</string>
     <string name="signal_send_failed">Not sent: %s</string>
-    <string name="signal_send_refused">Not sent — the bridge refused this phone. Pair it again in Settings.</string>
     <string name="signal_you">You</string>
     <string name="signal_switch_to_sms">Switch to SMS</string>
     <string name="signal_archive">Archive conversation</string>

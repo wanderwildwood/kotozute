@@ -290,10 +290,23 @@ internal class SignalReceiver(
      * unreadable for a fortnight is not going to become readable, and keeping every one for
      * ever turns a decryption bug into unbounded growth in a database holding key material.
      */
+    /** Whether this is the server sending something again, rather than a message going wrong. */
+    private fun isDuplicate(t: Throwable): Boolean =
+        generateSequence(t) { it.cause }.take(CAUSE_DEPTH).any { cause ->
+            cause is org.signal.libsignal.protocol.DuplicateMessageException ||
+                cause::class.java.simpleName.contains("DuplicateMessage")
+        }
+
     private fun sweepUndecryptable() = withStoreLock(db) {
         val cutoff = System.currentTimeMillis() - UNDECRYPTABLE_RETENTION_MS
         db.writableDatabase.execSQL(
             "DELETE FROM envelope WHERE stored_timestamp < ?", arrayOf<Any?>(cutoff)
+        )
+        // Anything an older build filed as unreadable that was only a redelivery. Left alone
+        // it sits in the connection line for the whole retention window, reporting a problem
+        // that was never one.
+        db.writableDatabase.execSQL(
+            "DELETE FROM envelope WHERE failure LIKE '%DuplicateMessage%'"
         )
         db.readableDatabase.rawQuery("SELECT count(*) FROM envelope", null).use { c ->
             val stuck = if (c.moveToFirst()) c.getInt(0) else 0
@@ -417,6 +430,15 @@ internal class SignalReceiver(
                 result.metadata.sourceServiceId.toString() to message
             }
         } catch (t: Throwable) {
+            // A duplicate is not a failure. The server redelivers an envelope whose ack was
+            // lost, and libsignal refuses to run the ratchet backwards -- which is the
+            // protocol working. The message it names is already in the thread, so reporting
+            // it as unreadable tells the user something is wrong with a conversation that is
+            // perfectly intact, and there is nothing they could do about it if it were.
+            if (isDuplicate(t)) {
+                Timber.i("signal receive: the server sent a message again; already have it")
+                return null
+            }
             // Recorded against the row, not just logged: on a release build the log goes
             // nowhere, and "one message could not be read" without a reason is a report
             // nobody can act on.
@@ -572,6 +594,9 @@ internal class SignalReceiver(
 
         /** How long to keep an envelope that will not decrypt, in case a fix arrives. */
         private val UNDECRYPTABLE_RETENTION_MS = TimeUnit.DAYS.toMillis(14)
+
+        /** How far down a wrapped exception to look. Deep enough for the wrapping libsignal does. */
+        private const val CAUSE_DEPTH = 5
 
         /** Long, deliberately: every expiry is a wakeup that learned nothing. See [listen]. */
         private val READ_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(1)

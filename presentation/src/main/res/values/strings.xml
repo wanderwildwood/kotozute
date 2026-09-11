@@ -351,6 +351,11 @@
          whose contacts arrive the ordinary way should never send it. -->
     <string name="settings_signal_fetch_contacts_title">Fetch contacts from Signal</string>
     <string name="settings_signal_fetch_contacts_failed">Signal would not answer. Nothing was changed.</string>
+    <string name="info_link">Link to a text conversation</string>
+    <string name="info_link_linked">Linked to %s</string>
+    <string name="info_link_pick">Which conversation is the same person?</string>
+    <string name="info_link_unlink">Unlink</string>
+    <string name="info_link_none">No text conversations to link to</string>
     <string name="settings_signal_fetch_contacts_offer_title">Names for these conversations?</string>
     <string name="settings_signal_fetch_contacts_offer_body">Signal has not sent this phone anyone\'s name, so conversations will show a string of characters instead. Newer Signal keeps its contact list on its own servers, and reading it asks your Signal for the key that opens it. Nothing leaves this phone, and nobody is told. You can do this later instead, under Fetch contacts from Signal.</string>
     <string name="settings_signal_fetch_contacts_offer_yes">Fetch them</string>

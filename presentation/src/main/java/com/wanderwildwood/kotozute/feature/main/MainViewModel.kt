@@ -137,6 +137,7 @@ class MainViewModel @Inject constructor(
     private fun markEverythingRead() {
         val items = mergedInbox().filter(::isUnread)
         val smsIds = items.filterIsInstance<InboxItem.Sms>().map { it.conversation.id }
+            .plus(items.filterIsInstance<InboxItem.Signal>().mapNotNull { it.joined?.id })
         if (smsIds.isNotEmpty()) markRead.execute(smsIds)
         // Signal threads are marked up to now rather than by id: the bridge's read receipt
         // is "everything in this thread up to this moment", which is what this means.
@@ -162,17 +163,54 @@ class MainViewModel @Inject constructor(
                 ?.map { InboxItem.Signal(it) }
                 .orEmpty()
         }
+        // One person, one row. Where a Signal thread and a text conversation are the same
+        // person, the text one is dropped and the Signal row stands for both -- opening it
+        // shows the whole conversation, either rail, in time order. Without this the inbox
+        // lists the same person twice and neither row is the conversation.
+        val joins = if (signal.isEmpty()) emptyMap() else joinedConversations(signal)
+        val unique = sms.filterNot { it.conversation.id in joins.values.map { c -> c.id } }
+        val merged = signal.map { item ->
+            joins[item.stableId]?.let { item.copy(joined = it) } ?: item
+        }
+
         // Pinned first on both rails, then newest. The SMS list has always sorted this
         // way; before this the merged list dropped the pin the moment Signal was woven in.
-        return (sms + signal).sortedWith(
+        return (unique + merged).sortedWith(
             compareByDescending<InboxItem> { it.pinned }.thenByDescending { it.sortDate }
         )
     }
 
+    /**
+     * The text conversations that a Signal thread already stands for.
+     *
+     * One indexed lookup per Signal thread rather than a comparison of every pair: a linked
+     * device has few Signal threads and an address book has many conversations, and this runs
+     * on every rebuild of the list.
+     */
+    private fun joinedConversations(
+        signal: List<InboxItem.Signal>
+    ): Map<Long, com.wanderwildwood.kotozute.model.Conversation> =
+        buildMap {
+            signal.forEach { item ->
+                if (!item.isValid) return@forEach
+                val thread = item.thread
+                val byHand = runCatching { signalRepo.linkedConversationId(thread.threadKey) }
+                    .getOrNull()
+                    ?.let { id -> runCatching { conversationRepo.getConversation(id) }.getOrNull() }
+                val byNumber = byHand ?: thread.counterpartNumber.takeIf { it.isNotBlank() }
+                    ?.let { number ->
+                        runCatching { conversationRepo.getConversation(listOf(number)) }.getOrNull()
+                    }
+                byNumber?.takeIf { it.isValid }?.let { put(item.stableId, it) }
+            }
+        }
+
     /** Unread on either rail; the two carry it differently. */
     private fun isUnread(item: InboxItem): Boolean = when (item) {
         is InboxItem.Sms -> item.conversation.unread
-        is InboxItem.Signal -> item.thread.unread > 0
+        // Either half: one row now stands for both, and "mark everything read" that left
+        // an unread text behind would leave a badge with no row to explain it.
+        is InboxItem.Signal -> item.thread.unread > 0 || item.joined?.unread == true
     }
 
     private fun refreshInbox() {

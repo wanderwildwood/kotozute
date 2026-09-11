@@ -41,6 +41,7 @@ import com.wanderwildwood.kotozute.feature.compose.editing.ComposeItemAdapter
 import com.wanderwildwood.kotozute.feature.compose.editing.PhoneNumberAction
 import com.wanderwildwood.kotozute.feature.compose.editing.PhoneNumberPickerAdapter
 import io.reactivex.Observable
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
@@ -66,6 +67,7 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     override val queryChangedIntent: Observable<CharSequence> by lazy { binding.search.textChanges() }
     override val queryClearedIntent: Observable<*> by lazy { binding.cancel.clicks() }
     override val queryEditorActionIntent: Observable<Int> by lazy { binding.search.editorActions() }
+    override val screenShownIntent: Subject<Unit> = BehaviorSubject.createDefault(Unit)
     override val composeItemPressedIntent: Subject<ComposeItem> by lazy { contactsAdapter.clicks }
     override val composeItemLongPressedIntent: Subject<ComposeItem> by lazy { contactsAdapter.longClicks }
     override val phoneNumberSelectedIntent: Subject<Optional<Long>> by lazy { phoneNumberAdapter.selectedItemChanges }
@@ -103,6 +105,11 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
             }
         }
         onBackPressedDispatcher.addCallback(this, callback)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        screenShownIntent.onNext(Unit)
     }
 
     override fun render(state: ContactsState) {

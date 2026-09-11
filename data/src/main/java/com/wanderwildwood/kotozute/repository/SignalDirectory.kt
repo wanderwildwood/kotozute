@@ -21,11 +21,8 @@ internal object SignalDirectory {
      */
     data class Row(val uuid: String, val name: String, val number: String)
 
-    /**
-     * How much of a service id to show when there is no name and no number for someone.
-     * Enough to tell two people apart in a list, short enough not to read as a message.
-     */
-    const val SHORT_SERVICE_ID = 8
+    /** Shared with the inbox and the notifications; see [com.wanderwildwood.kotozute.signal.SignalName]. */
+    const val SHORT_SERVICE_ID = com.wanderwildwood.kotozute.signal.SignalName.SHORT_SERVICE_ID
 
     /**
      * [threads] first: a thread's title is either a name this phone's own address book
@@ -95,10 +92,17 @@ internal object SignalDirectory {
                 // A counterpart that is itself a number is one to look up too: those rows
                 // have nothing else to go on, and a number is exactly what an address book
                 // answers.
-                name = names[uuid]
-                    ?: number.ifBlank { uuid.takeIf { it.startsWith("+") }.orEmpty() }
-                        .takeIf { it.isNotBlank() }?.let(nameForNumber)
-                    ?: number.ifBlank { uuid.take(SHORT_SERVICE_ID) },
+                name = com.wanderwildwood.kotozute.signal.SignalName.of(
+                    name = names[uuid]
+                        // A counterpart that is itself a number is one to look up too:
+                        // those rows have nothing else to go on, and a number is exactly
+                        // what an address book answers.
+                        ?: number.ifBlank { uuid.takeIf { it.startsWith("+") }.orEmpty() }
+                            .takeIf { it.isNotBlank() }?.let(nameForNumber)
+                        ?: "",
+                    number = number,
+                    serviceId = uuid
+                ),
                 number = number
             )
         }.sortedBy { person -> person.name.lowercase() }

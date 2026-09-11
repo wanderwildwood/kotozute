@@ -437,7 +437,11 @@ class SignalThreadActivity : QkThemedActivity() {
                                 archived = it.archived,
                                 pinned = it.pinned,
                                 muted = it.muted,
-                                name = it.title.ifBlank { it.counterpartNumber }
+                                name = com.wanderwildwood.kotozute.signal.SignalName.of(
+                                    name = it.title,
+                                    number = it.counterpartNumber,
+                                    serviceId = it.threadKey.substringAfter(":")
+                                )
                             )
                         }
                 }

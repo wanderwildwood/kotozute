@@ -221,12 +221,15 @@ class ConversationsAdapter @Inject constructor(
         }
     }
 
+    // The whole service id used to be printed here, all thirty-six characters of it, while
+    // a new message showed the first eight of the same person -- so one person read as two
+    // different strangers depending on which list you met them in. See SignalName.
     private fun signalTitle(item: InboxItem.Signal): String = with(item.thread) {
-        when {
-            title.isNotBlank() -> title
-            counterpartNumber.isNotBlank() -> counterpartNumber
-            else -> threadKey.substringAfter(":")
-        }
+        com.wanderwildwood.kotozute.signal.SignalName.of(
+            name = title,
+            number = counterpartNumber,
+            serviceId = threadKey.substringAfter(":")
+        )
     }
 
     override fun onBindViewHolder(

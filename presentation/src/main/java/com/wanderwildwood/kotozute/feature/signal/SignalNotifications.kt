@@ -104,7 +104,13 @@ class SignalNotifications @Inject constructor(
             realm.where(SignalThread::class.java)
                 .equalTo("threadKey", threadKey)
                 .findFirst()
-                ?.let { it.title.ifBlank { it.counterpartNumber } }
+                ?.let {
+                    com.wanderwildwood.kotozute.signal.SignalName.of(
+                        name = it.title,
+                        number = it.counterpartNumber,
+                        serviceId = it.threadKey.substringAfter(":")
+                    )
+                }
                 .orEmpty()
         }
     }.getOrDefault("")

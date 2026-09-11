@@ -2,6 +2,7 @@ package com.wanderwildwood.kotozute.signalstore
 
 import com.wanderwildwood.kotozute.signal.BridgeMessage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -354,6 +355,114 @@ class SignalHistoryRoundTripTest {
 
         assertEquals(1_500, exported.messages)
         assertEquals(1_500, sink.inserted.size)
+    }
+
+    /** The same journey, through the lock a copy written by this app carries. */
+    private fun lockedRoundTrip(
+        store: Store,
+        sink: Sink = Sink(),
+        key: String = SignalBackupCrypto.newKey(),
+        openWith: String = key
+    ): Pair<SignalHistoryExporter.Stats, Sink> {
+        val folder = temp.newFolder()
+        val destination = EncryptedExportDestination(DirectoryExportDestination(folder), key)
+        destination.writeMeta()
+        val exported = SignalHistoryExporter(store, destination, selfAci).run()
+
+        val plain = DirectoryExportSource(folder)
+        val meta = org.json.JSONObject(plain.meta()!!)
+        val salt = java.util.Base64.getDecoder().decode(meta.getString("salt"))
+        SignalHistoryImporter(
+            source = EncryptedExportSource(plain, openWith, salt),
+            sink = sink,
+            selfUuid = selfAci,
+            selfNumber = "+15559998888",
+            now = { 1_700_000_000_000 }
+        ).run()
+
+        return exported to sink
+    }
+
+    private fun oneConversation(): Store = Store().apply {
+        val key = "direct:$ada"
+        thread(key, title = "Ada Lovelace", number = "+15550001111")
+        message(key, ts = 1_699_000_000_000, body = "hello", sender = ada)
+        message(key, ts = 1_699_000_001_000, body = "hi back", sender = selfAci, outgoing = true)
+        files["one"] = byteArrayOf(9, 8, 7, 6, 5)
+        message(
+            key, ts = 1_699_000_002_000, body = "a picture", sender = ada,
+            attachmentsJson = """[{"id":"one","type":"image/png","filename":"a.png","size":5,"pending":false}]"""
+        )
+    }
+
+    @Test
+    fun `a locked copy comes back whole when it is opened with its key`() {
+        val (exported, sink) = lockedRoundTrip(oneConversation())
+
+        assertEquals(3, exported.messages)
+        assertEquals(3, sink.inserted.size)
+        assertEquals("Ada Lovelace", sink.names["direct:$ada"])
+        // Through the lock as well as the format: the attachment's bytes are the bytes.
+        assertTrue(sink.attachments["one"]!!.contentEquals(byteArrayOf(9, 8, 7, 6, 5)))
+    }
+
+    @Test
+    fun `a locked copy is not readable with the wrong key`() {
+        val thrown = runCatching {
+            lockedRoundTrip(
+                oneConversation(),
+                key = "111111111111111111111111111111",
+                openWith = "222222222222222222222222222222"
+            )
+        }.exceptionOrNull()
+
+        assertNotNull(thrown)
+    }
+
+    @Test
+    fun `the records of a locked copy are not readable off the disk`() {
+        val folder = temp.newFolder()
+        val destination = EncryptedExportDestination(
+            DirectoryExportDestination(folder), SignalBackupCrypto.newKey()
+        )
+        destination.writeMeta()
+        SignalHistoryExporter(oneConversation(), destination, selfAci).run()
+
+        val onDisk = java.io.File(folder, "main.jsonl").readBytes().decodeToString()
+        // The thing this whole change exists for: a copy in a shared folder is not a
+        // readable transcript of somebody's conversations.
+        assertFalse(onDisk.contains("hello"))
+        assertFalse(onDisk.contains("Ada Lovelace"))
+        assertFalse(onDisk.contains("direct:"))
+        assertFalse(java.io.File(folder, "files/one").readBytes().contentEquals(byteArrayOf(9, 8, 7, 6, 5)))
+    }
+
+    @Test
+    fun `a locked copy says what it is without giving anything away`() {
+        val folder = temp.newFolder()
+        val destination = EncryptedExportDestination(
+            DirectoryExportDestination(folder), SignalBackupCrypto.newKey()
+        )
+        destination.writeMeta()
+        SignalHistoryExporter(oneConversation(), destination, selfAci).run()
+
+        // The header is how an importer knows to ask for a key rather than failing at the
+        // first line. It carries the salt, which is not a secret, and nothing else.
+        val meta = org.json.JSONObject(DirectoryExportSource(folder).meta()!!)
+        assertEquals(1, meta.getInt("kotozuteBackup"))
+        assertEquals("hkdf-sha256", meta.getString("kdf"))
+        assertTrue(meta.getString("salt").isNotBlank())
+        assertFalse(meta.has("key"))
+    }
+
+    @Test
+    fun `a Signal Desktop export is still read without any key at all`() {
+        // The other half of the promise: what people arrive with is plaintext, and it has to
+        // keep working next to a format that is not.
+        val store = oneConversation()
+        val (_, sink) = roundTrip(store)
+
+        assertEquals(3, sink.inserted.size)
     }
 
     @Test

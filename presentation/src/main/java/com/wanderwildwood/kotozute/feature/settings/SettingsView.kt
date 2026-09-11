@@ -41,6 +41,9 @@ interface SettingsView : QkViewContract<SettingsState> {
     /** The folder the reader picked to write a copy into. */
     fun signalBackupFolderChosen(): Observable<String>
 
+    /** The key typed in to open a locked backup, with the folder it belongs to. */
+    fun signalBackupKeyEntered(): Observable<Pair<String, String>>
+
     fun showTextSizePicker()
     fun showDelayDurationDialog()
     fun showSignatureDialog(signature: String)
@@ -57,6 +60,10 @@ interface SettingsView : QkViewContract<SettingsState> {
     /** How far an import has got, on the row itself: it is the only thing that is happening. */
     fun showSignalImportProgress(messages: Int)
     fun showSignalImportResult(stats: com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?)
+
+    /** Ask for the digits that open a backup this app wrote. */
+    fun askSignalBackupKey(folder: String)
+    fun showSignalBackupKeyWrong(folder: String)
 
     /** How far a copy has got, and what it came to. */
     fun showSignalExportProgress(messages: Int)

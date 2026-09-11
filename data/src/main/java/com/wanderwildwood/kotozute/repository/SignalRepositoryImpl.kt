@@ -1368,13 +1368,34 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun isLockedBackup(folder: String): Boolean = runCatching {
+        com.wanderwildwood.kotozute.signalstore.TreeExportSource(
+            context, android.net.Uri.parse(folder)
+        ).meta() != null
+    }.getOrDefault(false)
+
     override fun importHistory(
         folder: String,
+        key: String,
         onProgress: (Int) -> Unit
     ): SignalRepository.ImportStats {
-        val source = com.wanderwildwood.kotozute.signalstore.TreeExportSource(
+        val tree = com.wanderwildwood.kotozute.signalstore.TreeExportSource(
             context, android.net.Uri.parse(folder)
         )
+        // A folder this app wrote is sealed, and says so in a header that is not itself
+        // secret. A Signal Desktop export has no such header and is read as it always was --
+        // both have to keep working, because one is what people arrive with and the other is
+        // what they leave with.
+        val source = when (val meta = tree.meta()) {
+            null -> tree
+            else -> {
+                if (key.isBlank()) throw SignalRepository.BackupKeyNeeded()
+                val salt = runCatching {
+                    android.util.Base64.decode(JSONObject(meta).getString("salt"), android.util.Base64.DEFAULT)
+                }.getOrNull() ?: throw SignalRepository.NotAnExport()
+                com.wanderwildwood.kotozute.signalstore.EncryptedExportSource(tree, key, salt)
+            }
+        }
         // The account's own identifiers. The bridge had to be told these -- an export
         // carries a profile and settings but no identifier for the account itself -- and it
         // is the reason importing needed an operator at a keyboard. On the phone they are
@@ -1389,6 +1410,13 @@ class SignalRepositoryImpl @Inject constructor(
             importer.run(onProgress)
         } catch (e: com.wanderwildwood.kotozute.signalstore.SignalHistoryImporter.NotAnExport) {
             throw SignalRepository.NotAnExport()
+        } catch (e: javax.crypto.AEADBadTagException) {
+            // The bytes did not authenticate: the wrong digits, or a folder that has been
+            // altered since it was written. There is no telling those apart from here, and
+            // the answer is the same either way.
+            throw SignalRepository.WrongBackupKey()
+        } catch (e: java.io.EOFException) {
+            throw SignalRepository.WrongBackupKey()
         }
         // The same two passes a sync ends with: a thread named from this phone's own address
         // book beats one named from the export, and a group that arrived nameless can be
@@ -1416,9 +1444,15 @@ class SignalRepositoryImpl @Inject constructor(
     ): SignalRepository.ExportStats {
         val day = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
             .format(java.util.Date())
-        val destination = com.wanderwildwood.kotozute.signalstore.TreeExportDestination(
-            context, android.net.Uri.parse(folder), "kotozute-export-$day"
+        val tree = com.wanderwildwood.kotozute.signalstore.TreeExportDestination(
+            context, android.net.Uri.parse(folder), "kotozute-backup-$day"
         )
+        // Generated here rather than asked for. Thirty digits nobody chose is the whole of
+        // why the derivation can be a single pass; a passphrase somebody can remember would
+        // need a slow one and would still be worth less.
+        val key = com.wanderwildwood.kotozute.signalstore.SignalBackupCrypto.newKey()
+        val destination = com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination(tree, key)
+        destination.writeMeta()
         val stats = com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter(
             source = RealmExportSource(),
             destination = destination,
@@ -1433,7 +1467,11 @@ class SignalRepositoryImpl @Inject constructor(
             messages = stats.messages,
             attachments = stats.attachments,
             missing = stats.missing,
-            folder = stats.folder
+            folder = stats.folder,
+            // Grouped here: the digits leave this module once, to be read off a screen and
+            // written down, and a reader typing them back is met by normalise() which takes
+            // whatever spacing they used.
+            key = com.wanderwildwood.kotozute.signalstore.SignalBackupCrypto.group(key)
         )
     }
 

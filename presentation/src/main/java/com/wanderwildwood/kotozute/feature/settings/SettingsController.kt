@@ -106,6 +106,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val signalPairSubject: Subject<String> = PublishSubject.create()
     private val signalExportFolderSubject: Subject<String> = PublishSubject.create()
     private val signalBackupFolderSubject: Subject<String> = PublishSubject.create()
+    private val signalBackupKeySubject: Subject<Pair<String, String>> = PublishSubject.create()
 
     /**
      * A result that arrives while nobody is listening.
@@ -248,6 +249,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun signalExportFolderChosen(): Observable<String> = signalExportFolderSubject
 
     override fun signalBackupFolderChosen(): Observable<String> = signalBackupFolderSubject
+
+    override fun signalBackupKeyEntered(): Observable<Pair<String, String>> = signalBackupKeySubject
 
     override fun stopUsingBridgeConfirmed(): Observable<Unit> = stopBridgeSubject
 
@@ -446,6 +449,46 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         startActivityForResult(intent, PICK_BACKUP_FOLDER)
     }
 
+    override fun askSignalBackupKey(folder: String) {
+        activity?.runOnUiThread {
+            val activity = activity ?: return@runOnUiThread
+            val input = EditText(activity).apply {
+                setHint(R.string.settings_signal_backup_key_hint)
+                // Digits and the spaces they were written down in. A phone keyboard that
+                // opens on letters for a key that has none is a small cruelty.
+                inputType = android.text.InputType.TYPE_CLASS_PHONE
+                setSingleLine(true)
+            }
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.settings_signal_backup_key_title)
+                .setMessage(R.string.settings_signal_backup_key_body)
+                .setView(input)
+                .setNegativeButton(R.string.button_cancel, null)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    signalBackupKeySubject.onNext(folder to input.text.toString())
+                }
+                .show()
+        }
+    }
+
+    override fun showSignalBackupKeyWrong(folder: String) {
+        activity?.runOnUiThread {
+            val activity = activity ?: return@runOnUiThread
+            binding.signalHistoryImport.summary =
+                activity.getString(R.string.settings_signal_import_summary)
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.settings_signal_backup_key_title)
+                .setMessage(R.string.settings_signal_backup_key_wrong)
+                .setNegativeButton(R.string.button_cancel, null)
+                // The likeliest reason to be here is a digit typed wrong, so the way back is
+                // the same dialog rather than the whole journey through the picker again.
+                .setPositiveButton(R.string.settings_signal_backup_key_again) { _, _ ->
+                    askSignalBackupKey(folder)
+                }
+                .show()
+        }
+    }
+
     override fun showSignalExportProgress(messages: Int) {
         activity?.runOnUiThread {
             binding.signalHistoryExport.summary =
@@ -472,6 +515,12 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     append('\n').append(
                         activity.getString(R.string.settings_signal_history_written_where, stats.folder)
                     )
+                    append("\n\n").append(
+                        activity.getString(
+                            R.string.settings_signal_history_written_key,
+                            stats.key
+                        )
+                    )
                     if (stats.missing > 0) {
                         append('\n').append(
                             activity.resources.getQuantityString(
@@ -482,11 +531,15 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     }
                 }
             }
-            AlertDialog.Builder(activity)
+            val dialog = AlertDialog.Builder(activity)
                 .setTitle(R.string.settings_signal_history_title)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
+            // Selectable, because the thirty digits in it are the whole of what makes the
+            // copy readable and copying them by hand is how they get written down wrong.
+            dialog.findViewById<android.widget.TextView>(android.R.id.message)
+                ?.setTextIsSelectable(true)
         }
     }
 

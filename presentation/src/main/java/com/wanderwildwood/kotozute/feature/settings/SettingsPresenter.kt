@@ -33,6 +33,7 @@ import com.wanderwildwood.kotozute.repository.SyncRepository
 import com.wanderwildwood.kotozute.service.AutoDeleteService
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.rxkotlin.plusAssign
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.schedulers.Schedulers
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
@@ -381,19 +382,20 @@ class SettingsPresenter @Inject constructor(
         // of its own and reports as it goes. Not a worker: it needs the folder the picker
         // just granted this process, and it is over when the reader closes the screen or it
         // finishes -- there is nothing here worth surviving a restart to resume.
+        // A folder this app wrote cannot be read without its key, so it is asked for before
+        // anything is read rather than after a failure.
         view.signalExportFolderChosen()
+                .observeOn(Schedulers.io())
+                .map { folder -> folder to signalRepo.isLockedBackup(folder) }
+                .observeOn(AndroidSchedulers.mainThread())
                 .autoDisposable(view.scope())
-                .subscribe { folder ->
-                    Thread {
-                        val stats = runCatching {
-                            signalRepo.importHistory(folder) { taken ->
-                                view.showSignalImportProgress(taken)
-                            }
-                        }
-                        view.showSignalImportResult(stats.getOrNull())
-                        stats.exceptionOrNull()?.let { Timber.w(it, "signal import failed") }
-                    }.apply { isDaemon = true }.start()
+                .subscribe { (folder, locked) ->
+                    if (locked) view.askSignalBackupKey(folder) else importHistory(view, folder, "")
                 }
+
+        view.signalBackupKeyEntered()
+                .autoDisposable(view.scope())
+                .subscribe { (folder, key) -> importHistory(view, folder, key) }
 
         view.signalBackupFolderChosen()
                 .autoDisposable(view.scope())
@@ -412,6 +414,25 @@ class SettingsPresenter @Inject constructor(
         view.signalUnpairConfirmed()
             .autoDisposable(view.scope())
             .subscribe { signalRepo.unpair() }
+    }
+
+    private fun importHistory(view: SettingsView, folder: String, key: String) {
+        Thread {
+            val stats = runCatching {
+                signalRepo.importHistory(folder, key) { taken ->
+                    view.showSignalImportProgress(taken)
+                }
+            }
+            when (val failure = stats.exceptionOrNull()) {
+                null -> view.showSignalImportResult(stats.getOrNull())
+                is SignalRepository.WrongBackupKey -> view.showSignalBackupKeyWrong(folder)
+                is SignalRepository.BackupKeyNeeded -> view.askSignalBackupKey(folder)
+                else -> {
+                    Timber.w(failure, "signal import failed")
+                    view.showSignalImportResult(null)
+                }
+            }
+        }.apply { isDaemon = true }.start()
     }
 
     /**

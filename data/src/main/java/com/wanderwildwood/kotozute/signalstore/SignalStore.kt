@@ -2,6 +2,7 @@ package com.wanderwildwood.kotozute.signalstore
 
 import android.content.Context
 import org.whispersystems.signalservice.api.SignalServiceDataStore
+import org.whispersystems.signalservice.api.messages.multidevice.BlockedListMessage
 
 /**
  * The protocol store, assembled.
@@ -156,7 +157,7 @@ class SignalStore(private val context: Context) {
         return try {
             val result = SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts,
+                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts, blocks,
                 {
                     // Fetch whatever names became fetchable, then let the caller rename its
                     // threads -- only if something was actually learned, so a quiet batch
@@ -213,6 +214,124 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /**
+     * Hangs an emoji on a message, or takes one back.
+     *
+     * [targetAuthor] is whoever wrote the message being reacted to -- this account when it is
+     * one of ours, which is why it is asked for rather than assumed to be the other party.
+     */
+    fun sendReaction(
+        recipient: String,
+        emoji: String,
+        remove: Boolean,
+        targetAuthor: String,
+        targetSentTimestamp: Long
+    ): Long {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
+            ?: throw IllegalStateException("not a service id: $recipient")
+        val author = org.signal.core.models.ServiceId.parseOrNull(targetAuthor)
+            ?: throw IllegalStateException("not a service id: $targetAuthor")
+        connection.connect()
+        return when (
+            val result = SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).sendReaction(serviceId, emoji, remove, author, targetSentTimestamp)
+        ) {
+            is SignalSender.Result.Sent -> result.timestamp
+            is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
+        }
+    }
+
+    /** The same, into a group, which means every member it can reach. */
+    fun sendReactionToGroup(
+        masterKey: ByteArray,
+        emoji: String,
+        remove: Boolean,
+        targetAuthor: String,
+        targetSentTimestamp: Long
+    ): Long {
+        val author = org.signal.core.models.ServiceId.parseOrNull(targetAuthor)
+            ?: throw IllegalStateException("not a service id: $targetAuthor")
+        connection.connect()
+        val group = SignalGroups(connection, account).fetch(masterKey)
+            ?: throw IllegalStateException("could not read the group's members")
+        val members = group.members
+            .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+            .filter { it.toString() != account.credentials().aci }
+        return when (
+            val result = SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).sendReactionToGroup(masterKey, members, emoji, remove, author, targetSentTimestamp)
+        ) {
+            is SignalSender.Result.Sent -> result.timestamp
+            is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
+        }
+    }
+
+    /**
+     * Blocks or unblocks one person, by sending the account's list back with them added or
+     * taken out.
+     *
+     * ⚠ Refuses unless the primary has already sent this device the list. Signal's blocked
+     * sync replaces rather than adds, so blocking somebody while holding no list would
+     * silently unblock everyone else on it -- a failure whose only symptom is a person
+     * getting through months later. [requestBlockedList] asks; this waits to be told.
+     */
+    fun setBlocked(aci: String, blocked: Boolean): Boolean {
+        if (!blocks.known()) return false
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(aci) ?: return false
+
+        val updated = SignalBlockList.edit(
+            blocks.individuals(), serviceId.toString(), blocked, System.currentTimeMillis()
+        )
+
+        connection.connect()
+        val individuals = updated.mapNotNull { one ->
+            val id = one.aci?.let { org.signal.core.models.ServiceId.parseOrNull(it) }
+                as? org.signal.core.models.ServiceId.ACI
+            if (id == null && one.e164 == null) null
+            else BlockedListMessage.Individual(id, one.e164.orEmpty(), one.blockedAt)
+        }
+        val groupIds = blocks.groups().map { BlockedListMessage.Group(it, 0L) }
+
+        return when (
+            SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).sendBlockedList(individuals, groupIds)
+        ) {
+            is SignalSender.Result.Sent -> {
+                // Only after the account has taken it. The list held here is a copy of the
+                // account's, and a copy that ran ahead of it would be a lie the next sync
+                // would silently correct.
+                blocks.store(updated, blocks.groups())
+                true
+            }
+            is SignalSender.Result.Failed -> false
+        }
+    }
+
+    /** Whether this device has been told the blocked list yet. */
+    fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
+
+    fun isBlocked(aci: String): Boolean = runCatching { blocks.isBlocked(aci) }.getOrDefault(false)
+
+    /** Asks the primary for the blocked list. The answer arrives later, through the socket. */
+    fun requestBlockedList(): String {
+        connection.connect()
+        return when (
+            val r = SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).requestBlockedList()
+        ) {
+            is SignalSender.Result.Sent -> "requested"
+            is SignalSender.Result.Failed -> r.reason
+        }
+    }
+
     fun send(recipient: String, body: String, attachments: List<String> = emptyList()): Long {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
             ?: throw IllegalStateException("not a service id: $recipient")
@@ -258,7 +377,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         SignalReceiver(
             database, account, SignalDataStore(database, account), connection,
-            SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts,
+            SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts, blocks,
             {
                 // Fetch whatever names became fetchable, then let the caller rename its
                 // threads -- only if something was actually learned, so a quiet batch does
@@ -280,6 +399,9 @@ class SignalStore(private val context: Context) {
      */
     /** Names for the people on the other end, from the primary's contacts sync. */
     internal val contacts: SignalContactStore by lazy { SignalContactStore(database) }
+
+    /** The account's blocked list, as the primary last sent it. */
+    internal val blocks: SignalBlockStore by lazy { SignalBlockStore(database) }
 
     /** The name known for a service id, or null. */
     /** A peer's safety number and trust level, or null if they are unknown to the store. */

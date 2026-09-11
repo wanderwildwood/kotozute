@@ -8,6 +8,9 @@ import org.whispersystems.signalservice.api.crypto.ContentHint
 import org.whispersystems.signalservice.api.messages.SendMessageResult
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream
 import org.whispersystems.signalservice.api.messages.SignalServiceDataMessage
+import org.whispersystems.signalservice.api.messages.multidevice.BlockedListMessage
+import org.whispersystems.signalservice.api.messages.multidevice.RequestMessage
+import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage
 import org.whispersystems.signalservice.api.push.SignalServiceAddress
 import org.whispersystems.signalservice.api.message.MessageApi
 import org.whispersystems.signalservice.api.util.CredentialsProvider
@@ -185,6 +188,152 @@ internal class SignalSender(
      * our own other devices when this send comes back to them as a sync. So it is generated
      * once, here, and returned -- not read back from anything.
      */
+    /**
+     * A reaction: an emoji hung on somebody else's message rather than a message of its own.
+     *
+     * Signal names the message being reacted to by who wrote it and when they sent it, so
+     * [targetAuthor] is the *author of that message* -- this account when the reaction is to
+     * something we sent ourselves, which is the case that reads wrong if it is guessed.
+     */
+    /**
+     * Sends the account's blocked list, which is how a linked device changes it.
+     *
+     * ⚠ **This replaces the account's list with what is passed.** There is no "block one
+     * more" message in Signal's protocol: the sync carries every blocked party, and the
+     * primary takes it as the truth. Whatever is missing here becomes unblocked everywhere.
+     * The caller must have a list from the primary to edit -- see [SignalBlockStore.known].
+     */
+    fun sendBlockedList(
+        individuals: List<BlockedListMessage.Individual>,
+        groups: List<BlockedListMessage.Group>
+    ): Result = try {
+        val result = sender.sendSyncMessage(
+            SignalServiceSyncMessage.forBlocked(BlockedListMessage(individuals, groups))
+        )
+        if (result.isSuccess) {
+            Timber.i("signal blocked: sent a list of %d", individuals.size)
+            Result.Sent(System.currentTimeMillis())
+        } else {
+            Result.Failed(describe(result))
+        }
+    } catch (t: Throwable) {
+        Timber.w(t, "signal blocked: sending the list threw")
+        Result.Failed(t.message ?: t::class.java.simpleName)
+    }
+
+    /** Asks the primary for the blocked list, which arrives later through the socket. */
+    fun requestBlockedList(): Result = try {
+        val result = sender.sendSyncMessage(
+            SignalServiceSyncMessage.forRequest(
+                RequestMessage.forType(
+                    org.whispersystems.signalservice.internal.push.SyncMessage.Request.Type.BLOCKED
+                )
+            )
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+    } catch (t: Throwable) {
+        Timber.w(t, "signal blocked: requesting the list threw")
+        Result.Failed(t.message ?: t::class.java.simpleName)
+    }
+
+    /**
+     * Why a send did not land, in the terms that matter. Worth separating: an identity
+     * failure is not a network problem -- the recipient's safety number changed, and
+     * retrying sends to a key this device has already refused to trust.
+     */
+    private fun describe(result: SendMessageResult): String = when {
+        result.identityFailure != null -> "identity changed for ${result.address.serviceId}"
+        result.isUnregisteredFailure -> "${result.address.serviceId} is not registered"
+        result.isNetworkFailure -> "network failure sending to ${result.address.serviceId}"
+        result.isInvalidPreKeyFailure -> "${result.address.serviceId} has an unusable pre key"
+        result.rateLimitFailure != null -> "rate limited"
+        result.proofRequiredFailure != null -> "the server wants a proof of humanity"
+        else -> "send failed for an unreported reason"
+    }
+
+    fun sendReaction(
+        recipient: ServiceId,
+        emoji: String,
+        remove: Boolean,
+        targetAuthor: ServiceId,
+        targetSentTimestamp: Long
+    ): Result {
+        val timestamp = System.currentTimeMillis()
+        val message = SignalServiceDataMessage.newBuilder()
+            .withTimestamp(timestamp)
+            .withReaction(
+                SignalServiceDataMessage.Reaction(emoji, remove, targetAuthor, targetSentTimestamp)
+            )
+            .build()
+
+        return try {
+            val result = sender.sendDataMessage(
+                SignalServiceAddress(recipient),
+                sealedSender.accessFor(recipient.toString()),
+                ContentHint.RESENDABLE,
+                message,
+                SignalServiceMessageSender.IndividualSendEvents.EMPTY,
+                false,
+                false
+            )
+            if (result.isSuccess) {
+                Timber.i("signal reaction: delivered ts=%d", timestamp)
+                Result.Sent(timestamp)
+            } else {
+                Result.Failed(describe(result))
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal reaction: send threw")
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
+    /** The same, to a group: every member hears it, as they do a message. */
+    fun sendReactionToGroup(
+        masterKey: ByteArray,
+        members: List<ServiceId>,
+        emoji: String,
+        remove: Boolean,
+        targetAuthor: ServiceId,
+        targetSentTimestamp: Long
+    ): Result {
+        if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
+        val timestamp = System.currentTimeMillis()
+
+        val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
+            .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+            .withRevision(0)
+            .build()
+
+        val message = SignalServiceDataMessage.newBuilder()
+            .withTimestamp(timestamp)
+            .asGroupMessage(group)
+            .withReaction(
+                SignalServiceDataMessage.Reaction(emoji, remove, targetAuthor, targetSentTimestamp)
+            )
+            .build()
+
+        return try {
+            val results = sender.sendDataMessage(
+                members.map { SignalServiceAddress(it) },
+                members.map { sealedSender.accessFor(it.toString()) },
+                false,
+                ContentHint.RESENDABLE,
+                message,
+                SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
+                null,
+                null,
+                false
+            )
+            val failed = results.filterNot { it.isSuccess }
+            if (failed.isEmpty()) Result.Sent(timestamp)
+            else Result.Failed("could not reach ${failed.size} of ${results.size} group members")
+        } catch (t: Throwable) {
+            Timber.w(t, "signal reaction: group send threw")
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
     fun send(recipient: ServiceId, body: String, attachments: List<String> = emptyList()): Result {
         val timestamp = System.currentTimeMillis()
         val streams = try {
@@ -217,21 +366,11 @@ internal class SignalSender(
                 false,
                 false
             )
-            when {
-                result.isSuccess -> {
-                    Timber.i("signal send: delivered ts=%d", timestamp)
-                    Result.Sent(timestamp)
-                }
-                // Worth separating. An identity failure is not a network problem: the
-                // recipient's safety number changed, and retrying sends to a key we have
-                // already refused to trust.
-                result.identityFailure != null -> Result.Failed("identity changed for $recipient")
-                result.isUnregisteredFailure -> Result.Failed("$recipient is not registered")
-                result.isNetworkFailure -> Result.Failed("network failure sending to $recipient")
-                result.isInvalidPreKeyFailure -> Result.Failed("$recipient has an unusable pre key")
-                result.rateLimitFailure != null -> Result.Failed("rate limited")
-                result.proofRequiredFailure != null -> Result.Failed("the server wants a proof of humanity")
-                else -> Result.Failed("send failed for an unreported reason")
+            if (result.isSuccess) {
+                Timber.i("signal send: delivered ts=%d", timestamp)
+                Result.Sent(timestamp)
+            } else {
+                Result.Failed(describe(result))
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal send: threw")

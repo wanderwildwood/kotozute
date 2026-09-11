@@ -424,6 +424,7 @@
     <string name="settings_signal_account_title">Signal account</string>
     <string name="settings_signal_account_summary">The number, and the devices on it</string>
     <string name="signal_account_unreachable">Could not reach the bridge, so the account could not be read.</string>
+    <string name="signal_account_this_device_is">This phone is device %d on the account. The other devices on it are not listed here: that is a question only Signal can answer, and this phone cannot ask it.</string>
     <string name="signal_account_this_device">this one</string>
     <string name="signal_account_primary">primary</string>
     <string name="signal_account_unnamed">unnamed</string>

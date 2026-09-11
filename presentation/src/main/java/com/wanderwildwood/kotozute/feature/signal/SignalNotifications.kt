@@ -47,7 +47,6 @@ class SignalNotifications @Inject constructor(
         started = true
         createChannel()
         signalRepo.newIncoming().subscribe({ notify(it) }, { Timber.w(it, "signal notify") })
-        watchForRefusal()
     }
 
     private fun createChannel() {
@@ -56,63 +55,6 @@ class SignalNotifications @Inject constructor(
         // new id rather than an edit to this one.
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Signal", NotificationManager.IMPORTANCE_HIGH)
-        )
-        // Its own channel, so it can be silenced without silencing messages -- and at
-        // DEFAULT rather than HIGH: this needs to be seen once, not to interrupt.
-        manager.createNotificationChannel(
-            NotificationChannel(
-                PROBLEM_CHANNEL_ID,
-                context.getString(R.string.signal_rejected_channel),
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
-        )
-    }
-
-    /**
-     * Says so when the bridge refuses this phone.
-     *
-     * Until this, a rotated token or a revoked pairing left Signal simply silent: the
-     * catch-up worker swallowed the failure as ordinary, the stream retried on a backoff
-     * forever, and nothing anywhere said why messages had stopped. Only a refusal is
-     * announced -- a host that is switched off says nothing, because it comes back on its
-     * own and a nightly notification about a laptop being asleep is noise.
-     */
-    private fun watchForRefusal() {
-        signalRepo.connectionState()
-            .map { it.enabled && it.rejected }
-            .distinctUntilChanged()
-            .subscribe({ refused ->
-                when {
-                    refused -> notifyRefused()
-                    else -> manager.cancel(REFUSED_NOTIFICATION_ID)
-                }
-            }, { Timber.w(it, "signal connection state") })
-    }
-
-    private fun notifyRefused() {
-        val pending = PendingIntent.getActivity(
-            context,
-            REFUSED_NOTIFICATION_ID,
-            Intent(context, SettingsActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val text = context.getString(R.string.signal_rejected_text)
-        manager.notify(
-            REFUSED_NOTIFICATION_ID,
-            NotificationCompat.Builder(context, PROBLEM_CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(context.getString(R.string.signal_rejected_title))
-                .setContentText(text)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-                // Not auto-cancelling and not ongoing: it goes when the bridge accepts us
-                // again, not when it is swiped or tapped, because tapping it does not fix
-                // anything by itself.
-                .setAutoCancel(false)
-                .setOnlyAlertOnce(true)
-                .setCategory(Notification.CATEGORY_ERROR)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setContentIntent(pending)
-                .build()
         )
     }
 
@@ -173,8 +115,6 @@ class SignalNotifications @Inject constructor(
 
     companion object {
         const val CHANNEL_ID = "notifications_signal"
-        const val PROBLEM_CHANNEL_ID = "notifications_signal_problem"
         private const val NOTIFICATION_ID_BASE = 0x5167 // keeps clear of the SMS ids
-        private const val REFUSED_NOTIFICATION_ID = 0x5166
     }
 }

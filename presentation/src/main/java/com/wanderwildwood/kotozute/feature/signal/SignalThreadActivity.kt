@@ -27,7 +27,6 @@ import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.repository.SignalRepository
-import com.wanderwildwood.kotozute.signal.isTerminalBridgeFailure
 import com.wanderwildwood.kotozute.common.util.DateFormatter
 import com.wanderwildwood.kotozute.common.util.MessageLinks
 import dagger.android.AndroidInjection
@@ -133,12 +132,8 @@ class SignalThreadActivity : QkThemedActivity() {
         // fail. Sending has no offline queue: a message the user thinks they sent and
         // which never arrives is worse than being told plainly that it cannot go now.
         disposables.add(signalRepo.connectionState().subscribe { conn ->
-            val blocked = when {
-                conn.rejected -> getString(R.string.signal_cannot_send_refused)
-                !conn.bridgeReachable -> getString(R.string.signal_cannot_send_bridge)
-                !conn.signalConnected -> getString(R.string.signal_cannot_send_signal)
-                else -> null
-            }
+            val blocked = if (conn.signalConnected) null
+                else getString(R.string.signal_cannot_send_signal)
             runOnUiThread {
                 binding.cannotSend.text = blocked.orEmpty()
                 binding.cannotSend.setVisible(blocked != null)
@@ -340,13 +335,11 @@ class SignalThreadActivity : QkThemedActivity() {
                     }
                     .onFailure {
                         // The message stays in the box, so nothing the user typed is lost.
-                        // A refusal gets a sentence rather than "send failed (401)": it is
-                        // the one failure here with something the person can actually do.
-                        val text = when {
-                            isTerminalBridgeFailure(it) -> getString(R.string.signal_send_refused)
-                            else -> getString(R.string.signal_send_failed, it.message.orEmpty())
-                        }
-                        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            this,
+                            getString(R.string.signal_send_failed, it.message.orEmpty()),
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
             }
         }

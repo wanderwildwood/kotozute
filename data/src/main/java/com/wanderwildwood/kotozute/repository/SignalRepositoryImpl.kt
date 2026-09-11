@@ -3,10 +3,7 @@ package com.wanderwildwood.kotozute.repository
 import com.wanderwildwood.kotozute.model.Contact
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.model.SignalThread
-import com.wanderwildwood.kotozute.signal.BridgeClient
-import com.wanderwildwood.kotozute.signal.BridgeConfig
 import com.wanderwildwood.kotozute.signal.BridgeMessage
-import com.wanderwildwood.kotozute.signal.isTerminalBridgeFailure
 import com.wanderwildwood.kotozute.util.PhoneNumberUtils
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Observable
@@ -78,7 +75,9 @@ class SignalRepositoryImpl @Inject constructor(
      * The bridge wins while one is configured. It is the rail already in use on such a phone,
      * and unpairing it is a deliberate act the user can take when they want the other.
      */
-    private fun useBridge(): Boolean = config() != null
+    // Was: whether a bridge was paired. Signal now reaches this phone one way, so the
+    // question no longer exists -- see the v1.17 removal. Kept nowhere: every caller that
+    // asked it has been settled in favour of the device's own connection.
 
     /**
      * How many envelopes are sitting undecrypted.
@@ -88,7 +87,7 @@ class SignalRepositoryImpl @Inject constructor(
      * app depends on.
      */
     private fun undecryptableCount(): Int =
-        if (useBridge()) 0 else runCatching { signalStore.undecryptableCount() }.getOrDefault(0)
+        runCatching { signalStore.undecryptableCount() }.getOrDefault(0)
 
     /** True when this device is itself a device on the account. */
     private fun linkedDirectly(): Boolean = try {
@@ -103,7 +102,7 @@ class SignalRepositoryImpl @Inject constructor(
 
     private val state = BehaviorSubject.createDefault(
         SignalRepository.ConnectionState(
-            configured = false, enabled = false, bridgeReachable = false,
+            configured = false, enabled = false,
             signalConnected = false, lastSyncedAt = 0
         )
     )
@@ -137,81 +136,16 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private val streamConnected = AtomicBoolean(false)
 
-    /**
-     * Bumped whenever the pairing is torn down. A sync already in flight checks it between
-     * pages and abandons the rest.
-     *
-     * stopStream() only closes the SSE connection; it cannot reach a syncNow() that is
-     * midway through paging the bridge. Unpair therefore used to stop the stream, wipe the
-     * store, and then have the sync it did not interrupt write every message straight back.
-     */
-    private val pairingEpoch = AtomicInteger(0)
-
     init {
-        publishState(reachable = false, signalConnected = false, error = null)
+        publishState(signalConnected = false, error = null)
     }
 
-    private fun config(): BridgeConfig? {
-        val host = prefs.signalBridgeHost.get()
-        val token = prefs.signalBridgeToken.get()
-        val fp = prefs.signalBridgeFingerprint.get()
-        val cfg = BridgeConfig(host, prefs.signalBridgePort.get(), token, fp)
-        return if (cfg.isValid()) cfg else null
-    }
-
-    /**
-     * Configured by **either** route.
-     *
-     * Every screen keys its Signal UI off this, and it used to mean "a bridge is paired".
-     * Leaving it that way would have left a device that is itself linked to the account
-     * showing no Signal at all -- messages arriving into Realm and nothing displaying them,
-     * which is exactly what happened.
-     */
-    override fun isConfigured(): Boolean = config() != null || linkedDirectly()
-
-    override fun pair(payload: String): Boolean {
-        val cfg = BridgeConfig.parse(payload) ?: return false
-        prefs.signalBridgeHost.set(cfg.host)
-        prefs.signalBridgePort.set(cfg.port)
-        prefs.signalBridgeToken.set(cfg.token)
-        prefs.signalBridgeFingerprint.set(cfg.fingerprint)
-        publishState(reachable = false, signalConnected = false, error = null)
-        return true
-    }
-
-    override fun stopUsingBridge() = runOffThread {
-        // The in-flight sync checks this between pages, so it stops paging a bridge that is
-        // about to be forgotten.
-        pairingEpoch.incrementAndGet()
-        stopStream()
-
-        prefs.signalBridgeHost.set("")
-        prefs.signalBridgeToken.set("")
-        prefs.signalBridgeFingerprint.set("")
-        // The cursor and instance describe a position in *that* bridge's stream and mean
-        // nothing without it. Messages and threads are deliberately untouched: they are the
-        // user's conversations, not the bridge's cache.
-        prefs.signalCursor.set(0L)
-        prefs.signalBridgeInstance.set("")
-        prefs.signalLastSync.set(0L)
-
-        // useBridge() is false from here, so this starts the device's own socket rather than
-        // reconnecting to the bridge that just went away.
-        publishState(reachable = false, signalConnected = false, error = null)
-        if (prefs.signalEnabled.get()) startStream()
-    }
+    /** Whether this phone is on the account at all. Every screen keys its Signal UI off it. */
+    override fun isConfigured(): Boolean = linkedDirectly()
 
     override fun unpair() = runOffThread {
-        // Before anything else: a sync in flight is paging the bridge right now, and it
-        // checks this between pages.
-        pairingEpoch.incrementAndGet()
         stopStream()
         prefs.signalEnabled.set(false)
-        prefs.signalBridgeHost.set("")
-        prefs.signalBridgeToken.set("")
-        prefs.signalBridgeFingerprint.set("")
-        prefs.signalCursor.set(0L)
-        prefs.signalBridgeInstance.set("")
         prefs.signalLastSync.set(0L)
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction {
@@ -219,7 +153,7 @@ class SignalRepositoryImpl @Inject constructor(
                 it.delete(SignalThread::class.java)
             }
         }
-        publishState(reachable = false, signalConnected = false, error = null)
+        publishState(signalConnected = false, error = null)
     }
 
     /**
@@ -284,7 +218,6 @@ class SignalRepositoryImpl @Inject constructor(
         prefs.signalEnabled.set(enabled)
         if (enabled) startStream() else stopStream()
         publishState(
-            reachable = state.value?.bridgeReachable ?: false,
             signalConnected = state.value?.signalConnected ?: false,
             error = null
         )
@@ -317,7 +250,6 @@ class SignalRepositoryImpl @Inject constructor(
      * a thread is created.
      */
     private fun nameGroupThreads() {
-        if (useBridge()) return
         val toName = mutableListOf<Pair<String, ByteArray>>()
         Realm.getDefaultInstance().use { realm ->
             realm.where(SignalThread::class.java)
@@ -395,7 +327,7 @@ class SignalRepositoryImpl @Inject constructor(
                 .onSuccess { Timber.i("signal keys: %s", it) }
                 .onFailure { Timber.w(it, "signal keys: could not publish after registering") }
             prefs.signalEnabled.set(true)
-            publishState(reachable = true, signalConnected = true, error = null)
+            publishState(signalConnected = true, error = null)
             startStream()
         }
         stepToRegistration(step)
@@ -442,7 +374,7 @@ class SignalRepositoryImpl @Inject constructor(
                 // The state has changed in a way nothing else will notice: this device was
                 // not a Signal device a moment ago and now is. Publishing it here is what
                 // makes the settings screen stop offering to link.
-                publishState(reachable = true, signalConnected = true, error = null)
+                publishState(signalConnected = true, error = null)
                 // And start receiving. Without this the first messages wait for the next
                 // launch, which reads as linking not having worked.
                 startStream()
@@ -456,12 +388,8 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     override fun refresh() = runOffThread {
-        Timber.i(
-            "signal: refresh -- bridge=%s linked=%s configured=%s",
-            config() != null, linkedDirectly(), isConfigured()
-        )
+        Timber.i("signal: refresh -- linked=%s", linkedDirectly())
         publishState(
-            reachable = state.value?.bridgeReachable ?: false,
             signalConnected = state.value?.signalConnected ?: false,
             error = state.value?.error
         )
@@ -652,163 +580,16 @@ class SignalRepositoryImpl @Inject constructor(
         Timber.i("signal: direct sync %s", summary)
         prefs.signalLastSync.set(System.currentTimeMillis())
         syncCaughtUp = true
-        publishState(reachable = true, signalConnected = true, error = null)
+        publishState(signalConnected = true, error = null)
         0
     } catch (t: Throwable) {
         Timber.w(t, "signal: direct sync failed")
         syncCaughtUp = false
-        publishState(reachable = false, signalConnected = false, error = t.message)
+        publishState(signalConnected = false, error = t.message)
         0
     }
 
-    override fun syncNow(): Int {
-        // A directly linked device fetches for itself. The bridge is only consulted when
-        // there is no link -- asking both would deliver every message twice, and while
-        // store() would deduplicate them, the two would still race to write the same rows.
-        if (!useBridge() && linkedDirectly()) return syncDirect()
-
-        val cfg = config() ?: return 0
-        val client = BridgeClient(cfg)
-        var written = 0
-        // Adopting existing history is not the same as receiving news. On the very first
-        // sync the bridge hands over everything it holds, and announcing all of it would
-        // greet someone who has just finished setting Signal up with a screen of
-        // notifications about conversations they already know about. A later catch-up
-        // does announce: those are messages genuinely missed.
-        val firstSync = prefs.signalCursor.get() == 0L
-        val epoch = pairingEpoch.get()
-        try {
-            val remote = client.state()
-
-            // A cursor is only meaningful against the store that issued it. If the bridge
-            // has been rebuilt or moved, its sequence numbers started again and ours points
-            // past everything it will ever have -- so the phone would sit silent forever,
-            // waiting for a number that is not coming. Start over instead; the inserts are
-            // idempotent, so re-reading what we already hold costs nothing.
-            val knownInstance = prefs.signalBridgeInstance.get()
-            if (remote.instance.isNotBlank() && knownInstance != remote.instance) {
-                if (knownInstance.isNotBlank()) {
-                    Timber.i("bridge store changed; restarting from the beginning")
-                    prefs.signalCursor.set(0L)
-                }
-                prefs.signalBridgeInstance.set(remote.instance)
-            }
-            // Refresh thread titles first, so a new message never lands in an unnamed thread.
-            val threads = client.threads()
-            Realm.getDefaultInstance().use { realm ->
-                realm.executeTransaction { r ->
-                    // Resolved once per sync rather than per drawn row: the address
-                    // book rarely moves and a lookup per bind would run on every scroll.
-                    val contacts = r.where(Contact::class.java).findAll()
-
-                    threads.forEach { t ->
-                        val row = r.where(SignalThread::class.java)
-                            .equalTo("threadKey", t.threadKey).findFirst()
-                            ?: r.createObject(SignalThread::class.java, t.threadKey)
-                        row.kind = t.kind
-                        if (t.lastTs > row.lastTs) row.lastTs = t.lastTs
-                        row.counterpartUuid = t.threadKey.substringAfter("direct:", "")
-                        if (t.counterpartNumber.isNotBlank()) {
-                            row.counterpartNumber = t.counterpartNumber
-                        }
-
-                        // Prefer the name this phone already knows the person by. Signal's
-                        // own profile name is the fallback, and a bare number the last
-                        // resort -- otherwise the same person reads differently depending
-                        // on which rail their message came in on.
-                        val local = row.counterpartNumber
-                            .takeIf { it.isNotBlank() && t.kind == "direct" }
-                            ?.let { number ->
-                                contacts.firstOrNull { c ->
-                                    c.numbers.any { phoneNumberUtils.compare(it.address, number) }
-                                }?.name?.takeIf { n -> n.isNotBlank() }
-                            }
-                        row.title = local ?: t.title
-
-                        // Threads that existed before previews did, and any created from
-                        // the directory rather than from a message, have nothing to show.
-                        if (row.snippet.isBlank()) {
-                            r.where(SignalMessage::class.java)
-                                .equalTo("threadKey", row.threadKey)
-                                .sort("date", Sort.DESCENDING)
-                                .findFirst()
-                                ?.let { newest ->
-                                    row.snippet = newest.body.ifBlank {
-                                        when {
-                                            newest.viewOnce -> VIEW_ONCE_PREVIEW
-                                            newest.attachments.isNotBlank() &&
-                                                newest.attachments != "[]" -> ATTACHMENT_PREVIEW
-                                            else -> ""
-                                        }
-                                    }
-                                    row.snippetOutgoing = newest.outgoing
-                                }
-                        }
-                    }
-                }
-            }
-
-            var cursor = prefs.signalCursor.get()
-            while (true) {
-                // Between pages, not only at the start: unpair can land at any point in a
-                // long catch-up, and everything after it would otherwise be written into a
-                // store the user has just emptied.
-                if (pairingEpoch.get() != epoch) {
-                    Timber.i("signal: sync abandoned, the pairing changed under it")
-                    return written
-                }
-                val (msgs, maxSeq) = client.changes(cursor, 200)
-                if (msgs.isEmpty()) {
-                    if (maxSeq > cursor) prefs.signalCursor.set(maxSeq)
-                    break
-                }
-                val fresh = mutableListOf<BridgeMessage>()
-                Realm.getDefaultInstance().use { realm ->
-                    realm.executeTransaction { r ->
-                        msgs.forEach { if (store(r, it)) fresh.add(it) }
-                    }
-                }
-                if (!firstSync) announce(fresh)
-                written += msgs.size
-                cursor = msgs.maxOf { it.seq }
-                prefs.signalCursor.set(cursor)
-                if (cursor >= maxSeq) break
-            }
-
-            prefs.signalLastSync.set(System.currentTimeMillis())
-            // Did the catch-up actually reach what the bridge said it was holding? The loop
-            // above ends either because it drew level or because a page stopped early, and
-            // those two look identical from outside. Saying which lets the worker try again
-            // now instead of leaving the phone quietly behind until the next round.
-            val caughtUp = prefs.signalCursor.get() >= remote.maxSeq
-            if (!caughtUp) {
-                Timber.w("signal: sync stopped short, cursor=%d bridge=%d",
-                    prefs.signalCursor.get(), remote.maxSeq)
-            }
-            syncCaughtUp = caughtUp
-            publishState(reachable = true, signalConnected = remote.signalConnected, error = null)
-        } catch (t: Throwable) {
-            Timber.w(t, "signal sync failed")
-            // A sync that threw did not draw level, whatever it managed before it stopped.
-            syncCaughtUp = false
-            // Only when nothing better is known. syncNow() runs from other threads -- the
-            // conversations screen fires one on every creation -- and one timed-out call
-            // used to publish "cannot reach the bridge" straight over a live stream's
-            // healthy state. Nothing republishes on a timer and the bridge's keepalive is a
-            // comment line that never reaches onMessage, so on an account nobody happened
-            // to be messaging, both Signal screens sat with the composer disabled until
-            // someone else sent something.
-            if (!streamConnected.get()) {
-                publishState(
-                    reachable = false,
-                    signalConnected = false,
-                    error = t.message,
-                    rejected = isTerminalBridgeFailure(t)
-                )
-            }
-        }
-        return written
-    }
+    override fun syncNow(): Int = syncDirect()
 
     override fun startStream() {
         if (!prefs.signalEnabled.get() || !isConfigured()) return
@@ -818,10 +599,8 @@ class SignalRepositoryImpl @Inject constructor(
         if (!streamWanted.compareAndSet(false, true)) return
         val generation = streamGeneration.incrementAndGet()
 
-        // A bridge's stream is server-sent events from another machine. A directly linked
-        // device holds its own websocket to Signal instead. Same shape, different socket.
-        if (!useBridge()) {
-            Timber.i("signal: linked directly; holding our own socket")
+        run {
+            Timber.i("signal: holding our own socket")
             // Ask once per start. A linked device knows nobody until the primary answers, and
             // the answer arrives through the socket below -- so the ask has to happen before
             // the loop, not as part of it.
@@ -831,8 +610,6 @@ class SignalRepositoryImpl @Inject constructor(
                     .onFailure { Timber.w(it, "signal contacts: could not ask") }
             }
             thread(name = "signal-listen-$generation", isDaemon = true) { listenLoop(generation) }
-        } else {
-            thread(name = "signal-stream-$generation", isDaemon = true) { streamLoop(generation) }
         }
     }
 
@@ -844,9 +621,9 @@ class SignalRepositoryImpl @Inject constructor(
         streamConnected.set(false)
         runCatching { stream?.close() }
         stream = null
-        // The direct rail's socket is shared and outlives any one listen loop, so this is the
-        // only place that closes it.
-        if (!useBridge()) runCatching { signalStore.disconnect() }
+        // The socket is shared and outlives any one listen loop, so this is the only place
+        // that closes it.
+        runCatching { signalStore.disconnect() }
     }
 
     /**
@@ -862,7 +639,7 @@ class SignalRepositoryImpl @Inject constructor(
                 val connectedAt = System.currentTimeMillis()
                 try {
                     streamConnected.set(true)
-                    publishState(reachable = true, signalConnected = true, error = null)
+                    publishState(signalConnected = true, error = null)
                     signalStore.listen(
                         keepGoing = { streamWanted.get() && streamGeneration.get() == generation },
                         file = { ingest(it) },
@@ -900,7 +677,7 @@ class SignalRepositoryImpl @Inject constructor(
                     }
 
                     Timber.w(t, "signal: listen failed; retrying in %d ms", backoff)
-                    publishState(reachable = false, signalConnected = false, error = t.message)
+                    publishState(signalConnected = false, error = t.message)
                     Thread.sleep(backoff)
                     // Capped, because a phone that has been out of signal for an hour should
                     // not then wait an hour more once it is back.
@@ -922,91 +699,6 @@ class SignalRepositoryImpl @Inject constructor(
      * network problem.
      */
     private val STABLE_CONNECTION_MS = 30_000L
-
-    private fun streamLoop(generation: Int) {
-        try {
-            streamLoopInner(generation)
-        } finally {
-            // Whatever ended this -- a normal stop or something thrown -- the flag must not
-            // be left set. startStream() refuses to start a second loop while it is, so a
-            // thread that died holding it would mean the stream could never be revived.
-            //
-            // Only if this loop is still the current one, though. A retired loop clearing
-            // the flag would stop whichever loop replaced it.
-            if (streamGeneration.get() == generation) {
-                streamConnected.set(false)
-                streamWanted.set(false)
-            }
-        }
-    }
-
-    private fun streamLoopInner(generation: Int) {
-        var backoff = 2_000L
-        while (streamWanted.get() && streamGeneration.get() == generation) {
-            val cfg = config()
-            if (cfg == null) { streamWanted.set(false); return }
-
-            syncNow() // catch up before going live
-
-            val done = java.util.concurrent.CountDownLatch(1)
-            // Why the stream ended, so the loop below can tell a refusal from a dropped
-            // network. Written on the stream's own thread and read on this one, which is
-            // safe because the write happens before the countDown that releases the await
-            // below -- the latch is the ordering, not a lucky read.
-            var closedBy: Throwable? = null
-            val client = BridgeClient(cfg)
-            try {
-                // Assigned to the shared field only while this loop is still the current
-                // one, so a retired loop cannot overwrite its replacement's connection with
-                // one nothing can close.
-                if (streamGeneration.get() != generation) return
-                stream = client.openEvents(
-                    sinceSeq = prefs.signalCursor.get(),
-                    onMessage = { msg ->
-                        var isNew = false
-                        Realm.getDefaultInstance().use { realm ->
-                            realm.executeTransaction { r -> isNew = store(r, msg) }
-                        }
-                        if (isNew) announce(listOf(msg))
-                        if (msg.seq > prefs.signalCursor.get()) prefs.signalCursor.set(msg.seq)
-                        prefs.signalLastSync.set(System.currentTimeMillis())
-                        streamConnected.set(true)
-                        publishState(reachable = true, signalConnected = true, error = null)
-                    },
-                    onClosed = { err ->
-                        streamConnected.set(false)
-                        if (err != null) Timber.d("signal stream closed: ${err.message}")
-                        closedBy = err
-                        done.countDown()
-                    }
-                )
-                backoff = 2_000L
-                // The connection is open; nothing has necessarily arrived on it yet, and on
-                // a quiet account nothing will for hours. Say so now rather than waiting for
-                // a message to prove it, or the composer sits disabled on a working link.
-                streamConnected.set(true)
-                publishState(reachable = true, signalConnected = true, error = null)
-                done.await()
-            } catch (t: Throwable) {
-                Timber.w(t, "signal stream failed")
-                closedBy = t
-            }
-
-            streamConnected.set(false)
-            // A stream that is refused keeps being refused, and the backoff below would
-            // retry it every minute for as long as the phone is on without ever saying
-            // why. Publishing it is what turns that into something visible.
-            publishState(
-                reachable = false,
-                signalConnected = false,
-                error = closedBy?.message.takeIf { isTerminalBridgeFailure(closedBy) },
-                rejected = isTerminalBridgeFailure(closedBy)
-            )
-            if (!streamWanted.get() || streamGeneration.get() != generation) return
-            Thread.sleep(backoff)
-            backoff = (backoff * 2).coerceAtMost(60_000L)
-        }
-    }
 
     /**
      * Idempotent by primary key: the same message may arrive more than once. Returns
@@ -1161,21 +853,8 @@ class SignalRepositoryImpl @Inject constructor(
         msgs.filter { !it.outgoing }.forEach { incoming.onNext(detached(it)) }
     }
 
-    override fun send(threadKey: String, body: String, attachments: List<String>): Long {
-        if (!useBridge() && linkedDirectly()) return sendDirect(threadKey, body, attachments)
-        val cfg = config() ?: throw IllegalStateException("no bridge paired")
-        try {
-            return BridgeClient(cfg).send(threadKey, body, attachments)
-        } catch (t: Throwable) {
-            // Pressing send is the moment someone is most likely to be looking, and it can
-            // easily come before any poll has noticed. Publish here rather than let them
-            // watch a failure the rest of the app has not heard about yet.
-            if (isTerminalBridgeFailure(t)) {
-                publishState(reachable = false, signalConnected = false, error = t.message, rejected = true)
-            }
-            throw t
-        }
-    }
+    override fun send(threadKey: String, body: String, attachments: List<String>): Long =
+        sendDirect(threadKey, body, attachments)
 
     /**
      * All of this runs off the caller's thread. The Realm here is configured to refuse
@@ -1196,27 +875,30 @@ class SignalRepositoryImpl @Inject constructor(
                     .findFirst()?.unread = 0
             }
         }
-        val cfg = config() ?: return@runOffThread
-        runCatching {
-            BridgeClient(cfg).markRead(threadKey, upToTs, prefs.signalReadReceipts.get())
+        // The receipt goes out on this device's own connection, and only where the reader
+        // asked for receipts to be sent. A receipt names the messages by the timestamps they
+        // were sent with, so they are read off the rows that were just marked.
+        if (!prefs.signalReadReceipts.get() || !threadKey.startsWith("direct:")) return@runOffThread
+        val marked = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .equalTo("outgoing", false)
+                .lessThanOrEqualTo("date", upToTs)
+                .findAll()
+                .map { it.date }
         }
-            .onFailure { Timber.d("markRead not delivered: ${it.message}") }
+        runCatching { signalStore.sendReadReceipt(threadKey.removePrefix("direct:"), marked) }
+            .onFailure { Timber.d("read receipt not delivered: ${it.message}") }
     }
 
     /**
-     * Bytes for an attachment, from whichever rail brought it in.
+     * Bytes for an attachment.
      *
-     * The local store is asked first. A bridge fetch is a network round trip to another
-     * machine, and on a directly linked device the file is already on disk -- so trying the
-     * bridge first would be slower when it worked and wrong when there is no bridge at all.
+     * Downloaded when the message arrived and kept on disk, so this is a local read. An
+     * attachment that was never downloaded is gone: its pointer was good for a window on
+     * Signal's CDN and that window has closed.
      */
-    override fun loadAttachment(id: String): ByteArray? {
-        signalStore.readAttachment(id)?.let { return it }
-        val cfg = config() ?: return null
-        return runCatching { BridgeClient(cfg).fetchAttachment(id) }
-            .onFailure { Timber.d("attachment $id: ${it.message}") }
-            .getOrNull()
-    }
+    override fun loadAttachment(id: String): ByteArray? = signalStore.readAttachment(id)
 
     /**
      * Links the user has made by hand between a Signal thread and an SMS conversation.
@@ -1621,19 +1303,23 @@ class SignalRepositoryImpl @Inject constructor(
         return SignalDirectory.merge(threads, contacts, signalStore.selfAciOrNull())
     }
 
-    override fun account(): SignalAccount {
-        val cfg = config() ?: throw IllegalStateException("no bridge paired")
-        val a = BridgeClient(cfg).account()
-        return SignalAccount(
-            number = a.number,
-            selfUuid = a.selfUuid,
-            devices = a.devices.map { SignalDevice(it.id, it.name, it.created) },
-            thisDeviceId = a.thisDeviceId
-        )
-    }
+    /**
+     * What this phone knows about the account it is on.
+     *
+     * The number and the service id come from the account store. The list of devices does
+     * not: that is a question for the server, and the bridge used to ask it. Rather than
+     * show a device list that is a guess, this shows the two things it can stand behind and
+     * says what it is.
+     */
+    override fun account(): SignalAccount = SignalAccount(
+        number = signalStore.selfNumberOrNull().orEmpty(),
+        selfUuid = signalStore.selfAciOrNull().orEmpty(),
+        devices = emptyList(),
+        thisDeviceId = signalStore.deviceId()
+    )
 
     override fun identity(threadKey: String): SignalIdentity {
-        if (!useBridge()) {
+        run {
             val aci = threadKey.removePrefix("direct:")
             val local = signalStore.identityFor(aci)
                 ?: return SignalIdentity("", "")
@@ -1646,16 +1332,10 @@ class SignalRepositoryImpl @Inject constructor(
                 }
             )
         }
-        val cfg = config() ?: throw IllegalStateException("no bridge paired")
-        val i = BridgeClient(cfg).identity(threadKey)
-        return SignalIdentity(i.safetyNumber, i.trustLevel)
     }
 
     override fun acceptIdentity(threadKey: String): Boolean {
         if (!threadKey.startsWith("direct:")) return false
-        // Only the direct rail: on a bridge the keys live on the bridge, and pretending to
-        // accept one here would report success for something that did not happen.
-        if (useBridge()) return false
         return signalStore.acceptIdentity(threadKey.removePrefix("direct:"))
     }
 
@@ -1862,26 +1542,21 @@ class SignalRepositoryImpl @Inject constructor(
     override fun newIncoming(): Observable<SignalMessage> = incoming
 
     private fun publishState(
-        reachable: Boolean,
         signalConnected: Boolean,
         error: String?,
-        rejected: Boolean = false
     ) {
         state.onNext(
             SignalRepository.ConnectionState(
                 configured = isConfigured(),
                 linkedDirectly = linkedDirectly(),
-                usingBridge = useBridge(),
                 undecryptable = undecryptableCount(),
-                contactSummary = if (useBridge()) "" else runCatching { signalStore.contactSummary() }.getOrDefault(""),
-                undecryptableReasons = if (useBridge()) emptyList()
-                    else runCatching { signalStore.undecryptableReasons() }.getOrDefault(emptyList()),
+                contactSummary = runCatching { signalStore.contactSummary() }.getOrDefault(""),
+                undecryptableReasons =
+                    runCatching { signalStore.undecryptableReasons() }.getOrDefault(emptyList()),
                 enabled = prefs.signalEnabled.get(),
-                bridgeReachable = reachable,
                 signalConnected = signalConnected,
                 lastSyncedAt = prefs.signalLastSync.get(),
                 error = error,
-                rejected = rejected
             )
         )
     }

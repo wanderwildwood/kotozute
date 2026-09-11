@@ -28,8 +28,6 @@ import android.content.Context
 import android.os.Build
 import android.text.format.DateFormat
 import androidx.core.content.ContextCompat
-import com.journeyapps.barcodescanner.ScanIntentResult
-import com.journeyapps.barcodescanner.ScanOptions
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.View
@@ -72,8 +70,6 @@ import javax.inject.Inject
 import kotlin.coroutines.resume
 import com.wanderwildwood.kotozute.databinding.SettingsControllerBinding
 
-private const val CAMERA_FOR_PAIRING = 4801
-private const val SCAN_PAIRING_QR = 4802
 private const val PICK_EXPORT_FOLDER = 4803
 private const val PICK_BACKUP_FOLDER = 4804
 
@@ -103,7 +99,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val signatureSubject: Subject<String> = PublishSubject.create()
     private val autoDeleteSubject: Subject<Int> = PublishSubject.create()
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
-    private val signalPairSubject: Subject<String> = PublishSubject.create()
     private val signalExportFolderSubject: Subject<String> = PublishSubject.create()
     private val signalBackupFolderSubject: Subject<String> = PublishSubject.create()
     private val signalBackupKeySubject: Subject<Pair<String, String>> = PublishSubject.create()
@@ -119,8 +114,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      */
     private var pendingExportFolder: String? = null
     private var pendingBackupFolder: String? = null
-    private var pendingPairPayload: String? = null
-    private val stopBridgeSubject: Subject<Unit> = PublishSubject.create()
     private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
     private val aboutLongClickSubject: Subject<Unit> = PublishSubject.create()
 
@@ -158,10 +151,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             pendingBackupFolder = null
             signalBackupFolderSubject.onNext(folder)
         }
-        pendingPairPayload?.let { payload ->
-            pendingPairPayload = null
-            signalPairSubject.onNext(payload)
-        }
         // the view is retained across detach, so restore whichever section was open
         setTitle(openTitle)
         showBackButton(true)
@@ -198,7 +187,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * now". Returning to the screen puts it away again, which is the right default for a
      * feature on its way out.
      */
-    private var advancedShown: Boolean = false
 
     /**
      * Whether a bridge is currently paired, as of the last render.
@@ -208,7 +196,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * render() is not called again and the rows would keep whatever visibility they were last
      * given by hand.
      */
-    private var bridgePaired: Boolean = false
 
     private var openSection: Int = 0
     private var openTitle: Int = R.string.title_settings
@@ -217,11 +204,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         openSection = container
         openTitle = title
         // Sections swap in place, so this controller outlives any one of them and the
-        // disclosure would otherwise stay open for the rest of the visit. Leaving the Signal
-        // section and coming back should present the same screen a new install does.
-        advancedShown = false
-        binding.signalAdvanced.setVisible(!bridgePaired)
-        binding.signalPair.setVisible(bridgePaired)
         sectionContainers().forEach { section -> section.isVisible = section.id == container }
         setTitle(title)
         setAboutVisible(themedActivity?.toolbar?.menu)
@@ -244,15 +226,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
 
-    override fun signalPairPayload(): Observable<String> = signalPairSubject
-
     override fun signalExportFolderChosen(): Observable<String> = signalExportFolderSubject
 
     override fun signalBackupFolderChosen(): Observable<String> = signalBackupFolderSubject
 
     override fun signalBackupKeyEntered(): Observable<Pair<String, String>> = signalBackupKeySubject
-
-    override fun stopUsingBridgeConfirmed(): Observable<Unit> = stopBridgeSubject
 
     override fun signalUnpairConfirmed(): Observable<*> = signalUnpairSubject
 
@@ -321,24 +299,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             if (state.signalLinkedDirectly) R.string.settings_signal_link_relinked
             else R.string.settings_signal_link_summary
         )
-        // Only where it is a real choice: this phone is a Signal device in its own right and
-        // is still going through a bridge it no longer needs.
-        binding.signalStopBridge.setVisible(state.signalLinkedDirectly && state.signalBridgePaired)
-
-        // The bridge is kept, not promoted. Someone already using one keeps seeing it exactly
-        // where it was; someone who is not never meets it unless they go looking, because it
-        // asks for a computer that stays on and the phone has not needed one since it became
-        // a Signal device itself.
-        bridgePaired = state.signalBridgePaired
         // Only while there is no Signal here yet. Once the phone has an account, this row
         // would be an offer to re-register -- which is the same destructive act again, with
         // nothing gained.
         binding.signalRegister.setVisible(!state.signalLinkedDirectly)
 
-        val bridgeOnShow = state.signalBridgePaired || advancedShown
-        binding.signalAdvanced.setVisible(!bridgeOnShow)
-        binding.signalPair.setVisible(bridgeOnShow)
-        binding.signalPair.summary = state.signalBridgeSummary
         binding.signalEnabled.setVisible(state.signalPaired)
         binding.signalEnabled.checkbox.isChecked = state.signalEnabled
         binding.signalUnpair.setVisible(state.signalPaired)
@@ -628,33 +593,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     append(account.number).append('\n')
                     if (account.selfUuid.isNotBlank()) append(account.selfUuid).append('\n')
                     append('\n')
-                    account.devices.forEach { d ->
-                        val isThisBridge = d.id == account.thisDeviceId
-                        // A registered bridge is device 1 and carries no name at all --
-                        // Signal only asks for one when a device is *linked* -- so the row
-                        // that matters most read "unnamed", which is the least useful thing
-                        // it could say about the device that is the account.
-                        val name = d.name.ifBlank {
-                            activity.getString(
-                                if (isThisBridge) R.string.signal_account_this_bridge
-                                else R.string.signal_account_unnamed
-                            )
-                        }
-                        val tags = buildList {
-                            if (d.isPrimary) add(activity.getString(R.string.signal_account_primary))
-                            if (isThisBridge && d.name.isNotBlank()) {
-                                add(activity.getString(R.string.signal_account_this_one))
-                            }
-                        }
-                        append("· ").append(name)
-                        if (tags.isNotEmpty()) append(" (").append(tags.joinToString(", ")).append(')')
-                        append('\n')
-                    }
-                    append('\n')
-                    // The whole point of the screen: it says why the settings someone came
-                    // looking for are not here. Which device this bridge is cannot be asked
-                    // of signal-cli, so the note states the rule and the list above shows
-                    // which device is the primary.
+                    // No device list. The bridge asked signal-cli for one; this phone can
+                    // say which device it is on the account and no more, and a list it
+                    // cannot check is worse than saying so.
+                    append(activity.getString(R.string.signal_account_this_device_is, account.thisDeviceId))
+                        .append("\n\n")
                     append(activity.getString(R.string.signal_account_linked_note))
                 }
             }
@@ -743,81 +686,12 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.desktopSyncReset.postDelayed(disarmRunnable, ARM_TIMEOUT_MS)
     }
 
-    /**
-     * Pairing is paste-only rather than typed: the payload carries a 43-character token
-     * and a 64-character fingerprint, and neither is something to key in on a phone.
-     * Run `kotozute-bridge --pairing` on the bridge host to print it.
-     */
-    override fun confirmStopUsingBridge() {
-        activity?.let { context ->
-            androidx.appcompat.app.AlertDialog.Builder(context)
-                .setTitle(R.string.settings_signal_stop_bridge_title)
-                .setMessage(R.string.settings_signal_stop_bridge_summary)
-                .setNegativeButton(R.string.button_cancel, null)
-                .setPositiveButton(R.string.button_continue) { _, _ -> stopBridgeSubject.onNext(Unit) }
-                .show()
-        }
-    }
-
     override fun showSignalLink() {
         activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity.intent(it)) }
     }
 
     override fun showSignalRegister() {
         activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalRegisterActivity.intent(it)) }
-    }
-
-    override fun showBridgeOption() {
-        advancedShown = true
-        // Swapped here rather than waiting for the next state: nothing about the account has
-        // changed, so there is no new state coming to render this.
-        binding.signalAdvanced.setVisible(false)
-        binding.signalPair.setVisible(true)
-    }
-
-    override fun showSignalPairDialog() {
-        val input = EditText(activity!!).apply {
-            setHint(R.string.settings_signal_pair_dialog_hint)
-            setSingleLine(false)
-            maxLines = 4
-        }
-        AlertDialog.Builder(activity!!)
-                .setTitle(R.string.settings_signal_pair_dialog_title)
-                .setView(input)
-                .setNegativeButton(R.string.button_cancel, null)
-                // Scanning is the neutral button because pasting is what someone arriving
-                // from the browser does, and that path must not get harder. install.sh draws
-                // the same link as a QR, which is what this reads.
-                .setNeutralButton(R.string.settings_signal_pair_scan) { _, _ -> scanPairingQr() }
-                .setPositiveButton(android.R.string.ok) { _, _ ->
-                    signalPairSubject.onNext(input.text.toString())
-                }
-                .show()
-    }
-
-    /**
-     * Read the pairing link off the QR the installer draws.
-     *
-     * The alternative is getting 140 characters, two thirds of them a certificate
-     * fingerprint, from a terminal onto a phone -- which meant pairing a browser to the
-     * phone first, purely to have somewhere to paste.
-     */
-    private fun scanPairingQr() {
-        val a = activity ?: return
-        if (ContextCompat.checkSelfPermission(a, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_FOR_PAIRING)
-            return
-        }
-        // startActivityForResult rather than the AndroidX result API: this is a Conductor
-        // Controller, not an Activity or a Fragment, so there is no registry to register with.
-        val intent = ScanOptions()
-            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-            .setPrompt(a.getString(R.string.settings_signal_pair_scan_prompt))
-            .setBeepEnabled(false)
-            .setOrientationLocked(true)
-            .createScanIntent(a)
-        startActivityForResult(intent, SCAN_PAIRING_QR)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
@@ -831,29 +705,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             data?.data?.let { folder -> pendingBackupFolder = folder.toString() }
             return
         }
-        if (requestCode != SCAN_PAIRING_QR) return
-        val contents = ScanIntentResult.parseActivityResult(resultCode, data)?.contents
-        // Cancelled scans come back with null contents; that is not a failure worth a toast.
-        if (contents.isNullOrBlank()) return
-        pendingPairPayload = contents
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == CAMERA_FOR_PAIRING) {
-            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-                scanPairingQr()
-            } else {
-                Toast.makeText(activity, R.string.settings_signal_pair_scan_denied,
-                    Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    override fun showSignalPairFailed() {
-        Toast.makeText(activity, R.string.settings_signal_pair_failed, Toast.LENGTH_SHORT).show()
     }
 
     /** Arm-and-confirm, for the same reason the reset row is: it destroys messages. */

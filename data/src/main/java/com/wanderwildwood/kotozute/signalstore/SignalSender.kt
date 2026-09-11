@@ -8,6 +8,7 @@ import org.whispersystems.signalservice.api.crypto.ContentHint
 import org.whispersystems.signalservice.api.messages.SendMessageResult
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream
 import org.whispersystems.signalservice.api.messages.SignalServiceDataMessage
+import org.whispersystems.signalservice.api.messages.SignalServiceReceiptMessage
 import org.whispersystems.signalservice.api.messages.multidevice.BlockedListMessage
 import org.whispersystems.signalservice.api.messages.multidevice.RequestMessage
 import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage
@@ -218,6 +219,28 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal blocked: sending the list threw")
+        Result.Failed(t.message ?: t::class.java.simpleName)
+    }
+
+    /**
+     * Tells somebody their messages have been read.
+     *
+     * Only ever called where the reader has asked for receipts to be sent: this is the one
+     * message here that exists to tell another person something about the reader rather than
+     * to carry anything they wrote.
+     */
+    fun sendReadReceipt(recipient: ServiceId, timestamps: List<Long>): Result = try {
+        val result = sender.sendReceipt(
+            SignalServiceAddress(recipient),
+            sealedSender.accessFor(recipient.toString()),
+            SignalServiceReceiptMessage(
+                SignalServiceReceiptMessage.Type.READ, timestamps, System.currentTimeMillis()
+            ),
+            false
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+    } catch (t: Throwable) {
+        Timber.w(t, "signal receipt: send threw")
         Result.Failed(t.message ?: t::class.java.simpleName)
     }
 

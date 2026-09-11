@@ -352,7 +352,6 @@ class DesktopSyncServer(
             uri == "/api/sync" && session.method == Method.POST -> handleSyncMessages()
             uri == "/api/scheduled" && session.method == Method.GET -> handleScheduled()
             uri == "/api/blocked" && session.method == Method.GET -> handleBlocked()
-            uri == "/api/signal/pair" && session.method == Method.POST -> handleSignalPair(session)
             uri == "/api/signal/react" && session.method == Method.POST -> handleSignalReact(session)
             threadMessagesMatch != null && session.method == Method.GET ->
                 handleGetMessages(threadMessagesMatch.groupValues[1].toLong(), session)
@@ -697,40 +696,6 @@ class DesktopSyncServer(
         }
     }
 
-    private fun handleSignalPair(session: IHTTPSession): Response {
-        if (!DesktopSyncService.isAllowedPeer(session.remoteIpAddress)) {
-            Timber.w("Desktop Sync: refused a bridge pairing over cleartext from %s", session.remoteIpAddress)
-            return jsonResponse(
-                Response.Status.FORBIDDEN,
-                JSONObject().put(
-                    "error",
-                    "pairing carries the bridge's password, so it needs an encrypted " +
-                        "connection — reach this page over Tailscale, or paste the link " +
-                        "on the phone instead"
-                )
-            )
-        }
-        val submission = readSubmission(session)
-            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
-        val payload = submission.body.trim()
-        if (payload.isEmpty()) {
-            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "nothing pasted"))
-        }
-        if (!signalRepository.pair(payload)) {
-            // Said precisely: the usual cause is a half-copied line, and "failed" would not
-            // tell anyone that.
-            return jsonResponse(
-                Response.Status.BAD_REQUEST,
-                JSONObject().put(
-                    "error",
-                    "that does not look like a bridge pairing link — it should begin " +
-                        "kotozute-bridge:// and end with a long fp= value"
-                )
-            )
-        }
-        Timber.i("Desktop Sync: paired with a Signal bridge from the browser")
-        return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
-    }
 
     /**
      * Search both rails by message body, not just by name.

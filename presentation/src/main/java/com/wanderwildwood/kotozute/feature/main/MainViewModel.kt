@@ -131,7 +131,17 @@ class MainViewModel @Inject constructor(
         val signal = signalRepo.searchThreads(query.toString()).map {
             InboxSearchResult.Signal(it.thread, it.messages, it.snippet)
         }
-        return (sms + signal).sortedWith(compareBy({ it.messages > 0 }, { -it.messages }))
+        // The same rule the list follows: a person whose two rails are one conversation is
+        // one result. Without this a search for somebody found them twice and the two hits
+        // disagreed, each having looked at half of what they said.
+        val joined = signal.mapNotNull { hit ->
+            runCatching { signalRepo.linkedConversationId(hit.thread.threadKey) }.getOrNull()
+                ?: hit.thread.counterpartNumber.takeIf { it.isNotBlank() }?.let { number ->
+                    runCatching { conversationRepo.getConversation(listOf(number))?.id }.getOrNull()
+                }
+        }.toSet()
+        val unique = sms.filterNot { it.result.conversation.id in joined }
+        return (unique + signal).sortedWith(compareBy({ it.messages > 0 }, { -it.messages }))
     }
 
     private fun markEverythingRead() {

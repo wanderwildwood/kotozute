@@ -60,6 +60,8 @@ class SignalThreadActivity : QkThemedActivity() {
     @Inject lateinit var scheduledMessageRepo: ScheduledMessageRepository
     @Inject lateinit var sendNewMessage: com.wanderwildwood.kotozute.interactor.SendNewMessage
     @Inject lateinit var markTextRead: com.wanderwildwood.kotozute.interactor.MarkRead
+    @Inject lateinit var markTextArchived: com.wanderwildwood.kotozute.interactor.MarkArchived
+    @Inject lateinit var markTextUnarchived: com.wanderwildwood.kotozute.interactor.MarkUnarchived
     @Inject lateinit var updateScheduledMessageAlarms: UpdateScheduledMessageAlarms
 
     private lateinit var binding: SignalThreadActivityBinding
@@ -480,6 +482,13 @@ class SignalThreadActivity : QkThemedActivity() {
         R.id.archiveSignal -> {
             val nowArchived = !isArchived
             signalRepo.setArchived(threadKey, nowArchived)
+            // Both halves, because the inbox shows one row for both. Archiving only the
+            // Signal side took that row away and let the text conversation spring back as a
+            // row of its own -- so archiving a person made them reappear.
+            linkedConversationId?.takeIf { it != 0L }?.let { id ->
+                if (nowArchived) markTextArchived.execute(listOf(id))
+                else markTextUnarchived.execute(listOf(id))
+            }
             if (nowArchived) {
                 Toast.makeText(this, R.string.signal_archived_toast, Toast.LENGTH_SHORT).show()
             }

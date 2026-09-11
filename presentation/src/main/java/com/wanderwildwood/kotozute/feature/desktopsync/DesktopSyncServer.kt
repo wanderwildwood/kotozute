@@ -823,12 +823,36 @@ class DesktopSyncServer(
      * they said -- and replying in one of them put the answer somewhere the other could not
      * see. The joining rule is the phone's: a shared number, or a link made by hand.
      */
+    /** What a Signal row can be asked to do. Signal has no delete that means anything here. */
+    private val SIGNAL_THREAD_ACTIONS = setOf(
+        "archive", "unarchive", "pin", "unpin", "mute", "unmute", "unread", "block", "unblock"
+    )
+
     private fun joinedConversationId(thread: SignalThread): Long? =
         runCatching { signalRepository.linkedConversationId(thread.threadKey) }.getOrNull()
-            ?: thread.counterpartNumber.takeIf { it.isNotBlank() }?.let { number ->
+            ?: numberFor(thread)?.let { number ->
                 runCatching { conversationRepository.getConversation(listOf(number))?.id }
                     .getOrNull()
             }
+
+    /**
+     * The number to match a Signal thread on.
+     *
+     * Note to Self carries none: its counterpart is the account itself. The text
+     * conversation somebody keeps with their own number is the same conversation with
+     * themselves, and the account's own number is the only thing that links them.
+     */
+    private fun numberFor(thread: SignalThread): String? {
+        thread.counterpartNumber.takeIf { it.isNotBlank() }?.let { return it }
+        if (thread.kind != "direct") return null
+        val self = runCatching { signalRepository.selfNumber() }.getOrDefault("")
+        val selfAci = runCatching { signalRepository.account().selfUuid }.getOrDefault("")
+        return if (self.isNotBlank() && selfAci.isNotBlank() && thread.counterpartUuid == selfAci) {
+            self
+        } else {
+            null
+        }
+    }
 
     private fun joinedConversationIds(threads: List<SignalThread>): Set<Long> =
         if (!signalEnabled()) emptySet()
@@ -1071,6 +1095,14 @@ class DesktopSyncServer(
 
         signalThreadFor(threadId)?.let { thread ->
             val key = thread.threadKey
+            // Checked before anything is done rather than after: a rejected action should
+            // leave the conversation as it found it.
+            if (action !in SIGNAL_THREAD_ACTIONS) {
+                return jsonResponse(
+                    Response.Status.BAD_REQUEST,
+                    JSONObject().put("error", "signal threads do not support \"" + action + "\"")
+                )
+            }
             val done = runCatching {
                 when (action) {
                     "archive" -> signalRepository.setArchived(key, true)
@@ -1082,10 +1114,26 @@ class DesktopSyncServer(
                     "unread" -> signalRepository.markUnread(key)
                     "block" -> signalRepository.setBlocked(key, true)
                     "unblock" -> signalRepository.setBlocked(key, false)
-                    else -> return jsonResponse(
-                        Response.Status.BAD_REQUEST,
-                        JSONObject().put("error", "signal threads do not support \"" + action + "\"")
-                    )
+                }
+                // The same thing to the other half, where the row stands for both. Done to
+                // the Signal side alone, archiving took the merged row out of the list and
+                // let the text conversation spring back as a row of its own -- so archiving
+                // a person made them reappear -- and muting left half their messages
+                // chiming.
+                //
+                // Blocking is deliberately not here: it acts on the Signal account, and
+                // blocking somebody's texts as well is a bigger claim than the button made.
+                joinedConversationId(thread)?.let { id ->
+                    when (action) {
+                        "archive" -> conversationRepository.markArchived(id)
+                        "unarchive" -> conversationRepository.markUnarchived(listOf(id))
+                        "pin" -> conversationRepository.markPinned(id)
+                        "unpin" -> conversationRepository.markUnpinned(id)
+                        "mute" -> prefs.notifications(id).set(false)
+                        "unmute" -> prefs.notifications(id).set(true)
+                        "unread" -> messageRepository.markUnread(listOf(id))
+                        else -> Unit
+                    }
                 }
             }
             done.exceptionOrNull()?.let { failure ->

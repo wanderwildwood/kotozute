@@ -219,9 +219,29 @@ class MainViewModel @Inject constructor(
     /** The text conversation a Signal thread stands for; the phone's one joining rule. */
     private fun joinedConversationId(thread: com.wanderwildwood.kotozute.model.SignalThread): Long? =
         runCatching { signalRepo.linkedConversationId(thread.threadKey) }.getOrNull()
-            ?: thread.counterpartNumber.takeIf { it.isNotBlank() }?.let { number ->
+            ?: numberFor(thread)?.let { number ->
                 runCatching { conversationRepo.getConversation(listOf(number))?.id }.getOrNull()
             }
+
+    /**
+     * The number to match a Signal thread on.
+     *
+     * Note to Self is the one thread whose counterpart is the account itself, and it carries
+     * no number at all -- while the text conversation somebody keeps with their own number
+     * is the same conversation with themselves. Nothing but the account's own number links
+     * the two.
+     */
+    private fun numberFor(thread: com.wanderwildwood.kotozute.model.SignalThread): String? {
+        thread.counterpartNumber.takeIf { it.isNotBlank() }?.let { return it }
+        if (thread.kind != "direct") return null
+        val self = runCatching { signalRepo.selfNumber() }.getOrDefault("")
+        val selfAci = runCatching { signalRepo.account().selfUuid }.getOrDefault("")
+        return if (self.isNotBlank() && selfAci.isNotBlank() && thread.counterpartUuid == selfAci) {
+            self
+        } else {
+            null
+        }
+    }
 
     private fun joinedConversations(
         signal: List<InboxItem.Signal>
@@ -233,10 +253,9 @@ class MainViewModel @Inject constructor(
                 val byHand = runCatching { signalRepo.linkedConversationId(thread.threadKey) }
                     .getOrNull()
                     ?.let { id -> runCatching { conversationRepo.getConversation(id) }.getOrNull() }
-                val byNumber = byHand ?: thread.counterpartNumber.takeIf { it.isNotBlank() }
-                    ?.let { number ->
-                        runCatching { conversationRepo.getConversation(listOf(number)) }.getOrNull()
-                    }
+                val byNumber = byHand ?: numberFor(thread)?.let { number ->
+                    runCatching { conversationRepo.getConversation(listOf(number)) }.getOrNull()
+                }
                 byNumber?.takeIf { it.isValid }?.let { put(item.stableId, it) }
             }
         }

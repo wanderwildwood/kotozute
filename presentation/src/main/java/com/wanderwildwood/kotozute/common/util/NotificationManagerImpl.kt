@@ -74,8 +74,29 @@ class NotificationManagerImpl @Inject constructor(
     private val permissions: PermissionManager,
     private val phoneNumberUtils: PhoneNumberUtils,
     private val contactRepo: ContactRepository,
-    private val shortcutManager: ShortcutManager
+    private val shortcutManager: ShortcutManager,
+    private val signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
 ) : com.wanderwildwood.kotozute.manager.NotificationManager {
+
+    /**
+     * The Signal thread this text conversation is part of, when the two are one.
+     *
+     * Only while Signal is switched on and woven into the one list: with two lists the text
+     * conversation still has a row of its own, and sending a notification somewhere else
+     * would be the surprising answer rather than the consistent one.
+     */
+    private fun mergedThreadKey(threadId: Long): String? {
+        if (!prefs.signalEnabled.get() || !prefs.signalWeave.get()) return null
+        return runCatching { signalRepo.linkedThreadKeyFor(threadId) }.getOrNull()
+            ?: runCatching {
+                conversationRepo.getConversation(threadId)
+                    ?.recipients
+                    ?.takeIf { it.size == 1 }
+                    ?.firstOrNull()
+                    ?.address
+                    ?.let { signalRepo.findThreadForNumber(it)?.threadKey }
+            }.getOrNull()
+    }
 
     companion object {
         const val DEFAULT_CHANNEL_ID = "notifications_default"
@@ -152,7 +173,17 @@ class NotificationManagerImpl @Inject constructor(
             }
         } ?: conversation.recipients.firstOrNull()
 
-        val contentIntent = Intent(context, ComposeActivity::class.java).putExtra("threadId", threadId)
+        // Where this person's texts and their Signal are one conversation, the notification
+        // opens that one. The inbox has a single row for them now, so opening the text half
+        // on its own would land somewhere the list no longer offers -- and would show half
+        // of what they said.
+        val merged = mergedThreadKey(threadId)
+        val contentIntent = if (merged != null) {
+            com.wanderwildwood.kotozute.feature.signal.SignalConversationsActivity
+                .intentFor(context, merged, conversation.getTitle())
+        } else {
+            Intent(context, ComposeActivity::class.java).putExtra("threadId", threadId)
+        }
         val taskStackBuilder = TaskStackBuilder.create(context)
                 .addParentStack(ComposeActivity::class.java)
                 .addNextIntent(contentIntent)

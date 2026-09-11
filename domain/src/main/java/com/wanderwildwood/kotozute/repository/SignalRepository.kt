@@ -281,6 +281,15 @@ interface SignalRepository {
      */
     fun importHistory(folder: String, key: String = "", onProgress: (Int) -> Unit = {}): ImportStats
 
+    /**
+     * Whether this device has been given the account's blocked list.
+     *
+     * Blocking is offered only when it has. Signal syncs the list whole, so a device without
+     * one cannot change it without replacing it -- and a button that can only ever refuse is
+     * worse than no button.
+     */
+    fun canBlock(): Boolean
+
     /** Whether [folder] holds a backup this app wrote, which cannot be read without its key. */
     fun isLockedBackup(folder: String): Boolean
 

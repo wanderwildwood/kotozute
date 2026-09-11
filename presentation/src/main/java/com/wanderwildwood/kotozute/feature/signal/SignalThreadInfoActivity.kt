@@ -77,6 +77,15 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             ).show()
         }
 
+        // Offered only once this device has the account's blocked list. Signal syncs that
+        // list whole, so a device without one cannot add to it -- and a row that can only
+        // answer "not yet" is worse than a row that is not there. Read off the Looper: it
+        // opens the protocol store.
+        thread(isDaemon = true) {
+            val canBlock = runCatching { signalRepo.canBlock() }.getOrDefault(false)
+            runOnUiThread { if (!isFinishing) binding.block.setVisible(canBlock) }
+        }
+
         // Blocking reaches the Signal account, so it arms and confirms rather than acting
         // on one tap: the row says what a second tap will do, and disarms itself after a
         // few seconds so a stray tap does not leave a live trigger sitting there.

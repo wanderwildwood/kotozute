@@ -1368,6 +1368,8 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun canBlock(): Boolean = runCatching { signalStore.blockedListKnown() }.getOrDefault(false)
+
     override fun isLockedBackup(folder: String): Boolean = runCatching {
         com.wanderwildwood.kotozute.signalstore.TreeExportSource(
             context, android.net.Uri.parse(folder)

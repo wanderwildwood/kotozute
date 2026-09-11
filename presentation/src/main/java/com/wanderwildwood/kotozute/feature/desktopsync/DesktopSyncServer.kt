@@ -2018,6 +2018,10 @@ class DesktopSyncServer(
     private fun handleMarkRead(threadId: Long): Response {
         signalThreadFor(threadId)?.let { thread ->
             signalRepository.markRead(thread.threadKey, System.currentTimeMillis())
+            // Reading the conversation reads both halves of it. The text side has no row of
+            // its own in the list any more, so leaving it unread left a badge on the phone
+            // with nothing behind it -- and the browser showing the messages that caused it.
+            joinedConversationId(thread)?.let { markRead.execute(listOf(it)) }
             notifyChanged()
             return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
         }

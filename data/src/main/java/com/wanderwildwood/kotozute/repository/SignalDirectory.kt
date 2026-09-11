@@ -39,10 +39,16 @@ internal object SignalDirectory {
      * sync would appear a second time under the account holder's own name, which reads as a
      * stranger who happens to share it.
      */
+    /**
+     * [nameForNumber] is the reader's own address book. Consulted only where neither source
+     * supplied a name, and only where a number is known -- on a linked device that is the
+     * difference between a list of service ids and a list of people.
+     */
     fun merge(
         threads: List<Row>,
         contacts: List<Row>,
-        selfAci: String?
+        selfAci: String?,
+        nameForNumber: (String) -> String? = { null }
     ): List<SignalRepository.Person> {
         val names = mutableMapOf<String, String>()
         val numbers = mutableMapOf<String, String>()
@@ -67,7 +73,9 @@ internal object SignalDirectory {
                 // Never blank. A name, then the number, then the service id shortened -- the
                 // same order the inbox falls back through, so one person does not read as two
                 // different people depending on which list they are met in.
-                name = names[uuid] ?: number.ifBlank { uuid.take(SHORT_SERVICE_ID) },
+                name = names[uuid]
+                    ?: number.takeIf { it.isNotBlank() }?.let(nameForNumber)
+                    ?: number.ifBlank { uuid.take(SHORT_SERVICE_ID) },
                 number = number
             )
         }.sortedBy { person -> person.name.lowercase() }

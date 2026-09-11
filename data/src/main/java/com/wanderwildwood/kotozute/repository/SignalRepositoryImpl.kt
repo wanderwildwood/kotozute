@@ -298,14 +298,125 @@ class SignalRepositoryImpl @Inject constructor(
         )
     }
 
+    /**
+     * What the phone's own address book calls a number, or null.
+     *
+     * A linked device has no way to resolve a service id on its own -- that is why threads
+     * show raw ids until somebody's client shares a profile key. But once a number is known
+     * for a service id, the reader almost always already has that number in their contacts,
+     * under the name they chose. That name is better than anything the account can supply,
+     * and it costs a lookup rather than a network call.
+     *
+     * Numbers are compared, not matched as text: the address book holds "828 555 0123" where
+     * Signal says "+18285550123".
+     */
+    private fun addressBookName(number: String): String? {
+        if (number.isBlank()) return null
+        return runCatching {
+            Realm.getDefaultInstance().use { realm ->
+                realm.where(com.wanderwildwood.kotozute.model.Contact::class.java)
+                    .findAll()
+                    .firstOrNull { contact ->
+                        contact.numbers.any { phoneNumberUtils.compare(it.address, number) }
+                    }
+                    ?.name
+                    ?.takeIf { it.isNotBlank() }
+            }
+        }.getOrNull()
+    }
+
+    /** A name for a service id: what the account calls them, else the reader's own contacts. */
+    private fun nameForCounterpart(uuid: String): String? =
+        signalStore.contactName(uuid)
+            ?: signalStore.contactNumber(uuid)?.let { addressBookName(it) }
+
+    /**
+     * Joins a conversation that got split across two threads for one person.
+     *
+     * A transcript of our own send used to be filed under the recipient's *number* whenever it
+     * did not name them by service id, while everything they sent arrived under their service
+     * id -- so one conversation sat in the inbox twice, and the half keyed by a number refused
+     * every reply, because a number is not a service id. Transcripts are read properly now;
+     * this is for the threads that already exist on a phone that ran the old build.
+     *
+     * Messages are moved, never deleted. The only row that goes is the thread it emptied.
+     */
+    private fun mergeNumberKeyedThreads() {
+        val numberKeyed = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java)
+                .equalTo("kind", "direct")
+                .findAll()
+                .map { it.threadKey }
+                .filter { it.startsWith("direct:+") }
+        }
+        if (numberKeyed.isEmpty()) return
+        // Resolved outside the transaction: the pairing lives in the protocol database, and
+        // asking it is not something to do with a Realm write held open.
+        val moves = numberKeyed.mapNotNull { key ->
+            signalStore.contactAciForNumber(key.removePrefix("direct:"))
+                ?.let { aci -> key to "direct:$aci" }
+        }.filter { (from, to) -> from != to }
+        if (moves.isEmpty()) return
+
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                moves.forEach { (from, to) ->
+                    val number = from.removePrefix("direct:")
+                    val target = r.where(SignalThread::class.java).equalTo("threadKey", to).findFirst()
+                        ?: r.createObject(SignalThread::class.java, to).apply {
+                            kind = "direct"
+                            counterpartUuid = to.removePrefix("direct:")
+                        }
+                    if (target.counterpartNumber.isBlank()) target.counterpartNumber = number
+                    val old = r.where(SignalThread::class.java).equalTo("threadKey", from).findFirst()
+                    if (target.title.isBlank() && old != null && old.title.isNotBlank()) {
+                        target.title = old.title
+                    }
+                    // Snapshot: the rows are being changed by the very field the query
+                    // selects on, so a live result would shrink underneath the loop and
+                    // leave half the conversation behind.
+                    r.where(SignalMessage::class.java)
+                        .equalTo("threadKey", from)
+                        .findAll()
+                        .createSnapshot()
+                        .forEach { it.threadKey = to }
+                    old?.deleteFromRealm()
+                    refreshThreadPreview(r, to)
+                }
+            }
+        }
+        Timber.i("signal: joined %d split conversation(s)", moves.size)
+    }
+
     private fun renameThreadsFromContacts() {
+        mergeNumberKeyedThreads()
         contactsChanged()
         val names = signalStore.contactNames()
-        if (names.isEmpty()) return
+        // Not returned on an empty map any more. The account's own names are one source of
+        // two now, and the reader's address book -- reached through a number learned from a
+        // transcript -- is the one that answers on an account where no name has ever arrived.
+        val nameless = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java)
+                .equalTo("kind", "direct")
+                .findAll()
+                .filter { it.title.isBlank() }
+                .map { it.counterpartUuid }
+                .filter { it.isNotBlank() }
+                .distinct()
+        }
+        // Resolved outside the transaction: each one reads Realm itself, and a nested
+        // transaction on the same thread is not a thing.
+        val fromAddressBook = nameless
+            .filter { names[it].isNullOrBlank() }
+            .mapNotNull { uuid -> nameForCounterpart(uuid)?.let { uuid to it } }
+            .toMap()
+        if (names.isEmpty() && fromAddressBook.isEmpty()) return
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 r.where(SignalThread::class.java).equalTo("kind", "direct").findAll().forEach { thread ->
-                    val name = names[thread.counterpartUuid] ?: return@forEach
+                    val name = names[thread.counterpartUuid]
+                        ?: fromAddressBook[thread.counterpartUuid]
+                        ?: return@forEach
                     // Only fills a gap. A title the user's own address book supplied, or one
                     // the bridge resolved, is the better answer and must not be overwritten by
                     // whatever the primary happens to call the same person.
@@ -784,7 +895,10 @@ class SignalRepositoryImpl @Inject constructor(
                     // learn a name. Blank until that sync arrives, which the UI renders as the
                     // service id; naming happens again in renameThreadsFromContacts() once it
                     // does, so a thread created before the sync is not stuck nameless.
-                    else -> signalStore.contactName(counterpartUuid).orEmpty()
+                    // The account's own name for them, then the reader's own address book
+                    // via a number the account knows -- which is the only one that answers
+                    // for a person whose client has never shared a profile key.
+                    else -> nameForCounterpart(counterpartUuid).orEmpty()
                 }
             }
         // Only the newest message speaks for the thread. Messages can arrive out of
@@ -1355,7 +1469,9 @@ class SignalRepositoryImpl @Inject constructor(
             )
         }
 
-        return SignalDirectory.merge(threads, contacts, signalStore.selfAciOrNull())
+        return SignalDirectory.merge(threads, contacts, signalStore.selfAciOrNull()) { number ->
+            addressBookName(number)
+        }
     }
 
     /**

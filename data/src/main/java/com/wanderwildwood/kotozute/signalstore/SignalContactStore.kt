@@ -66,6 +66,20 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         ).use { c -> if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() } else null }
     }
 
+    /** The number for one service id, or null when nothing has ever carried it. */
+    fun numberFor(aci: String): String? = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT e164 FROM contact WHERE aci = ?", arrayOf(aci)
+        ).use { c -> if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() } else null }
+    }
+
+    /** The service id known for one number, or null. */
+    fun aciForNumber(e164: String): String? = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT aci FROM contact WHERE e164 = ?", arrayOf(e164)
+        ).use { c -> if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() } else null }
+    }
+
     /** Contacts whose profile could be fetched, and whose name we do not already have. */
     fun needingProfile(): List<Pair<String, ByteArray>> = withStoreLock(db) {
         db.readableDatabase.rawQuery(

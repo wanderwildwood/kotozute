@@ -360,6 +360,13 @@ internal class SignalReceiver(
                 // without one a profile fetch returns ciphertext.
                 rememberProfileKey(result.content, result.metadata)
 
+                // A transcript of our own send names the recipient twice: by service id and,
+                // usually, by number. That pairing arrives nowhere else on a linked device --
+                // no contact discovery is done here and an incoming envelope carries no
+                // number -- and it is what lets a Signal conversation be matched to a person
+                // in the phone's own address book instead of showing a raw service id.
+                rememberDestination(result.content)
+
                 // A contacts sync is not a message and never becomes one -- it is the
                 // primary answering a request, and the only way this device learns anybody's
                 // name. Handled before normalizing, which would find nothing to store in it.
@@ -446,6 +453,21 @@ internal class SignalReceiver(
         // hand anyone, and it should not be in a log to buy a slightly better debug line.
         Timber.i("signal profile: noted a profile key")
         contacts.store(listOf(SignalContactStore.Contact(aci = aci, e164 = null, name = null, profileKey = key)))
+    }
+
+    /**
+     * Notes who one of our own sends went to, when the transcript says it in full.
+     *
+     * Only the pairing, never a name: the number is a fact the account already has, while a
+     * name for it is the reader's own business and comes from their address book.
+     */
+    private fun rememberDestination(
+        content: org.whispersystems.signalservice.internal.push.Content
+    ) {
+        val sent = content.syncMessage?.sent ?: return
+        val aci = ContentNormalizer.destinationServiceIdOf(sent).takeIf { it.isNotBlank() } ?: return
+        val e164 = sent.destinationE164?.takeIf { it.isNotBlank() } ?: return
+        contacts.store(listOf(SignalContactStore.Contact(aci = aci, e164 = e164, name = null)))
     }
 
     /**

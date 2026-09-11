@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The llama, from his own tattoo. Traced from the original at full resolution and
+    fitted to a 96 box, so it stays square-edged at any size and is solid black on the
+    panel rather than the pale grey a colour emoji dithers down to.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <path
+        android:pathData="M67.86,20.15L67.86,35.75L35.93,35.75L4.0,35.75L4.0,43.92L4.0,52.08L8.08,52.08L12.17,52.08L12.17,60.25L12.17,68.42L16.25,68.42L20.34,68.42L20.34,79.93L20.34,91.44L24.42,91.44L28.51,91.44L28.51,76.22L28.51,61.0L32.22,61.0L35.93,61.0L35.93,64.71L35.93,68.42L40.02,68.42L44.1,68.42L44.1,72.14L44.1,75.85L51.9,75.85L59.7,75.85L59.7,83.65L59.7,91.44L63.78,91.44L67.86,91.44L67.86,79.93L67.86,68.5L72.17,68.27L76.41,68.05L76.48,66.94L76.55,65.82L76.63,63.0L76.78,60.25L80.49,60.25L84.2,60.25L84.2,40.65L84.2,20.97L88.14,20.75L92.0,20.52L92.0,16.44L92.0,12.35L84.05,12.13L76.03,11.91L76.03,8.27L76.03,4.56L71.95,4.56L67.86,4.56L67.86,20.15Z"
+        android:fillColor="#000000" />
+</vector>

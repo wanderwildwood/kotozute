@@ -1583,10 +1583,14 @@ class DesktopSyncServer(
                 }.getOrDefault(emptyList())
             }.orEmpty()
             val signalHalf = signalRepository.getMessagesSnapshot(thread.threadKey, limit)
+            // The newest [limit] of the conversation, not of each half. Taking that many
+            // from both and returning them all made a request for 200 answer with 400, and
+            // the browser's paging arithmetic is built on the number it asked for.
             val array = JSONArray()
             (signalHalf.map { it.date to signalMessageJson(it, senders) } +
                 textHalf.map { it.date to messageJson(it) })
                 .sortedBy { it.first }
+                .takeLast(limit)
                 .forEach { array.put(it.second) }
             // The same envelope the SMS branch returns. A bare array here meant the browser
             // read hasMore as false for every Signal thread, so "Load older messages" was

@@ -608,6 +608,20 @@ class SignalRepositoryImpl @Inject constructor(
                 runCatching { signalStore.requestContacts() }
                     .onSuccess { Timber.i("signal contacts: %s", it) }
                     .onFailure { Timber.w(it, "signal contacts: could not ask") }
+                // Only while it is missing. This is the account's own key material and there
+                // is no reason to have it sent again once it is here.
+                if (!signalStore.storageKeyKnown()) {
+                    runCatching { signalStore.requestKeys() }
+                        .onSuccess { Timber.i("signal keys: %s", it) }
+                        .onFailure { Timber.w(it, "signal keys: could not ask") }
+                } else {
+                    // Where the key is already here, the list is read now rather than waiting
+                    // for another sync: a contacts sync is what modern Signal stopped
+                    // sending, and this is what replaced it.
+                    runCatching { signalStore.readStorage() }
+                        .onSuccess { Timber.i("signal storage: %s", it) }
+                        .onFailure { Timber.w(it, "signal storage: could not read") }
+                }
             }
             thread(name = "signal-listen-$generation", isDaemon = true) { listenLoop(generation) }
         }
@@ -862,32 +876,38 @@ class SignalRepositoryImpl @Inject constructor(
      * is delivered on the main looper.
      */
     override fun markRead(threadKey: String, upToTs: Long) = runOffThread {
+        // Taken before they are changed, and only the ones this call changes. Afterwards
+        // nothing tells a message read a moment ago from one read last year, and the cost of
+        // that difference is a receipt for every message in the thread, every time a new one
+        // arrives -- telling somebody over and over that their whole history has just been
+        // read.
+        val justRead = mutableListOf<Long>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
-                r.where(SignalMessage::class.java)
+                val unread = r.where(SignalMessage::class.java)
                     .equalTo("threadKey", threadKey)
                     .equalTo("outgoing", false)
                     .equalTo("read", false)
                     .lessThanOrEqualTo("date", upToTs)
                     .findAll()
-                    .forEach { it.read = true }
+                // A snapshot, because `read` is what the query filters on: setting it while
+                // walking the live results takes rows out from under the iteration and
+                // silently skips half of them.
+                unread.createSnapshot().forEach { message ->
+                    justRead += message.date
+                    message.read = true
+                }
                 r.where(SignalThread::class.java).equalTo("threadKey", threadKey)
                     .findFirst()?.unread = 0
             }
         }
         // The receipt goes out on this device's own connection, and only where the reader
         // asked for receipts to be sent. A receipt names the messages by the timestamps they
-        // were sent with, so they are read off the rows that were just marked.
+        // were sent with, which is what was just collected.
         if (!prefs.signalReadReceipts.get() || !threadKey.startsWith("direct:")) return@runOffThread
-        val marked = Realm.getDefaultInstance().use { realm ->
-            realm.where(SignalMessage::class.java)
-                .equalTo("threadKey", threadKey)
-                .equalTo("outgoing", false)
-                .lessThanOrEqualTo("date", upToTs)
-                .findAll()
-                .map { it.date }
-        }
-        runCatching { signalStore.sendReadReceipt(threadKey.removePrefix("direct:"), marked) }
+        if (justRead.isEmpty()) return@runOffThread
+        runCatching { signalStore.sendReadReceipt(threadKey.removePrefix("direct:"), justRead) }
+            .onSuccess { Timber.i("signal receipt: told them about %d message(s)", justRead.size) }
             .onFailure { Timber.d("read receipt not delivered: ${it.message}") }
     }
 

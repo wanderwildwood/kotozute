@@ -2,6 +2,7 @@ package com.wanderwildwood.kotozute.signalstore
 
 import android.content.Context
 import org.whispersystems.signalservice.api.SignalServiceDataStore
+import timber.log.Timber
 import org.whispersystems.signalservice.api.messages.multidevice.BlockedListMessage
 
 /**
@@ -160,7 +161,16 @@ class SignalStore(private val context: Context) {
         return try {
             val result = SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts, blocks,
+                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts, blocks, keys,
+            {
+                // The key has just arrived: read the account's contact list with it, and let
+                // the caller rename its threads if anybody was learned.
+                val read = runCatching { readStorage() }
+                    .onFailure { Timber.w(it, "signal storage: could not read") }
+                    .getOrNull()
+                Timber.i("signal storage: %s", read ?: "not read")
+                onNamesLearned()
+            },
                 {
                     // Fetch whatever names became fetchable, then let the caller rename its
                     // threads -- only if something was actually learned, so a quiet batch
@@ -337,6 +347,36 @@ class SignalStore(private val context: Context) {
 
     fun isBlocked(aci: String): Boolean = runCatching { blocks.isBlocked(aci) }.getOrDefault(false)
 
+    /**
+     * Reads the account's contact list out of the storage service, where modern Signal keeps
+     * it. Returns what it did, in a sentence, for a status line and a log.
+     */
+    fun readStorage(): String {
+        val result = SignalStorageService(connection, keys, contacts).read()
+        return result.reason ?: "${result.contacts} contact(s) from ${result.records} record(s)"
+    }
+
+    /** Whether the storage service key is here yet. */
+    fun storageKeyKnown(): Boolean = runCatching { keys.known() }.getOrDefault(false)
+
+    /**
+     * Asks the primary for the account's keys. Asked once per connection and only while the
+     * answer is still missing: it is the account's own key material, and there is no reason
+     * to have it sent again once it is here.
+     */
+    fun requestKeys(): String {
+        connection.connect()
+        return when (
+            val r = SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).requestKeys()
+        ) {
+            is SignalSender.Result.Sent -> "requested"
+            is SignalSender.Result.Failed -> r.reason
+        }
+    }
+
     /** Asks the primary for the blocked list. The answer arrives later, through the socket. */
     fun requestBlockedList(): String {
         connection.connect()
@@ -396,7 +436,16 @@ class SignalStore(private val context: Context) {
         connection.connect()
         SignalReceiver(
             database, account, SignalDataStore(database, account), connection,
-            SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts, blocks,
+            SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts, blocks, keys,
+            {
+                // The key has just arrived: read the account's contact list with it, and let
+                // the caller rename its threads if anybody was learned.
+                val read = runCatching { readStorage() }
+                    .onFailure { Timber.w(it, "signal storage: could not read") }
+                    .getOrNull()
+                Timber.i("signal storage: %s", read ?: "not read")
+                onNamesLearned()
+            },
             {
                 // Fetch whatever names became fetchable, then let the caller rename its
                 // threads -- only if something was actually learned, so a quiet batch does
@@ -421,6 +470,9 @@ class SignalStore(private val context: Context) {
 
     /** The account's blocked list, as the primary last sent it. */
     internal val blocks: SignalBlockStore by lazy { SignalBlockStore(database) }
+
+    /** The account's own keys; see [SignalKeyStore] for why they are kept where they are. */
+    internal val keys: SignalKeyStore by lazy { SignalKeyStore(database) }
 
     /** The name known for a service id, or null. */
     /** A peer's safety number and trust level, or null if they are unknown to the store. */

@@ -40,6 +40,25 @@ internal object SignalDirectory {
      * stranger who happens to share it.
      */
     /**
+     * Whether to offer, once, to read the account's contact list.
+     *
+     * Three conditions, and all of them matter. [linkedDirectly] because a paired bridge
+     * resolves names on its own side and has no use for the account's key material.
+     * [storageKeyKnown] because once the list has been read there is nothing to offer.
+     * [anyNamesKnown] because a phone whose primary answered the ordinary contacts sync is
+     * already showing names, and offering to fetch something it has is noise.
+     *
+     * Kept here, away from the database and the account, because the cost of getting it
+     * wrong is a dialog in front of somebody who did not need it -- which is the thing a
+     * one-off prompt cannot afford to do.
+     */
+    fun shouldOfferContactFetch(
+        linkedDirectly: Boolean,
+        storageKeyKnown: Boolean,
+        anyNamesKnown: Boolean
+    ): Boolean = linkedDirectly && !storageKeyKnown && !anyNamesKnown
+
+    /**
      * [nameForNumber] is the reader's own address book. Consulted only where neither source
      * supplied a name, and only where a number is known -- on a linked device that is the
      * difference between a list of service ids and a list of people.

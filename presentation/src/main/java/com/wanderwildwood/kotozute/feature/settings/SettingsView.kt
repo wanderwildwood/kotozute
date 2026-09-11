@@ -34,6 +34,9 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun desktopSyncResetConfirmed(): Observable<*>
     fun signalUnpairConfirmed(): Observable<*>
 
+    /** The one-off offer to read the account's contact list, answered yes. */
+    fun signalFetchContactsConfirmed(): Observable<*>
+
     /** The folder the reader picked to read an export from, as a tree uri. */
     fun signalExportFolderChosen(): Observable<String>
 
@@ -62,6 +65,15 @@ interface SettingsView : QkViewContract<SettingsState> {
 
     /** What asking Signal for the contact list came to. */
     fun showSignalFetchResult(what: String)
+
+    /**
+     * Offers to read the account's contact list, saying what that fetches and why.
+     *
+     * Shown once, on a phone that has just been linked and has no names to show. Not a
+     * warning and not a step: a linked device works without it, it simply shows service ids
+     * where names would be.
+     */
+    fun askFetchContacts()
 
     /** Ask for the digits that open a backup this app wrote. */
     fun askSignalBackupKey(folder: String)

@@ -115,6 +115,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private var pendingExportFolder: String? = null
     private var pendingBackupFolder: String? = null
     private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
+    private val signalFetchContactsSubject: Subject<Unit> = PublishSubject.create()
     private val aboutLongClickSubject: Subject<Unit> = PublishSubject.create()
 
 
@@ -233,6 +234,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun signalBackupKeyEntered(): Observable<Pair<String, String>> = signalBackupKeySubject
 
     override fun signalUnpairConfirmed(): Observable<*> = signalUnpairSubject
+
+    override fun signalFetchContactsConfirmed(): Observable<*> = signalFetchContactsSubject
 
     private companion object {
         /** How long an armed row stays armed. Birding's ConfirmingRow uses the same five seconds. */
@@ -514,6 +517,22 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * looking at the row they just tapped, and a dialog that cannot be dismissed while
      * thousands of messages are read is a locked screen with a number on it.
      */
+    override fun askFetchContacts() {
+        activity?.runOnUiThread {
+            val activity = activity ?: return@runOnUiThread
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.settings_signal_fetch_contacts_offer_title)
+                .setMessage(R.string.settings_signal_fetch_contacts_offer_body)
+                .setPositiveButton(R.string.settings_signal_fetch_contacts_offer_yes) { _, _ ->
+                    signalFetchContactsSubject.onNext(Unit)
+                }
+                // Dismissible, and nothing breaks if it is dismissed. The row in this screen
+                // does the same thing whenever they want it.
+                .setNegativeButton(R.string.settings_signal_fetch_contacts_offer_no, null)
+                .show()
+        }
+    }
+
     override fun showSignalFetchResult(what: String) {
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread

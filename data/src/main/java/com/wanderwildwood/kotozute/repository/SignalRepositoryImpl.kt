@@ -1234,6 +1234,14 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun shouldOfferContactFetch(): Boolean = runCatching {
+        SignalDirectory.shouldOfferContactFetch(
+            linkedDirectly = linkedDirectly(),
+            storageKeyKnown = signalStore.storageKeyKnown(),
+            anyNamesKnown = signalStore.contactNames().isNotEmpty()
+        )
+    }.getOrDefault(false)
+
     override fun canBlock(): Boolean = runCatching { signalStore.blockedListKnown() }.getOrDefault(false)
 
     override fun isLockedBackup(folder: String): Boolean = runCatching {

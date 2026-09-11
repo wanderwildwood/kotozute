@@ -347,12 +347,6 @@
     <string name="settings_signal_enabled_title">Show Signal conversations</string>
     <string name="settings_signal_enabled_summary">Signal threads start empty and fill from today; older messages stay in Signal</string>
     <string name="settings_signal_status_title">Connection</string>
-    <!--
-      The direct rail's equivalents. Every string above talks about a bridge, which is a lie
-      on a phone that is its own Signal device: it would tell someone to re-pair a thing that
-      does not exist. Kept separate rather than reworded, because a phone using a bridge
-      should still be told about the bridge.
-    -->
     <string name="settings_signal_status_direct_offline">Not connected to Signal — reconnecting</string>
     <string name="settings_signal_status_direct_ok">Connected to Signal</string>
     <string name="settings_signal_status_stuck">%d message(s) could not be read</string>
@@ -360,9 +354,9 @@
     <string name="settings_signal_status_last_synced">Last synced %s</string>
     <string name="settings_signal_status_last_received">Last message %s</string>
     <string name="settings_signal_unpair_title">Delete Signal data</string>
-    <string name="settings_signal_unpair_summary">Removes every Signal message on this phone, and the saved bridge and account details</string>
+    <string name="settings_signal_unpair_summary">Removes every Signal message and conversation held on this phone. The phone stays linked to your account</string>
     <string name="settings_signal_unpair_armed">Delete Signal data — tap again</string>
-    <string name="settings_signal_unpair_armed_summary">Messages, threads and the pairing go. The bridge keeps its own copy until it is wiped there.</string>
+    <string name="settings_signal_unpair_armed_summary">Every Signal message and thread on this phone goes. Nothing is removed from Signal itself, and this phone stays on the account.</string>
     <string name="settings_signal_receipts_title">Send read receipts</string>
     <string name="settings_signal_receipts_summary">Tell people when you have read their Signal message. Separate from Signal\'s own setting, which this cannot see</string>
     <string name="settings_signal_open_title">Signal conversations</string>
@@ -393,14 +387,14 @@
     <string name="signal_muted_toast">Muted. Messages still arrive.</string>
     <string name="signal_block_armed">Block on Signal — tap again</string>
     <string name="signal_blocked_toast">Blocked on Signal, on every device</string>
-    <string name="signal_block_failed">Not blocked: the bridge could not be reached</string>
+    <string name="signal_block_failed">Not blocked — Signal would not take the change</string>
     <string name="signal_find">Find in conversation</string>
     <string name="signal_find_hint">Find</string>
     <string name="signal_find_close">Close search</string>
     <string name="signal_find_none">none</string>
     <string name="settings_signal_account_title">Signal account</string>
     <string name="settings_signal_account_summary">The number, and the devices on it</string>
-    <string name="signal_account_unreachable">Could not reach the bridge, so the account could not be read.</string>
+    <string name="signal_account_unreachable">The account could not be read.</string>
     <string name="signal_account_this_device_is">This phone is device %d on the account. The other devices on it are not listed here: that is a question only Signal can answer, and this phone cannot ask it.</string>
     <!-- Said plainly, because it is the reason several settings people look for are not
          here, and the reason losing the primary would take this device with it. -->
@@ -474,7 +468,7 @@
     <string name="signal_empty">No Signal conversations yet.\n\nThreads begin when a message arrives; anything older stays in Signal.</string>
     <string name="signal_composer_hint">Message</string>
     <string name="signal_send">Send</string>
-    <string name="signal_cannot_send_signal">The bridge is not connected to Signal — you can read, but not send</string>
+    <string name="signal_cannot_send_signal">Not connected to Signal — you can read, but not send</string>
     <string name="signal_send_failed">Not sent: %s</string>
     <string name="signal_you">You</string>
     <string name="signal_switch_to_sms">Switch to SMS</string>

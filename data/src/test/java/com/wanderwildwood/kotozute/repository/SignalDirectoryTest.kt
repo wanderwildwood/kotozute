@@ -124,6 +124,42 @@ class SignalDirectoryTest {
     }
 
     @Test
+    fun `the readers own address book names somebody the account cannot`() {
+        val people = SignalDirectory.merge(
+            threads = listOf(),
+            contacts = listOf(row(alice, number = "+15550001")),
+            selfAci = self,
+            nameForNumber = { number -> if (number == "+15550001") "Alice at home" else null }
+        )
+
+        assertEquals("Alice at home", people[0].name)
+    }
+
+    @Test
+    fun `a name the account supplied beats the address book`() {
+        val people = SignalDirectory.merge(
+            threads = listOf(),
+            contacts = listOf(row(alice, name = "Alice", number = "+15550001")),
+            selfAci = self,
+            nameForNumber = { "somebody else" }
+        )
+
+        assertEquals("Alice", people[0].name)
+    }
+
+    @Test
+    fun `an address book that does not know the number changes nothing`() {
+        val people = SignalDirectory.merge(
+            threads = listOf(),
+            contacts = listOf(row(alice, number = "+15550001")),
+            selfAci = self,
+            nameForNumber = { null }
+        )
+
+        assertEquals("+15550001", people[0].name)
+    }
+
+    @Test
     fun `an account with no self yet still lists everybody`() {
         val people = SignalDirectory.merge(
             threads = listOf(),

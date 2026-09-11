@@ -522,6 +522,13 @@ class SignalStore(private val context: Context) {
     fun contactName(aci: String): String? = runCatching { contacts.nameFor(aci) }.getOrNull()
 
     /** Every name known, for renaming threads in one pass after a sync. */
+    /** The number known for one service id, or null. */
+    fun contactNumber(aci: String): String? = runCatching { contacts.numberFor(aci) }.getOrNull()
+
+    /** The service id known for a number, or null. */
+    fun contactAciForNumber(e164: String): String? =
+        runCatching { contacts.aciForNumber(e164) }.getOrNull()
+
     fun contactNames(): Map<String, String> = runCatching { contacts.all() }.getOrDefault(emptyMap())
 
     /**

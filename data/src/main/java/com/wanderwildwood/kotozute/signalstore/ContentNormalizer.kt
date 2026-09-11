@@ -64,7 +64,7 @@ internal object ContentNormalizer {
                 // The author comes from the envelope rather than from selfAci, so this stays
                 // correct even before self has been worked out.
                 if (authorUuid.isBlank()) authorUuid = selfAci.orEmpty()
-                counterpartUuid = sent.destinationServiceId.orEmpty()
+                counterpartUuid = destinationServiceIdOf(sent)
                 counterpartNumber = sent.destinationE164.orEmpty()
             }
             content.dataMessage != null -> {
@@ -157,6 +157,40 @@ internal object ContentNormalizer {
      *
      * @return the thread key, or null when there is nothing to hang a thread on.
      */
+    /**
+     * Who a message we sent from another device was sent *to*.
+     *
+     * Three places carry it and a client may populate any of them. The string field is the
+     * old one; newer clients send the same value as raw bytes in `destinationServiceIdBinary`
+     * and leave the string null. Reading only the string made a modern primary's transcript
+     * look like it named nobody, so the thread key fell through to the destination *number* --
+     * and a number is not a service id, so that thread could be read and never replied to.
+     * Seen on a real account: one conversation split in two, the other person's messages
+     * under their service id and our own side of it under their phone number, the second
+     * thread refusing every send with "not a service id".
+     *
+     * The per-recipient delivery statuses are the last resort. A one-to-one send has exactly
+     * one, naming the same person, and it survives in transcripts where both destination
+     * fields are empty.
+     */
+    internal fun destinationServiceIdOf(sent: org.whispersystems.signalservice.internal.push.SyncMessage.Sent): String {
+        fun parse(text: String?, binary: okio.ByteString?): String? {
+            text?.takeIf { it.isNotBlank() }
+                ?.let { org.signal.core.models.ServiceId.parseOrNull(it) }
+                ?.let { return it.toString() }
+            binary?.takeIf { it.size > 0 }
+                ?.let { org.signal.core.models.ServiceId.parseOrNull(it) }
+                ?.let { return it.toString() }
+            return null
+        }
+
+        parse(sent.destinationServiceId, sent.destinationServiceIdBinary)?.let { return it }
+        sent.unidentifiedStatus.forEach { status ->
+            parse(status.destinationServiceId, status.destinationServiceIdBinary)?.let { return it }
+        }
+        return ""
+    }
+
     internal fun threadKeyFor(
         outgoing: Boolean,
         counterpartUuid: String,

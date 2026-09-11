@@ -269,8 +269,8 @@ code has been reviewed by anyone at Signal.
 ## Support
 
 This is free software and it stays free; there is nothing here to buy. If you would like to
-send something somewhere anyway, there are some llamas in Hot Springs, North Carolina who go
-through a great deal of hay: <https://hotspringsllamas.org/donate/>
+send something somewhere anyway, there are some llamas who go through a great deal of hay:
+<https://hotspringsllamas.org/donate/>
 
 ## Licence
 

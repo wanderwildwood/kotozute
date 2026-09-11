@@ -320,6 +320,9 @@
   /* The find bar sits between the header and the messages, out of the composer's way. */
   #findBar { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
              border-bottom: 1px solid var(--line); }
+  /* An author rule with display:flex beats the browser's own [hidden] { display: none },
+     so the bar was drawn over an empty pane before a conversation had even been chosen. */
+  #findBar[hidden] { display: none; }
   #findBar input { flex: 1; min-width: 0; }
   #findCount { font-size: 12px; opacity: 0.7; white-space: nowrap; }
   #findBar button { padding: 2px 8px; }

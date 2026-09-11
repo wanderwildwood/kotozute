@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 5
+    const val VERSION = 6
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -214,7 +214,9 @@ internal object ProtocolStoreSchema {
         SENDER_KEY,
         SENDER_KEY_SHARED,
         ENVELOPE,
-        CONTACT
+        CONTACT,
+        BLOCKED,
+        BLOCKED_GROUP
     )
 
     /**
@@ -243,6 +245,32 @@ internal object ProtocolStoreSchema {
     """
 
     /**
+     * The account's blocked list, as the primary last sent it.
+     *
+     * Held whole, not as a set of local decisions, because that is the shape Signal syncs:
+     * a blocked-list sync carries **every** blocked party, and a device that sends one
+     * replaces what the account holds. Blocking somebody from here therefore means editing a
+     * list this phone must already have been given -- see [SignalBlockStore], which refuses
+     * rather than sending a list it had to guess at.
+     */
+    const val BLOCKED = """
+        CREATE TABLE blocked (
+          _id INTEGER PRIMARY KEY,
+          aci TEXT UNIQUE,
+          e164 TEXT,
+          blocked_at INTEGER NOT NULL
+        ) STRICT;
+    """
+
+    /** Groups are blocked by id, which is not an identifier any person here ever sees. */
+    const val BLOCKED_GROUP = """
+        CREATE TABLE blocked_group (
+          _id INTEGER PRIMARY KEY,
+          group_id BLOB UNIQUE
+        ) STRICT;
+    """
+
+    /**
      * Migrations, keyed by the version they upgrade *to*.
      *
      * Explicit and additive. This database holds key material that cannot be refetched -- an
@@ -263,7 +291,11 @@ internal object ProtocolStoreSchema {
         // v5: why an envelope would not decrypt. "One message could not be read" is the right
         // thing to show a person and the wrong thing to hand a developer -- a release build
         // logs nothing, so without this the only report from the field is a number.
-        5 to listOf("ALTER TABLE envelope ADD COLUMN failure TEXT;")
+        5 to listOf("ALTER TABLE envelope ADD COLUMN failure TEXT;"),
+        // v6: the account's blocked list, which a linked device has to hold whole before it
+        // can change it -- sending a blocked sync replaces the account's list rather than
+        // adding to it, so blocking one person without the rest would unblock everyone else.
+        6 to listOf(BLOCKED, BLOCKED_GROUP)
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

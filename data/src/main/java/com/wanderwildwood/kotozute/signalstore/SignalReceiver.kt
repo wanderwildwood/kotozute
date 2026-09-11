@@ -38,6 +38,8 @@ internal class SignalReceiver(
     private val file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
     private val attachments: SignalAttachments,
     private val contacts: SignalContactStore,
+    /** The account's blocked list, kept whole; see [SignalBlockStore]. */
+    private val blocks: SignalBlockStore,
     /**
      * Called after each batch, once anything new is on disk.
      *
@@ -333,6 +335,12 @@ internal class SignalReceiver(
                 // name. Handled before normalizing, which would find nothing to store in it.
                 result.content.syncMessage?.contacts?.let { handleContactsSync(it) }
 
+                // The account's blocked list, which arrives whole and replaces what is held.
+                // Stored rather than acted on: this device does not hide anything on the
+                // strength of it, it keeps it so that blocking somebody from here can send
+                // the list back with one more name on it instead of a list of one.
+                result.content.syncMessage?.blocked?.let { handleBlockedSync(it) }
+
                 val normalized = ContentNormalizer.normalize(
                     result.content, result.metadata, credentials.aci, credentials.e164
                 )
@@ -398,6 +406,32 @@ internal class SignalReceiver(
      * next sync, so writing it to disk would leave the whole address book sitting in a file
      * for no benefit.
      */
+    private fun handleBlockedSync(
+        blocked: org.whispersystems.signalservice.internal.push.SyncMessage.Blocked
+    ) {
+        // Both shapes: the newer typed lists, and the older bare strings that a primary on an
+        // older build still sends. Taking only one of them would silently drop half a list.
+        val individuals = buildList {
+            blocked.blockedAcis.forEach { one ->
+                // The binary form, which is the raw sixteen bytes rather than the hyphenated
+                // string the rest of this app keys on.
+                val aci = one.aciBinary?.toByteArray()
+                    ?.let { org.signal.core.models.ServiceId.parseOrNull(it) }
+                if (aci != null) add(SignalBlockStore.Blocked(aci.toString(), null, one.timestamp ?: 0L))
+            }
+            blocked.blockedE164s.forEach { one ->
+                add(SignalBlockStore.Blocked(null, one.e164, one.timestamp ?: 0L))
+            }
+            blocked.acis.filter { aci -> none { it.aci == aci } }
+                .forEach { add(SignalBlockStore.Blocked(it, null, 0L)) }
+            blocked.numbers.filter { number -> none { it.e164 == number } }
+                .forEach { add(SignalBlockStore.Blocked(null, it, 0L)) }
+        }
+        val groups = blocked.blockedGroups.mapNotNull { it.groupId?.toByteArray() } +
+            blocked.groupIds.map { it.toByteArray() }
+        blocks.store(individuals, groups.distinctBy { it.toList() })
+    }
+
     private fun handleContactsSync(
         contactsMessage: org.whispersystems.signalservice.internal.push.SyncMessage.Contacts
     ) {

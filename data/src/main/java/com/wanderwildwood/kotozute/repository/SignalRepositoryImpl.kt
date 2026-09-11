@@ -1658,36 +1658,87 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     override fun react(messageId: String, emoji: String, remove: Boolean) {
-        val cfg = config() ?: throw IllegalStateException("no bridge paired")
 
         // Signal names a message by who wrote it and when they sent it. Our id is a thing
         // this app made up, so the real identifiers are read off the row -- and for a
         // message we sent ourselves the author is this account, which the row records as
         // outgoing rather than by writing our own uuid into senderUuid.
-        val (threadKey, author, ts) = Realm.getDefaultInstance().use { realm ->
+        val selfAci = signalStore.selfAciOrNull().orEmpty()
+        val (threadKey, author, ts, groupKey) = Realm.getDefaultInstance().use { realm ->
             val row = realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
                 ?: throw IllegalStateException("no such message")
-            // Left empty for our own messages: the bridge knows this account's uuid and
-            // fills it in, so the phone does not have to carry a copy of it.
-            val who = when {
-                row.outgoing -> ""
-                else -> row.senderUuid.ifBlank { row.senderNumber }
-            }
-            Triple(row.threadKey, who, row.date)
+            // Our own account when the message being reacted to is ours. The bridge used to
+            // fill this in from its own side, which is why it was left empty here; on this
+            // rail there is nobody else to know it.
+            val who = com.wanderwildwood.kotozute.signalstore.SignalBlockList.targetAuthor(
+                row.outgoing, row.senderUuid, row.senderNumber, selfAci
+            )
+            // The key a group is reached by arrives on a message and nowhere else, so it is
+            // read from the thread's rows rather than from the thread.
+            val master = realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", row.threadKey)
+                .findAll()
+                .firstOrNull { it.groupMasterKey != null }
+                ?.groupMasterKey
+            Reacting(row.threadKey, who, row.date, master)
+        }
+        if (author.isBlank()) throw IllegalStateException("nothing says who wrote that message")
+
+        if (threadKey.startsWith("group:")) {
+            val master = groupKey ?: throw IllegalStateException("no group key on this thread yet")
+            signalStore.sendReactionToGroup(master, emoji, remove, author, ts)
+        } else {
+            signalStore.sendReaction(threadKey.removePrefix("direct:"), emoji, remove, author, ts)
         }
 
-        BridgeClient(cfg).react(threadKey, emoji, author, ts, remove)
-        // Deliberately not written locally. signal-cli echoes the reaction back through the
-        // sync stream within moments and that echo takes the same path as anyone else's, so
-        // writing it here too would mean two sources of truth for one emoji -- and the echo
-        // is the one that reflects what Signal actually accepted.
+        // Written here, because nothing sends it back. The bridge rail had signal-cli echo a
+        // reaction through the sync stream moments later and that echo was the one truth;
+        // this device's own send is not echoed to itself, so the emoji would otherwise land
+        // everywhere except the screen it was tapped on.
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                applyReaction(
+                    r,
+                    BridgeMessage(
+                        id = "", seq = 0, threadKey = threadKey, ts = ts,
+                        senderUuid = selfAci, senderNumber = "", outgoing = true, body = "",
+                        groupId = "", quoteTs = 0, read = true, source = "live",
+                        attachmentsJson = "",
+                        reactionEmoji = emoji, reactionTarget = messageId, reactionRemove = remove
+                    )
+                )
+            }
+        }
+        // No announcing: the row is managed, and the thread screen is listening to the Realm
+        // results it came from.
     }
+
+    /** What a reaction needs off the row it is hung on. */
+    private data class Reacting(
+        val threadKey: String,
+        val author: String,
+        val ts: Long,
+        val groupMasterKey: ByteArray?
+    )
 
     override fun setBlocked(threadKey: String, blocked: Boolean) {
         // Not runOffThread: this one has to be able to fail in front of the caller. The
         // others are local writes that cannot really go wrong; this one leaves the phone.
-        val cfg = config() ?: throw IllegalStateException("no bridge paired")
-        BridgeClient(cfg).setBlocked(threadKey, blocked)
+        if (!threadKey.startsWith("direct:")) {
+            throw IllegalStateException("only a person can be blocked from here, not a group")
+        }
+        // The blocked list belongs to the account and syncs whole, so this device has to have
+        // been given it before it can send one back. Ask, and say plainly that the answer has
+        // not arrived -- the alternative is sending a list of one, which unblocks everybody
+        // else on the account and announces nothing.
+        if (!signalStore.blockedListKnown()) {
+            runCatching { signalStore.requestBlockedList() }
+                .onFailure { Timber.w(it, "signal blocked: could not ask for the list") }
+            throw IllegalStateException("this phone has not been given the blocked list yet")
+        }
+        if (!signalStore.setBlocked(threadKey.removePrefix("direct:"), blocked)) {
+            throw IllegalStateException("Signal would not take the change")
+        }
     }
 
     override fun setPinned(threadKey: String, pinned: Boolean) = runOffThread {

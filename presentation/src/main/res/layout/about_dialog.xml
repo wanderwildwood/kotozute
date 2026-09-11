@@ -48,4 +48,34 @@
         android:text="@string/about_source"
         app:textSize="secondary" />
 
+    <!-- A llama, and the page a donation goes to. Last, under the source, where somebody
+         who went looking will find it and nobody else has to read past it. -->
+    <LinearLayout
+        android:id="@+id/llama"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@null"
+            android:src="@drawable/llama" />
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="@string/about_llama"
+            app:textSize="secondary" />
+
+    </LinearLayout>
+
 </LinearLayout>

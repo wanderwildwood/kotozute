@@ -25,6 +25,8 @@ import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.BuildConfig
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.databinding.AboutDialogBinding
+import android.content.Intent
+import android.net.Uri
 
 /**
  * What this app is, what it does with what you give it, and where the source is.
@@ -46,6 +48,15 @@ class AboutDialog(context: Activity, onVersionLongClick: () -> Unit) : AlertDial
             onVersionLongClick()
             dismiss()
             true
+        }
+        // The Kompakt may have nothing registered for a web address at all, so this is
+        // allowed to fail quietly rather than take the dialog down with it.
+        layout.llama.setOnClickListener {
+            runCatching {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://hotspringsllamas.org/donate/")),
+                )
+            }
         }
         setButton(DialogInterface.BUTTON_POSITIVE, context.getString(R.string.button_close)) { _, _ -> }
     }

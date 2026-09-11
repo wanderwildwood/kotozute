@@ -43,6 +43,7 @@ import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.Observables
 import io.reactivex.schedulers.Schedulers
+import timber.log.Timber
 import io.realm.RealmList
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
@@ -51,7 +52,7 @@ import kotlinx.coroutines.rx2.awaitFirst
 import javax.inject.Inject
 
 class ContactsViewModel @Inject constructor(
-    sharing: Boolean,
+    private val sharing: Boolean,
     serializedChips: HashMap<String, String?>,
     private val contactFilter: ContactFilter,
     private val contactGroupFilter: ContactGroupFilter,
@@ -83,24 +84,31 @@ class ContactsViewModel @Inject constructor(
      * and choosing a Signal person leaves that screen for the other rail -- offering it here
      * would be offering to drop what is being shared.
      */
-    private val signalPeople: Observable<List<ComposeItem.SignalPerson>> by lazy {
+    private fun signalPeople(view: ContactsContract): Observable<List<ComposeItem.SignalPerson>> =
         if (sharing || !prefs.signalEnabled.get()) {
             Observable.just(listOf())
         } else {
-            Observable.fromCallable {
-                signalRepo.people().map { person ->
-                    ComposeItem.SignalPerson(person.threadKey, person.name, person.number)
-                }
-            }
-                    .subscribeOn(Schedulers.io())
-                    .onErrorReturnItem(listOf())
+            // Re-read every time the screen is shown, not once when it is created. Somebody
+            // can fetch their contacts in Settings and come straight back, and an activity
+            // still sitting in the task would otherwise hand back the empty list it read
+            // before they did -- which reads exactly like the feature not working.
+            view.screenShownIntent
+                    .switchMap {
+                        Observable.fromCallable {
+                            signalRepo.people().map { person ->
+                                ComposeItem.SignalPerson(person.threadKey, person.name, person.number)
+                            }
+                        }
+                                .subscribeOn(Schedulers.io())
+                                .doOnError { Timber.w(it, "signal: could not read who is on Signal") }
+                                .onErrorReturnItem(listOf())
+                    }
                     // Nothing, until it is read. Reading it opens the keystore and the
                     // encrypted store behind it, which is deliberately not done until it is
                     // wanted -- and combineLatest holds every other source until its slowest
                     // one has spoken, so without this the address book waits on Signal.
                     .startWith(listOf<ComposeItem.SignalPerson>())
         }
-    }
 
     /** Chosen from the list; handled apart from the chips, which cannot hold one. */
     private val signalPersonPicked: Subject<ComposeItem.SignalPerson> = PublishSubject.create()
@@ -138,7 +146,7 @@ class ContactsViewModel @Inject constructor(
         Observables
                 .combineLatest(
                         view.queryChangedIntent, recents, starredContacts, contactGroups, contacts, selectedChips,
-                        signalPeople
+                        signalPeople(view)
                 ) { query, recents, starredContacts, contactGroups, contacts, selectedChips, signalPeople ->
                     val composeItems = mutableListOf<ComposeItem>()
                     if (query.isBlank()) {

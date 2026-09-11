@@ -286,7 +286,20 @@ class SignalRepositoryImpl @Inject constructor(
         Timber.i("signal groups: named %d thread(s)", names.size)
     }
 
+    /**
+     * The Connection line counts contacts, and the state it reads is only republished when
+     * something happens. Learning 71 contacts is something happening: without this the line
+     * still said none, and the reader concludes the thing they just pressed did nothing.
+     */
+    private fun contactsChanged() {
+        publishState(
+            signalConnected = state.value?.signalConnected ?: false,
+            error = state.value?.error
+        )
+    }
+
     private fun renameThreadsFromContacts() {
+        contactsChanged()
         val names = signalStore.contactNames()
         if (names.isEmpty()) return
         Realm.getDefaultInstance().use { realm ->
@@ -1082,7 +1095,7 @@ class SignalRepositoryImpl @Inject constructor(
      */
     override fun fetchContactsFromSignal(): String = when {
         !linkedDirectly() -> "This phone is not linked to Signal yet"
-        signalStore.storageKeyKnown() -> signalStore.readStorage()
+        signalStore.storageKeyKnown() -> signalStore.readStorage().also { contactsChanged() }
         else -> {
             val asked = runCatching { signalStore.requestKeys() }.getOrElse { it.message.orEmpty() }
             Timber.i("signal keys: %s", asked)

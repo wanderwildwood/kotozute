@@ -128,19 +128,38 @@ class MainViewModel @Inject constructor(
     private fun searchBothRails(query: CharSequence): List<InboxSearchResult> {
         val sms = conversationRepo.searchConversations(query).map(InboxSearchResult::Sms)
         if (!prefs.signalEnabled.get() || !prefs.signalWeave.get()) return sms
-        val signal = signalRepo.searchThreads(query.toString()).map {
-            InboxSearchResult.Signal(it.thread, it.messages, it.snippet)
+        val hits = signalRepo.searchThreads(query.toString())
+        // Every Signal thread, not only the matching ones. A person is offered as their
+        // conversation whichever half the words were in -- offering the text half on its
+        // own opens a screen the inbox no longer has a row for, holding half of what was
+        // said. The same rule the list and the browser follow.
+        val threadForConversation = buildMap {
+            (signalRepo.getThreadsSnapshot(archived = false) +
+                signalRepo.getThreadsSnapshot(archived = true)).forEach { thread ->
+                joinedConversationId(thread)?.let { put(it, thread) }
+            }
         }
-        // The same rule the list follows: a person whose two rails are one conversation is
-        // one result. Without this a search for somebody found them twice and the two hits
-        // disagreed, each having looked at half of what they said.
-        val joined = signal.mapNotNull { hit ->
-            runCatching { signalRepo.linkedConversationId(hit.thread.threadKey) }.getOrNull()
-                ?: hit.thread.counterpartNumber.takeIf { it.isNotBlank() }?.let { number ->
-                    runCatching { conversationRepo.getConversation(listOf(number))?.id }.getOrNull()
-                }
-        }.toSet()
-        val unique = sms.filterNot { it.result.conversation.id in joined }
+        val textMatches = mutableMapOf<String, Int>()
+        val unique = sms.filter { hit ->
+            val thread = threadForConversation[hit.result.conversation.id]
+            if (thread == null) true
+            else {
+                textMatches[thread.threadKey] =
+                    (textMatches[thread.threadKey] ?: 0) + hit.messages
+                false
+            }
+        }
+        val matched = hits.mapTo(mutableSetOf()) { it.thread.threadKey }
+        val signal = hits.map {
+            InboxSearchResult.Signal(
+                it.thread, it.messages + (textMatches[it.thread.threadKey] ?: 0), it.snippet
+            )
+        } + textMatches.mapNotNull { (key, found) ->
+            // Matched only on the text side: still this person's conversation.
+            if (key in matched) null
+            else threadForConversation.values.firstOrNull { it.threadKey == key }
+                ?.let { InboxSearchResult.Signal(it, found, it.snippet) }
+        }
         return (unique + signal).sortedWith(compareBy({ it.messages > 0 }, { -it.messages }))
     }
 
@@ -197,6 +216,13 @@ class MainViewModel @Inject constructor(
      * device has few Signal threads and an address book has many conversations, and this runs
      * on every rebuild of the list.
      */
+    /** The text conversation a Signal thread stands for; the phone's one joining rule. */
+    private fun joinedConversationId(thread: com.wanderwildwood.kotozute.model.SignalThread): Long? =
+        runCatching { signalRepo.linkedConversationId(thread.threadKey) }.getOrNull()
+            ?: thread.counterpartNumber.takeIf { it.isNotBlank() }?.let { number ->
+                runCatching { conversationRepo.getConversation(listOf(number))?.id }.getOrNull()
+            }
+
     private fun joinedConversations(
         signal: List<InboxItem.Signal>
     ): Map<Long, com.wanderwildwood.kotozute.model.Conversation> =

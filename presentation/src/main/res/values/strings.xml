@@ -347,6 +347,11 @@
     <string name="settings_signal_enabled_title">Show Signal conversations</string>
     <string name="settings_signal_enabled_summary">Signal threads start empty and fill from today; older messages stay in Signal</string>
     <string name="settings_signal_status_title">Connection</string>
+    <!-- Asked for, never automatic: it fetches the account's key material, and an account
+         whose contacts arrive the ordinary way should never send it. -->
+    <string name="settings_signal_fetch_contacts_title">Fetch contacts from Signal</string>
+    <string name="settings_signal_fetch_contacts_failed">Signal would not answer. Nothing was changed.</string>
+    <string name="settings_signal_fetch_contacts_summary">Where the people you know do not appear under On Signal in a new message. Newer Signal keeps its contact list on its own servers rather than sending it here, and this asks for the key that reads it</string>
     <string name="settings_signal_status_direct_offline">Not connected to Signal — reconnecting</string>
     <string name="settings_signal_status_direct_ok">Connected to Signal</string>
     <string name="settings_signal_status_stuck">%d message(s) could not be read</string>
@@ -482,6 +487,9 @@
     <string name="signal_switch_to_signal">Switch to Signal</string>
     <!-- The second line of a person in the new-message list who is reachable on Signal.
          The same name can appear twice, once per rail, and this is what tells them apart. -->
+    <!-- The divider before the Signal entries in the new-message list. They come after the
+         address book, and on a long one that is the same as being hidden unless it is said. -->
+    <string name="compose_signal_header">On Signal</string>
     <string name="compose_signal_person">Signal</string>
     <string name="compose_signal_person_number">Signal · %s</string>
     <string name="signal_attach">+</string>

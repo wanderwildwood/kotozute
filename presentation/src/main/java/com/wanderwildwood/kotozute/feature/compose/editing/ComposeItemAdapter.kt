@@ -27,6 +27,7 @@ import com.wanderwildwood.kotozute.common.base.QkAdapter
 import com.wanderwildwood.kotozute.common.base.QkBindingViewHolder
 import com.wanderwildwood.kotozute.common.util.Colors
 import com.wanderwildwood.kotozute.common.util.extensions.forwardTouches
+import com.wanderwildwood.kotozute.common.util.extensions.resolveThemeColor
 import com.wanderwildwood.kotozute.common.util.extensions.setTint
 import com.wanderwildwood.kotozute.extensions.associateByNotNull
 import com.wanderwildwood.kotozute.model.Contact
@@ -72,6 +73,8 @@ class ComposeItemAdapter @Inject constructor(
         return QkBindingViewHolder(binding).apply {
             view.setOnClickListener {
                 val item = getItem(adapterPosition)
+                // A heading is not a choice.
+                if (item is ComposeItem.SignalHeader) return@setOnClickListener
                 clicks.onNext(item)
             }
             view.setOnLongClickListener {
@@ -84,6 +87,11 @@ class ComposeItemAdapter @Inject constructor(
 
     override fun onBindViewHolder(holder: QkBindingViewHolder<ContactListItemBinding>, position: Int) {
         val prevItem = if (position > 0) getItem(position - 1) else null
+        // Holders are recycled, and the heading below paints its title grey. Without this a
+        // person would inherit that grey from whichever row this view used to be.
+        holder.binding.title.setTextColor(
+            holder.itemView.context.resolveThemeColor(android.R.attr.textColorPrimary)
+        )
         when (val item = getItem(position)) {
             is ComposeItem.New -> bindNew(holder, item.value)
             is ComposeItem.Recent -> bindRecent(holder, item.value, prevItem)
@@ -91,7 +99,26 @@ class ComposeItemAdapter @Inject constructor(
             is ComposeItem.Person -> bindPerson(holder, item.value, prevItem)
             is ComposeItem.Group -> bindGroup(holder, item.value, prevItem)
             is ComposeItem.SignalPerson -> bindSignalPerson(holder, item, prevItem)
+            is ComposeItem.SignalHeader -> bindSignalHeader(holder)
         }
+    }
+
+    /**
+     * Says what the rows below it are. Not a row anybody can choose.
+     *
+     * In the quieter grey the second line uses, not the black a name is set in: bold and
+     * black beside an empty index column reads as somebody called "On Signal".
+     */
+    private fun bindSignalHeader(holder: QkBindingViewHolder<ContactListItemBinding>) {
+        holder.binding.index.isVisible = false
+        holder.binding.icon.isVisible = false
+        holder.binding.avatar.recipients = emptyList()
+        holder.binding.title.text = holder.itemView.context.getString(R.string.compose_signal_header)
+        holder.binding.title.setTextColor(
+            holder.itemView.context.resolveThemeColor(android.R.attr.textColorTertiary)
+        )
+        holder.binding.subtitle.isVisible = false
+        holder.binding.numbers.isVisible = false
     }
 
     /**
@@ -232,6 +259,9 @@ class ComposeItemAdapter @Inject constructor(
     override fun areItemsTheSame(old: ComposeItem, new: ComposeItem): Boolean {
         // A Signal person has no contacts to be identified by, so every one of them would
         // otherwise look like the same item as every other -- and as any other empty row.
+        if (old is ComposeItem.SignalHeader || new is ComposeItem.SignalHeader) {
+            return old is ComposeItem.SignalHeader && new is ComposeItem.SignalHeader
+        }
         if (old is ComposeItem.SignalPerson || new is ComposeItem.SignalPerson) {
             return old is ComposeItem.SignalPerson && new is ComposeItem.SignalPerson &&
                     old.threadKey == new.threadKey

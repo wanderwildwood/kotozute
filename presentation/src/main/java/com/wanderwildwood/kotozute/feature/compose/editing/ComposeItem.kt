@@ -57,6 +57,18 @@ sealed class ComposeItem {
      * carrying their number -- an SMS to the same number is a different message to a
      * different place, and the picker must not quietly send one for the other.
      */
+    /**
+     * The line that says the rest of the list is a different question.
+     *
+     * Without it the Signal entries sit after the whole address book, which on a phone with a
+     * few hundred contacts is the same as not being there -- somebody opened the screen, saw
+     * their SMS contacts, and reported the feature as not working. It was working, several
+     * screens down.
+     */
+    object SignalHeader : ComposeItem() {
+        override fun getContacts(): List<Contact> = emptyList()
+    }
+
     data class SignalPerson(
         val threadKey: String,
         val name: String,

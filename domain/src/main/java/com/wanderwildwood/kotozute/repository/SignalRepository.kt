@@ -256,6 +256,12 @@ interface SignalRepository {
      * one cannot change it without replacing it -- and a button that can only ever refuse is
      * worse than no button.
      */
+    /**
+     * Asks Signal for the account's contact list. Blocking; returns what happened, in a
+     * sentence somebody can read.
+     */
+    fun fetchContactsFromSignal(): String
+
     fun canBlock(): Boolean
 
     /** Whether this person is on the account's blocked list, as this device last heard it. */

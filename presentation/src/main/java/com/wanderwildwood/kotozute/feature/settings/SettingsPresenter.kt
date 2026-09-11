@@ -263,6 +263,16 @@ class SettingsPresenter @Inject constructor(
                             }.apply { isDaemon = true }.start()
                         }
 
+                        R.id.signalFetchContacts -> Thread {
+                            view.showSignalFetchResult(
+                                runCatching { signalRepo.fetchContactsFromSignal() }
+                                    .getOrElse { failure ->
+                                        Timber.w(failure, "signal contacts: fetch failed")
+                                        context.getString(R.string.settings_signal_fetch_contacts_failed)
+                                    }
+                            )
+                        }.apply { isDaemon = true }.start()
+
                         R.id.signalHistoryImport -> view.chooseSignalExportFolder()
 
                         R.id.signalHistoryExport -> view.chooseSignalBackupFolder()

@@ -58,6 +58,8 @@ class SignalThreadActivity : QkThemedActivity() {
     @Inject lateinit var notifications: SignalNotifications
     @Inject lateinit var navigator: com.wanderwildwood.kotozute.common.Navigator
     @Inject lateinit var scheduledMessageRepo: ScheduledMessageRepository
+    @Inject lateinit var sendNewMessage: com.wanderwildwood.kotozute.interactor.SendNewMessage
+    @Inject lateinit var markTextRead: com.wanderwildwood.kotozute.interactor.MarkRead
     @Inject lateinit var updateScheduledMessageAlarms: UpdateScheduledMessageAlarms
 
     private lateinit var binding: SignalThreadActivityBinding
@@ -66,6 +68,22 @@ class SignalThreadActivity : QkThemedActivity() {
     /** The SMS thread for the same person, when there is one. */
     private var smsThreadId: Long = 0L
     private lateinit var adapter: MessageAdapter
+
+    /**
+     * The conversation as two halves, merged for display only.
+     *
+     * One person is one conversation, and which rail a message happened to arrive on is not
+     * a reason to keep two of them. The rows are still stored apart -- the SMS side is a
+     * mirror of the telephony provider and a re-sync rebuilds it wholesale -- so the joining
+     * happens here, in memory, each time either side changes.
+     */
+    private var signalRows: List<SignalMessage> = emptyList()
+    private var smsRows: List<SignalMessage> = emptyList()
+    private var smsResults: io.realm.RealmResults<com.wanderwildwood.kotozute.model.Message>? = null
+    /** The text conversation this one is joined to, by number or by hand, if any. */
+    private var linkedConversationId: Long? = null
+    /** Where a reply goes. Signal unless the reader says otherwise for this message. */
+    private var replyOnSignal = true
     private var isArchived: Boolean = false
     private var isPinned: Boolean = false
     private var isMuted: Boolean = false
@@ -119,13 +137,12 @@ class SignalThreadActivity : QkThemedActivity() {
         val results = signalRepo.getMessages(threadKey)
         messages = results
         results.addChangeListener { data, _ ->
-            adapter.submit(data)
-            binding.empty.setVisible(data.isEmpty())
-            if (data.isNotEmpty()) binding.recyclerView.scrollToPosition(data.size - 1)
+            signalRows = data.toList()
+            resubmit(scrollToEnd = true)
             markRead(data)
         }
-        adapter.submit(results)
-        binding.empty.setVisible(results.isEmpty())
+        signalRows = results.toList()
+        resubmit(scrollToEnd = false)
         markRead(results)
 
         // The composer is disabled, visibly and with a reason, whenever a send would
@@ -177,19 +194,10 @@ class SignalThreadActivity : QkThemedActivity() {
                 }
             }
         }
-        // The rail badge doubles as the way across, and is the only way: it says which rail
-        // you are on either way, and when this person also has an SMS thread it gains an
-        // arrow and a tap takes you there.
-        binding.railBadge.setOnClickListener {
-            if (smsThreadId != 0L) {
-                navigator.showConversation(smsThreadId)
-                // Crossing rails replaces this screen rather than stacking on top of it.
-                // Without this, hopping SMS -> Signal -> SMS -> Signal left four thread
-                // screens on the stack and back walked all the way down through them; from a
-                // conversation, back should mean the conversation list.
-                finish()
-            }
-        }
+        // The badge says which rail a reply will take, and a tap changes it. It used to be
+        // the way across to a separate text thread; there is nowhere to cross to now, both
+        // halves of the conversation being on this screen.
+        binding.railBadge.setOnClickListener { if (smsThreadId != 0L) toggleRail() }
         showRailBadge()
         binding.searchClose.setOnClickListener { closeSearch() }
         binding.searchField.addTextChangedListener(object : android.text.TextWatcher {
@@ -322,6 +330,7 @@ class SignalThreadActivity : QkThemedActivity() {
         val attachment = pendingAttachment
         if (body.isEmpty() && attachment == null) return
         binding.send.isEnabled = false
+        if (!replyOnSignal) return sendAsText(body, attachment)
         thread(isDaemon = true) {
             val result = runCatching {
                 signalRepo.send(threadKey, body, listOfNotNull(attachment))
@@ -346,10 +355,73 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     /**
-     * The same person can be on both rails. Rather than merge the two conversations --
-     * which would mean one composer having to decide silently which way a reply goes --
-     * each thread stays itself and offers a way across.
+     * Sends the reply as a text instead.
+     *
+     * Never chosen for the reader. A message going out unencrypted when they believed it was
+     * going over Signal is not a UI detail, so the rail is always the one the badge says and
+     * changing it is a deliberate tap.
      */
+    private fun sendAsText(body: String, attachment: String?) {
+        val conversationId = linkedConversationId
+        if (conversationId == null || conversationId == 0L) {
+            binding.send.isEnabled = true
+            return
+        }
+        if (attachment != null) {
+            binding.send.isEnabled = true
+            Toast.makeText(this, R.string.signal_rail_text_no_attachment, Toast.LENGTH_LONG).show()
+            return
+        }
+        thread(isDaemon = true) {
+            val addresses = runCatching {
+                io.realm.Realm.getDefaultInstance().use { realm ->
+                    realm.where(com.wanderwildwood.kotozute.model.Conversation::class.java)
+                        .equalTo("id", conversationId)
+                        .findFirst()
+                        ?.recipients
+                        ?.map { it.address }
+                        ?.toList()
+                        .orEmpty()
+                }
+            }.getOrDefault(emptyList())
+            if (addresses.isEmpty()) {
+                runOnUiThread {
+                    binding.send.isEnabled = true
+                    Toast.makeText(this, R.string.signal_rail_text_no_number, Toast.LENGTH_LONG).show()
+                }
+                return@thread
+            }
+            sendNewMessage.execute(
+                com.wanderwildwood.kotozute.interactor.SendNewMessage.Params(
+                    subId = -1,
+                    threadId = conversationId,
+                    addresses = addresses,
+                    body = body,
+                    sendAsGroup = false
+                )
+            )
+            runOnUiThread {
+                binding.send.isEnabled = true
+                binding.message.setText("")
+            }
+        }
+    }
+
+    /**
+     * Switches which rail the next message takes.
+     *
+     * The badge used to be the way across to a separate text thread. There is nowhere to
+     * cross to now -- both halves of the conversation are on this screen -- so it says what
+     * it has always said, which rail you are on, and a tap changes it.
+     */
+    private fun toggleRail() {
+        replyOnSignal = !replyOnSignal
+        showRailBadge()
+        binding.message.hint = getString(
+            if (replyOnSignal) R.string.compose_hint else R.string.signal_compose_hint_text
+        )
+    }
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.signal_thread, menu)
         return true
@@ -463,11 +535,14 @@ class SignalThreadActivity : QkThemedActivity() {
      * a badge that looks tappable and does nothing is worse than a plain label.
      */
     private fun showRailBadge() {
-        val label = getString(R.string.signal_rail_label)
+        val onSignal = replyOnSignal || smsThreadId == 0L
+        val label = getString(
+            if (onSignal) R.string.signal_rail_label else R.string.signal_rail_label_text
+        )
         binding.railBadge.text = if (smsThreadId != 0L) "$label $RAIL_SWITCH_ARROW" else label
         binding.railBadge.isClickable = smsThreadId != 0L
         binding.railBadge.contentDescription =
-            if (smsThreadId != 0L) getString(R.string.signal_switch_to_sms) else label
+            if (smsThreadId != 0L) getString(R.string.signal_rail_switch) else label
     }
 
     /**
@@ -477,10 +552,15 @@ class SignalThreadActivity : QkThemedActivity() {
      */
     private fun showMessageActions(body: String, messageId: String, mine: String) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
-        if (mine.isNotEmpty()) {
-            actions += getString(R.string.signal_reaction_remove_mine, mine) to {
-                sendReaction(messageId, mine, remove = true)
+        // Reacting is Signal's, and a text in this thread is still a text. Offered on one
+        // and not the other rather than offered on both and failing on one.
+        val onSignal = !messageId.startsWith("$SMS_SOURCE:")
+        if (onSignal) {
+            actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
+            if (mine.isNotEmpty()) {
+                actions += getString(R.string.signal_reaction_remove_mine, mine) to {
+                    sendReaction(messageId, mine, remove = true)
+                }
             }
         }
         if (body.isBlank()) {
@@ -597,6 +677,7 @@ class SignalThreadActivity : QkThemedActivity() {
                     smsThreadId = linked
                     showRailBadge()
                     invalidateOptionsMenu()
+                    attachTextHalf(linked)
                 }
                 return@thread
             }
@@ -626,6 +707,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 smsThreadId = id
                 showRailBadge()
                 invalidateOptionsMenu()
+                attachTextHalf(id)
             }
         }
     }
@@ -679,12 +761,82 @@ class SignalThreadActivity : QkThemedActivity() {
         private const val RAIL_SWITCH_ARROW = ">"
 
         /**
+         * Marks a row that came from the text conversation rather than from Signal.
+         *
+         * Everything that acts on a message asks this first. A text cannot carry a Signal
+         * reaction, cannot be receipted, and is not ours to mark read here -- and offering
+         * an action that quietly does nothing is worse than not offering it.
+         */
+        const val SMS_SOURCE = "sms"
+
+        /**
          * Which conversation is on screen, so a notification is not raised about a message
          * the user is watching arrive.
          */
         @Volatile private var visibleThreadKey: String? = null
 
         fun isVisible(threadKey: String): Boolean = visibleThreadKey == threadKey
+    }
+
+    /**
+     * Brings in the text conversation with the same person, once one has been found.
+     *
+     * Read as ordinary Realm results with a listener, so a text arriving while this screen is
+     * open appears in it -- the whole point of one conversation is that it stops mattering
+     * which rail the next message comes in on. Called on the main thread, from wherever
+     * [findSmsCounterpart] settled on an id.
+     */
+    private fun attachTextHalf(conversationId: Long) {
+        if (isFinishing || conversationId == 0L) return
+        if (linkedConversationId == conversationId) return
+        smsResults?.removeAllChangeListeners()
+        linkedConversationId = conversationId
+        val results = messageRepo.getMessages(conversationId)
+        smsResults = results
+        results.addChangeListener { data, _ ->
+            smsRows = data.map(::asRow)
+            resubmit(scrollToEnd = true)
+        }
+        smsRows = results.map(::asRow)
+        resubmit(scrollToEnd = true)
+        // Reading the conversation reads both halves of it. The text side has no row of its
+        // own in the inbox any more, so leaving it unread would leave a badge with nothing
+        // behind it.
+        if (results.any { !it.read }) markTextRead.execute(listOf(conversationId))
+    }
+
+    /**
+     * A text as a row this thread can draw.
+     *
+     * Unmanaged and never written anywhere: it exists for the length of one binding. The
+     * [SignalMessage.source] is what everything else keys off to leave it alone -- a text
+     * cannot carry a Signal reaction, cannot be receipted, and is already read by the time
+     * the provider hands it over.
+     */
+    private fun asRow(m: com.wanderwildwood.kotozute.model.Message): SignalMessage =
+        SignalMessage().apply {
+            id = "$SMS_SOURCE:${m.id}"
+            threadKey = this@SignalThreadActivity.threadKey
+            date = m.date
+            outgoing = m.isMe()
+            body = m.getSummary()
+            read = true
+            source = SMS_SOURCE
+            senderNumber = m.address
+        }
+
+    /** Both halves in one list, oldest first. */
+    private fun resubmit(scrollToEnd: Boolean) {
+        val merged = (signalRows + smsRows).sortedWith(
+            // By date, and by id where two share a millisecond, so the order is the same
+            // every time rather than however the two lists happened to be concatenated.
+            compareBy({ it.date }, { it.id })
+        )
+        adapter.submit(merged)
+        binding.empty.setVisible(merged.isEmpty())
+        if (scrollToEnd && merged.isNotEmpty()) {
+            binding.recyclerView.scrollToPosition(merged.size - 1)
+        }
     }
 
     private inner class MessageAdapter : RecyclerView.Adapter<MessageHolder>() {

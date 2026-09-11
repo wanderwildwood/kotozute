@@ -136,7 +136,11 @@ class ConversationsAdapter @Inject constructor(
         // Asked during the layout pass a deletion sets off, before the rebuilt list has
         // reached the adapter, so the row here may already be gone from the database.
         is InboxItem.Sms -> if (item.isValid && item.conversation.unread) 1 else 0
-        is InboxItem.Signal -> if (item.isValid && item.thread.unread > 0) 1 else 0
+        // Unread on either half. A row standing for both rails that ignored an unread text
+        // would quietly hide it: the text conversation has no row of its own any more.
+        is InboxItem.Signal -> if (
+            item.isValid && (item.thread.unread > 0 || item.joined?.unread == true)
+        ) 1 else 0
         null -> 0
     }
 
@@ -314,11 +318,15 @@ class ConversationsAdapter @Inject constructor(
 
         holder.binding.title.collapseEnabled = false
         holder.binding.title.text = buildSpannedString { append(signalTitle(item)) }
-        holder.binding.date.text = thread.lastTs.takeIf { it > 0 }
+        // Whichever half spoke last. A row that stands for both rails showing the older of
+        // the two would be a row reporting the wrong thing about the conversation it names.
+        val joined = item.joined
+        holder.binding.date.text = item.sortDate.takeIf { it > 0 }
             ?.let(dateFormatter::getConversationTimestamp)
         // Reads the way an SMS row does, including the "You:" prefix, so the two rails
         // differ by the rail marker alone rather than by how much they tell you.
         holder.binding.snippet.text = when {
+            item.textIsNewer && joined != null -> joined.snippet.orEmpty()
             thread.snippet.isBlank() && thread.unread > 0 -> context.resources.getQuantityString(
                 R.plurals.signal_unread, thread.unread, thread.unread
             )

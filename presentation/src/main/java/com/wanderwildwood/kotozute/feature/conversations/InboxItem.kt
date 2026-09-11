@@ -39,10 +39,32 @@ sealed class InboxItem {
         override val stableId: Long = conversation.id
     }
 
-    data class Signal(val thread: SignalThread) : InboxItem() {
-        override val isValid: Boolean get() = thread.isValid
-        override val sortDate: Long get() = if (isValid) thread.lastTs else 0
-        override val pinned: Boolean get() = isValid && thread.pinned
+    /**
+     * A Signal thread, and the text conversation with the same person where there is one.
+     *
+     * The row stands for both. Which rail the last message happened to take is not a reason
+     * for it to sit at the wrong place in the list, or for the row to show an older message
+     * than the person actually sent -- so the date, the snippet and the unread mark all come
+     * from whichever half spoke last.
+     */
+    data class Signal(
+        val thread: SignalThread,
+        val joined: Conversation? = null
+    ) : InboxItem() {
+        override val isValid: Boolean
+            get() = thread.isValid && (joined == null || joined.isValid)
+
+        /** True when the text half is the newer one, so everything else reads the same half. */
+        val textIsNewer: Boolean
+            get() = isValid && joined != null && joined.date > thread.lastTs
+
+        override val sortDate: Long get() = when {
+            !isValid -> 0
+            textIsNewer -> joined!!.date
+            else -> thread.lastTs
+        }
+        override val pinned: Boolean
+            get() = isValid && (thread.pinned || joined?.pinned == true)
 
         /**
          * Negative, so it can never collide with a telephony thread id (always positive)

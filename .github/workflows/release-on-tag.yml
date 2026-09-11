@@ -45,23 +45,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # Built before the signing key is written into the tree. Afterwards the checkout is
-      # dirty and the binary's own build info says vcs.modified=true, which reads as "built from
-      # changed source" to anyone who inspects it -- true, but about a file that has
-      # nothing to do with this program.
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: bridge/go.mod
-          cache: false
-
-      - name: Build the bridge
-        run: |
-          ( cd bridge && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
-              -o ../kotozute-bridge-linux-amd64 . )
-          sha256sum kotozute-bridge-linux-amd64 > kotozute-bridge-linux-amd64.sha256
-          ls -l kotozute-bridge-linux-amd64
-
       # There is no fallback key any more, so without these the build would produce an
       # unsigned APK and happily attach it to a release. Fail loudly instead.
       - name: Restore signing key
@@ -140,10 +123,6 @@ jobs:
           cp "$apk_path" kotozute.apk
           sha256sum kotozute.apk > kotozute.apk.sha256
 
-      # The bridge, built here so nobody needs Go to install it. It was the one prerequisite
-      # that bought nothing: signal-cli arrives as a tarball and Java is a package, but the
-      # bridge could only be had by compiling it. Static, no cgo, so it runs on any x86-64
-      # Linux whatever its libc.
       # The generated notes are a list of commits; they cannot say what someone has to do
       # before installing. This goes above them, and can be emptied once nobody is still
       # upgrading from a build signed with the checked-in key.
@@ -156,8 +135,6 @@ jobs:
             kotozute-*.apk.sha256
             kotozute.apk
             kotozute.apk.sha256
-            kotozute-bridge-linux-amd64
-            kotozute-bridge-linux-amd64.sha256
           # No body_path: the standing description of the app lives in the README,
           # and stamping it over every release body buried the news under it --
           # 13 of 32 published notes said nothing about what had changed. What CI

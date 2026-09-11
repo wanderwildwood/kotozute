@@ -725,22 +725,53 @@ class DesktopSyncServer(
 
         val rows = mutableListOf<Pair<Long, JSONObject>>()
         val hits = if (signalEnabled()) signalRepository.searchThreads(query) else emptyList()
-        val joined = joinedConversationIds(hits.map { it.thread })
-        conversationRepository.searchConversations(query)
-            .filterNot { it.conversation.id in joined }
-            .forEach { result ->
+        // Every Signal thread, not only the matching ones. A text that matches belongs to a
+        // conversation the reader opens as one thing, and offering the text half on its own
+        // opens a screen the list does not show, holding half of what was said.
+        val allSignal =
+            if (!signalEnabled()) emptyList()
+            else signalRepository.getThreadsSnapshot(archived = false) +
+                signalRepository.getThreadsSnapshot(archived = true)
+        val threadForConversation = buildMap {
+            allSignal.forEach { t -> joinedConversationId(t)?.let { put(it, t) } }
+        }
+        // Matches found on the text side, counted against the conversation they belong to.
+        val textMatches = mutableMapOf<String, Pair<Int, String>>()
+
+        conversationRepository.searchConversations(query).forEach { result ->
+            val joinedThread = threadForConversation[result.conversation.id]
+            if (joinedThread == null) {
                 rows += result.conversation.date to conversationJson(result.conversation).apply {
                     put("matches", result.messages)
                 }
+            } else {
+                // Folded into the one row for this person. Both halves matched or only one
+                // did; either way the reader is offered the conversation, once.
+                val key = joinedThread.threadKey
+                val had = textMatches[key]
+                textMatches[key] = (had?.first ?: 0) + result.messages to
+                    (had?.second ?: result.conversation.snippet.orEmpty())
             }
-        run {
-            hits.forEach { hit ->
-                rows += hit.thread.lastTs to signalThreadJson(hit.thread).apply {
-                    put("matches", hit.messages)
-                    // The matching line, so a hit inside a long conversation says what it
-                    // found rather than only that it found something.
-                    if (hit.snippet.isNotBlank()) put("snippet", hit.snippet)
-                }
+        }
+
+        val matchedKeys = hits.mapTo(mutableSetOf()) { it.thread.threadKey }
+        hits.forEach { hit ->
+            val extra = textMatches[hit.thread.threadKey]
+            rows += hit.thread.lastTs to signalThreadJson(hit.thread).apply {
+                put("matches", hit.messages + (extra?.first ?: 0))
+                // The matching line, so a hit inside a long conversation says what it
+                // found rather than only that it found something.
+                if (hit.snippet.isNotBlank()) put("snippet", hit.snippet)
+            }
+        }
+        // A person whose text half matched and whose Signal half did not is still a result:
+        // the conversation contains what was searched for.
+        textMatches.forEach { (key, found) ->
+            if (key in matchedKeys) return@forEach
+            val thread = allSignal.firstOrNull { it.threadKey == key } ?: return@forEach
+            rows += thread.lastTs to signalThreadJson(thread).apply {
+                put("matches", found.first)
+                if (found.second.isNotBlank()) put("snippet", found.second)
             }
         }
 

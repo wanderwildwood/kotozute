@@ -192,7 +192,7 @@ message must not overwrite a newer preview.
 All three were settled by the build, and this note is kept for the reasoning rather than as
 a plan. Signal shipped publicly in 1.8.0.
 
-- **The authenticating bridge** exists: `bridge/`, TLS with a pinned self-signed certificate,
+- **The authenticating bridge** existed: `bridge/`, TLS with a pinned self-signed certificate,
   a bearer token, and a structural allowlist rather than a proxy, so the destructive
   signal-cli methods are not reachable at all.
 - **Attachments** are fetched, cached and swept — `--attachment-days` and

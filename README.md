@@ -134,16 +134,16 @@ you get the rest.
 #### The bridge, which used to be the way in
 
 Before the app could be a Signal device in its own right, Signal ran on a computer of your own
-and the phone talked to it over a bridge. **The app no longer has a bridge in it.** There is
-nothing to pair and nothing behind Advanced; the phone holds its own place on the account and
-that is the only path.
+and the phone talked to it over a bridge. **Both halves are gone**: the app has no bridge in
+it, and the bridge's own source is no longer in this repository.
 
-The bridge itself is still in this repository, and it is still worth one thing: a phone that
-used to be on a bridge has messages whose pictures were never on it — the phone kept the
-attachment's id and asked the bridge for the file when you opened it. Nobody is left to ask.
+If you are still running one, it is worth one last thing. A phone that used to be on a bridge
+has messages whose pictures were never copied to it — it kept the attachment's id and asked
+the bridge for the file when you opened one, and nobody is left to ask.
 `kotozute-bridge --export <folder>` writes those files out, and **Settings → Signal → Bring
-history in** reads that folder and keeps them for good. Do that before retiring the bridge,
-not after.
+history in** reads that folder and keeps them for good. The binary and its source are at the
+[v1.16.0 tag](https://github.com/wanderwildwood/kotozute/releases/tag/v1.16.0), which is the
+last release that carried either.
 
 Nothing else is lost by it going. Reactions, blocking and read receipts were the bridge's to
 send and the phone sends them itself now. The one thing that did not survive is the list of

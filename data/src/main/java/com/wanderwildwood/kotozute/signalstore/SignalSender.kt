@@ -245,6 +245,29 @@ internal class SignalSender(
     }
 
     /**
+     * Tells somebody their message arrived.
+     *
+     * Not a setting and not a courtesy: Signal's clients send this for every message they
+     * receive, and it is the only thing that ever turns a sender's "sent" into "delivered".
+     * It says nothing about whether anybody has looked -- that is [sendReadReceipt], which is
+     * a choice the reader makes.
+     */
+    fun sendDeliveryReceipt(recipient: ServiceId, timestamps: List<Long>): Result = try {
+        val result = sender.sendReceipt(
+            SignalServiceAddress(recipient),
+            sealedSender.accessFor(recipient.toString()),
+            SignalServiceReceiptMessage(
+                SignalServiceReceiptMessage.Type.DELIVERY, timestamps, System.currentTimeMillis()
+            ),
+            false
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+    } catch (t: Throwable) {
+        Timber.w(t, "signal receipt: sending a delivery receipt threw")
+        Result.Failed(t.message ?: t::class.java.simpleName)
+    }
+
+    /**
      * Asks the primary for the account's key material. The answer arrives later, through the
      * socket, and only the storage service key is kept from it.
      */

@@ -177,7 +177,8 @@ class SignalStore(private val context: Context) {
                     // does not walk the whole thread list for nothing.
                     if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
                 },
-                receipts
+                receipts,
+                { who, timestamps -> sendDeliveryReceipt(who, timestamps) }
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -342,6 +343,21 @@ class SignalStore(private val context: Context) {
         ).sendReadReceipt(serviceId, timestamps) is SignalSender.Result.Sent
     }
 
+    /**
+     * Tells one person that what they sent arrived on this phone.
+     *
+     * Called from the receive path for every message filed, not from the UI: nothing about it
+     * is the reader's decision. See [SignalSender.sendDeliveryReceipt].
+     */
+    fun sendDeliveryReceipt(recipient: String, timestamps: List<Long>): Boolean {
+        if (timestamps.isEmpty()) return true
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
+        return SignalSender(
+            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalDataStore(database, account), connection, contacts
+        ).sendDeliveryReceipt(serviceId, timestamps) is SignalSender.Result.Sent
+    }
+
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 
@@ -452,7 +468,8 @@ class SignalStore(private val context: Context) {
                 // not walk the whole thread list for nothing.
                 if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
             },
-            receipts
+            receipts,
+            { who, timestamps -> sendDeliveryReceipt(who, timestamps) }
         ).listen(keepGoing) { r ->
             onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
         }

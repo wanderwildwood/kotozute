@@ -54,7 +54,14 @@ internal class SignalReceiver(
      */
     private val afterBatch: () -> Unit,
     /** Records that messages we sent arrived, or were read, at the far end. */
-    private val receipts: (String, List<Long>, Boolean) -> Unit
+    private val receipts: (String, List<Long>, Boolean) -> Unit,
+    /**
+     * Tells a sender their message arrived here.
+     *
+     * The other direction from [receipts], and the counterpart of what this device does with
+     * one: without it a message can reach this phone and its sender never learn that it did.
+     */
+    private val deliveryReceipts: (String, List<Long>) -> Unit = { _, _ -> }
 ) {
 
     /**
@@ -175,6 +182,25 @@ internal class SignalReceiver(
         // per message on a device catching up after a day offline.
         val stored = if (messages.isEmpty()) 0 else file(messages)
         sweepUndecryptable()
+
+        // Only now, and only for what is actually on disk. A delivery receipt is a claim that
+        // this phone has the message; sending it before filing would make that claim on
+        // behalf of a message that could still be lost.
+        //
+        // Sent for everything received, without asking. Unlike a read receipt this is not a
+        // setting and reveals nothing about the reader -- it is how a sender's message stops
+        // saying nothing at all, and a phone that never sends one leaves everyone writing to
+        // it unsure whether it is even on.
+        if (stored > 0) {
+            messages.asSequence()
+                .filterNot { it.outgoing }
+                .filter { it.senderUuid.isNotBlank() && it.ts > 0 }
+                .groupBy({ it.senderUuid }, { it.ts })
+                .forEach { (sender, timestamps) ->
+                    runCatching { deliveryReceipts(sender, timestamps.distinct()) }
+                        .onFailure { Timber.w(it, "signal receive: could not send a delivery receipt") }
+                }
+        }
 
         // After filing, while the connection is still up: a name learned now is a name the
         // inbox shows on this pass rather than the next one.

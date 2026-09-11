@@ -246,6 +246,12 @@ interface SignalRepository {
     /** The chosen folder held no Signal export. */
     class NotAnExport : Exception()
 
+    /** The folder holds a backup this app wrote, and the key given does not open it. */
+    class WrongBackupKey : Exception()
+
+    /** The folder holds a backup this app wrote and no key was given. */
+    class BackupKeyNeeded : Exception()
+
     /** What an export wrote, and where. */
     data class ExportStats(
         val threads: Int = 0,
@@ -253,7 +259,13 @@ interface SignalRepository {
         val attachments: Int = 0,
         /** References with no file behind them: never downloaded, or gone since. */
         val missing: Int = 0,
-        val folder: String = ""
+        val folder: String = "",
+        /**
+         * The key the copy was locked with, generated here, grouped for reading, and shown
+         * once. There is no second place it is kept: this app cannot open a backup whose key
+         * is lost, and neither can anyone else.
+         */
+        val key: String = ""
     )
 
     /**
@@ -267,7 +279,10 @@ interface SignalRepository {
      * arrived live or from an earlier run of this, so importing twice -- or importing a
      * window that overlaps what is already here -- changes nothing.
      */
-    fun importHistory(folder: String, onProgress: (Int) -> Unit = {}): ImportStats
+    fun importHistory(folder: String, key: String = "", onProgress: (Int) -> Unit = {}): ImportStats
+
+    /** Whether [folder] holds a backup this app wrote, which cannot be read without its key. */
+    fun isLockedBackup(folder: String): Boolean
 
     /**
      * Writes this phone's Signal messages into [folder] as an export [importHistory] reads

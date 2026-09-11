@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import org.json.JSONObject
 import java.io.File
 import java.io.OutputStream
 
@@ -13,11 +14,59 @@ internal interface SignalExportDestination {
     /** The records file, truncated. */
     fun main(): OutputStream
 
-    /** A file under `files/`, or null if it could not be created. */
-    fun file(name: String): OutputStream?
+    /**
+     * A file under `files/`, or -- when [under] is null -- beside `main.jsonl`. Null if it
+     * could not be created.
+     */
+    fun file(name: String, under: String? = DirectoryExportSource.FILES): OutputStream?
 
     /** What to call the folder in a sentence, once the writing is done. */
     fun name(): String
+}
+
+/**
+ * A destination whose files are sealed on the way out.
+ *
+ * It wraps another destination rather than replacing it: what is written is the same export,
+ * and only the bytes on the way to disk differ. The one plaintext thing is [META], which
+ * carries the salt and says what the folder is -- an importer has to be able to tell an
+ * encrypted backup from a Signal Desktop export before it can ask for a key, and a salt is
+ * not a secret.
+ */
+internal class EncryptedExportDestination(
+    private val inner: SignalExportDestination,
+    key: String
+) : SignalExportDestination {
+
+    private val salt = SignalBackupCrypto.newSalt()
+    private val derived = SignalBackupCrypto.derive(key, salt)
+
+    /** Written first, so a folder half-written is still recognisably ours. */
+    fun writeMeta() {
+        inner.file(META, under = null)?.use { out ->
+            out.write(
+                JSONObject()
+                    .put("kotozuteBackup", VERSION)
+                    .put("kdf", "hkdf-sha256")
+                    .put("cipher", "aes-256-gcm")
+                    .put("salt", java.util.Base64.getEncoder().encodeToString(salt))
+                    .toString()
+                    .toByteArray()
+            )
+        }
+    }
+
+    override fun main(): OutputStream = SignalBackupCrypto.encrypt(inner.main(), derived)
+
+    override fun file(name: String, under: String?): OutputStream? =
+        inner.file(name, under)?.let { SignalBackupCrypto.encrypt(it, derived) }
+
+    override fun name(): String = inner.name()
+
+    companion object {
+        const val META = "backup.meta"
+        const val VERSION = 1
+    }
 }
 
 /** An export written into an ordinary directory. */
@@ -30,9 +79,10 @@ internal class DirectoryExportDestination(private val dir: File) : SignalExportD
         return File(dir, DirectoryExportSource.MAIN).outputStream()
     }
 
-    override fun file(name: String): OutputStream? {
-        files.mkdirs()
-        return File(files, name).outputStream()
+    override fun file(name: String, under: String?): OutputStream? {
+        val parent = if (under == null) dir else File(dir, under)
+        parent.mkdirs()
+        return File(parent, name).outputStream()
     }
 
     override fun name(): String = dir.name

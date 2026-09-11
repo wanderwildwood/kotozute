@@ -58,10 +58,17 @@ internal class TreeExportSource(
 
     override fun isExport(): Boolean = main() != null
 
-    override fun <T> readLines(consume: (Sequence<String>) -> T): T {
+    override fun <T> readLines(consume: (Sequence<String>) -> T): T =
+        openMain().bufferedReader().use { reader -> consume(reader.lineSequence()) }
+
+    override fun openMain(): InputStream {
         val main = main() ?: throw SignalHistoryImporter.NotAnExport()
-        return open(main.id).bufferedReader().use { reader -> consume(reader.lineSequence()) }
+        return open(main.id)
     }
+
+    override fun meta(): String? =
+        top.firstOrNull { !it.isDir && it.name == EncryptedExportDestination.META }
+            ?.let { open(it.id).bufferedReader().use { reader -> reader.readText() } }
 
     override fun attachments(): List<SignalExportSource.Entry> {
         val files = top.firstOrNull { it.isDir && it.name == DirectoryExportSource.FILES }

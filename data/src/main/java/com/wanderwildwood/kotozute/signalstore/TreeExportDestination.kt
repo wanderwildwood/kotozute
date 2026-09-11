@@ -59,9 +59,9 @@ internal class TreeExportDestination(
             ?: throw IOException("could not write ${DirectoryExportSource.MAIN}")
 
     // The provider may rename a file it is given -- a name it already holds gets a suffix --
-    // but every name here is an attachment id, unique within one fresh folder.
-    override fun file(name: String): OutputStream? =
-        create(files, "application/octet-stream", name)
+    // but every name here is unique within one fresh folder.
+    override fun file(name: String, under: String?): OutputStream? =
+        create(if (under == null) folder else files, "application/octet-stream", name)
 
     override fun name(): String = folderName
 }

@@ -281,6 +281,18 @@ interface SignalRepository {
      */
     fun selfNumber(): String
 
+    /**
+     * Removes this phone's copy of one Signal conversation.
+     *
+     * ⚠ This is the only copy. Signal gives a linked device no history, so what is here was
+     * either received while this phone was linked or imported into it, and no server and no
+     * other device will send it again. Nothing about this reaches the Signal account: the
+     * other person keeps their copy, and a new message starts the conversation again.
+     *
+     * @return how many messages went.
+     */
+    fun deleteThread(threadKey: String): Int
+
     fun canBlock(): Boolean
 
     /** Whether this person is on the account's blocked list, as this device last heard it. */

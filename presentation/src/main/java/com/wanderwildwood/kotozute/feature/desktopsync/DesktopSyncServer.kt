@@ -1121,8 +1121,9 @@ class DesktopSyncServer(
                 // a person made them reappear -- and muting left half their messages
                 // chiming.
                 //
-                // Blocking is deliberately not here: it acts on the Signal account, and
-                // blocking somebody's texts as well is a bigger claim than the button made.
+                // Blocking included: a row that stands for both rails and stops only one of
+                // them stops half of what the person can send, which is not what anybody
+                // pressing it meant.
                 joinedConversationId(thread)?.let { id ->
                     when (action) {
                         "archive" -> conversationRepository.markArchived(id)
@@ -1132,6 +1133,9 @@ class DesktopSyncServer(
                         "mute" -> prefs.notifications(id).set(false)
                         "unmute" -> prefs.notifications(id).set(true)
                         "unread" -> messageRepository.markUnread(listOf(id))
+                        "block" ->
+                            conversationRepository.markBlocked(listOf(id), blockingManager(), null)
+                        "unblock" -> conversationRepository.markUnblocked(id)
                         else -> Unit
                     }
                 }

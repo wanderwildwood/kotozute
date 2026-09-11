@@ -1275,6 +1275,25 @@ class SignalRepositoryImpl @Inject constructor(
     override fun selfNumber(): String = runCatching { signalStore.selfNumberOrNull() }
         .getOrNull().orEmpty()
 
+    override fun deleteThread(threadKey: String): Int {
+        var removed = 0
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val messages = r.where(SignalMessage::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .findAll()
+                removed = messages.size
+                messages.deleteAllFromRealm()
+                r.where(SignalThread::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .findAll()
+                    .deleteAllFromRealm()
+            }
+        }
+        Timber.i("signal: a conversation was deleted from this phone, %d message(s)", removed)
+        return removed
+    }
+
     override fun canBlock(): Boolean = runCatching { signalStore.blockedListKnown() }.getOrDefault(false)
 
     override fun isLockedBackup(folder: String): Boolean = runCatching {

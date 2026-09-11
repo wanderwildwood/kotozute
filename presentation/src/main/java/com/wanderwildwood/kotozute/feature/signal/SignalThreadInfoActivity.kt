@@ -39,11 +39,24 @@ class SignalThreadInfoActivity : QkThemedActivity() {
 
     @Inject lateinit var signalRepo: SignalRepository
     @Inject lateinit var dateFormatter: DateFormatter
+    @Inject lateinit var markBlocked: com.wanderwildwood.kotozute.interactor.MarkBlocked
+    @Inject lateinit var markUnblocked: com.wanderwildwood.kotozute.interactor.MarkUnblocked
+    @Inject lateinit var deleteConversations:
+        com.wanderwildwood.kotozute.interactor.DeleteConversations
+
+    /** The text conversation this one is joined to, when there is one. */
+    private var linkedConversation: Long? = null
 
     private lateinit var binding: SignalThreadInfoActivityBinding
     private lateinit var threadKey: String
     private var isArchived = false
     private var blockArmed = false
+    private var deleteArmed = false
+    private val disarmDelete = Runnable {
+        deleteArmed = false
+        binding.deleteThread.title = getString(R.string.info_delete)
+        binding.deleteThread.summary = deleteSummary()
+    }
     /** What the row does: block, or take a block back. Read from the list this device holds. */
     private var blocked = false
     private val disarmBlock = Runnable {
@@ -71,6 +84,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         title = getString(R.string.signal_info_title)
 
         bindLink()
+        bindDelete()
         refreshLinkRow()
 
         binding.archive.setOnClickListener {
@@ -116,7 +130,25 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             binding.block.title = getString(blockRowTitle())
             val wanted = !blocked
             thread(isDaemon = true) {
-                val result = runCatching { signalRepo.setBlocked(threadKey, wanted) }
+                val result = runCatching {
+                    signalRepo.setBlocked(threadKey, wanted)
+                    // And their texts, where the two are one conversation. A row that stands
+                    // for both rails and blocks only one of them stops half of what the
+                    // person can send -- which is not what anybody pressing this meant.
+                    signalRepo.linkedConversationId(threadKey)
+                        ?.takeIf { it != 0L }
+                        ?.let { id ->
+                            if (wanted) {
+                                markBlocked.execute(
+                                    com.wanderwildwood.kotozute.interactor.MarkBlocked.Params(
+                                        listOf(id), prefs.blockingManager.get(), null
+                                    )
+                                )
+                            } else {
+                                markUnblocked.execute(listOf(id))
+                            }
+                        }
+                }
                 runOnUiThread {
                     if (isFinishing) return@runOnUiThread
                     // Said either way. A block that failed silently would leave someone
@@ -209,6 +241,65 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 binding.link.summary = name?.let { getString(R.string.info_link_linked, it) }
+                // Said before it is pressed, not discovered afterwards: where the rails are
+                // joined, blocking stops both of them.
+                binding.block.summary =
+                    if (name != null) getString(R.string.info_block_both) else null
+                linkedConversation = linked?.takeIf { it != 0L && name != null }
+                if (!deleteArmed) binding.deleteThread.summary = deleteSummary()
+            }
+        }
+    }
+
+    /** What the delete row says it will take, which depends on whether the rails are joined. */
+    private fun deleteSummary(): String = getString(
+        if (linkedConversation != null) R.string.info_delete_both else R.string.info_delete_summary
+    )
+
+    /**
+     * Deletes this phone's copy of the conversation.
+     *
+     * Armed and confirmed, like Block, and for a harder reason: this is the only copy there
+     * is. Signal hands a linked device no history, so what is here arrived while this phone
+     * was linked or was imported into it, and nothing will send it again. The armed wording
+     * says so, and points at the export.
+     *
+     * Nothing here reaches the Signal account. The other person keeps their copy and a new
+     * message starts the conversation over.
+     */
+    private fun bindDelete() {
+        binding.deleteThread.summary = deleteSummary()
+        binding.deleteThread.setOnClickListener {
+            if (!deleteArmed) {
+                deleteArmed = true
+                binding.deleteThread.title = getString(R.string.info_delete_confirm)
+                binding.deleteThread.summary = getString(R.string.info_delete_armed_summary)
+                binding.deleteThread.postDelayed(disarmDelete, ARM_TIMEOUT_MS)
+                return@setOnClickListener
+            }
+            binding.deleteThread.removeCallbacks(disarmDelete)
+            deleteArmed = false
+            val alsoText = linkedConversation
+            thread {
+                val result = runCatching {
+                    val gone = signalRepo.deleteThread(threadKey)
+                    // Both halves, because the inbox shows one row for both: deleting one
+                    // would leave the other standing under the same name, which reads as
+                    // the delete having half failed.
+                    alsoText?.let { deleteConversations.execute(listOf(it)) }
+                    gone
+                }
+                runOnUiThread {
+                    if (isFinishing) return@runOnUiThread
+                    Toast.makeText(
+                        this,
+                        result.getOrNull()
+                            ?.let { getString(R.string.info_deleted_toast, it) }
+                            ?: getString(R.string.info_delete_failed),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    if (result.isSuccess) finish()
+                }
             }
         }
     }

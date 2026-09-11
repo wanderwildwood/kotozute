@@ -224,6 +224,16 @@
                 xmlns:app2="http://schemas.android.com/apk/res-auto"
                 app2:title="@string/info_block" />
 
+            <!-- Last, and after Block, because it is the one thing here that cannot be
+                 undone. Arms and confirms, and says plainly that this phone holds the only
+                 copy. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/deleteThread"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                xmlns:app4="http://schemas.android.com/apk/res-auto"
+                app4:title="@string/info_delete" />
+
         </LinearLayout>
 
     </ScrollView>

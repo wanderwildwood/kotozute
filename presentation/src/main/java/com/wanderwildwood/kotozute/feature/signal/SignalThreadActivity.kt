@@ -58,7 +58,6 @@ class SignalThreadActivity : QkThemedActivity() {
     @Inject lateinit var notifications: SignalNotifications
     @Inject lateinit var navigator: com.wanderwildwood.kotozute.common.Navigator
     @Inject lateinit var scheduledMessageRepo: ScheduledMessageRepository
-    @Inject lateinit var sendNewMessage: com.wanderwildwood.kotozute.interactor.SendNewMessage
     @Inject lateinit var markTextRead: com.wanderwildwood.kotozute.interactor.MarkRead
     @Inject lateinit var markTextArchived: com.wanderwildwood.kotozute.interactor.MarkArchived
     @Inject lateinit var markTextUnarchived: com.wanderwildwood.kotozute.interactor.MarkUnarchived
@@ -84,8 +83,7 @@ class SignalThreadActivity : QkThemedActivity() {
     private var smsResults: io.realm.RealmResults<com.wanderwildwood.kotozute.model.Message>? = null
     /** The text conversation this one is joined to, by number or by hand, if any. */
     private var linkedConversationId: Long? = null
-    /** Where a reply goes. Signal unless the reader says otherwise for this message. */
-    private var replyOnSignal = true
+
     private var isArchived: Boolean = false
     private var isPinned: Boolean = false
     private var isMuted: Boolean = false
@@ -102,14 +100,6 @@ class SignalThreadActivity : QkThemedActivity() {
     /** The picked file, already a data URI. Held until the message is actually sent. */
     private var pendingAttachment: String? = null
     private var pendingName: String? = null
-    /**
-     * The file as the phone knows it, kept beside the data URI Signal's uploader wants.
-     *
-     * The two rails want the same picture in different shapes: Signal takes the bytes,
-     * MMS takes a content uri it can read itself. Keeping only the first is what made a
-     * picture unsendable the moment the composer was pointed at the text rail.
-     */
-    private var pendingUri: Uri? = null
 
     private val picker = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -204,10 +194,19 @@ class SignalThreadActivity : QkThemedActivity() {
                 }
             }
         }
-        // The badge says which rail a reply will take, and a tap changes it. It used to be
-        // the way across to a separate text thread; there is nowhere to cross to now, both
-        // halves of the conversation being on this screen.
-        binding.railBadge.setOnClickListener { if (smsThreadId != 0L) toggleRail() }
+        // The badge is the way across, as it has always been. The conversation is merged on
+        // this screen, but the separate threads are still worth reaching -- being able to
+        // see one rail on its own is the point of keeping them apart underneath.
+        binding.railBadge.setOnClickListener {
+            if (smsThreadId != 0L) {
+                navigator.showConversation(smsThreadId)
+                // Crossing rails replaces this screen rather than stacking on top of it.
+                // Without this, hopping SMS -> Signal -> SMS -> Signal left four thread
+                // screens on the stack and back walked all the way down through them; from a
+                // conversation, back should mean the conversation list.
+                finish()
+            }
+        }
         showRailBadge()
         binding.searchClose.setOnClickListener { closeSearch() }
         binding.searchField.addTextChangedListener(object : android.text.TextWatcher {
@@ -245,7 +244,6 @@ class SignalThreadActivity : QkThemedActivity() {
             runOnUiThread {
                 result.onSuccess { dataUri ->
                     pendingAttachment = dataUri
-                    pendingUri = uri
                     pendingName = SignalAttachment.displayName(this@SignalThreadActivity, uri) ?: type
                     binding.pending.text = getString(R.string.signal_attached, pendingName)
                     binding.pending.setVisible(true)
@@ -263,7 +261,6 @@ class SignalThreadActivity : QkThemedActivity() {
 
     private fun clearAttachment() {
         pendingAttachment = null
-        pendingUri = null
         pendingName = null
         binding.pending.setVisible(false)
     }
@@ -342,7 +339,6 @@ class SignalThreadActivity : QkThemedActivity() {
         val attachment = pendingAttachment
         if (body.isEmpty() && attachment == null) return
         binding.send.isEnabled = false
-        if (!replyOnSignal) return sendAsText(body, attachment)
         thread(isDaemon = true) {
             val result = runCatching {
                 signalRepo.send(threadKey, body, listOfNotNull(attachment))
@@ -364,75 +360,6 @@ class SignalThreadActivity : QkThemedActivity() {
                     }
             }
         }
-    }
-
-    /**
-     * Sends the reply as a text instead.
-     *
-     * Never chosen for the reader. A message going out unencrypted when they believed it was
-     * going over Signal is not a UI detail, so the rail is always the one the badge says and
-     * changing it is a deliberate tap.
-     */
-    private fun sendAsText(body: String, attachment: String?) {
-        val conversationId = linkedConversationId
-        if (conversationId == null || conversationId == 0L) {
-            binding.send.isEnabled = true
-            return
-        }
-        // The picture goes out as MMS, the same way the SMS composer and the browser send
-        // one. Only the shape differed: this screen keeps the bytes for Signal's uploader,
-        // and MMS wants the file itself.
-        val picture = pendingUri?.let { com.wanderwildwood.kotozute.model.Attachment(this, it) }
-        thread(isDaemon = true) {
-            val addresses = runCatching {
-                io.realm.Realm.getDefaultInstance().use { realm ->
-                    realm.where(com.wanderwildwood.kotozute.model.Conversation::class.java)
-                        .equalTo("id", conversationId)
-                        .findFirst()
-                        ?.recipients
-                        ?.map { it.address }
-                        ?.toList()
-                        .orEmpty()
-                }
-            }.getOrDefault(emptyList())
-            if (addresses.isEmpty()) {
-                runOnUiThread {
-                    binding.send.isEnabled = true
-                    Toast.makeText(this, R.string.signal_rail_text_no_number, Toast.LENGTH_LONG).show()
-                }
-                return@thread
-            }
-            sendNewMessage.execute(
-                com.wanderwildwood.kotozute.interactor.SendNewMessage.Params(
-                    subId = -1,
-                    threadId = conversationId,
-                    addresses = addresses,
-                    body = body,
-                    sendAsGroup = false,
-                    attachments = listOfNotNull(picture)
-                )
-            )
-            runOnUiThread {
-                binding.send.isEnabled = true
-                binding.message.setText("")
-                clearAttachment()
-            }
-        }
-    }
-
-    /**
-     * Switches which rail the next message takes.
-     *
-     * The badge used to be the way across to a separate text thread. There is nowhere to
-     * cross to now -- both halves of the conversation are on this screen -- so it says what
-     * it has always said, which rail you are on, and a tap changes it.
-     */
-    private fun toggleRail() {
-        replyOnSignal = !replyOnSignal
-        showRailBadge()
-        binding.message.hint = getString(
-            if (replyOnSignal) R.string.compose_hint else R.string.signal_compose_hint_text
-        )
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -555,14 +482,11 @@ class SignalThreadActivity : QkThemedActivity() {
      * a badge that looks tappable and does nothing is worse than a plain label.
      */
     private fun showRailBadge() {
-        val onSignal = replyOnSignal || smsThreadId == 0L
-        val label = getString(
-            if (onSignal) R.string.signal_rail_label else R.string.signal_rail_label_text
-        )
+        val label = getString(R.string.signal_rail_label)
         binding.railBadge.text = if (smsThreadId != 0L) "$label $RAIL_SWITCH_ARROW" else label
         binding.railBadge.isClickable = smsThreadId != 0L
         binding.railBadge.contentDescription =
-            if (smsThreadId != 0L) getString(R.string.signal_rail_switch) else label
+            if (smsThreadId != 0L) getString(R.string.signal_switch_to_sms) else label
     }
 
     /**

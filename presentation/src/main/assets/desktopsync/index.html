@@ -317,6 +317,17 @@
   .thread.active { background: var(--active); }
   .thread .row { display: flex; align-items: baseline; gap: 8px; }
   .thread .name { font-weight: 700; font-size: 15px; }
+  /* The find bar sits between the header and the messages, out of the composer's way. */
+  #findBar { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+             border-bottom: 1px solid var(--line); }
+  #findBar input { flex: 1; min-width: 0; }
+  #findCount { font-size: 12px; opacity: 0.7; white-space: nowrap; }
+  #findBar button { padding: 2px 8px; }
+  /* A match is outlined; the one being looked at is filled, so stepping is visible
+     without having to read the bubbles. */
+  .msg.match .bubble { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .msg.current .bubble { background: var(--ink); color: var(--paper); }
+
   /* Mirrors the phone's rail chip: filled, not outlined, so it reads at a glance. */
   #crossBtn {
     /* auto, not a fixed gap: it takes the slack in the row and ends up hard right,
@@ -658,6 +669,17 @@
              end rather than crowding it. Only for a one-to-one thread, because a Signal
              group and an MMS group are different groups rather than two views of one. -->
         <button type="button" id="crossBtn" hidden></button>
+      </div>
+      <!-- Find within the open conversation: the browser's answer to the phone's "Find in
+           conversation". A count and two arrows, because a search that says a conversation
+           contains eleven matches and then cannot show you the second one has only told you
+           the number. Hidden until there is something to find. -->
+      <div id="findBar" hidden>
+        <input id="findField" type="search" placeholder="Find in conversation" aria-label="Find in conversation" />
+        <span id="findCount"></span>
+        <button type="button" id="findPrev" title="Previous match" aria-label="Previous match">&#8249;</button>
+        <button type="button" id="findNext" title="Next match" aria-label="Next match">&#8250;</button>
+        <button type="button" id="findClose" title="Stop finding" aria-label="Stop finding">&times;</button>
       </div>
       <div id="messages"><div id="empty">Nothing selected</div></div>
       <form id="composer">

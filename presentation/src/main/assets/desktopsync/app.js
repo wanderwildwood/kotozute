@@ -165,6 +165,12 @@ const suggestionsEl = document.getElementById('suggestions');
 const simFieldEl = document.getElementById('simField');
 const signalSetupEl = document.getElementById('signalSetup');
 const signalSetupErrorEl = document.getElementById('signalSetupError');
+const findBarEl = document.getElementById('findBar');
+const findFieldEl = document.getElementById('findField');
+const findCountEl = document.getElementById('findCount');
+const findPrevEl = document.getElementById('findPrev');
+const findNextEl = document.getElementById('findNext');
+const findCloseEl = document.getElementById('findClose');
 const searchFieldEl = document.getElementById('searchField');
 const searchClearEl = document.getElementById('searchClear');
 const attachEl = document.getElementById('attach');
@@ -181,6 +187,18 @@ const emojiTabsEl = document.getElementById('emojiTabs');
 const emojiGridEl = document.getElementById('emojiGrid');
 
 let activeThreadId = null;
+/**
+ * The other half of the pair, while a crossed-to conversation is open.
+ *
+ * One person is one row in the list now, so crossing to their other rail opens a thread
+ * the list does not show -- and the row went un-highlighted, which read as nothing being
+ * selected at all. The pair stays lit until a different conversation is chosen.
+ */
+let activePairId = null;
+/** Find-within-the-conversation: the query, and which match is being looked at. */
+let findQuery = '';
+let findIndex = 0;
+let findEls = [];
 let activeThreadRail = 'sms'; // the open thread's rail; a SIM means nothing on Signal
 let activeThreadTitle = '';
 let composeMode = false;
@@ -979,7 +997,7 @@ async function loadThreads() {
   // position) on every poll tick when nothing changed. The filter text is part of
   // the signature so typing in the search box re-renders immediately.
   const sig = threads.map(t => t.id + ':' + t.date + ':' + (t.unread ? 'u' : 'r')).join('|') +
-    '#' + activeThreadId + '#' + filterQuery + '#' + showingArchived;
+    '#' + activeThreadId + '#' + activePairId + '#' + filterQuery + '#' + showingArchived;
   if (sig === lastThreadsSig) return;
   lastThreadsSig = sig;
   renderThreads();
@@ -1010,7 +1028,8 @@ function renderThreads() {
   }
   threads.forEach(t => {
     const div = document.createElement('div');
-    div.className = 'thread' + (t.unread ? ' unread' : '') + (t.id === activeThreadId ? ' active' : '');
+    const isActive = t.id === activeThreadId || (activePairId !== null && t.id === activePairId);
+    div.className = 'thread' + (t.unread ? ' unread' : '') + (isActive ? ' active' : '');
     const row = document.createElement('div');
     row.className = 'row';
     const name = document.createElement('span');
@@ -1039,7 +1058,10 @@ function renderThreads() {
     }
     div.dataset.id = t.id; // lets a keystroke update just this row, see refreshDraftRow
     div.append(row, snippet);
-    div.addEventListener('click', () => selectThread(t.id, t.title));
+    // A hit inside a conversation opens it already looking for what was searched, so the
+    // reader lands on the match rather than at the bottom of a thread they have to re-read.
+    div.addEventListener('click', () =>
+        selectThread(t.id, t.title, t.matches > 0 ? filterQuery.trim() : ''));
     // The phone opens this set with a long press; on a keyboard and mouse it is the
     // right-click, and on a touchscreen the long press still arrives as one.
     div.addEventListener('contextmenu', e => {
@@ -1813,13 +1835,20 @@ markAllBtn.addEventListener('click', async () => {
   }
 });
 
-async function selectThread(id, title) {
+async function selectThread(id, title, find) {
   stashDraft(); // capture unsent text for the thread we're leaving, before it changes
   exitComposeMode();
   lastMessagesSig = ''; // force a fresh render for the newly opened thread
-  messageLimit = 300;    // start each thread at the most recent page
+  // Opened from a search hit: the match may be a long way back, and the usual page is the
+  // most recent 300. Reach for the whole conversation rather than land the reader at the
+  // bottom of it with nothing highlighted.
+  setFind(find || '');
+  messageLimit = findQuery ? 5000 : 300;
   hasMoreMessages = false;
   activeThreadId = id;
+  // Cleared on every deliberate choice: crossing sets it again a moment later, and any
+  // other conversation should light its own row and nothing else.
+  activePairId = null;
   activeThreadRail = (lastThreads.find(t => t.id === id) || {}).rail || 'sms';
   activeThreadTitle = title || '';
   paneTitleEl.textContent = activeThreadTitle || 'Conversation';
@@ -1857,6 +1886,92 @@ async function selectThread(id, title) {
  * work to answer a question about the one thread being read. Not awaited by selectThread
  * either -- the badge appearing a moment late is better than the messages arriving late.
  */
+/**
+ * Find within the open conversation.
+ *
+ * The list already said how many messages in a conversation matched; this is what makes
+ * that number worth anything. Matching is done here rather than on the phone because the
+ * messages are already in the page -- and the phone's own search decides which
+ * conversations to offer, which is a different question.
+ */
+function setFind(query) {
+  findQuery = (query || '').trim();
+  findIndex = 0;
+  findEls = [];
+  findBarEl.hidden = !findQuery && !findBarEl.dataset.open;
+  if (findFieldEl.value !== findQuery) findFieldEl.value = findQuery;
+  if (findQuery) findBarEl.hidden = false;
+  updateFindCount();
+}
+
+function collectFindMatches() {
+  findEls = findQuery
+    ? Array.from(messagesEl.querySelectorAll('.msg.match'))
+    : [];
+  if (findIndex >= findEls.length) findIndex = Math.max(0, findEls.length - 1);
+  updateFindCount();
+}
+
+function updateFindCount() {
+  const disabled = findEls.length === 0;
+  findPrevEl.disabled = disabled;
+  findNextEl.disabled = disabled;
+  findCountEl.textContent = !findQuery ? ''
+    : findEls.length ? (findIndex + 1) + ' of ' + findEls.length
+    : 'none';
+}
+
+/** Show match [findIndex], newest first, and mark it as the one being looked at. */
+function showFindMatch() {
+  findEls.forEach(el => el.classList.remove('current'));
+  const el = findEls[findIndex];
+  if (!el) return;
+  el.classList.add('current');
+  el.scrollIntoView({ block: 'center' });
+  updateFindCount();
+}
+
+function stepFind(by) {
+  if (!findEls.length) return;
+  findIndex = (findIndex + by + findEls.length) % findEls.length;
+  showFindMatch();
+}
+
+findFieldEl.addEventListener('input', () => {
+  findBarEl.dataset.open = '1';
+  setFind(findFieldEl.value);
+  // Re-render so the highlights follow what is typed; the signature guard would
+  // otherwise decide nothing had changed.
+  lastMessagesSig = '';
+  loadMessages().then(() => { if (findEls.length) showFindMatch(); });
+});
+findFieldEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); stepFind(e.shiftKey ? -1 : 1); }
+  if (e.key === 'Escape') closeFind();
+});
+// Ctrl/Cmd-F while a conversation is open, which is where a reader's hand already goes.
+// The browser's own find searches the page, and the page holds one screen of the thread.
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && activeThreadId !== null) {
+    e.preventDefault();
+    findBarEl.dataset.open = '1';
+    findBarEl.hidden = false;
+    findFieldEl.focus();
+    findFieldEl.select();
+  }
+});
+findPrevEl.addEventListener('click', () => stepFind(-1));
+findNextEl.addEventListener('click', () => stepFind(1));
+findCloseEl.addEventListener('click', closeFind);
+
+function closeFind() {
+  delete findBarEl.dataset.open;
+  setFind('');
+  findBarEl.hidden = true;
+  lastMessagesSig = '';
+  loadMessages();
+}
+
 async function loadCrossRail(id) {
   crossBtnEl.hidden = true;
   crossTarget = null;
@@ -1868,6 +1983,11 @@ async function loadCrossRail(id) {
     if (!d.found || activeThreadId !== id) return;
     if (d.found) {
       crossTarget = d;
+      // The pair is what is engaged, not just this half. Without this, crossing left the
+      // list with nothing lit -- the row for the thread now on screen is the one the merge
+      // hides, and the row that is shown is its other half.
+      activePairId = d.id;
+      renderThreads();
       // The rail this thread IS on, not the one the badge leads to. That is the phone's
       // convention -- there the badge doubles as a rail marker, showing "Signal" plain
       // when there is nowhere to cross and gaining an arrow when there is -- and the
@@ -2066,6 +2186,9 @@ async function loadMessages() {
     bubble.className = 'bubble';
     const text = (m.body || '').trim();
     if (text) appendLinkified(bubble, text);
+    if (findQuery && text.toLowerCase().includes(findQuery.toLowerCase())) {
+      wrap.classList.add('match');
+    }
 
     // A view-once photo leaves a row with no body and no attachment, deliberately: the
     // bridge keeps it so the conversation does not have a silent hole where a message was.
@@ -2220,7 +2343,14 @@ async function loadMessages() {
     wrap.append(inner);
     messagesEl.append(wrap);
   });
-  if (isNewThread || nearBottom) {
+  // Matches are collected after the list exists, and the newest one is where a reader
+  // starting from a search result wants to land -- not the bottom of the conversation,
+  // which is the place they already knew about.
+  collectFindMatches();
+  if (findEls.length) {
+    if (isNewThread) findIndex = findEls.length - 1;
+    showFindMatch();
+  } else if (isNewThread || nearBottom) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 }

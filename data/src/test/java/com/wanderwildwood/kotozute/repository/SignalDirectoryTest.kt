@@ -160,6 +160,18 @@ class SignalDirectoryTest {
     }
 
     @Test
+    fun `a counterpart that is only a number is looked up as one`() {
+        val people = SignalDirectory.merge(
+            threads = listOf(row("+15550001")),
+            contacts = listOf(),
+            selfAci = self,
+            nameForNumber = { number -> if (number == "+15550001") "Alice at home" else null }
+        )
+
+        assertEquals("Alice at home", people[0].name)
+    }
+
+    @Test
     fun `an account with no self yet still lists everybody`() {
         val people = SignalDirectory.merge(
             threads = listOf(),

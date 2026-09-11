@@ -724,13 +724,17 @@ class DesktopSyncServer(
         }
 
         val rows = mutableListOf<Pair<Long, JSONObject>>()
-        conversationRepository.searchConversations(query).forEach { result ->
-            rows += result.conversation.date to conversationJson(result.conversation).apply {
-                put("matches", result.messages)
+        val hits = if (signalEnabled()) signalRepository.searchThreads(query) else emptyList()
+        val joined = joinedConversationIds(hits.map { it.thread })
+        conversationRepository.searchConversations(query)
+            .filterNot { it.conversation.id in joined }
+            .forEach { result ->
+                rows += result.conversation.date to conversationJson(result.conversation).apply {
+                    put("matches", result.messages)
+                }
             }
-        }
-        if (signalEnabled()) {
-            signalRepository.searchThreads(query).forEach { hit ->
+        run {
+            hits.forEach { hit ->
                 rows += hit.thread.lastTs to signalThreadJson(hit.thread).apply {
                     put("matches", hit.messages)
                     // The matching line, so a hit inside a long conversation says what it
@@ -779,6 +783,25 @@ class DesktopSyncServer(
             signalRepository.getThreadsSnapshot(archived = true))
             .firstOrNull { InboxItem.signalStableId(it.threadKey) == id }
     }
+
+    /**
+     * The text conversation a Signal thread stands for, when the two are one person.
+     *
+     * The browser has to agree with the phone about this. It showed two conversations where
+     * the phone shows one, so the same person appeared twice, each row holding half of what
+     * they said -- and replying in one of them put the answer somewhere the other could not
+     * see. The joining rule is the phone's: a shared number, or a link made by hand.
+     */
+    private fun joinedConversationId(thread: SignalThread): Long? =
+        runCatching { signalRepository.linkedConversationId(thread.threadKey) }.getOrNull()
+            ?: thread.counterpartNumber.takeIf { it.isNotBlank() }?.let { number ->
+                runCatching { conversationRepository.getConversation(listOf(number))?.id }
+                    .getOrNull()
+            }
+
+    private fun joinedConversationIds(threads: List<SignalThread>): Set<Long> =
+        if (!signalEnabled()) emptySet()
+        else threads.mapNotNullTo(mutableSetOf()) { joinedConversationId(it) }
 
     private fun signalThreadJson(t: SignalThread) = JSONObject().apply {
         put("id", InboxItem.signalStableId(t.threadKey))
@@ -1523,13 +1546,16 @@ class DesktopSyncServer(
             .getConversationsSnapshot(unreadAtTop = !archived, archived = archived)
         val array = JSONArray()
         val rows = mutableListOf<Pair<Long, JSONObject>>()
+        val signalThreads =
+            if (signalEnabled()) signalRepository.getThreadsSnapshot(archived = archived)
+            else emptyList()
+        val joined = joinedConversationIds(signalThreads)
         conversations
             .filterNot { it.blocked }
+            // One person, one row -- the rule the phone's inbox follows.
+            .filterNot { it.id in joined }
             .forEach { conversation -> rows += conversation.date to conversationJson(conversation) }
-        if (signalEnabled()) {
-            signalRepository.getThreadsSnapshot(archived = archived)
-                .forEach { rows += it.lastTs to signalThreadJson(it) }
-        }
+        signalThreads.forEach { rows += it.lastTs to signalThreadJson(it) }
         // One list, newest first, the same order the phone shows.
         rows.sortedByDescending { it.first }.forEach { array.put(it.second) }
         return jsonResponse(Response.Status.OK, array)
@@ -1547,13 +1573,25 @@ class DesktopSyncServer(
             } else {
                 emptyMap()
             }
+            // Both halves, as on the phone. A merged conversation read in the browser used
+            // to show only what came over Signal, which is the half that happened to be on
+            // the rail the row was named after.
+            val textHalf = joinedConversationId(thread)?.let { conversationId ->
+                runCatching {
+                    conversationRepository.getConversation(conversationId)
+                    messageRepository.getMessagesSync(conversationId).takeLast(limit).toList()
+                }.getOrDefault(emptyList())
+            }.orEmpty()
+            val signalHalf = signalRepository.getMessagesSnapshot(thread.threadKey, limit)
             val array = JSONArray()
-            signalRepository.getMessagesSnapshot(thread.threadKey, limit)
-                .forEach { array.put(signalMessageJson(it, senders)) }
+            (signalHalf.map { it.date to signalMessageJson(it, senders) } +
+                textHalf.map { it.date to messageJson(it) })
+                .sortedBy { it.first }
+                .forEach { array.put(it.second) }
             // The same envelope the SMS branch returns. A bare array here meant the browser
             // read hasMore as false for every Signal thread, so "Load older messages" was
             // never offered and a long conversation ended at its most recent page.
-            val total = signalRepository.countMessages(thread.threadKey)
+            val total = signalRepository.countMessages(thread.threadKey) + textHalf.size
             return jsonResponse(Response.Status.OK, JSONObject().apply {
                 put("total", total)
                 put("hasMore", total > limit)

@@ -262,6 +262,16 @@ interface SignalRepository {
      */
     fun fetchContactsFromSignal(): String
 
+    /**
+     * Whether this phone is in the state the fetch exists for, and should say so once.
+     *
+     * True only where the account is linked, the contact list is empty, and the list has not
+     * already been read. That is not a rare corner: it is how every linked device starts,
+     * because the sync it asks for on connecting is one a modern Signal no longer answers.
+     * Blocking -- it reads the protocol database.
+     */
+    fun shouldOfferContactFetch(): Boolean
+
     fun canBlock(): Boolean
 
     /** Whether this person is on the account's blocked list, as this device last heard it. */

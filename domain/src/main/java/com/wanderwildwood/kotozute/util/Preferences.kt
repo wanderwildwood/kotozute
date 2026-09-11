@@ -142,6 +142,17 @@ class Preferences @Inject constructor(
     val signalWeave = rxPrefs.getBoolean("signalWeave", true)
 
     /**
+     * Whether the offer to fetch the account's contact list has been made.
+     *
+     * Asked once and never again, whatever the answer. A linked device's first impression is
+     * a list of service ids where names should be, because a modern Signal keeps its contacts
+     * somewhere this phone will not read unasked -- reading it fetches the account's own key
+     * material, which is not something to do on a guess. Offering it once is the difference
+     * between a choice and a setting nobody finds; offering it twice is nagging.
+     */
+    val signalContactsOffered = rxPrefs.getBoolean("signalContactsOffered", false)
+
+    /**
      * Whether to hold the Signal connection open in the background.
      *
      * Off, the stream lives only as long as the app's process does -- which is however long

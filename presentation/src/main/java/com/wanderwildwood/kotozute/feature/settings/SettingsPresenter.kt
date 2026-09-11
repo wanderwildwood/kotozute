@@ -194,8 +194,10 @@ class SettingsPresenter @Inject constructor(
                         R.id.categoryDesktopSync ->
                             view.showSection(R.id.sectionDesktop, R.string.settings_category_desktop_sync)
 
-                        R.id.categorySignal ->
+                        R.id.categorySignal -> {
                             view.showSection(R.id.sectionSignal, R.string.settings_category_signal)
+                            offerContactFetchOnce(view)
+                        }
 
                         R.id.archived -> navigator.showArchived()
 
@@ -263,15 +265,7 @@ class SettingsPresenter @Inject constructor(
                             }.apply { isDaemon = true }.start()
                         }
 
-                        R.id.signalFetchContacts -> Thread {
-                            view.showSignalFetchResult(
-                                runCatching { signalRepo.fetchContactsFromSignal() }
-                                    .getOrElse { failure ->
-                                        Timber.w(failure, "signal contacts: fetch failed")
-                                        context.getString(R.string.settings_signal_fetch_contacts_failed)
-                                    }
-                            )
-                        }.apply { isDaemon = true }.start()
+                        R.id.signalFetchContacts -> fetchContacts(view)
 
                         R.id.signalHistoryImport -> view.chooseSignalExportFolder()
 
@@ -405,6 +399,40 @@ class SettingsPresenter @Inject constructor(
         view.signalUnpairConfirmed()
             .autoDisposable(view.scope())
             .subscribe { signalRepo.unpair() }
+
+        view.signalFetchContactsConfirmed()
+            .autoDisposable(view.scope())
+            .subscribe { fetchContacts(view) }
+    }
+
+    /**
+     * Offers the contact fetch the first time this screen is opened on a phone that needs it.
+     *
+     * Off the main thread: deciding reads the protocol database. Marked as offered when the
+     * offer is made rather than when it is answered -- "no" is an answer, and asking again
+     * because somebody said no is how a prompt becomes a nuisance.
+     */
+    private fun offerContactFetchOnce(view: SettingsView) {
+        if (prefs.signalContactsOffered.get()) return
+        Thread {
+            if (runCatching { signalRepo.shouldOfferContactFetch() }.getOrDefault(false)) {
+                prefs.signalContactsOffered.set(true)
+                view.askFetchContacts()
+            }
+        }.apply { isDaemon = true }.start()
+    }
+
+    /** The fetch itself, shared by the settings row and the one-off offer. */
+    private fun fetchContacts(view: SettingsView) {
+        Thread {
+            view.showSignalFetchResult(
+                runCatching { signalRepo.fetchContactsFromSignal() }
+                    .getOrElse { failure ->
+                        Timber.w(failure, "signal contacts: fetch failed")
+                        context.getString(R.string.settings_signal_fetch_contacts_failed)
+                    }
+            )
+        }.apply { isDaemon = true }.start()
     }
 
     private fun importHistory(view: SettingsView, folder: String, key: String) {

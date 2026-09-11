@@ -102,6 +102,14 @@ class SignalThreadActivity : QkThemedActivity() {
     /** The picked file, already a data URI. Held until the message is actually sent. */
     private var pendingAttachment: String? = null
     private var pendingName: String? = null
+    /**
+     * The file as the phone knows it, kept beside the data URI Signal's uploader wants.
+     *
+     * The two rails want the same picture in different shapes: Signal takes the bytes,
+     * MMS takes a content uri it can read itself. Keeping only the first is what made a
+     * picture unsendable the moment the composer was pointed at the text rail.
+     */
+    private var pendingUri: Uri? = null
 
     private val picker = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -237,6 +245,7 @@ class SignalThreadActivity : QkThemedActivity() {
             runOnUiThread {
                 result.onSuccess { dataUri ->
                     pendingAttachment = dataUri
+                    pendingUri = uri
                     pendingName = SignalAttachment.displayName(this@SignalThreadActivity, uri) ?: type
                     binding.pending.text = getString(R.string.signal_attached, pendingName)
                     binding.pending.setVisible(true)
@@ -254,6 +263,7 @@ class SignalThreadActivity : QkThemedActivity() {
 
     private fun clearAttachment() {
         pendingAttachment = null
+        pendingUri = null
         pendingName = null
         binding.pending.setVisible(false)
     }
@@ -369,11 +379,10 @@ class SignalThreadActivity : QkThemedActivity() {
             binding.send.isEnabled = true
             return
         }
-        if (attachment != null) {
-            binding.send.isEnabled = true
-            Toast.makeText(this, R.string.signal_rail_text_no_attachment, Toast.LENGTH_LONG).show()
-            return
-        }
+        // The picture goes out as MMS, the same way the SMS composer and the browser send
+        // one. Only the shape differed: this screen keeps the bytes for Signal's uploader,
+        // and MMS wants the file itself.
+        val picture = pendingUri?.let { com.wanderwildwood.kotozute.model.Attachment(this, it) }
         thread(isDaemon = true) {
             val addresses = runCatching {
                 io.realm.Realm.getDefaultInstance().use { realm ->
@@ -399,12 +408,14 @@ class SignalThreadActivity : QkThemedActivity() {
                     threadId = conversationId,
                     addresses = addresses,
                     body = body,
-                    sendAsGroup = false
+                    sendAsGroup = false,
+                    attachments = listOfNotNull(picture)
                 )
             )
             runOnUiThread {
                 binding.send.isEnabled = true
                 binding.message.setText("")
+                clearAttachment()
             }
         }
     }

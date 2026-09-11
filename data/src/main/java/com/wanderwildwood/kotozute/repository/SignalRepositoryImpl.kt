@@ -358,8 +358,14 @@ class SignalRepositoryImpl @Inject constructor(
         // Resolved outside the transaction: the pairing lives in the protocol database, and
         // asking it is not something to do with a Realm write held open.
         val moves = numberKeyed.mapNotNull { key ->
-            signalStore.contactAciForNumber(key.removePrefix("direct:"))
-                ?.let { aci -> key to "direct:$aci" }
+            val number = key.removePrefix("direct:")
+            val target = signalStore.contactAciForNumber(number)?.let { "direct:$it" }
+                // Or the link the reader made by hand. Saying "this Signal conversation is
+                // the same person as this text conversation" also says which service id
+                // that number belongs to -- which is the one thing the account never told
+                // this phone, and the reason the orphan exists at all.
+                ?: threadLinkedToNumber(number)
+            target?.let { key to it }
         }.filter { (from, to) -> from != to }
         if (moves.isEmpty()) return
 
@@ -391,6 +397,30 @@ class SignalRepositoryImpl @Inject constructor(
             }
         }
         Timber.i("signal: joined %d split conversation(s)", moves.size)
+    }
+
+    /**
+     * The Signal thread whose hand-linked text conversation is reached on [number].
+     *
+     * Read from the links the reader set, not guessed: they said these two conversations are
+     * one person, and a conversation names the number it is carried on. That pairing is
+     * exactly what a transcript would have supplied.
+     */
+    private fun threadLinkedToNumber(number: String): String? {
+        if (number.isBlank()) return null
+        val all = links()
+        val keys = all.keys().asSequence().toList()
+        if (keys.isEmpty()) return null
+        return Realm.getDefaultInstance().use { realm ->
+            keys.firstOrNull { key ->
+                val conversationId = all.optLong(key, 0L)
+                conversationId != 0L && realm.where(com.wanderwildwood.kotozute.model.Conversation::class.java)
+                    .equalTo("id", conversationId)
+                    .findFirst()
+                    ?.recipients
+                    ?.any { phoneNumberUtils.compare(it.address, number) } == true
+            }
+        }
     }
 
     private fun renameThreadsFromContacts() {

@@ -272,6 +272,15 @@ interface SignalRepository {
      */
     fun shouldOfferContactFetch(): Boolean
 
+    /**
+     * This account's own number, as the phone knows it, or blank.
+     *
+     * Note to Self and the text conversation somebody has with their own number are the
+     * same conversation with themselves, and nothing else links them: the Signal side knows
+     * only a service id, and the text side only a number.
+     */
+    fun selfNumber(): String
+
     fun canBlock(): Boolean
 
     /** Whether this person is on the account's blocked list, as this device last heard it. */

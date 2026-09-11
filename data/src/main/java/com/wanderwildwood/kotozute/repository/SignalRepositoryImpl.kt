@@ -1272,6 +1272,9 @@ class SignalRepositoryImpl @Inject constructor(
         )
     }.getOrDefault(false)
 
+    override fun selfNumber(): String = runCatching { signalStore.selfNumberOrNull() }
+        .getOrNull().orEmpty()
+
     override fun canBlock(): Boolean = runCatching { signalStore.blockedListKnown() }.getOrDefault(false)
 
     override fun isLockedBackup(folder: String): Boolean = runCatching {

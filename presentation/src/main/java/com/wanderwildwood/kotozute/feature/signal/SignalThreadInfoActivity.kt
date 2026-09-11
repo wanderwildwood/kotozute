@@ -70,6 +70,9 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         // class runs. Setting the title is the supported way to fill that view.
         title = getString(R.string.signal_info_title)
 
+        bindLink()
+        refreshLinkRow()
+
         binding.archive.setOnClickListener {
             isArchived = !isArchived
             signalRepo.setArchived(threadKey, isArchived)
@@ -143,6 +146,71 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         // conversation and a stutter there is the one place it would be noticed.
         thread(isDaemon = true) { load() }
         thread(isDaemon = true) { loadIdentity() }
+    }
+
+    /**
+     * Joins this conversation to the text conversation with the same person.
+     *
+     * By hand, because for most people there is nothing to join on: Signal stopped handing
+     * out phone numbers, so a Signal thread and a text thread with one person share no
+     * identifier at all. Where they do share a number the crossing already happens on its
+     * own and this row only offers to override it.
+     *
+     * Kept on this phone and nowhere else. It is one person's view of who two conversations
+     * belong to, it tells Signal nothing, and it is undone by the same row.
+     */
+    private fun bindLink() {
+        binding.link.setOnClickListener {
+            thread {
+                val linked = signalRepo.linkedConversationId(threadKey)
+                val conversations = runCatching {
+                    conversationRepo.getConversationsSnapshot(unreadAtTop = false)
+                        .plus(conversationRepo.getConversationsSnapshot(unreadAtTop = false, archived = true))
+                }.getOrDefault(emptyList())
+                // Read on this thread while the objects are still live, because a Realm
+                // object does not travel: the names have to be taken here, as strings.
+                val choices = conversations.map { conversation ->
+                    conversation.id to conversation.getTitle()
+                }.filter { it.second.isNotBlank() }
+                runOnUiThread { showLinkPicker(choices, linked) }
+            }
+        }
+    }
+
+    private fun showLinkPicker(choices: List<Pair<Long, String>>, linked: Long?) {
+        if (isFinishing) return
+        if (choices.isEmpty()) {
+            Toast.makeText(this, R.string.info_link_none, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.info_link_pick)
+            .setItems(choices.map { it.second }.toTypedArray()) { _, which ->
+                signalRepo.linkConversation(threadKey, choices[which].first)
+                refreshLinkRow()
+            }
+        // Only where there is something to undo. An "unlink" on a conversation that is not
+        // linked is a button that does nothing, which reads as one that failed.
+        if (linked != null) {
+            builder.setNegativeButton(R.string.info_link_unlink) { _, _ ->
+                signalRepo.linkConversation(threadKey, null)
+                refreshLinkRow()
+            }
+        }
+        builder.show()
+    }
+
+    private fun refreshLinkRow() {
+        thread {
+            val linked = signalRepo.linkedConversationId(threadKey)
+            val name = linked?.let {
+                runCatching { conversationRepo.getConversation(it)?.getTitle() }.getOrNull()
+            }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                binding.link.summary = name?.let { getString(R.string.info_link_linked, it) }
+            }
+        }
     }
 
     private fun load() {

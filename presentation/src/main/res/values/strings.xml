@@ -489,11 +489,6 @@
     <string name="signal_send_failed">Not sent: %s</string>
     <string name="signal_you">You</string>
     <string name="signal_switch_to_sms">Switch to SMS</string>
-    <string name="signal_rail_label_text">Text</string>
-    <string name="signal_rail_switch">Send the next message the other way</string>
-    <string name="signal_compose_hint_text">Write a text…</string>
-    <string name="signal_rail_text_no_attachment">A text with a picture goes out as MMS, which this composer does not send. Switch back to Signal, or send it from the text conversation.</string>
-    <string name="signal_rail_text_no_number">No number to send a text to.</string>
     <string name="signal_archive">Archive conversation</string>
     <string name="signal_unarchive">Move back to inbox</string>
     <string name="signal_archived_toast">Archived — find it under Archived</string>

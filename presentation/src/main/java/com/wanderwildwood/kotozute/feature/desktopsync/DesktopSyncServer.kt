@@ -834,12 +834,28 @@ class DesktopSyncServer(
         if (!signalEnabled()) emptySet()
         else threads.mapNotNullTo(mutableSetOf()) { joinedConversationId(it) }
 
-    private fun signalThreadJson(t: SignalThread) = JSONObject().apply {
+    /**
+     * [joined] is the text conversation this row also stands for, where there is one.
+     *
+     * The date, the snippet and the unread mark come from whichever half spoke last. Reading
+     * them off the Signal half alone sank a conversation to where its last *Signal* message
+     * was: somebody who used to be on Signal and has been texting lately sat days down the
+     * list, under a snippet from months ago, while their newest message was yesterday's.
+     */
+    private fun signalThreadJson(
+        t: SignalThread,
+        joined: com.wanderwildwood.kotozute.model.Conversation? = null
+    ) = JSONObject().apply {
+        val textIsNewer = joined != null && joined.isValid && joined.date > t.lastTs
         put("id", InboxItem.signalStableId(t.threadKey))
         put("title", t.title.ifBlank { t.counterpartNumber.ifBlank { t.threadKey.substringAfter(":") } })
-        put("snippet", if (t.snippetOutgoing && t.snippet.isNotBlank()) "You: " + t.snippet else t.snippet)
-        put("date", t.lastTs)
-        put("unread", t.unread > 0)
+        put("snippet", when {
+            textIsNewer -> joined!!.snippet.orEmpty()
+            t.snippetOutgoing && t.snippet.isNotBlank() -> "You: " + t.snippet
+            else -> t.snippet
+        })
+        put("date", if (textIsNewer) joined!!.date else t.lastTs)
+        put("unread", t.unread > 0 || (joined?.isValid == true && joined.unread))
         put("rail", "signal")
         put("pinned", t.pinned)
         put("muted", t.muted)
@@ -1580,13 +1596,25 @@ class DesktopSyncServer(
         val signalThreads =
             if (signalEnabled()) signalRepository.getThreadsSnapshot(archived = archived)
             else emptyList()
-        val joined = joinedConversationIds(signalThreads)
+        val joins = buildMap {
+            signalThreads.forEach { t ->
+                joinedConversationId(t)
+                    ?.let { id -> runCatching { conversationRepository.getConversation(id) }.getOrNull() }
+                    ?.takeIf { it.isValid }
+                    ?.let { put(t.threadKey, it) }
+            }
+        }
+        val joinedIds = joins.values.mapTo(mutableSetOf()) { it.id }
         conversations
             .filterNot { it.blocked }
             // One person, one row -- the rule the phone's inbox follows.
-            .filterNot { it.id in joined }
+            .filterNot { it.id in joinedIds }
             .forEach { conversation -> rows += conversation.date to conversationJson(conversation) }
-        signalThreads.forEach { rows += it.lastTs to signalThreadJson(it) }
+        signalThreads.forEach { t ->
+            val row = signalThreadJson(t, joins[t.threadKey])
+            // Sorted on the same date the row shows, or the list and the row disagree.
+            rows += row.optLong("date", t.lastTs) to row
+        }
         // One list, newest first, the same order the phone shows.
         rows.sortedByDescending { it.first }.forEach { array.put(it.second) }
         return jsonResponse(Response.Status.OK, array)

@@ -1835,7 +1835,7 @@ markAllBtn.addEventListener('click', async () => {
   }
 });
 
-async function selectThread(id, title, find) {
+async function selectThread(id, title, find, pairWith) {
   stashDraft(); // capture unsent text for the thread we're leaving, before it changes
   exitComposeMode();
   lastMessagesSig = ''; // force a fresh render for the newly opened thread
@@ -1846,9 +1846,12 @@ async function selectThread(id, title, find) {
   messageLimit = findQuery ? 5000 : 300;
   hasMoreMessages = false;
   activeThreadId = id;
-  // Cleared on every deliberate choice: crossing sets it again a moment later, and any
-  // other conversation should light its own row and nothing else.
-  activePairId = null;
+  // Cleared on every deliberate choice, and set straight back when this IS the crossing --
+  // the caller already knows which half it came from. Waiting for the /cross round trip to
+  // say so left the list unlit for as long as the phone took to answer, which on a tailnet
+  // is long enough to look like the bug it was meant to fix.
+  activePairId = pairWith === undefined ? null : pairWith;
+  renderThreads();
   activeThreadRail = (lastThreads.find(t => t.id === id) || {}).rail || 'sms';
   activeThreadTitle = title || '';
   paneTitleEl.textContent = activeThreadTitle || 'Conversation';
@@ -2014,7 +2017,8 @@ async function loadCrossRail(id) {
 }
 
 crossBtnEl.addEventListener('click', () => {
-  if (crossTarget) selectThread(crossTarget.id, crossTarget.title);
+  // The half being left is the pair, and it is known here without asking the phone.
+  if (crossTarget) selectThread(crossTarget.id, crossTarget.title, '', activeThreadId);
   else openLinkPicker();
 });
 

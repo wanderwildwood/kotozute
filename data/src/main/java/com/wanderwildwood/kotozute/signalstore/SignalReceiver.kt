@@ -40,6 +40,10 @@ internal class SignalReceiver(
     private val contacts: SignalContactStore,
     /** The account's blocked list, kept whole; see [SignalBlockStore]. */
     private val blocks: SignalBlockStore,
+    /** Where the storage service key ends up; see [SignalKeyStore]. */
+    private val keys: SignalKeyStore,
+    /** Called once the key is here, so the account's contact list can be read. */
+    private val onKeysLearned: () -> Unit,
     /**
      * Called after each batch, once anything new is on disk.
      *
@@ -340,6 +344,25 @@ internal class SignalReceiver(
                 // strength of it, it keeps it so that blocking somebody from here can send
                 // the list back with one more name on it instead of a list of one.
                 result.content.syncMessage?.blocked?.let { handleBlockedSync(it) }
+
+                // The account's own key material, which arrives only because this device
+                // asked. Derived from and dropped; see SignalKeyStore. The contact list is
+                // read as soon as it lands rather than at the next connection: this is the
+                // moment the phone becomes able to read it at all.
+                result.content.syncMessage?.keys?.let { sent ->
+                    // Said either way, because the two failures look identical from outside
+                    // and need different answers: a primary that never replies is one thing,
+                    // a primary that replies with key material in a shape this build cannot
+                    // read is another -- an older Signal sends a master key where a newer one
+                    // sends the pool, and only the pool is in this protocol version.
+                    val pool = sent.accountEntropyPool
+                    when {
+                        pool.isNullOrBlank() ->
+                            Timber.w("signal keys: the primary answered with no account entropy pool")
+                        keys.store(pool) -> onKeysLearned()
+                        else -> Timber.w("signal keys: the pool the primary sent would not derive")
+                    }
+                }
 
                 val normalized = ContentNormalizer.normalize(
                     result.content, result.metadata, credentials.aci, credentials.e164

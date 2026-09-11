@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 6
+    const val VERSION = 7
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -216,7 +216,8 @@ internal object ProtocolStoreSchema {
         ENVELOPE,
         CONTACT,
         BLOCKED,
-        BLOCKED_GROUP
+        BLOCKED_GROUP,
+        ACCOUNT_KEYS
     )
 
     /**
@@ -271,6 +272,31 @@ internal object ProtocolStoreSchema {
     """
 
     /**
+     * The one key this app needs from the account's own key material.
+     *
+     * A linked device is not given it at link time; it asks, and the primary answers with a
+     * Keys sync carrying the **account entropy pool**. That pool derives a great deal: the
+     * master key, and from that the storage service key, the message-backup keys and the
+     * registration-recovery material. Signal Android keeps the pool because it needs all of
+     * them. This app needs exactly one -- reading the account's contact list -- so the pool
+     * is derived from once, in memory, and **only the storage service key is written here**.
+     * What cannot be read off this phone cannot be lost with it.
+     *
+     * ⚠ Even so, this is the most dangerous row in the database: it opens the account's
+     * stored state, where every other key here opens one conversation. It lives in the
+     * SQLCipher database behind the phone's keystore -- the same posture Signal Android has
+     * for the same material -- and it is never logged, never exported, and never written
+     * anywhere else.
+     */
+    const val ACCOUNT_KEYS = """
+        CREATE TABLE account_keys (
+          _id INTEGER PRIMARY KEY CHECK (_id = 1),
+          storage_key BLOB,
+          updated_timestamp INTEGER NOT NULL
+        ) STRICT;
+    """
+
+    /**
      * Migrations, keyed by the version they upgrade *to*.
      *
      * Explicit and additive. This database holds key material that cannot be refetched -- an
@@ -295,7 +321,9 @@ internal object ProtocolStoreSchema {
         // v6: the account's blocked list, which a linked device has to hold whole before it
         // can change it -- sending a blocked sync replaces the account's list rather than
         // adding to it, so blocking one person without the rest would unblock everyone else.
-        6 to listOf(BLOCKED, BLOCKED_GROUP)
+        6 to listOf(BLOCKED, BLOCKED_GROUP),
+        // v7: the storage service key, derived from the pool the primary sends. Additive.
+        7 to listOf(ACCOUNT_KEYS)
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

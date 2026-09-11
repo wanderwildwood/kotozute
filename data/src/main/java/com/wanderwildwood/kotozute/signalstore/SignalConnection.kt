@@ -48,6 +48,17 @@ internal class SignalConnection(
         Network(Network.Environment.PRODUCTION, userAgent, emptyMap(), Network.BuildVariant.PRODUCTION)
     }
 
+    /**
+     * The REST half of the service, for the few things that are not messages: the storage
+     * service, which keeps the account's contact list, is reached this way rather than
+     * through the socket.
+     */
+    val push: org.whispersystems.signalservice.internal.push.PushServiceSocket by lazy {
+        org.whispersystems.signalservice.internal.push.PushServiceSocket(
+            configuration, credentials, userAgent, true
+        )
+    }
+
     val authenticated: SignalWebSocket.AuthenticatedWebSocket by lazy {
         val timer = UptimeSleepTimer()
         val monitor = SignalSocketHealthMonitor(timer)

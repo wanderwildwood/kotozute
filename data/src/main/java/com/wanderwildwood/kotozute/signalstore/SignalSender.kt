@@ -244,6 +244,24 @@ internal class SignalSender(
         Result.Failed(t.message ?: t::class.java.simpleName)
     }
 
+    /**
+     * Asks the primary for the account's key material. The answer arrives later, through the
+     * socket, and only the storage service key is kept from it.
+     */
+    fun requestKeys(): Result = try {
+        val result = sender.sendSyncMessage(
+            SignalServiceSyncMessage.forRequest(
+                RequestMessage.forType(
+                    org.whispersystems.signalservice.internal.push.SyncMessage.Request.Type.KEYS
+                )
+            )
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+    } catch (t: Throwable) {
+        Timber.w(t, "signal keys: requesting them threw")
+        Result.Failed(t.message ?: t::class.java.simpleName)
+    }
+
     /** Asks the primary for the blocked list, which arrives later through the socket. */
     fun requestBlockedList(): Result = try {
         val result = sender.sendSyncMessage(

@@ -73,8 +73,12 @@ internal object SignalDirectory {
                 // Never blank. A name, then the number, then the service id shortened -- the
                 // same order the inbox falls back through, so one person does not read as two
                 // different people depending on which list they are met in.
+                // A counterpart that is itself a number is one to look up too: those rows
+                // have nothing else to go on, and a number is exactly what an address book
+                // answers.
                 name = names[uuid]
-                    ?: number.takeIf { it.isNotBlank() }?.let(nameForNumber)
+                    ?: number.ifBlank { uuid.takeIf { it.startsWith("+") }.orEmpty() }
+                        .takeIf { it.isNotBlank() }?.let(nameForNumber)
                     ?: number.ifBlank { uuid.take(SHORT_SERVICE_ID) },
                 number = number
             )

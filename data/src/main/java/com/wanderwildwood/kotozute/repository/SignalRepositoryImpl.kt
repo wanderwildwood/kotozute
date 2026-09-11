@@ -326,9 +326,14 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /** A name for a service id: what the account calls them, else the reader's own contacts. */
-    private fun nameForCounterpart(uuid: String): String? =
-        signalStore.contactName(uuid)
+    private fun nameForCounterpart(uuid: String): String? {
+        // A thread whose counterpart is a bare number. Our own sends used to be filed this
+        // way, and there is nothing to ask the account about -- but the reader has that
+        // number in their contacts, which is the whole answer.
+        if (uuid.startsWith("+")) return addressBookName(uuid)
+        return signalStore.contactName(uuid)
             ?: signalStore.contactNumber(uuid)?.let { addressBookName(it) }
+    }
 
     /**
      * Joins a conversation that got split across two threads for one person.
@@ -534,6 +539,16 @@ class SignalRepositoryImpl @Inject constructor(
             throw IllegalStateException("cannot send to $threadKey")
         }
         val recipient = threadKey.removePrefix("direct:")
+        // Said in words rather than as "not a service id: +1555...". A thread keyed by a
+        // number holds only our own sends, filed from a transcript that did not name who
+        // they went to; there is no Signal address in it to reply to. It joins the real
+        // conversation as soon as one arrives that does.
+        if (recipient.startsWith("+")) {
+            throw IllegalStateException(
+                "This conversation has only a phone number, not a Signal address. " +
+                    "Write to them from a new message instead."
+            )
+        }
         val timestamp = signalStore.send(recipient, body, attachments)
 
         val selfAci = signalStore.selfAciOrNull().orEmpty()

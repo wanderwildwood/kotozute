@@ -55,9 +55,6 @@ object RealmEncryption {
     /** Kept until the encrypted copy has been opened once, then deleted. */
     private const val ROLLBACK_SUFFIX = ".pre-encryption"
 
-    /** Owned by Preferences; a test asserts these still match what it declares. */
-    internal const val PREF_SIGNAL_CURSOR = "signalCursor"
-    internal const val PREF_SIGNAL_BRIDGE_INSTANCE = "signalBridgeInstance"
 
     /**
      * The key to open the Realm with, or null to carry on without one.
@@ -165,9 +162,8 @@ object RealmEncryption {
      * over as though nothing had happened.
      *
      * The Signal cursor goes with the database. It is a high-water mark into the bridge's
-     * sequence, and leaving it behind would point past every message the new database does
-     * not have: the bridge would answer "nothing since then" and the rail would stay empty
-     * for good. Reset, the next sync draws the history down again.
+     * Signal delivers a message to this device once, so what a discarded database held is
+     * gone with it -- there is nothing to draw down again.
      */
     fun discardUnreadableRealm(context: Context) {
         val dir = context.filesDir
@@ -176,12 +172,6 @@ object RealmEncryption {
         File(dir, "$REALM_NAME.management").deleteRecursively()
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .remove(PREF_SEALED_KEY).remove(PREF_IV).remove(PREF_ENCRYPTED).apply()
-        // Named rather than injected: this runs before the graph is usable, and the two
-        // names are checked by a test so a rename cannot quietly strand the rail.
-        PreferenceManager.getDefaultSharedPreferences(context).edit()
-            .putLong(PREF_SIGNAL_CURSOR, 0L)
-            .putString(PREF_SIGNAL_BRIDGE_INSTANCE, "")
-            .apply()
     }
 
     // --- key handling ---------------------------------------------------------------------

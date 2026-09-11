@@ -602,17 +602,11 @@
   <div id="launcherPanel" hidden></div>
   <main>
     <aside id="leftPane">
-      <!-- Only while Signal is unpaired. Pairing means a ~140-character link, two thirds of
-           it a hex fingerprint, and typing that on an e-ink phone is the worst thing this
-           app asks of anyone. Here it is a paste. -->
+      <!-- Only while Signal is not set up. Setting it up happens on the phone: it means
+           scanning a code with Signal on another phone, which a browser cannot do for you. -->
       <div id="signalSetup" hidden>
-        <p id="signalSetupText">Signal isn't set up on this phone. Run
-          <code>kotozute-bridge --pairing</code> on the machine running the bridge and paste
-          the line it prints:</p>
-        <div id="signalSetupRow">
-          <input type="text" id="signalPayload" placeholder="kotozute-bridge://…" autocomplete="off" spellcheck="false">
-          <button type="button" id="signalPairBtn">Pair</button>
-        </div>
+        <p id="signalSetupText">Signal isn't set up on this phone. On the phone, open
+          Settings → Signal and link it.</p>
         <p id="signalSetupError" hidden></p>
       </div>
 

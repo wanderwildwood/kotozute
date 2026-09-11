@@ -17,23 +17,14 @@ import io.realm.RealmResults
 interface SignalRepository {
 
     data class ConnectionState(
+        /** This phone is on the account: linked to it, or registered as it. */
         val configured: Boolean,
         /**
-         * This device is itself a device on the Signal account.
-         *
-         * Independent of [configured] and of whether a bridge is paired: a phone can be both
-         * linked and bridged, and while the bridge decides which rail carries messages, it
-         * does not change the fact of the link. Conflating the two told a linked phone it was
-         * not linked, and offered to link it again -- which registers a second device and
-         * abandons this one's keys.
+         * The same fact, under the name every screen already used for it. Kept while the
+         * two could differ -- a phone could be linked and still reaching Signal through a
+         * bridge -- and now they cannot.
          */
         val linkedDirectly: Boolean = false,
-        /**
-         * Which rail is actually carrying messages. Distinct from [linkedDirectly]: a phone
-         * can be linked and still be going through a bridge, and the difference decides what
-         * a failure means and what to tell someone to do about it.
-         */
-        val usingBridge: Boolean = true,
         /**
          * Envelopes that arrived and could not be decrypted, and are being kept in case a
          * fix can read them. Surfaced because a release build logs nothing and this is the
@@ -45,39 +36,16 @@ interface SignalRepository {
         /** Contacts known, how many carry a profile key, how many are named. Diagnostic. */
         val contactSummary: String = "",
         val enabled: Boolean,
-        /** The bridge answered us. */
-        val bridgeReachable: Boolean,
-        /** The bridge says signal-cli is connected to Signal. */
+        /** This phone's own connection to Signal is up. */
         val signalConnected: Boolean,
         val lastSyncedAt: Long,
-        val error: String? = null,
-        /**
-         * The bridge answered and refused us -- a wrong token, or a pairing that was
-         * revoked. Distinct from [bridgeReachable] being false, which is the ordinary
-         * case of a host that is switched off and will come back on its own. This one
-         * will not, so it is the only state worth interrupting anybody about.
-         */
-        val rejected: Boolean = false
+        val error: String? = null
     ) {
         /** Only then may the composer offer to send. */
-        val canSend: Boolean get() = enabled && bridgeReachable && signalConnected
+        val canSend: Boolean get() = enabled && signalConnected
     }
 
     fun isConfigured(): Boolean
-
-    /** Parses a pairing payload and stores it. Returns false if it is not a valid one. */
-    fun pair(payload: String): Boolean
-
-    /** Forgets the bridge and every Signal row it gave us. */
-    /**
-     * Stops using the bridge, and keeps everything else.
-     *
-     * Distinct from [unpair], which is titled "Delete Signal data" and means it -- messages,
-     * threads and the pairing all go. That was the only exit while the bridge *was* Signal.
-     * A phone that is also a linked device needs the other thing: drop the bridge, keep the
-     * conversations, and carry on over its own connection.
-     */
-    fun stopUsingBridge()
 
     fun unpair()
 

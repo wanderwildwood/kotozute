@@ -32,7 +32,6 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun mmsSizeSelected(): Observable<Int>
     fun messageLinkHandlingSelected(): Observable<Int>
     fun desktopSyncResetConfirmed(): Observable<*>
-    fun signalPairPayload(): Observable<String>
     fun signalUnpairConfirmed(): Observable<*>
 
     /** The folder the reader picked to read an export from, as a tree uri. */
@@ -68,19 +67,13 @@ interface SettingsView : QkViewContract<SettingsState> {
     /** How far a copy has got, and what it came to. */
     fun showSignalExportProgress(messages: Int)
     fun showSignalExportResult(stats: com.wanderwildwood.kotozute.repository.SignalRepository.ExportStats?)
-    fun confirmStopUsingBridge()
 
-    fun stopUsingBridgeConfirmed(): Observable<Unit>
 
     fun showSignalLink()
 
     fun showSignalRegister()
 
-    /** Reveals the bridge row, which is not offered until someone asks for it. */
-    fun showBridgeOption()
 
-    fun showSignalPairDialog()
-    fun showSignalPairFailed()
     fun askSignalUnpair()
     fun showSection(container: Int, title: Int)
     fun showSwipeActions()

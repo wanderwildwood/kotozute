@@ -120,17 +120,10 @@ class Preferences @Inject constructor(
     // the toggle is the result of a working setup, not a switch that can be flipped
     // into a broken state.
     val signalEnabled = rxPrefs.getBoolean("signalEnabled", false)
-    val signalBridgeHost = rxPrefs.getString("signalBridgeHost", "")
-    val signalBridgePort = rxPrefs.getInteger("signalBridgePort", 8422)
-    val signalBridgeToken = rxPrefs.getString("signalBridgeToken", "")
-    val signalBridgeFingerprint = rxPrefs.getString("signalBridgeFingerprint", "")
-    /** Highest bridge seq we hold. Sync asks for everything after it. */
-    val signalCursor = rxPrefs.getLong("signalCursor", 0L)
     /**
      * Which bridge store that cursor belongs to. Sequence numbers mean nothing across a
      * rebuilt database, so a change here means start from the beginning.
      */
-    val signalBridgeInstance = rxPrefs.getString("signalBridgeInstance", "")
     /** When the bridge was last reachable, for the honest "last synced" line. */
     val signalLastSync = rxPrefs.getLong("signalLastSync", 0L)
     /**

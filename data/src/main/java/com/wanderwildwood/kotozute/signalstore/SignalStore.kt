@@ -58,6 +58,9 @@ class SignalStore(private val context: Context) {
 
     fun selfAciOrNull(): String? = runCatching { account.credentials().aci }.getOrNull()
 
+    /** Which device on the account this phone is. */
+    fun deviceId(): Int = runCatching { account.credentials().deviceId }.getOrDefault(0)
+
     /** This account's own number, for the messages an export attributes to it. */
     fun selfNumberOrNull(): String? = runCatching { account.credentials().e164 }.getOrNull()
 
@@ -313,6 +316,22 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /**
+     * Tells one person that messages up to [upToTs] have been read.
+     *
+     * The timestamps Signal names a message by are the ones it was sent with, so the rows
+     * being marked supply them; a receipt for a timestamp nobody sent means nothing.
+     */
+    fun sendReadReceipt(recipient: String, timestamps: List<Long>): Boolean {
+        if (timestamps.isEmpty()) return true
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
+        connection.connect()
+        return SignalSender(
+            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalDataStore(database, account), connection, contacts
+        ).sendReadReceipt(serviceId, timestamps) is SignalSender.Result.Sent
+    }
+
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 
@@ -482,7 +501,12 @@ class SignalStore(private val context: Context) {
             .joinToString("")
             .takeIf { it.isNotBlank() && it != "." && it != ".." }
             ?: return null
-        val id = "import-$safe"
+        // A name that was already a plain one is kept exactly. It matters for a copy written
+        // by a bridge: there the file is named by the attachment id the messages already
+        // hold, and renaming it would leave every one of those rows pointing at a file that
+        // is now on the phone under a name nothing asks for. A name that had to be changed
+        // gets the prefix, so it cannot collide with an id that means something.
+        val id = if (safe == name) name else "import-$safe"
         return id.takeIf {
             SignalAttachments(context) { error("no download needed to keep") }.keep(it, open)
         }

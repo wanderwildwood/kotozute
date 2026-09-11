@@ -299,23 +299,9 @@
                 app:summary="@string/signal_register_setting_summary"
                 app:title="@string/signal_register_setting_title" />
 
-            <!-- The bridge is on its way out: it wants a computer that never sleeps, and the
-                 phone no longer needs one. It stays because it is the way back if the direct
-                 rail misbehaves, but it is not something to put in front of someone who has
-                 just installed this. Hidden behind here unless one is already paired. -->
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalAdvanced"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:summary="@string/settings_signal_advanced_summary"
-                app:title="@string/settings_signal_advanced_title" />
+            
 
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalPair"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:summary="@string/settings_signal_pair_summary"
-                app:title="@string/settings_signal_pair_title" />
+            
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalEnabled"
@@ -392,13 +378,7 @@
                 android:visibility="gone"
                 app:title="@string/settings_signal_status_title" />
 
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalStopBridge"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_stop_bridge_summary"
-                app:title="@string/settings_signal_stop_bridge_title" />
+            
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalUnpair"

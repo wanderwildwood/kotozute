@@ -74,8 +74,6 @@ class SettingsPresenter @Inject constructor(
                             signalPaired = conn.configured,
                             signalEnabled = conn.enabled,
                             signalLinkedDirectly = conn.linkedDirectly,
-                            signalBridgePaired = prefs.signalBridgeHost.get().isNotBlank(),
-                            signalBridgeSummary = signalBridgeSummary(conn.configured),
                             signalStatusSummary = signalStatusSummary(conn)
                         )
                     }
@@ -234,10 +232,7 @@ class SettingsPresenter @Inject constructor(
                         R.id.desktopSyncReset -> view.askDesktopSyncReset()
 
                         R.id.signalLink -> view.showSignalLink()
-                        R.id.signalStopBridge -> view.confirmStopUsingBridge()
                         R.id.signalRegister -> view.showSignalRegister()
-                        R.id.signalAdvanced -> view.showBridgeOption()
-                        R.id.signalPair -> view.showSignalPairDialog()
 
                         R.id.signalOpen -> navigator.showSignalConversations()
 
@@ -364,20 +359,6 @@ class SettingsPresenter @Inject constructor(
             .autoDisposable(view.scope())
             .subscribe { DesktopSyncService.resetToken(context) }
 
-        view.signalPairPayload()
-            .autoDisposable(view.scope())
-            .subscribe { payload ->
-                if (signalRepo.pair(payload)) {
-                    signalRepo.setEnabled(true)
-                } else {
-                    view.showSignalPairFailed()
-                }
-            }
-
-        view.stopUsingBridgeConfirmed()
-            .autoDisposable(view.scope())
-            .subscribe { signalRepo.stopUsingBridge() }
-
         // Reading an export is thousands of rows and their pictures, so it runs on a thread
         // of its own and reports as it goes. Not a worker: it needs the folder the picker
         // just granted this process, and it is over when the reader closes the screen or it
@@ -435,21 +416,6 @@ class SettingsPresenter @Inject constructor(
         }.apply { isDaemon = true }.start()
     }
 
-    /**
-     * Says which way Signal actually reaches this phone.
-     *
-     * "Paired" used to mean one thing, so this could read the bridge host unconditionally.
-     * Now a device can be linked to the account directly, and doing that produced
-     * **"Paired with :8422"** -- a host that is the empty string, next to a port nothing is
-     * listening on. A row that describes a connection the app is not using is worse than one
-     * that says nothing.
-     */
-    private fun signalBridgeSummary(paired: Boolean): String {
-        if (!paired) return context.getString(R.string.settings_signal_pair_summary)
-        val host = prefs.signalBridgeHost.get()
-        if (host.isBlank()) return context.getString(R.string.settings_signal_linked_summary)
-        return context.getString(R.string.settings_signal_paired_summary, "$host:${prefs.signalBridgePort.get()}")
-    }
 
     /**
      * Say what is actually true. Receiving degrades softly -- messages queue on Signal's
@@ -498,26 +464,11 @@ class SettingsPresenter @Inject constructor(
         // "nobody has shared one" apart from "the fetch is broken".
         val who = conn.contactSummary.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
 
-        if (!conn.usingBridge) {
-            return when {
-                !conn.signalConnected ->
-                    context.getString(R.string.settings_signal_status_direct_offline) + received + stuck + who
-                else ->
-                    context.getString(R.string.settings_signal_status_direct_ok) + received + stuck + who
-            }
-        }
-
         return when {
-            // "Cannot reach the bridge" would be a lie here: it answered, and said no. The
-            // difference matters because one of the two is fixed by waiting and the other
-            // never is.
-            conn.rejected ->
-                context.getString(R.string.settings_signal_status_rejected) + " · " + last
-            !conn.bridgeReachable ->
-                context.getString(R.string.settings_signal_status_no_bridge) + " · " + last
             !conn.signalConnected ->
-                context.getString(R.string.settings_signal_status_no_signal) + " · " + last
-            else -> context.getString(R.string.settings_signal_status_ok) + " · " + last
+                context.getString(R.string.settings_signal_status_direct_offline) + received + stuck + who
+            else ->
+                context.getString(R.string.settings_signal_status_direct_ok) + received + stuck + who
         }
     }
 

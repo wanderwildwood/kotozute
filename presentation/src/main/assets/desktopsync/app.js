@@ -164,8 +164,6 @@ const toFieldEl = document.getElementById('toField');
 const suggestionsEl = document.getElementById('suggestions');
 const simFieldEl = document.getElementById('simField');
 const signalSetupEl = document.getElementById('signalSetup');
-const signalPayloadEl = document.getElementById('signalPayload');
-const signalPairBtnEl = document.getElementById('signalPairBtn');
 const signalSetupErrorEl = document.getElementById('signalSetupError');
 const searchFieldEl = document.getElementById('searchField');
 const searchClearEl = document.getElementById('searchClear');
@@ -1506,7 +1504,7 @@ async function openSettings() {
   if (!s.signalConfigured) {
     const p = document.createElement('div');
     p.className = 'row';
-    p.innerHTML = '<span class="label">No bridge paired' +
+    p.innerHTML = '<span class="label">Signal is not set up on the phone' +
       '<span class="note">Pair one from the left pane</span></span>';
     settingsPanelEl.append(p);
   } else {
@@ -2409,35 +2407,6 @@ async function refreshSignalSetup() {
   }
 }
 
-signalPairBtnEl.addEventListener('click', async () => {
-  const payload = signalPayloadEl.value.trim();
-  if (!payload) return;
-  signalSetupErrorEl.hidden = true;
-  signalPairBtnEl.disabled = true;
-  try {
-    const res = await api('/api/signal/pair', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ body: payload })
-    });
-    if (res.ok) {
-      signalPayloadEl.value = '';
-      signalSetupEl.hidden = true;
-      // The threads list is about to gain a rail.
-      loadThreads();
-      return;
-    }
-    // Say what was wrong with it. "Failed" would not tell anyone they pasted half a line.
-    const detail = await res.json().then(j => j && j.error).catch(() => null);
-    signalSetupErrorEl.textContent = detail || 'that could not be used';
-    signalSetupErrorEl.hidden = false;
-  } catch {
-    signalSetupErrorEl.textContent = 'could not reach the phone';
-    signalSetupErrorEl.hidden = false;
-  } finally {
-    signalPairBtnEl.disabled = false;
-  }
-});
 
 signalPayloadEl.addEventListener('keydown', e => {
   if (e.key === 'Enter') signalPairBtnEl.click();

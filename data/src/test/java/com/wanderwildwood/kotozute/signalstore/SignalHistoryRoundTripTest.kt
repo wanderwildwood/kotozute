@@ -94,7 +94,9 @@ class SignalHistoryRoundTripTest {
 
         override fun storeAttachment(name: String, open: () -> InputStream): String? {
             attachments[name] = open().use { it.readBytes() }
-            return "import-$name"
+            // As the store does: a name that is already plain is kept, so a copy written by
+            // a bridge comes back under the ids its messages already hold.
+            return name
         }
     }
 
@@ -225,7 +227,7 @@ class SignalHistoryRoundTripTest {
         assertTrue(sink.attachments["one"]!!.contentEquals(byteArrayOf(1, 1, 1, 1, 1)))
         assertTrue(sink.attachments["two"]!!.contentEquals(byteArrayOf(2, 2, 2, 2, 2)))
         val first = org.json.JSONArray(sink.inserted.first { it.body == "first" }.attachmentsJson)
-        assertEquals("import-one", first.getJSONObject(0).getString("id"))
+        assertEquals("one", first.getJSONObject(0).getString("id"))
     }
 
     @Test

@@ -26,11 +26,11 @@ import kotlin.math.abs
  * connected. So each round does two waits: send at 30s, then check at +20s that something came
  * back, and force a new socket if nothing did.
  *
- * ⚠ The timer is [org.signal.core.util.UptimeSleepTimer], which sleeps a thread. Android's
- * Doze defers that, so the 30-second cadence is 30 seconds only while the device is awake --
- * during Doze it stretches, and a connection can sit dead until the next maintenance window.
- * Signal's own Android client uses an alarm-backed timer for exactly this reason. Not solved
- * here; recorded so it is a known limit rather than a surprise.
+ * The timer is [AlarmSleepTimer], and it has to be. A thread-sleeping timer is not running at
+ * all during Doze, so the 30-second cadence was 30 seconds only while the device was awake --
+ * which is to say the check written to notice a dead connection was itself asleep for exactly
+ * as long as the connection was dead. Signal uses an alarm-backed timer wherever it has no
+ * push to fall back on, which here is always.
  */
 internal class SignalSocketHealthMonitor(
     private val sleepTimer: SleepTimer,

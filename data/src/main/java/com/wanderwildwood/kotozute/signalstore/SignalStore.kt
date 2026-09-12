@@ -115,7 +115,7 @@ class SignalStore(private val context: Context) {
     var onRejected: (String) -> Unit = {}
 
     internal val connection: SignalConnection by lazy {
-        SignalConnection(account, SignalNetworkConfig.USER_AGENT, onRejected = { onRejected(it) })
+        SignalConnection(context, account, SignalNetworkConfig.USER_AGENT, onRejected = { onRejected(it) })
     }
 
     /**

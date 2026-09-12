@@ -729,8 +729,16 @@ internal class SignalSender(
         /** Signal's primary device, which always has a session if any do. */
         private const val DEFAULT_DEVICE_ID = 1
 
-        /** signal-cli's values. 0 means the server's own limit applies. */
-        private const val MAX_ENVELOPE_SIZE = 0L
+        /**
+         * 256 KiB, which is Signal's `android.maxEnvelopeSizeBytes` default.
+         *
+         * ⚠ This was 0, taken from signal-cli, with a comment saying that meant "the server's
+         * own limit applies". The library reads it as `maxEnvelopeSize > 0`, so zero does not
+         * defer to anything -- it **turns the check off**. An oversized message then goes to
+         * the server and comes back as an opaque rejection, where Signal refuses it here with
+         * a ContentTooLargeException that says what made it large.
+         */
+        private const val MAX_ENVELOPE_SIZE = 256L * 1024L
         private const val MAX_INCREMENTAL_MACS_PER_ENVELOPE = 10
     }
 }

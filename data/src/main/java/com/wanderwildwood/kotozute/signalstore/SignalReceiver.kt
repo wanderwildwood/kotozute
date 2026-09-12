@@ -1301,7 +1301,15 @@ internal class SignalReceiver(
     }
 
     companion object {
-        private const val BATCH_SIZE = 10
+        /**
+         * Thirty, which is what `IncomingMessageObserver` asks for on both of its reads.
+         *
+         * This was ten, which is not wrong so much as slow in the case that matters: a phone
+         * that has been off for a day comes back to a queue, and every round is a request and
+         * a reply. Three times fewer of them is three times less of the catching-up a reader
+         * actually waits through.
+         */
+        private const val BATCH_SIZE = 30
 
         /** Signal's primary device. A PNI identity is usually only on file for this one. */
         private const val DEFAULT_DEVICE_ID = 1

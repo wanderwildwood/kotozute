@@ -458,6 +458,15 @@ class SignalStore(private val context: Context) {
      * Reads the account's contact list out of the storage service, where modern Signal keeps
      * it. Returns what it did, in a sentence, for a status line and a log.
      */
+    /**
+     * Where muted and archived go once the account's records have been read.
+     *
+     * Settable rather than a constructor parameter for the same reason [onRejected] is: the
+     * conversations live in Realm, a layer above this one, and this class is built first.
+     */
+    @Volatile
+    internal var onConversationState: (List<SignalStorageService.ConversationState>) -> Unit = {}
+
     fun readStorage(): String {
         val result = SignalStorageService(
             connection, keys, contacts,
@@ -468,6 +477,7 @@ class SignalStore(private val context: Context) {
                     SignalDataStore(database, account).aciStore().adoptIdentity(who, key, verified)
                 }.onFailure { Timber.w(it, "signal storage: could not adopt an identity") }
             },
+            conversationState = { states -> onConversationState(states) },
             blocked = { people, groups ->
                 // Replaces the held list rather than adding to it: a storage read is the
                 // account's current answer, and somebody unblocked upstream has to become

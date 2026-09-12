@@ -148,6 +148,43 @@ class SignalRepositoryImpl @Inject constructor(
     init {
         publishState(signalConnected = false, error = null)
         signalStore.onRejected = ::onServerRefusedThisDevice
+        signalStore.onConversationState = ::applyConversationState
+    }
+
+    /**
+     * Muted and archived, as the account's own records hold them.
+     *
+     * Applied only to conversations this phone already has. A record for somebody never
+     * written to is not a conversation yet, and creating an empty archived thread for every
+     * contact on the account would fill the inbox with rows nobody has said anything in.
+     *
+     * Not the other way round: nothing here writes back to the account's records, so the
+     * account's answer is the only shared one and it wins.
+     */
+    private fun applyConversationState(
+        states: List<com.wanderwildwood.kotozute.signalstore.SignalStorageService.ConversationState>
+    ) = runOffThread {
+        if (states.isEmpty()) return@runOffThread
+        var changed = 0
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                states.forEach { state ->
+                    val thread = r.where(SignalThread::class.java)
+                        .equalTo("threadKey", state.threadKey)
+                        .findFirst()
+                        ?: return@forEach
+                    if (thread.muted != state.muted || thread.archived != state.archived) {
+                        thread.muted = state.muted
+                        thread.archived = state.archived
+                        changed++
+                    }
+                }
+            }
+        }
+        if (changed > 0) {
+            Timber.i("signal storage: %d conversation(s) muted or archived to match the account", changed)
+            contactsChanged()
+        }
     }
 
     /**

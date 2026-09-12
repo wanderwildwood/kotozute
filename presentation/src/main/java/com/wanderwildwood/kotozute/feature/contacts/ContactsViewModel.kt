@@ -45,6 +45,7 @@ import io.reactivex.rxkotlin.Observables
 import io.reactivex.schedulers.Schedulers
 import timber.log.Timber
 import io.realm.RealmList
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import kotlinx.coroutines.runBlocking
@@ -113,6 +114,12 @@ class ContactsViewModel @Inject constructor(
     /** Chosen from the list; handled apart from the chips, which cannot hold one. */
     private val signalPersonPicked: Subject<ComposeItem.SignalPerson> = PublishSubject.create()
 
+    /**
+     * Which address book is showing. Starts on the phone's, which is what this screen has
+     * always opened to and what most messages are still sent over.
+     */
+    private val showingSignal: BehaviorSubject<Boolean> = BehaviorSubject.createDefault(false)
+
     private val selectedChips = Observable.just(serializedChips)
             .observeOn(Schedulers.io())
             .map { hashmap ->
@@ -131,6 +138,23 @@ class ContactsViewModel @Inject constructor(
             shouldOpenKeyboard = false
         }
 
+        // Whether there is a second address book at all. Not while sharing: the shared text
+        // goes into the SMS composer this screen returns to, so crossing would be offering to
+        // drop what is being shared.
+        newState { copy(canCrossRails = !sharing && prefs.signalEnabled.get()) }
+
+        // Crossing between the two address books. The query is cleared on the way: a name
+        // typed while looking at one book is rarely the name wanted in the other, and leaving
+        // it filters the new list down to nothing, which reads as an empty address book.
+        view.railSwitchIntent
+                .autoDisposable(view.scope())
+                .subscribe {
+                    val next = !(showingSignal.value ?: false)
+                    showingSignal.onNext(next)
+                    newState { copy(showingSignal = next) }
+                    view.clearQuery()
+                }
+
         // Update the state's query, so we know if we should show the cancel button
         view.queryChangedIntent
                 .autoDisposable(view.scope())
@@ -146,9 +170,23 @@ class ContactsViewModel @Inject constructor(
         Observables
                 .combineLatest(
                         view.queryChangedIntent, recents, starredContacts, contactGroups, contacts, selectedChips,
-                        signalPeople(view)
-                ) { query, recents, starredContacts, contactGroups, contacts, selectedChips, signalPeople ->
+                        signalPeople(view), showingSignal
+                ) { query, recents, starredContacts, contactGroups, contacts, selectedChips, signalPeople,
+                    showingSignal ->
                     val composeItems = mutableListOf<ComposeItem>()
+
+                    // The Signal address book is its own list now, reached by the badge, not a
+                    // section under the phone's contacts. It used to sit after every contact
+                    // on the phone -- findable by typing a name, and unbrowsable by hand,
+                    // which is no way to answer "who can I reach on Signal".
+                    if (showingSignal) {
+                        val normalizedQuery = query.removeAccents()
+                        composeItems += signalPeople.filter { person ->
+                            query.isBlank() || matches(person, query.toString(), normalizedQuery)
+                        }
+                        return@combineLatest composeItems
+                    }
+
                     if (query.isBlank()) {
                         composeItems += recents
                                 .filter { conversation ->
@@ -179,16 +217,6 @@ class ContactsViewModel @Inject constructor(
                         composeItems += contacts
                                 .filter { contact -> selectedChips.none { it.contact?.lookupKey == contact.lookupKey } }
                                 .map(ComposeItem::Person)
-
-                        // Last, and after the address book rather than mixed into it: a list
-                        // that answers "who can I text" should not be reordered by a second
-                        // answer to a different question. But last needs saying out loud --
-                        // after a few hundred contacts, unannounced is indistinguishable from
-                        // absent, which is how somebody came to report this as not working.
-                        if (signalPeople.isNotEmpty()) {
-                            composeItems += ComposeItem.SignalHeader
-                            composeItems += signalPeople
-                        }
                     } else {
                         // If the entry is a valid destination, allow it as a recipient
                         if (phoneNumberUtils.isPossibleNumber(query.toString())) {
@@ -221,13 +249,6 @@ class ContactsViewModel @Inject constructor(
                                 .filter { contact -> selectedChips.none { it.contact?.lookupKey == contact.lookupKey } }
                                 .filter { contact -> contactFilter.filter(contact, normalizedQuery) }
                                 .map(ComposeItem::Person)
-
-                        val matching = signalPeople
-                                .filter { person -> matches(person, query.toString(), normalizedQuery) }
-                        if (matching.isNotEmpty()) {
-                            composeItems += ComposeItem.SignalHeader
-                            composeItems += matching
-                        }
                     }
 
                     composeItems

@@ -41,6 +41,15 @@ interface ContactsContract : QkView<ContactsState> {
     val phoneNumberSelectedIntent: Subject<Optional<Long>>
     val phoneNumberActionIntent: Subject<PhoneNumberAction>
 
+    /**
+     * The badge that crosses between the two address books.
+     *
+     * The same gesture the two conversation lists use. Signal people used to sit at the
+     * bottom of this one list, after every contact on the phone, where reaching them meant
+     * turning pages until they appeared -- findable by search, unbrowsable by hand.
+     */
+    val railSwitchIntent: Subject<Unit>
+
     fun clearQuery()
     fun openKeyboard()
     fun finish(result: HashMap<String, String?>)

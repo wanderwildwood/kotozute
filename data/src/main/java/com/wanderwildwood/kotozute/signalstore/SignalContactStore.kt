@@ -113,7 +113,25 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
      * arrived that is most of them.
      */
     fun everyone(): List<Contact> = withStoreLock(db) {
-        db.readableDatabase.rawQuery("SELECT aci, e164, name FROM contact", null).use { c ->
+        // One person, once. A row can be keyed by a phone-number identity while the same
+        // person also has a row under their account id -- discovery finds them by number
+        // while the account's own records know them properly -- and listing both puts them
+        // in the list twice, as two people, one of whom is a worse way to reach them. Where
+        // the pairing is known and the account row is itself here, the phone-number row is
+        // the one to hide: it is not wrong, it is the same person said less well.
+        //
+        // Hidden, not deleted. A conversation already held under that PNI is keyed by that
+        // row, and removing it would strand those messages.
+        db.readableDatabase.rawQuery(
+            """
+            SELECT aci, e164, name FROM contact
+            WHERE aci NOT IN (
+              SELECT p.pni FROM pni_aci p
+              JOIN contact c ON c.aci = p.aci
+            )
+            """.trimIndent(),
+            null
+        ).use { c ->
             generateSequence {
                 if (c.moveToNext()) Contact(c.getString(0), c.getString(1), c.getString(2)) else null
             }.toList()

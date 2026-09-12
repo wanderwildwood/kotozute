@@ -244,6 +244,36 @@ internal class SignalSender(
         sendReceipt(recipient, timestamps, SignalServiceReceiptMessage.Type.DELIVERY, "a delivery receipt")
 
     /**
+     * Asks somebody to send a message again, because this phone could not read it.
+     *
+     * Signal's answer to a message that will not decrypt. The receipt carries enough for the
+     * sender to identify the exact message and to see that the session is broken; their client
+     * then archives the session and sends it again over a fresh one. Without it a message that
+     * fails to decrypt is simply lost, and the only trace is a row saying one could not be
+     * read -- which is what this app had.
+     *
+     * Not retried and not repaired here. If a retry receipt cannot be sent, the message it was
+     * about stays unread, which is exactly the state it was already in; sending it twice would
+     * ask the far end to resend twice.
+     */
+    fun sendRetryReceipt(
+        recipient: ServiceId,
+        error: org.signal.libsignal.protocol.message.DecryptionErrorMessage,
+        groupId: ByteArray?
+    ): Result = try {
+        val result = sender.sendRetryReceipt(
+            SignalServiceAddress(recipient),
+            sealedSender.accessFor(recipient.toString()),
+            java.util.Optional.ofNullable(groupId),
+            error
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+    } catch (t: Throwable) {
+        Timber.w(t, "signal retry: could not ask for a message to be sent again")
+        Result.Failed(t.message ?: t::class.java.simpleName)
+    }
+
+    /**
      * One receipt send, with the one repair that is worth making.
      *
      * A receipt is sent inside an existing session, and a session can go stale -- the far end

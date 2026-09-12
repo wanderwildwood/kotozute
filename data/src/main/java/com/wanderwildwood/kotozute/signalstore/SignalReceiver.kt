@@ -62,7 +62,15 @@ internal class SignalReceiver(
      * The other direction from [receipts], and the counterpart of what this device does with
      * one: without it a message can reach this phone and its sender never learn that it did.
      */
-    private val deliveryReceipts: (String, List<Long>) -> Unit = { _, _ -> }
+    private val deliveryReceipts: (String, List<Long>) -> Unit = { _, _ -> },
+    /**
+     * Asks a sender to send a message again, because it could not be read here.
+     *
+     * The other half of a failed decrypt. Keeping the envelope and reporting "one message
+     * could not be read" is a record of the loss; this is the thing that undoes it -- the
+     * sender's client archives the broken session and sends the message again.
+     */
+    private val retryReceipt: (String, org.signal.libsignal.protocol.message.DecryptionErrorMessage, ByteArray?) -> Unit
 ) {
 
     /**
@@ -453,6 +461,7 @@ internal class SignalReceiver(
             // nobody can act on.
             lastFailure = "${t::class.java.simpleName}: ${t.message?.take(120).orEmpty()}"
             Timber.w(t, "signal receive: could not decrypt an envelope; keeping it")
+            askForItAgain(envelope, t)
             null
         }
     }
@@ -465,6 +474,55 @@ internal class SignalReceiver(
      * asked for. It has to be taken when offered, which means every message, not just the
      * first: a rotated key arrives the same way and a stale one decrypts nothing.
      */
+    /**
+     * Asks the sender to send it again, after a decrypt this phone could not do.
+     *
+     * The envelope is kept either way -- a later fix might read it -- but keeping it is not a
+     * recovery. This is: the receipt names the exact message and shows the session is broken,
+     * and the sender's client resends over a fresh one.
+     *
+     * Only for a real protocol failure. A network error or a bug here is not something the far
+     * end can fix by sending again, and asking would be noise in somebody else's app.
+     *
+     * Shape adapted from Signal Android's `MessageDecryptor.buildSendRetryReceiptJob`,
+     * including which bytes to quote back: a sealed-sender envelope has the original inside
+     * the exception rather than in the envelope, and quoting the wrong one produces a receipt
+     * the sender cannot match to anything.
+     */
+    private fun askForItAgain(envelope: Envelope, failure: Throwable) {
+        val protocolFailure = generateSequence(failure) { it.cause }
+            .take(CAUSE_DEPTH)
+            .filterIsInstance<org.signal.libsignal.metadata.ProtocolException>()
+            .firstOrNull() ?: return
+
+        val sender = protocolFailure.sender?.takeIf { it.isNotBlank() }
+            ?: senderOf(envelope)
+            ?: return
+        val timestamp = envelope.clientTimestamp ?: return
+
+        val sealed = protocolFailure.unidentifiedSenderMessageContent
+        val original: ByteArray
+        val type: Int
+        if (sealed.isPresent) {
+            original = sealed.get().content
+            type = sealed.get().type
+        } else {
+            original = envelope.content?.toByteArray() ?: return
+            type = ciphertextTypeOf(envelope.type)
+        }
+
+        val error = runCatching {
+            org.signal.libsignal.protocol.message.DecryptionErrorMessage.forOriginalMessage(
+                original, type, timestamp, protocolFailure.senderDevice
+            )
+        }.getOrElse {
+            Timber.w(it, "signal retry: could not describe the message that would not open")
+            return
+        }
+        runCatching { retryReceipt(sender, error, protocolFailure.groupId.orElse(null)) }
+            .onFailure { Timber.w(it, "signal retry: could not ask for the message again") }
+    }
+
     /**
      * Associates an account id with a phone-number identity, but only on proof.
      *
@@ -658,6 +716,26 @@ internal class SignalReceiver(
 
         /** Signal's primary device. A PNI identity is usually only on file for this one. */
         private const val DEFAULT_DEVICE_ID = 1
+
+        /**
+         * What kind of ciphertext an envelope carried, in libsignal's numbering.
+         *
+         * The two vocabularies do not line up by value, and a retry receipt quoting the wrong
+         * one names a message the sender cannot find. Taken from Signal Android's own mapping
+         * rather than inferred from the enum order.
+         */
+        internal fun ciphertextTypeOf(type: Envelope.Type?): Int = when (type) {
+            Envelope.Type.DOUBLE_RATCHET ->
+                org.signal.libsignal.protocol.message.CiphertextMessage.WHISPER_TYPE
+            Envelope.Type.PREKEY_MESSAGE ->
+                org.signal.libsignal.protocol.message.CiphertextMessage.PREKEY_TYPE
+            Envelope.Type.UNIDENTIFIED_SENDER ->
+                org.signal.libsignal.protocol.message.CiphertextMessage.SENDERKEY_TYPE
+            Envelope.Type.PLAINTEXT_CONTENT ->
+                org.signal.libsignal.protocol.message.CiphertextMessage.PLAINTEXT_CONTENT_TYPE
+            else ->
+                org.signal.libsignal.protocol.message.CiphertextMessage.WHISPER_TYPE
+        }
 
         /**
          * Who an envelope came from, from whichever field the server filled.

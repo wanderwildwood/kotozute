@@ -178,7 +178,8 @@ class SignalStore(private val context: Context) {
                     if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
                 },
                 receipts,
-                { who, timestamps -> sendDeliveryReceipt(who, timestamps) }
+                { who, timestamps -> sendDeliveryReceipt(who, timestamps) },
+                { who, error, groupId -> sendRetryReceipt(who, error, groupId) }
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -358,6 +359,24 @@ class SignalStore(private val context: Context) {
         ).sendDeliveryReceipt(serviceId, timestamps) is SignalSender.Result.Sent
     }
 
+    /**
+     * Asks a sender to send a message again, after this phone could not read it.
+     *
+     * See [SignalSender.sendRetryReceipt]. Best effort: the message is already unread, and
+     * failing to ask leaves it exactly as it was.
+     */
+    fun sendRetryReceipt(
+        recipient: String,
+        error: org.signal.libsignal.protocol.message.DecryptionErrorMessage,
+        groupId: ByteArray?
+    ): Boolean {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
+        return SignalSender(
+            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalDataStore(database, account), connection, contacts
+        ).sendRetryReceipt(serviceId, error, groupId) is SignalSender.Result.Sent
+    }
+
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 
@@ -510,7 +529,8 @@ class SignalStore(private val context: Context) {
                 if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
             },
             receipts,
-            { who, timestamps -> sendDeliveryReceipt(who, timestamps) }
+            { who, timestamps -> sendDeliveryReceipt(who, timestamps) },
+            { who, error, groupId -> sendRetryReceipt(who, error, groupId) }
         ).listen(keepGoing) { r ->
             onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
         }

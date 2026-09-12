@@ -733,7 +733,14 @@ internal class SignalReceiver(
         message: com.wanderwildwood.kotozute.signal.BridgeMessage,
         content: org.whispersystems.signalservice.internal.push.Content
     ): com.wanderwildwood.kotozute.signal.BridgeMessage {
-        val dataMessage = content.syncMessage?.sent?.message ?: content.dataMessage ?: return message
+        // An edit carries its own attachments, and they are the ones to keep -- the row is
+        // about to be rewritten with the edited body, so leaving the original's pointers
+        // behind would pair new text with an old picture.
+        val dataMessage = content.syncMessage?.sent?.message
+            ?: content.dataMessage
+            ?: content.syncMessage?.sent?.editMessage?.dataMessage
+            ?: content.editMessage?.dataMessage
+            ?: return message
         if (dataMessage.attachments.isEmpty() || message.viewOnce) return message
 
         val array = org.json.JSONArray()

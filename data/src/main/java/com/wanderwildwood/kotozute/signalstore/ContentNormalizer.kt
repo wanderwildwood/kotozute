@@ -57,6 +57,14 @@ internal object ContentNormalizer {
         var counterpartNumber: String
 
         val sent = content.syncMessage?.sent
+
+        // When a message is an edit, the timestamp that identifies it is the *original's*.
+        // That is what makes an edit land on the message it edits: the row's id is author and
+        // timestamp, so reusing the original's timestamp updates that row in place instead of
+        // adding a second bubble, and keeps it where it already sits in the thread rather than
+        // jumping it to the end.
+        var editTarget: Long? = null
+
         when {
             sent?.message != null -> {
                 dataMessage = sent.message!!
@@ -70,6 +78,23 @@ internal object ContentNormalizer {
             content.dataMessage != null -> {
                 dataMessage = content.dataMessage!!
                 outgoing = false
+                counterpartUuid = authorUuid
+                counterpartNumber = authorNumber
+            }
+            // An edit of something we sent, synced from the device that made it.
+            sent?.editMessage?.dataMessage != null -> {
+                dataMessage = sent.editMessage!!.dataMessage!!
+                outgoing = true
+                editTarget = sent.editMessage!!.targetSentTimestamp
+                if (authorUuid.isBlank()) authorUuid = selfAci.orEmpty()
+                counterpartUuid = destinationServiceIdOf(sent)
+                counterpartNumber = sent.destinationE164.orEmpty()
+            }
+            // Somebody editing what they sent us.
+            content.editMessage?.dataMessage != null -> {
+                dataMessage = content.editMessage!!.dataMessage!!
+                outgoing = false
+                editTarget = content.editMessage!!.targetSentTimestamp
                 counterpartUuid = authorUuid
                 counterpartNumber = authorNumber
             }
@@ -98,7 +123,9 @@ internal object ContentNormalizer {
             return null
         }
 
-        val timestamp = dataMessage.timestamp ?: 0L
+        // The original's timestamp for an edit, its own for anything else. An edit naming no
+        // target is not an edit of anything and there is nothing to apply it to.
+        val timestamp = editTarget ?: dataMessage.timestamp ?: 0L
         if (timestamp == 0L) return null
 
         // A dataMessage whose author is our own account is Note to Self -- our own group and

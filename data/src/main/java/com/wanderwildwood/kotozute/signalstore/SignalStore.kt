@@ -573,6 +573,10 @@ class SignalStore(private val context: Context) {
     fun contactAciForNumber(e164: String): String? =
         runCatching { contacts.aciForNumber(e164) }.getOrNull()
 
+    /** The account id a phone-number identity belongs to, where the account has said so. */
+    fun contactAciForPni(pni: String): String? =
+        runCatching { contacts.aciForPni(pni) }.getOrNull()
+
     fun contactNames(): Map<String, String> = runCatching { contacts.all() }.getOrDefault(emptyMap())
 
     /**

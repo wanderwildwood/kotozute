@@ -171,6 +171,10 @@ internal class SignalReceiver(
         // per message on a device catching up after a day offline.
         val stored = if (messages.isEmpty()) 0 else events.store(messages)
         sweepUndecryptable()
+        // One place decides what this database stops holding: sent plaintext goes on the same
+        // pass as undecryptable envelopes.
+        runCatching { SignalMessageLog(db).sweep() }
+            .onFailure { Timber.w(it, "signal message log: could not sweep") }
 
         // Only now, and only for what is actually on disk. A delivery receipt is a claim that
         // this phone has the message; sending it before filing would make that claim on
@@ -830,6 +834,12 @@ internal class SignalReceiver(
             } else {
                 Timber.i("signal retry: the session has already moved on; leaving it alone")
             }
+
+            // And send them the message again. Archiving only fixes the next one; this is the
+            // one they actually asked about, and their client is showing nothing while it
+            // waits for it -- which is what ContentHint.RESENDABLE told them to do.
+            runCatching { events.resend(sender, error.timestamp) }
+                .onFailure { Timber.w(it, "signal retry: could not send the message again") }
         }.onFailure { Timber.w(it, "signal retry: could not act on a retry receipt") }
     }
 

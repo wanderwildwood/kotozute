@@ -41,6 +41,62 @@ internal class SignalSender(
 
     private val sealedSender by lazy { SealedSender(connection, contacts) }
 
+    private val messageLog by lazy { SignalMessageLog(db) }
+
+    /**
+     * Writes down what was actually sent, so a retry receipt can be answered with it.
+     *
+     * The Content comes back from the send itself -- it is the one that went out, not a
+     * reconstruction of it. Best effort: a send that happened is still a send that happened,
+     * and failing to write the log is not a reason to report it otherwise.
+     */
+    private fun rememberSend(result: SendMessageResult, timestamp: Long, groupId: ByteArray?) {
+        if (!result.isSuccess) return
+        val content = result.success?.content?.orElse(null) ?: return
+        runCatching {
+            messageLog.remember(
+                recipient = result.address.serviceId.toString(),
+                sentTimestamp = timestamp,
+                content = content,
+                urgent = true,
+                groupId = groupId
+            )
+        }.onFailure { Timber.w(it, "signal message log: could not record a send") }
+    }
+
+    /**
+     * Sends something again, because its recipient says they could not read it.
+     *
+     * The other half of a retry receipt. Their client is showing nothing and waiting for this;
+     * without it the message stayed lost and the promise in ContentHint.RESENDABLE was one
+     * this app could not keep.
+     */
+    fun resend(recipient: ServiceId, sentTimestamp: Long): Result {
+        val entry = runCatching { messageLog.recall(recipient.toString(), sentTimestamp) }
+            .getOrNull()
+            ?: return Result.Failed("that message is no longer held")
+        return try {
+            val result = sender.resendContent(
+                SignalServiceAddress(recipient),
+                sealedSender.accessFor(recipient.toString()),
+                sentTimestamp,
+                entry.content,
+                ContentHint.RESENDABLE,
+                java.util.Optional.ofNullable(entry.groupId),
+                entry.urgent
+            )
+            if (result.isSuccess) {
+                Timber.i("signal retry: sent a message again for somebody who could not read it")
+                Result.Sent(sentTimestamp)
+            } else {
+                Result.Failed(describe(result))
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal retry: could not send the message again")
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
     /** The store's own lock, for the same reason the receiver uses it. See [SignalReceiver]. */
     private val sessionLock = SignalSessionLock {
         db.lock.lock()
@@ -136,16 +192,12 @@ internal class SignalSender(
                 members.map { SignalServiceAddress(it) },
                 members.map { sealedSender.accessFor(it.toString()) },
                 false,
-                // DEFAULT, not RESENDABLE, and the difference is a promise. RESENDABLE tells
-                // the recipient's client "we kept this and will send it again if you ask", so
-                // on a failed decrypt it shows nothing at all and waits for a resend. This app
-                // keeps no log of what it sent and can never answer, so the message would
-                // simply be absent, for ever, with nobody told. DEFAULT makes the same failure
-                // visible on their side instead.
-                //
-                // Worth revisiting the day a sent-ciphertext log exists; until then this says
-                // what is true.
-                ContentHint.DEFAULT,
+                // RESENDABLE, and now it is true. The hint tells the recipient's client "we
+                // kept this and will send it again if you ask", so on a failed decrypt it
+                // shows nothing and waits rather than writing an error into the thread. That
+                // was a promise this app could not keep until SignalMessageLog existed; it
+                // briefly said DEFAULT instead, which was honest and worse for the reader.
+                ContentHint.RESENDABLE,
                 message,
                 SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
                 null,
@@ -157,6 +209,7 @@ internal class SignalSender(
                 // somebody would say the message never arrived.
                 true
             )
+            results.forEach { rememberSend(it, timestamp, masterKey) }
             val failed = results.filterNot { it.isSuccess }
             if (failed.isEmpty()) {
                 Timber.i("signal send: delivered to %d group members ts=%d", results.size, timestamp)
@@ -427,7 +480,7 @@ internal class SignalSender(
             val result = sender.sendDataMessage(
                 SignalServiceAddress(recipient),
                 sealedSender.accessFor(recipient.toString()),
-                ContentHint.DEFAULT,
+                ContentHint.RESENDABLE,
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,
                 false,
@@ -480,7 +533,7 @@ internal class SignalSender(
                 members.map { SignalServiceAddress(it) },
                 members.map { sealedSender.accessFor(it.toString()) },
                 false,
-                ContentHint.DEFAULT,
+                ContentHint.RESENDABLE,
                 message,
                 SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
                 null,
@@ -543,7 +596,7 @@ internal class SignalSender(
                 // the same way. Refusing to send instead would trade a metadata leak for a
                 // message that never arrives.
                 sealedSender.accessFor(recipient.toString()),
-                ContentHint.DEFAULT,
+                ContentHint.RESENDABLE,
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,
                 false,
@@ -554,6 +607,7 @@ internal class SignalSender(
                 // somebody would say the message never arrived.
                 true
             )
+            rememberSend(result, timestamp, null)
             if (result.isSuccess) {
                 Timber.i("signal send: delivered ts=%d", timestamp)
                 Result.Sent(timestamp)

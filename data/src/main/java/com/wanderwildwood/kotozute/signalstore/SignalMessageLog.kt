@@ -81,6 +81,27 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
      * Called on the same pass that sweeps undecryptable envelopes, so there is one place that
      * decides what this database stops holding on to.
      */
+    /**
+     * Forgets everything kept for one person.
+     *
+     * ⚠ Called when their identity key changes, which is what `IdentityUtil.saveIdentity` does
+     * (`messageLog().deleteAllForRecipient`). Everything held for them was encrypted to the
+     * identity they have just stopped having: resending it answers a retry receipt with
+     * ciphertext they still cannot read, so the same receipt comes back and the exchange
+     * repeats with nothing ever arriving. Keeping it is worse than having nothing, because
+     * having nothing at least ends the loop.
+     */
+    fun forget(recipient: String): Int = withStoreLock(db) {
+        val gone = db.writableDatabase.compileStatement(
+            "DELETE FROM message_log WHERE recipient = ?"
+        ).use { statement ->
+            statement.bindString(1, recipient)
+            statement.executeUpdateDelete()
+        }
+        if (gone > 0) Timber.i("signal message log: dropped %d entry(ies) for a changed identity", gone)
+        gone
+    }
+
     fun sweep(): Int = withStoreLock(db) {
         val cutoff = System.currentTimeMillis() - MAX_AGE_MS
         val gone = db.writableDatabase.compileStatement(

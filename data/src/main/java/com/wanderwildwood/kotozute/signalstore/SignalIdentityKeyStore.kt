@@ -80,6 +80,10 @@ internal class SignalIdentityKeyStore(
                 // `SignalBaseIdentityKeyStore.saveIdentity` does exactly this on a replaced
                 // key: archiveSiblingSessions, and forget any sender key shared with them.
                 archiveSiblingSessions(address)
+                // And drop what was kept to resend to them. See [SignalMessageLog.forget]:
+                // it is all encrypted to the identity they have just stopped having.
+                runCatching { SignalMessageLog(db).forget(name) }
+                    .onFailure { Timber.w(it, "signal store: could not drop the message log for them") }
                 Timber.i("signal store: identity changed for a peer; recorded untrusted and sessions archived")
                 IdentityKeyStore.IdentityChange.REPLACED_EXISTING
             }

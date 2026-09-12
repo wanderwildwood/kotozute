@@ -1335,6 +1335,7 @@ class SignalRepositoryImpl @Inject constructor(
     private fun applyReadElsewhere(read: List<Pair<String, Long>>) = runOffThread {
         if (read.isEmpty()) return@runOffThread
         val ids = read.map { (sender, at) -> "$sender:$at" }
+        val readAt = System.currentTimeMillis()
         val touched = mutableSetOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
@@ -1342,6 +1343,12 @@ class SignalRepositoryImpl @Inject constructor(
                     val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
                     if (row != null && !row.read) {
                         row.read = true
+                        // Read elsewhere is still read, so the clock starts here too --
+                        // otherwise a disappearing message read on her own phone would sit
+                        // here for ever, never counted down and never removed.
+                        if (row.expiresInSeconds > 0 && row.expiresAt == 0L) {
+                            row.expiresAt = readAt + row.expiresInSeconds * 1000L
+                        }
                         touched += row.threadKey
                     }
                 }
@@ -1377,6 +1384,7 @@ class SignalRepositoryImpl @Inject constructor(
         // arrives -- telling somebody over and over that their whole history has just been
         // read.
         val justRead = mutableListOf<Long>()
+        val now = System.currentTimeMillis()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val unread = r.where(SignalMessage::class.java)
@@ -1391,6 +1399,12 @@ class SignalRepositoryImpl @Inject constructor(
                 unread.createSnapshot().forEach { message ->
                     justRead += message.date
                     message.read = true
+                    // Reading is what starts a disappearing message's clock. Until now it
+                    // started when the message arrived, so a short timer could run out while
+                    // the phone sat in a pocket and the message was deleted unseen.
+                    if (message.expiresInSeconds > 0 && message.expiresAt == 0L) {
+                        message.expiresAt = now + message.expiresInSeconds * 1000L
+                    }
                 }
                 r.where(SignalThread::class.java).equalTo("threadKey", threadKey)
                     .findFirst()?.unread = 0

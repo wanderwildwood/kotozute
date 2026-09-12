@@ -55,4 +55,16 @@ interface SignalEvents {
 
     /** The account's own settings, as its primary holds them. */
     fun configuration(readReceipts: Boolean?) {}
+
+    /**
+     * A message arrived from a group at a revision this device has not caught up with.
+     *
+     * Every group message carries the group's master key and its revision number. The key was
+     * being read and the revision thrown away, so a group renamed after this phone first saw
+     * it kept the old name for ever -- the title was only ever filled in when it was blank.
+     *
+     * The revision is what makes checking affordable: without it the choice is between asking
+     * the server about every group on every batch, and never noticing a change at all.
+     */
+    fun groupChanged(masterKey: ByteArray, revision: Int) {}
 }

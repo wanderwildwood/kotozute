@@ -1220,6 +1220,58 @@ class SignalRepositoryImpl @Inject constructor(
         ) = applyDeletedElsewhere(messages, threads)
 
         override fun configuration(readReceipts: Boolean?) = applyConfiguration(readReceipts)
+
+        override fun groupChanged(masterKey: ByteArray, revision: Int) =
+            noteGroupRevision(masterKey, revision)
+    }
+
+    /**
+     * The highest group revision this process has already gone and looked at.
+     *
+     * In memory rather than in the database, which costs one extra fetch per group after a
+     * restart and saves a schema change. The wrong way to be wrong: a fetch too many is a
+     * round trip, where a fetch too few is a group wearing the wrong name indefinitely.
+     */
+    private val groupRevisions = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /**
+     * Re-reads a group whose revision has moved past what this device has seen.
+     *
+     * A group's name was only ever filled in when it was blank, so a group renamed after this
+     * phone first met it kept the old name for good. Asking the server about every group on
+     * every batch would fix that at the cost of a round trip per group per batch; the revision
+     * number a message carries is exactly what makes the cheap version possible.
+     */
+    private fun noteGroupRevision(masterKey: ByteArray, revision: Int) {
+        val id = android.util.Base64.encodeToString(masterKey, android.util.Base64.NO_WRAP)
+        val seen = groupRevisions[id]
+        if (seen != null && revision <= seen) return
+        groupRevisions[id] = revision
+        runOffThread {
+            val group = runCatching { signalStore.groupFor(masterKey) }.getOrNull() ?: return@runOffThread
+            val title = group.title.takeIf { it.isNotBlank() } ?: return@runOffThread
+            Realm.getDefaultInstance().use { realm ->
+                realm.executeTransaction { r ->
+                    r.where(SignalThread::class.java)
+                        .equalTo("kind", "group")
+                        .findAll()
+                        .filter { thread ->
+                            r.where(SignalMessage::class.java)
+                                .equalTo("threadKey", thread.threadKey)
+                                .findAll()
+                                .any { it.groupMasterKey?.contentEquals(masterKey) == true }
+                        }
+                        // Set when it differs, not only when it is blank. That difference is
+                        // the whole point: a rename that never arrives is the bug.
+                        .filter { it.title != title }
+                        .forEach { thread ->
+                            Timber.i("signal group: a group has been renamed")
+                            thread.title = title
+                        }
+                }
+            }
+            contactsChanged()
+        }
     }
 
     private fun applyReadElsewhere(read: List<Pair<String, Long>>) = runOffThread {

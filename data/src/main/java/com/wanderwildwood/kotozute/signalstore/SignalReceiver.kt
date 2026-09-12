@@ -534,6 +534,18 @@ internal class SignalReceiver(
                     }
                 }
 
+                // What revision of a group this message came from. Noted before normalizing,
+                // because the normalizer keeps the master key and drops this.
+                (result.content.dataMessage?.groupV2 ?: result.content.syncMessage?.sent?.message?.groupV2)
+                    ?.let { group ->
+                        val master = group.masterKey?.toByteArray()
+                        val revision = group.revision
+                        if (master != null && master.isNotEmpty() && revision != null) {
+                            runCatching { events.groupChanged(master, revision) }
+                                .onFailure { Timber.w(it, "signal group: could not note a revision") }
+                        }
+                    }
+
                 val normalized = ContentNormalizer.normalize(
                     result.content, result.metadata, credentials.aci, credentials.e164
                 )

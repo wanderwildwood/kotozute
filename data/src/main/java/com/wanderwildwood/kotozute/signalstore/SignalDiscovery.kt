@@ -101,23 +101,30 @@ internal class SignalDiscovery(
         var withoutAci = 0
         val people = response.results.mapNotNull { (e164, item) ->
             val aci = item.aci.orElse(null)
-            if (aci == null) {
-                // On Signal, but not published as findable by number. Signal's own storage
-                // records these people as a phone-number identity and nothing else, which is
-                // the one shape this app cannot yet key a person by. Counted rather than
-                // inferred, so the number is a fact and not a guess.
-                withoutAci++
-                return@mapNotNull null
+            val pni = item.pni
+            if (aci != null && pni != null) {
+                // Unverified, in Signal's own terms: its CDS path pairs with
+                // `pniVerified = false`, because the service says these two ids go together
+                // and nobody has proved it. Kept anyway -- it is the account's own lookup --
+                // but see ProtocolStoreSchema.PNI_ACI for what is *not* trusted.
+                runCatching { contacts.pair(pni.toString(), aci.toString()) }
             }
+            // The account id if the service gave one, the phone-number identity otherwise.
+            // For a linked device that is nearly always the PNI: CDSI returns an ACI only
+            // where the asker already holds a matching ACI/UAK pair, which is exactly what
+            // this phone does not have. A PNI is still a real address, and a message sent to
+            // it arrives.
+            val id = (aci ?: pni) ?: return@mapNotNull null
+            if (aci == null) withoutAci++
             // name = null throughout: this answers who exists, not what they are called. The
             // contact store keeps a name it already has rather than letting a blank overwrite
             // one, and the inbox falls back to the reader's own address book for the rest.
-            SignalContactStore.Contact(aci = aci.toString(), e164 = e164, name = null)
+            SignalContactStore.Contact(aci = id.toString(), e164 = e164, name = null)
         }
         if (people.isNotEmpty()) contacts.store(people)
 
         Timber.i(
-            "signal discovery: asked %d, found %d, %d without an account id (quota used %d)",
+            "signal discovery: asked %d, found %d, %d of them by phone-number identity (quota used %d)",
             fresh.size, people.size, withoutAci, response.quotaUsedDebugOnly
         )
         return Result(people.size, withoutAci, fresh.size, null)

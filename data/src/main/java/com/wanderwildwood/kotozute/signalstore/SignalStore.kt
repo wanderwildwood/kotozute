@@ -374,18 +374,20 @@ class SignalStore(private val context: Context) {
         // A record this could not use is said out loud. The whole of this bug was a fetch
         // that dropped two records in three and reported only the one it kept, so "71 from
         // 201" read as a complete answer rather than as the alarm it was.
+        // Kept, but worth saying: a person known only by their phone-number identity can be
+        // written to, and their reply still arrives under their account id, so the two halves
+        // only become one conversation once the account tells this phone they are the same.
+        val byPni = result.pniOnly.takeIf { it > 0 }?.let { " · $it by phone number" }.orEmpty()
         val dropped = listOfNotNull(
             result.unopened.takeIf { it > 0 }?.let { "$it would not open" },
             result.notContacts.takeIf { it > 0 }?.let { "$it not a contact" },
             result.anonymous.takeIf { it > 0 }?.let { anon ->
-                val pni = result.pniOnly.takeIf { it > 0 }?.let { ", $it of them phone-number only" }
-                // Whether they carry a number is the fact that decides what can be done
-                // about them, so it is on the same line as the count.
                 val num = result.anonymousWithNumber.takeIf { it > 0 }?.let { ", $it with a number" }
-                "$anon with no account id${pni.orEmpty()}${num.orEmpty()}"
+                "$anon with no address at all${num.orEmpty()}"
             }
         )
-        return if (dropped.isEmpty()) line else "$line · skipped ${dropped.joinToString(", ")}"
+        return if (dropped.isEmpty()) "$line$byPni"
+        else "$line$byPni · skipped ${dropped.joinToString(", ")}"
     }
 
     /**
@@ -403,10 +405,10 @@ class SignalStore(private val context: Context) {
         if (result.asked == 0) return "Every number has been looked up already"
         val parts = listOfNotNull(
             "${result.found} on Signal, from ${result.asked} number(s)",
-            // Said out loud rather than folded into the total: these are people the lookup
-            // did find, and not keeping them is this app's limitation rather than an absence.
-            result.withoutAci.takeIf { it > 0 }
-                ?.let { "$it more do not publish an account id, so cannot be added yet" }
+            // Nearly all of them, for a linked device: CDSI hands back an account id only
+            // where the asker already holds a matching ACI/UAK pair. Said out loud because
+            // "found by phone number" is a different, weaker thing to know about somebody.
+            result.withoutAci.takeIf { it > 0 }?.let { "$it known by phone number only" }
         )
         return parts.joinToString(" · ")
     }

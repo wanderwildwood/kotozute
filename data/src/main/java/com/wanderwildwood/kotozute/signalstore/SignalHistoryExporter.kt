@@ -182,10 +182,19 @@ internal class SignalHistoryExporter(
                             JSONObject().put("dateReceived", message.ts.toString()).put("read", message.read)
                         )
                     }
-                    if (message.expiresAt > 0 && message.expiresInSeconds > 0) {
+                    // The duration whenever there is one; the start only once it has
+                    // actually started. Those are two different facts and Signal's format
+                    // keeps them apart for a reason: an unread disappearing message has a
+                    // timer that has not begun, and writing both or neither was writing
+                    // neither -- so every unread disappearing message came back from an
+                    // export as an ordinary one that never goes away. The importer already
+                    // reads a duration with no start correctly; it was never being given one.
+                    if (message.expiresInSeconds > 0) {
                         val inMs = message.expiresInSeconds * 1000
                         item.put("expiresInMs", inMs.toString())
-                        item.put("expireStartDate", (message.expiresAt - inMs).toString())
+                        if (message.expiresAt > 0) {
+                            item.put("expireStartDate", (message.expiresAt - inMs).toString())
+                        }
                     }
 
                     val standard = JSONObject()

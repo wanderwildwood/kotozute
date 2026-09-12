@@ -2007,7 +2007,13 @@ class SignalRepositoryImpl @Inject constructor(
                     .equalTo("kind", "group")
                     .findAll()
                     .filter { it.title.isNotBlank() }
-                    .associate { it.title.lowercase() to it.threadKey }
+                    .groupBy { it.title.lowercase() }
+                    // Two groups can be called the same thing, and `associate` would hand the
+                    // importer whichever one Realm happened to return last -- a silent choice
+                    // between two conversations. A title that names more than one of them
+                    // names none: the importer treats the group as unplaceable and says so.
+                    .filterValues { it.size == 1 }
+                    .mapValues { (_, threads) -> threads.first().threadKey }
             }
 
         override fun insert(messages: List<BridgeMessage>): Int {

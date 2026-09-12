@@ -65,6 +65,21 @@ internal class SignalHistoryImporter(
         val isSelf: Boolean = false
     )
 
+    /**
+     * The thread key for a group, derived from the master key the export carries.
+     *
+     * The same derivation a live message goes through -- [ContentNormalizer.groupIdForCheck]
+     * -- so an imported group lands in the conversation it belongs to rather than beside it.
+     */
+    private fun threadKeyFromMasterKey(encoded: String): String? {
+        if (encoded.isBlank()) return null
+        return runCatching {
+            val bytes = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
+            if (bytes.size != GROUP_MASTER_KEY_SIZE) return null
+            "group:" + ContentNormalizer.groupIdForCheck(bytes).ifBlank { return null }
+        }.getOrNull()
+    }
+
     class NotAnExport : Exception("no ${DirectoryExportSource.MAIN} in the chosen folder")
 
     /**
@@ -102,6 +117,11 @@ internal class SignalHistoryImporter(
                             recipient.optString("kotozuteThreadKey")
                                 .takeIf { it.isNotBlank() }
                                 ?.let { groupThreadKeys[id] = it }
+                            // The master key, which Signal's own export carries and from
+                            // which the thread key is *derived* rather than guessed. This is
+                            // the answer the title match was standing in for.
+                            threadKeyFromMasterKey(group.optString("masterKey"))
+                                ?.let { groupThreadKeys[id] = it }
                             group.optJSONObject("snapshot")
                                 ?.optJSONObject("title")
                                 ?.optString("title")
@@ -117,13 +137,31 @@ internal class SignalHistoryImporter(
             }
         }
 
-        // A group's thread key cannot be derived from what the export gives us, so it is
-        // matched against a thread this phone already has, by title. An exact key beats a
-        // title match and needs no thread to match against -- only our own exports carry one.
+        // How a group in the export becomes a conversation on this phone, best answer first:
+        //
+        //  1. its master key, which Signal's own export carries -- the thread key is derived
+        //     from it exactly as a live message's is, so this needs nothing to match against;
+        //  2. `kotozuteThreadKey`, written by our own exporter, which is the same answer said
+        //     directly;
+        //  3. failing both, the title.
+        //
+        // The title is a guess and is now treated as one. Two groups can share a name, and a
+        // name is one rename away from matching a different conversation entirely -- so a
+        // title that is not unique on *both* sides is not used at all, and those messages are
+        // counted as an unknown group rather than filed somewhere plausible. Putting
+        // somebody's group messages in the wrong conversation is worse than not importing
+        // them: the import reports a number either way, and only one of those is recoverable.
         val known = sink.groupThreadsByTitle()
         val groupKeys = mutableMapOf<String, String>()
+        val ambiguous = groupTitles.values
+            .groupingBy { it.lowercase(Locale.ROOT) }
+            .eachCount()
+            .filterValues { it > 1 }
+            .keys
         groupTitles.forEach { (recipientId, title) ->
-            known[title.lowercase(Locale.ROOT)]?.let { groupKeys[recipientId] = it }
+            val key = title.lowercase(Locale.ROOT)
+            if (key in ambiguous) return@forEach
+            known[key]?.let { groupKeys[recipientId] = it }
         }
         groupKeys.putAll(groupThreadKeys)
 
@@ -209,7 +247,18 @@ internal class SignalHistoryImporter(
                     return@forEach
                 }
 
-                val ts = item.optLongString("dateSent")
+                // An edited message. Signal's archive files it under the *latest* edit: the
+                // item carries the current text and the newest timestamp, and `revisions`
+                // holds the older versions, oldest first.
+                //
+                // This app keeps an edit as a rewrite of the original row -- the id is the
+                // author and the timestamp the message was *first* sent, which is also what
+                // every quote of it points at. Taking the item's own timestamp therefore
+                // imported a second copy of a message already held, under an id nothing else
+                // refers to, and left the quote pointing at a message the import had not
+                // created. The text is the latest one; only the timestamp comes from the
+                // original.
+                val ts = originalTimestamp(item)
                 val body = standard.optJSONObject("text")?.optString("body").orEmpty()
                 val attachments = JSONArray()
                 var kept = 0
@@ -326,6 +375,27 @@ internal class SignalHistoryImporter(
     companion object {
         /** Rows per transaction: enough to be worth a write, small enough to report progress. */
         private const val BATCH = 200
+
+        /** A group master key is 32 bytes; anything else is not one, whatever it decodes to. */
+        private const val GROUP_MASTER_KEY_SIZE = 32
+
+        /**
+         * When a message was first sent, edits and all.
+         *
+         * `revisions` is ordered oldest first, so the first entry is the original -- but the
+         * order is the exporter's promise rather than the format's guarantee, and the earliest
+         * timestamp is the same answer without having to trust it.
+         */
+        fun originalTimestamp(item: JSONObject): Long {
+            val own = item.optLongString("dateSent")
+            val revisions = item.optJSONArray("revisions") ?: return own
+            var earliest = own
+            for (index in 0 until revisions.length()) {
+                val at = revisions.optJSONObject(index)?.optLongString("dateSent") ?: continue
+                if (at in 1 until earliest) earliest = at
+            }
+            return earliest
+        }
 
         private fun parse(line: String): JSONObject? =
             if (line.isBlank()) null else runCatching { JSONObject(line) }.getOrNull()

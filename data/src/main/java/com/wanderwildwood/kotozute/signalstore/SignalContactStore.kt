@@ -88,14 +88,19 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         val now = System.currentTimeMillis()
         val byAci = aci?.let { rowIdFor(database, "aci", it) }
         val byPni = pni?.let { rowIdFor(database, "pni", it) }
+        // By number too. One person can be here three times over -- found by number from
+        // discovery, by phone-number identity from a group, by account id from the account's
+        // own records -- learned months apart from sources that never mention each other.
+        val byE164 = e164.orNull()?.let { rowIdForNumber(database, it) }
 
         // The one decision worth stating on its own; see [RecipientMerge].
-        val existing = when (val plan = RecipientMerge.plan(byAci, byPni)) {
+        val existing = when (val plan = RecipientMerge.plan(byAci, byPni, byE164)) {
             is RecipientMerge.Plan.Insert -> null
             is RecipientMerge.Plan.Update -> plan.id
-            is RecipientMerge.Plan.Join -> {
-                // Two rows, one person, and this contact is what proved it.
-                absorb(database, keep = plan.keep, absorb = plan.absorb)
+            is RecipientMerge.Plan.Merge -> {
+                // Several rows, one person, and this contact is what proved it.
+                plan.absorb.forEach { absorb(database, keep = plan.keep, absorb = it) }
+                Timber.i("signal contacts: %d row(s) turned out to be one person", plan.absorb.size + 1)
                 plan.keep
             }
         }
@@ -149,6 +154,20 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
     }
 
     private fun String?.orNull(): String? = this?.takeIf { it.isNotBlank() }
+
+    /**
+     * The row that answers to a phone number.
+     *
+     * A number is not unique here, so this can face more than one row: the account row is
+     * preferred, since that is the one a conversation is keyed by. The others are candidates
+     * to be folded in, which is what the merge above is for.
+     */
+    private fun rowIdForNumber(
+        database: net.zetetic.database.sqlcipher.SQLiteDatabase,
+        e164: String
+    ): Long? = database.rawQuery(
+        "SELECT _id FROM recipient WHERE e164 = ? ORDER BY aci IS NULL LIMIT 1", arrayOf(e164)
+    ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
 
     private fun rowIdFor(
         database: net.zetetic.database.sqlcipher.SQLiteDatabase,
@@ -304,8 +323,8 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         val aciRow = rowIdFor(database, "aci", aci)
 
         when (val plan = RecipientMerge.plan(aciRow, pniRow)) {
-            is RecipientMerge.Plan.Join -> {
-                absorb(database, keep = plan.keep, absorb = plan.absorb)
+            is RecipientMerge.Plan.Merge -> {
+                plan.absorb.forEach { absorb(database, keep = plan.keep, absorb = it) }
                 Timber.i("signal contacts: two halves of one person became one row")
                 return
             }

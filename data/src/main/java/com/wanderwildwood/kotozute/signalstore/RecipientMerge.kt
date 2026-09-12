@@ -1,52 +1,60 @@
 package com.wanderwildwood.kotozute.signalstore
 
 /**
- * What to do when a person arrives under ids that may already be here.
+ * What to do when a person arrives under ids that may already belong to different rows.
  *
- * A scaled-down statement of what Signal's `processPnpTupleToChangeSet` decides. Theirs
- * handles every case a phone number can produce -- a number moving to a different person, an
- * account re-registering, a self-change -- against a table with the same shape. This handles
- * the cases this app can actually reach today, and is written as a pure function for the same
- * reason theirs is: every mistake in it is arithmetic about which row wins, and none of it
- * should need a database, a network or a phone to find.
+ * A port of the decision in Signal's `RecipientTable.processPnpTupleToChangeSet`, reduced to
+ * the shape this app's recipient table can represent. Theirs is larger because it also emits
+ * session-switchover and change-number events into the conversation; the *resolution* -- which
+ * row survives and which are folded into it -- is what is reproduced here.
  *
- * The whole difficulty is that a person can be here **twice** and not look like it -- once by
- * account id, once by phone-number identity, learned from different sources months apart. The
- * moment something names both at once is the only moment they can be joined.
+ * Written as a pure function for the same reason theirs is: every mistake in it is arithmetic
+ * about which row wins, and none of it should need a database, a network or a phone to find.
+ *
+ * The difficulty it exists for: one person can already be here **three times over** without
+ * anything saying so -- once by phone number from contact discovery, once by phone-number
+ * identity from a group, once by account id from the account's own records, learned months
+ * apart from sources that never mention each other. The moment something arrives naming more
+ * than one of those at once is the only moment they can be joined.
  */
 internal object RecipientMerge {
 
     sealed interface Plan {
-        /** Nobody here answers to either id. */
+        /** Nobody here answers to any of the ids. */
         data object Insert : Plan
 
-        /** Exactly one row answers. Fill in whatever it did not know. */
+        /** One row answers, or several that are already the same row. Fill in what it lacks. */
         data class Update(val id: Long) : Plan
 
         /**
-         * Two rows, one person.
+         * Several rows, one person.
          *
-         * [keep] is the row the conversation is already keyed by; [absorb] is folded into it
-         * and removed. What [absorb] knew must be carried across **before** it goes: losing a
-         * name or a number to a merge is a worse bug than the duplicate it fixes.
+         * [keep] is the row everything else folds into; [absorb] are removed once what they
+         * knew has been carried across. Order matters: what [keep] already holds wins, because
+         * that is what conversations have been using.
          */
-        data class Join(val keep: Long, val absorb: Long) : Plan
+        data class Merge(val keep: Long, val absorb: List<Long>) : Plan
     }
 
     /**
      * @param byAci the row found by account id, if any
      * @param byPni the row found by phone-number identity, if any
+     * @param byE164 the row found by phone number, if any
      *
-     * The account row is kept when there are two. Everything else in this app -- threads,
-     * messages, read state -- is keyed by the service id a conversation was started with, and
-     * that is the account id wherever one is known. Keeping the other row would mean rewriting
-     * those keys, which is the part that goes wrong quietly.
+     * The account row is kept where there is one, then the number, then the phone-number
+     * identity -- Signal's own order. Everything else in this app keys a conversation by the
+     * service id it started with, and that is the account id wherever one is known; keeping a
+     * different row would mean rewriting those keys, which is the part that goes wrong quietly.
      */
-    fun plan(byAci: Long?, byPni: Long?): Plan = when {
-        byAci == null && byPni == null -> Plan.Insert
-        byAci == null -> Plan.Update(byPni!!)
-        byPni == null -> Plan.Update(byAci)
-        byAci == byPni -> Plan.Update(byAci)
-        else -> Plan.Join(keep = byAci, absorb = byPni)
+    fun plan(byAci: Long?, byPni: Long?, byE164: Long? = null): Plan {
+        val found = listOfNotNull(byAci, byPni, byE164)
+        if (found.isEmpty()) return Plan.Insert
+
+        val distinct = found.distinct()
+        if (distinct.size == 1) return Plan.Update(distinct.first())
+
+        // Two or more rows are the same person. Signal's order, and for its reason.
+        val keep = byAci ?: byE164 ?: byPni!!
+        return Plan.Merge(keep = keep, absorb = distinct.filter { it != keep })
     }
 }

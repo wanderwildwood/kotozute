@@ -115,6 +115,9 @@ class SignalRepositoryImpl @Inject constructor(
     /** Threads whose messages have gone; see [messagesRemoved]. */
     private val removed = io.reactivex.subjects.PublishSubject.create<String>()
 
+    /** Threads read on another of the account's devices; see [conversationsRead]. */
+    private val readElsewhere = io.reactivex.subjects.PublishSubject.create<String>()
+
     private var stream: Closeable? = null
     private val streamWanted = AtomicBoolean(false)
 
@@ -1440,6 +1443,7 @@ class SignalRepositoryImpl @Inject constructor(
         val ids = read.map { (sender, at) -> "$sender:$at" }
         val readAt = System.currentTimeMillis()
         val touched = mutableSetOf<String>()
+        val cleared = mutableSetOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 ids.forEach { id ->
@@ -1463,6 +1467,9 @@ class SignalRepositoryImpl @Inject constructor(
                         .count()
                     r.where(SignalThread::class.java).equalTo("threadKey", key)
                         .findFirst()?.unread = stillUnread.toInt()
+                    // Only once the conversation is genuinely clear. Dismissing while
+                    // something in it is still unread would hide a message nobody has seen.
+                    if (stillUnread == 0L) cleared += key
                 }
             }
         }
@@ -1472,6 +1479,9 @@ class SignalRepositoryImpl @Inject constructor(
                 ids.size, touched.size
             )
             contactsChanged()
+            // The notification is the other half of "already read". Announced here rather than
+            // cancelled here: notifications belong to the presentation layer.
+            cleared.forEach { readElsewhere.onNext(it) }
         }
     }
 
@@ -2301,6 +2311,8 @@ class SignalRepositoryImpl @Inject constructor(
     override fun newIncoming(): Observable<SignalMessage> = incoming
 
     override fun messagesRemoved(): Observable<String> = removed
+
+    override fun conversationsRead(): Observable<String> = readElsewhere
 
     private fun publishState(
         signalConnected: Boolean,

@@ -105,14 +105,19 @@ internal class SignalSender(
         members: List<ServiceId>,
         body: String,
         expiresInSeconds: Int = 0,
-        expireTimerVersion: Int = 0
+        expireTimerVersion: Int = 0,
+        revision: Int = 0
     ): Result {
         if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
         val timestamp = System.currentTimeMillis()
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
             .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
-            .withRevision(0)
+            // The group's real revision, not zero. Zero is never newer than a recipient's own
+            // copy, so nobody refreshes group state on the strength of our message -- and a
+            // recipient who has not yet learned we were added discards it as coming from
+            // somebody who is not in the group.
+            .withRevision(revision)
             .build()
 
         val message = SignalServiceDataMessage.newBuilder()

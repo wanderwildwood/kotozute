@@ -35,7 +35,16 @@ internal class SignalGroups(
         val title: String,
         val members: List<String>,
         /** The group's disappearing-messages timer, in seconds. 0 when messages stay. */
-        val expiresInSeconds: Long = 0
+        val expiresInSeconds: Long = 0,
+        /**
+         * Which version of the group's state this is.
+         *
+         * Sent with every group message so a recipient whose own copy is older knows to go and
+         * catch up. Stamped 0 -- which was the case here -- it is never newer than anybody's,
+         * so nobody ever refreshes, and a recipient who has not yet seen us added to the group
+         * discards our messages as coming from a non-member.
+         */
+        val revision: Int = 0
     )
 
     /**
@@ -61,6 +70,7 @@ internal class SignalGroups(
             // something a message has to carry. Read here so a group thread knows its timer
             // without waiting for somebody to change it.
             expiresInSeconds = (group.disappearingMessagesTimer?.duration ?: 0).toLong(),
+            revision = group.revision,
             // ACIs only. A member known to the server by PNI has not yet been resolved to an
             // account we can open a session with, and including them would produce a send
             // that fails partway with no way to say who it failed for.

@@ -86,7 +86,18 @@ internal class SignalReceiver(
      * here, so somebody can only ever withdraw their own. Not handled, the message stays on
      * this phone for good while its sender believes it is gone.
      */
-    private val withdrawn: (String, Long) -> Unit = { _, _ -> }
+    private val withdrawn: (String, Long) -> Unit = { _, _ -> },
+    /**
+     * What the account has deleted somewhere else, for itself alone.
+     *
+     * Distinct from [withdrawn]: nobody else is affected and nothing is taken back from
+     * anyone. It is this account tidying its own copy, and a linked device that ignores it
+     * keeps showing what its owner has already thrown away.
+     *
+     * @param messages author and sent-timestamp pairs, which is how a row is identified here
+     * @param threads whole direct conversations to empty
+     */
+    private val deletedElsewhere: (List<Pair<String, Long>>, List<String>) -> Unit = { _, _ -> }
 ) {
 
     /**
@@ -475,6 +486,37 @@ internal class SignalReceiver(
                                 .onFailure { Timber.w(it, "signal read sync: could not apply") }
                         }
                     }
+
+                // What the account has deleted on another device, for itself.
+                result.content.syncMessage?.deleteForMe?.let { deletes ->
+                    val messages = deletes.messageDeletes
+                        .flatMap { it.messages }
+                        .mapNotNull { message ->
+                            val author = ServiceId.parseOrNull(
+                                message.authorServiceId, message.authorServiceIdBinary
+                            )?.toString() ?: return@mapNotNull null
+                            val at = message.sentTimestamp ?: return@mapNotNull null
+                            author to at
+                        }
+
+                    // Direct conversations only. A group's thread key here is derived from
+                    // the group's master key, and the id this names is not that -- guessing
+                    // at the derivation would either match nothing or, far worse, match the
+                    // wrong conversation and empty it. Group deletes are left alone until
+                    // the two can be shown to agree.
+                    val threads = deletes.conversationDeletes.mapNotNull { conversation ->
+                        conversation.conversation?.let { id ->
+                            if (id.threadGroupId != null && id.threadGroupId!!.size > 0) return@mapNotNull null
+                            ServiceId.parseOrNull(id.threadServiceId, id.threadServiceIdBinary)
+                                ?.toString()?.let { "direct:$it" }
+                        }
+                    }
+
+                    if (messages.isNotEmpty() || threads.isNotEmpty()) {
+                        runCatching { deletedElsewhere(messages, threads) }
+                            .onFailure { Timber.w(it, "signal delete sync: could not apply") }
+                    }
+                }
 
                 // The account's blocked list, which arrives whole and replaces what is held.
                 // Stored rather than acted on: this device does not hide anything on the

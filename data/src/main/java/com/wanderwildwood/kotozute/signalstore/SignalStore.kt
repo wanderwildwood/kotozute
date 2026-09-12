@@ -683,6 +683,12 @@ class SignalStore(private val context: Context) {
         }
     }.getOrDefault("")
 
+    /**
+     * Marks one person's row as differing from the account's copy. See
+     * [SignalContactStore.rotateStorageId]; nothing pushes it yet.
+     */
+    fun rotateStorageId(serviceId: String) = contacts.rotateStorageId(serviceId)
+
     fun contactName(aci: String): String? = runCatching { contacts.nameFor(aci) }.getOrNull()
 
     /** Every name known, for renaming threads in one pass after a sync. */

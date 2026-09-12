@@ -86,7 +86,16 @@ storage record carries, so the write path buys less than it first appears:
 | `muted`, `archived` | **Realm `SignalThread`**, not the recipient row | yes, but in another store |
 | name, profile key, ids | `recipient` | no — all learned, never chosen here |
 
-So before step 3 is worth building, mute and archive need a dirty marker of their own, because
-they live in Realm and cannot be found by looking at `recipient.storage_id`. That is a second
-model decision, not a detail — and it is the honest reason the write path is not simply "add the
-network call".
+**Resolved the same day, by reading rather than deciding.** There is no second marker, because
+Signal does not have one. `ThreadTable.setArchived` resolves its threads back to their
+recipients and calls `markNeedsSync`, which is `rotateStorageId` and a change notification and
+nothing else. **One dirty flag, on the recipient row, whatever table holds the value.**
+
+So mute and archive now mark the recipient row too, and the table above collapses to: every
+local change this app makes rotates one id in one place. The write path really is "compute the
+diff and send it" once steps 2-4 exist.
+
+⚠ Still open, and genuinely: **group threads**. A group's state lives on a group record, not a
+contact record, and this app has no recipient row for a group — so `markNeedsSync` skips them.
+Muting or archiving a group is not yet recorded as needing a push. That needs the group half of
+the write path, which does not exist.

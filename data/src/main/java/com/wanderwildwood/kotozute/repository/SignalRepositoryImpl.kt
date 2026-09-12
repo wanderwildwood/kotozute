@@ -2271,6 +2271,7 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun setMuted(threadKey: String, muted: Boolean) = runOffThread {
         editThread(threadKey) { it.muted = muted }
+        markNeedsSync(threadKey)
     }
 
     override fun markUnread(threadKey: String) = runOffThread {
@@ -2305,6 +2306,27 @@ class SignalRepositoryImpl @Inject constructor(
                 .findFirst()?.muted == true
         }
 
+    /**
+     * Notes that a conversation now differs from what the account's records hold.
+     *
+     * ⚠ The mark goes on the **recipient row**, not on the conversation -- even though the
+     * value that changed (muted, archived) lives in Realm. That is Signal's model, not a
+     * convenience: `ThreadTable.setArchived` resolves its threads back to their recipients and
+     * calls `markNeedsSync`, which is `rotateStorageId` and nothing else. One dirty flag, in
+     * one place, whatever table holds the value -- otherwise every store that can hold part of
+     * a conversation needs its own, and the sync has to consult all of them.
+     *
+     * A group's state lives on a group record rather than a contact record, and this app has
+     * no row for a group in the recipient table, so group threads are left alone here. They
+     * need the group half of the write path, which does not exist yet.
+     */
+    private fun markNeedsSync(threadKey: String) {
+        val serviceId = threadKey.removePrefix("direct:").takeIf { threadKey.startsWith("direct:") }
+            ?: return
+        runCatching { signalStore.rotateStorageId(serviceId) }
+            .onFailure { Timber.w(it, "signal storage: could not mark a conversation for a push") }
+    }
+
     private fun editThread(threadKey: String, block: (SignalThread) -> Unit) {
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
@@ -2316,6 +2338,7 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     override fun setArchived(threadKey: String, archived: Boolean) = runOffThread {
+        markNeedsSync(threadKey)
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 r.where(SignalThread::class.java)

@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 9
+    const val VERSION = 10
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -220,7 +220,9 @@ internal object ProtocolStoreSchema {
         ACCOUNT_KEYS,
         CDS_STATE,
         CDS_SUBMITTED,
-        PNI_ACI
+        PNI_ACI,
+        RECIPIENT,
+        RECIPIENT_E164_INDEX
     )
 
     /**
@@ -349,6 +351,40 @@ internal object ProtocolStoreSchema {
     """
 
     /**
+     * A person, by every name Signal has for them.
+     *
+     * The shape Signal's own recipient table has, and it is the shape for a reason. The
+     * [contact] table this replaces was keyed **by** the service id, which cannot represent
+     * the one thing that actually happens: somebody is met first as a phone-number identity
+     * and later turns out to be an account already known. Two rows, no way to say they are
+     * one person, and nothing that could merge them without changing a primary key.
+     *
+     * Here the row is a stable `_id` and the ids are columns, so learning a new one about
+     * somebody is an update rather than a new person. That is what makes Signal's
+     * `processPnpTupleToChangeSet` portable at all -- it works on "the row found by e164, the
+     * row found by pni, the row found by aci", which may be three different rows.
+     *
+     * `aci` and `pni` are unique; `e164` is **not**. Signal can enforce that because its PNP
+     * logic resolves every collision; until this app has all of it, two rows claiming one
+     * number is possible and a UNIQUE would turn that into a failed write rather than a
+     * merge worth doing later.
+     */
+    const val RECIPIENT = """
+        CREATE TABLE recipient (
+          _id INTEGER PRIMARY KEY AUTOINCREMENT,
+          aci TEXT UNIQUE,
+          pni TEXT UNIQUE,
+          e164 TEXT,
+          name TEXT,
+          profile_key BLOB,
+          updated_timestamp INTEGER NOT NULL
+        );
+    """
+
+    const val RECIPIENT_E164_INDEX =
+        "CREATE INDEX IF NOT EXISTS recipient_e164 ON recipient (e164);"
+
+    /**
      * Migrations, keyed by the version they upgrade *to*.
      *
      * Explicit and additive. This database holds key material that cannot be refetched -- an
@@ -381,7 +417,63 @@ internal object ProtocolStoreSchema {
         8 to listOf(CDS_STATE, CDS_SUBMITTED),
         // v9: which account a phone-number identity belongs to, so the two halves of one
         // person fold together rather than sitting in the inbox as two. Additive.
-        9 to listOf(PNI_ACI)
+        9 to listOf(PNI_ACI),
+        // v10: people become rows with a stable id, and their service ids become columns.
+        //
+        // ⚠ The old `contact` table is deliberately NOT dropped. Most of what is in it can be
+        // fetched again for nothing, but the rows discovery found cost quota to learn and
+        // `cds_submitted` will stop this asking for them a second time -- so if this migration
+        // is wrong, those people are gone for good rather than merely re-fetched. Keeping the
+        // table costs a few hundred rows and makes a bad migration recoverable.
+        10 to listOf(
+            RECIPIENT,
+            RECIPIENT_E164_INDEX,
+            // One row per account id.
+            """
+            INSERT INTO recipient (aci, name, profile_key, updated_timestamp)
+            SELECT aci, NULLIF(name, ''), profile_key, updated_timestamp
+            FROM contact WHERE aci NOT LIKE 'PNI:%'
+            """.trimIndent(),
+            // One row per phone-number identity that is not already somebody here.
+            """
+            INSERT INTO recipient (pni, name, profile_key, updated_timestamp)
+            SELECT c.aci, NULLIF(c.name, ''), c.profile_key, c.updated_timestamp
+            FROM contact c
+            WHERE c.aci LIKE 'PNI:%'
+              AND NOT EXISTS (
+                SELECT 1 FROM pni_aci p
+                JOIN recipient r ON r.aci = p.aci
+                WHERE p.pni = c.aci
+              )
+            """.trimIndent(),
+            // The paired ones fold onto the account they belong to.
+            """
+            UPDATE recipient SET pni = (
+              SELECT p.pni FROM pni_aci p WHERE p.aci = recipient.aci LIMIT 1
+            )
+            WHERE pni IS NULL
+              AND aci IS NOT NULL
+              AND EXISTS (SELECT 1 FROM pni_aci p WHERE p.aci = recipient.aci)
+            """.trimIndent(),
+            // A number from whichever of the two halves had one.
+            """
+            UPDATE recipient SET e164 = COALESCE(
+              (SELECT NULLIF(c.e164, '') FROM contact c WHERE c.aci = recipient.aci),
+              (SELECT NULLIF(c.e164, '') FROM contact c WHERE c.aci = recipient.pni)
+            )
+            """.trimIndent(),
+            // And a name and a profile key, where only the folded half had one.
+            """
+            UPDATE recipient SET name = (
+              SELECT NULLIF(c.name, '') FROM contact c WHERE c.aci = recipient.pni
+            ) WHERE name IS NULL AND pni IS NOT NULL
+            """.trimIndent(),
+            """
+            UPDATE recipient SET profile_key = (
+              SELECT c.profile_key FROM contact c WHERE c.aci = recipient.pni
+            ) WHERE profile_key IS NULL AND pni IS NOT NULL
+            """.trimIndent()
+        )
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

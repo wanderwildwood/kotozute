@@ -151,7 +151,9 @@ internal class SignalStorageService(
                 }
                 if (aci == null) pniOnly++
                 SignalContactStore.Contact(
-                    aci = id,
+                    serviceId = id,
+                    // Both ids on one record is the account saying they are one person.
+                    pni = pni,
                     e164 = record.e164?.takeIf { it.isNotBlank() },
                     name = nameOf(record),
                     profileKey = record.profileKey?.takeIf { it.size > 0 }?.toByteArray()

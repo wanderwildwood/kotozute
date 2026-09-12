@@ -119,7 +119,7 @@ internal class SignalDiscovery(
             // name = null throughout: this answers who exists, not what they are called. The
             // contact store keeps a name it already has rather than letting a blank overwrite
             // one, and the inbox falls back to the reader's own address book for the rest.
-            SignalContactStore.Contact(aci = id.toString(), e164 = e164, name = null)
+            SignalContactStore.Contact(serviceId = id.toString(), e164 = e164, name = null)
         }
         if (people.isNotEmpty()) contacts.store(people)
 

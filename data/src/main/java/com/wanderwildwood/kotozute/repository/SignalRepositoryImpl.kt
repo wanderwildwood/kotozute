@@ -1629,7 +1629,7 @@ class SignalRepositoryImpl @Inject constructor(
 
         val contacts = signalStore.contactDirectory().map { contact ->
             SignalDirectory.Row(
-                uuid = contact.aci,
+                uuid = contact.serviceId,
                 name = contact.name.orEmpty(),
                 number = contact.e164.orEmpty()
             )

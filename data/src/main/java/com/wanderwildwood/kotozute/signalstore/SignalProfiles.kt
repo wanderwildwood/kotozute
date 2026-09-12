@@ -36,7 +36,19 @@ internal class SignalProfiles(
         if (pending.isEmpty()) return 0
 
         val learned = pending.mapNotNull { (aci, keyBytes) ->
-            val serviceId = ServiceId.ACI.parseOrNull(aci) ?: return@mapNotNull null
+            // ⚠ Any service id, not only an account id. The query already offers people known
+            // by their phone-number identity -- 76 of them on one real account -- and this
+            // threw every one away by insisting on an ACI. Signal does not: `RetrieveProfileJob`
+            // builds its requests with `recipient.requireServiceId()`, whichever kind it is.
+            //
+            // The fetch differs by kind, which is the reason this needs saying rather than a
+            // one-word change. A *versioned* profile is keyed by account id and the library
+            // will not take anything else. An *unversioned* one takes any service id, and its
+            // name is encrypted with the same profile key -- so somebody known only by a
+            // phone-number identity, whose key arrived from a group or a message, can still be
+            // named. Without a key neither call yields a name, and those are the rows that
+            // stay unnamed.
+            val serviceId = ServiceId.parseOrNull(aci) ?: return@mapNotNull null
             val key = ProfileKey(keyBytes)
             val profile = runCatching { fetch(serviceId, key) }
                 .onFailure { Timber.w(it, "signal profile: could not fetch for a contact") }
@@ -84,10 +96,15 @@ internal class SignalProfiles(
         return if (verified) SEALED_SENDER_ENABLED else SEALED_SENDER_DISABLED
     }
 
-    private fun fetch(aci: ServiceId.ACI, profileKey: ProfileKey): Profile? {
+    private fun fetch(serviceId: ServiceId, profileKey: ProfileKey): Profile? {
         // The API suspends, and this runs on a worker thread that owns itself, so blocking
         // here costs nothing and keeps every caller free of coroutines.
-        val result = runBlocking { connection.profiles.getVersionedProfile(aci, profileKey, null) }
+        val result = runBlocking {
+            when (serviceId) {
+                is ServiceId.ACI -> connection.profiles.getVersionedProfile(serviceId, profileKey, null)
+                else -> connection.profiles.getUnversionedProfile(serviceId, null)
+            }
+        }
         if (result !is NetworkResult.Success) {
             Timber.d("signal profile: %s", result)
             return null

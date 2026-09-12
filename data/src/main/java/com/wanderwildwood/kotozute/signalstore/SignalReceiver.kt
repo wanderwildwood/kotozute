@@ -616,6 +616,23 @@ internal class SignalReceiver(
                     return@let null
                 }
 
+                // Somebody who is not in the group does not get to post in it.
+                //
+                // The group's master key was the only credential being asked for, and whoever
+                // holds it is believed: a member removed last year still has it, and so does
+                // anyone who took it from an old device or a leaked link. Their message landed
+                // in the thread looking like any other.
+                result.content.dataMessage?.groupV2?.let { group ->
+                    val master = group.masterKey?.toByteArray()
+                    val sender = result.metadata.sourceServiceId.toString()
+                    if (master != null && master.isNotEmpty() &&
+                        !senderIsInGroup(master, group.revision ?: 0, sender)
+                    ) {
+                        Timber.w("signal receive: dropped a group message from somebody not in the group")
+                        return@let null
+                    }
+                }
+
                 // A timer change reaches the conversation even though it is not a message.
                 ContentNormalizer.timerUpdateIn(
                     result.content, result.metadata, credentials.aci, credentials.e164
@@ -699,6 +716,40 @@ internal class SignalReceiver(
             // it decrypted. Only this sender's group messages are affected.
             Timber.w(it, "signal group key: a sender key would not be kept")
         }
+    }
+
+    /**
+     * The members of each group this session has had to ask about, by revision.
+     *
+     * Asking the server per message would be a round trip per message; asking once per group
+     * per revision is one round trip and then nothing. The revision is on every group message,
+     * so a membership change invalidates this by itself.
+     */
+    private val groupMembers = mutableMapOf<String, Pair<Int, Set<String>>>()
+
+    /**
+     * Whether somebody is currently in the group they are posting to.
+     *
+     * ⚠ Fails **open**, deliberately. A group whose state cannot be fetched -- no network, a
+     * 403 because we are no longer in it ourselves, a server having a moment -- still delivers
+     * its messages. Getting this wrong in the other direction means silently dropping real
+     * messages from real people, which is worse than the hole it closes and is exactly the
+     * class of failure this whole night has been about. The check only ever rejects somebody
+     * when the group's own state has been read and says they are not in it.
+     */
+    private fun senderIsInGroup(masterKey: ByteArray, revision: Int, sender: String): Boolean {
+        if (sender.isBlank()) return true
+        val id = android.util.Base64.encodeToString(masterKey, android.util.Base64.NO_WRAP)
+        val known = groupMembers[id]
+        if (known != null && known.first >= revision) return sender in known.second
+
+        val group = runCatching { SignalGroups(connection, accounts, contacts).fetch(masterKey) }
+            .onFailure { Timber.w(it, "signal group: could not check membership; letting it through") }
+            .getOrNull() ?: return true
+
+        val members = group.members.toSet()
+        groupMembers[id] = group.revision to members
+        return sender in members
     }
 
     /**

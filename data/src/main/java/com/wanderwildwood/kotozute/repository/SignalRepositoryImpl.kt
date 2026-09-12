@@ -935,6 +935,12 @@ class SignalRepositoryImpl @Inject constructor(
                 runCatching { signalStore.requestContacts() }
                     .onSuccess { Timber.i("signal contacts: %s", it) }
                     .onFailure { Timber.w(it, "signal contacts: could not ask") }
+                // And the account's settings, for the same reason: they are volunteered only
+                // when they change, so a device that never asks follows its own default rather
+                // than the account. Read receipts are the one that shows.
+                runCatching { signalStore.requestConfiguration() }
+                    .onSuccess { Timber.i("signal configuration: %s", it) }
+                    .onFailure { Timber.w(it, "signal configuration: could not ask") }
                 // Only while it is missing. This is the account's own key material and there
                 // is no reason to have it sent again once it is here.
                 // No asking for the account's keys here. An empty contact list does not say

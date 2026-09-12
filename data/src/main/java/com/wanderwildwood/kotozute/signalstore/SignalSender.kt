@@ -472,6 +472,30 @@ internal class SignalSender(
         Result.Failed(t.message ?: t::class.java.simpleName)
     }
 
+    /**
+     * Asks the primary for the account's settings.
+     *
+     * ⚠ A configuration sync is **volunteered only when a setting changes**. Handling one that
+     * arrives -- which this app does -- is therefore not the same as knowing the account's
+     * settings: a device that never asks sits on its own default until somebody happens to
+     * toggle the setting in Signal. For read receipts that means a phone quietly not telling
+     * people their messages were read, or telling them when the account said not to, with
+     * nothing on either side to show the two disagree.
+     */
+    fun requestConfiguration(): Result = try {
+        val result = sender.sendSyncMessage(
+            SignalServiceSyncMessage.forRequest(
+                RequestMessage.forType(
+                    org.whispersystems.signalservice.internal.push.SyncMessage.Request.Type.CONFIGURATION
+                )
+            )
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+    } catch (t: Throwable) {
+        Timber.w(t, "signal configuration: requesting it threw")
+        Result.Failed(t.message ?: t::class.java.simpleName)
+    }
+
     /** Asks the primary for the blocked list, which arrives later through the socket. */
     fun requestBlockedList(): Result = try {
         val result = sender.sendSyncMessage(

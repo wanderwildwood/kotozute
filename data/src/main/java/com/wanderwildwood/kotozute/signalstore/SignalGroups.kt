@@ -97,7 +97,8 @@ internal class SignalGroups(
                     store.store(
                         listOf(
                             SignalContactStore.Contact(
-                                aci = aci, e164 = null, name = null, profileKey = key.toByteArray()
+                                serviceId = aci, e164 = null, name = null,
+                                profileKey = key.toByteArray()
                             )
                         )
                     )

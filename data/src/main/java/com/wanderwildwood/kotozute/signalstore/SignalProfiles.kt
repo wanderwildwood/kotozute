@@ -38,7 +38,7 @@ internal class SignalProfiles(
                 .onFailure { Timber.w(it, "signal profile: could not fetch for a contact") }
                 .getOrNull()
                 ?: return@mapNotNull null
-            SignalContactStore.Contact(aci = aci, e164 = null, name = name)
+            SignalContactStore.Contact(serviceId = aci, e164 = null, name = name)
         }
         if (learned.isNotEmpty()) contacts.store(learned)
         Timber.i("signal profile: learned %d of %d names", learned.size, pending.size)

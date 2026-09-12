@@ -639,7 +639,7 @@ internal class SignalReceiver(
         // this phone is exactly the metadata the rest of the app goes to some length not to
         // hand anyone, and it should not be in a log to buy a slightly better debug line.
         Timber.i("signal profile: noted a profile key")
-        contacts.store(listOf(SignalContactStore.Contact(aci = aci, e164 = null, name = null, profileKey = key)))
+        contacts.store(listOf(SignalContactStore.Contact(serviceId = aci, profileKey = key)))
     }
 
     /**
@@ -654,7 +654,7 @@ internal class SignalReceiver(
         val sent = content.syncMessage?.sent ?: return
         val aci = ContentNormalizer.destinationServiceIdOf(sent).takeIf { it.isNotBlank() } ?: return
         val e164 = sent.destinationE164?.takeIf { it.isNotBlank() } ?: return
-        contacts.store(listOf(SignalContactStore.Contact(aci = aci, e164 = e164, name = null)))
+        contacts.store(listOf(SignalContactStore.Contact(serviceId = aci, e164 = e164)))
     }
 
     /**
@@ -708,7 +708,7 @@ internal class SignalReceiver(
                 }
                 val aci = contact.aci.orElse(null)?.toString() ?: continue
                 found += SignalContactStore.Contact(
-                    aci = aci,
+                    serviceId = aci,
                     e164 = contact.e164.orElse(null),
                     name = contact.name.orElse(null)
                     // No profile key here. DeviceContact carries aci, e164, name, avatar and

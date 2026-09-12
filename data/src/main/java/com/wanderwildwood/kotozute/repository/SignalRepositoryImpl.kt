@@ -1058,6 +1058,14 @@ class SignalRepositoryImpl @Inject constructor(
     private val STABLE_CONNECTION_MS = 30_000L
 
     /**
+     * How old a message may be when its sender withdraws it.
+     *
+     * Signal's `normalDeleteMaxAgeInSeconds` default is a day, and `RECEIVE_THRESHOLD` adds
+     * another for delivery -- a withdrawal that took a while to arrive is still honest.
+     */
+    private val WITHDRAWAL_WINDOW_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(2)
+
+    /**
      * `BackoffUtil.exponentialBackoff`, unchanged: two to the power of the attempt in seconds,
      * capped, then multiplied by a random 0.75-1.25.
      *
@@ -1330,7 +1338,7 @@ class SignalRepositoryImpl @Inject constructor(
      * the timestamp they sent it with, and the author here is the envelope's sender -- so a
      * delete naming somebody else's message resolves to a row that does not exist.
      */
-    private fun applyWithdrawal(author: String, sentAt: Long) = runOffThread {
+    private fun applyWithdrawal(author: String, sentAt: Long, withdrawnAt: Long) = runOffThread {
         val id = "$author:$sentAt"
         var threadKey: String? = null
         val doomed = mutableListOf<String>()
@@ -1338,6 +1346,21 @@ class SignalRepositoryImpl @Inject constructor(
             realm.executeTransaction { r ->
                 val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
                     ?: return@executeTransaction
+
+                // ⚠ Bounded in time, which it was not. Signal accepts a withdrawal only within
+                // `normalDeleteMaxAgeInSeconds` (a day) plus a day of slack for delivery --
+                // `MessageConstraintsUtil.isValidRemoteDeleteReceive`. Unbounded, "delete for
+                // everyone" is a power to reach back and erase any message ever sent to this
+                // phone, months later, from the person who sent it. That is not what the
+                // gesture is for, and the reader has no way to know it happened.
+                //
+                // Our own messages are exempt, as they are in Signal: a withdrawal of an
+                // outgoing message is this account tidying up after itself on another device,
+                // and there is nothing to protect the reader from.
+                if (!row.outgoing && withdrawnAt - row.date >= WITHDRAWAL_WINDOW_MS) {
+                    Timber.w("signal delete: a withdrawal arrived too late to be honoured; keeping the message")
+                    return@executeTransaction
+                }
                 threadKey = row.threadKey
                 // Whatever was attached goes with it. Withdrawing a message is somebody
                 // unsaying something; leaving the picture on disk unsays nothing.
@@ -1403,7 +1426,8 @@ class SignalRepositoryImpl @Inject constructor(
 
         override fun readElsewhere(read: List<Pair<String, Long>>) = applyReadElsewhere(read)
 
-        override fun withdrawn(author: String, sentAt: Long) = applyWithdrawal(author, sentAt)
+        override fun withdrawn(author: String, sentAt: Long, withdrawnAt: Long) =
+            applyWithdrawal(author, sentAt, withdrawnAt)
 
         override fun deletedElsewhere(
             messages: List<Pair<String, Long>>,

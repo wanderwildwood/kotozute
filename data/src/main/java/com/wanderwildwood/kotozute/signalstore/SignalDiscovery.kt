@@ -70,6 +70,27 @@ internal class SignalDiscovery(
         // run, and says so.
         val previouslyAsked = if (token != null) previous else emptySet()
 
+        // ⚠ And the other way round, which was missing. Signal drops the **token** when the
+        // previous set is empty just as it drops the set when there is no token
+        // (`ContactDiscoveryRefreshV2`: `token = if (previousE164s.isNotEmpty()) cdsToken else
+        // null`). They are one pair and travelling alone is meaningless in either direction --
+        // a token says "discount the numbers I asked about last time", and paired with an
+        // empty list it asserts that last time was nothing, which is not what a token is for.
+        val sentToken = token?.takeIf { previouslyAsked.isNotEmpty() }
+
+        // ⚠ A ceiling, because the quota is real and spent per new number. Signal refuses
+        // outright above `android.cds.hardLimit` (50,000) and marks itself permanently
+        // blocked rather than submit. Nothing here bounded the ask at all: an address book
+        // that grew unexpectedly -- an import, a sync gone wrong, a duplicated contacts file
+        // -- would be submitted whole and charged for whole.
+        if (fresh.size > CDS_HARD_LIMIT) {
+            Timber.e(
+                "signal discovery: %d new numbers is past the limit of %d; refusing to ask",
+                fresh.size, CDS_HARD_LIMIT
+            )
+            return Result(0, 0, 0, "too many new numbers to look up at once")
+        }
+
         // Set when the service hands back a token, which it does only once it has counted the
         // run. That, not a successful answer, is what says the quota was spent.
         var counted = false
@@ -78,7 +99,7 @@ internal class SignalDiscovery(
             previouslyAsked,
             fresh,
             emptyMap(),
-            Optional.ofNullable(token),
+            Optional.ofNullable(sentToken),
             TIMEOUT_MS,
             connection.network
         ) { issued ->
@@ -158,5 +179,8 @@ internal class SignalDiscovery(
 
         /** How far down a wrapped exception to look, matching [SignalReceiver]. */
         private const val CAUSE_DEPTH = 5
+
+        /** Signal's `android.cds.hardLimit`. Above this it refuses rather than submits. */
+        private const val CDS_HARD_LIMIT = 50_000
     }
 }

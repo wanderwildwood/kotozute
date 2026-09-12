@@ -846,6 +846,7 @@ class SignalRepositoryImpl @Inject constructor(
                         file = { ingest(it) },
                         onNamesLearned = ::renameThreadsFromContacts,
                         receipts = { sender, timestamps, read -> applyReceipts(sender, timestamps, read) },
+                        readElsewhere = { read -> applyReadElsewhere(read) },
                         onBatch = {
                             Timber.i("signal: received %s", it)
                             // The only place the direct rail can record that traffic is
@@ -1059,6 +1060,54 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun send(threadKey: String, body: String, attachments: List<String>): Long =
         sendDirect(threadKey, body, attachments)
+
+    /**
+     * Marks read what the account has already read on another device.
+     *
+     * A message is identified here by its author and the timestamp it was sent with, which is
+     * exactly the pair a read sync carries -- so this resolves to a row directly rather than
+     * having to guess at a thread and a cutoff.
+     *
+     * **No receipts.** The device that did the reading has already told the sender; saying so
+     * again from here would tell them twice for one reading. That is the difference between
+     * this and [markRead], and it is the whole reason it is not simply that function.
+     *
+     * Each thread's unread count is recomputed rather than decremented: counting what is
+     * actually unread cannot drift, and a decrement applied twice -- a sync redelivered, say --
+     * would leave a count that never reaches zero.
+     */
+    private fun applyReadElsewhere(read: List<Pair<String, Long>>) = runOffThread {
+        if (read.isEmpty()) return@runOffThread
+        val ids = read.map { (sender, at) -> "$sender:$at" }
+        val touched = mutableSetOf<String>()
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                ids.forEach { id ->
+                    val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
+                    if (row != null && !row.read) {
+                        row.read = true
+                        touched += row.threadKey
+                    }
+                }
+                touched.forEach { key ->
+                    val stillUnread = r.where(SignalMessage::class.java)
+                        .equalTo("threadKey", key)
+                        .equalTo("outgoing", false)
+                        .equalTo("read", false)
+                        .count()
+                    r.where(SignalThread::class.java).equalTo("threadKey", key)
+                        .findFirst()?.unread = stillUnread.toInt()
+                }
+            }
+        }
+        if (touched.isNotEmpty()) {
+            Timber.i(
+                "signal read sync: %d message(s) already read elsewhere, in %d conversation(s)",
+                ids.size, touched.size
+            )
+            contactsChanged()
+        }
+    }
 
     /**
      * All of this runs off the caller's thread. The Realm here is configured to refuse

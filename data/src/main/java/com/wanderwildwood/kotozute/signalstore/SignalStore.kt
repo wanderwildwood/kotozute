@@ -459,13 +459,23 @@ class SignalStore(private val context: Context) {
      * it. Returns what it did, in a sentence, for a status line and a log.
      */
     fun readStorage(): String {
-        val result = SignalStorageService(connection, keys, contacts) { who, key, verified ->
-            // The account's own record of somebody's key, taken as this device's starting
-            // point rather than trusting whatever the server offers first.
-            runCatching {
-                SignalDataStore(database, account).aciStore().adoptIdentity(who, key, verified)
-            }.onFailure { Timber.w(it, "signal storage: could not adopt an identity") }
-        }.read()
+        val result = SignalStorageService(
+            connection, keys, contacts,
+            identities = { who, key, verified ->
+                // The account's own record of somebody's key, taken as this device's starting
+                // point rather than trusting whatever the server offers first.
+                runCatching {
+                    SignalDataStore(database, account).aciStore().adoptIdentity(who, key, verified)
+                }.onFailure { Timber.w(it, "signal storage: could not adopt an identity") }
+            },
+            blocked = { people, groups ->
+                // Replaces the held list rather than adding to it: a storage read is the
+                // account's current answer, and somebody unblocked upstream has to become
+                // unblocked here too.
+                SignalBlockStore(database).store(people, groups)
+                Timber.i("signal blocked: the account's records name %d blocked", people.size)
+            }
+        ).read()
         if (result.reason != null) return result.reason
         val line = "${result.contacts} contact(s) from ${result.records} record(s)"
         // A record this could not use is said out loud. The whole of this bug was a fetch

@@ -35,7 +35,22 @@ internal class SignalStorageService(
      * verified. Every contact record carries both, and they were decrypted and dropped.
      */
     private val identities: (String, org.signal.libsignal.protocol.IdentityKey, Boolean) -> Unit =
-        { _, _, _ -> }
+        { _, _, _ -> },
+    /**
+     * Who the account has blocked, as its own records say.
+     *
+     * ⚠ This is **where blocking actually lives** on a current account, and it was not being
+     * read at all. Every contact record carries a `blocked` flag and every group record carries
+     * one too; this app implemented only the legacy `SyncMessage.Blocked` list, which a modern
+     * primary need never send. So somebody the account owner had blocked went on arriving here:
+     * decrypted, filed, shown, announced -- and answered with a delivery receipt, which tells
+     * the blocked person the phone is on and reading them.
+     *
+     * Called with the whole picture, not a delta, because that is what a storage read is: the
+     * account's current list, which replaces whatever was held. That also repairs a list left
+     * stale by an old sync, since nothing else ever refreshes one.
+     */
+    private val blocked: (List<SignalBlockStore.Blocked>, List<ByteArray>) -> Unit = { _, _ -> }
 ) {
 
     /**
@@ -118,6 +133,8 @@ internal class SignalStorageService(
         var pniOnly = 0
         var anonymousWithNumber = 0
         var unreadable = 0
+        // Who the account's own records say is blocked. Gathered whole and applied once, below.
+        val blockedPeople = mutableListOf<SignalBlockStore.Blocked>()
         // In batches: a manifest can name thousands of records, and the service takes a list
         // of ids per request rather than all of them.
         wanted.chunked(BATCH).forEach { batch ->
@@ -183,6 +200,15 @@ internal class SignalStorageService(
                     return@mapNotNull null
                 }
                 if (aci == null) pniOnly++
+                // The flag that says this person is blocked. One boolean, and the whole of
+                // modern blocking; see the [blocked] parameter.
+                if (record.blocked) {
+                    blockedPeople += SignalBlockStore.Blocked(
+                        aci = id,
+                        e164 = record.e164?.takeIf { it.isNotBlank() },
+                        blockedAt = 0L
+                    )
+                }
                 SignalContactStore.Contact(
                     serviceId = id,
                     // Both ids on one record is the account saying they are one person.
@@ -206,6 +232,20 @@ internal class SignalStorageService(
         // pni-only, 0 with a number)" read as though 76 contacts had been thrown away and
         // none of them had a phone number. Neither half of that was true, and the line is the
         // only thing a release build says about this.
+        // ⚠ Only when the read was complete. This replaces the blocked list wholesale, and a
+        // partial read would replace it with a short one -- which does not fail safe: it
+        // **unblocks** whoever was in the batch that did not arrive, silently, and the next
+        // message from them lands in the inbox as though nothing had been decided.
+        if (unreadable == 0) {
+            runCatching { blocked(blockedPeople, emptyList()) }
+                .onFailure { Timber.w(it, "signal storage: the blocked list would not keep") }
+        } else {
+            Timber.w(
+                "signal storage: %d record(s) unread, so the blocked list is left as it was",
+                unreadable
+            )
+        }
+
         Timber.i(
             "signal storage: %d contact(s) from %d record(s), %d of them known only by phone-number identity; " +
                 "dropped %d unopened, %d not contacts, %d with no id at all (%d of those had a number)",

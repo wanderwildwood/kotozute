@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 24
+        const val SCHEMA_VERSION: Long = 25
     }
 
     @SuppressLint("ApplySharedPref")
@@ -452,6 +452,23 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.takeIf { !it.hasField("groupMasterKey") }
                 ?.addField("groupMasterKey", ByteArray::class.java)
+
+            version++
+        }
+
+        if (version == 24L) {
+            // The conversation's disappearing-messages timer, which was never stored at all.
+            // Zero on every existing row, which is also what every message this phone has ever
+            // sent effectively claimed -- so nothing is being rewritten, only made able to
+            // change. The real timer arrives with the next timer update or group fetch.
+            realm.schema.get("SignalThread")
+                ?.takeIf { !it.hasField("expiresInSeconds") }
+                ?.addField("expiresInSeconds", Long::class.java, FieldAttribute.REQUIRED)
+                ?.transform { m -> m.setLong("expiresInSeconds", 0) }
+            realm.schema.get("SignalThread")
+                ?.takeIf { !it.hasField("expireTimerVersion") }
+                ?.addField("expireTimerVersion", Int::class.java, FieldAttribute.REQUIRED)
+                ?.transform { m -> m.setInt("expireTimerVersion", 0) }
 
             version++
         }

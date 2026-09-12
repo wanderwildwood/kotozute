@@ -191,7 +191,12 @@ class SignalStore(private val context: Context) {
      *
      * @throws IllegalStateException naming the reason if it could not be sent.
      */
-    fun sendToGroup(masterKey: ByteArray, body: String): Long {
+    fun sendToGroup(
+        masterKey: ByteArray,
+        body: String,
+        expiresInSeconds: Int = 0,
+        expireTimerVersion: Int = 0
+    ): Long {
         connection.connect()
         val group = SignalGroups(connection, account, contacts).fetch(masterKey)
             ?: throw IllegalStateException("could not read the group's members")
@@ -204,7 +209,7 @@ class SignalStore(private val context: Context) {
             val r = SignalSender(
                 SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
-            ).sendToGroup(masterKey, members, body)
+            ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion)
         ) {
             is SignalSender.Result.Sent -> r.timestamp
             is SignalSender.Result.Failed -> throw IllegalStateException(r.reason)
@@ -449,14 +454,20 @@ class SignalStore(private val context: Context) {
         }
     }
 
-    fun send(recipient: String, body: String, attachments: List<String> = emptyList()): Long {
+    fun send(
+        recipient: String,
+        body: String,
+        attachments: List<String> = emptyList(),
+        expiresInSeconds: Int = 0,
+        expireTimerVersion: Int = 0
+    ): Long {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
             ?: throw IllegalStateException("not a service id: $recipient")
         connection.connect()
         return try {
             when (val result = SignalSender(
                 SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection, contacts
-            ).send(serviceId, body, attachments)) {
+            ).send(serviceId, body, attachments, expiresInSeconds, expireTimerVersion)) {
                 is SignalSender.Result.Sent -> result.timestamp
                 is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
             }

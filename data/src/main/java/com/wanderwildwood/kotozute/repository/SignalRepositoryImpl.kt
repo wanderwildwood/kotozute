@@ -765,7 +765,7 @@ class SignalRepositoryImpl @Inject constructor(
         // not one. The library's own comment warns about exactly this race.
         0
     } else try {
-        val summary = signalStore.receive({ ingest(it) }, ::renameThreadsFromContacts, ::applyReceipts)
+        val summary = signalStore.receive(signalEvents, ::renameThreadsFromContacts)
         Timber.i("signal: direct sync %s", summary)
         prefs.signalLastSync.set(System.currentTimeMillis())
         syncCaughtUp = true
@@ -843,15 +843,8 @@ class SignalRepositoryImpl @Inject constructor(
                     publishState(signalConnected = true, error = null)
                     signalStore.listen(
                         keepGoing = { streamWanted.get() && streamGeneration.get() == generation },
-                        file = { ingest(it) },
+                        events = signalEvents,
                         onNamesLearned = ::renameThreadsFromContacts,
-                        receipts = { sender, timestamps, read -> applyReceipts(sender, timestamps, read) },
-                        readElsewhere = { read -> applyReadElsewhere(read) },
-                        withdrawn = { author, at -> applyWithdrawal(author, at) },
-                        deletedElsewhere = { messages, threads ->
-                            applyDeletedElsewhere(messages, threads)
-                        },
-                        configuration = { readReceipts -> applyConfiguration(readReceipts) },
                         onBatch = {
                             Timber.i("signal: received %s", it)
                             // The only place the direct rail can record that traffic is
@@ -1200,6 +1193,35 @@ class SignalRepositoryImpl @Inject constructor(
      * actually unread cannot drift, and a decrement applied twice -- a sync redelivered, say --
      * would leave a count that never reaches zero.
      */
+    /**
+     * Everything the receive path tells this repository, in one place.
+     *
+     * Each of these used to be a lambda threaded through [SignalStore] into the receiver, and
+     * every new thing Signal syncs added one to four files. See [SignalEvents].
+     */
+    private val signalEvents = object : com.wanderwildwood.kotozute.signalstore.SignalEvents {
+        override fun store(
+            messages: List<com.wanderwildwood.kotozute.signal.BridgeMessage>
+        ): Int = ingest(messages)
+
+        override fun receipts(sender: String, timestamps: List<Long>, read: Boolean) {
+            // applyReceipts answers with how many rows it changed, which is of use to the
+            // browser rail and to nobody here.
+            applyReceipts(sender, timestamps, read)
+        }
+
+        override fun readElsewhere(read: List<Pair<String, Long>>) = applyReadElsewhere(read)
+
+        override fun withdrawn(author: String, sentAt: Long) = applyWithdrawal(author, sentAt)
+
+        override fun deletedElsewhere(
+            messages: List<Pair<String, Long>>,
+            threads: List<String>
+        ) = applyDeletedElsewhere(messages, threads)
+
+        override fun configuration(readReceipts: Boolean?) = applyConfiguration(readReceipts)
+    }
+
     private fun applyReadElsewhere(read: List<Pair<String, Long>>) = runOffThread {
         if (read.isEmpty()) return@runOffThread
         val ids = read.map { (sender, at) -> "$sender:$at" }

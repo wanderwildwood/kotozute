@@ -652,7 +652,8 @@ class SignalStore(private val context: Context) {
             append("${c.known} contact(s), ${c.withProfileKey} with a profile key, ${c.named} named")
             // Only when there are any. A count of nought is a line of noise in a status
             // string somebody reads on a small screen.
-            if (c.nameless > 0) append(", ${c.nameless} with neither name nor number")
+            if (c.withUsername > 0) append(", ${c.withUsername} by username")
+            if (c.nameless > 0) append(", ${c.nameless} with nothing to show but an id")
         }
     }.getOrDefault("")
 

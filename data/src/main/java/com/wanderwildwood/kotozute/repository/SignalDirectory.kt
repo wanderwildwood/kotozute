@@ -82,8 +82,16 @@ internal object SignalDirectory {
         threads.forEach(::take)
         contacts.forEach { row -> if (row.uuid != selfAci) take(row) }
 
+        val named = mutableSetOf<String>()
         return known.map { uuid ->
             val number = numbers[uuid].orEmpty()
+            // Whether anybody has a name for this person, from either side. Kept because it
+            // decides the order, and because "the display name happens not to start with a
+            // digit" is not the same question.
+            val called = names[uuid]
+                ?: number.ifBlank { uuid.takeIf { it.startsWith("+") }.orEmpty() }
+                    .takeIf { it.isNotBlank() }?.let(nameForNumber)
+            if (!called.isNullOrBlank()) named += "direct:$uuid"
             SignalRepository.Person(
                 threadKey = "direct:$uuid",
                 // Never blank. A name, then the number, then the service id shortened -- the
@@ -93,18 +101,26 @@ internal object SignalDirectory {
                 // have nothing else to go on, and a number is exactly what an address book
                 // answers.
                 name = com.wanderwildwood.kotozute.signal.SignalName.of(
-                    name = names[uuid]
-                        // A counterpart that is itself a number is one to look up too:
-                        // those rows have nothing else to go on, and a number is exactly
-                        // what an address book answers.
-                        ?: number.ifBlank { uuid.takeIf { it.startsWith("+") }.orEmpty() }
-                            .takeIf { it.isNotBlank() }?.let(nameForNumber)
-                        ?: "",
+                    name = called.orEmpty(),
                     number = number,
                     serviceId = uuid
                 ),
                 number = number
             )
-        }.sortedBy { person -> person.name.lowercase() }
+        }
+            // Ordered by whether anybody actually has a name for them, which the display name
+            // cannot be asked: what stands in for a missing name is a phone number or a
+            // shortened service id, and neither is distinguishable from a name by looking at
+            // it -- a number beginning "+" is not even a digit to sort on.
+            .sortedWith(
+                // People with names first, then everyone else, each alphabetical.
+                //
+                // Sorting on the display name alone opened this list on every person nobody
+                // has a name for, because a phone number sorts before letters -- a list meant
+                // for finding somebody, showing first the rows nobody can recognise. They are
+                // still here and still in order, underneath the people who can be told apart.
+                compareBy<SignalRepository.Person> { it.threadKey !in named }
+                    .thenBy { it.name.lowercase() }
+            )
     }
 }

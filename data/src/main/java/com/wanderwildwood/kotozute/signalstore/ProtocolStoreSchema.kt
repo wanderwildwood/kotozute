@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 17
+    const val VERSION = 18
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -399,6 +399,11 @@ internal object ProtocolStoreSchema {
           -- record of "this differs from what the account holds". See [SignalContactStore.
           -- rotateStorageId]. Null until the row has ever been pushed or marked.
           storage_id TEXT,
+          -- When this person's profile was last fetched, which is NOT the same question as
+          -- when the row was last written. Signal keeps them apart for exactly this reason
+          -- (`RecipientTable.LAST_PROFILE_FETCH`), and conflating them here meant profiles
+          -- were never refreshed at all -- see the v18 note below.
+          last_profile_fetch INTEGER NOT NULL DEFAULT 0,
           updated_timestamp INTEGER NOT NULL
         );
     """
@@ -579,7 +584,21 @@ internal object ProtocolStoreSchema {
         // rotation is the dirty flag the sync diffs against; there is no separate "needs
         // push" column. Nothing here writes to the storage service yet, so this only
         // records. See docs/DECISION-storage-write.md for the order the rest goes in.
-        17 to listOf("ALTER TABLE recipient ADD COLUMN storage_id TEXT;")
+        17 to listOf("ALTER TABLE recipient ADD COLUMN storage_id TEXT;"),
+        // v18: when a profile was last fetched, separately from when the row was last written.
+        //
+        // ⚠ The profile refresh asked for contacts whose `updated_timestamp` was old. But that
+        // column is bumped by **every** write to the row, and a storage read writes all of
+        // them -- so after any app launch nothing was stale and the refresh fetched nobody
+        // except people with no name at all. A contact who changed their name never updated,
+        // and shortening the staleness window did nothing whatsoever, because the window was
+        // never reached.
+        //
+        // Signal has `last_profile_fetch` as its own column and resets it to 0 when a profile
+        // key changes, so a new key forces a refetch. Same here.
+        18 to listOf(
+            "ALTER TABLE recipient ADD COLUMN last_profile_fetch INTEGER NOT NULL DEFAULT 0;"
+        )
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

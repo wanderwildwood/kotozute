@@ -229,20 +229,8 @@ internal class SignalSender(
      * message here that exists to tell another person something about the reader rather than
      * to carry anything they wrote.
      */
-    fun sendReadReceipt(recipient: ServiceId, timestamps: List<Long>): Result = try {
-        val result = sender.sendReceipt(
-            SignalServiceAddress(recipient),
-            sealedSender.accessFor(recipient.toString()),
-            SignalServiceReceiptMessage(
-                SignalServiceReceiptMessage.Type.READ, timestamps, System.currentTimeMillis()
-            ),
-            false
-        )
-        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
-    } catch (t: Throwable) {
-        Timber.w(t, "signal receipt: send threw")
-        Result.Failed(t.message ?: t::class.java.simpleName)
-    }
+    fun sendReadReceipt(recipient: ServiceId, timestamps: List<Long>): Result =
+        sendReceipt(recipient, timestamps, SignalServiceReceiptMessage.Type.READ, "a read receipt")
 
     /**
      * Tells somebody their message arrived.
@@ -252,19 +240,68 @@ internal class SignalSender(
      * It says nothing about whether anybody has looked -- that is [sendReadReceipt], which is
      * a choice the reader makes.
      */
-    fun sendDeliveryReceipt(recipient: ServiceId, timestamps: List<Long>): Result = try {
-        val result = sender.sendReceipt(
+    fun sendDeliveryReceipt(recipient: ServiceId, timestamps: List<Long>): Result =
+        sendReceipt(recipient, timestamps, SignalServiceReceiptMessage.Type.DELIVERY, "a delivery receipt")
+
+    /**
+     * One receipt send, with the one repair that is worth making.
+     *
+     * A receipt is sent inside an existing session, and a session can go stale -- the far end
+     * reinstalled, or archived its own. libsignal then throws `NoSessionException`, and
+     * catching that alongside everything else means the receipt is dropped for good: the
+     * sender's message stays "sent" forever, which is exactly the state a delivery receipt
+     * exists to leave. Archiving the local session forces a fresh one on the retry.
+     *
+     * Once only. If it fails again the session is not the problem, and a loop here would sit
+     * between the far end and every later receipt.
+     *
+     * The repair is Signal Android's, from `ReceiptSender.sendWithSessionRepair`.
+     */
+    private fun sendReceipt(
+        recipient: ServiceId,
+        timestamps: List<Long>,
+        type: SignalServiceReceiptMessage.Type,
+        what: String
+    ): Result {
+        fun attempt() = sender.sendReceipt(
             SignalServiceAddress(recipient),
             sealedSender.accessFor(recipient.toString()),
-            SignalServiceReceiptMessage(
-                SignalServiceReceiptMessage.Type.DELIVERY, timestamps, System.currentTimeMillis()
-            ),
+            SignalServiceReceiptMessage(type, timestamps, System.currentTimeMillis()),
             false
         )
-        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
-    } catch (t: Throwable) {
-        Timber.w(t, "signal receipt: sending a delivery receipt threw")
-        Result.Failed(t.message ?: t::class.java.simpleName)
+        return try {
+            val result = try {
+                attempt()
+            } catch (missing: org.signal.libsignal.protocol.NoSessionException) {
+                Timber.w(missing, "signal receipt: no session for %s, archiving and retrying", what)
+                archiveSessions(recipient)
+                attempt()
+            }
+            if (result.isSuccess) Result.Sent(System.currentTimeMillis())
+            else Result.Failed(describe(result))
+        } catch (t: Throwable) {
+            Timber.w(t, "signal receipt: sending %s threw", what)
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
+    /**
+     * Forgets the local half of every session with somebody, so the next send builds a new one.
+     *
+     * Every device, not only the one that failed: a receipt goes to all of them, and leaving a
+     * stale session on any other device reproduces the failure on the next attempt.
+     */
+    private fun archiveSessions(recipient: ServiceId) {
+        runCatching {
+            val store = protocol.aci()
+            store.getSubDeviceSessions(recipient.toString())
+                .plus(DEFAULT_DEVICE_ID)
+                .forEach { device ->
+                    store.archiveSession(
+                        org.signal.libsignal.protocol.SignalProtocolAddress(recipient.toString(), device)
+                    )
+                }
+        }.onFailure { Timber.w(it, "signal receipt: could not archive the stale sessions") }
     }
 
     /**
@@ -480,6 +517,9 @@ internal class SignalSender(
     }
 
     companion object {
+        /** Signal's primary device, which always has a session if any do. */
+        private const val DEFAULT_DEVICE_ID = 1
+
         /** signal-cli's values. 0 means the server's own limit applies. */
         private const val MAX_ENVELOPE_SIZE = 0L
         private const val MAX_INCREMENTAL_MACS_PER_ENVELOPE = 10

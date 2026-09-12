@@ -29,7 +29,10 @@ internal class SignalProfiles(
      * @return how many names were learned.
      */
     fun refreshMissingNames(): Int {
-        val pending = contacts.needingProfile()
+        // Nameless people first, then whoever has gone longest without being looked at.
+        // Bounded per pass: each is a round trip and this runs after a received batch.
+        val staleBefore = System.currentTimeMillis() - PROFILE_MAX_AGE_MS
+        val pending = contacts.needingProfile(staleBefore, PROFILES_PER_PASS)
         if (pending.isEmpty()) return 0
 
         val learned = pending.mapNotNull { (aci, keyBytes) ->
@@ -70,6 +73,17 @@ internal class SignalProfiles(
     }
 
     companion object {
+        /**
+         * How long a profile is believed before it is worth asking again.
+         *
+         * A name is not fixed -- people change what they call themselves -- and eligibility
+         * used to be "has no name at all", so the first name ever learned was the last.
+         */
+        private val PROFILE_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(7)
+
+        /** At most this many round trips after any one batch. */
+        private const val PROFILES_PER_PASS = 25
+
         /** The NUL that separates given from family name inside the encrypted blob. */
         private const val SEPARATOR = '\u0000'
 

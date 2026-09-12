@@ -63,12 +63,19 @@ internal class SignalDiscovery(
         connection.connect()
         val token = runCatching { state.token() }.getOrNull()
 
+        // The previous set is only meaningful with the token that covers it: the token is what
+        // lets the service discount those numbers, and the two are one pair. Sent without it,
+        // the service either counts them all as new -- quota spent on answers already held --
+        // or refuses the request outright as an invalid token. Without a token this is a first
+        // run, and says so.
+        val previouslyAsked = if (token != null) previous else emptySet()
+
         // Set when the service hands back a token, which it does only once it has counted the
         // run. That, not a successful answer, is what says the quota was spent.
         var counted = false
 
         val outcome = CdsApi(connection.authenticated).getRegisteredUsers(
-            previous,
+            previouslyAsked,
             fresh,
             emptyMap(),
             Optional.ofNullable(token),

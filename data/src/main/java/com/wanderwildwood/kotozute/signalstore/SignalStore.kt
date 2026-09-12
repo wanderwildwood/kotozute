@@ -385,6 +385,8 @@ class SignalStore(private val context: Context) {
         // only become one conversation once the account tells this phone they are the same.
         val byPni = result.pniOnly.takeIf { it > 0 }?.let { " · $it by phone number" }.orEmpty()
         val dropped = listOfNotNull(
+            // Said first, because it means the rest of the numbers are not the whole story.
+            result.unreadable.takeIf { it > 0 }?.let { "$it the service would not hand over" },
             result.unopened.takeIf { it > 0 }?.let { "$it would not open" },
             result.notContacts.takeIf { it > 0 }?.let { "$it not a contact" },
             result.anonymous.takeIf { it > 0 }?.let { anon ->

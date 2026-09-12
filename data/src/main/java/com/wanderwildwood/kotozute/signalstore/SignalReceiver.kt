@@ -496,7 +496,14 @@ internal class SignalReceiver(
                             result.metadata.sourceServiceId.toString()
                         }
                         if (author.isNotBlank()) {
-                            runCatching { events.withdrawn(author, at) }
+                            // When the withdrawal was sent, which is what bounds it. The
+                            // server's stamp rather than the sender's: the sender chooses
+                            // theirs, and a gesture bounded by a number its author picks is
+                            // not bounded.
+                            val withdrawnAt = envelope.serverTimestamp
+                                ?: envelope.clientTimestamp
+                                ?: System.currentTimeMillis()
+                            runCatching { events.withdrawn(author, at, withdrawnAt) }
                                 .onFailure { Timber.w(it, "signal delete: could not withdraw") }
                         }
                     }

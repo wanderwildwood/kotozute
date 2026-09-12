@@ -67,8 +67,13 @@ interface SignalEvents {
     /** Messages the account has read on another device. */
     fun readElsewhere(read: List<Pair<String, Long>>) {}
 
-    /** A message its sender has withdrawn, for everyone. */
-    fun withdrawn(author: String, sentAt: Long) {}
+    /**
+     * A message its sender has withdrawn, for everyone.
+     *
+     * [withdrawnAt] is when the withdrawal itself was sent, and it is what bounds the gesture:
+     * see [SignalRepository]'s handling. Without it a sender can erase a message of any age.
+     */
+    fun withdrawn(author: String, sentAt: Long, withdrawnAt: Long) {}
 
     /** What the account has deleted elsewhere, for itself: messages, and whole conversations. */
     fun deletedElsewhere(messages: List<Pair<String, Long>>, threads: List<String>) {}

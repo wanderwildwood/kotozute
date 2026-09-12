@@ -978,7 +978,7 @@ class SignalRepositoryImpl @Inject constructor(
      * generation the same way, so the two rails cannot both believe they are current.
      */
     private fun listenLoop(generation: Int) {
-        var backoff = 2_000L
+        var attempts = 0
         try {
             while (streamWanted.get() && streamGeneration.get() == generation) {
                 val connectedAt = System.currentTimeMillis()
@@ -999,7 +999,7 @@ class SignalRepositoryImpl @Inject constructor(
                             prefs.signalLastSync.set(System.currentTimeMillis())
                         }
                     )
-                    backoff = 2_000L
+                    attempts = 0
                 } catch (t: Throwable) {
                     if (!streamWanted.get() || streamGeneration.get() != generation) break
                     streamConnected.set(false)
@@ -1016,16 +1016,29 @@ class SignalRepositoryImpl @Inject constructor(
                     val wasStable = System.currentTimeMillis() - connectedAt > STABLE_CONNECTION_MS
                     if (wasStable) {
                         Timber.d(t, "signal: read ended after a stable connection; reconnecting")
-                        backoff = 2_000L
+                        attempts = 0
                         continue
                     }
 
-                    Timber.w(t, "signal: listen failed; retrying in %d ms", backoff)
+                    attempts++
                     publishState(signalConnected = false, error = t.message)
-                    Thread.sleep(backoff)
-                    // Capped, because a phone that has been out of signal for an hour should
-                    // not then wait an hour more once it is back.
-                    backoff = (backoff * 2).coerceAtMost(60_000L)
+                    // Signal's shape, not one invented here: `IncomingMessageObserver` retries
+                    // immediately for the first couple of attempts and only then backs off,
+                    // through `BackoffUtil.exponentialBackoff(attempts, 30s)`.
+                    //
+                    // ⚠ The jitter is the part that was missing and is the reason to copy this
+                    // rather than reason about it. Without it every device knocked off by the
+                    // same event -- a router reboot, a cell handover, the server closing
+                    // connections -- comes back in lockstep, and keeps coming back in lockstep
+                    // on every subsequent failure. A fixed doubling is a synchronised retry
+                    // storm with extra steps.
+                    if (attempts > 1) {
+                        val wait = reconnectBackoff(attempts)
+                        Timber.w(t, "signal: listen failed %d time(s); retrying in %d ms", attempts, wait)
+                        Thread.sleep(wait)
+                    } else {
+                        Timber.w(t, "signal: listen failed; reconnecting")
+                    }
                 }
             }
         } finally {
@@ -1043,6 +1056,23 @@ class SignalRepositoryImpl @Inject constructor(
      * network problem.
      */
     private val STABLE_CONNECTION_MS = 30_000L
+
+    /**
+     * `BackoffUtil.exponentialBackoff`, unchanged: two to the power of the attempt in seconds,
+     * capped, then multiplied by a random 0.75-1.25.
+     *
+     * The cap is thirty seconds because that is what `IncomingMessageObserver` passes. This was
+     * sixty, doubling from two, with no jitter -- a number chosen here.
+     */
+    private fun reconnectBackoff(attempts: Int): Long {
+        val bounded = attempts.coerceAtMost(30)
+        val exponential = Math.pow(2.0, bounded.toDouble()).toLong() * 1000L
+        val capped = exponential.coerceAtMost(RECONNECT_MAX_BACKOFF_MS)
+        val jitter = 0.75 + (Math.random() * 0.5)
+        return (capped * jitter).toLong()
+    }
+
+    private val RECONNECT_MAX_BACKOFF_MS = 30_000L
 
     /**
      * Idempotent by primary key: the same message may arrive more than once. Returns
@@ -1389,6 +1419,12 @@ class SignalRepositoryImpl @Inject constructor(
             applyTimerChange(threadKey, seconds, version)
 
         override fun refreshStoredRecords() = rereadStoredRecords()
+
+        override fun rotatePreKeys() {
+            runCatching { signalStore.uploadPreKeys() }
+                .onSuccess { Timber.i("signal keys: replaced before a retry -- %s", it) }
+                .onFailure { Timber.w(it, "signal keys: could not replace before a retry") }
+        }
     }
 
     /**

@@ -45,6 +45,18 @@ interface SignalEvents {
     fun sendRetryReceipt(to: String, error: DecryptionErrorMessage, groupId: ByteArray?) {}
 
     /**
+     * Publish fresh pre keys before asking for a message again.
+     *
+     * ⚠ Only for a failure on a **prekey message**, and it is not optional there. The bundle
+     * the sender used is the suspect: consumed twice, or its private half gone from this
+     * device. Asking for a resend without replacing it means they fetch the same bundle and
+     * send a message that fails in exactly the same way -- a retry receipt each time, for ever,
+     * or a conversation that simply never opens. `MessageDecryptor` forces the rotation first
+     * for this reason.
+     */
+    fun rotatePreKeys() {}
+
+    /**
      * Send something again, because its recipient says they could not read it.
      *
      * The other half of a retry receipt, and the half this app could not do until it kept a

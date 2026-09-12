@@ -1062,6 +1062,17 @@ internal class SignalReceiver(
             Timber.w(it, "signal retry: could not describe the message that would not open")
             return false
         }
+        // Replace the keys before asking, not after. See [SignalEvents.rotatePreKeys]: a prekey
+        // message that would not open indicts the bundle it was built against, and a resend
+        // against the same bundle fails the same way.
+        val onAPreKey = envelope.type == Envelope.Type.PREKEY_MESSAGE ||
+            protocolFailure.message?.lowercase()?.contains("prekey") == true
+        if (onAPreKey) {
+            Timber.w("signal retry: a prekey message would not open; replacing our keys before asking")
+            runCatching { events.rotatePreKeys() }
+                .onFailure { Timber.w(it, "signal retry: could not replace the keys first") }
+        }
+
         return runCatching {
             events.sendRetryReceipt(sender, error, protocolFailure.groupId.orElse(null))
             true

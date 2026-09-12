@@ -62,6 +62,11 @@ internal class SignalProfiles(
             // a wasted round trip per person and cannot tell "refused" from "we guessed".
             contacts.setSealedSenderMode(aci, sealedSenderMode(key, profile))
 
+            // Asked, whatever came back. Without this the same people are asked again on every
+            // batch and the per-pass budget never reaches anybody else.
+            runCatching { contacts.markProfileFetched(aci) }
+                .onFailure { Timber.w(it, "signal profile: could not note the fetch") }
+
             profile.name?.let { SignalContactStore.Contact(serviceId = aci, e164 = null, name = it) }
         }
         if (learned.isNotEmpty()) contacts.store(learned)

@@ -159,6 +159,12 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
               name = COALESCE(?, name),
               profile_key = COALESCE(?, profile_key),
               username = COALESCE(?, username),
+              -- A new profile key means the name we hold was decrypted with the old one.
+              -- Signal zeroes last_profile_fetch on every profile key write for this reason.
+              last_profile_fetch = CASE
+                WHEN ? IS NOT NULL AND (profile_key IS NULL OR profile_key != ?) THEN 0
+                ELSE last_profile_fetch
+              END,
               -- A new profile key makes everything learned about their sealed sender stale:
               -- what we knew was learned without it, or with the old one, and "they refused"
               -- may only have meant "we were guessing". Signal resets the mode on every
@@ -175,7 +181,7 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             """.trimIndent(),
             arrayOf<Any?>(
                 aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(),
-                profileKey, profileKey, now, existing
+                profileKey, profileKey, profileKey, profileKey, now, existing
             )
         )
     }
@@ -211,6 +217,20 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
                 arrayOf(serviceId, serviceId)
             ).use { c -> if (c.moveToFirst()) read(c) else null }
         }
+
+    /**
+     * Notes that this person's profile has just been asked for.
+     *
+     * Written whether or not a name came back: a fetch that returned nothing has still been
+     * paid for, and repeating it every batch would spend the whole per-pass budget on the same
+     * handful of people who have no readable profile.
+     */
+    fun markProfileFetched(serviceId: String) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "UPDATE recipient SET last_profile_fetch = ? WHERE aci = ? OR pni = ?",
+            arrayOf<Any?>(System.currentTimeMillis(), serviceId, serviceId)
+        )
+    }
 
     /** A contact's profile key, or null. Sealed sender needs it; see [SealedSender]. */
     fun profileKeyFor(aci: String): ByteArray? = byServiceId(aci, "profile_key") { it.getBlob(0) }
@@ -274,8 +294,8 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             """
             SELECT COALESCE(aci, pni), profile_key FROM recipient
             WHERE profile_key IS NOT NULL
-              AND (name IS NULL OR name = '' OR updated_timestamp < ?)
-            ORDER BY (name IS NULL OR name = '') DESC, updated_timestamp ASC
+              AND (name IS NULL OR name = '' OR last_profile_fetch < ?)
+            ORDER BY (name IS NULL OR name = '') DESC, last_profile_fetch ASC
             LIMIT ?
             """.trimIndent(),
             arrayOf(staleBefore.toString(), limit.toString())

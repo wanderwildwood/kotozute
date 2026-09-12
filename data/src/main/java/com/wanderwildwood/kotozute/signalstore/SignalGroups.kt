@@ -31,7 +31,12 @@ internal class SignalGroups(
     private val contacts: SignalContactStore? = null
 ) {
 
-    data class Group(val title: String, val members: List<String>)
+    data class Group(
+        val title: String,
+        val members: List<String>,
+        /** The group's disappearing-messages timer, in seconds. 0 when messages stay. */
+        val expiresInSeconds: Long = 0
+    )
 
     /**
      * Credentials are issued per day and returned a week at a time, so they are fetched once
@@ -52,6 +57,10 @@ internal class SignalGroups(
 
         Group(
             title = group.title.orEmpty(),
+            // A property of the group, agreed by its members and held in its state -- not
+            // something a message has to carry. Read here so a group thread knows its timer
+            // without waiting for somebody to change it.
+            expiresInSeconds = (group.disappearingMessagesTimer?.duration ?: 0).toLong(),
             // ACIs only. A member known to the server by PNI has not yet been resolved to an
             // account we can open a session with, and including them would produce a send
             // that fails partway with no way to say who it failed for.

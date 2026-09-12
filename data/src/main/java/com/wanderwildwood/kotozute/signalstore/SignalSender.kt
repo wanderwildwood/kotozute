@@ -103,7 +103,9 @@ internal class SignalSender(
     fun sendToGroup(
         masterKey: ByteArray,
         members: List<ServiceId>,
-        body: String
+        body: String,
+        expiresInSeconds: Int = 0,
+        expireTimerVersion: Int = 0
     ): Result {
         if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
         val timestamp = System.currentTimeMillis()
@@ -117,6 +119,11 @@ internal class SignalSender(
             .withBody(body)
             .withTimestamp(timestamp)
             .asGroupMessage(group)
+            // The group's own timer. Sent with every message, as Signal does: a message with
+            // no timer is not "unspecified", it is a timer of zero, and a group that had
+            // agreed its messages disappear would quietly stop expiring ours.
+            .withExpiration(expiresInSeconds)
+            .withExpireTimerVersion(expireTimerVersion)
             .build()
 
         return try {
@@ -465,7 +472,13 @@ internal class SignalSender(
         }
     }
 
-    fun send(recipient: ServiceId, body: String, attachments: List<String> = emptyList()): Result {
+    fun send(
+        recipient: ServiceId,
+        body: String,
+        attachments: List<String> = emptyList(),
+        expiresInSeconds: Int = 0,
+        expireTimerVersion: Int = 0
+    ): Result {
         val timestamp = System.currentTimeMillis()
         val streams = try {
             attachments.mapNotNull { attachmentStream(it) }
@@ -480,6 +493,16 @@ internal class SignalSender(
             .withBody(body)
             .withTimestamp(timestamp)
             .apply { if (streams.isNotEmpty()) withAttachments(streams) }
+            // The conversation's timer, re-asserted on every message the way Signal does.
+            // Omitting it does not leave the timer alone: a data message with no expireTimer
+            // reads as zero, so every reply this phone sent was telling the other person's
+            // client that the disappearing conversation they had chosen was now off.
+            //
+            // The version goes with it. Signal resolves competing timer changes by version,
+            // so a message carrying a timer and no version reads as older than whatever the
+            // peer holds and is ignored.
+            .withExpiration(expiresInSeconds)
+            .withExpireTimerVersion(expireTimerVersion)
             .build()
 
         return try {

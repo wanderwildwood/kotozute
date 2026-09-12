@@ -117,11 +117,15 @@ internal object ContentNormalizer {
         // A timer change carries no message. Signal shows it as an event in the thread; kept
         // as a message it would be an empty bubble, and kept as one that never expires it
         // would be a permanent record of a conversation being made impermanent.
-        if (dataMessage.expireTimerVersion != null && dataMessage.body.isNullOrEmpty() &&
-            dataMessage.attachments.isEmpty() && dataMessage.reaction == null
-        ) {
-            return null
-        }
+        //
+        // ⚠ Told apart by the flag Signal sets for exactly this, not by guessing. The guess
+        // this replaces -- "has an expireTimerVersion and no body, attachments or reaction" --
+        // was not a test for a timer change at all: a modern Signal sets expireTimerVersion on
+        // **every** message it sends, so the condition reduced to "has no body, attachments or
+        // reaction", and every sticker-only message, shared contact and quote-only reply was
+        // silently discarded before it could be stored. It also made the sticker fallback
+        // below unreachable for any current sender.
+        if (isExpirationUpdate(dataMessage)) return null
 
         // The original's timestamp for an edit, its own for anything else. An edit naming no
         // target is not an edit of anything and there is nothing to apply it to.
@@ -184,6 +188,58 @@ internal object ContentNormalizer {
      *
      * @return the thread key, or null when there is nothing to hang a thread on.
      */
+    /** A conversation's disappearing-messages timer, as one message changed it. */
+    data class TimerUpdate(val threadKey: String, val seconds: Long, val version: Int)
+
+    /**
+     * The timer change in this content, if it is one.
+     *
+     * Extracted rather than folded into [normalize] because a timer change is not a message
+     * and [normalize] answers only with messages -- but the change still has to reach the
+     * conversation, which is the whole of what was missing: the timer was detected, discarded,
+     * and never stored anywhere, so every reply this phone sent carried no timer at all.
+     */
+    fun timerUpdateIn(
+        content: Content,
+        metadata: EnvelopeMetadata,
+        selfAci: String?,
+        selfE164: String?
+    ): TimerUpdate? {
+        val sent = content.syncMessage?.sent
+        val dataMessage = sent?.message ?: content.dataMessage ?: return null
+        if (!isExpirationUpdate(dataMessage)) return null
+
+        val outgoing = sent?.message != null
+        val counterpartUuid = if (outgoing) destinationServiceIdOf(sent!!) else metadata.sourceServiceId.toString()
+        val counterpartNumber = if (outgoing) sent!!.destinationE164.orEmpty() else metadata.sourceE164.orEmpty()
+        val threadKey = threadKeyFor(
+            outgoing = outgoing,
+            counterpartUuid = counterpartUuid,
+            counterpartNumber = counterpartNumber,
+            groupId = groupIdOf(dataMessage),
+            selfAci = selfAci,
+            selfE164 = selfE164
+        ) ?: return null
+
+        return TimerUpdate(
+            threadKey = threadKey,
+            seconds = (dataMessage.expireTimer ?: 0).toLong(),
+            version = dataMessage.expireTimerVersion ?: 0
+        )
+    }
+
+    /**
+     * Whether this message is a change to the conversation's disappearing-messages timer.
+     *
+     * The sender sets `EXPIRATION_TIMER_UPDATE` and only that flag when the timer changes;
+     * everything else is a message, however little it carries. Signal tests the same flag in
+     * the same place (`SignalServiceProtoUtil.isExpirationUpdate`).
+     */
+    internal fun isExpirationUpdate(dataMessage: DataMessage): Boolean {
+        val flags = dataMessage.flags ?: return false
+        return flags and DataMessage.Flags.EXPIRATION_TIMER_UPDATE.value != 0
+    }
+
     /**
      * Who a message we sent from another device was sent *to*.
      *

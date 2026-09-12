@@ -595,6 +595,14 @@ internal class SignalReceiver(
                         }
                     }
 
+                // A timer change reaches the conversation even though it is not a message.
+                ContentNormalizer.timerUpdateIn(
+                    result.content, result.metadata, credentials.aci, credentials.e164
+                )?.let { update ->
+                    runCatching { events.timerChanged(update.threadKey, update.seconds, update.version) }
+                        .onFailure { Timber.w(it, "signal timer: could not record a timer change") }
+                }
+
                 val normalized = ContentNormalizer.normalize(
                     result.content, result.metadata, credentials.aci, credentials.e164
                 )

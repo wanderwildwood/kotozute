@@ -599,7 +599,10 @@ class SignalRepositoryImpl @Inject constructor(
                     "Write to them from a new message instead."
             )
         }
-        val timestamp = signalStore.send(recipient, body, attachments)
+        // The conversation's timer goes with it. Not sending one is not neutral: it reads as
+        // a timer of zero and switches the other person's disappearing conversation off.
+        val (expiresIn, timerVersion) = timerFor(threadKey)
+        val timestamp = signalStore.send(recipient, body, attachments, expiresIn, timerVersion)
 
         val selfAci = signalStore.selfAciOrNull().orEmpty()
         ingest(
@@ -624,7 +627,12 @@ class SignalRepositoryImpl @Inject constructor(
                     // received attachment this one is not on disk under an id -- it was
                     // uploaded from the composer's own copy -- so there is nothing to fetch
                     // and nothing to say is missing.
-                    attachmentsJson = outgoingAttachmentsJson(attachments)
+                    attachmentsJson = outgoingAttachmentsJson(attachments),
+                    // Our own copy expires too. The clock starts now because this is the
+                    // moment we sent it, which is what Signal stamps as the start for an
+                    // outgoing message.
+                    expiresInSeconds = expiresIn.toLong(),
+                    expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L
                 )
             )
         )
@@ -658,7 +666,8 @@ class SignalRepositoryImpl @Inject constructor(
                 ?.groupMasterKey
         } ?: throw IllegalStateException("no group key on this thread yet")
 
-        val timestamp = signalStore.sendToGroup(masterKey, body)
+        val (expiresIn, timerVersion) = timerFor(threadKey)
+        val timestamp = signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion)
         val selfAci = signalStore.selfAciOrNull().orEmpty()
         ingest(
             listOf(
@@ -676,6 +685,9 @@ class SignalRepositoryImpl @Inject constructor(
                     read = true,
                     source = "live",
                     attachmentsJson = "",
+                    // Our own copy of a group send expires on the group's timer too.
+                    expiresInSeconds = expiresIn.toLong(),
+                    expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
                     groupMasterKey = masterKey
                 )
             )
@@ -1223,7 +1235,46 @@ class SignalRepositoryImpl @Inject constructor(
 
         override fun groupChanged(masterKey: ByteArray, revision: Int) =
             noteGroupRevision(masterKey, revision)
+
+        override fun timerChanged(threadKey: String, seconds: Long, version: Int) =
+            applyTimerChange(threadKey, seconds, version)
     }
+
+    /**
+     * Records a conversation's disappearing-messages timer.
+     *
+     * Resolved by version, not by arrival order. Signal numbers timer changes so that a late
+     * delivery of an older one cannot undo a newer one -- and the server does redeliver. A
+     * change carrying no version at all is from an older client and is taken as current,
+     * because refusing it would leave the conversation on a timer nobody chose.
+     */
+    private fun applyTimerChange(threadKey: String, seconds: Long, version: Int) = runOffThread {
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val thread = r.where(SignalThread::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .findFirst() ?: return@executeTransaction
+                if (version != 0 && version < thread.expireTimerVersion) {
+                    Timber.i("signal timer: ignored a timer change older than the one in force")
+                    return@executeTransaction
+                }
+                thread.expiresInSeconds = seconds
+                if (version != 0) thread.expireTimerVersion = version
+            }
+        }
+        Timber.i("signal timer: a conversation's disappearing-messages timer is now %d second(s)", seconds)
+        contactsChanged()
+    }
+
+    /** The timer to stamp on anything sent into [threadKey], and which version says so. */
+    private fun timerFor(threadKey: String): Pair<Int, Int> =
+        Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java)
+                .equalTo("threadKey", threadKey)
+                .findFirst()
+                ?.let { it.expiresInSeconds.toInt() to it.expireTimerVersion }
+                ?: (0 to 0)
+        }
 
     /**
      * The highest group revision this process has already gone and looked at.
@@ -1249,7 +1300,7 @@ class SignalRepositoryImpl @Inject constructor(
         groupRevisions[id] = revision
         runOffThread {
             val group = runCatching { signalStore.groupFor(masterKey) }.getOrNull() ?: return@runOffThread
-            val title = group.title.takeIf { it.isNotBlank() } ?: return@runOffThread
+            val title = group.title.takeIf { it.isNotBlank() } ?: ""
             Realm.getDefaultInstance().use { realm ->
                 realm.executeTransaction { r ->
                     r.where(SignalThread::class.java)
@@ -1263,10 +1314,17 @@ class SignalRepositoryImpl @Inject constructor(
                         }
                         // Set when it differs, not only when it is blank. That difference is
                         // the whole point: a rename that never arrives is the bug.
-                        .filter { it.title != title }
                         .forEach { thread ->
-                            Timber.i("signal group: a group has been renamed")
-                            thread.title = title
+                            if (thread.title != title) {
+                                Timber.i("signal group: a group has been renamed")
+                                thread.title = title
+                            }
+                            // The group's timer travels with its state. Without this a group
+                            // thread only ever learned its timer if somebody happened to
+                            // change it while this phone was listening.
+                            if (thread.expiresInSeconds != group.expiresInSeconds) {
+                                thread.expiresInSeconds = group.expiresInSeconds
+                            }
                         }
                 }
             }

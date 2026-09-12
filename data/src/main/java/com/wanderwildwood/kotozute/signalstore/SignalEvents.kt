@@ -67,4 +67,13 @@ interface SignalEvents {
      * the server about every group on every batch, and never noticing a change at all.
      */
     fun groupChanged(masterKey: ByteArray, revision: Int) {}
+
+    /**
+     * A conversation's disappearing-messages timer has been set.
+     *
+     * The timer belongs to the conversation, not to any one message. It was being detected and
+     * thrown away, so this phone's own replies carried no timer -- which does not merely fail
+     * to disappear, it tells the other person's client the conversation has been switched off.
+     */
+    fun timerChanged(threadKey: String, seconds: Long, version: Int) {}
 }

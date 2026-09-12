@@ -2,6 +2,12 @@ package com.wanderwildwood.kotozute.signalstore
 
 import timber.log.Timber
 
+/** Signal's `SealedSenderAccessMode`, by the same numbers it stores them under. */
+internal const val SEALED_SENDER_UNKNOWN = 0
+internal const val SEALED_SENDER_DISABLED = 1
+internal const val SEALED_SENDER_ENABLED = 2
+internal const val SEALED_SENDER_UNRESTRICTED = 3
+
 /**
  * Who the people on the other end are.
  *
@@ -187,6 +193,28 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
 
     /** A contact's profile key, or null. Sealed sender needs it; see [SealedSender]. */
     fun profileKeyFor(aci: String): ByteArray? = byServiceId(aci, "profile_key") { it.getBlob(0) }
+
+    /**
+     * What we have learned about whether this person accepts sealed sender.
+     *
+     * Unknown for anyone never sent to, which is the right starting point: it means try, and
+     * trying is the only way the answer is ever learned.
+     */
+    fun sealedSenderModeFor(serviceId: String): Int =
+        byServiceId(serviceId, "sealed_sender_mode") { it.getInt(0) } ?: SEALED_SENDER_UNKNOWN
+
+    /**
+     * Write down what a send taught us.
+     *
+     * Only ever called with the outcome of a real send, so it cannot drift: if they stop
+     * accepting sealed sender the next send says so and this follows it back down.
+     */
+    fun setSealedSenderMode(serviceId: String, mode: Int) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "UPDATE recipient SET sealed_sender_mode = ? WHERE aci = ? OR pni = ?",
+            arrayOf<Any?>(mode, serviceId, serviceId)
+        )
+    }
 
     /** The name for one service id, or null when nobody has told us. */
     fun nameFor(aci: String): String? =

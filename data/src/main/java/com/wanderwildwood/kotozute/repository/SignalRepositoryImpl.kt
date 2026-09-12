@@ -862,6 +862,12 @@ class SignalRepositoryImpl @Inject constructor(
      */
     override fun maintainKeys() {
         if (!prefs.signalEnabled.get() || !linkedDirectly()) return
+        // What this build can do, told to the server once per run. Cheap and idempotent, and
+        // it belongs beside the keys for the same reason: both are claims this device makes
+        // about itself that nothing else would ever notice had gone stale.
+        runCatching { signalStore.refreshCapabilities() }
+            .onSuccess { Timber.i("signal account: %s", it) }
+            .onFailure { Timber.w(it, "signal account: could not refresh capabilities") }
         runCatching { signalStore.maintainPreKeys() }
             .onSuccess { Timber.i("signal keys: %s", it) }
             .onFailure {

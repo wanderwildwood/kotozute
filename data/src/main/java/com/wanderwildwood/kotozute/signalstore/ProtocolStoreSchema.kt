@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 14
+    const val VERSION = 15
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -381,6 +381,10 @@ internal object ProtocolStoreSchema {
           e164 TEXT,
           name TEXT,
           profile_key BLOB,
+          -- Whether this person accepts sealed sender, and on what terms. Signal's
+          -- SealedSenderAccessMode: 0 unknown, 1 disabled, 2 enabled, 3 unrestricted. Learned
+          -- from how our sends to them actually go, which is the only way to learn it.
+          sealed_sender_mode INTEGER NOT NULL DEFAULT 0,
           updated_timestamp INTEGER NOT NULL
         );
     """
@@ -539,6 +543,14 @@ internal object ProtocolStoreSchema {
         // watermark for the same reason.
         14 to listOf(
             "ALTER TABLE account ADD COLUMN last_pni_change_timestamp INTEGER NOT NULL DEFAULT 0;"
+        ),
+        // v15: what we have learned about each person's willingness to be sent to sealed.
+        //
+        // Starting everyone at unknown is right: unknown means "try it and see", which is
+        // exactly what this device should do the first time, and is how it learns anything at
+        // all. Signal calls the same column sealed_sender_mode and seeds it the same way.
+        15 to listOf(
+            "ALTER TABLE recipient ADD COLUMN sealed_sender_mode INTEGER NOT NULL DEFAULT 0;"
         )
     )
 

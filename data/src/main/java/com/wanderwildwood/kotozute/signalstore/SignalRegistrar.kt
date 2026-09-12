@@ -200,9 +200,7 @@ class SignalRegistrar internal constructor(
             // Being findable by phone number is the default Signal ships, and changing it
             // quietly during registration would be deciding something for someone.
             discoverableByPhoneNumber = true,
-            capabilities = RegistrationApiV2.AccountAttributes.Capabilities(
-                true, true, true, true, true, true
-            ),
+            capabilities = SignalCapabilities.forLinking(),
             name = null,
             pniRegistrationId = pniRegistrationId,
             recoveryPassword = null

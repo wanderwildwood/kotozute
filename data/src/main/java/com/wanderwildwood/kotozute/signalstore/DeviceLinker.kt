@@ -188,7 +188,7 @@ class DeviceLinker internal constructor(
             // A linked device is expected to speak all of them, so there is no honest smaller
             // claim to make; what is left is to actually handle each, and where the app does
             // not yet, that is a gap to close rather than a flag to unset.
-            RegistrationApiV2.AccountAttributes.Capabilities(true, true, true, true, true, true)
+            SignalCapabilities.forLinking()
         )
 
         return when (val result = api.registerAsSecondaryDevice(
@@ -207,6 +207,16 @@ class DeviceLinker internal constructor(
                 val deviceId = result.result.deviceId
                 // Written only now. Everything above is discardable; from here the device
                 // exists on the account and losing the password means it cannot be reached.
+                // Anything the previous link built is describing a device that no longer
+                // exists: this one has a new device id, new identity keys and new
+                // registration ids. A session carried over from it encrypts to the old
+                // device, and the recipient has nothing that matches -- the message arrives
+                // undecryptable with nothing in the thread to explain it.
+                //
+                // Before the new identity is written, so a failure here leaves the device
+                // unlinked rather than half-linked.
+                accounts.forgetSessionsFromPreviousLink()
+
                 accounts.saveIdentity(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, aciIdentity, aciRegistrationId)
                 accounts.saveIdentity(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, pniIdentity, pniRegistrationId)
                 accounts.saveCredentials(

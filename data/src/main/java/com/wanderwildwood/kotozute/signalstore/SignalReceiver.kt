@@ -595,6 +595,21 @@ internal class SignalReceiver(
                         }
                     }
 
+                // Nothing from somebody the account has blocked.
+                //
+                // The list was being kept and not used: a blocked person's messages were
+                // decrypted, filed, shown and announced -- and then answered with a delivery
+                // receipt, which told the person who had been blocked that the phone was on
+                // and had received them. Blocking is the one feature where doing half of it is
+                // worse than not having it.
+                //
+                // Dropped whole, before anything is stored, which is where Signal drops it.
+                // The envelope is still acked and deleted: it has been dealt with.
+                if (blocks.isBlocked(result.metadata.sourceServiceId.toString())) {
+                    Timber.i("signal receive: dropped a message from somebody who is blocked")
+                    return@let null
+                }
+
                 // A timer change reaches the conversation even though it is not a message.
                 ContentNormalizer.timerUpdateIn(
                     result.content, result.metadata, credentials.aci, credentials.e164

@@ -100,6 +100,21 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
          * A day, which is Signal's own window. A retry receipt follows the failure by minutes;
          * past that this is plaintext kept for a resend that is never going to be asked for.
          */
-        private val MAX_AGE_MS = TimeUnit.DAYS.toMillis(1)
+        /**
+         * Fourteen days, which is Signal's `android.retryRespondMaxAge` default and what
+         * `MessageSendLogTables.trimOldMessages` is given.
+         *
+         * ⚠ This was one day, on the reasoning that "a retry receipt arrives within minutes of
+         * the failure". That reasoning was invented and it is wrong in the case the log exists
+         * for: the recipient's device is *away*. It comes back after a week, finds a message it
+         * cannot read, and asks -- and a one-day log has nothing to answer with, so the message
+         * is lost precisely when the promise in ContentHint.RESENDABLE mattered most.
+         *
+         * It also now matches [SignalReceiver.UNDECRYPTABLE_RETENTION_MS], which is the same
+         * fourteen days for the mirror-image case: an envelope *we* could not read, kept in
+         * case a fix arrives. Keeping one side for a fortnight and the other for a day was the
+         * asymmetry that gave this away.
+         */
+        private val MAX_AGE_MS = TimeUnit.DAYS.toMillis(14)
     }
 }

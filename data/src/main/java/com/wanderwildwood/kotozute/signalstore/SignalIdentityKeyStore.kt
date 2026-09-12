@@ -102,6 +102,22 @@ internal class SignalIdentityKeyStore(
         identityKey: IdentityKey,
         direction: IdentityKeyStore.Direction
     ): Boolean = db.lock.withLockReentrant {
+        // ⚠ Ourselves first, and never waved through. Signal's own store checks this before
+        // anything else: a key claiming to be this account must be **this account's key**.
+        // Reading what somebody else sent is always allowed, and that rule applied to our own
+        // address would accept a message encrypted to an identity that is not ours -- which is
+        // what somebody impersonating the account's own devices would send. The rest of the
+        // receive path already refuses a sync message from anyone but us; this refuses the
+        // key underneath it.
+        val credentials = SignalAccountStore(db).credentials()
+        val isSelf = listOfNotNull(credentials.aci, credentials.pni, credentials.e164)
+            .any { it.isNotBlank() && it == address.name }
+        if (isSelf) {
+            return@withLockReentrant runCatching {
+                identityKeyPair.publicKey == identityKey
+            }.getOrDefault(false)
+        }
+
         // Reading what somebody sent us is always allowed. libsignal calls saveIdentity next,
         // which records the new key and marks it untrusted, so the *next send* still stops
         // here and the user still gets told the safety number changed.

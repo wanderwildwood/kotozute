@@ -30,10 +30,75 @@ internal class PreKeyUploader(
 
     sealed interface Result {
         data object Uploaded : Result
+        /** Nothing was owed: enough keys on the server and the repeated-use ones still young. */
+        data object NotNeeded : Result
         data class Failed(val reason: String) : Result
     }
 
     /** Both identities. A PNI with no keys is a phone number nobody can open a session to. */
+    /**
+     * Tops up and rotates what the account holds, if either is owed.
+     *
+     * ⚠ **Without this the device degrades in silence.** One batch of one-time keys is
+     * published at link time and never replenished, and the server hands each one out once.
+     * After about a hundred new sessions -- which is per peer *device*, so it is front-loaded
+     * in the days after linking rather than years away -- the server has none left and gives
+     * every later requester a bundle with no one-time key and the same last-resort Kyber key.
+     * Sessions still establish; they establish without the initial-message forward secrecy
+     * those keys exist to provide, for ever, and nothing about the phone looks wrong.
+     *
+     * The repeated-use keys have the same problem from the other end: generated once at
+     * linking and never rotated, so one signed prekey signs for the life of the install.
+     *
+     * `upload` already replaces all of it in one request, so the work here is deciding *when*,
+     * which is the part that did not exist. Signal asks the server for its counts and
+     * regenerates below a threshold; this does the same, and also rotates on age.
+     */
+    fun maintain(): Result {
+        val aci = maintainOne(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, ServiceIdType.ACI)
+        if (aci is Result.Failed) return aci
+        val pni = maintainOne(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, ServiceIdType.PNI)
+        return if (pni is Result.Failed) pni else if (aci is Result.Uploaded) aci else pni
+    }
+
+    private fun maintainOne(accountIdType: Int, serviceIdType: ServiceIdType): Result {
+        // An account with no identity of this kind has nothing to maintain. Not a failure:
+        // a linked device without a PNI is an ordinary state, not a broken one.
+        if (accounts.identityKeyPair(accountIdType) == null) return Result.NotNeeded
+
+        val counts = countsFor(serviceIdType)
+        val short = counts == null || counts.first < MINIMUM_COUNT || counts.second < MINIMUM_COUNT
+        val stale = signedPreKeyIsOld(accountIdType)
+
+        if (!short && !stale) return Result.NotNeeded
+        Timber.i(
+            "signal keys: %s topping up (short=%b stale=%b, server ec=%s kyber=%s)",
+            serviceIdType, short, stale, counts?.first ?: "?", counts?.second ?: "?"
+        )
+        return upload(accountIdType, serviceIdType)
+    }
+
+    /** What the server holds, as numbers rather than a log line. Null when it will not say. */
+    private fun countsFor(serviceIdType: ServiceIdType): Pair<Int, Int>? =
+        when (val r = connection.keys.getAvailablePreKeyCountsSync(serviceIdType)) {
+            is NetworkResult.Success -> r.result.ecCount to r.result.kyberCount
+            else -> null
+        }
+
+    /**
+     * Whether the signed prekey in force has been in force too long.
+     *
+     * Unknown counts as old. A device that cannot read its own active key is exactly the one
+     * that should replace it, and replacing a key that did not need replacing costs one
+     * request.
+     */
+    private fun signedPreKeyIsOld(accountIdType: Int): Boolean = runCatching {
+        val active = accounts.activeSignedPreKeyId(accountIdType)
+        if (active < 0) return@runCatching true
+        val record = signedPreKeys(accountIdType).loadSignedPreKey(active)
+        System.currentTimeMillis() - record.timestamp > ROTATION_AGE_MS
+    }.getOrDefault(true)
+
     fun uploadAll(): Result {
         val aci = upload(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, ServiceIdType.ACI)
         if (aci is Result.Failed) return aci
@@ -140,5 +205,13 @@ internal class PreKeyUploader(
 
         /** signal-cli's `PREKEY_MINIMUM_COUNT`: below this, top up. */
         const val MINIMUM_COUNT = 10
+
+        /**
+         * How long a signed prekey may stay in force.
+         *
+         * Signal's own ceiling. Past this the key signing every session this device accepts
+         * has been the same one for a fortnight, which is the thing rotation exists to stop.
+         */
+        val ROTATION_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(14)
     }
 }

@@ -277,6 +277,15 @@ interface SignalRepository {
     fun discoverContactsByNumber(): String
 
     /**
+     * Tops up and rotates this account's own keys if either is owed.
+     *
+     * One batch of one-time prekeys is published when the device links, and the server hands
+     * each out once. Without this they are never replaced, and once they run out every new
+     * session opened with this phone is built without them -- silently, and for good.
+     */
+    fun maintainKeys()
+
+    /**
      * Whether this phone is in the state the fetch exists for, and should say so once.
      *
      * True only where the account is linked, the contact list is empty, and the list has not

@@ -339,12 +339,18 @@ internal object ProtocolStoreSchema {
      * arrive under their ACI, and without this the two are different people: one conversation
      * in two rows, the same split this app has already been bitten by twice.
      *
-     * ⚠ **Filled only from the account's own storage records** -- a ContactRecord carrying
-     * both ids, written by the account's own primary and read with the account's own storage
-     * key. A pairing asserted by an incoming message is not taken: `Content.pniSignatureMessage`
-     * exists for that and carries a signature, and until that signature is actually verified,
-     * believing it would let a stranger claim somebody else's phone-number identity and
-     * capture their conversation.
+     * Filled from two sources, both of which prove the pairing rather than assert it:
+     *
+     * - a **ContactRecord** carrying both ids, written by the account's own primary and read
+     *   with the account's own storage key;
+     * - a **`Content.pniSignatureMessage`** whose signature actually checks out against the
+     *   identity keys already on file -- see `SignalReceiver.rememberVerifiedPni`, ported from
+     *   `MessageDecryptor.handlePniSignatureMessage`.
+     *
+     * ⚠ An unverified claim is never taken. Believing one would let a stranger assert somebody
+     * else's phone-number identity and capture their conversation. (This note used to say the
+     * signature was not checked at all, which stopped being true and would now argue against
+     * a check that exists.)
      */
     const val PNI_ACI = """
         CREATE TABLE pni_aci (

@@ -65,6 +65,17 @@ interface SignalEvents {
     fun configuration(readReceipts: Boolean?) {}
 
     /**
+     * The account says its stored records have changed, and this device should re-read them.
+     *
+     * Signal's `FetchLatest`. It is the only push this device gets when somebody is added,
+     * renamed or removed on another device -- storage records carry no notification of their
+     * own, so without it the contact list is only ever as fresh as the last app launch or the
+     * last time somebody went into Settings and asked. Somebody added on the primary at
+     * breakfast was not writable to here until the app was restarted.
+     */
+    fun refreshStoredRecords() {}
+
+    /**
      * A message arrived from a group at a revision this device has not caught up with.
      *
      * Every group message carries the group's master key and its revision number. The key was

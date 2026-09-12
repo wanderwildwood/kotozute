@@ -1344,6 +1344,29 @@ class SignalRepositoryImpl @Inject constructor(
 
         override fun timerChanged(threadKey: String, seconds: Long, version: Int) =
             applyTimerChange(threadKey, seconds, version)
+
+        override fun refreshStoredRecords() = rereadStoredRecords()
+    }
+
+    /**
+     * Re-reads the account's stored records because the account asked us to.
+     *
+     * Off the receive thread: this is a network round trip and the socket is mid-batch. Only
+     * where the key is already held -- without it the read cannot succeed, and asking for the
+     * key is a deliberate act somebody performs in Settings, not something to do on a push.
+     */
+    private fun rereadStoredRecords() = runOffThread {
+        if (!signalStore.storageKeyKnown()) {
+            Timber.d("signal storage: asked to re-read, but the key for it is not here")
+            return@runOffThread
+        }
+        runCatching { signalStore.readStorage() }
+            .onSuccess {
+                Timber.i("signal storage: re-read on request -- %s", it)
+                contactsChanged()
+                renameThreadsFromContacts()
+            }
+            .onFailure { Timber.w(it, "signal storage: could not re-read on request") }
     }
 
     /**

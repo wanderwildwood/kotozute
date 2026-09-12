@@ -46,7 +46,12 @@ internal object ContentNormalizer {
         content: Content,
         metadata: EnvelopeMetadata,
         selfAci: String?,
-        selfE164: String?
+        selfE164: String?,
+        /**
+         * What to call somebody a message mentions. See [withMentions] -- without it a mention
+         * is a placeholder character and nothing else.
+         */
+        nameFor: (String) -> String? = { null }
     ): BridgeMessage? {
         var authorUuid = metadata.sourceServiceId.toString()
         var authorNumber = metadata.sourceE164.orEmpty()
@@ -157,6 +162,20 @@ internal object ContentNormalizer {
         // emoji the pack assigns is what Signal falls back to in its own notifications.
         if (body.isEmpty() && dataMessage.sticker != null) {
             body = dataMessage.sticker?.emoji?.takeIf { it.isNotBlank() } ?: "(sticker)"
+        }
+        body = withMentions(body, dataMessage.bodyRanges, nameFor)
+
+        // Not a bubble in anybody's client. A vote belongs to its poll and a pin belongs to
+        // the message it pins; both were being stored as a row with nothing in it, which is a
+        // blank line in the conversation where nothing happened.
+        if (isNotAMessage(dataMessage)) return null
+
+        // Something this app cannot draw. Signal always shows *something* -- the whole point
+        // of a conversation is that it accounts for itself -- and an empty bubble is this
+        // app's own invention, arrived at by having no case for the message rather than by
+        // deciding anything. The sticker line above is the same idea and was already here.
+        if (body.isEmpty() && dataMessage.attachments.isEmpty() && reaction == null) {
+            describe(dataMessage)?.let { body = it }
         }
 
         return BridgeMessage(
@@ -307,6 +326,93 @@ internal object ContentNormalizer {
             parse(status.destinationServiceId, status.destinationServiceIdBinary)?.let { return it }
         }
         return ""
+    }
+
+    /**
+     * Messages that are instructions rather than things anybody said.
+     *
+     * Signal folds each of these into the thing it refers to. Since this app draws neither
+     * polls nor pinned messages, the honest answer is to file nothing at all rather than an
+     * empty row -- a reader can act on neither, and only one of them looks like a fault.
+     */
+    private fun isNotAMessage(m: DataMessage): Boolean =
+        m.pollVote != null || m.pinMessage != null || m.unpinMessage != null
+
+    /**
+     * What to call a message this build cannot render.
+     *
+     * Every one of these is a real message somebody sent, and every one of them arrived here
+     * as an empty bubble: no text, no attachment, nothing to say why. A short description is
+     * the truth and is what Signal shows in its own notifications for the same content.
+     *
+     * The protocol-version check goes last, because it is the general case: a message from a
+     * newer client using a feature that did not exist when this was built has no field here
+     * to recognise, and saying so beats a blank.
+     */
+    private fun describe(m: DataMessage): String? = when {
+        m.pollCreate != null ->
+            m.pollCreate?.question?.takeIf { it.isNotBlank() }?.let { "(poll) $it" } ?: "(a poll)"
+        m.pollTerminate != null -> "(a poll ended)"
+        m.contact.isNotEmpty() -> "(a contact card)"
+        m.groupCallUpdate != null -> "(a call)"
+        m.payment != null -> "(a payment)"
+        m.giftBadge != null -> "(a gift)"
+        m.adminDelete != null -> null
+        (m.requiredProtocolVersion ?: 0) > DataMessage.ProtocolVersion.CURRENT.value ->
+            "(a message this version of the app cannot show)"
+        else -> null
+    }
+
+    /**
+     * Puts the names back into a message that mentions people.
+     *
+     * ⚠ A mention is **not** in the text. Signal puts one `U+FFFC` object-replacement
+     * character in the body per mention and names the person in a parallel `bodyRanges` entry.
+     * A client that ignores those ranges therefore renders a message reading "\uFFFC did you
+     * see this" -- a stray box where a name should be -- and every group message that mentions
+     * anybody is corrupted in exactly that way. Nothing about it looks like a fault in the
+     * code; it looks like the sender typed a strange character.
+     *
+     * Substituted here, on the way in, rather than at display time as Signal does it. Signal
+     * keeps mentions in their own table and re-resolves them on every draw, so a contact
+     * renamed later updates old messages; this stores what was known when the message arrived.
+     * That is the honest trade for not having a mentions table: a name that was right at the
+     * time, rather than a placeholder for ever.
+     *
+     * The ranges are applied back to front so that each start index still refers to the string
+     * being edited -- replacing left to right moves every later index along by the difference.
+     */
+    private fun withMentions(
+        body: String,
+        ranges: List<org.whispersystems.signalservice.internal.push.BodyRange>,
+        nameFor: (String) -> String?
+    ): String {
+        if (body.isEmpty() || ranges.isEmpty()) return body
+        val mentions = ranges
+            .mapNotNull { range ->
+                // Both fields, as everywhere else on this rail: a modern client fills only the
+                // binary one, and reading the string alone drops every mention it sends.
+                val aci = org.signal.core.models.ServiceId
+                    .parseOrNull(range.mentionAci, range.mentionAciBinary)
+                    ?.toString()
+                    ?: return@mapNotNull null
+                val start = range.start ?: return@mapNotNull null
+                val length = range.length ?: return@mapNotNull null
+                if (start < 0 || length <= 0 || start + length > body.length) return@mapNotNull null
+                Triple(start, length, aci)
+            }
+            .sortedByDescending { it.first }
+        if (mentions.isEmpty()) return body
+
+        val out = StringBuilder(body)
+        mentions.forEach { (start, length, aci) ->
+            // A name if anybody has one, the service id shortened if nobody does. Never the
+            // placeholder, and never the whole id: this goes inline in a sentence.
+            val name = nameFor(aci)?.takeIf { it.isNotBlank() }
+                ?: aci.take(com.wanderwildwood.kotozute.signal.SignalName.SHORT_SERVICE_ID)
+            out.replace(start, start + length, "@$name")
+        }
+        return out.toString()
     }
 
     internal fun threadKeyFor(

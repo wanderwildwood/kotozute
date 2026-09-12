@@ -33,15 +33,20 @@ class SignalSyncWorker(appContext: Context, params: WorkerParameters) : Worker(a
 
     override fun doWork(): Result {
         if (!prefs.signalEnabled.get()) return Result.success()
-        // With the service running there is a live stream already; syncing underneath it
-        // would only duplicate work.
-        if (prefs.signalKeepConnected.get()) return Result.success()
-
         // Key maintenance rides the same schedule. It is cheap when nothing is owed, and it
         // has to happen somewhere that runs even when the listen loop is healthy -- which is
         // exactly when syncNow does nothing.
+        //
+        // ⚠ Above the "keep connected" check, not below it. It was below, which meant the one
+        // phone guaranteed to be reachable -- the one holding the socket open all day -- was
+        // the one that never topped up its keys or re-declared what it can do. Nothing about
+        // either job duplicates the stream; that is only true of syncNow.
         runCatching { signalRepo.maintainKeys() }
             .onFailure { Timber.w(it, "signal: key maintenance could not run") }
+
+        // With the service running there is a live stream already; syncing underneath it
+        // would only duplicate work.
+        if (prefs.signalKeepConnected.get()) return Result.success()
 
         return runCatching { signalRepo.syncNow() }
             .fold(

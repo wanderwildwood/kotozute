@@ -43,28 +43,16 @@ internal class SealedSender(
      */
     fun accessFor(recipientAci: String): SealedSenderAccess? {
         val mode = contacts.sealedSenderModeFor(recipientAci)
-        if (mode == SEALED_SENDER_DISABLED) {
-            // Learned, not assumed: a previous send to this person went out identified because
-            // the server refused the sealed one. Guessing again every time would be a wasted
-            // round trip on every message to them.
-            return null
-        }
-
         val profileKeyBytes = contacts.profileKeyFor(recipientAci)
-        val accessKey = when {
-            mode == SEALED_SENDER_UNRESTRICTED -> randomKey()
-            profileKeyBytes != null -> try {
-                UnidentifiedAccess.deriveAccessKeyFrom(ProfileKey(profileKeyBytes))
+        val accessKey = when (keyFor(mode, profileKeyBytes != null)) {
+            Key.None -> return null
+            Key.Random -> randomKey()
+            Key.Derived -> try {
+                UnidentifiedAccess.deriveAccessKeyFrom(ProfileKey(profileKeyBytes!!))
             } catch (t: Throwable) {
                 Timber.w(t, "signal send: could not derive an access key; sending identified")
                 return null
             }
-            // Enabled means their profile key is required and we do not have it. A guess would
-            // be refused, so it is not worth the request.
-            mode == SEALED_SENDER_ENABLED -> return null
-            // Unknown, and nothing to derive from: try anyway. This is the case that matters,
-            // and the one that used to give up.
-            else -> randomKey()
         }
 
         val cert = senderCertificate() ?: return null
@@ -89,14 +77,12 @@ internal class SealedSender(
     fun recordOutcome(recipientAci: String, unidentified: Boolean) {
         val mode = contacts.sealedSenderModeFor(recipientAci)
         val had = contacts.profileKeyFor(recipientAci) != null
-        val learned = when {
-            unidentified && mode == SEALED_SENDER_UNKNOWN && !had -> SEALED_SENDER_UNRESTRICTED
-            unidentified && mode == SEALED_SENDER_UNKNOWN -> SEALED_SENDER_ENABLED
-            !unidentified && mode != SEALED_SENDER_DISABLED -> SEALED_SENDER_DISABLED
-            else -> return
-        }
+        val learned = modeAfter(mode, unidentified, had) ?: return
         contacts.setSealedSenderMode(recipientAci, learned)
     }
+
+    /** What to send with. Separated from the sending so the rule itself can be tested. */
+    internal enum class Key { None, Random, Derived }
 
     private fun randomKey(): ByteArray = ByteArray(ACCESS_KEY_SIZE).also { SecureRandom().nextBytes(it) }
 
@@ -150,7 +136,42 @@ internal class SealedSender(
         0L
     }
 
-    private companion object {
+    companion object {
+
+        /**
+         * Which access key a recipient in this state should be sent with.
+         *
+         * Signal's `getTargetUnidentifiedAccessKey`, case for case. The one worth naming is
+         * unknown-with-no-profile-key: a random key, because a great many accounts accept
+         * anything and trying is the only way to find out. Returning nothing there -- which is
+         * what this used to do -- gave up the protection for everyone we had not been given a
+         * profile key by.
+         */
+        internal fun keyFor(mode: Int, hasProfileKey: Boolean): Key = when {
+            // Learned, not assumed: a send to this person already had to fall back. Guessing
+            // again would be a wasted round trip on every message to them.
+            mode == SEALED_SENDER_DISABLED -> Key.None
+            mode == SEALED_SENDER_UNRESTRICTED -> Key.Random
+            hasProfileKey -> Key.Derived
+            // Enabled means their key is required and we do not have it. A guess is refused.
+            mode == SEALED_SENDER_ENABLED -> Key.None
+            else -> Key.Random
+        }
+
+        /**
+         * What a send's outcome teaches, or null when it teaches nothing.
+         *
+         * Ported from `IndividualSendJob`. A send that went out sealed *without* a profile key
+         * proves they accept anything; one that had to fall back proves the opposite and stops
+         * this device guessing at them for ever.
+         */
+        internal fun modeAfter(mode: Int, unidentified: Boolean, hasProfileKey: Boolean): Int? = when {
+            unidentified && mode == SEALED_SENDER_UNKNOWN && !hasProfileKey -> SEALED_SENDER_UNRESTRICTED
+            unidentified && mode == SEALED_SENDER_UNKNOWN -> SEALED_SENDER_ENABLED
+            !unidentified && mode != SEALED_SENDER_DISABLED -> SEALED_SENDER_DISABLED
+            else -> null
+        }
+
         /** Shared by every [SealedSender] in the process, because they are all the same account. */
         @Volatile private var cached: ByteArray? = null
         @Volatile private var cachedUntil = 0L

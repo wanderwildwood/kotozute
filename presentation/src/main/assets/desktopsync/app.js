@@ -1060,8 +1060,12 @@ function renderThreads() {
     div.append(row, snippet);
     // A hit inside a conversation opens it already looking for what was searched, so the
     // reader lands on the match rather than at the bottom of a thread they have to re-read.
+    // openId, where the phone says so, is the rail this row is reporting -- a row named
+    // after a text should not open the Signal side and show neither that message nor any
+    // reason it was named after it. The pair still lights up either way.
     div.addEventListener('click', () =>
-        selectThread(t.id, t.title, t.matches > 0 ? filterQuery.trim() : ''));
+        selectThread(t.openId ?? t.id, t.title, t.matches > 0 ? filterQuery.trim() : '',
+            t.openId != null ? t.id : undefined));
     // The phone opens this set with a long press; on a keyboard and mouse it is the
     // right-click, and on a touchscreen the long press still arrives as one.
     div.addEventListener('contextmenu', e => {

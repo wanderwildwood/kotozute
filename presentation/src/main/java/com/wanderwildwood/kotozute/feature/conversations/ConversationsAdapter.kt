@@ -209,8 +209,17 @@ class ConversationsAdapter @Inject constructor(
                         }
                     }
                     is InboxItem.Signal -> {
-                        // Not selectable, so a tap always opens it -- even mid-selection.
-                        navigator.showSignalThread(item.thread.threadKey, signalTitle(item))
+                        // Opens the rail the row is reporting. The row shows whichever half
+                        // spoke last, so a row reading "Perfect, thank you!" -- a text --
+                        // that opened the Signal side showed neither that message nor any
+                        // reason it was named after it. Not selectable, so a tap always
+                        // opens it, even mid-selection.
+                        val joined = item.joined
+                        if (item.textIsNewer && joined != null) {
+                            navigator.showConversation(joined.id, null, joined.getTitle())
+                        } else {
+                            navigator.showSignalThread(item.thread.threadKey, signalTitle(item))
+                        }
                     }
                     null -> Unit
                 }

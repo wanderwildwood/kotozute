@@ -872,6 +872,10 @@ class DesktopSyncServer(
     ) = JSONObject().apply {
         val textIsNewer = joined != null && joined.isValid && joined.date > t.lastTs
         put("id", InboxItem.signalStableId(t.threadKey))
+        // Which rail to open: the one the row is reporting. Everything a row is *acted* on
+        // by still keys off the id above, so the pair is archived, blocked and muted as one
+        // person however this happens to point.
+        if (textIsNewer && joined != null) put("openId", joined.id)
         put("title", t.title.ifBlank { t.counterpartNumber.ifBlank { t.threadKey.substringAfter(":") } })
         put("snippet", when {
             textIsNewer -> joined!!.snippet.orEmpty()

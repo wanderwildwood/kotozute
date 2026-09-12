@@ -65,6 +65,14 @@ internal class SignalAccountDataStore(
      * operation that already holds the store lock, which is precisely why that lock is
      * reentrant and shared rather than per-table.
      */
+    /** See [SignalIdentityKeyStore.setVerified]. Passed through so the receiver need not
+     *  reach past this store to the one behind it. */
+    fun setVerified(
+        address: String,
+        verifiedKey: org.signal.libsignal.protocol.IdentityKey,
+        verified: Boolean
+    ): Boolean = identities.setVerified(address, verifiedKey, verified)
+
     override fun archiveSession(address: SignalProtocolAddress) = withStoreLock(db) {
         val record = sessions.loadSession(address)
         record.archiveCurrentState()

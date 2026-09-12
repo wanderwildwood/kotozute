@@ -153,6 +153,36 @@ internal class SignalIdentityKeyStore(
         true
     }
 
+    /**
+     * Records what the account has decided about somebody's safety number elsewhere.
+     *
+     * Verifying is a thing a person does once, in the room, by comparing numbers. That
+     * decision belongs to the account rather than to the device it was made on, so a linked
+     * device that ignores this shows every one of those people as unverified and quietly
+     * throws away work somebody did carefully.
+     *
+     * ⚠ **Only when the key matches.** A verification is a statement about one specific key;
+     * applied to a different one it would mark as verified a key nobody has ever checked,
+     * which is worse than showing nothing. A mismatch means this device has since seen a
+     * change the verifying device had not, and the right answer is to leave it alone.
+     *
+     * @return false where there is no key here or it is not the key that was verified.
+     */
+    fun setVerified(address: String, verifiedKey: IdentityKey, verified: Boolean): Boolean =
+        db.lock.withLockReentrant {
+            val known = loadIdentity(address) ?: return@withLockReentrant false
+            if (known.key != verifiedKey) {
+                Timber.w("signal identity: a verification named a key this phone does not hold")
+                return@withLockReentrant false
+            }
+            // Not UNTRUSTED for the un-verified case. Signal has three states and this store
+            // has three levels, but they are not the same three: "explicitly not verified" is
+            // a person you still talk to, where UNTRUSTED here stops messages going out. The
+            // honest mapping is the one that does not invent a block nobody asked for.
+            insertIdentity(address, known.key, if (verified) TRUSTED_VERIFIED else TRUSTED_UNVERIFIED)
+            true
+        }
+
     data class Identity(val safetyNumber: String, val trustLevel: Int)
 
     private fun loadIdentity(address: String): Known? =

@@ -527,6 +527,26 @@ internal class SignalReceiver(
                     }
                 }
 
+                // What the account has verified about somebody's safety number, decided on
+                // another device. A verification is a thing a person does once, carefully, in
+                // the room; it belongs to the account rather than the device it happened on.
+                result.content.syncMessage?.verified?.let { verified ->
+                    val who = ServiceId.parseOrNull(
+                        verified.destinationAci, verified.destinationAciBinary
+                    )?.toString()
+                    val key = verified.identityKey?.toByteArray()
+                    if (who != null && key != null && key.isNotEmpty()) {
+                        runCatching {
+                            protocol.aciStore().setVerified(
+                                who,
+                                org.signal.libsignal.protocol.IdentityKey(key),
+                                verified.state ==
+                                    org.whispersystems.signalservice.internal.push.Verified.State.VERIFIED
+                            )
+                        }.onFailure { Timber.w(it, "signal identity: could not record a verification") }
+                    }
+                }
+
                 // The account's settings. Sent when they change and on request, so this is
                 // how a device that was asleep catches up with a choice made elsewhere.
                 result.content.syncMessage?.configuration?.let { settings ->

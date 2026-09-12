@@ -60,6 +60,13 @@ class SignalNotifications @Inject constructor(
         // gone.
         signalRepo.messagesRemoved()
             .subscribe({ cancel(it) }, { Timber.w(it, "signal notify: removal") })
+
+        // Read on another of the account's devices. The message is still there and still
+        // worth having; what is no longer true is that anybody needs telling about it, and a
+        // notification for something already read is one the reader has to clear by hand --
+        // by opening a conversation with nothing new in it.
+        signalRepo.conversationsRead()
+            .subscribe({ cancel(it) }, { Timber.w(it, "signal notify: read elsewhere") })
     }
 
     private fun createChannel() {

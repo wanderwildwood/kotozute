@@ -474,6 +474,17 @@ interface SignalRepository {
      * entire purpose is to unsay something -- left it legible exactly where it is most read.
      */
     fun messagesRemoved(): Observable<String>
+
+    /**
+     * Thread keys the account has finished reading somewhere else.
+     *
+     * A linked device is one of several, and the person reading on another one has already
+     * seen the message. Marking it read here was only half of it: the notification stayed on
+     * the lock screen, announcing something already dealt with, and the only way to clear it
+     * was to open a conversation with nothing new in it. Signal dismisses on a read sync for
+     * exactly this reason.
+     */
+    fun conversationsRead(): Observable<String>
 }
 
 /** One thread that matched a search, and what matched in it. */

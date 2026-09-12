@@ -1598,7 +1598,10 @@ class SignalRepositoryImpl @Inject constructor(
         // that difference is a receipt for every message in the thread, every time a new one
         // arrives -- telling somebody over and over that their whole history has just been
         // read.
-        val justRead = mutableListOf<Long>()
+        // Grouped by whoever wrote each message, not by the conversation. See below: in a
+        // group every author gets a receipt for their own messages, which is what Signal does
+        // and what keying off the thread made impossible.
+        val justRead = mutableListOf<Pair<String, Long>>()
         val now = System.currentTimeMillis()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
@@ -1612,7 +1615,7 @@ class SignalRepositoryImpl @Inject constructor(
                 // walking the live results takes rows out from under the iteration and
                 // silently skips half of them.
                 unread.createSnapshot().forEach { message ->
-                    justRead += message.date
+                    justRead += message.senderUuid to message.date
                     message.read = true
                     // Reading is what starts a disappearing message's clock. Until now it
                     // started when the message arrived, so a short timer could run out while
@@ -1628,11 +1631,26 @@ class SignalRepositoryImpl @Inject constructor(
         // The receipt goes out on this device's own connection, and only where the reader
         // asked for receipts to be sent. A receipt names the messages by the timestamps they
         // were sent with, which is what was just collected.
-        if (!prefs.signalReadReceipts.get() || !threadKey.startsWith("direct:")) return@runOffThread
+        if (!prefs.signalReadReceipts.get()) return@runOffThread
         if (justRead.isEmpty()) return@runOffThread
-        runCatching { signalStore.sendReadReceipt(threadKey.removePrefix("direct:"), justRead) }
-            .onSuccess { Timber.i("signal receipt: told them about %d message(s)", justRead.size) }
-            .onFailure { Timber.d("read receipt not delivered: ${it.message}") }
+
+        // ⚠ One receipt per author, not one per conversation. This used to return early for
+        // anything that was not a `direct:` thread, so reading a group told nobody -- with
+        // receipts switched on, and with no way for the reader to know their group messages
+        // were being treated differently from everyone else's.
+        //
+        // `MarkReadReceiver` groups what was just read by thread and then by the recipient who
+        // sent each message, and enqueues a job per sender. A group thread is not a special
+        // case there; it simply has more than one author in it.
+        justRead.groupBy({ it.first }, { it.second })
+            .forEach { (sender, timestamps) ->
+                if (sender.isBlank()) return@forEach
+                runCatching { signalStore.sendReadReceipt(sender, timestamps.distinct()) }
+                    .onSuccess {
+                        Timber.i("signal receipt: told %s about %d message(s)", "somebody", timestamps.size)
+                    }
+                    .onFailure { Timber.d("read receipt not delivered: ${it.message}") }
+            }
     }
 
     /**

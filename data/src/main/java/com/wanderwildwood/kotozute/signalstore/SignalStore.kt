@@ -369,7 +369,20 @@ class SignalStore(private val context: Context) {
      */
     fun readStorage(): String {
         val result = SignalStorageService(connection, keys, contacts).read()
-        return result.reason ?: "${result.contacts} contact(s) from ${result.records} record(s)"
+        if (result.reason != null) return result.reason
+        val line = "${result.contacts} contact(s) from ${result.records} record(s)"
+        // A record this could not use is said out loud. The whole of this bug was a fetch
+        // that dropped two records in three and reported only the one it kept, so "71 from
+        // 201" read as a complete answer rather than as the alarm it was.
+        val dropped = listOfNotNull(
+            result.unopened.takeIf { it > 0 }?.let { "$it would not open" },
+            result.notContacts.takeIf { it > 0 }?.let { "$it not a contact" },
+            result.anonymous.takeIf { it > 0 }?.let { anon ->
+                val pni = result.pniOnly.takeIf { it > 0 }?.let { ", $it of them phone-number only" }
+                "$anon with no account id${pni.orEmpty()}"
+            }
+        )
+        return if (dropped.isEmpty()) line else "$line · skipped ${dropped.joinToString(", ")}"
     }
 
     /** Whether the storage service key is here yet. */

@@ -1,9 +1,11 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import org.signal.core.models.ServiceId
 import org.signal.core.models.storageservice.StorageKey
 import org.whispersystems.signalservice.api.storage.RecordIkm
 import org.whispersystems.signalservice.api.storage.SignalStorageCipher
 import org.whispersystems.signalservice.api.storage.StorageServiceApi
+import org.whispersystems.signalservice.internal.storage.protos.ContactRecord
 import org.whispersystems.signalservice.internal.storage.protos.ManifestRecord
 import org.whispersystems.signalservice.internal.storage.protos.ReadOperation
 import org.whispersystems.signalservice.internal.storage.protos.StorageRecord
@@ -30,8 +32,29 @@ internal class SignalStorageService(
     private val contacts: SignalContactStore
 ) {
 
-    /** What a read did, for a status line to say and a log to carry. */
-    data class Result(val contacts: Int, val records: Int, val reason: String? = null)
+    /**
+     * What a read did, for a status line to say and a log to carry.
+     *
+     * The drop counts are not decoration. Every record this cannot use was previously
+     * skipped by a `mapNotNull` that returned null, so a fetch that understood a third of
+     * the account reported the same shape of success as one that understood all of it --
+     * and the only visible symptom was people missing from a list nobody could check
+     * against. [contacts] + [unopened] + [notContacts] + [anonymous] accounts for every
+     * record in [records]; if it ever does not, something new is being dropped.
+     */
+    data class Result(
+        val contacts: Int,
+        val records: Int,
+        val reason: String? = null,
+        /** Would not decrypt, or would not decode once decrypted. */
+        val unopened: Int = 0,
+        /** Opened, but held something other than a contact. */
+        val notContacts: Int = 0,
+        /** A contact naming no account this device can address. */
+        val anonymous: Int = 0,
+        /** Of [anonymous], those that carried a PNI and nothing else. */
+        val pniOnly: Int = 0
+    )
 
     fun read(): Result {
         val storageKey = keys.storageKey()
@@ -73,23 +96,33 @@ internal class SignalStorageService(
 
         var kept = 0
         var seen = 0
+        var unopened = 0
+        var notContacts = 0
+        var anonymous = 0
+        var pniOnly = 0
         // In batches: a manifest can name thousands of records, and the service takes a list
         // of ids per request rather than all of them.
         wanted.chunked(BATCH).forEach { batch ->
             val items = api.readStorageItems(auth, ReadOperation(readKey = batch)).successOrNull()
                 ?: return@forEach
+            seen += items.items.size
             val found = items.items.mapNotNull { item ->
                 val id = item.key.toByteArray()
                 val itemKey = ikm?.deriveStorageItemKey(id) ?: storageKey.deriveItemKey(id)
-                runCatching {
+                val record = runCatching {
                     StorageRecord.ADAPTER.decode(
                         SignalStorageCipher.decrypt(itemKey, item.value_.toByteArray())
-                    ).contact
-                }.getOrNull()
+                    )
+                }.getOrElse { unopened++; null } ?: return@mapNotNull null
+                record.contact ?: run { notContacts++; null }
             }
-            seen += items.items.size
             val people = found.mapNotNull { record ->
-                val aci = record.aci?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val aci = aciOf(record)
+                if (aci == null) {
+                    anonymous++
+                    if (pniOf(record) != null) pniOnly++
+                    return@mapNotNull null
+                }
                 SignalContactStore.Contact(
                     aci = aci,
                     e164 = record.e164?.takeIf { it.isNotBlank() },
@@ -102,19 +135,58 @@ internal class SignalStorageService(
                 kept += people.size
             }
         }
-        Timber.i("signal storage: %d contact(s) from %d record(s)", kept, seen)
-        return Result(kept, seen, null)
+        Timber.i(
+            "signal storage: %d contact(s) from %d record(s); dropped %d unopened, %d not contacts, %d anonymous (%d pni-only)",
+            kept, seen, unopened, notContacts, anonymous, pniOnly
+        )
+        return Result(kept, seen, null, unopened, notContacts, anonymous, pniOnly)
     }
 
     companion object {
         private const val BATCH = 200
 
         /**
+         * The account id on a contact record, from whichever field carries it.
+         *
+         * Two fields hold the same value and a client populates one of them: `aci` is the
+         * old hyphenated string, and modern Signal writes the same account as raw bytes in
+         * `aciBinary` and leaves the string empty. Reading only the string is the same trap
+         * the sent transcript fell into -- see `ContentNormalizer.destinationServiceIdOf`,
+         * which was fixed for exactly this reason and in exactly this way.
+         *
+         * Measured on a real account before the fix: **71 contacts out of 201 records**. The
+         * other 130 were written by a modern primary, carried their account in `aciBinary`,
+         * and were dropped without a word -- which is why somebody could not find a friend
+         * who was demonstrably on Signal.
+         */
+        fun aciOf(record: ContactRecord): String? {
+            val text = record.aci?.takeIf { it.isNotBlank() }
+            val binary = record.aciBinary?.takeIf { it.size > 0 }
+            if (text == null && binary == null) return null
+            return ServiceId.ACI.parseOrNull(text, binary)?.toString()
+        }
+
+        /**
+         * The phone-number identity on a contact record, read the same two ways.
+         *
+         * Only counted, never stored. A PNI is a real address Signal can send to, but the
+         * rest of this app keys people on an ACI, and writing a `PNI:` id into that column
+         * would make a person this device cannot actually resolve look like one it can.
+         * Worth knowing how many there are before deciding what to do about them.
+         */
+        fun pniOf(record: ContactRecord): String? {
+            val text = record.pni?.takeIf { it.isNotBlank() }
+            val binary = record.pniBinary?.takeIf { it.size > 0 }
+            if (text == null && binary == null) return null
+            return ServiceId.PNI.parseOrNull(text, binary)?.toString()
+        }
+
+        /**
          * What to call somebody. The name from the reader's own address book first, as
          * everywhere else in this app: it is what they call this person, where the profile
          * name is what the person calls themselves.
          */
-        fun nameOf(record: org.whispersystems.signalservice.internal.storage.protos.ContactRecord): String? {
+        fun nameOf(record: ContactRecord): String? {
             val system = listOf(record.systemGivenName, record.systemFamilyName)
                 .joinToString(" ") { it.orEmpty() }.trim()
             if (system.isNotBlank()) return system

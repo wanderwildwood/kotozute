@@ -1,7 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
 import org.signal.core.models.ServiceId
-import org.signal.core.util.UptimeSleepTimer
 import org.signal.libsignal.net.Network
 import org.whispersystems.signalservice.api.keys.KeysApi
 import org.whispersystems.signalservice.api.util.CredentialsProvider
@@ -23,6 +22,7 @@ import java.util.concurrent.TimeUnit
  * hand the server exactly the metadata sealed sender is designed to withhold.
  */
 internal class SignalConnection(
+    private val context: android.content.Context,
     private val accounts: SignalAccountStore,
     private val userAgent: String,
     private val configuration: org.signal.network.config.SignalServiceConfiguration =
@@ -74,7 +74,7 @@ internal class SignalConnection(
     }
 
     val authenticated: SignalWebSocket.AuthenticatedWebSocket by lazy {
-        val timer = UptimeSleepTimer()
+        val timer = AlarmSleepTimer(context)
         val monitor = SignalSocketHealthMonitor(timer, onRejected)
         SignalWebSocket.AuthenticatedWebSocket(
             { LibSignalChatConnection("normal", network, credentials, ALLOW_STORIES, monitor) },
@@ -85,7 +85,7 @@ internal class SignalConnection(
     }
 
     val unauthenticated: SignalWebSocket.UnauthenticatedWebSocket by lazy {
-        val timer = UptimeSleepTimer()
+        val timer = AlarmSleepTimer(context)
         val monitor = SignalSocketHealthMonitor(timer, onRejected)
         SignalWebSocket.UnauthenticatedWebSocket(
             { LibSignalChatConnection("unidentified", network, null, ALLOW_STORIES, monitor) },

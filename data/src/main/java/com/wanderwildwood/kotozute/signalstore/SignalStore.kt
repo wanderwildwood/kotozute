@@ -647,8 +647,13 @@ class SignalStore(private val context: Context) {
 
     /** "known/with-key/named", for the Connection screen. Names come from profiles. */
     fun contactSummary(): String = runCatching {
-        val (known, keys, named) = contacts.counts()
-        "$known contact(s), $keys with a profile key, $named named"
+        val c = contacts.counts()
+        buildString {
+            append("${c.known} contact(s), ${c.withProfileKey} with a profile key, ${c.named} named")
+            // Only when there are any. A count of nought is a line of noise in a status
+            // string somebody reads on a small screen.
+            if (c.nameless > 0) append(", ${c.nameless} with neither name nor number")
+        }
     }.getOrDefault("")
 
     fun contactName(aci: String): String? = runCatching { contacts.nameFor(aci) }.getOrNull()

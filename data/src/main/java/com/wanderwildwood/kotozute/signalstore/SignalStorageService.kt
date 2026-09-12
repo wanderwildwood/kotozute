@@ -197,9 +197,16 @@ internal class SignalStorageService(
                 kept += people.size
             }
         }
+        // ⚠ The kept counts and the dropped counts are said separately, and they were not.
+        // `pniOnly` counts records that were *kept*; it sat inside the parenthetical after
+        // `anonymous`, which counts records that were *dropped* -- so "0 anonymous (76
+        // pni-only, 0 with a number)" read as though 76 contacts had been thrown away and
+        // none of them had a phone number. Neither half of that was true, and the line is the
+        // only thing a release build says about this.
         Timber.i(
-            "signal storage: %d contact(s) from %d record(s); dropped %d unopened, %d not contacts, %d anonymous (%d pni-only, %d with a number)",
-            kept, seen, unopened, notContacts, anonymous, pniOnly, anonymousWithNumber
+            "signal storage: %d contact(s) from %d record(s), %d of them known only by phone-number identity; " +
+                "dropped %d unopened, %d not contacts, %d with no id at all (%d of those had a number)",
+            kept, seen, pniOnly, unopened, notContacts, anonymous, anonymousWithNumber
         )
         return Result(kept, seen, null, unopened, notContacts, anonymous, pniOnly, unreadable, anonymousWithNumber)
     }

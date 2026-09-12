@@ -278,16 +278,40 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
     }
 
     /** How many people are known, how many have a profile key, and how many have a name. */
-    fun counts(): Triple<Int, Int, Int> = withStoreLock(db) {
+    /**
+     * How the address book stands, in the terms that decide what a person actually sees.
+     *
+     * [nameless] is the number that matters and the one this used not to report: a contact
+     * with no name and no number shows as eight characters of a service id, which is the
+     * complaint this whole rail started from. "201 contacts, 125 named" reads like a healthy
+     * directory with a few gaps; it does not say that 76 rows can only be shown as noise.
+     */
+    data class Counts(
+        val known: Int,
+        val withProfileKey: Int,
+        val named: Int,
+        val withNumber: Int,
+        /** Neither a name nor a number: nothing to show but a fragment of an id. */
+        val nameless: Int
+    )
+
+    fun counts(): Counts = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             """
             SELECT count(*),
                    sum(CASE WHEN profile_key IS NOT NULL THEN 1 ELSE 0 END),
-                   sum(CASE WHEN name IS NOT NULL AND name != '' THEN 1 ELSE 0 END)
+                   sum(CASE WHEN name IS NOT NULL AND name != '' THEN 1 ELSE 0 END),
+                   sum(CASE WHEN e164 IS NOT NULL AND e164 != '' THEN 1 ELSE 0 END),
+                   sum(CASE WHEN (name IS NULL OR name = '') AND (e164 IS NULL OR e164 = '')
+                            THEN 1 ELSE 0 END)
             FROM recipient
             """.trimIndent(), null
         ).use { c ->
-            if (c.moveToFirst()) Triple(c.getInt(0), c.getInt(1), c.getInt(2)) else Triple(0, 0, 0)
+            if (c.moveToFirst()) {
+                Counts(c.getInt(0), c.getInt(1), c.getInt(2), c.getInt(3), c.getInt(4))
+            } else {
+                Counts(0, 0, 0, 0, 0)
+            }
         }
     }
 

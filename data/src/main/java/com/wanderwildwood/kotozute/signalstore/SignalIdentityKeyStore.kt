@@ -198,6 +198,24 @@ internal class SignalIdentityKeyStore(
             true
         }
 
+    /**
+     * Takes the key the account itself already holds for somebody as this device's own.
+     *
+     * Written only where nothing is on file. A key already here came from a real session or a
+     * real verification, and a storage record -- which can be older than both -- must not
+     * quietly replace it; that is the same overwrite the receive path deliberately refuses.
+     *
+     * What it is for is the gap before any of that: on a freshly linked device every contact
+     * is a first sighting, and a first sighting is trusted on faith. Starting from the
+     * account's own record closes that window for everybody it knows about.
+     */
+    fun adoptIdentity(address: String, key: IdentityKey, verified: Boolean): Boolean =
+        db.lock.withLockReentrant {
+            if (loadIdentity(address) != null) return@withLockReentrant false
+            insertIdentity(address, key, if (verified) TRUSTED_VERIFIED else TRUSTED_UNVERIFIED)
+            true
+        }
+
     data class Identity(val safetyNumber: String, val trustLevel: Int)
 
     private fun loadIdentity(address: String): Known? =

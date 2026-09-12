@@ -97,7 +97,16 @@ internal class SignalReceiver(
      * @param messages author and sent-timestamp pairs, which is how a row is identified here
      * @param threads whole direct conversations to empty
      */
-    private val deletedElsewhere: (List<Pair<String, Long>>, List<String>) -> Unit = { _, _ -> }
+    private val deletedElsewhere: (List<Pair<String, Long>>, List<String>) -> Unit = { _, _ -> },
+    /**
+     * The account's own settings, as its primary holds them.
+     *
+     * Read receipts are one setting for the whole account in Signal, not a choice each device
+     * makes. A linked device that does not listen for this is quietly disagreeing with what
+     * its owner set -- telling people their messages were read when the account says not to,
+     * or staying silent when it says to tell them.
+     */
+    private val configuration: (Boolean?) -> Unit = { }
 ) {
 
     /**
@@ -516,6 +525,13 @@ internal class SignalReceiver(
                         runCatching { deletedElsewhere(messages, threads) }
                             .onFailure { Timber.w(it, "signal delete sync: could not apply") }
                     }
+                }
+
+                // The account's settings. Sent when they change and on request, so this is
+                // how a device that was asleep catches up with a choice made elsewhere.
+                result.content.syncMessage?.configuration?.let { settings ->
+                    runCatching { configuration(settings.readReceipts) }
+                        .onFailure { Timber.w(it, "signal configuration: could not apply") }
                 }
 
                 // The account's blocked list, which arrives whole and replaces what is held.

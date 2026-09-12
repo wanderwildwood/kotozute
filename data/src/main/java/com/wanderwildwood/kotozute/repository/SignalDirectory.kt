@@ -19,7 +19,13 @@ internal object SignalDirectory {
      * has nothing to say -- which is the ordinary case for a linked device, where a name
      * only arrives if somebody's client has shared a profile key.
      */
-    data class Row(val uuid: String, val name: String, val number: String)
+    data class Row(
+        val uuid: String,
+        val name: String,
+        val number: String,
+        /** The @name they chose, where anything knows one. Defaulted: a thread has none. */
+        val username: String = ""
+    )
 
     /** Shared with the inbox and the notifications; see [com.wanderwildwood.kotozute.signal.SignalName]. */
     const val SHORT_SERVICE_ID = com.wanderwildwood.kotozute.signal.SignalName.SHORT_SERVICE_ID
@@ -68,6 +74,7 @@ internal object SignalDirectory {
     ): List<SignalRepository.Person> {
         val names = mutableMapOf<String, String>()
         val numbers = mutableMapOf<String, String>()
+        val usernames = mutableMapOf<String, String>()
         val known = linkedSetOf<String>()
 
         fun take(row: Row) {
@@ -76,6 +83,9 @@ internal object SignalDirectory {
             if (row.name.isNotBlank() && names[row.uuid].isNullOrBlank()) names[row.uuid] = row.name
             if (row.number.isNotBlank() && numbers[row.uuid].isNullOrBlank()) {
                 numbers[row.uuid] = row.number
+            }
+            if (row.username.isNotBlank() && usernames[row.uuid].isNullOrBlank()) {
+                usernames[row.uuid] = row.username
             }
         }
 
@@ -103,6 +113,7 @@ internal object SignalDirectory {
                 name = com.wanderwildwood.kotozute.signal.SignalName.of(
                     name = called.orEmpty(),
                     number = number,
+                    username = usernames[uuid].orEmpty(),
                     serviceId = uuid
                 ),
                 number = number

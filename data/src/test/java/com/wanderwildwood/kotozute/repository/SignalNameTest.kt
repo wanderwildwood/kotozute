@@ -31,6 +31,25 @@ class SignalNameTest {
     }
 
     @Test
+    fun `a username stands in where there is no name and no number`() {
+        assertEquals("@ada", SignalName.of("", "", "@ada", serviceId))
+    }
+
+    @Test
+    fun `a number beats a username`() {
+        // Signal's order, and not the obvious one: somebody who has shared their number has
+        // already said who they are, and a username is what is left when they have not.
+        assertEquals("+15550001", SignalName.of("", "+15550001", "@ada", serviceId))
+    }
+
+    @Test
+    fun `a username beats a service id`() {
+        // The case this was added for: a contact the account knows only by username had
+        // nothing to be shown as but eight characters of hexadecimal.
+        assertEquals("@ada", SignalName.of("", "", "@ada", serviceId))
+    }
+
+    @Test
     fun `never the whole service id`() {
         assertEquals(SignalName.SHORT_SERVICE_ID, SignalName.of("", "", serviceId).length)
     }

@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 15
+    const val VERSION = 16
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -385,6 +385,9 @@ internal object ProtocolStoreSchema {
           -- SealedSenderAccessMode: 0 unknown, 1 disabled, 2 enabled, 3 unrestricted. Learned
           -- from how our sends to them actually go, which is the only way to learn it.
           sealed_sender_mode INTEGER NOT NULL DEFAULT 0,
+          -- The @name they chose, where they have one. The last thing Signal will show
+          -- somebody by before giving up and calling them Unknown.
+          username TEXT,
           updated_timestamp INTEGER NOT NULL
         );
     """
@@ -551,7 +554,13 @@ internal object ProtocolStoreSchema {
         // all. Signal calls the same column sealed_sender_mode and seeds it the same way.
         15 to listOf(
             "ALTER TABLE recipient ADD COLUMN sealed_sender_mode INTEGER NOT NULL DEFAULT 0;"
-        )
+        ),
+        // v16: the username, the last name Signal has for somebody before "Unknown".
+        //
+        // A contact record carries one and it was not being read, so a person the account
+        // knows only by their username -- no name, no number -- had nothing to be shown as
+        // but a fragment of their service id.
+        16 to listOf("ALTER TABLE recipient ADD COLUMN username TEXT;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

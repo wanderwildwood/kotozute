@@ -2069,7 +2069,8 @@ class SignalRepositoryImpl @Inject constructor(
             SignalDirectory.Row(
                 uuid = contact.serviceId,
                 name = contact.name.orEmpty(),
-                number = contact.e164.orEmpty()
+                number = contact.e164.orEmpty(),
+                username = contact.username.orEmpty()
             )
         }
 

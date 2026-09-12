@@ -38,7 +38,9 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         val e164: String? = null,
         val name: String? = null,
         val profileKey: ByteArray? = null,
-        val pni: String? = null
+        val pni: String? = null,
+        /** The @name they chose, where the source knew one. */
+        val username: String? = null
     )
 
     /** Whether a service id is a phone-number identity rather than an account. */
@@ -66,7 +68,7 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
                 if (c.serviceId.isBlank()) return@forEach
                 val aci = if (isPni(c.serviceId)) null else c.serviceId
                 val pni = c.pni ?: c.serviceId.takeIf { isPni(it) }
-                upsert(database, aci, pni, c.e164, c.name, c.profileKey)
+                upsert(database, aci, pni, c.e164, c.name, c.profileKey, c.username)
             }
             database.setTransactionSuccessful()
             Timber.i("signal contacts: stored %d", contacts.size)
@@ -89,7 +91,8 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         pni: String?,
         e164: String?,
         name: String?,
-        profileKey: ByteArray?
+        profileKey: ByteArray?,
+        username: String?
     ) {
         val now = System.currentTimeMillis()
         val byAci = aci?.let { rowIdFor(database, "aci", it) }
@@ -113,9 +116,9 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
 
         if (existing == null) {
             database.execSQL(
-                "INSERT INTO recipient (aci, pni, e164, name, profile_key, updated_timestamp) " +
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                arrayOf<Any?>(aci, pni, e164.orNull(), name.orNull(), profileKey, now)
+                "INSERT INTO recipient (aci, pni, e164, name, profile_key, username, updated_timestamp) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                arrayOf<Any?>(aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(), now)
             )
             return
         }
@@ -152,6 +155,7 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
               e164 = COALESCE(?, e164),
               name = COALESCE(?, name),
               profile_key = COALESCE(?, profile_key),
+              username = COALESCE(?, username),
               -- A new profile key makes everything learned about their sealed sender stale:
               -- what we knew was learned without it, or with the old one, and "they refused"
               -- may only have meant "we were guessing". Signal resets the mode on every
@@ -167,7 +171,7 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             WHERE _id = ?
             """.trimIndent(),
             arrayOf<Any?>(
-                aci, pni, e164.orNull(), name.orNull(), profileKey,
+                aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(),
                 profileKey, profileKey, now, existing
             )
         )
@@ -291,8 +295,9 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         val withProfileKey: Int,
         val named: Int,
         val withNumber: Int,
-        /** Neither a name nor a number: nothing to show but a fragment of an id. */
-        val nameless: Int
+        /** Neither a name, a number, nor a username: nothing to show but a fragment of an id. */
+        val nameless: Int,
+        val withUsername: Int
     )
 
     fun counts(): Counts = withStoreLock(db) {
@@ -303,14 +308,16 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
                    sum(CASE WHEN name IS NOT NULL AND name != '' THEN 1 ELSE 0 END),
                    sum(CASE WHEN e164 IS NOT NULL AND e164 != '' THEN 1 ELSE 0 END),
                    sum(CASE WHEN (name IS NULL OR name = '') AND (e164 IS NULL OR e164 = '')
-                            THEN 1 ELSE 0 END)
+                                 AND (username IS NULL OR username = '')
+                            THEN 1 ELSE 0 END),
+                   sum(CASE WHEN username IS NOT NULL AND username != '' THEN 1 ELSE 0 END)
             FROM recipient
             """.trimIndent(), null
         ).use { c ->
             if (c.moveToFirst()) {
-                Counts(c.getInt(0), c.getInt(1), c.getInt(2), c.getInt(3), c.getInt(4))
+                Counts(c.getInt(0), c.getInt(1), c.getInt(2), c.getInt(3), c.getInt(4), c.getInt(5))
             } else {
-                Counts(0, 0, 0, 0, 0)
+                Counts(0, 0, 0, 0, 0, 0)
             }
         }
     }
@@ -328,7 +335,8 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
      */
     fun everyone(): List<Contact> = withStoreLock(db) {
         db.readableDatabase.rawQuery(
-            "SELECT COALESCE(aci, pni), e164, name, pni FROM recipient WHERE aci IS NOT NULL OR pni IS NOT NULL",
+            "SELECT COALESCE(aci, pni), e164, name, pni, username FROM recipient " +
+                "WHERE aci IS NOT NULL OR pni IS NOT NULL",
             null
         ).use { c ->
             generateSequence {
@@ -337,7 +345,8 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
                         serviceId = c.getString(0),
                         e164 = c.getString(1),
                         name = c.getString(2),
-                        pni = c.getString(3)
+                        pni = c.getString(3),
+                        username = c.getString(4)
                     )
                 } else {
                     null
@@ -464,6 +473,18 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             """
             SELECT COALESCE(aci, pni), name FROM recipient
             WHERE name IS NOT NULL AND name != ''
+            """.trimIndent(), null
+        ).use { c ->
+            generateSequence { if (c.moveToNext()) c.getString(0) to c.getString(1) else null }.toMap()
+        }
+    }
+
+    /** Every username known, for the picker's last fallback before a bare id. */
+    fun usernames(): Map<String, String> = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            """
+            SELECT COALESCE(aci, pni), username FROM recipient
+            WHERE username IS NOT NULL AND username != ''
             """.trimIndent(), null
         ).use { c ->
             generateSequence { if (c.moveToNext()) c.getString(0) to c.getString(1) else null }.toMap()

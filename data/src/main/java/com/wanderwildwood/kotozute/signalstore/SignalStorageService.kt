@@ -189,7 +189,10 @@ internal class SignalStorageService(
                     pni = pni,
                     e164 = record.e164?.takeIf { it.isNotBlank() },
                     name = nameOf(record),
-                    profileKey = record.profileKey?.takeIf { it.size > 0 }?.toByteArray()
+                    profileKey = record.profileKey?.takeIf { it.size > 0 }?.toByteArray(),
+                    // Not a name -- Signal shows it only once there is no name and no number
+                    // -- but the last thing between this person and a row of hexadecimal.
+                    username = record.username?.takeIf { it.isNotBlank() }
                 )
             }
             if (people.isNotEmpty()) {

@@ -19,9 +19,22 @@ object SignalName {
      */
     const val SHORT_SERVICE_ID = 8
 
-    fun of(name: String, number: String, serviceId: String): String = when {
+    fun of(name: String, number: String, serviceId: String): String =
+        of(name, number, username = "", serviceId = serviceId)
+
+    /**
+     * The same order Signal falls through, including the step this app did not have.
+     *
+     * A username sits **below** the phone number, which is Signal's order and not an obvious
+     * one: someone who has shared their number has already told you who they are, while a
+     * username is what is left when they have not. Above a service id, though -- a username is
+     * something a person chose and can be recognised by, and eight characters of hexadecimal
+     * is neither.
+     */
+    fun of(name: String, number: String, username: String, serviceId: String): String = when {
         name.isNotBlank() -> name
         number.isNotBlank() -> number
+        username.isNotBlank() -> username
         else -> serviceId.take(SHORT_SERVICE_ID)
     }
 }

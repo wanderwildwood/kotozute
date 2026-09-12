@@ -263,6 +263,20 @@ interface SignalRepository {
     fun fetchContactsFromSignal(): String
 
     /**
+     * Asks Signal which numbers in this phone's address book are on it. Blocking; returns
+     * what happened, in a sentence somebody can read.
+     *
+     * Different question from [fetchContactsFromSignal], which reads the people the account
+     * already has a record for. This finds the ones it does not -- anybody in the address
+     * book who has never written first, who until now could not be written to at all.
+     *
+     * ⚠ Sends the address book's numbers, hashed, to Signal's discovery enclave, and the
+     * account is charged a quota for numbers it has not asked about before. Runs only when
+     * somebody asks.
+     */
+    fun discoverContactsByNumber(): String
+
+    /**
      * Whether this phone is in the state the fetch exists for, and should say so once.
      *
      * True only where the account is linked, the contact list is empty, and the list has not

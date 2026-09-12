@@ -44,7 +44,14 @@ internal class SignalConnection(
         override fun getPassword(): String? = accounts.credentials().password
     }
 
-    private val network by lazy {
+    /**
+     * libsignal's own network handle.
+     *
+     * Not private: contact discovery runs inside libsignal's enclave client rather than over
+     * the websocket, so it needs this as well as [authenticated]. Everything else here is
+     * reached through one of the APIs below.
+     */
+    val network by lazy {
         Network(Network.Environment.PRODUCTION, userAgent, emptyMap(), Network.BuildVariant.PRODUCTION)
     }
 

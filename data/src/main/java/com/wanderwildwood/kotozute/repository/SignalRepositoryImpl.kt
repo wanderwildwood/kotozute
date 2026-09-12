@@ -1267,6 +1267,40 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * Every number in the phone's address book, in the one format discovery accepts.
+     *
+     * Read from the app's own mirror of the address book rather than the content provider:
+     * it is already synced, already on a worker's schedule, and it is what the inbox resolves
+     * names against, so the two cannot disagree about who is in the book.
+     *
+     * Deduplicated, because a person with a mobile and a home number listed the same way is
+     * one number to ask about, and the account is charged per number.
+     */
+    private fun addressBookNumbers(): Set<String> = runCatching {
+        Realm.getDefaultInstance().use { realm ->
+            realm.where(com.wanderwildwood.kotozute.model.Contact::class.java)
+                .findAll()
+                .flatMap { contact -> contact.numbers.mapNotNull { it.address } }
+                .mapNotNullTo(mutableSetOf()) { phoneNumberUtils.toE164(it) }
+        }
+    }.getOrElse {
+        Timber.w(it, "signal discovery: could not read the address book")
+        emptySet()
+    }
+
+    override fun discoverContactsByNumber(): String = when {
+        !linkedDirectly() -> "This phone is not linked to Signal yet"
+        else -> {
+            val numbers = addressBookNumbers()
+            if (numbers.isEmpty()) {
+                "There are no phone numbers in this phone's contacts to look up"
+            } else {
+                signalStore.discover(numbers).also { contactsChanged() }
+            }
+        }
+    }
+
     override fun shouldOfferContactFetch(): Boolean = runCatching {
         SignalDirectory.shouldOfferContactFetch(
             linkedDirectly = linkedDirectly(),

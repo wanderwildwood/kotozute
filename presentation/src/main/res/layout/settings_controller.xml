@@ -380,6 +380,14 @@
                 app:title="@string/settings_signal_fetch_contacts_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalDiscoverContacts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_discover_contacts_summary"
+                app:title="@string/settings_signal_discover_contacts_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

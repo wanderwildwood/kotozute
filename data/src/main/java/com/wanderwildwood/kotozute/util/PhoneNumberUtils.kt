@@ -73,6 +73,22 @@ class PhoneNumberUtils @Inject constructor(context: Context) {
     fun normalizeNumber(number: String): String =
         number.filter { it.isLetterOrDigit() || it in "+*#" }
 
+    /**
+     * The number as Signal insists on seeing it, or null if it is not a real phone number.
+     *
+     * Contact discovery takes E.164 and nothing else, and it charges the account for every
+     * number submitted -- so a shop's short code or a half-typed entry is not merely useless
+     * here, it is quota spent to be told nothing. Validity is checked, not just parseability:
+     * libphonenumber will happily parse things it knows are not dialable.
+     */
+    fun toE164(number: String): String? {
+        val parsed = parse(number) ?: return null
+        if (!phoneNumberUtil.isValidNumber(parsed)) return null
+        return tryOrNull(false) {
+            phoneNumberUtil.format(parsed, PhoneNumberUtil.PhoneNumberFormat.E164)
+        }
+    }
+
     private fun parse(number: CharSequence): Phonenumber.PhoneNumber? {
         return tryOrNull(false) { phoneNumberUtil.parse(number, countryCode) }
     }

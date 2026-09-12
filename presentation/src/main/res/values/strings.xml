@@ -367,6 +367,13 @@
     <string name="settings_signal_fetch_contacts_offer_body">Signal has not sent this phone anyone\'s name, so conversations will show a string of characters instead. Newer Signal keeps its contact list on its own servers, and reading it asks your Signal for the key that opens it. Nothing leaves this phone, and nobody is told. You can do this later instead, under Fetch contacts from Signal.</string>
     <string name="settings_signal_fetch_contacts_offer_yes">Fetch them</string>
     <string name="settings_signal_fetch_contacts_offer_no">Not now</string>
+    <string name="settings_signal_discover_contacts_title">Find contacts on Signal</string>
+    <string name="settings_signal_discover_contacts_summary">Asks Signal which of this phone\'s contacts are on it, so you can write to someone who has not written first</string>
+    <string name="settings_signal_discover_contacts_confirm_title">Ask Signal about your contacts?</string>
+    <string name="settings_signal_discover_contacts_confirm_body">Your contacts\' phone numbers are sent to Signal\'s lookup service, scrambled so the service cannot read them. It is the same lookup Signal itself does, and it is the only way this phone can learn that someone is on Signal before they write to you.\n\nSignal limits how often an account may ask. This remembers what it has already asked about, so doing it again later is cheap.</string>
+    <string name="settings_signal_discover_contacts_confirm_yes">Look them up</string>
+    <string name="settings_signal_discover_contacts_confirm_no">Not now</string>
+    <string name="settings_signal_discover_contacts_failed">Signal would not answer. Nothing was changed.</string>
     <string name="settings_signal_fetch_contacts_summary">Where the people you know do not appear under On Signal in a new message. Newer Signal keeps its contact list on its own servers rather than sending it here, and this asks for the key that reads it</string>
     <string name="settings_signal_status_direct_offline">Not connected to Signal — reconnecting</string>
     <string name="settings_signal_status_direct_ok">Connected to Signal</string>

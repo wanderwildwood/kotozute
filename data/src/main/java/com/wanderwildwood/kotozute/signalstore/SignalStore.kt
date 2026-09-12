@@ -388,6 +388,29 @@ class SignalStore(private val context: Context) {
         return if (dropped.isEmpty()) line else "$line · skipped ${dropped.joinToString(", ")}"
     }
 
+    /**
+     * Asks Signal which of [numbers] are on it, and keeps the ones that are.
+     *
+     * Separate from [readStorage], which reads people the account already has a record for.
+     * This is the only way somebody in the phone's own address book who has never written
+     * first can become writable-to.
+     *
+     * Says what it did in a sentence, the same as the rest of this class.
+     */
+    fun discover(numbers: Set<String>): String {
+        val result = SignalDiscovery(connection, contacts, discovery).read(numbers)
+        if (result.reason != null) return result.reason
+        if (result.asked == 0) return "Every number has been looked up already"
+        val parts = listOfNotNull(
+            "${result.found} on Signal, from ${result.asked} number(s)",
+            // Said out loud rather than folded into the total: these are people the lookup
+            // did find, and not keeping them is this app's limitation rather than an absence.
+            result.withoutAci.takeIf { it > 0 }
+                ?.let { "$it more do not publish an account id, so cannot be added yet" }
+        )
+        return parts.joinToString(" · ")
+    }
+
     /** Whether the storage service key is here yet. */
     fun storageKeyKnown(): Boolean = runCatching { keys.known() }.getOrDefault(false)
 
@@ -506,6 +529,9 @@ class SignalStore(private val context: Context) {
 
     /** The account's own keys; see [SignalKeyStore] for why they are kept where they are. */
     internal val keys: SignalKeyStore by lazy { SignalKeyStore(database) }
+
+    /** What contact discovery has already asked about; see [SignalDiscoveryStore]. */
+    internal val discovery: SignalDiscoveryStore by lazy { SignalDiscoveryStore(database) }
 
     /** The name known for a service id, or null. */
     /** A peer's safety number and trust level, or null if they are unknown to the store. */

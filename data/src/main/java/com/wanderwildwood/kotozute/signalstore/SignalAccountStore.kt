@@ -98,10 +98,44 @@ internal class SignalAccountStore(private val db: ProtocolDatabase) {
         )
     }
 
+    /**
+     * Throws away every session and sender key from a previous link.
+     *
+     * ⚠ A re-link gives this device a new device id, new identity keys and new registration
+     * ids -- but the sessions, sender keys and sender-key-shared rows from the old link are
+     * describing the device that no longer exists. Left in place, a send goes out over a
+     * session built for the old device id with the old registration id, and the recipient has
+     * nothing that matches: the message is undecryptable on arrival and there is nothing in
+     * the conversation to explain it.
+     *
+     * Sessions are cheap to lose and rebuild on the next message. Identity keys for peers are
+     * deliberately kept: those are what safety numbers are, and forgetting them would turn
+     * every contact into a first sighting and silence every change anybody had verified.
+     */
+    fun forgetSessionsFromPreviousLink() = inTransaction {
+        db.writableDatabase.execSQL("DELETE FROM session")
+        db.writableDatabase.execSQL("DELETE FROM sender_key")
+        db.writableDatabase.execSQL("DELETE FROM sender_key_shared")
+    }
+
     fun saveProfileKey(profileKey: ByteArray) = inTransaction {
         db.writableDatabase.execSQL(
             "UPDATE account SET profile_key = ? WHERE _id = 1", arrayOf(profileKey)
         )
+    }
+
+    /**
+     * This account's own profile key, or null before one has been learned.
+     *
+     * It arrives in the provisioning message at linking and is what every message this device
+     * sends must carry -- it is how the person on the other end can fetch our name, and how
+     * they can send to us sealed. It was written here and never read once, so every message
+     * this phone sent was withholding it: the recipient saw a bare service id and had to send
+     * to us identified, for ever.
+     */
+    fun profileKey(): ByteArray? = withLock {
+        db.readableDatabase.rawQuery("SELECT profile_key FROM account WHERE _id = 1", null)
+            .use { c -> if (c.moveToFirst()) c.getBlob(0) else null }
     }
 
     // --- identity ----------------------------------------------------------------------

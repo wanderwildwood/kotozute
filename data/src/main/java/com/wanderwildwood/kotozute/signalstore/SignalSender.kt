@@ -41,6 +41,20 @@ internal class SignalSender(
 
     private val sealedSender by lazy { SealedSender(connection, contacts) }
 
+    /**
+     * This account's profile key, on every message this device sends.
+     *
+     * Signal puts it on outgoing messages to anyone you have chosen to write to, and sending
+     * somebody a message *is* that choice -- `RecipientUtil.shareProfileIfFirstSecureMessage`
+     * turns sharing on at exactly this moment. Withholding it is not a private-by-default
+     * posture, it is a broken conversation: without it the person on the other end cannot
+     * fetch our name, so we show up as a bare service id, and cannot derive our access key, so
+     * every message they send back has to name them to the server.
+     */
+    private val selfProfileKey: ByteArray? by lazy {
+        runCatching { accounts.profileKey() }.getOrNull()
+    }
+
     private val messageLog by lazy { SignalMessageLog(db) }
 
     /**
@@ -52,6 +66,14 @@ internal class SignalSender(
      */
     private fun rememberSend(result: SendMessageResult, timestamp: Long, groupId: ByteArray?) {
         if (!result.isSuccess) return
+        // What the send taught us about this person's sealed sender. Only a send that
+        // actually happened is evidence, which is what the check above already ensures.
+        runCatching {
+            sealedSender.recordOutcome(
+                result.address.serviceId.toString(),
+                result.success?.isUnidentified == true
+            )
+        }
         val content = result.success?.content?.orElse(null) ?: return
         runCatching {
             messageLog.remember(
@@ -179,6 +201,7 @@ internal class SignalSender(
         val message = SignalServiceDataMessage.newBuilder()
             .withBody(body)
             .withTimestamp(timestamp)
+            .withProfileKey(selfProfileKey)
             .asGroupMessage(group)
             // The group's own timer. Sent with every message, as Signal does: a message with
             // no timer is not "unspecified", it is a timer of zero, and a group that had
@@ -471,6 +494,7 @@ internal class SignalSender(
         val timestamp = System.currentTimeMillis()
         val message = SignalServiceDataMessage.newBuilder()
             .withTimestamp(timestamp)
+            .withProfileKey(selfProfileKey)
             .withReaction(
                 SignalServiceDataMessage.Reaction(emoji, remove, targetAuthor, targetSentTimestamp)
             )
@@ -522,6 +546,7 @@ internal class SignalSender(
 
         val message = SignalServiceDataMessage.newBuilder()
             .withTimestamp(timestamp)
+            .withProfileKey(selfProfileKey)
             .asGroupMessage(group)
             .withReaction(
                 SignalServiceDataMessage.Reaction(emoji, remove, targetAuthor, targetSentTimestamp)
@@ -574,6 +599,7 @@ internal class SignalSender(
         val message = SignalServiceDataMessage.newBuilder()
             .withBody(body)
             .withTimestamp(timestamp)
+            .withProfileKey(selfProfileKey)
             .apply { if (streams.isNotEmpty()) withAttachments(streams) }
             // The conversation's timer, re-asserted on every message the way Signal does.
             // Omitting it does not leave the timer alone: a data message with no expireTimer

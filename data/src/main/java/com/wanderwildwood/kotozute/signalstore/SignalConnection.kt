@@ -97,6 +97,11 @@ internal class SignalConnection(
 
     val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
 
+    /** The account itself: what this device can do, and what it is. */
+    val account: org.whispersystems.signalservice.api.account.AccountApi by lazy {
+        org.whispersystems.signalservice.api.account.AccountApi(authenticated)
+    }
+
     /** Group operations need the zk parameters as well as the socket. */
     val groups: org.whispersystems.signalservice.api.groupsv2.GroupsV2Api by lazy {
         org.whispersystems.signalservice.api.groupsv2.GroupsV2Api(

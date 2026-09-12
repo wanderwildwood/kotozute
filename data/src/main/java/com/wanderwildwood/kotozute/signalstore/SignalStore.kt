@@ -135,6 +135,41 @@ class SignalStore(private val context: Context) {
      */
     fun maintainPreKeys(): String = runPreKeys(maintenanceOnly = true)
 
+    /**
+     * Tells the server what this device can do, once per run of the app.
+     *
+     * Capabilities were declared at linking and never again. They are not a fixed fact about
+     * the account: they are a claim by *this build*, and the server hands them to everybody
+     * who sends to us -- a peer that reads them decides on their strength whether to use a
+     * newer message shape at all. So a device that gains an ability in an update goes on being
+     * treated as though it had not, indefinitely, and one that had to withdraw a claim goes on
+     * being sent things it cannot read.
+     *
+     * A linked device may not set the account's attributes -- that is the primary's -- so this
+     * is the narrow endpoint Signal's own linked devices use, and only capabilities are sent.
+     * Phone-number discoverability is deliberately left alone: it is the account owner's
+     * privacy setting, this device does not read it, and refreshing it from a default would be
+     * changing something nobody asked to change.
+     *
+     * Once per process, as `RefreshAttributesJob` does, because nothing changes between two
+     * calls in the same run.
+     */
+    fun refreshCapabilities(): String {
+        if (capabilitiesRefreshed) return "already done this run"
+        connection.connect()
+        val result = connection.account.setCapabilities(SignalCapabilities.forRefresh())
+        return when (result) {
+            is org.signal.libsignal.net.RequestResult.Success -> {
+                capabilitiesRefreshed = true
+                "capabilities refreshed"
+            }
+            else -> throw IllegalStateException("the server would not take our capabilities: $result")
+        }
+    }
+
+    @Volatile
+    private var capabilitiesRefreshed = false
+
     private fun runPreKeys(maintenanceOnly: Boolean): String {
         connection.connect()
         return try {

@@ -363,6 +363,20 @@ internal class SignalReceiver(
         )
         return try {
             cipher.decrypt(envelope, serverDeliveredTimestamp)?.let { result ->
+                // First, before anything else in this batch is decrypted. A group send
+                // encrypts once to a key the sender distributes separately, and the message
+                // that carries the key can arrive in the same batch as messages that need
+                // it. Handled later -- or not at all, which is what happened here -- every
+                // group message from a sender using sender keys fails to decrypt, and the
+                // failure looks like a broken message rather than a missing key.
+                result.content.senderKeyDistributionMessage?.let { distribution ->
+                    acceptSenderKey(
+                        result.metadata.sourceServiceId.toString(),
+                        result.metadata.sourceDeviceId,
+                        distribution.toByteArray()
+                    )
+                }
+
                 // A receipt is about a message we already have, not a new one, so it is
                 // handled here and never reaches the normalizer -- which would find nothing
                 // in it and drop it silently.
@@ -474,6 +488,32 @@ internal class SignalReceiver(
      * asked for. It has to be taken when offered, which means every message, not just the
      * first: a rotated key arrives the same way and a stale one decrypts nothing.
      */
+    /**
+     * Keeps the key a sender uses for their group messages.
+     *
+     * A group send is encrypted once, to a key the sender hands out beforehand in an ordinary
+     * one-to-one message. Store it and their group messages open; ignore it and they never do.
+     * The store was already wired into the protocol store -- nothing ever put anything in it.
+     *
+     * Adapted from Signal Android's `MessageDecryptor.handleSenderKeyDistributionMessage`,
+     * including where it sits: before the rest of the batch, not after.
+     */
+    private fun acceptSenderKey(sender: String, deviceId: Int, distribution: ByteArray) {
+        if (sender.isBlank()) return
+        runCatching {
+            val message = org.signal.libsignal.protocol.message.SenderKeyDistributionMessage(distribution)
+            org.whispersystems.signalservice.api.crypto.SignalGroupSessionBuilder(
+                sessionLock,
+                org.signal.libsignal.protocol.groups.GroupSessionBuilder(protocol.aci())
+            ).process(SignalProtocolAddress(sender, deviceId), message)
+            Timber.i("signal group key: kept a sender key for distribution %s", message.distributionId)
+        }.onFailure {
+            // Not fatal to the envelope that carried it: that message is still a message, and
+            // it decrypted. Only this sender's group messages are affected.
+            Timber.w(it, "signal group key: a sender key would not be kept")
+        }
+    }
+
     /**
      * Asks the sender to send it again, after a decrypt this phone could not do.
      *

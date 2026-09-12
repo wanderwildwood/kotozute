@@ -77,29 +77,44 @@ internal class SignalIdentityKeyStore(
     }
 
     /**
-     * signal-cli's policy, kept deliberately rather than simplified.
+     * Signal's policy: guard what we send, never refuse what we are sent.
      *
-     * The asymmetry between directions is the whole of it: a first sighting is trusted on
-     * faith, a *changed* key blocks receiving outright but is merely recorded when sending, so
-     * the send fails at the trust check rather than silently going to a stranger.
+     * The asymmetry is the point, and it runs the opposite way to intuition. **Sending** to a
+     * changed key is the dangerous direction -- that is where a message could go to somebody
+     * who is not who the user thinks -- so a changed key is recorded untrusted and the send
+     * stops at this check. **Receiving** is unconditionally trusted, because refusing protects
+     * nothing: the message was encrypted to us, reading it tells us who it is really from, and
+     * the safety number shown afterwards is what lets the user judge it.
+     *
+     * ⚠ This used to return false on a changed key when receiving, described as signal-cli's
+     * policy. It is signal-cli's, but signal-cli is a shell where an operator then runs
+     * `trust`; there is no such step here. The effect was that a contact who reinstalled
+     * Signal or got a new phone became **permanently unreachable**: their next message throws
+     * an untrusted-identity error, the retained envelope is retried and fails identically for
+     * ever, and nothing in the app could accept the new key, because accepting only ever
+     * re-accepted the key already stored. A conversation that could never recover.
+     *
+     * See `SignalBaseIdentityKeyStore.isTrustedIdentity` in Signal Android, which is two lines
+     * for exactly this reason.
      */
     override fun isTrustedIdentity(
         address: SignalProtocolAddress,
         identityKey: IdentityKey,
         direction: IdentityKeyStore.Direction
     ): Boolean = db.lock.withLockReentrant {
+        // Reading what somebody sent us is always allowed. libsignal calls saveIdentity next,
+        // which records the new key and marks it untrusted, so the *next send* still stops
+        // here and the user still gets told the safety number changed.
+        if (direction == IdentityKeyStore.Direction.RECEIVING) return@withLockReentrant true
+
         val name = address.name
         var known = loadIdentity(name)
         if (known == null) {
             insertIdentity(name, identityKey, TRUSTED_UNVERIFIED)
             known = loadIdentity(name)
         } else if (known.key != identityKey) {
-            if (direction == IdentityKeyStore.Direction.SENDING) {
-                insertIdentity(name, identityKey, UNTRUSTED)
-                known = loadIdentity(name)
-            } else {
-                return@withLockReentrant false
-            }
+            insertIdentity(name, identityKey, UNTRUSTED)
+            known = loadIdentity(name)
         }
         known != null && known.trustLevel > UNTRUSTED
     }

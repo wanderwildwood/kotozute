@@ -136,7 +136,12 @@ internal class SignalSender(
                 SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
                 null,
                 null,
-                false
+                // urgent. The server uses this to decide whether to wake a dozing
+                // recipient with a high-priority push. Sent non-urgent, an ordinary
+                // message waits until their phone next connects on its own schedule --
+                // which, on a phone built to stay asleep, is exactly the case where
+                // somebody would say the message never arrived.
+                true
             )
             val failed = results.filterNot { it.isSuccess }
             if (failed.isEmpty()) {
@@ -412,7 +417,12 @@ internal class SignalSender(
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,
                 false,
-                false
+                // urgent. The server uses this to decide whether to wake a dozing
+                // recipient with a high-priority push. Sent non-urgent, an ordinary
+                // message waits until their phone next connects on its own schedule --
+                // which, on a phone built to stay asleep, is exactly the case where
+                // somebody would say the message never arrived.
+                true
             )
             if (result.isSuccess) {
                 Timber.i("signal reaction: delivered ts=%d", timestamp)
@@ -461,7 +471,12 @@ internal class SignalSender(
                 SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
                 null,
                 null,
-                false
+                // urgent. The server uses this to decide whether to wake a dozing
+                // recipient with a high-priority push. Sent non-urgent, an ordinary
+                // message waits until their phone next connects on its own schedule --
+                // which, on a phone built to stay asleep, is exactly the case where
+                // somebody would say the message never arrived.
+                true
             )
             val failed = results.filterNot { it.isSuccess }
             if (failed.isEmpty()) Result.Sent(timestamp)
@@ -518,7 +533,12 @@ internal class SignalSender(
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,
                 false,
-                false
+                // urgent. The server uses this to decide whether to wake a dozing
+                // recipient with a high-priority push. Sent non-urgent, an ordinary
+                // message waits until their phone next connects on its own schedule --
+                // which, on a phone built to stay asleep, is exactly the case where
+                // somebody would say the message never arrived.
+                true
             )
             if (result.isSuccess) {
                 Timber.i("signal send: delivered ts=%d", timestamp)

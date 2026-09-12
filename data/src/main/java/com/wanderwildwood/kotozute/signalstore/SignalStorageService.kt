@@ -120,8 +120,15 @@ internal class SignalStorageService(
             ?.takeIf { it.size > 0 }
             ?.let { RecordIkm(it.toByteArray()) }
 
+        // Contacts **and** groups. Only contacts were asked for, which meant every group
+        // record in the account went unread -- and a group record is where the account keeps
+        // whether that group is blocked or muted. A group blocked in Signal went on arriving
+        // here, and there was nothing in the manifest request that would ever have said so.
         val wanted = manifestRecord.identifiers
-            .filter { it.type == ManifestRecord.Identifier.Type.CONTACT }
+            .filter {
+                it.type == ManifestRecord.Identifier.Type.CONTACT ||
+                    it.type == ManifestRecord.Identifier.Type.GROUPV2
+            }
             .mapNotNull { it.raw }
         if (wanted.isEmpty()) return Result(0, 0, null)
 
@@ -135,6 +142,8 @@ internal class SignalStorageService(
         var unreadable = 0
         // Who the account's own records say is blocked. Gathered whole and applied once, below.
         val blockedPeople = mutableListOf<SignalBlockStore.Blocked>()
+        val blockedGroups = mutableListOf<ByteArray>()
+        var groupsSeen = 0
         // In batches: a manifest can name thousands of records, and the service takes a list
         // of ids per request rather than all of them.
         wanted.chunked(BATCH).forEach { batch ->
@@ -156,6 +165,16 @@ internal class SignalStorageService(
                         SignalStorageCipher.decrypt(itemKey, item.value_.toByteArray())
                     )
                 }.getOrElse { unopened++; null } ?: return@mapNotNull null
+
+                // A group record. Not a contact, and not a record this cannot use -- so it is
+                // taken here rather than counted as a miss.
+                record.groupV2?.let { group ->
+                    groupsSeen++
+                    if (group.blocked) {
+                        groupIdOf(group.masterKey?.toByteArray())?.let { blockedGroups += it }
+                    }
+                    return@mapNotNull null
+                }
                 record.contact ?: run { notContacts++; null }
             }
             val people = found.mapNotNull { record ->
@@ -237,7 +256,7 @@ internal class SignalStorageService(
         // **unblocks** whoever was in the batch that did not arrive, silently, and the next
         // message from them lands in the inbox as though nothing had been decided.
         if (unreadable == 0) {
-            runCatching { blocked(blockedPeople, emptyList()) }
+            runCatching { blocked(blockedPeople, blockedGroups) }
                 .onFailure { Timber.w(it, "signal storage: the blocked list would not keep") }
         } else {
             Timber.w(
@@ -246,6 +265,11 @@ internal class SignalStorageService(
             )
         }
 
+        if (groupsSeen > 0 || blockedGroups.isNotEmpty()) {
+            Timber.i(
+                "signal storage: %d group record(s), %d of them blocked", groupsSeen, blockedGroups.size
+            )
+        }
         Timber.i(
             "signal storage: %d contact(s) from %d record(s), %d of them known only by phone-number identity; " +
                 "dropped %d unopened, %d not contacts, %d with no id at all (%d of those had a number)",
@@ -256,6 +280,9 @@ internal class SignalStorageService(
 
     companion object {
         private const val BATCH = 200
+
+        /** A group master key is 32 bytes; anything else is not one, whatever it decodes to. */
+        private const val GROUP_MASTER_KEY_SIZE = 32
 
         /**
          * The account id on a contact record, from whichever field carries it.
@@ -311,6 +338,25 @@ internal class SignalStorageService(
          * `systemNickname` is deliberately not in this chain: Signal stores it but does not
          * display it, and putting it here would be inventing an order rather than copying one.
          */
+        /**
+         * The id a group thread is keyed by, derived from the master key its record carries.
+         *
+         * The same derivation a live group message goes through, so a group blocked in the
+         * account's records matches the thread this phone already holds.
+         */
+        fun groupIdOf(masterKey: ByteArray?): ByteArray? {
+            if (masterKey == null || masterKey.size != GROUP_MASTER_KEY_SIZE) return null
+            return runCatching {
+                org.signal.libsignal.zkgroup.groups.GroupSecretParams
+                    .deriveFromMasterKey(
+                        org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey)
+                    )
+                    .publicParams
+                    .groupIdentifier
+                    .serialize()
+            }.getOrNull()
+        }
+
         fun nameOf(record: ContactRecord): String? {
             val nickname = joined(record.nickname?.given, record.nickname?.family)
             if (nickname != null) return nickname

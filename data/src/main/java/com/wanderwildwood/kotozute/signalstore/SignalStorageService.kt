@@ -255,13 +255,29 @@ internal class SignalStorageService(
          * everywhere else in this app: it is what they call this person, where the profile
          * name is what the person calls themselves.
          */
+        /**
+         * What to call this person, in Signal's own order of preference.
+         *
+         * ⚠ The **nickname** comes first, and was not being read at all. It is the name the
+         * account owner has typed for this person themselves, in Signal, overriding everything
+         * else -- which is exactly why Signal ranks it above the address book and above the
+         * profile. Skipping it meant a contact deliberately renamed showed up here under a
+         * different name than the one their own phone shows, or, for somebody with no other
+         * name and no number, under no name at all.
+         *
+         * `systemNickname` is deliberately not in this chain: Signal stores it but does not
+         * display it, and putting it here would be inventing an order rather than copying one.
+         */
         fun nameOf(record: ContactRecord): String? {
-            val system = listOf(record.systemGivenName, record.systemFamilyName)
-                .joinToString(" ") { it.orEmpty() }.trim()
-            if (system.isNotBlank()) return system
-            val profile = listOf(record.givenName, record.familyName)
-                .joinToString(" ") { it.orEmpty() }.trim()
-            return profile.takeIf { it.isNotBlank() }
+            val nickname = joined(record.nickname?.given, record.nickname?.family)
+            if (nickname != null) return nickname
+            val system = joined(record.systemGivenName, record.systemFamilyName)
+            if (system != null) return system
+            return joined(record.givenName, record.familyName)
         }
+
+        /** Given and family into one name, or null when there is nothing to join. */
+        private fun joined(given: String?, family: String?): String? =
+            listOf(given, family).joinToString(" ") { it.orEmpty() }.trim().takeIf { it.isNotBlank() }
     }
 }

@@ -268,3 +268,10 @@ the details, and the details are where a hand-rolled version silently differs.
 
 None of these are modified in place; where Signal's code is adapted rather than linked, the
 adaptation says so where it sits. Anyone redistributing a build should carry this notice.
+
+Signal Android is watched the way this fork's other upstreams are. A blobless clone lives at
+`/opt/projects/signal-android-upstream`, and the weekly upstream scan tracks it with a
+watermark, scoped to the paths the Signal rail actually takes from — message decryption,
+contact discovery, the recipient model, and key handling. Signal lands dozens of commits a day
+across a whole product; without that scope the entry would be noise, and an alert nobody reads
+is the same as no alert.

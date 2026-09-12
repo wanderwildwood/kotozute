@@ -2,6 +2,7 @@ package com.wanderwildwood.kotozute.signalstore
 
 import org.signal.core.models.ServiceId
 import org.signal.libsignal.metadata.certificate.CertificateValidator
+import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.whispersystems.signalservice.api.SignalSessionLock
 import org.whispersystems.signalservice.api.crypto.SignalServiceCipher
 import org.whispersystems.signalservice.api.messages.EnvelopeResponse
@@ -380,6 +381,14 @@ internal class SignalReceiver(
                 // in the phone's own address book instead of showing a raw service id.
                 rememberDestination(result.content)
 
+                // Proof, from the person themselves, that a phone-number identity and an
+                // account id are one person. Discovery hands this phone a PNI and nothing
+                // else, so without this the pairing only ever arrives second-hand, in one of
+                // the account's own storage records.
+                result.content.pniSignatureMessage?.let { signature ->
+                    rememberVerifiedPni(signature, result.metadata)
+                }
+
                 // A contacts sync is not a message and never becomes one -- it is the
                 // primary answering a request, and the only way this device learns anybody's
                 // name. Handled before normalizing, which would find nothing to store in it.
@@ -456,6 +465,64 @@ internal class SignalReceiver(
      * asked for. It has to be taken when offered, which means every message, not just the
      * first: a rotated key arrives the same way and a stale one decrypts nothing.
      */
+    /**
+     * Associates an account id with a phone-number identity, but only on proof.
+     *
+     * The sender signs their PNI identity key with their ACI identity key; verifying it says
+     * the two keys belong to the same person, which is the one claim worth acting on. An
+     * unverified claim would let anybody assert somebody else's PNI and take over the
+     * conversation held under it -- so a signature that does not check out is dropped, and
+     * loudly enough to find in a log.
+     *
+     * Adapted from Signal Android's `MessageDecryptor.handlePniSignatureMessage`, which is
+     * where the shape of this -- which identity store to ask, and what to do when the PNI
+     * identity is only known for device 1 -- comes from.
+     */
+    private fun rememberVerifiedPni(
+        message: org.whispersystems.signalservice.internal.push.PniSignatureMessage,
+        metadata: org.whispersystems.signalservice.api.crypto.EnvelopeMetadata
+    ) {
+        val pniBytes = message.pni?.toByteArray() ?: return
+        val signature = message.signature?.toByteArray() ?: return
+        val pni = org.signal.core.models.ServiceId.PNI.parseOrNull(pniBytes) ?: return
+        val aci = metadata.sourceServiceId.toString().takeIf { it.isNotBlank() } ?: return
+
+        // Already known, from here or from the account's own records. Verifying again costs
+        // two store reads and a curve operation to reach the same conclusion.
+        if (runCatching { contacts.aciForPni(pni.toString()) }.getOrNull() == aci) return
+
+        val store = protocol.aci()
+        val deviceId = metadata.sourceDeviceId
+        val aciIdentity = runCatching {
+            store.getIdentity(SignalProtocolAddress(aci, deviceId))
+        }.getOrNull() ?: run {
+            Timber.w("signal pni: no identity for the sender, so nothing to check a signature against")
+            return
+        }
+        // The PNI identity may only be on file for the primary device: a session with one of
+        // somebody's other devices does not imply one with their phone-number identity on
+        // that same device.
+        val pniIdentity = runCatching {
+            store.getIdentity(SignalProtocolAddress(pni.toString(), deviceId))
+                ?: store.getIdentity(SignalProtocolAddress(pni.toString(), DEFAULT_DEVICE_ID))
+        }.getOrNull() ?: run {
+            Timber.w("signal pni: no identity on file for the phone-number identity being claimed")
+            return
+        }
+
+        val proven = runCatching { pniIdentity.verifyAlternateIdentity(aciIdentity, signature) }
+            .getOrDefault(false)
+        if (!proven) {
+            // Not an error to recover from -- it is somebody claiming an identity that is not
+            // theirs, or a corrupted message. Either way the pairing is not taken.
+            Timber.w("signal pni: a phone-number identity was claimed with a signature that does not check out")
+            return
+        }
+        runCatching { contacts.pair(pni.toString(), aci) }
+            .onFailure { Timber.w(it, "signal pni: a verified pairing would not keep") }
+        Timber.i("signal pni: a phone-number identity was proved to belong to a known account")
+    }
+
     private fun rememberProfileKey(
         content: org.whispersystems.signalservice.internal.push.Content,
         metadata: org.whispersystems.signalservice.api.crypto.EnvelopeMetadata
@@ -588,6 +655,9 @@ internal class SignalReceiver(
 
     companion object {
         private const val BATCH_SIZE = 10
+
+        /** Signal's primary device. A PNI identity is usually only on file for this one. */
+        private const val DEFAULT_DEVICE_ID = 1
 
         /**
          * Who an envelope came from, from whichever field the server filled.

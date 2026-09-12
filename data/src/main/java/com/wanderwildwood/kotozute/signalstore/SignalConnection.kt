@@ -26,7 +26,14 @@ internal class SignalConnection(
     private val accounts: SignalAccountStore,
     private val userAgent: String,
     private val configuration: org.signal.network.config.SignalServiceConfiguration =
-        SignalNetworkConfig.production()
+        SignalNetworkConfig.production(),
+    /**
+     * Called when the server refuses this device outright. See
+     * [SignalSocketHealthMonitor.onRejected] -- given to both sockets, because a deprecated
+     * client is refused on either, even though only the authenticated one can fail to
+     * authenticate.
+     */
+    private val onRejected: (String) -> Unit = {}
 ) {
 
     /**
@@ -68,7 +75,7 @@ internal class SignalConnection(
 
     val authenticated: SignalWebSocket.AuthenticatedWebSocket by lazy {
         val timer = UptimeSleepTimer()
-        val monitor = SignalSocketHealthMonitor(timer)
+        val monitor = SignalSocketHealthMonitor(timer, onRejected)
         SignalWebSocket.AuthenticatedWebSocket(
             { LibSignalChatConnection("normal", network, credentials, ALLOW_STORIES, monitor) },
             { true },
@@ -79,7 +86,7 @@ internal class SignalConnection(
 
     val unauthenticated: SignalWebSocket.UnauthenticatedWebSocket by lazy {
         val timer = UptimeSleepTimer()
-        val monitor = SignalSocketHealthMonitor(timer)
+        val monitor = SignalSocketHealthMonitor(timer, onRejected)
         SignalWebSocket.UnauthenticatedWebSocket(
             { LibSignalChatConnection("unidentified", network, null, ALLOW_STORIES, monitor) },
             { true },

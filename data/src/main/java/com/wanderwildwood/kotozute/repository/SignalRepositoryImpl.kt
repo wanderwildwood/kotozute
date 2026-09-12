@@ -144,6 +144,29 @@ class SignalRepositoryImpl @Inject constructor(
 
     init {
         publishState(signalConnected = false, error = null)
+        signalStore.onRejected = ::onServerRefusedThisDevice
+    }
+
+    /**
+     * The server has refused this device: the account no longer has it, or the build is too
+     * old to talk to.
+     *
+     * Both are permanent until someone acts, so the reconnect loop is retired rather than
+     * backed off. Left running it reconnects every minute for ever, and -- this is the part
+     * that matters -- the phone looks connected the whole time while no message can arrive.
+     *
+     * The reason is written down as well as published, because the next thing that happens is
+     * usually the app being restarted, and a reason held only in memory would take the
+     * explanation with it.
+     */
+    private fun onServerRefusedThisDevice(reason: String) {
+        if (prefs.signalRejected.get() == reason && !streamConnected.get()) return
+        Timber.w("signal: server refused this device: %s", reason)
+        prefs.signalRejected.set(reason)
+        runOffThread {
+            stopStream()
+            publishState(signalConnected = false, error = reason)
+        }
     }
 
     /** Whether this phone is on the account at all. Every screen keys its Signal UI off it. */
@@ -153,6 +176,7 @@ class SignalRepositoryImpl @Inject constructor(
         stopStream()
         prefs.signalEnabled.set(false)
         prefs.signalLastSync.set(0L)
+        prefs.signalRejected.set("")
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction {
                 it.delete(SignalMessage::class.java)
@@ -581,6 +605,10 @@ class SignalRepositoryImpl @Inject constructor(
                 // Pairing a bridge stays a separate step, because that one can be done to
                 // point at a machine that is not ready yet.
                 prefs.signalEnabled.set(true)
+                // A fresh link is the cure for every refusal, so the old reason must not
+                // outlive it -- otherwise a phone that has just been linked again shows the
+                // message telling its owner to link it again.
+                prefs.signalRejected.set("")
                 // The state has changed in a way nothing else will notice: this device was
                 // not a Signal device a moment ago and now is. Publishing it here is what
                 // makes the settings screen stop offering to link.
@@ -2284,6 +2312,7 @@ class SignalRepositoryImpl @Inject constructor(
                 signalConnected = signalConnected,
                 lastSyncedAt = prefs.signalLastSync.get(),
                 error = error,
+                rejected = prefs.signalRejected.get().takeIf { it.isNotBlank() },
             )
         )
     }

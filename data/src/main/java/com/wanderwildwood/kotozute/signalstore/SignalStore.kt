@@ -103,8 +103,19 @@ class SignalStore(private val context: Context) {
      */
     private val socketReader = java.util.concurrent.locks.ReentrantLock()
 
+    /**
+     * Where to report the server refusing this device.
+     *
+     * Settable rather than a constructor parameter because the connection is built lazily and
+     * lives for the process, while the thing that wants to know is the repository, which is
+     * constructed around this store. Assigning it later is enough: nothing can be refused
+     * before something has connected.
+     */
+    @Volatile
+    var onRejected: (String) -> Unit = {}
+
     internal val connection: SignalConnection by lazy {
-        SignalConnection(account, SignalNetworkConfig.USER_AGENT)
+        SignalConnection(account, SignalNetworkConfig.USER_AGENT, onRejected = { onRejected(it) })
     }
 
     /**

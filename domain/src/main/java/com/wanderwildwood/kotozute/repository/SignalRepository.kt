@@ -39,7 +39,16 @@ interface SignalRepository {
         /** This phone's own connection to Signal is up. */
         val signalConnected: Boolean,
         val lastSyncedAt: Long,
-        val error: String? = null
+        val error: String? = null,
+        /**
+         * Why the server refuses this device, or null if it does not.
+         *
+         * Separate from [error], which is whatever the last read threw and is usually a
+         * transient network string nobody should be shown. This one is permanent until its
+         * owner acts, and is the only thing worth interrupting them about: everything else
+         * recovers on its own.
+         */
+        val rejected: String? = null
     ) {
         /** Only then may the composer offer to send. */
         val canSend: Boolean get() = enabled && signalConnected

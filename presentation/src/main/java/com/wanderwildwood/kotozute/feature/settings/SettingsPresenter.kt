@@ -527,6 +527,11 @@ class SettingsPresenter @Inject constructor(
         val who = conn.contactSummary.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
 
         return when {
+            // A refusal is the one status that is not going to fix itself, so it replaces the
+            // line rather than decorating it. Saying "offline" here would be true and useless:
+            // the phone is offline because the account no longer has it, and only its owner
+            // can change that.
+            !conn.rejected.isNullOrBlank() -> conn.rejected.orEmpty()
             !conn.signalConnected ->
                 context.getString(R.string.settings_signal_status_direct_offline) + received + stuck + who
             else ->

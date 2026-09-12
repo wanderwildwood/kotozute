@@ -32,7 +32,19 @@ import kotlin.math.abs
  * Signal's own Android client uses an alarm-backed timer for exactly this reason. Not solved
  * here; recorded so it is a known limit rather than a surprise.
  */
-internal class SignalSocketHealthMonitor(private val sleepTimer: SleepTimer) : HealthMonitor {
+internal class SignalSocketHealthMonitor(
+    private val sleepTimer: SleepTimer,
+    /**
+     * Called when the server says this device is no longer welcome.
+     *
+     * ⚠ Without it the loop reconnects for ever. When the account owner removes this linked
+     * device -- an ordinary thing to do, and exactly what the unpair path does -- the server
+     * refuses the connection, the phone stops receiving anything, and nothing tells the
+     * reader: it goes on trying every minute, indefinitely, looking connected in the UI while
+     * no message can arrive.
+     */
+    private val onRejected: (String) -> Unit = {}
+) : HealthMonitor {
 
     private val executor = Executors.newSingleThreadExecutor()
     @Volatile private var webSocket: SignalWebSocket? = null
@@ -64,6 +76,16 @@ internal class SignalSocketHealthMonitor(private val sleepTimer: SleepTimer) : H
         executor.execute {
             needsKeepAlive = connectionState == WebSocketConnectionState.CONNECTED
             updateKeepAliveSenderStatus()
+            when (connectionState) {
+                WebSocketConnectionState.AUTHENTICATION_FAILED ->
+                    // Not a network problem and not worth retrying: the credentials this
+                    // device holds are no longer an account. Retrying is what it did before,
+                    // for ever, in silence.
+                    onRejected("This phone is no longer linked to Signal. Link it again to receive messages.")
+                WebSocketConnectionState.REMOTE_DEPRECATED ->
+                    onRejected("Signal will not accept this version any more. The app needs updating.")
+                else -> Unit
+            }
         }
     }
 
@@ -72,7 +94,13 @@ internal class SignalSocketHealthMonitor(private val sleepTimer: SleepTimer) : H
         executor.execute { lastKeepAliveReceived = received }
     }
 
-    override fun onMessageError(status: Int, isIdentifiedWebSocket: Boolean) = Unit
+    override fun onMessageError(status: Int, isIdentifiedWebSocket: Boolean) {
+        // 499 is the server saying this build is too old to talk to. Discarded before, so a
+        // deprecated client looked exactly like a flaky connection.
+        if (status == DEPRECATED_STATUS) {
+            onRejected("Signal will not accept this version any more. The app needs updating.")
+        }
+    }
 
     override fun onReceivedAlerts(alerts: Array<out String>, isIdentifiedWebSocket: Boolean) {
         if (alerts.isNotEmpty()) Timber.i("signal socket: server alerts: %s", alerts.joinToString(", "))
@@ -149,8 +177,12 @@ internal class SignalSocketHealthMonitor(private val sleepTimer: SleepTimer) : H
     }
 
     companion object {
+        /** The status the server answers with when the client is too old to talk to. */
+        private const val DEPRECATED_STATUS = 499
+
         /** Must be greater than [KEEP_ALIVE_TIMEOUT], or the check races the send. */
         private val KEEP_ALIVE_SEND_CADENCE = TimeUnit.SECONDS.toMillis(30)
         private val KEEP_ALIVE_TIMEOUT = TimeUnit.SECONDS.toMillis(20)
     }
+
 }

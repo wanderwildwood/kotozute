@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 16
+    const val VERSION = 17
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -394,6 +394,11 @@ internal object ProtocolStoreSchema {
           -- The @name they chose, where they have one. The last thing Signal will show
           -- somebody by before giving up and calling them Unknown.
           username TEXT,
+          -- This row's id in the account's storage service, base64 of sixteen random bytes.
+          -- ⚠ Rotated on every **local** change and on nothing else: the rotation IS the
+          -- record of "this differs from what the account holds". See [SignalContactStore.
+          -- rotateStorageId]. Null until the row has ever been pushed or marked.
+          storage_id TEXT,
           updated_timestamp INTEGER NOT NULL
         );
     """
@@ -566,7 +571,15 @@ internal object ProtocolStoreSchema {
         // A contact record carries one and it was not being read, so a person the account
         // knows only by their username -- no name, no number -- had nothing to be shown as
         // but a fragment of their service id.
-        16 to listOf("ALTER TABLE recipient ADD COLUMN username TEXT;")
+        16 to listOf("ALTER TABLE recipient ADD COLUMN username TEXT;"),
+        // v17: somewhere to record that a row differs from what the account holds.
+        //
+        // Signal gives every recipient a storage-service id and rotates it on every local
+        // change -- `rotateStorageId` fires from 31 places in its RecipientTable. That
+        // rotation is the dirty flag the sync diffs against; there is no separate "needs
+        // push" column. Nothing here writes to the storage service yet, so this only
+        // records. See docs/DECISION-storage-write.md for the order the rest goes in.
+        17 to listOf("ALTER TABLE recipient ADD COLUMN storage_id TEXT;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

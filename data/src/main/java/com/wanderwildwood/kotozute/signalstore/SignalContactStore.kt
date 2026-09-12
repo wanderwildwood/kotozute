@@ -2,6 +2,9 @@ package com.wanderwildwood.kotozute.signalstore
 
 import timber.log.Timber
 
+/** Sixteen random bytes, as Signal's `StorageSyncHelper.KEY_GENERATOR` makes them. */
+private const val STORAGE_ID_BYTES = 16
+
 /** Signal's `SealedSenderAccessMode`, by the same numbers it stores them under. */
 internal const val SEALED_SENDER_UNKNOWN = 0
 internal const val SEALED_SENDER_DISABLED = 1
@@ -476,6 +479,43 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             """.trimIndent(), null
         ).use { c ->
             generateSequence { if (c.moveToNext()) c.getString(0) to c.getString(1) else null }.toMap()
+        }
+    }
+
+    /**
+     * Marks this row as differing from what the account's records hold.
+     *
+     * A port of Signal's `rotateStorageId`: sixteen random bytes, base64 with padding. The new
+     * value is not meaningful in itself -- what matters is that it no longer matches the id in
+     * the manifest, which is how a sync finds what to push. Signal keeps no separate "dirty"
+     * column for the same reason.
+     *
+     * ⚠ **Local changes only.** Applying what the account just told us is not a local change,
+     * and rotating there would make this device permanently believe it had something to send --
+     * a loop between two devices each undoing the other, which is what Signal's
+     * `StorageSyncLoopDetector` exists to catch.
+     *
+     * Nothing writes to the storage service yet. This records; see
+     * `docs/DECISION-storage-write.md`.
+     */
+    fun rotateStorageId(serviceId: String) = withStoreLock(db) {
+        val id = ByteArray(STORAGE_ID_BYTES).also { java.security.SecureRandom().nextBytes(it) }
+        db.writableDatabase.execSQL(
+            "UPDATE recipient SET storage_id = ? WHERE aci = ? OR pni = ?",
+            arrayOf<Any?>(
+                android.util.Base64.encodeToString(id, android.util.Base64.NO_WRAP),
+                serviceId,
+                serviceId
+            )
+        )
+    }
+
+    /** Rows the account has not been told about, for the diff that will one day be a write. */
+    fun needingStoragePush(): List<String> = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT COALESCE(aci, pni) FROM recipient WHERE storage_id IS NOT NULL", null
+        ).use { c ->
+            generateSequence { if (c.moveToNext()) c.getString(0) else null }.toList()
         }
     }
 

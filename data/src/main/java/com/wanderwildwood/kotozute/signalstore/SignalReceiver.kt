@@ -561,6 +561,12 @@ internal class SignalReceiver(
                     }
                 }
 
+                // The account's own phone number has changed, and the primary is handing this
+                // device the identity that goes with it.
+                result.content.syncMessage?.pniChangeNumber?.let { change ->
+                    applyNumberChange(envelope, result, change)
+                }
+
                 // The account's settings. Sent when they change and on request, so this is
                 // how a device that was asleep catches up with a choice made elsewhere.
                 result.content.syncMessage?.configuration?.let { settings ->
@@ -795,6 +801,110 @@ internal class SignalReceiver(
                 Timber.w("signal receive: refused an envelope that did not validate")
                 false
             }
+        }
+    }
+
+    /**
+     * Takes a change of the account's own phone number from the primary.
+     *
+     * When the account's number changes, its **phone-number identity changes with it** -- a
+     * new PNI, a new identity key pair, a new signed prekey, a new registration id. The
+     * primary generates all of it, registers it with the server, and hands it to each linked
+     * device here. A device that ignores this keeps the old PNI and the old identity key, and
+     * every message afterwards addressed to the account's phone-number identity fails to
+     * decrypt, for ever, with nothing to explain it.
+     *
+     * Ported from `SyncMessageProcessor.handleSynchronizePniChangeNumber`, guards included --
+     * each of them is load-bearing:
+     *
+     * - **Only from device 1.** No other linked device may change this account's identity.
+     * - **Newer than the last one applied.** The server redelivers, and an old change arriving
+     *   late would replace live key material with superseded key material. That is what the
+     *   watermark in the account table is for.
+     * - **All fields present and sane**, because a half-applied change leaves this device
+     *   holding a PNI whose identity key it does not have.
+     *
+     * ⚠ `updatedPniBinary` is a **raw sixteen-byte UUID**, not the seventeen-byte service-id
+     * encoding used everywhere else in this file. Parsing it with the usual ServiceId helper
+     * reads it as the wrong kind of thing; the proto contract is different here and Signal
+     * says so in a comment at the same spot.
+     */
+    private fun applyNumberChange(
+        envelope: Envelope,
+        result: org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult,
+        change: org.whispersystems.signalservice.internal.push.SyncMessage.PniChangeNumber
+    ) {
+        val at = envelope.serverTimestamp ?: 0L
+        if (result.metadata.sourceDeviceId != DEFAULT_DEVICE_ID) {
+            Timber.w("signal number change: not from the primary device; ignoring")
+            return
+        }
+        if (accounts.credentials().aci.isNullOrBlank()) {
+            Timber.w("signal number change: this device does not know its own account yet; ignoring")
+            return
+        }
+        val applied = runCatching { accounts.lastPniChangeAt() }.getOrDefault(0L)
+        if (at <= applied) {
+            Timber.w("signal number change: not newer than the one already applied; treating as a replay")
+            return
+        }
+
+        val pni = runCatching {
+            val raw = envelope.updatedPniBinary?.takeIf { it.size == RAW_UUID_BYTES }
+            when {
+                raw != null -> java.nio.ByteBuffer.wrap(raw.toByteArray()).let {
+                    java.util.UUID(it.long, it.long)
+                }.toString()
+                !envelope.updatedPni.isNullOrBlank() ->
+                    java.util.UUID.fromString(envelope.updatedPni).toString()
+                else -> null
+            }
+        }.getOrNull() ?: run {
+            Timber.w("signal number change: no new phone-number identity on the envelope; ignoring")
+            return
+        }
+
+        val identityBytes = change.identityKeyPair?.toByteArray()
+        val signedPreKeyBytes = change.signedPreKey?.toByteArray()
+        val registrationId = change.registrationId ?: 0
+        val newE164 = change.newE164.orEmpty()
+        if (identityBytes == null || signedPreKeyBytes == null || registrationId <= 0 ||
+            !newE164.startsWith("+") || newE164.length < 4
+        ) {
+            Timber.w("signal number change: a required field is missing or unusable; ignoring")
+            return
+        }
+
+        runCatching {
+            val identity = org.signal.libsignal.protocol.IdentityKeyPair(identityBytes)
+            val signedPreKey =
+                org.signal.libsignal.protocol.state.SignedPreKeyRecord(signedPreKeyBytes)
+            val kyber = change.lastResortKyberPreKey?.toByteArray()
+                ?.let { org.signal.libsignal.protocol.state.KyberPreKeyRecord(it) }
+
+            // The identity first, so the stores below are written against the account this
+            // device is about to be.
+            accounts.applyNumberChange(newE164, pni, identity, registrationId, at)
+
+            val pniStore = protocol.pniOrNull()
+            if (pniStore != null) {
+                pniStore.storeSignedPreKey(signedPreKey.id, signedPreKey)
+                accounts.recordActiveSignedPreKey(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, signedPreKey.id)
+                if (kyber != null) {
+                    pniStore.storeLastResortKyberPreKey(kyber.id, kyber)
+                    accounts.recordActiveLastResortKyberPreKey(
+                        ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, kyber.id
+                    )
+                }
+            }
+            // Registered already: the primary submitted these to the server as part of the
+            // change, so from this device they are live rather than waiting to be uploaded.
+            Timber.i("signal number change: applied a new number and phone-number identity")
+        }.onFailure {
+            // Deliberately loud. A number change that will not apply leaves this device unable
+            // to read anything sent to the account's phone-number identity, and the only
+            // remedy is a re-link.
+            Timber.e(it, "signal number change: COULD NOT APPLY; this device may need re-linking")
         }
     }
 
@@ -1104,6 +1214,9 @@ internal class SignalReceiver(
 
         /** Signal's primary device. A PNI identity is usually only on file for this one. */
         private const val DEFAULT_DEVICE_ID = 1
+
+        /** A PNI on a change-number envelope is a bare UUID, not a service id. */
+        private const val RAW_UUID_BYTES = 16
 
         /**
          * What kind of ciphertext an envelope carried, in libsignal's numbering.

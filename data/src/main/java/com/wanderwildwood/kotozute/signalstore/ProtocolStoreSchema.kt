@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 13
+    const val VERSION = 14
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -36,6 +36,7 @@ internal object ProtocolStoreSchema {
           pni TEXT,
           device_id INTEGER NOT NULL DEFAULT 0,
           password TEXT,
+          last_pni_change_timestamp INTEGER NOT NULL DEFAULT 0,
           profile_key BLOB
         ) STRICT;
     """
@@ -529,7 +530,16 @@ internal object ProtocolStoreSchema {
         // Asked once is the whole of the fix.
         12 to listOf("ALTER TABLE envelope ADD COLUMN retry_requested INTEGER NOT NULL DEFAULT 0;"),
         // v13: what was recently sent, so a retry receipt can actually be answered.
-        13 to listOf(MESSAGE_LOG, MESSAGE_LOG_INDEX)
+        13 to listOf(MESSAGE_LOG, MESSAGE_LOG_INDEX),
+        // v14: when this device last applied a change of the account's own phone number.
+        //
+        // The server redelivers, so without somewhere to remember this a replayed change --
+        // or an old one arriving late -- would be applied again over a newer one, replacing
+        // live PNI identity key material with superseded key material. Signal keeps the same
+        // watermark for the same reason.
+        14 to listOf(
+            "ALTER TABLE account ADD COLUMN last_pni_change_timestamp INTEGER NOT NULL DEFAULT 0;"
+        )
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

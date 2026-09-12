@@ -57,6 +57,47 @@ internal class SignalAccountStore(private val db: ProtocolDatabase) {
             Timber.i("signal store: account saved, device id %d", deviceId)
         }
 
+    /** When this device last applied a change to the account's own phone number. */
+    fun lastPniChangeAt(): Long = withLock {
+        db.readableDatabase.rawQuery(
+            "SELECT last_pni_change_timestamp FROM account WHERE _id = 1", null
+        ).use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+    }
+
+    /**
+     * Applies a change of the account's own phone number, as the primary made it.
+     *
+     * Everything in one transaction: the number, the new phone-number identity, and the key
+     * material that goes with it. Half-applied, this device would hold a PNI whose identity
+     * key it does not have, and every message addressed to that identity would fail to
+     * decrypt with nothing to explain why.
+     */
+    fun applyNumberChange(
+        e164: String,
+        pni: String,
+        pniIdentity: IdentityKeyPair,
+        pniRegistrationId: Int,
+        serverTimestamp: Long
+    ) = inTransaction {
+        db.writableDatabase.execSQL(
+            "UPDATE account SET number = ?, pni = ?, last_pni_change_timestamp = ? WHERE _id = 1",
+            arrayOf<Any?>(e164, pni, serverTimestamp)
+        )
+        db.writableDatabase.execSQL(
+            """
+            UPDATE account_identity
+            SET identity_public = ?, identity_private = ?, registration_id = ?
+            WHERE account_id_type = ?
+            """.trimIndent(),
+            arrayOf<Any?>(
+                pniIdentity.publicKey.serialize(),
+                pniIdentity.privateKey.serialize(),
+                pniRegistrationId,
+                ProtocolDatabase.ACCOUNT_ID_TYPE_PNI
+            )
+        )
+    }
+
     fun saveProfileKey(profileKey: ByteArray) = inTransaction {
         db.writableDatabase.execSQL(
             "UPDATE account SET profile_key = ? WHERE _id = 1", arrayOf(profileKey)

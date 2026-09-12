@@ -181,4 +181,43 @@ class SignalDirectoryTest {
 
         assertEquals(1, people.size)
     }
+    @Test
+    fun `people with names come before people without`() {
+        // The Signal address book is browsed, not only searched, so what it opens on matters.
+        // Sorting on the display name alone put every unnamed person first: what stands in for
+        // their name is a phone number, and digits sort before letters.
+        val people = SignalDirectory.merge(
+            threads = emptyList(),
+            contacts = listOf(
+                SignalDirectory.Row("11111111-1111-4111-8111-111111111111", "", "+13162099737"),
+                SignalDirectory.Row("22222222-2222-4222-8222-222222222222", "Ada Lovelace", ""),
+                SignalDirectory.Row("33333333-3333-4333-8333-333333333333", "", "+14044082757"),
+                SignalDirectory.Row("44444444-4444-4444-8444-444444444444", "Grace Hopper", "")
+            ),
+            selfAci = null
+        )
+
+        assertEquals(listOf("Ada Lovelace", "Grace Hopper"), people.take(2).map { it.name })
+        // Still present, still in order, underneath.
+        assertEquals(listOf("+13162099737", "+14044082757"), people.drop(2).map { it.name })
+    }
+
+    @Test
+    fun `a name found only in the reader's own address book still counts as a name`() {
+        // The lookup is what makes these people recognisable at all, so it has to decide the
+        // order too -- otherwise somebody Signal does not name, but the phone does, would be
+        // sorted in with the strangers.
+        val people = SignalDirectory.merge(
+            threads = emptyList(),
+            contacts = listOf(
+                SignalDirectory.Row("11111111-1111-4111-8111-111111111111", "", "+13162099737"),
+                SignalDirectory.Row("22222222-2222-4222-8222-222222222222", "", "+12079076604")
+            ),
+            selfAci = null,
+            nameForNumber = { number -> "Maggie King".takeIf { number == "+12079076604" } }
+        )
+
+        assertEquals("Maggie King", people.first().name)
+    }
+
 }

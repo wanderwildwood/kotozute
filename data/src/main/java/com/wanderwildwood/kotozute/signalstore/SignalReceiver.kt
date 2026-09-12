@@ -567,6 +567,20 @@ internal class SignalReceiver(
                     applyNumberChange(envelope, result, change)
                 }
 
+                // "Go and read your records again." The account sends this when its stored
+                // contact list changes, and it is the only notice this device gets: a storage
+                // record carries no timestamp anybody watches and nothing polls it.
+                //
+                // Only STORAGE_MANIFEST is acted on. LOCAL_PROFILE is this account's own
+                // profile, which this app does not publish, and SUBSCRIPTION_STATUS is
+                // donations. Acting on those would mean a round trip for nothing.
+                result.content.syncMessage?.fetchLatest?.type?.let { type ->
+                    if (type == org.whispersystems.signalservice.internal.push.SyncMessage.FetchLatest.Type.STORAGE_MANIFEST) {
+                        runCatching { events.refreshStoredRecords() }
+                            .onFailure { Timber.w(it, "signal storage: could not act on a fetch request") }
+                    }
+                }
+
                 // The account's settings. Sent when they change and on request, so this is
                 // how a device that was asleep catches up with a choice made elsewhere.
                 result.content.syncMessage?.configuration?.let { settings ->
@@ -665,7 +679,11 @@ internal class SignalReceiver(
 
                 val normalized = ContentNormalizer.normalize(
                     result.content, result.metadata, credentials.aci, credentials.e164
-                )
+                ) { aci ->
+                    // Whatever this device knows them as. Nothing is fetched here: a mention
+                    // must not turn one message into a round trip per name.
+                    runCatching { contacts.nameFor(aci) }.getOrNull()
+                }
                 // Downloaded now, while the CDN still has them. See SignalAttachments: a
                 // pointer is only good for a window, so fetching lazily when a bubble is drawn
                 // fails for exactly the attachments worth keeping.

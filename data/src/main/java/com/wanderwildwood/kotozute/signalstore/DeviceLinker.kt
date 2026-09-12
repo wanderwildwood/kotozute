@@ -188,6 +188,12 @@ class DeviceLinker internal constructor(
             // A linked device is expected to speak all of them, so there is no honest smaller
             // claim to make; what is left is to actually handle each, and where the app does
             // not yet, that is a gap to close rather than a flag to unset.
+            //
+            // ⚠ With one exception, checked against upstream: **attachmentBackfill is not a
+            // gap.** Signal's own linked devices answer a backfill request by ignoring it --
+            // `SyncMessageProcessor.handleSynchronizeAttachmentBackfillRequest` returns
+            // immediately when `isLinkedDevice`. Only a primary answers. Doing nothing here is
+            // the correct behaviour, not an unfinished one.
             SignalCapabilities.forLinking()
         )
 

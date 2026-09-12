@@ -39,10 +39,6 @@ class SignalThreadInfoActivity : QkThemedActivity() {
 
     @Inject lateinit var signalRepo: SignalRepository
     @Inject lateinit var dateFormatter: DateFormatter
-    @Inject lateinit var markBlocked: com.wanderwildwood.kotozute.interactor.MarkBlocked
-    @Inject lateinit var markUnblocked: com.wanderwildwood.kotozute.interactor.MarkUnblocked
-    @Inject lateinit var deleteConversations:
-        com.wanderwildwood.kotozute.interactor.DeleteConversations
 
     /** The text conversation this one is joined to, when there is one. */
     private var linkedConversation: Long? = null
@@ -130,24 +126,15 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             binding.block.title = getString(blockRowTitle())
             val wanted = !blocked
             thread(isDaemon = true) {
+                // Through the one rule, so this screen, the list's menu and the browser
+                // cannot disagree about what blocking a row means.
                 val result = runCatching {
-                    signalRepo.setBlocked(threadKey, wanted)
-                    // And their texts, where the two are one conversation. A row that stands
-                    // for both rails and blocks only one of them stops half of what the
-                    // person can send -- which is not what anybody pressing this meant.
-                    signalRepo.linkedConversationId(threadKey)
-                        ?.takeIf { it != 0L }
-                        ?.let { id ->
-                            if (wanted) {
-                                markBlocked.execute(
-                                    com.wanderwildwood.kotozute.interactor.MarkBlocked.Params(
-                                        listOf(id), prefs.blockingManager.get(), null
-                                    )
-                                )
-                            } else {
-                                markUnblocked.execute(listOf(id))
-                            }
-                        }
+                    val ok = signalRepo.actOnPerson(
+                        threadKey,
+                        if (wanted) com.wanderwildwood.kotozute.repository.SignalRepository.PersonAction.BLOCK
+                        else com.wanderwildwood.kotozute.repository.SignalRepository.PersonAction.UNBLOCK
+                    )
+                    if (!ok) throw IllegalStateException("blocking did not work")
                 }
                 runOnUiThread {
                     if (isFinishing) return@runOnUiThread
@@ -279,14 +266,16 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             }
             binding.deleteThread.removeCallbacks(disarmDelete)
             deleteArmed = false
-            val alsoText = linkedConversation
             thread {
                 val result = runCatching {
-                    val gone = signalRepo.deleteThread(threadKey)
-                    // Both halves, because the inbox shows one row for both: deleting one
-                    // would leave the other standing under the same name, which reads as
-                    // the delete having half failed.
-                    alsoText?.let { deleteConversations.execute(listOf(it)) }
+                    val gone = signalRepo.countMessages(threadKey)
+                    // Both halves, through the one rule: deleting one would leave the other
+                    // standing under the same name, which reads as the delete half failing.
+                    val ok = signalRepo.actOnPerson(
+                        threadKey,
+                        com.wanderwildwood.kotozute.repository.SignalRepository.PersonAction.DELETE
+                    )
+                    if (!ok) throw IllegalStateException("nothing was deleted")
                     gone
                 }
                 runOnUiThread {

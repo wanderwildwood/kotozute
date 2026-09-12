@@ -19,6 +19,9 @@
 package com.wanderwildwood.kotozute.feature.conversations
 
 import android.content.Context
+import com.wanderwildwood.kotozute.repository.SignalRepository.PersonAction
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
@@ -60,7 +63,8 @@ class ConversationsAdapter @Inject constructor(
     private val dateFormatter: DateFormatter,
     private val scheduledMessageRepo: ScheduledMessageRepository,
     private val navigator: Navigator,
-    private val phoneNumberUtils: PhoneNumberUtils
+    private val phoneNumberUtils: PhoneNumberUtils,
+    private val signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
 ) : RecyclerView.Adapter<QkBindingViewHolder<ConversationListItemBinding>>() {
 
     private val disposables = CompositeDisposable()
@@ -225,11 +229,97 @@ class ConversationsAdapter @Inject constructor(
                 }
             }
             view.setOnLongClickListener {
-                val item = (getItem(adapterPosition) as? InboxItem.Sms)?.takeIf { it.isValid }
-                    ?: return@setOnLongClickListener true
-                toggleSelection(item.conversation.id)
-                view.isActivated = isSelected(item.conversation.id)
+                when (val item = getItem(adapterPosition)?.takeIf { it.isValid }) {
+                    is InboxItem.Sms -> {
+                        toggleSelection(item.conversation.id)
+                        view.isActivated = isSelected(item.conversation.id)
+                    }
+                    // A Signal row could not be selected and so offered nothing at all: no
+                    // archive, no pin, no mute, from a list where every other row has them.
+                    // Selection is the wrong shape for it -- the bulk actions above are
+                    // telephony ones keyed on a thread id -- so the long press opens the
+                    // same set directly, on the one row it was made on.
+                    is InboxItem.Signal -> showSignalRowMenu(view.context, item)
+                    null -> Unit
+                }
                 true
+            }
+        }
+    }
+
+    /**
+     * What a Signal row can be asked to do, from the list, as any other row can.
+     *
+     * The same set the browser offers on a right-click, in the same order, so the two do not
+     * disagree about what a row is for. Each one acts on the *person*: where their two rails
+     * are joined the text half goes with it, which is what a single row has to mean.
+     */
+    private fun showSignalRowMenu(context: Context, item: InboxItem.Signal) {
+        val thread = item.thread
+        val title = signalTitle(item)
+        val actions = buildList<Pair<String, PersonAction>> {
+            add(
+                if (thread.pinned) context.getString(R.string.main_menu_unpin) to PersonAction.UNPIN
+                else context.getString(R.string.main_menu_pin) to PersonAction.PIN
+            )
+            add(context.getString(R.string.main_menu_unread) to PersonAction.UNREAD)
+            add(
+                if (thread.muted) context.getString(R.string.signal_unmute) to PersonAction.UNMUTE
+                else context.getString(R.string.signal_mute) to PersonAction.MUTE
+            )
+            add(
+                if (thread.archived) context.getString(R.string.signal_unarchive) to PersonAction.UNARCHIVE
+                else context.getString(R.string.signal_archive) to PersonAction.ARCHIVE
+            )
+            // Block and Delete are asked about again before they happen; the rest are
+            // ordinary and reversible from the same menu.
+            add(context.getString(R.string.info_block) to PersonAction.BLOCK)
+            add(context.getString(R.string.info_delete) to PersonAction.DELETE)
+        }
+        val danger = setOf(PersonAction.BLOCK, PersonAction.DELETE)
+        AlertDialog.Builder(context)
+            .setTitle(title)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which ->
+                val (label, action) = actions[which]
+                if (action in danger) confirmSignalRowAction(context, title, label, thread.threadKey, action)
+                else runSignalRowAction(context, thread.threadKey, action)
+            }
+            .show()
+    }
+
+    /** The one place a row can destroy something, so it asks in words before it does. */
+    private fun confirmSignalRowAction(
+        context: Context,
+        title: String,
+        label: String,
+        threadKey: String,
+        action: PersonAction
+    ) {
+        val delete = action == PersonAction.DELETE
+        AlertDialog.Builder(context)
+            .setTitle(label + ": " + title)
+            .setMessage(
+                if (delete) R.string.info_delete_armed_summary
+                else R.string.info_block_both
+            )
+            .setPositiveButton(label) { _, _ -> runSignalRowAction(context, threadKey, action) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun runSignalRowAction(
+        context: Context,
+        threadKey: String,
+        action: PersonAction
+    ) {
+        // Off the main thread: blocking reaches the Signal account over the network, and
+        // the rest touch two databases.
+        kotlin.concurrent.thread(isDaemon = true) {
+            val done = signalRepo.actOnPerson(threadKey, action)
+            if (!done) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    Toast.makeText(context, R.string.signal_action_failed, Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

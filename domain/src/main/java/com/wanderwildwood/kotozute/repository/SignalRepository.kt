@@ -293,6 +293,23 @@ interface SignalRepository {
      */
     fun deleteThread(threadKey: String): Int
 
+    /**
+     * Something done to a person rather than to one of their two conversations.
+     *
+     * The inbox shows one row for somebody who is on both rails, so archiving, muting,
+     * pinning, blocking or deleting from that row has to reach both halves or the row does
+     * half of what it says -- archiving took the row away and let the text conversation
+     * spring back as a row of its own, muting left half the messages chiming.
+     *
+     * One place, because three screens ask for it: the thread's details, the list's own
+     * menu, and the browser. Three copies of the rule is three chances for them to disagree
+     * about what one row means.
+     */
+    enum class PersonAction { ARCHIVE, UNARCHIVE, PIN, UNPIN, MUTE, UNMUTE, UNREAD, BLOCK, UNBLOCK, DELETE }
+
+    /** @return true where it was done; false where nothing could be. */
+    fun actOnPerson(threadKey: String, action: PersonAction): Boolean
+
     fun canBlock(): Boolean
 
     /** Whether this person is on the account's blocked list, as this device last heard it. */

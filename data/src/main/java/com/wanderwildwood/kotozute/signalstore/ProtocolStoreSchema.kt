@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 12
+    const val VERSION = 13
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -223,7 +223,9 @@ internal object ProtocolStoreSchema {
         CDS_SUBMITTED,
         PNI_ACI,
         RECIPIENT,
-        RECIPIENT_E164_INDEX
+        RECIPIENT_E164_INDEX,
+        MESSAGE_LOG,
+        MESSAGE_LOG_INDEX
     )
 
     /**
@@ -386,6 +388,34 @@ internal object ProtocolStoreSchema {
         "CREATE INDEX IF NOT EXISTS recipient_e164 ON recipient (e164);"
 
     /**
+     * What this device has recently sent, so it can send it again if asked.
+     *
+     * Signal's message log, and the thing that makes `ContentHint.RESENDABLE` an honest
+     * promise: a recipient whose client cannot decrypt one of our messages asks for it, and
+     * without this there was nothing to answer with -- the session could be repaired but the
+     * message itself was gone.
+     *
+     * The content stored is the exact `Content` the send returned, not a reconstruction.
+     *
+     * Short-lived on purpose. A retry receipt arrives within minutes of the failure; keeping
+     * sent plaintext any longer than it can be useful is keeping it for nothing.
+     */
+    const val MESSAGE_LOG = """
+        CREATE TABLE message_log (
+          _id INTEGER PRIMARY KEY AUTOINCREMENT,
+          recipient TEXT NOT NULL,
+          sent_timestamp INTEGER NOT NULL,
+          content BLOB NOT NULL,
+          urgent INTEGER NOT NULL DEFAULT 1,
+          group_id BLOB,
+          created_at INTEGER NOT NULL
+        );
+    """
+
+    const val MESSAGE_LOG_INDEX =
+        "CREATE INDEX IF NOT EXISTS message_log_lookup ON message_log (recipient, sent_timestamp);"
+
+    /**
      * Migrations, keyed by the version they upgrade *to*.
      *
      * Explicit and additive. This database holds key material that cannot be refetched -- an
@@ -497,7 +527,9 @@ internal object ProtocolStoreSchema {
         // time turns one unreadable message into a fortnight of receipts to that person, each
         // making their client archive its session and resend, each resend failing the same way.
         // Asked once is the whole of the fix.
-        12 to listOf("ALTER TABLE envelope ADD COLUMN retry_requested INTEGER NOT NULL DEFAULT 0;")
+        12 to listOf("ALTER TABLE envelope ADD COLUMN retry_requested INTEGER NOT NULL DEFAULT 0;"),
+        // v13: what was recently sent, so a retry receipt can actually be answered.
+        13 to listOf(MESSAGE_LOG, MESSAGE_LOG_INDEX)
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

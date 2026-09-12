@@ -373,6 +373,17 @@ class SignalStore(private val context: Context) {
         ).sendRetryReceipt(serviceId, error, groupId) is SignalSender.Result.Sent
     }
 
+    /**
+     * Sends something again for a recipient who could not read it. See [SignalSender.resend].
+     */
+    fun resend(recipient: String, sentTimestamp: Long): Boolean {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
+        return SignalSender(
+            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalDataStore(database, account), connection, contacts
+        ).resend(serviceId, sentTimestamp) is SignalSender.Result.Sent
+    }
+
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 
@@ -730,6 +741,10 @@ class SignalStore(private val context: Context) {
             groupId: ByteArray?
         ) {
             this@SignalStore.sendRetryReceipt(to, error, groupId)
+        }
+
+        override fun resend(to: String, sentTimestamp: Long) {
+            this@SignalStore.resend(to, sentTimestamp)
         }
     }
 

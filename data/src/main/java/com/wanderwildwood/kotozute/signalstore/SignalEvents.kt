@@ -44,6 +44,14 @@ interface SignalEvents {
     /** Ask a sender to send a message again, because it could not be read here. */
     fun sendRetryReceipt(to: String, error: DecryptionErrorMessage, groupId: ByteArray?) {}
 
+    /**
+     * Send something again, because its recipient says they could not read it.
+     *
+     * The other half of a retry receipt, and the half this app could not do until it kept a
+     * log of what it sent. Their client is showing nothing and waiting for exactly this.
+     */
+    fun resend(to: String, sentTimestamp: Long) {}
+
     /** Messages the account has read on another device. */
     fun readElsewhere(read: List<Pair<String, Long>>) {}
 

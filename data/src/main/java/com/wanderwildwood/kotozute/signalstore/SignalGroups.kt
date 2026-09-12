@@ -19,7 +19,16 @@ import java.util.concurrent.TimeUnit
  */
 internal class SignalGroups(
     private val connection: SignalConnection,
-    private val accounts: SignalAccountStore
+    private val accounts: SignalAccountStore,
+    /**
+     * Where what the group says about its members is kept.
+     *
+     * Group state is a source of two things this app otherwise struggles for: a member's
+     * **profile key**, which is the only thing that decrypts their name, and the pairing of
+     * their account id with their **phone-number identity**. Both come from the server's own
+     * copy of the group, decrypted with the group key -- not from anybody's assertion.
+     */
+    private val contacts: SignalContactStore? = null
 ) {
 
     data class Group(val title: String, val members: List<String>)
@@ -49,13 +58,59 @@ internal class SignalGroups(
             members = group.members.mapNotNull { member ->
                 ServiceId.parseOrNull(member.aciBytes?.toByteArray())?.toString()
             }
-        ).also { Timber.i("signal groups: fetched a group with %d members", it.members.size) }
+        ).also {
+            harvest(group.members)
+            Timber.i("signal groups: fetched a group with %d members", it.members.size)
+        }
     } catch (t: Throwable) {
         // A 403 means we are not in the group any more, which is a fact rather than an error;
         // everything else is logged and treated the same way, because a group whose details
         // cannot be fetched should still receive messages.
         Timber.w(t, "signal groups: could not fetch group details")
         null
+    }
+
+    /**
+     * Keeps what the group knows about the people in it.
+     *
+     * A profile key is the only thing that turns a service id into a name, and for somebody
+     * this account has never exchanged a message with, a shared group is the one place it
+     * turns up -- the contacts sync does not carry it and discovery does not return it. The
+     * account-to-phone-number pairing here is worth the same: it comes from the server's
+     * group state rather than from a claim on the wire, so it can be trusted the same way a
+     * storage record can.
+     *
+     * Best effort throughout. Nothing here should be able to fail a send to the group, which
+     * is what this fetch is actually for.
+     */
+    private fun harvest(members: List<org.signal.storageservice.storage.protos.groups.local.DecryptedMember>) {
+        val store = contacts ?: return
+        members.forEach { member ->
+            val aci = ServiceId.parseOrNull(member.aciBytes?.toByteArray())?.toString()
+                ?.takeIf { it.isNotBlank() } ?: return@forEach
+
+            member.profileKey?.takeIf { it.size > 0 }?.let { key ->
+                // Name deliberately null: this says how to read their name, not what it is.
+                // The contact store keeps whatever name it already had rather than letting a
+                // blank overwrite it, and SignalProfiles picks the key up on its next pass.
+                runCatching {
+                    store.store(
+                        listOf(
+                            SignalContactStore.Contact(
+                                aci = aci, e164 = null, name = null, profileKey = key.toByteArray()
+                            )
+                        )
+                    )
+                }.onFailure { Timber.w(it, "signal groups: a member's profile key would not keep") }
+            }
+
+            ServiceId.parseOrNull(member.pniBytes?.toByteArray())?.toString()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { pni ->
+                    runCatching { store.pair(pni, aci) }
+                        .onFailure { Timber.w(it, "signal groups: a member's pairing would not keep") }
+                }
+        }
     }
 
     private fun authorizationFor(

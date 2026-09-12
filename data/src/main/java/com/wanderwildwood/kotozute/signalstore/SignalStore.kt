@@ -210,7 +210,7 @@ class SignalStore(private val context: Context) {
      */
     fun sendToGroup(masterKey: ByteArray, body: String): Long {
         connection.connect()
-        val group = SignalGroups(connection, account).fetch(masterKey)
+        val group = SignalGroups(connection, account, contacts).fetch(masterKey)
             ?: throw IllegalStateException("could not read the group's members")
         val members = group.members
             .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
@@ -268,7 +268,7 @@ class SignalStore(private val context: Context) {
         val author = org.signal.core.models.ServiceId.parseOrNull(targetAuthor)
             ?: throw IllegalStateException("not a service id: $targetAuthor")
         connection.connect()
-        val group = SignalGroups(connection, account).fetch(masterKey)
+        val group = SignalGroups(connection, account, contacts).fetch(masterKey)
             ?: throw IllegalStateException("could not read the group's members")
         val members = group.members
             .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
@@ -543,7 +543,7 @@ class SignalStore(private val context: Context) {
      * still receive messages.
      */
     internal fun groupFor(masterKey: ByteArray): SignalGroups.Group? =
-        runCatching { SignalGroups(connection, account).fetch(masterKey) }.getOrNull()
+        runCatching { SignalGroups(connection, account, contacts).fetch(masterKey) }.getOrNull()
 
     internal fun identityFor(aci: String): SignalIdentityKeyStore.Identity? = runCatching {
         val self = org.signal.core.models.ServiceId.parseOrNull(account.credentials().aci)

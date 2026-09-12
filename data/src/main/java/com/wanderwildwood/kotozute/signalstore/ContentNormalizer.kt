@@ -266,12 +266,16 @@ internal object ContentNormalizer {
     }
 
     /**
-     * Attachment *metadata* only.
+     * Attachment *metadata* only, and only as a floor.
      *
-     * The bridge sent descriptions of files it had already fetched; here there is only a
-     * pointer, and nothing downloads it yet. Recorded rather than dropped so the row can say
-     * an attachment exists -- a message that silently loses its picture is worse than one that
-     * says it has one.
+     * ⚠ Not the last word on an attachment. `SignalReceiver.withAttachments` runs after this
+     * and replaces what is written here with the real download, setting `pending` to whether
+     * the fetch actually failed. This stands for the paths that do not go through it -- an
+     * import reading bytes it already holds, and a message whose attachments were skipped --
+     * so the row can still say a picture exists rather than silently losing it.
+     *
+     * (This comment used to say nothing downloaded attachments at all, which stopped being
+     * true and then misled a reading of this file.)
      *
      * A view-once attachment is not recorded at all. Signal's promise is that it can be opened
      * once, and writing its id into a column anything can read is not that.

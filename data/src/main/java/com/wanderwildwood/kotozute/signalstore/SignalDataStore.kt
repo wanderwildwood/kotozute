@@ -30,6 +30,15 @@ internal class SignalDataStore(
     override fun aci(): SignalServiceAccountDataStore = aciStore
 
     /**
+     * The same store, as the type it actually is.
+     *
+     * [aci] answers with libsignal's interface because that is what libsignal is handed. A
+     * couple of things here are this app's own -- recording a verification, for one -- and
+     * they are not on that interface.
+     */
+    fun aciStore(): SignalAccountDataStore = aciStore
+
+    /**
      * Throws when the account has no PNI, which is signal-cli's behaviour and the right one:
      * the callers that reach for this are on paths that require a phone number, and handing
      * them the ACI store instead would sign with the wrong identity somewhere far from here.

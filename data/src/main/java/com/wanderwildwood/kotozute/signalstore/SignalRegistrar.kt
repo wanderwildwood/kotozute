@@ -11,6 +11,7 @@ import org.signal.network.rest.SignalRestClient
 import org.whispersystems.signalservice.api.util.CredentialsProvider
 import timber.log.Timber
 import java.security.SecureRandom
+import java.util.concurrent.TimeUnit
 import java.util.Base64
 import java.util.Locale
 
@@ -236,6 +237,29 @@ class SignalRegistrar internal constructor(
                 accounts.saveProfileKey(profileKey)
                 Timber.i("signal register: registered as primary")
                 Step.Registered(response.aci, response.e164 ?: e164)
+            }
+            // ⚠ A number with a registration lock cannot be registered without the PIN, and
+            // this app cannot supply one: Signal derives the lock token from a master key
+            // recovered from SVR with the PIN, and none of that is implemented here -- both
+            // `registrationLock` and `recoveryPassword` go up as null.
+            //
+            // So the honest thing is to say which wall this hit. Reported as "registration
+            // refused: <opaque>" it reads as a bug or a bad code, and the natural response --
+            // try again, ask for another code -- burns attempts against a number that will
+            // refuse every one of them for the same reason. The server also says how long the
+            // lock has to run, which is the one fact that decides what to do next.
+            is org.signal.libsignal.net.RequestResult.NonSuccess -> {
+                val error = result.error
+                if (error is org.signal.network.api.RegistrationApiV2.RegisterAccountError.RegistrationLock) {
+                    val days = TimeUnit.MILLISECONDS.toDays(error.data.timeRemaining)
+                    Step.Failed(
+                        "This number has a registration lock. Its PIN is needed to register it " +
+                            "here, and this app cannot use one yet -- the lock has about $days " +
+                            "day(s) left to run. Link this phone to the account instead."
+                    )
+                } else {
+                    Step.Failed("registration refused: $result")
+                }
             }
             else -> Step.Failed("registration refused: $result")
         }

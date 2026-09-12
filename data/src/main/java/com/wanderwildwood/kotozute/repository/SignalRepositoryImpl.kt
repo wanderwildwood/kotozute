@@ -851,6 +851,7 @@ class SignalRepositoryImpl @Inject constructor(
                         deletedElsewhere = { messages, threads ->
                             applyDeletedElsewhere(messages, threads)
                         },
+                        configuration = { readReceipts -> applyConfiguration(readReceipts) },
                         onBatch = {
                             Timber.i("signal: received %s", it)
                             // The only place the direct rail can record that traffic is
@@ -1064,6 +1065,25 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun send(threadKey: String, body: String, attachments: List<String>): Long =
         sendDirect(threadKey, body, attachments)
+
+    /**
+     * Takes the account's own settings from its primary.
+     *
+     * Read receipts are one setting for the whole account in Signal, not a per-device choice,
+     * and this is how every other linked device learns it. Before this the setting here was a
+     * guess that started at off and never changed -- so this phone could sit telling nobody
+     * their messages had been read while the account said to tell them, or the reverse.
+     *
+     * ⚠ It therefore **overrides what was set on this phone**, which is the behaviour Signal
+     * has and the reason the setting's own description had to change: it is no longer a
+     * separate thing this device decides.
+     */
+    private fun applyConfiguration(readReceipts: Boolean?) {
+        val wanted = readReceipts ?: return
+        if (prefs.signalReadReceipts.get() == wanted) return
+        prefs.signalReadReceipts.set(wanted)
+        Timber.i("signal configuration: the account says read receipts are %b", wanted)
+    }
 
     /**
      * Removes what the account has deleted on another device, for itself.

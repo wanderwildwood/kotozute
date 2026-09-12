@@ -386,7 +386,7 @@
     <string name="settings_signal_unpair_armed">Delete Signal data — tap again</string>
     <string name="settings_signal_unpair_armed_summary">Every Signal message and thread on this phone goes. Nothing is removed from Signal itself, and this phone stays on the account.</string>
     <string name="settings_signal_receipts_title">Send read receipts</string>
-    <string name="settings_signal_receipts_summary">Tell people when you have read their Signal message. Separate from Signal\'s own setting, which this cannot see</string>
+    <string name="settings_signal_receipts_summary">Tell people when you have read their Signal message. One setting for the whole account, so changing it in Signal changes it here too</string>
     <string name="settings_signal_open_title">Signal conversations</string>
     <string name="settings_signal_open_summary">Read and reply on the Signal rail</string>
 

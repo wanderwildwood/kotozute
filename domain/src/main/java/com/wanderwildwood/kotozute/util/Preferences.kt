@@ -127,6 +127,15 @@ class Preferences @Inject constructor(
     /** When the bridge was last reachable, for the honest "last synced" line. */
     val signalLastSync = rxPrefs.getLong("signalLastSync", 0L)
     /**
+     * Why the server last refused this device, or blank if it has not.
+     *
+     * Persisted rather than held in memory because the condition is permanent until someone
+     * acts on it: once the account owner removes this linked device the credentials never
+     * come back, and a reason that lived only in a state object would vanish on the next
+     * restart -- leaving a phone that silently receives nothing and says nothing about it.
+     */
+    val signalRejected = rxPrefs.getString("signalRejected", "")
+    /**
      * Whether reading a Signal message tells the sender. Off by default: Signal has its
      * own read-receipt setting which cannot be read from here, and sending them when the
      * user has chosen not to would share something they declined to share.

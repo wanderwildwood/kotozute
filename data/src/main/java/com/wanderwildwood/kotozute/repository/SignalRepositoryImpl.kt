@@ -847,6 +847,7 @@ class SignalRepositoryImpl @Inject constructor(
                         onNamesLearned = ::renameThreadsFromContacts,
                         receipts = { sender, timestamps, read -> applyReceipts(sender, timestamps, read) },
                         readElsewhere = { read -> applyReadElsewhere(read) },
+                        withdrawn = { author, at -> applyWithdrawal(author, at) },
                         onBatch = {
                             Timber.i("signal: received %s", it)
                             // The only place the direct rail can record that traffic is
@@ -1060,6 +1061,49 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun send(threadKey: String, body: String, attachments: List<String>): Long =
         sendDirect(threadKey, body, attachments)
+
+    /**
+     * Removes a message its sender has withdrawn for everyone.
+     *
+     * The row goes, rather than staying as a note that something was removed. Signal leaves a
+     * tombstone; this does not, and the reason is what the gesture means: somebody decided
+     * that what they wrote should not be readable, and a bubble still sitting in the thread
+     * saying a message was here is a smaller version of the thing they asked to undo. A
+     * conversation with a gap is the honest result.
+     *
+     * A person can only reach their own messages this way. The row is keyed by its author and
+     * the timestamp they sent it with, and the author here is the envelope's sender -- so a
+     * delete naming somebody else's message resolves to a row that does not exist.
+     */
+    private fun applyWithdrawal(author: String, sentAt: Long) = runOffThread {
+        val id = "$author:$sentAt"
+        var threadKey: String? = null
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
+                    ?: return@executeTransaction
+                threadKey = row.threadKey
+                row.deleteFromRealm()
+            }
+            threadKey?.let { key ->
+                realm.executeTransaction { r ->
+                    // The preview and the unread count both described a message that is gone.
+                    val stillUnread = r.where(SignalMessage::class.java)
+                        .equalTo("threadKey", key)
+                        .equalTo("outgoing", false)
+                        .equalTo("read", false)
+                        .count()
+                    r.where(SignalThread::class.java).equalTo("threadKey", key).findFirst()
+                        ?.unread = stillUnread.toInt()
+                    refreshThreadPreview(r, key)
+                }
+            }
+        }
+        if (threadKey != null) {
+            Timber.i("signal delete: a message was withdrawn by the person who sent it")
+            contactsChanged()
+        }
+    }
 
     /**
      * Marks read what the account has already read on another device.

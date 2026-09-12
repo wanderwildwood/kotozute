@@ -78,7 +78,15 @@ internal class SignalReceiver(
      * its owner has already dealt with on their own phone -- which is most of them, most of
      * the time, and makes the unread count worthless.
      */
-    private val readElsewhere: (List<Pair<String, Long>>) -> Unit = {}
+    private val readElsewhere: (List<Pair<String, Long>>) -> Unit = {},
+    /**
+     * A message its sender has withdrawn, for everyone.
+     *
+     * Identified by who sent it and when they sent it -- which is also how a row is identified
+     * here, so somebody can only ever withdraw their own. Not handled, the message stays on
+     * this phone for good while its sender believes it is gone.
+     */
+    private val withdrawn: (String, Long) -> Unit = { _, _ -> }
 ) {
 
     /**
@@ -423,6 +431,29 @@ internal class SignalReceiver(
                 // primary answering a request, and the only way this device learns anybody's
                 // name. Handled before normalizing, which would find nothing to store in it.
                 result.content.syncMessage?.contacts?.let { handleContactsSync(it) }
+
+                // A message withdrawn for everyone. Before the normalizer, which would find
+                // nothing in it and drop it: a delete carries no body, so treated as a
+                // message it is simply not one.
+                //
+                // The author is the envelope's sender for somebody else's delete, and this
+                // account for a sync of our own. Either way it is the author of the message
+                // being withdrawn, which is what the row is keyed by -- so nobody can reach
+                // anybody else's messages with this.
+                (result.content.dataMessage?.delete
+                    ?: result.content.syncMessage?.sent?.message?.delete)
+                    ?.targetSentTimestamp
+                    ?.let { at ->
+                        val author = if (result.content.syncMessage?.sent?.message?.delete != null) {
+                            credentials.aci.orEmpty()
+                        } else {
+                            result.metadata.sourceServiceId.toString()
+                        }
+                        if (author.isNotBlank()) {
+                            runCatching { withdrawn(author, at) }
+                                .onFailure { Timber.w(it, "signal delete: could not withdraw") }
+                        }
+                    }
 
                 // What the account has read on another device. Applied here, never answered:
                 // the device that did the reading has already told the sender, and saying so

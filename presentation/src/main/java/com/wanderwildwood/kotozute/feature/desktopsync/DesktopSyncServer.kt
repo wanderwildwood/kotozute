@@ -1684,29 +1684,16 @@ class DesktopSyncServer(
             } else {
                 emptyMap()
             }
-            // Both halves, as on the phone. A merged conversation read in the browser used
-            // to show only what came over Signal, which is the half that happened to be on
-            // the rail the row was named after.
-            val textHalf = joinedConversationId(thread)?.let { conversationId ->
-                runCatching {
-                    conversationRepository.getConversation(conversationId)
-                    messageRepository.getMessagesSync(conversationId).takeLast(limit).toList()
-                }.getOrDefault(emptyList())
-            }.orEmpty()
-            val signalHalf = signalRepository.getMessagesSnapshot(thread.threadKey, limit)
-            // The newest [limit] of the conversation, not of each half. Taking that many
-            // from both and returning them all made a request for 200 answer with 400, and
-            // the browser's paging arithmetic is built on the number it asked for.
+            // This rail and no other. One screen per rail, with the badge between them --
+            // mixing the two here left the badge leading somewhere that looked the same,
+            // which is no use to anybody wanting to see one rail on its own.
             val array = JSONArray()
-            (signalHalf.map { it.date to signalMessageJson(it, senders) } +
-                textHalf.map { it.date to messageJson(it) })
-                .sortedBy { it.first }
-                .takeLast(limit)
-                .forEach { array.put(it.second) }
+            signalRepository.getMessagesSnapshot(thread.threadKey, limit)
+                .forEach { array.put(signalMessageJson(it, senders)) }
             // The same envelope the SMS branch returns. A bare array here meant the browser
             // read hasMore as false for every Signal thread, so "Load older messages" was
             // never offered and a long conversation ended at its most recent page.
-            val total = signalRepository.countMessages(thread.threadKey) + textHalf.size
+            val total = signalRepository.countMessages(thread.threadKey)
             return jsonResponse(Response.Status.OK, JSONObject().apply {
                 put("total", total)
                 put("hasMore", total > limit)
@@ -2021,11 +2008,10 @@ class DesktopSyncServer(
      */
     private fun handleMarkRead(threadId: Long): Response {
         signalThreadFor(threadId)?.let { thread ->
+            // This rail only: the two are separate screens, and reading one of them is not
+            // a claim to have read the other. The row stays marked unread while the text
+            // half still is, which is the truth and is one tap of the badge away.
             signalRepository.markRead(thread.threadKey, System.currentTimeMillis())
-            // Reading the conversation reads both halves of it. The text side has no row of
-            // its own in the list any more, so leaving it unread left a badge on the phone
-            // with nothing behind it -- and the browser showing the messages that caused it.
-            joinedConversationId(thread)?.let { markRead.execute(listOf(it)) }
             notifyChanged()
             return jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
         }

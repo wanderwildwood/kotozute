@@ -58,7 +58,6 @@ class SignalThreadActivity : QkThemedActivity() {
     @Inject lateinit var notifications: SignalNotifications
     @Inject lateinit var navigator: com.wanderwildwood.kotozute.common.Navigator
     @Inject lateinit var scheduledMessageRepo: ScheduledMessageRepository
-    @Inject lateinit var markTextRead: com.wanderwildwood.kotozute.interactor.MarkRead
     @Inject lateinit var markTextArchived: com.wanderwildwood.kotozute.interactor.MarkArchived
     @Inject lateinit var markTextUnarchived: com.wanderwildwood.kotozute.interactor.MarkUnarchived
     @Inject lateinit var updateScheduledMessageAlarms: UpdateScheduledMessageAlarms
@@ -71,17 +70,13 @@ class SignalThreadActivity : QkThemedActivity() {
     private lateinit var adapter: MessageAdapter
 
     /**
-     * The conversation as two halves, merged for display only.
+     * The text conversation this one is joined to, by number or by hand, if any.
      *
-     * One person is one conversation, and which rail a message happened to arrive on is not
-     * a reason to keep two of them. The rows are still stored apart -- the SMS side is a
-     * mirror of the telephony provider and a re-sync rebuilds it wholesale -- so the joining
-     * happens here, in memory, each time either side changes.
+     * This screen shows the Signal rail and nothing else -- one screen per rail, the badge
+     * between them. The two were briefly merged onto one screen; the trouble with that is
+     * that it leaves the badge leading somewhere that looks the same, which is no use to
+     * anybody wanting to see one rail on its own.
      */
-    private var signalRows: List<SignalMessage> = emptyList()
-    private var smsRows: List<SignalMessage> = emptyList()
-    private var smsResults: io.realm.RealmResults<com.wanderwildwood.kotozute.model.Message>? = null
-    /** The text conversation this one is joined to, by number or by hand, if any. */
     private var linkedConversationId: Long? = null
 
     private var isArchived: Boolean = false
@@ -137,12 +132,13 @@ class SignalThreadActivity : QkThemedActivity() {
         val results = signalRepo.getMessages(threadKey)
         messages = results
         results.addChangeListener { data, _ ->
-            signalRows = data.toList()
-            resubmit(scrollToEnd = true)
+            adapter.submit(data)
+            binding.empty.setVisible(data.isEmpty())
+            if (data.isNotEmpty()) binding.recyclerView.scrollToPosition(data.size - 1)
             markRead(data)
         }
-        signalRows = results.toList()
-        resubmit(scrollToEnd = false)
+        adapter.submit(results)
+        binding.empty.setVisible(results.isEmpty())
         markRead(results)
 
         // The composer is disabled, visibly and with a reason, whenever a send would
@@ -496,15 +492,10 @@ class SignalThreadActivity : QkThemedActivity() {
      */
     private fun showMessageActions(body: String, messageId: String, mine: String) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        // Reacting is Signal's, and a text in this thread is still a text. Offered on one
-        // and not the other rather than offered on both and failing on one.
-        val onSignal = !messageId.startsWith("$SMS_SOURCE:")
-        if (onSignal) {
-            actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
-            if (mine.isNotEmpty()) {
-                actions += getString(R.string.signal_reaction_remove_mine, mine) to {
-                    sendReaction(messageId, mine, remove = true)
-                }
+        actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
+        if (mine.isNotEmpty()) {
+            actions += getString(R.string.signal_reaction_remove_mine, mine) to {
+                sendReaction(messageId, mine, remove = true)
             }
         }
         if (body.isBlank()) {
@@ -621,7 +612,7 @@ class SignalThreadActivity : QkThemedActivity() {
                     smsThreadId = linked
                     showRailBadge()
                     invalidateOptionsMenu()
-                    attachTextHalf(linked)
+                    linkedConversationId = linked
                 }
                 return@thread
             }
@@ -651,7 +642,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 smsThreadId = id
                 showRailBadge()
                 invalidateOptionsMenu()
-                attachTextHalf(id)
+                linkedConversationId = id
             }
         }
     }
@@ -704,14 +695,6 @@ class SignalThreadActivity : QkThemedActivity() {
         /** Plain ASCII on purpose: the Kompakt's font has no glyph for the nicer arrows. */
         private const val RAIL_SWITCH_ARROW = ">"
 
-        /**
-         * Marks a row that came from the text conversation rather than from Signal.
-         *
-         * Everything that acts on a message asks this first. A text cannot carry a Signal
-         * reaction, cannot be receipted, and is not ours to mark read here -- and offering
-         * an action that quietly does nothing is worse than not offering it.
-         */
-        const val SMS_SOURCE = "sms"
 
         /**
          * Which conversation is on screen, so a notification is not raised about a message
@@ -720,67 +703,6 @@ class SignalThreadActivity : QkThemedActivity() {
         @Volatile private var visibleThreadKey: String? = null
 
         fun isVisible(threadKey: String): Boolean = visibleThreadKey == threadKey
-    }
-
-    /**
-     * Brings in the text conversation with the same person, once one has been found.
-     *
-     * Read as ordinary Realm results with a listener, so a text arriving while this screen is
-     * open appears in it -- the whole point of one conversation is that it stops mattering
-     * which rail the next message comes in on. Called on the main thread, from wherever
-     * [findSmsCounterpart] settled on an id.
-     */
-    private fun attachTextHalf(conversationId: Long) {
-        if (isFinishing || conversationId == 0L) return
-        if (linkedConversationId == conversationId) return
-        smsResults?.removeAllChangeListeners()
-        linkedConversationId = conversationId
-        val results = messageRepo.getMessages(conversationId)
-        smsResults = results
-        results.addChangeListener { data, _ ->
-            smsRows = data.map(::asRow)
-            resubmit(scrollToEnd = true)
-        }
-        smsRows = results.map(::asRow)
-        resubmit(scrollToEnd = true)
-        // Reading the conversation reads both halves of it. The text side has no row of its
-        // own in the inbox any more, so leaving it unread would leave a badge with nothing
-        // behind it.
-        if (results.any { !it.read }) markTextRead.execute(listOf(conversationId))
-    }
-
-    /**
-     * A text as a row this thread can draw.
-     *
-     * Unmanaged and never written anywhere: it exists for the length of one binding. The
-     * [SignalMessage.source] is what everything else keys off to leave it alone -- a text
-     * cannot carry a Signal reaction, cannot be receipted, and is already read by the time
-     * the provider hands it over.
-     */
-    private fun asRow(m: com.wanderwildwood.kotozute.model.Message): SignalMessage =
-        SignalMessage().apply {
-            id = "$SMS_SOURCE:${m.id}"
-            threadKey = this@SignalThreadActivity.threadKey
-            date = m.date
-            outgoing = m.isMe()
-            body = m.getSummary()
-            read = true
-            source = SMS_SOURCE
-            senderNumber = m.address
-        }
-
-    /** Both halves in one list, oldest first. */
-    private fun resubmit(scrollToEnd: Boolean) {
-        val merged = (signalRows + smsRows).sortedWith(
-            // By date, and by id where two share a millisecond, so the order is the same
-            // every time rather than however the two lists happened to be concatenated.
-            compareBy({ it.date }, { it.id })
-        )
-        adapter.submit(merged)
-        binding.empty.setVisible(merged.isEmpty())
-        if (scrollToEnd && merged.isNotEmpty()) {
-            binding.recyclerView.scrollToPosition(merged.size - 1)
-        }
     }
 
     private inner class MessageAdapter : RecyclerView.Adapter<MessageHolder>() {

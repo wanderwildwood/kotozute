@@ -152,10 +152,24 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
               e164 = COALESCE(?, e164),
               name = COALESCE(?, name),
               profile_key = COALESCE(?, profile_key),
+              -- A new profile key makes everything learned about their sealed sender stale:
+              -- what we knew was learned without it, or with the old one, and "they refused"
+              -- may only have meant "we were guessing". Signal resets the mode on every
+              -- profile key write for exactly this reason -- without it, one failed guess
+              -- would rule out sealed sender to that person permanently, including after
+              -- they shared the key that would have worked.
+              sealed_sender_mode = CASE
+                WHEN ? IS NOT NULL AND (profile_key IS NULL OR profile_key != ?)
+                  THEN $SEALED_SENDER_UNKNOWN
+                ELSE sealed_sender_mode
+              END,
               updated_timestamp = ?
             WHERE _id = ?
             """.trimIndent(),
-            arrayOf<Any?>(aci, pni, e164.orNull(), name.orNull(), profileKey, now, existing)
+            arrayOf<Any?>(
+                aci, pni, e164.orNull(), name.orNull(), profileKey,
+                profileKey, profileKey, now, existing
+            )
         )
     }
 

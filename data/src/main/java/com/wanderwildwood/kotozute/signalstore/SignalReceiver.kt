@@ -1175,26 +1175,49 @@ internal class SignalReceiver(
     private fun handleBlockedSync(
         blocked: org.whispersystems.signalservice.internal.push.SyncMessage.Blocked
     ) {
-        // Both shapes: the newer typed lists, and the older bare strings that a primary on an
-        // older build still sends. Taking only one of them would silently drop half a list.
-        val individuals = buildList {
-            blocked.blockedAcis.forEach { one ->
-                // The binary form, which is the raw sixteen bytes rather than the hyphenated
-                // string the rest of this app keys on.
-                val aci = one.aciBinary?.toByteArray()
-                    ?.let { org.signal.core.models.ServiceId.parseOrNull(it) }
-                if (aci != null) add(SignalBlockStore.Blocked(aci.toString(), null, one.timestamp ?: 0L))
+        // Newest shape first, older shapes only as a fallback -- `handleSynchronizeBlockedListMessage`,
+        // case for case.
+        //
+        // ⚠ Two things were wrong here and they pull in opposite directions.
+        //
+        // The older lists were being read **as well as** the new ones rather than instead of
+        // them, so a primary that sends both shapes had every entry counted twice. Harmless on
+        // its own, and it hid the second fault.
+        //
+        // And of the two older shapes only `acis` -- the hyphenated strings -- was read.
+        // `acisBinary` beside it, the raw sixteen bytes, was not. That is the same binary-twin
+        // trap that cost two thirds of the address book and every mention, and here it costs
+        // something worse than a name: a primary that sends its block list in that shape has
+        // every block silently ignored, so somebody the account owner deliberately blocked goes
+        // on arriving, is filed, shown, announced, and answered with a delivery receipt.
+        val blockedAcis = when {
+            blocked.blockedAcis.isNotEmpty() -> blocked.blockedAcis.mapNotNull { one ->
+                org.signal.core.models.ServiceId.parseOrNull(one.aciBinary?.toByteArray())
+                    ?.let { SignalBlockStore.Blocked(it.toString(), null, one.timestamp ?: 0L) }
             }
-            blocked.blockedE164s.forEach { one ->
-                add(SignalBlockStore.Blocked(null, one.e164, one.timestamp ?: 0L))
+            blocked.acisBinary.isNotEmpty() -> blocked.acisBinary.mapNotNull { raw ->
+                org.signal.core.models.ServiceId.parseOrNull(raw.toByteArray())
+                    ?.let { SignalBlockStore.Blocked(it.toString(), null, 0L) }
             }
-            blocked.acis.filter { aci -> none { it.aci == aci } }
-                .forEach { add(SignalBlockStore.Blocked(it, null, 0L)) }
-            blocked.numbers.filter { number -> none { it.e164 == number } }
-                .forEach { add(SignalBlockStore.Blocked(null, it, 0L)) }
+            else -> blocked.acis.map { SignalBlockStore.Blocked(it, null, 0L) }
         }
-        val groups = blocked.blockedGroups.mapNotNull { it.groupId?.toByteArray() } +
-            blocked.groupIds.map { it.toByteArray() }
+        val blockedNumbers = when {
+            blocked.blockedE164s.isNotEmpty() ->
+                blocked.blockedE164s.mapNotNull { one ->
+                    one.e164?.let { SignalBlockStore.Blocked(null, it, one.timestamp ?: 0L) }
+                }
+            else -> blocked.numbers.map { SignalBlockStore.Blocked(null, it, 0L) }
+        }
+        val individuals = blockedAcis + blockedNumbers
+        val groups = when {
+            blocked.blockedGroups.isNotEmpty() ->
+                blocked.blockedGroups.mapNotNull { it.groupId?.toByteArray() }
+            else -> blocked.groupIds.map { it.toByteArray() }
+        }
+        Timber.i(
+            "signal blocked: a sync named %d account(s), %d number(s), %d group(s)",
+            blockedAcis.size, blockedNumbers.size, groups.size
+        )
         blocks.store(individuals, groups.distinctBy { it.toList() })
     }
 

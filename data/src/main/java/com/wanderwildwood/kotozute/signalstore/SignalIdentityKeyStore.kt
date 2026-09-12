@@ -70,7 +70,17 @@ internal class SignalIdentityKeyStore(
                 // A changed key is recorded untrusted. The safety number has changed and the
                 // person deserves to be told before anything else is sent to it.
                 insertIdentity(name, identityKey, UNTRUSTED)
-                Timber.i("signal store: identity changed for a peer; recorded untrusted")
+                // ⚠ And their other devices' sessions go with it. Recording the new key while
+                // leaving those sessions in place means the next send to one of them is
+                // encrypted against an identity this device has just decided it does not
+                // trust -- and arrives as a message they cannot read, on one device only,
+                // which reads as "some of your messages don't get through" rather than as
+                // anything to do with a safety number.
+                //
+                // `SignalBaseIdentityKeyStore.saveIdentity` does exactly this on a replaced
+                // key: archiveSiblingSessions, and forget any sender key shared with them.
+                archiveSiblingSessions(address)
+                Timber.i("signal store: identity changed for a peer; recorded untrusted and sessions archived")
                 IdentityKeyStore.IdentityChange.REPLACED_EXISTING
             }
         }
@@ -133,6 +143,26 @@ internal class SignalIdentityKeyStore(
             known = loadIdentity(name)
         }
         known != null && known.trustLevel > UNTRUSTED
+    }
+
+    /**
+     * Archives the sessions with this person's **other** devices.
+     *
+     * The session with the address itself is left to libsignal, which starts a fresh one
+     * against the new identity. The siblings are the ones nothing else would touch.
+     */
+    private fun archiveSiblingSessions(address: SignalProtocolAddress) {
+        val sessions = SignalSessionStore(db, accountIdType)
+        runCatching {
+            sessions.getSubDeviceSessions(address.name)
+                .filter { it != address.deviceId }
+                .forEach { deviceId ->
+                    val sibling = SignalProtocolAddress(address.name, deviceId)
+                    val record = sessions.loadSession(sibling)
+                    record.archiveCurrentState()
+                    sessions.storeSession(sibling, record)
+                }
+        }.onFailure { Timber.w(it, "signal store: could not archive the sibling sessions") }
     }
 
     override fun getIdentity(address: SignalProtocolAddress): IdentityKey? =

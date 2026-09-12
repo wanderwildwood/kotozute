@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 10
+    const val VERSION = 11
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -473,6 +473,21 @@ internal object ProtocolStoreSchema {
               SELECT c.profile_key FROM contact c WHERE c.aci = recipient.pni
             ) WHERE profile_key IS NULL AND pni IS NOT NULL
             """.trimIndent()
+        ),
+        // v11: ask contact discovery again, once.
+        //
+        // Between the release that could look numbers up and the one that could keep a person
+        // known only by a phone-number identity, a lookup returned people this app then threw
+        // away -- and recorded the numbers as asked, so it would never ask about them again.
+        // They are the exact people the feature exists for: their number is in the phone, they
+        // are on Signal, and they cannot be found.
+        //
+        // Forgetting what was asked costs one quota-charged re-ask and is the only way back:
+        // the results were never stored, so there is nothing to recover from, and the record
+        // of having asked is the thing standing in the way.
+        11 to listOf(
+            "DELETE FROM cds_submitted;",
+            "DELETE FROM cds_state;"
         )
     )
 

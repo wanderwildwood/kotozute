@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 11
+    const val VERSION = 12
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -198,7 +198,8 @@ internal object ProtocolStoreSchema {
           server_delivered_timestamp INTEGER NOT NULL,
           stored_timestamp INTEGER NOT NULL,
           -- Why it would not decrypt, when it would not. Null while untried.
-          failure TEXT
+          failure TEXT,
+          retry_requested INTEGER NOT NULL DEFAULT 0
         ) STRICT;
     """
 
@@ -488,7 +489,15 @@ internal object ProtocolStoreSchema {
         11 to listOf(
             "DELETE FROM cds_submitted;",
             "DELETE FROM cds_state;"
-        )
+        ),
+        // v12: whether we have already asked the sender to send this one again.
+        //
+        // An envelope that will not decrypt is kept for a fortnight in case a fix arrives, and
+        // every batch re-reads the whole table and tries it again. Asking for a resend each
+        // time turns one unreadable message into a fortnight of receipts to that person, each
+        // making their client archive its session and resend, each resend failing the same way.
+        // Asked once is the whole of the fix.
+        12 to listOf("ALTER TABLE envelope ADD COLUMN retry_requested INTEGER NOT NULL DEFAULT 0;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

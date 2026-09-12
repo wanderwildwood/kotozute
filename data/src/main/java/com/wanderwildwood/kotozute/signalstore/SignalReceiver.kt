@@ -114,7 +114,7 @@ internal class SignalReceiver(
 
         // Only now, with everything acked and safely on disk.
         val messages = mutableListOf<com.wanderwildwood.kotozute.signal.BridgeMessage>()
-        pending().forEach { (id, envelope, serverDeliveredTimestamp) ->
+        pending().forEach { (id, envelope, serverDeliveredTimestamp, alreadyAsked) ->
             // The server's own delivery receipt: type SERVER_DELIVERY_RECEIPT, whose content
             // is empty by definition. It is not a message and there is nothing in it to
             // decrypt -- it says "what you sent at this timestamp reached them".
@@ -137,7 +137,7 @@ internal class SignalReceiver(
                 return@forEach
             }
 
-            when (val result = decrypt(envelope, serverDeliveredTimestamp)) {
+            when (val result = decrypt(envelope, serverDeliveredTimestamp, alreadyAsked)) {
                 // Kept, not deleted. The envelope was acknowledged on the way past -- the
                 // server has forgotten it and will never send it again -- so deleting a row
                 // we failed to decrypt destroys the message permanently. A decryption that
@@ -153,6 +153,9 @@ internal class SignalReceiver(
                     } else {
                         failed++
                         recordFailure(id, why)
+                        // So the next batch does not ask this person again for the same
+                        // message, and the one after that, for a fortnight.
+                        if (askedForRetry) markAsked(id)
                     }
                 }
                 else -> {
@@ -257,15 +260,40 @@ internal class SignalReceiver(
         )
     }
 
-    private fun pending(): List<Triple<Long, Envelope, Long>> = withStoreLock(db) {
+    /** One stored envelope: its row, the envelope, when the server delivered it, and whether
+     *  its sender has already been asked to send it again. */
+    private data class Stored(
+        val id: Long,
+        val envelope: Envelope,
+        val deliveredAt: Long,
+        val alreadyAsked: Boolean
+    )
+
+    private fun pending(): List<Stored> = withStoreLock(db) {
         db.readableDatabase.rawQuery(
-            "SELECT _id, serialized, server_delivered_timestamp FROM envelope ORDER BY _id", null
+            "SELECT _id, serialized, server_delivered_timestamp, retry_requested FROM envelope ORDER BY _id",
+            null
         ).use { c ->
             generateSequence {
-                if (c.moveToNext()) Triple(c.getLong(0), Envelope.ADAPTER.decode(c.getBlob(1)), c.getLong(2))
-                else null
+                if (c.moveToNext()) {
+                    Stored(
+                        c.getLong(0),
+                        Envelope.ADAPTER.decode(c.getBlob(1)),
+                        c.getLong(2),
+                        c.getInt(3) != 0
+                    )
+                } else {
+                    null
+                }
             }.toList()
         }
+    }
+
+    /** Remembers that this envelope's sender has been asked. Asked once, however long it stays. */
+    private fun markAsked(id: Long) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "UPDATE envelope SET retry_requested = 1 WHERE _id = ?", arrayOf<Any?>(id)
+        )
     }
 
     /**
@@ -321,10 +349,15 @@ internal class SignalReceiver(
     /** Set by [decrypt] when it fails, so the caller can record it against the row. */
     private var lastFailure: String? = null
 
+    /** Set by [decrypt] when it asked the sender to send it again, so the row can remember. */
+    private var askedForRetry: Boolean = false
+
     private fun decrypt(
         envelope: Envelope,
-        serverDeliveredTimestamp: Long
+        serverDeliveredTimestamp: Long,
+        alreadyAsked: Boolean = true
     ): Pair<String, com.wanderwildwood.kotozute.signal.BridgeMessage?>? {
+        askedForRetry = false
         val credentials = accounts.credentials()
         val aci = ServiceId.ACI.parseOrNull(credentials.aci) ?: return null
 
@@ -340,6 +373,22 @@ internal class SignalReceiver(
         )
         return try {
             cipher.decrypt(envelope, serverDeliveredTimestamp)?.let { result ->
+                // Before anything at all is read out of it.
+                //
+                // ⚠ This is the check that says a sync message really came from this account.
+                // Without it any contact who can open a session here could send a `syncMessage`
+                // and be obeyed as though they were the owner's own primary device: forge a
+                // message into a thread as though we had sent it, delete the owner's messages,
+                // rewrite the address book, replace the blocked list, or hand the key store an
+                // account entropy pool of their choosing. Every sync branch below is reachable
+                // from the network, and the framing alone was being trusted to say who sent it.
+                //
+                // The validator is Signal's own -- it ships in the service library this app
+                // already depends on -- and it checks more than the sender: message bounds,
+                // group contexts, attachment shapes, and the rest. Signal runs it in exactly
+                // this position, before any handler sees the content.
+                if (!isWorthReading(envelope, result)) return@let null
+
                 // First, before anything else in this batch is decrypted. A group send
                 // encrypts once to a key the sender distributes separately, and the message
                 // that carries the key can arrive in the same batch as messages that need
@@ -580,7 +629,11 @@ internal class SignalReceiver(
             // nobody can act on.
             lastFailure = "${t::class.java.simpleName}: ${t.message?.take(120).orEmpty()}"
             Timber.w(t, "signal receive: could not decrypt an envelope; keeping it")
-            askForItAgain(envelope, t)
+            // Once per envelope, ever. An undecryptable one is kept for a fortnight and
+            // retried on every batch; asking each time would turn one unreadable message into
+            // a fortnight of receipts to that person, each making their client archive its
+            // session and resend, each resend failing the same way.
+            if (!alreadyAsked) askedForRetry = askForItAgain(envelope, t)
             null
         }
     }
@@ -616,6 +669,48 @@ internal class SignalReceiver(
             // Not fatal to the envelope that carried it: that message is still a message, and
             // it decrypted. Only this sender's group messages are affected.
             Timber.w(it, "signal group key: a sender key would not be kept")
+        }
+    }
+
+    /**
+     * Whether a decrypted envelope is one this device should act on at all.
+     *
+     * Signal's `EnvelopeContentValidator`, run where Signal runs it: after decryption, before
+     * a single field is read. The one that matters most here is its sync-message rule --
+     * a `syncMessage` is only ever legitimate from this account's own devices, and anything
+     * else claiming to be one is somebody impersonating the owner's primary.
+     *
+     * An unsupported data message is not invalid, only newer than this build understands;
+     * it is let through so the parts that are understood still land.
+     *
+     * Adapted from `MessageDecryptor.decrypt`.
+     */
+    private fun isWorthReading(
+        envelope: Envelope,
+        result: org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult
+    ): Boolean {
+        val self = org.signal.core.models.ServiceId.ACI.parseOrNull(accounts.credentials().aci)
+            ?: run {
+                // No idea who we are yet, so no way to tell our own sync from a stranger's.
+                // Refusing is the safe direction: the alternative is obeying it.
+                Timber.w("signal receive: no local account id, so nothing can be validated; skipping")
+                return false
+            }
+        val validation = runCatching {
+            org.whispersystems.signalservice.api.messages.EnvelopeContentValidator.validate(
+                envelope, result.content, self, ciphertextTypeOf(envelope.type)
+            )
+        }.getOrElse {
+            Timber.w(it, "signal receive: an envelope could not be validated; skipping")
+            return false
+        }
+        return when (validation) {
+            is org.whispersystems.signalservice.api.messages.EnvelopeContentValidator.Result.Valid -> true
+            is org.whispersystems.signalservice.api.messages.EnvelopeContentValidator.Result.UnsupportedDataMessage -> true
+            else -> {
+                Timber.w("signal receive: refused an envelope that did not validate")
+                false
+            }
         }
     }
 
@@ -673,16 +768,23 @@ internal class SignalReceiver(
      * the exception rather than in the envelope, and quoting the wrong one produces a receipt
      * the sender cannot match to anything.
      */
-    private fun askForItAgain(envelope: Envelope, failure: Throwable) {
+    private fun askForItAgain(envelope: Envelope, failure: Throwable): Boolean {
         val protocolFailure = generateSequence(failure) { it.cause }
             .take(CAUSE_DEPTH)
             .filterIsInstance<org.signal.libsignal.metadata.ProtocolException>()
-            .firstOrNull() ?: return
+            .firstOrNull() ?: return false
 
         val sender = protocolFailure.sender?.takeIf { it.isNotBlank() }
             ?: senderOf(envelope)
-            ?: return
-        val timestamp = envelope.clientTimestamp ?: return
+            ?: return false
+        // Never at ourselves. A failure against our own primary's sync stream is a session to
+        // repair, not a resend to request, and a receipt aimed at our own account would be
+        // asking a device that cannot answer.
+        if (sender == accounts.credentials().aci) {
+            Timber.w("signal retry: could not read our own account's message; not asking it to resend")
+            return false
+        }
+        val timestamp = envelope.clientTimestamp ?: return false
 
         val sealed = protocolFailure.unidentifiedSenderMessageContent
         val original: ByteArray
@@ -691,7 +793,7 @@ internal class SignalReceiver(
             original = sealed.get().content
             type = sealed.get().type
         } else {
-            original = envelope.content?.toByteArray() ?: return
+            original = envelope.content?.toByteArray() ?: return false
             type = ciphertextTypeOf(envelope.type)
         }
 
@@ -701,10 +803,15 @@ internal class SignalReceiver(
             )
         }.getOrElse {
             Timber.w(it, "signal retry: could not describe the message that would not open")
-            return
+            return false
         }
-        runCatching { events.sendRetryReceipt(sender, error, protocolFailure.groupId.orElse(null)) }
-            .onFailure { Timber.w(it, "signal retry: could not ask for the message again") }
+        return runCatching {
+            events.sendRetryReceipt(sender, error, protocolFailure.groupId.orElse(null))
+            true
+        }.getOrElse {
+            Timber.w(it, "signal retry: could not ask for the message again")
+            false
+        }
     }
 
     /**

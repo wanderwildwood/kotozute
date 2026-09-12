@@ -112,7 +112,17 @@ internal class SealedSender(
                     // Its own expiry, less a margin. A certificate is valid for days, so this
                     // is not a fetch anyone will notice; using one past its expiry, on the
                     // other hand, is a message the recipient's client discards.
-                    cachedUntil = expiryOf(bytes) - RENEW_MARGIN_MS
+                    // The sooner of "nearly expired" and "a day old". Signal replaces its
+                    // certificate every day on a timer (`RotateSenderCertificateListener`,
+                    // INTERVAL = 1 day) rather than waiting for expiry, and a certificate is
+                    // good for about a week -- so holding one to the end means carrying up to
+                    // six days of whatever it asserts. After a number change that is six days
+                    // of a certificate describing the old one: still signed, still unexpired,
+                    // and no longer true.
+                    cachedUntil = minOf(
+                        expiryOf(bytes) - RENEW_MARGIN_MS,
+                        System.currentTimeMillis() + MAX_CERTIFICATE_AGE_MS
+                    )
                 }
                 Timber.i("signal send: got a sender certificate")
             }
@@ -184,5 +194,8 @@ internal class SealedSender(
          * here and the server's need not agree to the minute.
          */
         private val RENEW_MARGIN_MS = TimeUnit.HOURS.toMillis(1)
+
+        /** Signal's `RotateSenderCertificateListener.INTERVAL`. */
+        private val MAX_CERTIFICATE_AGE_MS = TimeUnit.DAYS.toMillis(1)
     }
 }

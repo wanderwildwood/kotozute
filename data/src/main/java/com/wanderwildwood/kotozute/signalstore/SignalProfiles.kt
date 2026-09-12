@@ -37,18 +37,54 @@ internal class SignalProfiles(
 
         val learned = pending.mapNotNull { (aci, keyBytes) ->
             val serviceId = ServiceId.ACI.parseOrNull(aci) ?: return@mapNotNull null
-            val name = runCatching { nameFor(serviceId, ProfileKey(keyBytes)) }
+            val key = ProfileKey(keyBytes)
+            val profile = runCatching { fetch(serviceId, key) }
                 .onFailure { Timber.w(it, "signal profile: could not fetch for a contact") }
                 .getOrNull()
                 ?: return@mapNotNull null
-            SignalContactStore.Contact(serviceId = aci, e164 = null, name = name)
+
+            // Whether they accept sealed sender, said by them rather than inferred from how a
+            // send happened to go. This is the authoritative answer and the cheapest one: the
+            // profile is already being fetched, and the verifier in it is exactly the field
+            // that settles it. Without this the only source was trial and error, which costs
+            // a wasted round trip per person and cannot tell "refused" from "we guessed".
+            contacts.setSealedSenderMode(aci, sealedSenderMode(key, profile))
+
+            profile.name?.let { SignalContactStore.Contact(serviceId = aci, e164 = null, name = it) }
         }
         if (learned.isNotEmpty()) contacts.store(learned)
         Timber.i("signal profile: learned %d of %d names", learned.size, pending.size)
         return learned.size
     }
 
-    private fun nameFor(aci: ServiceId.ACI, profileKey: ProfileKey): String? {
+    /** A fetched profile, as much of it as this app uses. */
+    private data class Profile(
+        val name: String?,
+        /** The proof that they accept sealed sender, or null when they do not offer one. */
+        val unidentifiedAccessVerifier: String?,
+        /** They accept it from anybody, key or no key. */
+        val unrestricted: Boolean
+    )
+
+    /**
+     * Signal's `deriveUnidentifiedAccessMode`, unchanged.
+     *
+     * The verifier is the deciding field in every branch: an account that offers none is not
+     * accepting sealed sender at all, and one that offers a verifier our key cannot check is
+     * one whose key we no longer hold.
+     */
+    private fun sealedSenderMode(profileKey: ProfileKey, profile: Profile): Int {
+        val verifier = profile.unidentifiedAccessVerifier ?: return SEALED_SENDER_DISABLED
+        if (profile.unrestricted) return SEALED_SENDER_UNRESTRICTED
+        val verified = runCatching {
+            ProfileCipher(profileKey).verifyUnidentifiedAccess(
+                android.util.Base64.decode(verifier, android.util.Base64.DEFAULT)
+            )
+        }.getOrDefault(false)
+        return if (verified) SEALED_SENDER_ENABLED else SEALED_SENDER_DISABLED
+    }
+
+    private fun fetch(aci: ServiceId.ACI, profileKey: ProfileKey): Profile? {
         // The API suspends, and this runs on a worker thread that owns itself, so blocking
         // here costs nothing and keeps every caller free of coroutines.
         val result = runBlocking { connection.profiles.getVersionedProfile(aci, profileKey, null) }
@@ -56,12 +92,16 @@ internal class SignalProfiles(
             Timber.d("signal profile: %s", result)
             return null
         }
+        val profile = result.result
         val cipher = ProfileCipher(profileKey)
-        val decrypted = result.result.name?.let { encrypted ->
+        val decrypted = profile.name?.let { encrypted ->
             runCatching {
                 String(cipher.decrypt(android.util.Base64.decode(encrypted, android.util.Base64.DEFAULT)))
             }.getOrNull()
-        } ?: return null
+        }
+            // A profile with no readable name is still a profile, and what it says about
+            // sealed sender is worth keeping. Returning null here threw that away.
+            ?: return Profile(null, profile.unidentifiedAccess, profile.isUnrestrictedUnidentifiedAccess)
 
         // Given and family names are ONE field separated by a NUL byte, not by a space --
         // splitting on whitespace would break every name that contains one and would keep the
@@ -69,7 +109,10 @@ internal class SignalProfiles(
         val parts = decrypted.split(SEPARATOR).map { it.trim(PADDING) }
         val given = parts.getOrNull(0).orEmpty()
         val family = parts.getOrNull(1).orEmpty()
-        return listOf(given, family).filter { it.isNotBlank() }.joinToString(" ").takeIf { it.isNotBlank() }
+        val name = listOf(given, family).filter { it.isNotBlank() }
+            .joinToString(" ")
+            .takeIf { it.isNotBlank() }
+        return Profile(name, profile.unidentifiedAccess, profile.isUnrestrictedUnidentifiedAccess)
     }
 
     companion object {

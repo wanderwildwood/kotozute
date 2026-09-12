@@ -1107,42 +1107,24 @@ class DesktopSyncServer(
                     JSONObject().put("error", "signal threads do not support \"" + action + "\"")
                 )
             }
+            // One rule, in the repository, so this and the phone's two menus cannot
+            // disagree about what a single row means.
             val done = runCatching {
-                when (action) {
-                    "archive" -> signalRepository.setArchived(key, true)
-                    "unarchive" -> signalRepository.setArchived(key, false)
-                    "pin" -> signalRepository.setPinned(key, true)
-                    "unpin" -> signalRepository.setPinned(key, false)
-                    "mute" -> signalRepository.setMuted(key, true)
-                    "unmute" -> signalRepository.setMuted(key, false)
-                    "unread" -> signalRepository.markUnread(key)
-                    "block" -> signalRepository.setBlocked(key, true)
-                    "unblock" -> signalRepository.setBlocked(key, false)
-                }
-                // The same thing to the other half, where the row stands for both. Done to
-                // the Signal side alone, archiving took the merged row out of the list and
-                // let the text conversation spring back as a row of its own -- so archiving
-                // a person made them reappear -- and muting left half their messages
-                // chiming.
-                //
-                // Blocking included: a row that stands for both rails and stops only one of
-                // them stops half of what the person can send, which is not what anybody
-                // pressing it meant.
-                joinedConversationId(thread)?.let { id ->
+                val ok = signalRepository.actOnPerson(
+                    key,
                     when (action) {
-                        "archive" -> conversationRepository.markArchived(id)
-                        "unarchive" -> conversationRepository.markUnarchived(listOf(id))
-                        "pin" -> conversationRepository.markPinned(id)
-                        "unpin" -> conversationRepository.markUnpinned(id)
-                        "mute" -> prefs.notifications(id).set(false)
-                        "unmute" -> prefs.notifications(id).set(true)
-                        "unread" -> messageRepository.markUnread(listOf(id))
-                        "block" ->
-                            conversationRepository.markBlocked(listOf(id), blockingManager(), null)
-                        "unblock" -> conversationRepository.markUnblocked(id)
-                        else -> Unit
+                        "archive" -> SignalRepository.PersonAction.ARCHIVE
+                        "unarchive" -> SignalRepository.PersonAction.UNARCHIVE
+                        "pin" -> SignalRepository.PersonAction.PIN
+                        "unpin" -> SignalRepository.PersonAction.UNPIN
+                        "mute" -> SignalRepository.PersonAction.MUTE
+                        "unmute" -> SignalRepository.PersonAction.UNMUTE
+                        "unread" -> SignalRepository.PersonAction.UNREAD
+                        "block" -> SignalRepository.PersonAction.BLOCK
+                        else -> SignalRepository.PersonAction.UNBLOCK
                     }
-                }
+                )
+                if (!ok) throw IllegalStateException("that did not work")
             }
             done.exceptionOrNull()?.let { failure ->
                 Timber.w(failure, "Desktop Sync: signal %s failed", action)

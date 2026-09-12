@@ -138,7 +138,7 @@ internal class SignalReceiver(
             // and the delivery signal itself discarded -- the very thing deliveredAt exists to
             // record. It is what "1 message(s) could not be read (unknown)" turned out to be.
             if (envelope.type == Envelope.Type.SERVER_DELIVERY_RECEIPT) {
-                val from = envelope.sourceServiceId.orEmpty()
+                val from = senderOf(envelope).orEmpty()
                 // clientTimestamp, not the server's: a receipt identifies the message by the
                 // timestamp its *sender* stamped on it, which is the same value stored as the
                 // message's own id and date. The server's timestamp would match nothing.
@@ -348,7 +348,7 @@ internal class SignalReceiver(
             // The ACI store. A PNI-addressed envelope needs the PNI store instead, and using
             // the wrong one does not fail cleanly -- it fails as a decryption error, which
             // looks like a corrupt message.
-            if (envelope.destinationServiceId?.startsWith("PNI:") == true) protocol.pni() else protocol.aci(),
+            if (addressedToPni(envelope)) protocol.pni() else protocol.aci(),
             sessionLock,
             certificateValidator
         )
@@ -588,6 +588,32 @@ internal class SignalReceiver(
 
     companion object {
         private const val BATCH_SIZE = 10
+
+        /**
+         * Who an envelope came from, from whichever field the server filled.
+         *
+         * `sourceServiceId` is the old string and `sourceServiceIdBinary` the raw bytes, and
+         * a modern server sends only the second. Read as a string alone this came back blank,
+         * and a blank sender meant the delivery receipt above was dropped -- which is the very
+         * failure the comment there says this code exists to end. See
+         * [[SignalStorageService.aciOf]] for the same trap in the contact list.
+         */
+        internal fun senderOf(envelope: Envelope): String? =
+            ServiceId.parseOrNull(envelope.sourceServiceId, envelope.sourceServiceIdBinary)
+                ?.toString()
+
+        /**
+         * Whether an envelope was addressed to this account's PNI rather than its ACI.
+         *
+         * Decided on the parsed id rather than on `startsWith("PNI:")`, because the string it
+         * was testing is empty on a modern server -- so every PNI-addressed envelope was
+         * decrypted against the ACI store. As the comment at the call site says, that does not
+         * fail cleanly: it fails as a decryption error and reads as a corrupt message.
+         */
+        internal fun addressedToPni(envelope: Envelope): Boolean =
+            ServiceId.parseOrNull(
+                envelope.destinationServiceId, envelope.destinationServiceIdBinary
+            ) is ServiceId.PNI
 
         /** A profile key is exactly this; anything else is not one. */
         private const val PROFILE_KEY_BYTES = 32

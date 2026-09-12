@@ -40,7 +40,10 @@ private const val VIEW_ONCE_PREVIEW = "\uD83D\uDC41 View-once photo (not kept)"
 class SignalRepositoryImpl @Inject constructor(
     private val context: android.content.Context,
     private val prefs: Preferences,
-    private val phoneNumberUtils: PhoneNumberUtils
+    private val phoneNumberUtils: PhoneNumberUtils,
+    /** The other rail, for the things that are done to a person rather than a conversation. */
+    private val conversations: com.wanderwildwood.kotozute.repository.ConversationRepository,
+    private val messages: com.wanderwildwood.kotozute.repository.MessageRepository
 ) : SignalRepository {
 
     /**
@@ -1274,6 +1277,43 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun selfNumber(): String = runCatching { signalStore.selfNumberOrNull() }
         .getOrNull().orEmpty()
+
+    override fun actOnPerson(
+        threadKey: String,
+        action: SignalRepository.PersonAction
+    ): Boolean = runCatching {
+        when (action) {
+            SignalRepository.PersonAction.ARCHIVE -> setArchived(threadKey, true)
+            SignalRepository.PersonAction.UNARCHIVE -> setArchived(threadKey, false)
+            SignalRepository.PersonAction.PIN -> setPinned(threadKey, true)
+            SignalRepository.PersonAction.UNPIN -> setPinned(threadKey, false)
+            SignalRepository.PersonAction.MUTE -> setMuted(threadKey, true)
+            SignalRepository.PersonAction.UNMUTE -> setMuted(threadKey, false)
+            SignalRepository.PersonAction.UNREAD -> markUnread(threadKey)
+            SignalRepository.PersonAction.BLOCK -> setBlocked(threadKey, true)
+            SignalRepository.PersonAction.UNBLOCK -> setBlocked(threadKey, false)
+            SignalRepository.PersonAction.DELETE -> deleteThread(threadKey)
+        }
+        // And the same to the text half, where the row stands for both. Reading is the one
+        // thing deliberately left apart -- the two are separate screens and reading one is
+        // not a claim to have read the other -- so it is not in this list.
+        linkedConversationId(threadKey)?.takeIf { it != 0L }?.let { id ->
+            when (action) {
+                SignalRepository.PersonAction.ARCHIVE -> conversations.markArchived(id)
+                SignalRepository.PersonAction.UNARCHIVE -> conversations.markUnarchived(listOf(id))
+                SignalRepository.PersonAction.PIN -> conversations.markPinned(id)
+                SignalRepository.PersonAction.UNPIN -> conversations.markUnpinned(id)
+                SignalRepository.PersonAction.MUTE -> prefs.notifications(id).set(false)
+                SignalRepository.PersonAction.UNMUTE -> prefs.notifications(id).set(true)
+                SignalRepository.PersonAction.UNREAD -> messages.markUnread(listOf(id))
+                SignalRepository.PersonAction.BLOCK ->
+                    conversations.markBlocked(listOf(id), prefs.blockingManager.get(), null)
+                SignalRepository.PersonAction.UNBLOCK -> conversations.markUnblocked(id)
+                SignalRepository.PersonAction.DELETE -> conversations.deleteConversations(id)
+            }
+        }
+        true
+    }.onFailure { Timber.w(it, "signal: %s on a person failed", action) }.getOrDefault(false)
 
     override fun deleteThread(threadKey: String): Int {
         var removed = 0

@@ -356,6 +356,7 @@
     <string name="info_delete_both">Their texts go too, since the two are one conversation here</string>
     <string name="info_deleted_toast">Deleted %1$d message(s) from this phone</string>
     <string name="info_delete_failed">Nothing was deleted</string>
+    <string name="signal_action_failed">That did not work</string>
     <string name="info_block_both">Stops their texts as well, since the two are one conversation here</string>
     <string name="info_link">Link to a text conversation</string>
     <string name="info_link_linked">Linked to %s</string>

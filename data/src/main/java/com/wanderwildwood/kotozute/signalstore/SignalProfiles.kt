@@ -121,8 +121,13 @@ internal class SignalProfiles(
          *
          * A name is not fixed -- people change what they call themselves -- and eligibility
          * used to be "has no name at all", so the first name ever learned was the last.
+         *
+         * One day, which is Signal's: `RetrieveProfileJob` refetches profiles whose last fetch
+         * is older than `TimeUnit.DAYS.toMillis(1)`. This said seven, which was a number picked
+         * here rather than taken from anywhere -- a contact who changed their name took a week
+         * to update, against a day on their own phone.
          */
-        private val PROFILE_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(7)
+        private val PROFILE_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(1)
 
         /** At most this many round trips after any one batch. */
         private const val PROFILES_PER_PASS = 25

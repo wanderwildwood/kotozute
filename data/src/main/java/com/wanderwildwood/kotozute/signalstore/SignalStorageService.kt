@@ -50,8 +50,23 @@ internal class SignalStorageService(
      * account's current list, which replaces whatever was held. That also repairs a list left
      * stale by an old sync, since nothing else ever refreshes one.
      */
-    private val blocked: (List<SignalBlockStore.Blocked>, List<ByteArray>) -> Unit = { _, _ -> }
+    private val blocked: (List<SignalBlockStore.Blocked>, List<ByteArray>) -> Unit = { _, _ -> },
+    /**
+     * Muted and archived, as the account holds them, per conversation.
+     *
+     * Both live in the same records as blocking and were read no more than it was. Muting a
+     * conversation in Signal left it ringing on this phone, and archiving one left it in the
+     * inbox -- with nothing to say the account had been told otherwise.
+     */
+    private val conversationState: (List<ConversationState>) -> Unit = { _ -> }
 ) {
+
+    /** What the account says about a conversation, beyond who is in it. */
+    data class ConversationState(
+        val threadKey: String,
+        val muted: Boolean,
+        val archived: Boolean
+    )
 
     /**
      * What a read did, for a status line to say and a log to carry.
@@ -143,7 +158,12 @@ internal class SignalStorageService(
         // Who the account's own records say is blocked. Gathered whole and applied once, below.
         val blockedPeople = mutableListOf<SignalBlockStore.Blocked>()
         val blockedGroups = mutableListOf<ByteArray>()
+        val conversations = mutableListOf<ConversationState>()
         var groupsSeen = 0
+        // "Muted until" is a moment, not a flag: Signal stores when it ends, and a very large
+        // value is how it says "for good". Compared against now rather than treated as a
+        // boolean, or a mute that expired last year would still be silencing the conversation.
+        val now = System.currentTimeMillis()
         // In batches: a manifest can name thousands of records, and the service takes a list
         // of ids per request rather than all of them.
         wanted.chunked(BATCH).forEach { batch ->
@@ -170,8 +190,15 @@ internal class SignalStorageService(
                 // taken here rather than counted as a miss.
                 record.groupV2?.let { group ->
                     groupsSeen++
-                    if (group.blocked) {
-                        groupIdOf(group.masterKey?.toByteArray())?.let { blockedGroups += it }
+                    groupIdOf(group.masterKey?.toByteArray())?.let { groupId ->
+                        if (group.blocked) blockedGroups += groupId
+                        conversations += ConversationState(
+                            threadKey = "group:" + android.util.Base64.encodeToString(
+                                groupId, android.util.Base64.NO_WRAP
+                            ),
+                            muted = group.mutedUntilTimestamp > now,
+                            archived = group.archived
+                        )
                     }
                     return@mapNotNull null
                 }
@@ -221,6 +248,11 @@ internal class SignalStorageService(
                 if (aci == null) pniOnly++
                 // The flag that says this person is blocked. One boolean, and the whole of
                 // modern blocking; see the [blocked] parameter.
+                conversations += ConversationState(
+                    threadKey = "direct:$id",
+                    muted = record.mutedUntilTimestamp > now,
+                    archived = record.archived
+                )
                 if (record.blocked) {
                     blockedPeople += SignalBlockStore.Blocked(
                         aci = id,
@@ -258,6 +290,8 @@ internal class SignalStorageService(
         if (unreadable == 0) {
             runCatching { blocked(blockedPeople, blockedGroups) }
                 .onFailure { Timber.w(it, "signal storage: the blocked list would not keep") }
+            runCatching { conversationState(conversations) }
+                .onFailure { Timber.w(it, "signal storage: muted and archived would not keep") }
         } else {
             Timber.w(
                 "signal storage: %d record(s) unread, so the blocked list is left as it was",

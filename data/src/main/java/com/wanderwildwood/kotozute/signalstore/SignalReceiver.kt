@@ -643,10 +643,23 @@ internal class SignalReceiver(
                     ?: result.content.syncMessage?.sent?.message?.groupV2)
                     ?.masterKey?.toByteArray()
                     ?.let { runCatching { groupIdFrom(it) }.getOrNull() }
-                if (blocks.isBlocked(
+                // ⚠ Never against ourselves. Signal has no way to block your own account, so
+                // any entry that matches it is wrong by construction -- but the check believed
+                // it, and the thing it silently threw away was every note to self.
+                //
+                // That is not a corner case here: the household's server alerting sends to this
+                // account *as* this account, so UPS failures, SMART warnings, backup failures
+                // and the Kuma bridge were all arriving and all being dropped before anything
+                // was stored. The account owner saw no Note to Self conversation at all and no
+                // reason for its absence. Found by sending a plain note to self as a control
+                // after a mention test failed the same way.
+                val fromSelf = credentials.aci
+                    ?.takeIf { it.isNotBlank() }
+                    ?.equals(result.metadata.sourceServiceId.toString(), ignoreCase = true) == true
+                if (!fromSelf && (blocks.isBlocked(
                         result.metadata.sourceServiceId.toString(),
                         result.metadata.sourceE164
-                    ) || blocks.isGroupBlocked(fromGroup)
+                    ) || blocks.isGroupBlocked(fromGroup))
                 ) {
                     Timber.i("signal receive: dropped a message from somebody or somewhere blocked")
                     return@let null

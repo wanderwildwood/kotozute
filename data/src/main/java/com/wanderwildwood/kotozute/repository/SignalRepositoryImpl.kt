@@ -792,6 +792,27 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun syncNow(): Int = syncDirect()
 
+    /**
+     * Tops up and rotates this account's keys if either is owed.
+     *
+     * Deliberately not part of [syncDirect]: that returns early whenever the listen loop owns
+     * the socket, which is the steady state, so anything hung off it would never run on a
+     * phone that is working properly -- the opposite of what maintenance is for.
+     *
+     * Cheap when nothing is owed: two count requests and no upload.
+     */
+    override fun maintainKeys() {
+        if (!prefs.signalEnabled.get() || !linkedDirectly()) return
+        runCatching { signalStore.maintainPreKeys() }
+            .onSuccess { Timber.i("signal keys: %s", it) }
+            .onFailure {
+                // Loud. Failing to keep keys topped up is not visible from the outside: the
+                // phone goes on working while every new session opened with it loses the
+                // forward secrecy those keys exist to provide.
+                Timber.e(it, "signal keys: maintenance failed")
+            }
+    }
+
     override fun startStream() {
         if (!prefs.signalEnabled.get() || !isConfigured()) return
         // Claimed before either branch, so both rails take the flag and the generation the

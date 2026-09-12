@@ -114,7 +114,17 @@ class SignalStore(private val context: Context) {
      * last-resort key. Until this has run the device is reachable but on the degraded path,
      * every new session reusing the last-resort key.
      */
-    fun uploadPreKeys(): String {
+    fun uploadPreKeys(): String = runPreKeys(maintenanceOnly = false)
+
+    /**
+     * Tops up and rotates the account's keys if either is owed. See [PreKeyUploader.maintain].
+     *
+     * Cheap when nothing is needed -- two count requests and no upload -- so it can run on the
+     * ordinary sync schedule rather than needing one of its own.
+     */
+    fun maintainPreKeys(): String = runPreKeys(maintenanceOnly = true)
+
+    private fun runPreKeys(maintenanceOnly: Boolean): String {
         connection.connect()
         return try {
             val uploader = PreKeyUploader(
@@ -125,9 +135,17 @@ class SignalStore(private val context: Context) {
                 { SignalKyberPreKeyStore(database, it) }
             )
             val before = uploader.serverCounts()
-            val outcome = when (val result = uploader.uploadAll()) {
+            val result = if (maintenanceOnly) uploader.maintain() else uploader.uploadAll()
+            // ⚠ A refusal is thrown, not returned as prose. Both callers wrapped this in
+            // runCatching and logged whatever came back at INFO, so an upload the server
+            // refused -- most likely right after linking, on the flaky connection a QR scan
+            // tends to happen over -- was recorded as a success and never tried again. The
+            // device then lived its whole life advertising one signed prekey and one
+            // last-resort key, which is the degraded path this class exists to avoid.
+            val outcome = when (result) {
                 is PreKeyUploader.Result.Uploaded -> "uploaded"
-                is PreKeyUploader.Result.Failed -> result.reason
+                is PreKeyUploader.Result.NotNeeded -> "nothing owed"
+                is PreKeyUploader.Result.Failed -> throw IllegalStateException(result.reason)
             }
             // Asked of the server, before and after. The upload's own 200 says the request was
             // accepted; this says the keys are there to be handed out.

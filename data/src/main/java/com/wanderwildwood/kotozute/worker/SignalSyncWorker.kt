@@ -37,6 +37,12 @@ class SignalSyncWorker(appContext: Context, params: WorkerParameters) : Worker(a
         // would only duplicate work.
         if (prefs.signalKeepConnected.get()) return Result.success()
 
+        // Key maintenance rides the same schedule. It is cheap when nothing is owed, and it
+        // has to happen somewhere that runs even when the listen loop is healthy -- which is
+        // exactly when syncNow does nothing.
+        runCatching { signalRepo.maintainKeys() }
+            .onFailure { Timber.w(it, "signal: key maintenance could not run") }
+
         return runCatching { signalRepo.syncNow() }
             .fold(
                 onSuccess = {

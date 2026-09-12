@@ -44,7 +44,11 @@ internal class SignalGroups(
          * so nobody ever refreshes, and a recipient who has not yet seen us added to the group
          * discards our messages as coming from a non-member.
          */
-        val revision: Int = 0
+        val revision: Int = 0,
+        /** Only administrators may post. */
+        val announcementOnly: Boolean = false,
+        /** Service ids of the members who are administrators. */
+        val admins: Set<String> = emptySet()
     )
 
     /**
@@ -71,6 +75,16 @@ internal class SignalGroups(
             // without waiting for somebody to change it.
             expiresInSeconds = (group.disappearingMessagesTimer?.duration ?: 0).toLong(),
             revision = group.revision,
+            // Both come from the group's own state. Ignored, a non-admin's message to an
+            // announcement group is written down and shown as sent while every recipient
+            // silently discards it -- a message lost behind a tick, which is the worst way
+            // for one to be lost.
+            announcementOnly = group.isAnnouncementGroup ==
+                org.signal.storageservice.storage.protos.groups.local.EnabledState.ENABLED,
+            admins = group.members
+                .filter { it.role == org.signal.storageservice.storage.protos.groups.Member.Role.ADMINISTRATOR }
+                .mapNotNull { ServiceId.parseOrNull(it.aciBytes?.toByteArray())?.toString() }
+                .toSet(),
             // ACIs only. A member known to the server by PNI has not yet been resolved to an
             // account we can open a session with, and including them would produce a send
             // that fails partway with no way to say who it failed for.

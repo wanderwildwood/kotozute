@@ -29,7 +29,13 @@ import timber.log.Timber
 internal class SignalStorageService(
     private val connection: SignalConnection,
     private val keys: SignalKeyStore,
-    private val contacts: SignalContactStore
+    private val contacts: SignalContactStore,
+    /**
+     * Records the identity key the account already holds for somebody, and whether it has been
+     * verified. Every contact record carries both, and they were decrypted and dropped.
+     */
+    private val identities: (String, org.signal.libsignal.protocol.IdentityKey, Boolean) -> Unit =
+        { _, _, _ -> }
 ) {
 
     /**
@@ -154,6 +160,23 @@ internal class SignalStorageService(
                 // to it arrive. Dropping them was why two thirds of one account's contacts
                 // could not be written to.
                 val id = aci ?: pni
+
+                // The account already knows what key it holds for this person, and it was
+                // being decrypted and thrown away -- leaving this device to accept whatever
+                // key the server offered in the first prekey bundle. A trust-on-first-use
+                // window on a device that did not need one.
+                if (id != null) {
+                    record.identityKey?.takeIf { it.size > 0 }?.let { key ->
+                        runCatching {
+                            identities(
+                                id,
+                                org.signal.libsignal.protocol.IdentityKey(key.toByteArray()),
+                                record.identityState == ContactRecord.IdentityState.VERIFIED
+                            )
+                        }.onFailure { Timber.w(it, "signal storage: an identity would not keep") }
+                    }
+                }
+
                 if (id == null) {
                     anonymous++
                     if (!record.e164.isNullOrBlank()) anonymousWithNumber++

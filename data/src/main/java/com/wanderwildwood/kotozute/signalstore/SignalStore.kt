@@ -200,6 +200,15 @@ class SignalStore(private val context: Context) {
         connection.connect()
         val group = SignalGroups(connection, account, contacts).fetch(masterKey)
             ?: throw IllegalStateException("could not read the group's members")
+        // An announcement group takes messages from its administrators only. Sending anyway
+        // succeeds locally and is discarded by every recipient -- the message is lost behind a
+        // tick, with nothing to tell the sender it did not arrive. Refused here instead, where
+        // the refusal can be shown.
+        if (group.announcementOnly && account.credentials().aci !in group.admins) {
+            throw IllegalStateException(
+                "Only this group's admins can post in it. Your message was not sent."
+            )
+        }
         val members = group.members
             .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
             // Not ourselves: our own devices get the message as a sync, and encrypting to
@@ -374,7 +383,13 @@ class SignalStore(private val context: Context) {
      * it. Returns what it did, in a sentence, for a status line and a log.
      */
     fun readStorage(): String {
-        val result = SignalStorageService(connection, keys, contacts).read()
+        val result = SignalStorageService(connection, keys, contacts) { who, key, verified ->
+            // The account's own record of somebody's key, taken as this device's starting
+            // point rather than trusting whatever the server offers first.
+            runCatching {
+                SignalDataStore(database, account).aciStore().adoptIdentity(who, key, verified)
+            }.onFailure { Timber.w(it, "signal storage: could not adopt an identity") }
+        }.read()
         if (result.reason != null) return result.reason
         val line = "${result.contacts} contact(s) from ${result.records} record(s)"
         // A record this could not use is said out loud. The whole of this bug was a fetch

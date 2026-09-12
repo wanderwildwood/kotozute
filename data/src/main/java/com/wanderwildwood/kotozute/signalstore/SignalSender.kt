@@ -136,7 +136,16 @@ internal class SignalSender(
                 members.map { SignalServiceAddress(it) },
                 members.map { sealedSender.accessFor(it.toString()) },
                 false,
-                ContentHint.RESENDABLE,
+                // DEFAULT, not RESENDABLE, and the difference is a promise. RESENDABLE tells
+                // the recipient's client "we kept this and will send it again if you ask", so
+                // on a failed decrypt it shows nothing at all and waits for a resend. This app
+                // keeps no log of what it sent and can never answer, so the message would
+                // simply be absent, for ever, with nobody told. DEFAULT makes the same failure
+                // visible on their side instead.
+                //
+                // Worth revisiting the day a sent-ciphertext log exists; until then this says
+                // what is true.
+                ContentHint.DEFAULT,
                 message,
                 SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
                 null,
@@ -418,7 +427,7 @@ internal class SignalSender(
             val result = sender.sendDataMessage(
                 SignalServiceAddress(recipient),
                 sealedSender.accessFor(recipient.toString()),
-                ContentHint.RESENDABLE,
+                ContentHint.DEFAULT,
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,
                 false,
@@ -471,7 +480,7 @@ internal class SignalSender(
                 members.map { SignalServiceAddress(it) },
                 members.map { sealedSender.accessFor(it.toString()) },
                 false,
-                ContentHint.RESENDABLE,
+                ContentHint.DEFAULT,
                 message,
                 SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
                 null,
@@ -534,7 +543,7 @@ internal class SignalSender(
                 // the same way. Refusing to send instead would trade a metadata leak for a
                 // message that never arrives.
                 sealedSender.accessFor(recipient.toString()),
-                ContentHint.RESENDABLE,
+                ContentHint.DEFAULT,
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,
                 false,

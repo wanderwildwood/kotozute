@@ -209,7 +209,7 @@ class SignalStore(private val context: Context) {
             val r = SignalSender(
                 SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
-            ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion)
+            ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion, group.revision)
         ) {
             is SignalSender.Result.Sent -> r.timestamp
             is SignalSender.Result.Failed -> throw IllegalStateException(r.reason)

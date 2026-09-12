@@ -357,6 +357,12 @@ internal class SignalReceiver(
         serverDeliveredTimestamp: Long,
         alreadyAsked: Boolean = true
     ): Pair<String, com.wanderwildwood.kotozute.signal.BridgeMessage?>? {
+        // Both cleared before every attempt. They are how this function reports a failure to
+        // its caller, and left set they report the *previous* envelope's failure: after the
+        // first one, every envelope that decrypts to nothing -- and every duplicate the server
+        // redelivers -- inherited that error string, was counted as failed, and was kept
+        // instead of deleted. One real failure quietly turned every quiet event into another.
+        lastFailure = null
         askedForRetry = false
         val credentials = accounts.credentials()
         val aci = ServiceId.ACI.parseOrNull(credentials.aci) ?: return null

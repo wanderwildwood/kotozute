@@ -171,7 +171,15 @@ internal object ContentNormalizer {
             viewOnce = viewOnce,
             reactionEmoji = reaction?.emoji.orEmpty(),
             reactionTarget = reaction?.let { r ->
-                "${r.targetAuthorAciBinary?.let { ServiceIdText.of(it) } ?: ""}:${r.targetSentTimestamp ?: 0}"
+                // Both fields, as everywhere else. Reading only the binary twin loses every
+                // reaction from a client that fills the string one -- Desktop, iOS, anything
+                // signal-cli-shaped -- and it loses them silently: the target resolves to
+                // ":<timestamp>", matches no row, and the reaction is simply never shown.
+                val target = org.signal.core.models.ServiceId
+                    .parseOrNull(r.targetAuthorAci, r.targetAuthorAciBinary)
+                    ?.toString()
+                    .orEmpty()
+                "$target:${r.targetSentTimestamp ?: 0}"
             }.orEmpty(),
             reactionRemove = reaction?.remove == true,
             groupMasterKey = dataMessage.groupV2?.masterKey?.toByteArray()

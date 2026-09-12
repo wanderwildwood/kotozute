@@ -35,7 +35,52 @@ internal class SignalAttachments(
      * still a message, and losing the text because the image was unavailable would be the
      * wrong trade.
      */
-    fun download(pointer: AttachmentPointer): String? = try {
+    /**
+     * Tries more than once, because most of what goes wrong here is the network.
+     *
+     * A dropped socket mid-transfer, or a moment of bad wifi, used to lose a photo or a voice
+     * note permanently: one failure, a row marked pending, the pointer thrown away, and
+     * nothing in the app that could ever ask again. The bytes stay on the CDN for weeks and
+     * were never fetched.
+     *
+     * Bounded and immediate rather than a queue. A real retry mechanism -- keep the pointer,
+     * retry later with backoff, surface it in the UI -- is worth building, and this is not it;
+     * this is the cheap part that covers the common cause. What it cannot fix is a phone with
+     * no connection at all for the whole batch.
+     *
+     * A failure that is not worth retrying is not retried: a missing digest, or bytes that do
+     * not match one, will fail the same way every time.
+     */
+    fun download(pointer: AttachmentPointer): String? {
+        var lastFailure: Throwable? = null
+        repeat(DOWNLOAD_ATTEMPTS) { attempt ->
+            when (val outcome = downloadOnce(pointer)) {
+                is Outcome.Got -> return outcome.id
+                is Outcome.NotWorthRetrying -> {
+                    Timber.w(outcome.why, "signal attachment: cannot be downloaded at all")
+                    return null
+                }
+                is Outcome.Failed -> {
+                    lastFailure = outcome.why
+                    if (attempt < DOWNLOAD_ATTEMPTS - 1) {
+                        Timber.i("signal attachment: download failed, trying again")
+                    }
+                }
+            }
+        }
+        Timber.w(lastFailure, "signal attachment: could not download after %d tries", DOWNLOAD_ATTEMPTS)
+        return null
+    }
+
+    private sealed interface Outcome {
+        data class Got(val id: String) : Outcome
+        /** Worth another go -- a socket, a timeout, the CDN having a moment. */
+        data class Failed(val why: Throwable) : Outcome
+        /** The same every time: no digest, or bytes that do not match one. */
+        data class NotWorthRetrying(val why: Throwable) : Outcome
+    }
+
+    private fun downloadOnce(pointer: AttachmentPointer): Outcome = try {
         val servicePointer = AttachmentPointerUtil.createSignalAttachmentPointer(pointer)
         val digest = servicePointer.digest.orElse(null)
             // Without a digest there is nothing to check the bytes against, and the library
@@ -46,7 +91,7 @@ internal class SignalAttachments(
         val id = idFor(servicePointer.remoteId.toString())
         val destination = File(dir, id)
         if (destination.exists()) {
-            id
+            Outcome.Got(id)
         } else {
             // Downloads to a temporary file, decrypts on the way out. The library needs a
             // seekable destination for the ciphertext, so this cannot stream straight to its
@@ -59,14 +104,17 @@ internal class SignalAttachments(
                     MAX_ATTACHMENT_SIZE,
                     AttachmentCipherInputStream.IntegrityCheck.forEncryptedDigest(digest)
                 ).use { plaintext -> destination.outputStream().use { plaintext.copyTo(it) } }
-                id
+                Outcome.Got(id)
             } finally {
                 temp.delete()
             }
         }
+    } catch (t: InvalidMessageException) {
+        // The sender's own digest is missing or does not match what the CDN served. Asking
+        // again gets the same answer.
+        Outcome.NotWorthRetrying(t)
     } catch (t: Throwable) {
-        Timber.w(t, "signal attachment: could not download")
-        null
+        Outcome.Failed(t)
     }
 
     fun read(id: String): ByteArray? = File(dir, id).takeIf { it.isFile }?.readBytes()
@@ -122,6 +170,15 @@ internal class SignalAttachments(
             .take(32)
 
     companion object {
+        /**
+         * How many times to ask the CDN for the same attachment.
+         *
+         * Three, immediately, in the receive loop. Enough to ride out a dropped socket without
+         * holding the batch up: every attempt is on a connection that is already open and
+         * already working, since a message just arrived over it.
+         */
+        private const val DOWNLOAD_ATTEMPTS = 3
+
         /** signal-cli's limit. */
         private const val MAX_ATTACHMENT_SIZE = 150L * 1024 * 1024
     }

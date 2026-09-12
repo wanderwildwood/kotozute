@@ -53,7 +53,15 @@ internal class SignalStorageService(
         /** A contact naming no account this device can address. */
         val anonymous: Int = 0,
         /** Of [anonymous], those that carried a PNI and nothing else. */
-        val pniOnly: Int = 0
+        val pniOnly: Int = 0,
+        /**
+         * Of [anonymous], those carrying a phone number.
+         *
+         * The one fact that decides what can be done about them: a number is what contact
+         * discovery takes, so these are recoverable. One with neither an account id nor a
+         * number is not addressable by anything this app could ask for.
+         */
+        val anonymousWithNumber: Int = 0
     )
 
     fun read(): Result {
@@ -100,6 +108,7 @@ internal class SignalStorageService(
         var notContacts = 0
         var anonymous = 0
         var pniOnly = 0
+        var anonymousWithNumber = 0
         // In batches: a manifest can name thousands of records, and the service takes a list
         // of ids per request rather than all of them.
         wanted.chunked(BATCH).forEach { batch ->
@@ -121,6 +130,7 @@ internal class SignalStorageService(
                 if (aci == null) {
                     anonymous++
                     if (pniOf(record) != null) pniOnly++
+                    if (!record.e164.isNullOrBlank()) anonymousWithNumber++
                     return@mapNotNull null
                 }
                 SignalContactStore.Contact(
@@ -136,10 +146,10 @@ internal class SignalStorageService(
             }
         }
         Timber.i(
-            "signal storage: %d contact(s) from %d record(s); dropped %d unopened, %d not contacts, %d anonymous (%d pni-only)",
-            kept, seen, unopened, notContacts, anonymous, pniOnly
+            "signal storage: %d contact(s) from %d record(s); dropped %d unopened, %d not contacts, %d anonymous (%d pni-only, %d with a number)",
+            kept, seen, unopened, notContacts, anonymous, pniOnly, anonymousWithNumber
         )
-        return Result(kept, seen, null, unopened, notContacts, anonymous, pniOnly)
+        return Result(kept, seen, null, unopened, notContacts, anonymous, pniOnly, anonymousWithNumber)
     }
 
     companion object {

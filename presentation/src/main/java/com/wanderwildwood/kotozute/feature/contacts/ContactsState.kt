@@ -24,5 +24,9 @@ import com.wanderwildwood.kotozute.model.Contact
 data class ContactsState(
     val query: String = "",
     val composeItems: List<ComposeItem> = ArrayList(),
-    val selectedContact: Contact? = null // For phone number picker
+    val selectedContact: Contact? = null, // For phone number picker
+    /** Which address book is being shown: the phone's, or the people on Signal. */
+    val showingSignal: Boolean = false,
+    /** Whether there is another address book to cross to at all. */
+    val canCrossRails: Boolean = false
 )

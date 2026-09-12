@@ -73,6 +73,8 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     override val phoneNumberSelectedIntent: Subject<Optional<Long>> by lazy { phoneNumberAdapter.selectedItemChanges }
     override val phoneNumberActionIntent: Subject<PhoneNumberAction> = PublishSubject.create()
 
+    override val railSwitchIntent: Subject<Unit> = PublishSubject.create()
+
     private val viewModel by lazy { ViewModelProviders.of(this, viewModelFactory)[ContactsViewModel::class.java] }
 
     private val phoneNumberDialog by lazy {
@@ -99,6 +101,8 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
         // applies: this is a long list on a panel that redraws in full.
         binding.contacts.turnsAPageOnSwipe()
 
+        binding.railBadge.setOnClickListener { railSwitchIntent.onNext(Unit) }
+
         val callback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 navigator.showMainActivity()
@@ -115,6 +119,26 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     override fun render(state: ContactsState) {
         binding.cancel.isVisible = state.query.length > 1
 
+        // Names where you are, and the arrow says you can cross -- the same badge, and the
+        // same reading of it, as the two conversation lists.
+        binding.railBadge.isVisible = state.canCrossRails
+        binding.railBadge.setText(
+            if (state.showingSignal) R.string.signal_rail_label_switch
+            else R.string.sms_rail_label_switch
+        )
+        binding.search.setHint(
+            if (state.showingSignal) R.string.contacts_signal_hint else R.string.title_compose
+        )
+        // The badge sits in front of the search field rather than over it; without this the
+        // hint starts underneath the badge on the one screen that has one.
+        (binding.search.layoutParams as? android.widget.FrameLayout.LayoutParams)?.let { params ->
+            val start = if (state.canCrossRails) railBadgeInset else 0
+            if (params.marginStart != start) {
+                params.marginStart = start
+                binding.search.layoutParams = params
+            }
+        }
+
         contactsAdapter.data = state.composeItems
 
         if (state.selectedContact != null && !phoneNumberDialog.isShowing) {
@@ -124,6 +148,11 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
         } else if (state.selectedContact == null && phoneNumberDialog.isShowing) {
             phoneNumberDialog.dismiss()
         }
+    }
+
+    /** Room for the badge, so the search field's hint does not begin underneath it. */
+    private val railBadgeInset by lazy {
+        (56 * resources.displayMetrics.density).toInt()
     }
 
     override fun clearQuery() {

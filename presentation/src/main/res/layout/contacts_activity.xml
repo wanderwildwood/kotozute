@@ -57,6 +57,27 @@
             android:layout_height="match_parent"
             android:animateLayoutChanges="false">
 
+            <!-- Crosses to the other address book: the phone's contacts, or the people on
+                 Signal. Gone when there is no second book to cross to. The same badge the
+                 two conversation lists use. -->
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/railBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical|start"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/filter_tab_selected"
+                android:contentDescription="@string/signal_rail_label"
+                android:paddingStart="6dp"
+                android:paddingTop="1dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="1dp"
+                android:text="@string/sms_rail_label_switch"
+                android:textColor="@android:color/white"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
             <com.wanderwildwood.kotozute.common.widget.QkEditText
                 android:id="@+id/search"
                 style="@style/ToolbarText"

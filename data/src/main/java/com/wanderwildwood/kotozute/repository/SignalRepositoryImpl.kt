@@ -350,24 +350,36 @@ class SignalRepositoryImpl @Inject constructor(
      * Messages are moved, never deleted. The only row that goes is the thread it emptied.
      */
     private fun mergeNumberKeyedThreads() {
-        val numberKeyed = Realm.getDefaultInstance().use { realm ->
+        val strays = Realm.getDefaultInstance().use { realm ->
             realm.where(SignalThread::class.java)
                 .equalTo("kind", "direct")
                 .findAll()
                 .map { it.threadKey }
-                .filter { it.startsWith("direct:+") }
+                // Two kinds of half-conversation, folded the same way. A number-keyed thread
+                // holds our own sends, filed from a transcript that never named who they went
+                // to. A PNI-keyed one is a person Signal would only tell us about by phone
+                // number -- writable, but their replies arrive under their account id, so
+                // without this one person sits in the inbox as two rows.
+                .filter { it.startsWith("direct:+") || it.startsWith("direct:PNI:") }
         }
-        if (numberKeyed.isEmpty()) return
+        if (strays.isEmpty()) return
         // Resolved outside the transaction: the pairing lives in the protocol database, and
         // asking it is not something to do with a Realm write held open.
-        val moves = numberKeyed.mapNotNull { key ->
-            val number = key.removePrefix("direct:")
-            val target = signalStore.contactAciForNumber(number)?.let { "direct:$it" }
-                // Or the link the reader made by hand. Saying "this Signal conversation is
-                // the same person as this text conversation" also says which service id
-                // that number belongs to -- which is the one thing the account never told
-                // this phone, and the reason the orphan exists at all.
-                ?: threadLinkedToNumber(number)
+        val moves = strays.mapNotNull { key ->
+            val counterpart = key.removePrefix("direct:")
+            val target = if (counterpart.startsWith("PNI:")) {
+                // Only ever a pairing the account itself stated, on its own authority; see
+                // the note on ProtocolStoreSchema.PNI_ACI for what is deliberately not
+                // believed here.
+                signalStore.contactAciForPni(counterpart)?.let { "direct:$it" }
+            } else {
+                signalStore.contactAciForNumber(counterpart)?.let { "direct:$it" }
+                    // Or the link the reader made by hand. Saying "this Signal conversation
+                    // is the same person as this text conversation" also says which service
+                    // id that number belongs to -- which is the one thing the account never
+                    // told this phone, and the reason the orphan exists at all.
+                    ?: threadLinkedToNumber(counterpart)
+            }
             target?.let { key to it }
         }.filter { (from, to) -> from != to }
         if (moves.isEmpty()) return
@@ -375,13 +387,18 @@ class SignalRepositoryImpl @Inject constructor(
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 moves.forEach { (from, to) ->
-                    val number = from.removePrefix("direct:")
+                    val counterpart = from.removePrefix("direct:")
                     val target = r.where(SignalThread::class.java).equalTo("threadKey", to).findFirst()
                         ?: r.createObject(SignalThread::class.java, to).apply {
                             kind = "direct"
                             counterpartUuid = to.removePrefix("direct:")
                         }
-                    if (target.counterpartNumber.isBlank()) target.counterpartNumber = number
+                    // Only a real number is worth carrying across. A PNI is an address, not a
+                    // phone number, and putting it in this column would make the merged row
+                    // claim a number nobody can dial.
+                    if (target.counterpartNumber.isBlank() && counterpart.startsWith("+")) {
+                        target.counterpartNumber = counterpart
+                    }
                     val old = r.where(SignalThread::class.java).equalTo("threadKey", from).findFirst()
                     if (target.title.isBlank() && old != null && old.title.isNotBlank()) {
                         target.title = old.title

@@ -621,8 +621,20 @@ internal class SignalReceiver(
                 //
                 // Dropped whole, before anything is stored, which is where Signal drops it.
                 // The envelope is still acked and deleted: it has been dealt with.
-                if (blocks.isBlocked(result.metadata.sourceServiceId.toString())) {
-                    Timber.i("signal receive: dropped a message from somebody who is blocked")
+                // By account id, by number, and by group -- the account blocks in all three
+                // ways and only the first was being consulted. A blocked group's messages come
+                // from members who are not themselves blocked, so the per-person check never
+                // sees them at all.
+                val fromGroup = (result.content.dataMessage?.groupV2
+                    ?: result.content.syncMessage?.sent?.message?.groupV2)
+                    ?.masterKey?.toByteArray()
+                    ?.let { runCatching { groupIdFrom(it) }.getOrNull() }
+                if (blocks.isBlocked(
+                        result.metadata.sourceServiceId.toString(),
+                        result.metadata.sourceE164
+                    ) || blocks.isGroupBlocked(fromGroup)
+                ) {
+                    Timber.i("signal receive: dropped a message from somebody or somewhere blocked")
                     return@let null
                 }
 
@@ -727,6 +739,20 @@ internal class SignalReceiver(
             Timber.w(it, "signal group key: a sender key would not be kept")
         }
     }
+
+    /**
+     * A group's id as the blocked list holds it, derived from the master key a message carries.
+     *
+     * The same derivation the thread key uses -- the master key is not the id, and comparing
+     * the wrong one would mean a blocked group that never matches.
+     */
+    private fun groupIdFrom(masterKey: ByteArray): ByteArray? = runCatching {
+        org.signal.libsignal.zkgroup.groups.GroupSecretParams
+            .deriveFromMasterKey(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+            .publicParams
+            .groupIdentifier
+            .serialize()
+    }.getOrNull()
 
     /**
      * The members of each group this session has had to ask about, by revision.

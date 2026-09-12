@@ -120,6 +120,25 @@ internal class SignalAttachments(
     fun read(id: String): ByteArray? = File(dir, id).takeIf { it.isFile }?.readBytes()
 
     /**
+     * Removes the bytes behind an attachment.
+     *
+     * ⚠ There was no way to do this at all. Every incoming picture and voice note was
+     * downloaded here and nothing ever deleted one -- so a disappearing message lost its text
+     * on schedule and left its media on disk indefinitely, and a message withdrawn by its
+     * sender left the file behind as well. The promise a disappearing message makes is not
+     * "the words go"; anybody with the handset afterwards still had the photograph.
+     *
+     * @return whether a file was actually there to remove.
+     */
+    fun forget(id: String): Boolean {
+        if (id.isBlank()) return false
+        val file = File(dir, id)
+        return runCatching { file.isFile && file.delete() }
+            .onFailure { Timber.w(it, "signal attachment: could not remove one") }
+            .getOrDefault(false)
+    }
+
+    /**
      * Keeps bytes that arrived without being downloaded -- an import reading them out of a
      * folder -- under an id the rest of the app can ask for. Already there is success: the
      * same file referenced by two messages is one file.

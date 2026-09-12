@@ -455,6 +455,16 @@ interface SignalRepository {
      * replayed on reconnect cannot ring twice.
      */
     fun newIncoming(): Observable<SignalMessage>
+
+    /**
+     * Thread keys whose messages have just been removed -- withdrawn by their sender, expired,
+     * or deleted on another device.
+     *
+     * The notification carries the message text. Removing the row leaves that text on the lock
+     * screen until the conversation is next opened, so a withdrawal -- the one gesture whose
+     * entire purpose is to unsay something -- left it legible exactly where it is most read.
+     */
+    fun messagesRemoved(): Observable<String>
 }
 
 /** One thread that matched a search, and what matched in it. */

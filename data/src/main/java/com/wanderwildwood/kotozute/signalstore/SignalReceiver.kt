@@ -468,6 +468,20 @@ internal class SignalReceiver(
                     }
                 }
 
+                // Somebody telling us they could not read something we sent.
+                //
+                // The message itself cannot be sent again from here -- that needs a record of
+                // the ciphertext this device sent, which it does not keep -- but the session
+                // can be cleared so the *next* thing sent to them is built fresh instead of
+                // failing the same way for ever.
+                result.content.decryptionErrorMessage?.let { bytes ->
+                    repairSessionFor(
+                        result.metadata.sourceServiceId.toString(),
+                        result.metadata.sourceDeviceId,
+                        bytes.toByteArray()
+                    )
+                }
+
                 // What the account has verified about somebody's safety number, decided on
                 // another device. A verification is a thing a person does once, carefully, in
                 // the room; it belongs to the account rather than the device it happened on.
@@ -591,6 +605,45 @@ internal class SignalReceiver(
             // it decrypted. Only this sender's group messages are affected.
             Timber.w(it, "signal group key: a sender key would not be kept")
         }
+    }
+
+    /**
+     * Clears a session somebody says is broken, but only the one they mean.
+     *
+     * The receipt carries the ratchet key of the session that failed. Archiving without
+     * checking it would throw away a session that has since been rebuilt and is working --
+     * turning somebody else's stale complaint into a fresh break here, which is the opposite
+     * of a repair. Signal makes the same check for the same reason.
+     *
+     * A receipt naming one of this account's other devices is not ours to act on.
+     *
+     * Adapted from Signal Android's `MessageContentProcessor.handleIndividualRetryReceipt`,
+     * minus the half that resends: that needs a log of sent ciphertext this app does not keep.
+     */
+    private fun repairSessionFor(sender: String, deviceId: Int, serialized: ByteArray) {
+        if (sender.isBlank()) return
+        runCatching {
+            val error = org.signal.libsignal.protocol.message.DecryptionErrorMessage(serialized)
+            if (error.deviceId != accounts.credentials().deviceId) {
+                Timber.i("signal retry: a retry receipt for another of this account's devices")
+                return
+            }
+            val ratchetKey = error.ratchetKey.orElse(null) ?: run {
+                // Without it there is no way to tell which session they mean, and archiving
+                // on a guess is how a working conversation gets broken.
+                Timber.w("signal retry: a retry receipt with no ratchet key; leaving the session alone")
+                return
+            }
+            val address = SignalProtocolAddress(sender, deviceId)
+            val store = protocol.aci()
+            val session = store.loadSession(address)
+            if (session != null && session.currentRatchetKeyMatches(ratchetKey)) {
+                store.archiveSession(address)
+                Timber.i("signal retry: archived the session they could not read, so the next send is fresh")
+            } else {
+                Timber.i("signal retry: the session has already moved on; leaving it alone")
+            }
+        }.onFailure { Timber.w(it, "signal retry: could not act on a retry receipt") }
     }
 
     /**

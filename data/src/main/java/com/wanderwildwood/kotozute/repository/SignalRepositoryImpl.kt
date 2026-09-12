@@ -848,6 +848,9 @@ class SignalRepositoryImpl @Inject constructor(
                         receipts = { sender, timestamps, read -> applyReceipts(sender, timestamps, read) },
                         readElsewhere = { read -> applyReadElsewhere(read) },
                         withdrawn = { author, at -> applyWithdrawal(author, at) },
+                        deletedElsewhere = { messages, threads ->
+                            applyDeletedElsewhere(messages, threads)
+                        },
                         onBatch = {
                             Timber.i("signal: received %s", it)
                             // The only place the direct rail can record that traffic is
@@ -1061,6 +1064,63 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun send(threadKey: String, body: String, attachments: List<String>): Long =
         sendDirect(threadKey, body, attachments)
+
+    /**
+     * Removes what the account has deleted on another device, for itself.
+     *
+     * Not the same gesture as a withdrawal: nobody else is affected and nothing is taken back
+     * from anyone. This account tidied its own copy, and this phone holds a copy too.
+     *
+     * A deleted conversation keeps its thread row. Emptying a conversation and removing it
+     * are different things to have done, and a thread that vanishes takes with it the link to
+     * its text conversation and whatever the reader had set on it. An empty conversation is
+     * also the honest picture: the person is still there to write to.
+     */
+    private fun applyDeletedElsewhere(
+        messages: List<Pair<String, Long>>,
+        threads: List<String>
+    ) = runOffThread {
+        if (messages.isEmpty() && threads.isEmpty()) return@runOffThread
+        val touched = mutableSetOf<String>()
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                messages.forEach { (author, at) ->
+                    val row = r.where(SignalMessage::class.java)
+                        .equalTo("id", "$author:$at").findFirst() ?: return@forEach
+                    touched += row.threadKey
+                    row.deleteFromRealm()
+                }
+                threads.forEach { key ->
+                    val all = r.where(SignalMessage::class.java)
+                        .equalTo("threadKey", key)
+                        .findAll()
+                    if (all.isNotEmpty()) {
+                        touched += key
+                        // A snapshot, for the same reason every other bulk change here takes
+                        // one: deleting from live results takes rows out from under the walk.
+                        all.createSnapshot().forEach { it.deleteFromRealm() }
+                    }
+                }
+                touched.forEach { key ->
+                    val stillUnread = r.where(SignalMessage::class.java)
+                        .equalTo("threadKey", key)
+                        .equalTo("outgoing", false)
+                        .equalTo("read", false)
+                        .count()
+                    r.where(SignalThread::class.java).equalTo("threadKey", key).findFirst()
+                        ?.unread = stillUnread.toInt()
+                    refreshThreadPreview(r, key)
+                }
+            }
+        }
+        if (touched.isNotEmpty()) {
+            Timber.i(
+                "signal delete sync: removed %d message(s) and emptied %d conversation(s)",
+                messages.size, threads.size
+            )
+            contactsChanged()
+        }
+    }
 
     /**
      * Removes a message its sender has withdrawn for everyone.

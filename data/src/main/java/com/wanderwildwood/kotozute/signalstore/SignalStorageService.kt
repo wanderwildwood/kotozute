@@ -54,6 +54,8 @@ internal class SignalStorageService(
         val anonymous: Int = 0,
         /** Kept under a phone-number identity, because no account id was on the record. */
         val pniOnly: Int = 0,
+        /** Records the service would not hand over at all, so this read is incomplete. */
+        val unreadable: Int = 0,
         /**
          * Of [anonymous], those carrying a phone number.
          *
@@ -109,11 +111,19 @@ internal class SignalStorageService(
         var anonymous = 0
         var pniOnly = 0
         var anonymousWithNumber = 0
+        var unreadable = 0
         // In batches: a manifest can name thousands of records, and the service takes a list
         // of ids per request rather than all of them.
         wanted.chunked(BATCH).forEach { batch ->
             val items = api.readStorageItems(auth, ReadOperation(readKey = batch)).successOrNull()
-                ?: return@forEach
+                ?: run {
+                    // A 5xx, a timeout or an expired auth token loses up to two hundred people
+                    // here. Swallowed, a partial read reported as a complete one -- the exact
+                    // shape of the bug this whole counter block exists because of.
+                    unreadable += batch.size
+                    Timber.w("signal storage: a batch of %d record(s) could not be read", batch.size)
+                    return@forEach
+                }
             seen += items.items.size
             val found = items.items.mapNotNull { item ->
                 val id = item.key.toByteArray()
@@ -168,7 +178,7 @@ internal class SignalStorageService(
             "signal storage: %d contact(s) from %d record(s); dropped %d unopened, %d not contacts, %d anonymous (%d pni-only, %d with a number)",
             kept, seen, unopened, notContacts, anonymous, pniOnly, anonymousWithNumber
         )
-        return Result(kept, seen, null, unopened, notContacts, anonymous, pniOnly, anonymousWithNumber)
+        return Result(kept, seen, null, unopened, notContacts, anonymous, pniOnly, unreadable, anonymousWithNumber)
     }
 
     companion object {

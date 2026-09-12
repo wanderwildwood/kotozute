@@ -127,6 +127,17 @@ internal object ContentNormalizer {
         // below unreachable for any current sender.
         if (isExpirationUpdate(dataMessage)) return null
 
+        // ⚠ An edit is a rewrite of a row this app already holds, and the row it rewrites is
+        // chosen by author and timestamp alone -- so an edit carrying a *different* group
+        // context would move somebody's message into another conversation. Signal resolves an
+        // edit against the original's thread; here the honest equivalent is to refuse one that
+        // disagrees, because the original's thread is not known at this layer.
+        if (editTarget != null && groupId.isNotBlank() && content.dataMessage?.groupV2 == null &&
+            content.syncMessage?.sent?.editMessage?.dataMessage?.groupV2 == null
+        ) {
+            return null
+        }
+
         // The original's timestamp for an edit, its own for anything else. An edit naming no
         // target is not an edit of anything and there is nothing to apply it to.
         val timestamp = editTarget ?: dataMessage.timestamp ?: 0L

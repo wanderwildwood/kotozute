@@ -109,16 +109,38 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             return
         }
 
-        // COALESCE in this direction on purpose: what is already here wins, and a new value
-        // only fills a hole. Reversed, every nameless sync would erase the names.
+        // A new value wins where there is one; a blank never overwrites. Those are two
+        // different rules and both matter.
+        //
+        // ⚠ This briefly had it as "what is already here always wins", which quietly made the
+        // whole table write-once: somebody who changed their profile name, or moved to a new
+        // number, kept the old one for ever, and a profile key that had been rotated could
+        // never be replaced. The rule that was being preserved is only the second one -- a
+        // sync can carry somebody with no name, and letting that land would un-name people.
+        //
+        // The two ids stay fill-only. A contact record naming a *different* account for a
+        // phone-number identity we already hold is not an update, it is two people or a
+        // person who has moved, and quietly overwriting one with the other is how a
+        // conversation ends up pointing at a stranger. Resolving that properly is the rest of
+        // Signal's PNP logic; until then it is left alone and said out loud.
+        if (aci != null && byPni != null && byAci == null) {
+            db.readableDatabase.rawQuery(
+                "SELECT aci FROM recipient WHERE _id = ?", arrayOf(byPni.toString())
+            ).use { c ->
+                val held = if (c.moveToFirst()) c.getString(0) else null
+                if (held != null && held != aci) {
+                    Timber.w("signal contacts: a phone-number identity now names a different account; left alone")
+                }
+            }
+        }
         database.execSQL(
             """
             UPDATE recipient SET
               aci = COALESCE(aci, ?),
               pni = COALESCE(pni, ?),
-              e164 = COALESCE(e164, ?),
-              name = COALESCE(name, ?),
-              profile_key = COALESCE(profile_key, ?),
+              e164 = COALESCE(?, e164),
+              name = COALESCE(?, name),
+              profile_key = COALESCE(?, profile_key),
               updated_timestamp = ?
             WHERE _id = ?
             """.trimIndent(),
@@ -169,14 +191,26 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         ).use { c -> if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() } else null }
     }
 
-    /** Contacts whose profile could be fetched, and whose name we do not already have. */
-    fun needingProfile(): List<Pair<String, ByteArray>> = withStoreLock(db) {
+    /**
+     * Contacts whose profile is worth fetching.
+     *
+     * Anyone with no name, and anyone whose profile has not been read for a while. The second
+     * half is what lets a name change: eligibility used to be "has no name", so a name learned
+     * once could never be corrected -- somebody who changed what they call themselves kept the
+     * old name here for ever.
+     *
+     * Bounded per pass, because this is a network round trip each and it runs after a batch.
+     */
+    fun needingProfile(staleBefore: Long, limit: Int): List<Pair<String, ByteArray>> = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             """
             SELECT COALESCE(aci, pni), profile_key FROM recipient
-            WHERE profile_key IS NOT NULL AND (name IS NULL OR name = '')
+            WHERE profile_key IS NOT NULL
+              AND (name IS NULL OR name = '' OR updated_timestamp < ?)
+            ORDER BY (name IS NULL OR name = '') DESC, updated_timestamp ASC
+            LIMIT ?
             """.trimIndent(),
-            null
+            arrayOf(staleBefore.toString(), limit.toString())
         ).use { c ->
             generateSequence { if (c.moveToNext()) c.getString(0) to c.getBlob(1) else null }.toList()
         }

@@ -234,11 +234,29 @@ internal class SignalSender(
             )
             results.forEach { rememberSend(it, timestamp, masterKey) }
             val failed = results.filterNot { it.isSuccess }
-            if (failed.isEmpty()) {
-                Timber.i("signal send: delivered to %d group members ts=%d", results.size, timestamp)
-                Result.Sent(timestamp)
-            } else {
-                Result.Failed("could not reach ${failed.size} of ${results.size} group members")
+            when {
+                failed.isEmpty() -> {
+                    Timber.i("signal send: delivered to %d group members ts=%d", results.size, timestamp)
+                    Result.Sent(timestamp)
+                }
+                // ⚠ Some got it. That is a **sent** message, and calling it a failure threw it
+                // away: the caller above turns Failed into an exception, which happens before
+                // the sender's own copy is filed -- so a message that reached nine of ten
+                // people vanished from the thread of the one person who wrote it, while the
+                // nine sat looking at it. Retyping it then delivers it twice to all nine.
+                //
+                // Signal keeps the message and records per-recipient status. This app has no
+                // per-recipient column, so it keeps the message and says who was missed, which
+                // is the part a reader can act on.
+                failed.size < results.size -> {
+                    Timber.w(
+                        "signal send: reached %d of %d group members ts=%d; missed %s",
+                        results.size - failed.size, results.size, timestamp,
+                        failed.joinToString { describe(it) }
+                    )
+                    Result.Sent(timestamp)
+                }
+                else -> Result.Failed("could not reach any of the ${results.size} group members")
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal send: group send threw")

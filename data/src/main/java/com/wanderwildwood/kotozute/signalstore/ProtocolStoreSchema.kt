@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 8
+    const val VERSION = 9
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -219,7 +219,8 @@ internal object ProtocolStoreSchema {
         BLOCKED_GROUP,
         ACCOUNT_KEYS,
         CDS_STATE,
-        CDS_SUBMITTED
+        CDS_SUBMITTED,
+        PNI_ACI
     )
 
     /**
@@ -324,6 +325,30 @@ internal object ProtocolStoreSchema {
     """
 
     /**
+     * Which account id a phone-number identity belongs to.
+     *
+     * A person discovered by phone number arrives as a PNI and nothing else -- that is all
+     * CDSI returns for somebody whose ACI/UAK pair the asker does not already hold, which for
+     * a linked device is everybody. They can be written to by that PNI, but their replies
+     * arrive under their ACI, and without this the two are different people: one conversation
+     * in two rows, the same split this app has already been bitten by twice.
+     *
+     * ⚠ **Filled only from the account's own storage records** -- a ContactRecord carrying
+     * both ids, written by the account's own primary and read with the account's own storage
+     * key. A pairing asserted by an incoming message is not taken: `Content.pniSignatureMessage`
+     * exists for that and carries a signature, and until that signature is actually verified,
+     * believing it would let a stranger claim somebody else's phone-number identity and
+     * capture their conversation.
+     */
+    const val PNI_ACI = """
+        CREATE TABLE pni_aci (
+          pni TEXT PRIMARY KEY NOT NULL,
+          aci TEXT NOT NULL,
+          updated_timestamp INTEGER NOT NULL
+        ) STRICT;
+    """
+
+    /**
      * Migrations, keyed by the version they upgrade *to*.
      *
      * Explicit and additive. This database holds key material that cannot be refetched -- an
@@ -353,7 +378,10 @@ internal object ProtocolStoreSchema {
         7 to listOf(ACCOUNT_KEYS),
         // v8: what contact discovery has already asked about. Additive. Empty means the next
         // run is a first run, which is correct but costs quota -- so it is written down.
-        8 to listOf(CDS_STATE, CDS_SUBMITTED)
+        8 to listOf(CDS_STATE, CDS_SUBMITTED),
+        // v9: which account a phone-number identity belongs to, so the two halves of one
+        // person fold together rather than sitting in the inbox as two. Additive.
+        9 to listOf(PNI_ACI)
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

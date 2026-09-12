@@ -120,6 +120,40 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         }
     }
 
+    /**
+     * Records that a phone-number identity and an account id are the same person.
+     *
+     * See the note on the table in [ProtocolStoreSchema.PNI_ACI] for why this is only ever
+     * filled from the account's own storage records and never from an incoming message.
+     */
+    fun pair(pni: String, aci: String) = withStoreLock(db) {
+        if (pni.isBlank() || aci.isBlank()) return@withStoreLock
+        db.writableDatabase.execSQL(
+            """
+            INSERT INTO pni_aci (pni, aci, updated_timestamp) VALUES (?, ?, ?)
+            ON CONFLICT(pni) DO UPDATE SET
+              aci = excluded.aci,
+              updated_timestamp = excluded.updated_timestamp
+            """.trimIndent(),
+            arrayOf<Any?>(pni, aci, System.currentTimeMillis())
+        )
+    }
+
+    /** The account id a phone-number identity belongs to, where that is known. */
+    fun aciForPni(pni: String): String? = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT aci FROM pni_aci WHERE pni = ?", arrayOf(pni)
+        ).use { c -> if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() } else null }
+    }
+
+    /** Every pairing known, for folding conversations in one pass after a sync. */
+    fun pairings(): Map<String, String> = withStoreLock(db) {
+        db.readableDatabase.rawQuery("SELECT pni, aci FROM pni_aci", null).use { c ->
+            generateSequence { if (c.moveToNext()) c.getString(0) to c.getString(1) else null }
+                .toMap()
+        }
+    }
+
     /** Every name known, for renaming threads in one pass after a sync. */
     fun all(): Map<String, String> = withStoreLock(db) {
         db.readableDatabase.rawQuery(

@@ -50,9 +50,9 @@ internal class SignalStorageService(
         val unopened: Int = 0,
         /** Opened, but held something other than a contact. */
         val notContacts: Int = 0,
-        /** A contact naming no account this device can address. */
+        /** A contact naming no address at all -- neither an account id nor a PNI. */
         val anonymous: Int = 0,
-        /** Of [anonymous], those that carried a PNI and nothing else. */
+        /** Kept under a phone-number identity, because no account id was on the record. */
         val pniOnly: Int = 0,
         /**
          * Of [anonymous], those carrying a phone number.
@@ -127,14 +127,31 @@ internal class SignalStorageService(
             }
             val people = found.mapNotNull { record ->
                 val aci = aciOf(record)
-                if (aci == null) {
+                val pni = pniOf(record)
+
+                // A record carrying both is the account telling this phone, on its own
+                // authority, that these two ids are one person. It is the only pairing that
+                // is trusted here -- see the note on ProtocolStoreSchema.PNI_ACI -- and it is
+                // what later folds a conversation held under the PNI into the real one.
+                if (aci != null && pni != null) {
+                    runCatching { contacts.pair(pni, aci) }
+                        .onFailure { Timber.w(it, "signal storage: a pairing would not keep") }
+                }
+
+                // The account id where there is one, the phone-number identity otherwise.
+                // Somebody who has turned off "who can find me by number" is known to Signal
+                // by their PNI and nothing else, and that is a real address -- messages sent
+                // to it arrive. Dropping them was why two thirds of one account's contacts
+                // could not be written to.
+                val id = aci ?: pni
+                if (id == null) {
                     anonymous++
-                    if (pniOf(record) != null) pniOnly++
                     if (!record.e164.isNullOrBlank()) anonymousWithNumber++
                     return@mapNotNull null
                 }
+                if (aci == null) pniOnly++
                 SignalContactStore.Contact(
-                    aci = aci,
+                    aci = id,
                     e164 = record.e164?.takeIf { it.isNotBlank() },
                     name = nameOf(record),
                     profileKey = record.profileKey?.takeIf { it.size > 0 }?.toByteArray()

@@ -379,7 +379,10 @@ class SignalStore(private val context: Context) {
             result.notContacts.takeIf { it > 0 }?.let { "$it not a contact" },
             result.anonymous.takeIf { it > 0 }?.let { anon ->
                 val pni = result.pniOnly.takeIf { it > 0 }?.let { ", $it of them phone-number only" }
-                "$anon with no account id${pni.orEmpty()}"
+                // Whether they carry a number is the fact that decides what can be done
+                // about them, so it is on the same line as the count.
+                val num = result.anonymousWithNumber.takeIf { it > 0 }?.let { ", $it with a number" }
+                "$anon with no account id${pni.orEmpty()}${num.orEmpty()}"
             }
         )
         return if (dropped.isEmpty()) line else "$line · skipped ${dropped.joinToString(", ")}"

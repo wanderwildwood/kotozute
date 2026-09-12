@@ -371,6 +371,32 @@ internal class SignalReceiver(
         val credentials = accounts.credentials()
         val aci = ServiceId.ACI.parseOrNull(credentials.aci) ?: return null
 
+        // ⚠ Addressed to us, or not read at all. `MessageDecryptor` refuses an envelope whose
+        // destination is neither this account's ACI nor its PNI, and the check earns its place
+        // twice over here: it is the thing that makes the store choice below correct rather
+        // than merely usual. `addressedToPni` asks whether the destination is *a* PNI, not
+        // whether it is *ours* -- so an envelope for somebody else's phone-number identity
+        // would pick this account's PNI store and fail as a decryption error, which reads as a
+        // corrupt message rather than as a misdelivery.
+        //
+        // The server only ever fills this queue with our own messages, so nothing should
+        // reach it. That is the argument for checking, not against.
+        val destination = ServiceId.parseOrNull(
+            envelope.destinationServiceId, envelope.destinationServiceIdBinary
+        )
+        val pni = ServiceId.PNI.parseOrNull(credentials.pni)
+        if (destination != null && destination != aci && destination != pni) {
+            // Not kept: it cannot be decrypted with anything this device holds, so keeping it
+            // for a fortnight in case a fix arrives is keeping it for nothing.
+            Timber.w("signal receive: an envelope addressed to somebody else; ignoring it")
+            return null
+        }
+        // ⚠ A deliberate softening: Signal also refuses an envelope with **no** destination at
+        // all, and this does not -- it carries on with the ACI store, which is what happened
+        // before this check existed. Refusing would be the closer copy, but it would silently
+        // drop real messages if any path ever omits the field, and nothing here has proved it
+        // never does. Revisit with evidence rather than by reasoning.
+
         val cipher = SignalServiceCipher(
             SignalServiceAddress(aci, credentials.e164),
             credentials.deviceId,

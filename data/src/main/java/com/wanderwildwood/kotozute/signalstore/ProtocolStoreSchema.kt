@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 7
+    const val VERSION = 8
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -217,7 +217,9 @@ internal object ProtocolStoreSchema {
         CONTACT,
         BLOCKED,
         BLOCKED_GROUP,
-        ACCOUNT_KEYS
+        ACCOUNT_KEYS,
+        CDS_STATE,
+        CDS_SUBMITTED
     )
 
     /**
@@ -297,6 +299,31 @@ internal object ProtocolStoreSchema {
     """
 
     /**
+     * What contact discovery has already been told, so the next run can be cheap.
+     *
+     * CDSI is quota'd per account, and the quota is spent on **new** numbers: a run submits
+     * the numbers it has asked about before, the ones it has not, and the token from last
+     * time, and is charged for the difference. Forgetting either half turns every run into a
+     * first run, which is how an account loses discovery for a day.
+     *
+     * The token is opaque and is only ever handed back to the service.
+     */
+    const val CDS_STATE = """
+        CREATE TABLE cds_state (
+          _id INTEGER PRIMARY KEY CHECK (_id = 1),
+          token BLOB,
+          updated_timestamp INTEGER NOT NULL
+        ) STRICT;
+    """
+
+    /** Every number already submitted, so the next run asks only about the rest. */
+    const val CDS_SUBMITTED = """
+        CREATE TABLE cds_submitted (
+          e164 TEXT PRIMARY KEY NOT NULL
+        ) STRICT;
+    """
+
+    /**
      * Migrations, keyed by the version they upgrade *to*.
      *
      * Explicit and additive. This database holds key material that cannot be refetched -- an
@@ -323,7 +350,10 @@ internal object ProtocolStoreSchema {
         // adding to it, so blocking one person without the rest would unblock everyone else.
         6 to listOf(BLOCKED, BLOCKED_GROUP),
         // v7: the storage service key, derived from the pool the primary sends. Additive.
-        7 to listOf(ACCOUNT_KEYS)
+        7 to listOf(ACCOUNT_KEYS),
+        // v8: what contact discovery has already asked about. Additive. Empty means the next
+        // run is a first run, which is correct but costs quota -- so it is written down.
+        8 to listOf(CDS_STATE, CDS_SUBMITTED)
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

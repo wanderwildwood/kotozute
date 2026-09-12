@@ -37,6 +37,8 @@ interface SettingsView : QkViewContract<SettingsState> {
     /** The one-off offer to read the account's contact list, answered yes. */
     fun signalFetchContactsConfirmed(): Observable<*>
 
+    fun signalDiscoverContactsConfirmed(): Observable<*>
+
     /** The folder the reader picked to read an export from, as a tree uri. */
     fun signalExportFolderChosen(): Observable<String>
 
@@ -74,6 +76,9 @@ interface SettingsView : QkViewContract<SettingsState> {
      * where names would be.
      */
     fun askFetchContacts()
+
+    /** Confirms sending the address book's numbers to Signal's lookup, every time it is asked. */
+    fun askDiscoverContacts()
 
     /** Ask for the digits that open a backup this app wrote. */
     fun askSignalBackupKey(folder: String)

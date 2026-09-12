@@ -116,6 +116,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private var pendingBackupFolder: String? = null
     private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
     private val signalFetchContactsSubject: Subject<Unit> = PublishSubject.create()
+
+    private val signalDiscoverContactsSubject: Subject<Unit> = PublishSubject.create()
     private val aboutLongClickSubject: Subject<Unit> = PublishSubject.create()
 
 
@@ -237,6 +239,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun signalFetchContactsConfirmed(): Observable<*> = signalFetchContactsSubject
 
+    override fun signalDiscoverContactsConfirmed(): Observable<*> = signalDiscoverContactsSubject
+
     private companion object {
         /** How long an armed row stays armed. Birding's ConfirmingRow uses the same five seconds. */
         const val ARM_TIMEOUT_MS = 5000L
@@ -324,6 +328,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // what it has since been given.
         val signalSetUp = (state.signalPaired || state.signalLinkedDirectly) && state.signalEnabled
         binding.signalFetchContacts.setVisible(signalSetUp)
+        // Directly linked only. A paired bridge resolves numbers on its own side, so asking
+        // the enclave from here would send the address book off the phone to answer a
+        // question that is already answered.
+        binding.signalDiscoverContacts.setVisible(state.signalLinkedDirectly && state.signalEnabled)
         binding.signalHistoryImport.setVisible(signalSetUp)
         binding.signalHistoryExport.setVisible(signalSetUp)
         binding.signalAccount.setVisible(state.signalPaired && state.signalEnabled)
@@ -517,6 +525,28 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * looking at the row they just tapped, and a dialog that cannot be dismissed while
      * thousands of messages are read is a locked screen with a number on it.
      */
+    /**
+     * Asked every time, not once.
+     *
+     * This is the only thing in the app that sends the address book anywhere, and a row that
+     * did it on a single tap would be a row somebody could press without knowing that. The
+     * wording says where the numbers go and that Signal rations the asking; the quota is the
+     * part that surprises people, because spending it affects the account rather than the app.
+     */
+    override fun askDiscoverContacts() {
+        activity?.runOnUiThread {
+            val activity = activity ?: return@runOnUiThread
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.settings_signal_discover_contacts_confirm_title)
+                .setMessage(R.string.settings_signal_discover_contacts_confirm_body)
+                .setPositiveButton(R.string.settings_signal_discover_contacts_confirm_yes) { _, _ ->
+                    signalDiscoverContactsSubject.onNext(Unit)
+                }
+                .setNegativeButton(R.string.settings_signal_discover_contacts_confirm_no, null)
+                .show()
+        }
+    }
+
     override fun askFetchContacts() {
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread

@@ -267,6 +267,10 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalFetchContacts -> fetchContacts(view)
 
+                        // Asks first. Everything else on this screen acts on the phone; this
+                        // one sends the address book's numbers off it.
+                        R.id.signalDiscoverContacts -> view.askDiscoverContacts()
+
                         R.id.signalHistoryImport -> view.chooseSignalExportFolder()
 
                         R.id.signalHistoryExport -> view.chooseSignalBackupFolder()
@@ -403,6 +407,10 @@ class SettingsPresenter @Inject constructor(
         view.signalFetchContactsConfirmed()
             .autoDisposable(view.scope())
             .subscribe { fetchContacts(view) }
+
+        view.signalDiscoverContactsConfirmed()
+            .autoDisposable(view.scope())
+            .subscribe { discoverContacts(view) }
     }
 
     /**
@@ -430,6 +438,22 @@ class SettingsPresenter @Inject constructor(
                     .getOrElse { failure ->
                         Timber.w(failure, "signal contacts: fetch failed")
                         context.getString(R.string.settings_signal_fetch_contacts_failed)
+                    }
+            )
+        }.apply { isDaemon = true }.start()
+    }
+
+    /**
+     * The lookup itself, off the main thread: it reads the whole address book and then waits
+     * on an enclave round trip.
+     */
+    private fun discoverContacts(view: SettingsView) {
+        Thread {
+            view.showSignalFetchResult(
+                runCatching { signalRepo.discoverContactsByNumber() }
+                    .getOrElse { failure ->
+                        Timber.w(failure, "signal discovery: the lookup failed")
+                        context.getString(R.string.settings_signal_discover_contacts_failed)
                     }
             )
         }.apply { isDaemon = true }.start()

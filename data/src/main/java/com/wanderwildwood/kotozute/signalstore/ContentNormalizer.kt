@@ -174,10 +174,26 @@ internal object ContentNormalizer {
             read = outgoing,
             source = "live",
             attachmentsJson = attachmentsJson(dataMessage, viewOnce),
-            // The clock starts now rather than at the moment of reading: a read on another
-            // device is not observable here, and erring early is the safe direction.
-            expiresAt = (dataMessage.expireTimer ?: 0).takeIf { it > 0 }
-                ?.let { System.currentTimeMillis() + it * 1000L } ?: 0L,
+            // When this message's time runs out, or 0 for "the clock has not started".
+            //
+            // ⚠ An incoming message does not start counting until it is read. It used to start
+            // at the moment it was decrypted, on the reasoning that erring early was safe --
+            // it is not. A thirty-second message that arrives while the phone is in a pocket
+            // was deleted before its reader ever saw it: a real message, gone, with no trace
+            // and nothing to say it had been there. Signal keeps the deadline unstarted until
+            // the message is actually read, and markRead sets it here.
+            //
+            // Our own sent message is different: it has been seen by definition, and the
+            // primary tells us when its clock began. That timestamp is the primary's, not this
+            // device's, so a linked phone that was asleep does not restart the countdown.
+            expiresAt = (dataMessage.expireTimer ?: 0).takeIf { it > 0 }?.let { seconds ->
+                when {
+                    !outgoing -> 0L
+                    sent?.expirationStartTimestamp?.takeIf { it > 0 } != null ->
+                        sent.expirationStartTimestamp!! + seconds * 1000L
+                    else -> System.currentTimeMillis() + seconds * 1000L
+                }
+            } ?: 0L,
             expiresInSeconds = (dataMessage.expireTimer ?: 0).toLong(),
             viewOnce = viewOnce,
             reactionEmoji = reaction?.emoji.orEmpty(),

@@ -405,7 +405,8 @@ class SignalStore(private val context: Context) {
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 
-    fun isBlocked(aci: String): Boolean = runCatching { blocks.isBlocked(aci) }.getOrDefault(false)
+    fun isBlocked(aci: String): Boolean =
+        runCatching { blocks.isBlocked(aci, null) }.getOrDefault(false)
 
     /**
      * Reads the account's contact list out of the storage service, where modern Signal keeps
@@ -652,6 +653,16 @@ class SignalStore(private val context: Context) {
 
     private fun attachmentsFor(connection: SignalConnection) =
         SignalAttachments(context) { connection.messageReceiver }
+
+    /**
+     * Removes the bytes behind attachments whose message is gone.
+     *
+     * Needs no connection: it only deletes files. See [SignalAttachments.forget] for why this
+     * had to exist -- without it a disappearing message lost its words and kept its picture.
+     */
+    fun forgetAttachments(ids: List<String>): Int =
+        SignalAttachments(context) { throw IllegalStateException("no network needed to forget") }
+            .let { store -> ids.count { id -> store.forget(id) } }
 
     /**
      * Files an attachment that came from an import rather than from the network, returning

@@ -47,6 +47,19 @@ class SignalNotifications @Inject constructor(
         started = true
         createChannel()
         signalRepo.newIncoming().subscribe({ notify(it) }, { Timber.w(it, "signal notify") })
+
+        // A notification carries the message text, so a message that has gone must take its
+        // notification with it. Withdrawn, expired or deleted elsewhere, the row disappeared
+        // from the app and the words stayed on the lock screen until the thread was next
+        // opened -- which for a withdrawal is the opposite of what the sender asked for.
+        //
+        // The whole thread's notification goes, not one line of it: what is shown is built
+        // from the message that arrived, and there is no record of which one is on screen.
+        // Cancelling too much here costs a notification the reader would have seen anyway
+        // when they opened the app; cancelling too little leaves text that was meant to be
+        // gone.
+        signalRepo.messagesRemoved()
+            .subscribe({ cancel(it) }, { Timber.w(it, "signal notify: removal") })
     }
 
     private fun createChannel() {

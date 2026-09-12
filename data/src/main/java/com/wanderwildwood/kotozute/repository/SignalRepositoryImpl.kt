@@ -112,6 +112,9 @@ class SignalRepositoryImpl @Inject constructor(
 
     private val incoming = io.reactivex.subjects.PublishSubject.create<SignalMessage>()
 
+    /** Threads whose messages have gone; see [messagesRemoved]. */
+    private val removed = io.reactivex.subjects.PublishSubject.create<String>()
+
     private var stream: Closeable? = null
     private val streamWanted = AtomicBoolean(false)
 
@@ -170,6 +173,8 @@ class SignalRepositoryImpl @Inject constructor(
      */
     override fun purgeExpired(): Int {
         var removed = 0
+        val doomedAttachments = mutableListOf<String>()
+        val expiredThreads = mutableListOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val dead = r.where(SignalMessage::class.java)
@@ -179,14 +184,40 @@ class SignalRepositoryImpl @Inject constructor(
                 removed = dead.size
                 if (removed == 0) return@executeTransaction
                 val touched = dead.map { it.threadKey }.distinct()
+                expiredThreads += touched
+                // Collected before the rows go, because afterwards there is nothing left
+                // saying which files belonged to them.
+                doomedAttachments += dead.flatMap { attachmentIdsOf(it.attachments) }
                 dead.deleteAllFromRealm()
                 // A thread whose newest message just vanished would otherwise keep showing
                 // it as the preview on the inbox row.
                 touched.forEach { key -> refreshThreadPreview(r, key) }
             }
         }
-        if (removed > 0) Timber.i("signal: %d expired message(s) removed", removed)
+        if (doomedAttachments.isNotEmpty()) {
+            // The point of a disappearing message is not that its words go. Anything kept on
+            // disk for it goes with them.
+            val gone = runCatching { signalStore.forgetAttachments(doomedAttachments) }
+                .onFailure { Timber.w(it, "signal: could not remove expired attachments") }
+                .getOrDefault(0)
+            if (gone > 0) Timber.i("signal: %d expired attachment(s) removed from disk", gone)
+        }
+        if (removed > 0) {
+            Timber.i("signal: %d expired message(s) removed", removed)
+            expiredThreads.forEach { this.removed.onNext(it) }
+        }
         return removed
+    }
+
+    /** The stored attachment ids on a message row, or nothing if it had none. */
+    private fun attachmentIdsOf(json: String?): List<String> {
+        if (json.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val array = org.json.JSONArray(json)
+            (0 until array.length()).mapNotNull { i ->
+                array.optJSONObject(i)?.optString("id")?.takeIf { it.isNotBlank() }
+            }
+        }.getOrDefault(emptyList())
     }
 
     /** Re-derive a thread's snippet, timestamp and unread count from what is left. */
@@ -1128,12 +1159,14 @@ class SignalRepositoryImpl @Inject constructor(
     ) = runOffThread {
         if (messages.isEmpty() && threads.isEmpty()) return@runOffThread
         val touched = mutableSetOf<String>()
+        val removedFiles = mutableListOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 messages.forEach { (author, at) ->
                     val row = r.where(SignalMessage::class.java)
                         .equalTo("id", "$author:$at").findFirst() ?: return@forEach
                     touched += row.threadKey
+                    removedFiles += attachmentIdsOf(row.attachments)
                     row.deleteFromRealm()
                 }
                 threads.forEach { key ->
@@ -1142,6 +1175,7 @@ class SignalRepositoryImpl @Inject constructor(
                         .findAll()
                     if (all.isNotEmpty()) {
                         touched += key
+                        removedFiles += all.flatMap { attachmentIdsOf(it.attachments) }
                         // A snapshot, for the same reason every other bulk change here takes
                         // one: deleting from live results takes rows out from under the walk.
                         all.createSnapshot().forEach { it.deleteFromRealm() }
@@ -1159,11 +1193,16 @@ class SignalRepositoryImpl @Inject constructor(
                 }
             }
         }
+        if (removedFiles.isNotEmpty()) {
+            runCatching { signalStore.forgetAttachments(removedFiles) }
+                .onFailure { Timber.w(it, "signal delete sync: could not remove attachments") }
+        }
         if (touched.isNotEmpty()) {
             Timber.i(
                 "signal delete sync: removed %d message(s) and emptied %d conversation(s)",
                 messages.size, threads.size
             )
+            touched.forEach { removed.onNext(it) }
             contactsChanged()
         }
     }
@@ -1184,11 +1223,15 @@ class SignalRepositoryImpl @Inject constructor(
     private fun applyWithdrawal(author: String, sentAt: Long) = runOffThread {
         val id = "$author:$sentAt"
         var threadKey: String? = null
+        val doomed = mutableListOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
                     ?: return@executeTransaction
                 threadKey = row.threadKey
+                // Whatever was attached goes with it. Withdrawing a message is somebody
+                // unsaying something; leaving the picture on disk unsays nothing.
+                doomed += attachmentIdsOf(row.attachments)
                 row.deleteFromRealm()
             }
             threadKey?.let { key ->
@@ -1206,7 +1249,12 @@ class SignalRepositoryImpl @Inject constructor(
             }
         }
         if (threadKey != null) {
+            if (doomed.isNotEmpty()) {
+                runCatching { signalStore.forgetAttachments(doomed) }
+                    .onFailure { Timber.w(it, "signal delete: could not remove its attachments") }
+            }
             Timber.i("signal delete: a message was withdrawn by the person who sent it")
+            threadKey?.let { removed.onNext(it) }
             contactsChanged()
         }
     }
@@ -2217,6 +2265,8 @@ class SignalRepositoryImpl @Inject constructor(
     override fun connectionState(): Observable<SignalRepository.ConnectionState> = state
 
     override fun newIncoming(): Observable<SignalMessage> = incoming
+
+    override fun messagesRemoved(): Observable<String> = removed
 
     private fun publishState(
         signalConnected: Boolean,

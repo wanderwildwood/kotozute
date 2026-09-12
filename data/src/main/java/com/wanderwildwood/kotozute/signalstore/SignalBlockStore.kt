@@ -83,6 +83,32 @@ internal class SignalBlockStore(private val db: ProtocolDatabase) {
         }
     }
 
-    fun isBlocked(aci: String): Boolean =
-        individuals().any { it.aci.equals(aci, ignoreCase = true) }
+    /**
+     * Whether this person is blocked, by whichever of their names the account used.
+     *
+     * ⚠ Matching the account id alone was half a block. The primary stores a block by phone
+     * number too -- `blocked.blockedE164s` and `blocked.numbers` arrive as rows with no account
+     * id at all -- and those rows were never consulted, so somebody blocked by number went on
+     * arriving here, raising a notification and, worse, being sent a delivery receipt telling
+     * them this phone was on and had received them.
+     */
+    fun isBlocked(serviceId: String?, e164: String? = null): Boolean {
+        if (serviceId.isNullOrBlank() && e164.isNullOrBlank()) return false
+        return individuals().any { blocked ->
+            (!serviceId.isNullOrBlank() && blocked.aci.equals(serviceId, ignoreCase = true)) ||
+                (!e164.isNullOrBlank() && blocked.e164.equals(e164, ignoreCase = true))
+        }
+    }
+
+    /**
+     * Whether this group is blocked.
+     *
+     * A blocked group's messages arrive from members who are not themselves blocked, so the
+     * per-person check never sees them. Blocking a group and still being shown it is the same
+     * failure as blocking a person and still being shown them.
+     */
+    fun isGroupBlocked(groupId: ByteArray?): Boolean {
+        if (groupId == null || groupId.isEmpty()) return false
+        return groups().any { it.contentEquals(groupId) }
+    }
 }

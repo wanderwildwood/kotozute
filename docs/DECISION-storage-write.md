@@ -64,3 +64,29 @@ Build in this order, and stop at each step:
 
 Steps 1 and 2 are safe to do at any time and are most of the work. Step 3 is the one that needs
 care and a live account to test against.
+
+## Step 1 is done (2026-09-12, schema v17)
+
+`recipient.storage_id`, plus `rotateStorageId` and `needingStoragePush` on the contact store.
+Sixteen random bytes, base64 with padding, exactly as `StorageSyncHelper.KEY_GENERATOR` makes
+them. Nothing writes to the storage service; this only records.
+
+⚠ **It is called from exactly one place, and that is the finding.** Signal rotates from 31 call
+sites; this app has **one** — a local block. Everything else that touches a recipient row here
+is *applying what the account just said*, and rotating there would make the device permanently
+believe it had something to send: two devices each undoing the other, which is what
+`StorageSyncLoopDetector` exists to catch.
+
+That is worth knowing before step 3 is costed. The phone barely makes local decisions that a
+storage record carries, so the write path buys less than it first appears:
+
+| what a record holds | where this app keeps it | local changes today |
+|---|---|---|
+| `blocked` | `blocked` table | yes — one path, the only rotation site |
+| `muted`, `archived` | **Realm `SignalThread`**, not the recipient row | yes, but in another store |
+| name, profile key, ids | `recipient` | no — all learned, never chosen here |
+
+So before step 3 is worth building, mute and archive need a dirty marker of their own, because
+they live in Realm and cannot be found by looking at `recipient.storage_id`. That is a second
+model decision, not a detail — and it is the honest reason the write path is not simply "add the
+network call".

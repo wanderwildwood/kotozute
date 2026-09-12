@@ -382,6 +382,12 @@ class SignalStore(private val context: Context) {
                 // account's, and a copy that ran ahead of it would be a lie the next sync
                 // would silently correct.
                 blocks.store(updated, blocks.groups())
+                // A genuinely local decision, and the only one this app makes that a storage
+                // record carries. Marked so a future sync knows this row differs from the
+                // account's copy -- nothing pushes it yet, and the legacy blocked-list sync
+                // above is what actually tells the account today.
+                runCatching { contacts.rotateStorageId(serviceId.toString()) }
+                    .onFailure { Timber.w(it, "signal blocked: could not mark the row for a push") }
                 true
             }
             is SignalSender.Result.Failed -> false

@@ -701,6 +701,20 @@ class SignalStore(private val context: Context) {
         runCatching { contacts.everyone() }.getOrDefault(emptyList())
 
     /** Asks the primary for its contacts. The answer arrives later, through the socket. */
+    /** Asks the primary for the account's settings; the answer arrives through the socket. */
+    fun requestConfiguration(): String {
+        connection.connect()
+        return when (
+            val r = SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).requestConfiguration()
+        ) {
+            is SignalSender.Result.Sent -> "requested"
+            is SignalSender.Result.Failed -> r.reason
+        }
+    }
+
     fun requestContacts(): String {
         connection.connect()
         return try {

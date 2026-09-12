@@ -70,7 +70,15 @@ internal class SignalReceiver(
      * could not be read" is a record of the loss; this is the thing that undoes it -- the
      * sender's client archives the broken session and sends the message again.
      */
-    private val retryReceipt: (String, org.signal.libsignal.protocol.message.DecryptionErrorMessage, ByteArray?) -> Unit
+    private val retryReceipt: (String, org.signal.libsignal.protocol.message.DecryptionErrorMessage, ByteArray?) -> Unit,
+    /**
+     * Messages the account has read somewhere else.
+     *
+     * A linked device that does not listen for this keeps showing as unread every conversation
+     * its owner has already dealt with on their own phone -- which is most of them, most of
+     * the time, and makes the unread count worthless.
+     */
+    private val readElsewhere: (List<Pair<String, Long>>) -> Unit = {}
 ) {
 
     /**
@@ -415,6 +423,27 @@ internal class SignalReceiver(
                 // primary answering a request, and the only way this device learns anybody's
                 // name. Handled before normalizing, which would find nothing to store in it.
                 result.content.syncMessage?.contacts?.let { handleContactsSync(it) }
+
+                // What the account has read on another device. Applied here, never answered:
+                // the device that did the reading has already told the sender, and saying so
+                // again would tell them twice.
+                result.content.syncMessage?.read
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { read ->
+                        val pairs = read.mapNotNull { one ->
+                            // Both fields, as everywhere: the string is the old one and a
+                            // modern primary fills only the binary twin. Reading one would
+                            // make every read sync name nobody and quietly do nothing.
+                            val sender = ServiceId.parseOrNull(one.senderAci, one.senderAciBinary)
+                                ?.toString() ?: return@mapNotNull null
+                            val at = one.timestamp ?: return@mapNotNull null
+                            sender to at
+                        }
+                        if (pairs.isNotEmpty()) {
+                            runCatching { readElsewhere(pairs) }
+                                .onFailure { Timber.w(it, "signal read sync: could not apply") }
+                        }
+                    }
 
                 // The account's blocked list, which arrives whole and replaces what is held.
                 // Stored rather than acted on: this device does not hide anything on the

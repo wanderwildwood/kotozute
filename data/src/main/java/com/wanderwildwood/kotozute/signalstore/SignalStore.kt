@@ -152,7 +152,8 @@ class SignalStore(private val context: Context) {
     fun receive(
         file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
         onNamesLearned: () -> Unit = {},
-        receipts: (String, List<Long>, Boolean) -> Unit = { _, _, _ -> }
+        receipts: (String, List<Long>, Boolean) -> Unit = { _, _, _ -> },
+        readElsewhere: (List<Pair<String, Long>>) -> Unit = {}
     ): String {
         // If a listen loop already has the socket there is nothing to catch up on -- it is
         // reading continuously -- and joining in would only take messages away from it.
@@ -179,7 +180,8 @@ class SignalStore(private val context: Context) {
                 },
                 receipts,
                 { who, timestamps -> sendDeliveryReceipt(who, timestamps) },
-                { who, error, groupId -> sendRetryReceipt(who, error, groupId) }
+                { who, error, groupId -> sendRetryReceipt(who, error, groupId) },
+                readElsewhere
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -505,6 +507,7 @@ class SignalStore(private val context: Context) {
         file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
         onNamesLearned: () -> Unit,
         receipts: (String, List<Long>, Boolean) -> Unit,
+        readElsewhere: (List<Pair<String, Long>>) -> Unit = {},
         onBatch: (String) -> Unit
     ) {
         socketReader.lock()
@@ -530,7 +533,8 @@ class SignalStore(private val context: Context) {
             },
             receipts,
             { who, timestamps -> sendDeliveryReceipt(who, timestamps) },
-            { who, error, groupId -> sendRetryReceipt(who, error, groupId) }
+            { who, error, groupId -> sendRetryReceipt(who, error, groupId) },
+            readElsewhere
         ).listen(keepGoing) { r ->
             onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
         }

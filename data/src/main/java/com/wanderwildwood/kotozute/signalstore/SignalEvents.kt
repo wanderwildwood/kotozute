@@ -1,0 +1,58 @@
+package com.wanderwildwood.kotozute.signalstore
+
+import com.wanderwildwood.kotozute.signal.BridgeMessage
+import org.signal.libsignal.protocol.message.DecryptionErrorMessage
+
+/**
+ * Everything the receive path has to tell the rest of the app.
+ *
+ * These were ten separate lambdas on [SignalReceiver]'s constructor, repeated again on both of
+ * [SignalStore]'s entry points and once more where the repository called them. Six of the ten
+ * arrived in a single evening of catching up with Signal, and each one cost four edits in four
+ * files to add -- which is the kind of friction that makes the next piece of parity look more
+ * expensive than it is, and the kind that gets a parameter passed in the wrong order eventually.
+ *
+ * One interface, every method defaulted to doing nothing. Adding the next thing Signal syncs is
+ * now a method here and a handler there.
+ *
+ * Defaults are deliberate rather than lazy: a caller that does not care about read syncs should
+ * not have to write `{}` to say so, and the self-check and the tests construct a receiver
+ * without any of this.
+ */
+interface SignalEvents {
+
+    /** Files decrypted messages. Returns how many were new, which the drain reports. */
+    fun store(messages: List<BridgeMessage>): Int
+
+    /** The account's key material has arrived, so its stored contact list can be read. */
+    fun onKeysLearned() {}
+
+    /**
+     * Something new is on disk after a batch.
+     *
+     * A batch can bring a contacts sync, a profile key, or both, and either can make a name
+     * fetchable that was not a moment ago.
+     */
+    fun afterBatch() {}
+
+    /** Messages we sent arrived, or were read, at the far end. */
+    fun receipts(sender: String, timestamps: List<Long>, read: Boolean) {}
+
+    /** Tell a sender their message arrived here. */
+    fun sendDeliveryReceipt(to: String, timestamps: List<Long>) {}
+
+    /** Ask a sender to send a message again, because it could not be read here. */
+    fun sendRetryReceipt(to: String, error: DecryptionErrorMessage, groupId: ByteArray?) {}
+
+    /** Messages the account has read on another device. */
+    fun readElsewhere(read: List<Pair<String, Long>>) {}
+
+    /** A message its sender has withdrawn, for everyone. */
+    fun withdrawn(author: String, sentAt: Long) {}
+
+    /** What the account has deleted elsewhere, for itself: messages, and whole conversations. */
+    fun deletedElsewhere(messages: List<Pair<String, Long>>, threads: List<String>) {}
+
+    /** The account's own settings, as its primary holds them. */
+    fun configuration(readReceipts: Boolean?) {}
+}

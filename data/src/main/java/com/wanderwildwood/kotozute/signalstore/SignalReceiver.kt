@@ -35,78 +35,19 @@ internal class SignalReceiver(
     private val protocol: SignalDataStore,
     private val connection: SignalConnection,
     private val certificateValidator: CertificateValidator,
-    /** Where a decrypted message goes. The same path the bridge sync files through. */
-    private val file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
     private val attachments: SignalAttachments,
     private val contacts: SignalContactStore,
     /** The account's blocked list, kept whole; see [SignalBlockStore]. */
     private val blocks: SignalBlockStore,
     /** Where the storage service key ends up; see [SignalKeyStore]. */
     private val keys: SignalKeyStore,
-    /** Called once the key is here, so the account's contact list can be read. */
-    private val onKeysLearned: () -> Unit,
     /**
-     * Called after each batch, once anything new is on disk.
+     * Everything this path has to tell the rest of the app; see [SignalEvents].
      *
-     * A batch can bring a contacts sync, a profile key, or both, and either can make a name
-     * fetchable that was not a moment ago. Running this per batch rather than only after a
-     * sync is what keeps a conversation from staying nameless until something unrelated
-     * happens to trigger a refresh.
+     * One object rather than the ten lambdas this used to take, because six of them arrived in
+     * one evening and each cost an edit in four files.
      */
-    private val afterBatch: () -> Unit,
-    /** Records that messages we sent arrived, or were read, at the far end. */
-    private val receipts: (String, List<Long>, Boolean) -> Unit,
-    /**
-     * Tells a sender their message arrived here.
-     *
-     * The other direction from [receipts], and the counterpart of what this device does with
-     * one: without it a message can reach this phone and its sender never learn that it did.
-     */
-    private val deliveryReceipts: (String, List<Long>) -> Unit = { _, _ -> },
-    /**
-     * Asks a sender to send a message again, because it could not be read here.
-     *
-     * The other half of a failed decrypt. Keeping the envelope and reporting "one message
-     * could not be read" is a record of the loss; this is the thing that undoes it -- the
-     * sender's client archives the broken session and sends the message again.
-     */
-    private val retryReceipt: (String, org.signal.libsignal.protocol.message.DecryptionErrorMessage, ByteArray?) -> Unit,
-    /**
-     * Messages the account has read somewhere else.
-     *
-     * A linked device that does not listen for this keeps showing as unread every conversation
-     * its owner has already dealt with on their own phone -- which is most of them, most of
-     * the time, and makes the unread count worthless.
-     */
-    private val readElsewhere: (List<Pair<String, Long>>) -> Unit = {},
-    /**
-     * A message its sender has withdrawn, for everyone.
-     *
-     * Identified by who sent it and when they sent it -- which is also how a row is identified
-     * here, so somebody can only ever withdraw their own. Not handled, the message stays on
-     * this phone for good while its sender believes it is gone.
-     */
-    private val withdrawn: (String, Long) -> Unit = { _, _ -> },
-    /**
-     * What the account has deleted somewhere else, for itself alone.
-     *
-     * Distinct from [withdrawn]: nobody else is affected and nothing is taken back from
-     * anyone. It is this account tidying its own copy, and a linked device that ignores it
-     * keeps showing what its owner has already thrown away.
-     *
-     * @param messages author and sent-timestamp pairs, which is how a row is identified here
-     * @param threads whole direct conversations to empty
-     */
-    private val deletedElsewhere: (List<Pair<String, Long>>, List<String>) -> Unit = { _, _ -> },
-    /**
-     * The account's own settings, as its primary holds them.
-     *
-     * Read receipts are one setting for the whole account in Signal, not a choice each device
-     * makes. A linked device that does not listen for this is quietly disagreeing with what
-     * its owner set -- telling people their messages were read when the account says not to,
-     * or staying silent when it says to tell them.
-     */
-    private val configuration: (Boolean?) -> Unit = { }
+    private val events: SignalEvents
 ) {
 
     /**
@@ -189,7 +130,7 @@ internal class SignalReceiver(
                 // message's own id and date. The server's timestamp would match nothing.
                 val at = envelope.clientTimestamp ?: 0L
                 if (from.isNotBlank() && at > 0) {
-                    runCatching { receipts(from, listOf(at), false) }
+                    runCatching { events.receipts(from, listOf(at), false) }
                         .onFailure { Timber.w(it, "signal receive: could not record a delivery receipt") }
                 }
                 delete(id)
@@ -225,7 +166,7 @@ internal class SignalReceiver(
         // Filed in one transaction after the whole batch, not one at a time. The rail
         // announces what it stored, and a notification per message would be a notification
         // per message on a device catching up after a day offline.
-        val stored = if (messages.isEmpty()) 0 else file(messages)
+        val stored = if (messages.isEmpty()) 0 else events.store(messages)
         sweepUndecryptable()
 
         // Only now, and only for what is actually on disk. A delivery receipt is a claim that
@@ -242,14 +183,14 @@ internal class SignalReceiver(
                 .filter { it.senderUuid.isNotBlank() && it.ts > 0 }
                 .groupBy({ it.senderUuid }, { it.ts })
                 .forEach { (sender, timestamps) ->
-                    runCatching { deliveryReceipts(sender, timestamps.distinct()) }
+                    runCatching { events.sendDeliveryReceipt(sender, timestamps.distinct()) }
                         .onFailure { Timber.w(it, "signal receive: could not send a delivery receipt") }
                 }
         }
 
         // After filing, while the connection is still up: a name learned now is a name the
         // inbox shows on this pass rather than the next one.
-        if (envelopes > 0) runCatching { afterBatch() }.onFailure { Timber.w(it, "signal: after-batch") }
+        if (envelopes > 0) runCatching { events.afterBatch() }.onFailure { Timber.w(it, "signal: after-batch") }
 
         return Received(envelopes, decrypted, failed, emptied, senders, stored)
     }
@@ -419,7 +360,7 @@ internal class SignalReceiver(
                 result.content.receiptMessage?.let { receipt ->
                     val timestamps = receipt.timestamp
                     if (timestamps.isNotEmpty()) {
-                        receipts(
+                        events.receipts(
                             result.metadata.sourceServiceId.toString(),
                             timestamps,
                             receipt.type == org.whispersystems.signalservice.internal.push.ReceiptMessage.Type.READ
@@ -470,7 +411,7 @@ internal class SignalReceiver(
                             result.metadata.sourceServiceId.toString()
                         }
                         if (author.isNotBlank()) {
-                            runCatching { withdrawn(author, at) }
+                            runCatching { events.withdrawn(author, at) }
                                 .onFailure { Timber.w(it, "signal delete: could not withdraw") }
                         }
                     }
@@ -491,7 +432,7 @@ internal class SignalReceiver(
                             sender to at
                         }
                         if (pairs.isNotEmpty()) {
-                            runCatching { readElsewhere(pairs) }
+                            runCatching { events.readElsewhere(pairs) }
                                 .onFailure { Timber.w(it, "signal read sync: could not apply") }
                         }
                     }
@@ -522,7 +463,7 @@ internal class SignalReceiver(
                     }
 
                     if (messages.isNotEmpty() || threads.isNotEmpty()) {
-                        runCatching { deletedElsewhere(messages, threads) }
+                        runCatching { events.deletedElsewhere(messages, threads) }
                             .onFailure { Timber.w(it, "signal delete sync: could not apply") }
                     }
                 }
@@ -550,7 +491,7 @@ internal class SignalReceiver(
                 // The account's settings. Sent when they change and on request, so this is
                 // how a device that was asleep catches up with a choice made elsewhere.
                 result.content.syncMessage?.configuration?.let { settings ->
-                    runCatching { configuration(settings.readReceipts) }
+                    runCatching { events.configuration(settings.readReceipts) }
                         .onFailure { Timber.w(it, "signal configuration: could not apply") }
                 }
 
@@ -574,7 +515,7 @@ internal class SignalReceiver(
                     when {
                         pool.isNullOrBlank() ->
                             Timber.w("signal keys: the primary answered with no account entropy pool")
-                        keys.store(pool) -> onKeysLearned()
+                        keys.store(pool) -> events.onKeysLearned()
                         else -> Timber.w("signal keys: the pool the primary sent would not derive")
                     }
                 }
@@ -697,7 +638,7 @@ internal class SignalReceiver(
             Timber.w(it, "signal retry: could not describe the message that would not open")
             return
         }
-        runCatching { retryReceipt(sender, error, protocolFailure.groupId.orElse(null)) }
+        runCatching { events.sendRetryReceipt(sender, error, protocolFailure.groupId.orElse(null)) }
             .onFailure { Timber.w(it, "signal retry: could not ask for the message again") }
     }
 

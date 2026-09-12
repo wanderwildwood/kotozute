@@ -150,13 +150,8 @@ class SignalStore(private val context: Context) {
      * The receive half of what the bridge used to do, end to end.
      */
     fun receive(
-        file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
-        onNamesLearned: () -> Unit = {},
-        receipts: (String, List<Long>, Boolean) -> Unit = { _, _, _ -> },
-        readElsewhere: (List<Pair<String, Long>>) -> Unit = {},
-        withdrawn: (String, Long) -> Unit = { _, _ -> },
-        deletedElsewhere: (List<Pair<String, Long>>, List<String>) -> Unit = { _, _ -> },
-        configuration: (Boolean?) -> Unit = { }
+        events: SignalEvents,
+        onNamesLearned: () -> Unit = {}
     ): String {
         // If a listen loop already has the socket there is nothing to catch up on -- it is
         // reading continuously -- and joining in would only take messages away from it.
@@ -165,29 +160,8 @@ class SignalStore(private val context: Context) {
         return try {
             val result = SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts, blocks, keys,
-            {
-                // The key has just arrived: read the account's contact list with it, and let
-                // the caller rename its threads if anybody was learned.
-                val read = runCatching { readStorage() }
-                    .onFailure { Timber.w(it, "signal storage: could not read") }
-                    .getOrNull()
-                Timber.i("signal storage: %s", read ?: "not read")
-                onNamesLearned()
-            },
-                {
-                    // Fetch whatever names became fetchable, then let the caller rename its
-                    // threads -- only if something was actually learned, so a quiet batch
-                    // does not walk the whole thread list for nothing.
-                    if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
-                },
-                receipts,
-                { who, timestamps -> sendDeliveryReceipt(who, timestamps) },
-                { who, error, groupId -> sendRetryReceipt(who, error, groupId) },
-                readElsewhere,
-                withdrawn,
-                deletedElsewhere,
-                configuration
+                SignalNetworkConfig.certificateValidator(), attachmentsFor(connection),
+                contacts, blocks, keys, StoreEvents(events, onNamesLearned)
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -510,13 +484,8 @@ class SignalStore(private val context: Context) {
      */
     fun listen(
         keepGoing: () -> Boolean,
-        file: (List<com.wanderwildwood.kotozute.signal.BridgeMessage>) -> Int,
-        onNamesLearned: () -> Unit,
-        receipts: (String, List<Long>, Boolean) -> Unit,
-        readElsewhere: (List<Pair<String, Long>>) -> Unit = {},
-        withdrawn: (String, Long) -> Unit = { _, _ -> },
-        deletedElsewhere: (List<Pair<String, Long>>, List<String>) -> Unit = { _, _ -> },
-        configuration: (Boolean?) -> Unit = { },
+        events: SignalEvents,
+        onNamesLearned: () -> Unit = {},
         onBatch: (String) -> Unit
     ) {
         socketReader.lock()
@@ -524,29 +493,8 @@ class SignalStore(private val context: Context) {
         connection.connect()
         SignalReceiver(
             database, account, SignalDataStore(database, account), connection,
-            SignalNetworkConfig.certificateValidator(), file, attachmentsFor(connection), contacts, blocks, keys,
-            {
-                // The key has just arrived: read the account's contact list with it, and let
-                // the caller rename its threads if anybody was learned.
-                val read = runCatching { readStorage() }
-                    .onFailure { Timber.w(it, "signal storage: could not read") }
-                    .getOrNull()
-                Timber.i("signal storage: %s", read ?: "not read")
-                onNamesLearned()
-            },
-            {
-                // Fetch whatever names became fetchable, then let the caller rename its
-                // threads -- only if something was actually learned, so a quiet batch does
-                // not walk the whole thread list for nothing.
-                if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
-            },
-            receipts,
-            { who, timestamps -> sendDeliveryReceipt(who, timestamps) },
-            { who, error, groupId -> sendRetryReceipt(who, error, groupId) },
-            readElsewhere,
-            withdrawn,
-            deletedElsewhere,
-            configuration
+            SignalNetworkConfig.certificateValidator(), attachmentsFor(connection),
+            contacts, blocks, keys, StoreEvents(events, onNamesLearned)
         ).listen(keepGoing) { r ->
             onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
         }
@@ -708,4 +656,53 @@ class SignalStore(private val context: Context) {
         { SignalSignedPreKeyStore(database, it) },
         { SignalKyberPreKeyStore(database, it) }
     )
+
+    /**
+     * What this store adds to whatever the caller asked for.
+     *
+     * Three things happen on the way through, and none of them are the caller's business: the
+     * account's stored contact list is read the moment its key arrives, names are fetched
+     * after a batch that made any fetchable, and receipts go back out over this device's own
+     * connection. Everything else is passed straight along.
+     *
+     * Delegation rather than a pile of lambdas, so the next thing Signal syncs is one method
+     * here instead of an argument threaded through four files. See [SignalEvents].
+     */
+    private inner class StoreEvents(
+        private val outer: SignalEvents,
+        private val onNamesLearned: () -> Unit
+    ) : SignalEvents by outer {
+
+        override fun onKeysLearned() {
+            // The key has just arrived: read the account's contact list with it, and let the
+            // caller rename its threads if anybody was learned.
+            val read = runCatching { readStorage() }
+                .onFailure { Timber.w(it, "signal storage: could not read") }
+                .getOrNull()
+            Timber.i("signal storage: %s", read ?: "not read")
+            onNamesLearned()
+            outer.onKeysLearned()
+        }
+
+        override fun afterBatch() {
+            // Fetch whatever names became fetchable, then let the caller rename its threads --
+            // only if something was actually learned, so a quiet batch does not walk the whole
+            // thread list for nothing.
+            if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
+            outer.afterBatch()
+        }
+
+        override fun sendDeliveryReceipt(to: String, timestamps: List<Long>) {
+            this@SignalStore.sendDeliveryReceipt(to, timestamps)
+        }
+
+        override fun sendRetryReceipt(
+            to: String,
+            error: org.signal.libsignal.protocol.message.DecryptionErrorMessage,
+            groupId: ByteArray?
+        ) {
+            this@SignalStore.sendRetryReceipt(to, error, groupId)
+        }
+    }
+
 }

@@ -58,6 +58,32 @@ inbox and the badge between them, Desktop Sync, the e-ink UI throughout, and the
 storage service, prekeys, sessions, identities, receipts, sync messages, groups, profiles and
 contact discovery is Signal's question and takes Signal's answer.
 
+## ⚑ The current quest: the Signal parity audit
+
+Ninety-eight confirmed places where this app invented an answer Signal already had, found by
+reading our Signal rail against the upstream checkout file by file and checking every claim
+twice.
+
+⚠ **The queue lives outside this repo, at `~/kotozute-private/SIGNAL-PARITY-AUDIT.md`.**
+This repository is public. A list of where a live messaging app is weakest, with file and line
+numbers, is a roadmap for somebody else even though the code itself is open — so the findings
+stay off GitHub until they are fixed. Do not add that file, or a summary of its unfixed
+entries, to this repository. Fixes land here one at a time on their own merits, and a commit
+message says what it fixed without cataloguing what is still open.
+
+When David says **"continue the parity audit"**, or just **"keep going"** while this is the
+open quest: open that file, read Status, and start the next open batch. One batch is one file.
+Finish it, update Status in the same commit to the private file, and start the next without
+stopping to ask.
+
+**The rule that keeps it on course: do not open new work.** No features, no refactors beyond
+what a finding needs, no new audits, no chasing an interesting thing found along the way.
+Something new gets *appended to the queue as a new entry* and the batch carries on.
+
+Re-check each citation before changing code: if the upstream file does not say what an entry
+claims, the **entry** is wrong and our code may be fine. Mark it `refuted` with the reason.
+Never bend working code to match a bad claim.
+
 ## The rest
 
 - **UI follows `/opt/projects/STYLE.md`**, the cross-app house authority. It is the same kind

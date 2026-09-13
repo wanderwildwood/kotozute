@@ -235,16 +235,46 @@ internal class SignalIdentityKeyStore(
      */
     fun setVerified(address: String, verifiedKey: IdentityKey, verified: Boolean): Boolean =
         db.lock.withLockReentrant {
-            val known = loadIdentity(address) ?: return@withLockReentrant false
-            if (known.key != verifiedKey) {
-                Timber.w("signal identity: a verification named a key this phone does not hold")
+            val known = loadIdentity(address)
+
+            // ⚠ The two directions are not symmetrical, and treating them as one was the bug.
+            //
+            // Verifying **adopts** the key it names. `IdentityUtil.processVerifiedMessage`
+            // calls `saveIdentity` with the message's key and *then* marks it verified, and it
+            // does so precisely when there is no record, or the key on file is a different
+            // one, or it is not already verified. That is the ordinary case, not the strange
+            // one: somebody's safety number changes, the owner re-verifies it on another
+            // device, and this is how that reaches here. Refusing it -- which is what happened
+            // -- meant the flow that matters never landed and this phone stayed out of step
+            // with every other client on the account.
+            if (verified) {
+                if (known != null && known.key == verifiedKey &&
+                    known.trustLevel == TRUSTED_VERIFIED
+                ) {
+                    return@withLockReentrant false
+                }
+                insertIdentity(address, verifiedKey, TRUSTED_VERIFIED)
+                return@withLockReentrant true
+            }
+
+            // Un-verifying does *not* adopt anything. Upstream requires a record, a key that
+            // matches, and a status that is not already default -- an instruction to stop
+            // trusting a key this device has never held is about nothing.
+            if (known == null) {
+                Timber.w("signal identity: asked to un-verify somebody with nothing on file")
                 return@withLockReentrant false
             }
+            if (known.key != verifiedKey) {
+                Timber.w("signal identity: an un-verification named a key this phone does not hold")
+                return@withLockReentrant false
+            }
+            if (known.trustLevel == TRUSTED_UNVERIFIED) return@withLockReentrant false
+
             // Not UNTRUSTED for the un-verified case. Signal has three states and this store
             // has three levels, but they are not the same three: "explicitly not verified" is
             // a person you still talk to, where UNTRUSTED here stops messages going out. The
             // honest mapping is the one that does not invent a block nobody asked for.
-            insertIdentity(address, known.key, if (verified) TRUSTED_VERIFIED else TRUSTED_UNVERIFIED)
+            insertIdentity(address, known.key, TRUSTED_UNVERIFIED)
             true
         }
 

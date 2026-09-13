@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 18
+    const val VERSION = 19
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -225,6 +225,7 @@ internal object ProtocolStoreSchema {
         PNI_ACI,
         RECIPIENT,
         RECIPIENT_E164_INDEX,
+        RECIPIENT_GROUP_ID_INDEX,
         MESSAGE_LOG,
         MESSAGE_LOG_INDEX
     )
@@ -399,6 +400,11 @@ internal object ProtocolStoreSchema {
           -- record of "this differs from what the account holds". See [SignalContactStore.
           -- rotateStorageId]. Null until the row has ever been pushed or marked.
           storage_id TEXT,
+          -- A group's row has this and nothing else -- no aci, no pni, no number. Signal's
+          -- RecipientTable holds groups the same way (`getOrInsertFromGroupId`), so that one
+          -- dirty flag covers a muted group as well as a renamed person. Base64 of the group
+          -- id, which is what a thread key already carries.
+          group_id TEXT DEFAULT NULL,
           -- When this person's profile was last fetched, which is NOT the same question as
           -- when the row was last written. Signal keeps them apart for exactly this reason
           -- (`RecipientTable.LAST_PROFILE_FETCH`), and conflating them here meant profiles
@@ -410,6 +416,24 @@ internal object ProtocolStoreSchema {
 
     const val RECIPIENT_E164_INDEX =
         "CREATE INDEX IF NOT EXISTS recipient_e164 ON recipient (e164);"
+
+    /**
+     * ⚠ A unique **index**, not a UNIQUE column, because SQLite will not add one.
+     * `ALTER TABLE ... ADD COLUMN` refuses a UNIQUE or PRIMARY KEY constraint outright, so a
+     * migration written that way throws -- and this database holds the identity keys, the
+     * sessions and the device's own password, none of which can be recreated. The index gives
+     * the same guarantee and is what `ON CONFLICT(group_id)` needs; SQLite allows any number
+     * of NULLs under it, which is every row that is a person rather than a group.
+     *
+     * Signal writes indexes over a mostly-empty column as partial ones -- `CREATE INDEX ... ON
+     * attachment (attachment_uuid) WHERE attachment_uuid IS NOT NULL` -- but that form makes
+     * the upsert in `rotateStorageIdForGroup` need a matching `ON CONFLICT(group_id) WHERE
+     * group_id IS NOT NULL` target, and it saves nothing on a table with a couple of hundred
+     * rows. Its own storage-id migration (`V323_AddStickerPackStorageSync`) adds the column as
+     * a plain `TEXT DEFAULT NULL`, which is the part that matters here.
+     */
+    const val RECIPIENT_GROUP_ID_INDEX =
+        "CREATE UNIQUE INDEX IF NOT EXISTS recipient_group_id ON recipient (group_id);"
 
     /**
      * What this device has recently sent, so it can send it again if asked.
@@ -483,6 +507,7 @@ internal object ProtocolStoreSchema {
         10 to listOf(
             RECIPIENT,
             RECIPIENT_E164_INDEX,
+            RECIPIENT_GROUP_ID_INDEX,
             // One row per account id.
             """
             INSERT INTO recipient (aci, name, profile_key, updated_timestamp)
@@ -598,6 +623,21 @@ internal object ProtocolStoreSchema {
         // key changes, so a new key forces a refetch. Same here.
         18 to listOf(
             "ALTER TABLE recipient ADD COLUMN last_profile_fetch INTEGER NOT NULL DEFAULT 0;"
+        ),
+        // v19: somewhere for a group to be marked, which it had nowhere to be.
+        //
+        // Muting or archiving a group is a local change the account's storage service holds --
+        // on a GroupV2Record rather than a ContactRecord -- and there was no row here to rotate
+        // a storage id on, so those changes were silently not recorded as needing a push. The
+        // dirty flag existed for people and not for groups.
+        //
+        // Signal does not have a second table for this: `RecipientTable` holds groups too.
+        // `getOrInsertFromGroupId` inserts a row with `group_id` set, no service id and no
+        // number, and gives it a `storage_service_id` there and then. One table, one dirty
+        // flag, whatever kind of conversation it is.
+        19 to listOf(
+            "ALTER TABLE recipient ADD COLUMN group_id TEXT DEFAULT NULL;",
+            RECIPIENT_GROUP_ID_INDEX
         )
     )
 

@@ -731,6 +731,11 @@ class SignalStore(private val context: Context) {
      */
     fun rotateStorageId(serviceId: String) = contacts.rotateStorageId(serviceId)
 
+    fun rotateStorageIdForGroup(groupId: String) = contacts.rotateStorageIdForGroup(groupId)
+
+    /** Rows the account has not been told about. Read only; nothing here writes them up. */
+    internal fun needingStoragePush(): List<SignalContactStore.Pending> = contacts.needingStoragePush()
+
     fun contactName(aci: String): String? = runCatching { contacts.nameFor(aci) }.getOrNull()
 
     /** Every name known, for renaming threads in one pass after a sync. */

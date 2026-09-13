@@ -323,6 +323,13 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         val withUsername: Int
     )
 
+    /**
+     * ⚠ `WHERE group_id IS NULL`, because a group has a row in this table too (v19) and a
+     * group is not a contact. Without it the settings line would count every marked group as
+     * a contact -- and, having no name, number or username, as one with nothing to show but
+     * an id. Signal spells the same filter out as `FILTER_GROUPS = " AND group_id IS NULL"`
+     * and pairs it with the service-id test wherever it asks about people.
+     */
     fun counts(): Counts = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             """
@@ -335,6 +342,7 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
                             THEN 1 ELSE 0 END),
                    sum(CASE WHEN username IS NOT NULL AND username != '' THEN 1 ELSE 0 END)
             FROM recipient
+            WHERE group_id IS NULL
             """.trimIndent(), null
         ).use { c ->
             if (c.moveToFirst()) {
@@ -530,12 +538,62 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         )
     }
 
+    /**
+     * The same mark, on a group.
+     *
+     * A group's state lives on a GroupV2Record rather than a ContactRecord, but the dirty flag
+     * does not move with it: Signal's `RecipientTable` holds groups as rows of its own
+     * (`getOrInsertFromGroupId`, which gives the new row a storage id there and then), so one
+     * flag in one table covers a muted group as well as a renamed person. Before this there
+     * was no row to mark and muting or archiving a group went unrecorded.
+     *
+     * [groupId] is base64 of the group id, which is what a `group:` thread key already carries.
+     */
+    fun rotateStorageIdForGroup(groupId: String) = withStoreLock(db) {
+        val id = ByteArray(STORAGE_ID_BYTES).also { java.security.SecureRandom().nextBytes(it) }
+        val storageId = android.util.Base64.encodeToString(id, android.util.Base64.NO_WRAP)
+        // Insert-or-update in one statement: a group has no row until something about it is
+        // changed here, and the first change is also the row's reason to exist.
+        db.writableDatabase.execSQL(
+            """
+            INSERT INTO recipient (group_id, storage_id, updated_timestamp)
+            VALUES (?, ?, ?)
+            ON CONFLICT(group_id) DO UPDATE SET storage_id = excluded.storage_id
+            """.trimIndent(),
+            arrayOf<Any?>(groupId, storageId, System.currentTimeMillis())
+        )
+    }
+
+    /**
+     * One row the account has not been told about.
+     *
+     * Either a person or a group, never both -- which is which is what decides whether it
+     * would go up as a ContactRecord or a GroupV2Record.
+     */
+    data class Pending(
+        val serviceId: String?,
+        val groupId: String?,
+        val name: String?,
+        val hasProfileKey: Boolean
+    )
+
     /** Rows the account has not been told about, for the diff that will one day be a write. */
-    fun needingStoragePush(): List<String> = withStoreLock(db) {
+    fun needingStoragePush(): List<Pending> = withStoreLock(db) {
         db.readableDatabase.rawQuery(
-            "SELECT COALESCE(aci, pni) FROM recipient WHERE storage_id IS NOT NULL", null
+            """
+            SELECT COALESCE(aci, pni), group_id, name, profile_key IS NOT NULL
+            FROM recipient WHERE storage_id IS NOT NULL
+            """.trimIndent(), null
         ).use { c ->
-            generateSequence { if (c.moveToNext()) c.getString(0) else null }.toList()
+            generateSequence {
+                if (!c.moveToNext()) null
+                else Pending(
+                    serviceId = c.getString(0),
+                    groupId = c.getString(1),
+                    name = c.getString(2),
+                    hasProfileKey = c.getInt(3) != 0
+                )
+            }.toList()
         }
     }
 

@@ -99,3 +99,61 @@ diff and send it" once steps 2-4 exist.
 contact record, and this app has no recipient row for a group — so `markNeedsSync` skips them.
 Muting or archiving a group is not yet recorded as needing a push. That needs the group half of
 the write path, which does not exist.
+
+## Step 2 is done (2026-09-12, schema v19)
+
+`logStoragePushDiff()` runs straight after every storage read and writes to the log what a
+push *would* carry. Nothing is sent. It names nobody: kind, and which fields would go.
+
+Groups can finally be marked. v19 gives `recipient` a `group_id` column, because that is where
+Signal keeps them — `RecipientTable.getOrInsertFromGroupId` inserts a row with `group_id` set,
+no service id and no number, and gives it a storage id there and then. One table, one dirty
+flag, whatever kind of conversation it is. `markNeedsSync` no longer skips `group:` threads.
+`counts()` gained `WHERE group_id IS NULL`, Signal's own `FILTER_GROUPS`, so a marked group is
+not counted as a contact with nothing to show but an id.
+
+⚠ **`ALTER TABLE ... ADD COLUMN ... UNIQUE` is not legal SQLite**, and this database holds the
+identity keys, the sessions and the device's own password — an unhandled migration throws and
+there is no drop-and-recreate available. The column is added plain and a unique index follows,
+which is what Signal does (`V323_AddStickerPackStorageSync` adds its own `storage_service_id`
+as a bare `TEXT DEFAULT NULL`). Both phones migrated to v19 and read their storage after.
+
+### What it found in the first ten minutes
+
+Muting a conversation on the phone, then restarting:
+
+```
+signal storage: 1 record(s) would be written -- 1 contact, 0 group
+signal storage:   contact record -- named=true profileKey=true muted=true archived=false blocked=false
+signal storage: 1 conversation(s) muted or archived to match the account
+```
+
+and on the very next read:
+
+```
+signal storage:   contact record -- named=true profileKey=true muted=false archived=false blocked=false
+```
+
+**The mark survives; the value it would push does not.** The read applied the account's
+`muted=false` over the local `muted=true` and left the row marked, so a write path today would
+send the account back exactly what it already said, for ever.
+
+This is the warning at the top of this document, observed rather than predicted, and it is why
+step 3 cannot simply be "add the write call".
+
+### What Signal does about it, and why a read-only client cannot
+
+`ContactRecordProcessor.merge` does **not** protect the local value. It takes `archived`,
+`mutedUntilTimestamp`, `blocked` and `markedUnread` from the remote record unconditionally;
+only a few fields (profile key, username, note) fall back to local when remote is empty. Remote
+wins on conversation state, in Signal too.
+
+What saves the local change there is that a sync is **one pass that reads and writes together**
+(`StorageSyncJob.performSync`): the locally-rotated id is in `localOnlyIds` and goes up as a
+remote insert, while the stale id it replaced is in `remoteOnlyIds` and is *deleted* from the
+manifest in the same write. The stale record never gets a second chance to be applied.
+
+So this is not a bug to fix in the read path. A client that reads and never writes **must**
+revert local changes — anything else would be inventing a resolution Signal does not have. It
+is the strongest argument yet that steps 3 and 4 are one piece of work with the read, not a
+bolt-on: until the write exists, every mark this step logs is a local decision already lost.

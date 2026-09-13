@@ -51,14 +51,40 @@ internal class SignalDiscovery(
      * is quota spent for no answer.
      */
     fun read(numbers: Set<String>): Result {
-        val valid = numbers.filterTo(mutableSetOf()) { it.startsWith("+") && it.length > 3 }
+        // ⚠ Signal's own `sanitize`, ported. This was "starts with + and longer than three",
+        // which admits a non-numeric string and a leading-zero number -- and the service
+        // rejects the **whole batch** as an invalid argument for one bad entry, so a single
+        // malformed address-book row meant nobody in that run was discovered.
+        val valid = numbers.filterTo(mutableSetOf()) { candidate ->
+            try {
+                candidate.startsWith("+") &&
+                    candidate.length > 1 &&
+                    candidate[1] != '0' &&
+                    candidate.toLong() > 0
+            } catch (e: NumberFormatException) {
+                false
+            }
+        }
         if (valid.isEmpty()) return Result(0, 0, 0, "There are no numbers to look up")
+
+        // Nothing to ask while the service has said it will not answer. The refusal carried
+        // the only number that says how long; see [SignalDiscoveryStore.blockUntil].
+        val blockedFor = runCatching { state.blockedFor() }.getOrDefault(0L)
+        if (blockedFor > 0) {
+            val minutes = (blockedFor / 60_000L) + 1
+            return Result(0, 0, 0, "Signal will not answer more lookups for about $minutes more minute(s)")
+        }
 
         val previous = runCatching { state.submitted() }.getOrDefault(emptySet())
         val fresh = valid - previous
-        // Not an error and not silence: every one of these has been asked about already, so
-        // the answers are in the contact store and another run would pay to be told the same.
-        if (fresh.isEmpty()) return Result(0, 0, 0, null)
+        // ⚠ Only when there is nothing at all to send. This used to stop as soon as every
+        // number had been asked about before, on the reasoning that the answers were already
+        // in the contact store -- but the numbers asked about before are exactly the ones the
+        // token makes **free**, and the answer to them changes: somebody who was not on Signal
+        // at the first lookup joins, and was being told "no" permanently, because nothing ever
+        // asked again. Signal returns early only when the new and the previous sets are both
+        // empty, and otherwise resubmits the lot with the token.
+        if (fresh.isEmpty() && previous.isEmpty()) return Result(0, 0, 0, null)
 
         connection.connect()
         val token = runCatching { state.token() }.getOrNull()
@@ -98,7 +124,18 @@ internal class SignalDiscovery(
         val outcome = CdsApi(connection.authenticated).getRegisteredUsers(
             previouslyAsked,
             fresh,
-            emptyMap(),
+            // ⚠ Not an empty map, which is what made every answer a phone-number identity.
+            //
+            // CDSI returns an account id only where the asker can already prove it knows that
+            // person -- it takes (ACI, profile key) pairs, turns them into aci/uak pairs, and
+            // answers with the ACI for the ones that check out. Sending none guarantees
+            // PNI-only results, and the comment below used to say that was unavoidable
+            // "because this phone does not have them". It does: they are in the recipient
+            // table, put there by the account's own storage records. Signal passes
+            // `recipients.getAllServiceIdProfileKeyPairs()` on every request.
+            runCatching { contacts.serviceIdProfileKeyPairs() }
+                .onFailure { Timber.w(it, "signal discovery: could not read the profile keys to ask with") }
+                .getOrDefault(emptyMap()),
             Optional.ofNullable(sentToken),
             TIMEOUT_MS,
             connection.network
@@ -113,6 +150,7 @@ internal class SignalDiscovery(
         // connection, and "try again" is the wrong advice for the first.
         val response = runCatching { outcome.successOrThrow() }.getOrElse { failure ->
             Timber.w(failure, "signal discovery: the lookup failed")
+            recoverFrom(failure)
             // Deliberately **not** recorded as asked, even when [counted] says the quota was
             // spent. Recording it would make a retry cheap, at the price of marking these
             // numbers permanently answered when nothing ever answered them -- the people
@@ -138,10 +176,9 @@ internal class SignalDiscovery(
                 runCatching { contacts.pair(pni.toString(), aci.toString()) }
             }
             // The account id if the service gave one, the phone-number identity otherwise.
-            // For a linked device that is nearly always the PNI: CDSI returns an ACI only
-            // where the asker already holds a matching ACI/UAK pair, which is exactly what
-            // this phone does not have. A PNI is still a real address, and a message sent to
-            // it arrives.
+            // CDSI returns an ACI only where the asker already holds a matching ACI/UAK pair,
+            // which is why the pairs are now sent above -- this phone does hold them. A PNI is
+            // still a real address where it does not, and a message sent to it arrives.
             val id = (aci ?: pni) ?: return@mapNotNull null
             if (aci == null) withoutAci++
             // name = null throughout: this answers who exists, not what they are called. The
@@ -159,6 +196,47 @@ internal class SignalDiscovery(
     }
 
     /** Said in words somebody can act on, rather than as the exception's own text. */
+    /**
+     * Puts right what a failure leaves behind, which was nothing.
+     *
+     * Two of these are not just news, they are state that has to change, and upstream changes
+     * it in the same breath as reporting:
+     *
+     * - **An invalid token** means the token and the set of numbers it stands for have come
+     *   apart. Left alone, every later run resends the same bad pair and fails identically --
+     *   so "try once more" was advice the app had made impossible to take. Signal nulls the
+     *   token and clears the submitted set (`cdsToken = null`, `cds.clearAll()`).
+     * - **A spent quota** carries the only number that says when it lifts. Discarding it left
+     *   nothing to stop a reader retrying a lookup that cannot succeed, and nothing to tell
+     *   them how long. Signal persists `cdsBlockedUtil` from `retryAfterSeconds`.
+     */
+    private fun recoverFrom(failure: Throwable) {
+        val causes = generateSequence(failure) { it.cause }.take(CAUSE_DEPTH).toList()
+        val names = causes.joinToString(" ") { it::class.java.simpleName }
+
+        if (names.contains("InvalidToken", true)) {
+            Timber.w("signal discovery: the token is out of step; forgetting it and what it stood for")
+            runCatching { state.forget() }
+                .onFailure { Timber.w(it, "signal discovery: could not forget the token") }
+        }
+
+        if (names.contains("ResourceExhausted", true)) {
+            val seconds = causes.firstNotNullOfOrNull { cause ->
+                runCatching {
+                    cause::class.java.methods
+                        .firstOrNull { it.name == "getRetryAfterSeconds" && it.parameterCount == 0 }
+                        ?.invoke(cause) as? Number
+                }.getOrNull()?.toLong()
+            }
+            if (seconds != null && seconds > 0) {
+                val until = System.currentTimeMillis() + seconds * 1000L
+                runCatching { state.blockUntil(until) }
+                    .onFailure { Timber.w(it, "signal discovery: could not record the block") }
+                Timber.w("signal discovery: no more lookups for %d second(s)", seconds)
+            }
+        }
+    }
+
     private fun reasonFor(failure: Throwable?): String {
         val names = generateSequence(failure) { it.cause }.take(CAUSE_DEPTH)
             .joinToString(" ") { it::class.java.simpleName }

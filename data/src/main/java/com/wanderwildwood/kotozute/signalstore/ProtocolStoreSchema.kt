@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 22
+    const val VERSION = 23
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -327,6 +327,10 @@ internal object ProtocolStoreSchema {
         CREATE TABLE cds_state (
           _id INTEGER PRIMARY KEY CHECK (_id = 1),
           token BLOB,
+          -- When the service will answer again, after it has said the quota is spent. Signal
+          -- keeps the same value as `cdsBlockedUtil`, taken from the refusal's own
+          -- retryAfterSeconds -- the only thing that says how long, and it arrives once.
+          blocked_until INTEGER NOT NULL DEFAULT 0,
           updated_timestamp INTEGER NOT NULL
         ) STRICT;
     """
@@ -691,7 +695,13 @@ internal object ProtocolStoreSchema {
         // un-whitelisted -- blocked and then unblocked, or sharing turned off on another
         // device -- was being handed a durable key to this account's profile on the next
         // message. The flag rides ContactRecord.whitelisted and is read with the rest.
-        22 to listOf("ALTER TABLE recipient ADD COLUMN whitelisted INTEGER NOT NULL DEFAULT 1;")
+        22 to listOf("ALTER TABLE recipient ADD COLUMN whitelisted INTEGER NOT NULL DEFAULT 1;"),
+        // v23: when contact discovery will answer again.
+        //
+        // A spent quota arrives with a retryAfterSeconds and that number was being thrown
+        // away, so nothing stopped a reader retrying a lookup that could not succeed and the
+        // app could not say how long remained. Signal persists it as `cdsBlockedUtil`.
+        23 to listOf("ALTER TABLE cds_state ADD COLUMN blocked_until INTEGER NOT NULL DEFAULT 0;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

@@ -632,6 +632,37 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         ).use { c -> if (c.moveToFirst()) c.getInt(0) != 0 else true }
     }
 
+    /**
+     * Every account id this phone holds a profile key for, paired with that key.
+     *
+     * What contact discovery has to send if it wants account ids back. CDSI answers with an
+     * ACI only where the asker can already prove it knows that person -- it takes these pairs,
+     * turns them into aci/uak pairs, and returns the ACI for the ones that check out. Sent
+     * nothing, it can only ever answer with phone-number identities.
+     *
+     * A port of `RecipientTable.getAllServiceIdProfileKeyPairs`, down to the where clause.
+     */
+    fun serviceIdProfileKeyPairs(): Map<org.signal.core.models.ServiceId, org.signal.libsignal.zkgroup.profiles.ProfileKey> =
+        withStoreLock(db) {
+            val pairs = mutableMapOf<
+                org.signal.core.models.ServiceId,
+                org.signal.libsignal.zkgroup.profiles.ProfileKey
+                >()
+            db.readableDatabase.rawQuery(
+                "SELECT aci, profile_key FROM recipient WHERE aci IS NOT NULL AND profile_key IS NOT NULL",
+                null
+            ).use { c ->
+                while (c.moveToNext()) {
+                    val aci = org.signal.core.models.ServiceId.ACI.parseOrNull(c.getString(0))
+                    val key = runCatching {
+                        org.signal.libsignal.zkgroup.profiles.ProfileKey(c.getBlob(1))
+                    }.getOrNull()
+                    if (aci != null && key != null) pairs[aci] = key
+                }
+            }
+            pairs
+        }
+
     /** Every username known, for the picker's last fallback before a bare id. */
     fun usernames(): Map<String, String> = withStoreLock(db) {
         db.readableDatabase.rawQuery(

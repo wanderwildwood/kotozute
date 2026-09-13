@@ -72,6 +72,31 @@ internal class SignalDiscoveryStore(private val db: ProtocolDatabase) {
         }
     }
 
+    /**
+     * Records that the service will not answer again until then.
+     *
+     * From the refusal's own `retryAfterSeconds`, which arrives once and was being discarded.
+     */
+    fun blockUntil(until: Long) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            """
+            INSERT INTO cds_state (_id, blocked_until, updated_timestamp) VALUES (1, ?, ?)
+            ON CONFLICT(_id) DO UPDATE SET
+              blocked_until = excluded.blocked_until,
+              updated_timestamp = excluded.updated_timestamp
+            """.trimIndent(),
+            arrayOf<Any?>(until, System.currentTimeMillis())
+        )
+    }
+
+    /** How long until the service will answer again, or zero when it will answer now. */
+    fun blockedFor(): Long = withStoreLock(db) {
+        val until = db.readableDatabase.rawQuery(
+            "SELECT blocked_until FROM cds_state WHERE _id = 1", null
+        ).use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+        (until - System.currentTimeMillis()).coerceAtLeast(0L)
+    }
+
     /** Forgets everything asked, so the next run is a first run. For a deliberate re-ask only. */
     fun forget() = withStoreLock(db) {
         db.writableDatabase.execSQL("DELETE FROM cds_submitted")

@@ -65,3 +65,6 @@ key.properties
 # The compiled bridge. `go build` drops it beside its source; it is a 16MB artefact
 # and it reached a commit once already.
 /bridge/bridge
+
+# Local working notes, not for publication.
+AGENTS.md

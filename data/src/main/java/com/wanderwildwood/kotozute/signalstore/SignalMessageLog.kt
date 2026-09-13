@@ -32,6 +32,7 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
      */
     fun remember(
         recipient: String,
+        deviceId: Int,
         sentTimestamp: Long,
         content: Content,
         urgent: Boolean,
@@ -40,11 +41,12 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
         if (recipient.isBlank() || sentTimestamp <= 0) return@withStoreLock
         db.writableDatabase.execSQL(
             """
-            INSERT INTO message_log (recipient, sent_timestamp, content, urgent, group_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO message_log (recipient, device_id, sent_timestamp, content, urgent, group_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             arrayOf<Any?>(
                 recipient,
+                deviceId,
                 sentTimestamp,
                 content.encode(),
                 if (urgent) 1 else 0,
@@ -52,6 +54,40 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
                 System.currentTimeMillis()
             )
         )
+    }
+
+    /**
+     * Forgets the copy kept for one device, because that device has acknowledged the message.
+     *
+     * The plaintext is held so it can be sent again if somebody's device asks; once a device
+     * says it has the message, that device will never ask, and the copy is only a copy.
+     * Signal deletes at both receipt points the moment delivery is confirmed --
+     * `IncomingMessageObserver.processReceipt` for the server's, and
+     * `ReceiptMessageProcessor.handleDeliveryReceipt` for the recipient's -- and keeps the age
+     * trim as a backstop rather than as the way entries normally go.
+     *
+     * ⚠ One device, not the person. A message goes to every device somebody has and each
+     * acknowledges separately; clearing the lot on the first receipt would take the copy the
+     * others still need, which is why upstream's `deleteEntryForRecipient` is keyed by device.
+     */
+    fun delivered(recipient: String, deviceId: Int, sentTimestamp: Long): Int = withStoreLock(db) {
+        if (recipient.isBlank() || sentTimestamp <= 0) return@withStoreLock 0
+        db.writableDatabase.compileStatement(
+            "DELETE FROM message_log WHERE recipient = ? AND device_id = ? AND sent_timestamp = ?"
+        ).use { statement ->
+            statement.bindString(1, recipient)
+            statement.bindLong(2, deviceId.toLong())
+            statement.bindLong(3, sentTimestamp)
+            statement.executeUpdateDelete().also { gone ->
+                // Said out loud when it actually removes something, because a delete that
+                // matches nothing and a delete that works look identical otherwise -- and the
+                // whole point of this is that plaintext stops sitting on the disk. Nobody is
+                // named: the count is the fact.
+                if (gone > 0) {
+                    Timber.i("signal message log: cleared %d delivered copy(ies)", gone)
+                }
+            }
+        }
     }
 
     /** What was sent to somebody at that moment, or null when it is no longer held. */

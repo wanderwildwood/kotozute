@@ -193,7 +193,11 @@ class SignalStore(private val context: Context) {
     fun refreshCapabilities(): String {
         if (capabilitiesRefreshed) return "already done this run"
         connection.connect()
-        val result = connection.account.setCapabilities(SignalCapabilities.forRefresh())
+        // Whether this device actually holds the account's storage key, rather than a
+        // hardcoded claim. Upstream asks `hasPin()` for the same reason.
+        val result = connection.account.setCapabilities(
+            SignalCapabilities.forRefresh(storage = storageKeyKnown())
+        )
         return when (result) {
             is org.signal.libsignal.net.RequestResult.Success -> {
                 capabilitiesRefreshed = true
@@ -623,7 +627,41 @@ class SignalStore(private val context: Context) {
                 // Replaces the held list rather than adding to it: a storage read is the
                 // account's current answer, and somebody unblocked upstream has to become
                 // unblocked here too.
-                SignalBlockStore(database).store(people, groups)
+                //
+                // ⚠ Which means a read can undo a block made here, and that is said out loud
+                // rather than left to be noticed. Signal never faces this: its sync reads and
+                // writes in one pass, so a local block goes up as a remote insert while the
+                // record it replaced is deleted from the manifest, and the stale record never
+                // gets a second chance to be applied. A client that reads and never writes
+                // **must** let the account win -- anything else is inventing a resolution the
+                // protocol does not have -- so this reports the disagreement instead of
+                // resolving it.
+                //
+                // Not symmetrical, and that is why it is worth a warning rather than a debug
+                // line: a block kept too long is an inconvenience somebody can undo, while a
+                // block dropped too early delivers messages from somebody they blocked *and*
+                // answers with a delivery receipt, which tells that person the phone is on and
+                // reading them.
+                //
+                // The window is narrow by construction: [setBlocked] only writes locally once
+                // the account has accepted the legacy blocked-list sync, so this device is
+                // never ahead of the primary's *knowledge* -- only, possibly, of the primary's
+                // storage record. Closing it properly needs the write path; see
+                // docs/DECISION-storage-write.md.
+                val blockStore = SignalBlockStore(database)
+                val heldBefore = runCatching { blockStore.individuals().mapNotNull { it.aci }.toSet() }
+                    .getOrDefault(emptySet())
+                val arriving = people.mapNotNull { it.aci }.toSet()
+                val dropped = heldBefore - arriving
+                if (dropped.isNotEmpty()) {
+                    Timber.w(
+                        "signal blocked: the account's records do not list %d person(s) this " +
+                            "phone had blocked; following the account and unblocking them",
+                        dropped.size
+                    )
+                }
+
+                blockStore.store(people, groups)
                 Timber.i("signal blocked: the account's records name %d blocked", people.size)
             }
         ).read()

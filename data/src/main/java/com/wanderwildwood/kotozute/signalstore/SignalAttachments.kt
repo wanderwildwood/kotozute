@@ -88,6 +88,12 @@ internal class SignalAttachments(
             // the digest is what makes an attachment the sender's and not the server's.
             ?: throw InvalidMessageException("attachment has no digest")
 
+        // What the sender says it is, before a byte is fetched. See [refuseReason].
+        val declaredSize = servicePointer.size.orElse(0).toLong()
+        refuseReason(declaredSize)?.let { why ->
+            throw InvalidMessageException("refusing an attachment: $why")
+        }
+
         val id = idFor(servicePointer.remoteId.toString())
         val destination = File(dir, id)
         if (destination.exists()) {
@@ -101,7 +107,8 @@ internal class SignalAttachments(
                 receiver().retrieveAttachment(
                     servicePointer,
                     temp,
-                    MAX_ATTACHMENT_SIZE,
+                    // Bounded by what the sender declared, not by a flat ceiling.
+                    downloadLimitFor(declaredSize),
                     AttachmentCipherInputStream.IntegrityCheck.forEncryptedDigest(digest)
                 ).use { plaintext -> destination.outputStream().use { plaintext.copyTo(it) } }
                 Outcome.Got(id)
@@ -164,7 +171,7 @@ internal class SignalAttachments(
             receiver().retrieveAttachment(
                 servicePointer,
                 temp,
-                MAX_ATTACHMENT_SIZE,
+                downloadLimitFor(servicePointer.size.orElse(0).toLong()),
                 AttachmentCipherInputStream.IntegrityCheck.forEncryptedDigest(digest)
             ).use(consume)
         } finally {
@@ -198,7 +205,52 @@ internal class SignalAttachments(
          */
         private const val DOWNLOAD_ATTEMPTS = 3
 
-        /** signal-cli's limit. */
-        private const val MAX_ATTACHMENT_SIZE = 150L * 1024 * 1024
+        /**
+         * The most this device will accept from the CDN for one attachment.
+         *
+         * Signal's `RemoteConfig.maxAttachmentReceiveSizeBytes`, whose default works out to
+         * 125 MiB -- `maxAttachmentSizeBytes` is 100 MiB and the receive ceiling is
+         * `max(that, that * 1.25)`. The 150 MB here was signal-cli's number and is not what
+         * the service or Signal use.
+         */
+        private const val MAX_RECEIVE_SIZE = 125L * 1024 * 1024
+
+        /**
+         * How much ciphertext a plaintext of [declaredSize] should come to.
+         *
+         * ⚠ This is the bound that matters, and there was none. Every download passed a flat
+         * ceiling, so a CDN body far longer than the attachment claims to be was written to
+         * internal storage **in full** -- up to the ceiling, three times over, since the
+         * download is retried -- and only then rejected by the digest check. Signal bounds
+         * each download to `minOf(expectedCiphertextSize, maxReceiveSize)`, so an over-long
+         * body is cut off at the length the sender declared rather than at a global limit.
+         *
+         * `AttachmentCipherStreamUtil.getCiphertextLength(PaddingInputStream.getPaddedSize(n))`
+         * is upstream's own arithmetic: the padding the sender applied, then the cipher
+         * overhead on top.
+         */
+        internal fun downloadLimitFor(declaredSize: Long): Long {
+            if (declaredSize <= 0) return MAX_RECEIVE_SIZE
+            val expected = org.whispersystems.signalservice.api.crypto.AttachmentCipherStreamUtil
+                .getCiphertextLength(
+                    org.whispersystems.signalservice.internal.crypto.PaddingInputStream
+                        .getPaddedSize(declaredSize)
+                )
+            return minOf(expected, MAX_RECEIVE_SIZE)
+        }
+
+        /**
+         * Why an attachment is refused before a byte of it is fetched, or null to go ahead.
+         *
+         * Signal's two up-front guards, which this had neither of. A size beyond the ceiling
+         * is a download that cannot succeed, and no declared size at all means there is
+         * nothing to bound the download by -- both are answered by not starting.
+         */
+        internal fun refuseReason(declaredSize: Long): String? = when {
+            declaredSize > MAX_RECEIVE_SIZE ->
+                "it declares $declaredSize bytes, beyond the $MAX_RECEIVE_SIZE byte ceiling"
+            declaredSize <= 0 -> "it declares no size, so nothing bounds the download"
+            else -> null
+        }
     }
 }

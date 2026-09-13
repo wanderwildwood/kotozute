@@ -386,7 +386,7 @@ class SignalStore(private val context: Context) {
             val result = SignalSender(
                 SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
-            ).sendRemoteDeleteToGroup(masterKey, members, targetSentTimestamp)
+            ).sendRemoteDeleteToGroup(masterKey, members, targetSentTimestamp, group.revision)
         ) {
             is SignalSender.Result.Sent -> result.timestamp
             is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
@@ -413,7 +413,7 @@ class SignalStore(private val context: Context) {
             val result = SignalSender(
                 SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
-            ).sendReactionToGroup(masterKey, members, emoji, remove, author, targetSentTimestamp)
+            ).sendReactionToGroup(masterKey, members, emoji, remove, author, targetSentTimestamp, group.revision)
         ) {
             is SignalSender.Result.Sent -> result.timestamp
             is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
@@ -484,6 +484,14 @@ class SignalStore(private val context: Context) {
             SignalDataStore(database, account), connection, contacts
         ).sendReadReceipt(serviceId, timestamps) is SignalSender.Result.Sent
     }
+
+    /**
+     * Forgets a message this device sent, so a retry receipt can never resend it.
+     *
+     * For a withdrawal: the whole promise of taking a message back is that it does not come
+     * back. See [SignalMessageLog.forgetSent].
+     */
+    fun forgetSentMessage(sentTimestamp: Long): Int = SignalMessageLog(database).forgetSent(sentTimestamp)
 
     /**
      * Tells this account's own devices what was read here. Not a receipt; see the sender.

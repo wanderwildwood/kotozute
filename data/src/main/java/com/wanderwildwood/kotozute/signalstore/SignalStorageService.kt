@@ -270,7 +270,15 @@ internal class SignalStorageService(
                     // Not a name -- Signal shows it only once there is no name and no number
                     // -- but the last thing between this person and a row of hexadecimal.
                     username = record.username?.takeIf { it.isNotBlank() }
-                )
+                ).also {
+                    // Whether the account shares its profile with them. Applied here rather
+                    // than carried through the merge, because it is a fact about the
+                    // relationship and not about which row somebody belongs in.
+                    runCatching { contacts.setWhitelisted(id, record.whitelisted) }
+                        .onFailure { e ->
+                            Timber.w(e, "signal storage: a profile-sharing flag would not keep")
+                        }
+                }
             }
             if (people.isNotEmpty()) {
                 contacts.store(people)

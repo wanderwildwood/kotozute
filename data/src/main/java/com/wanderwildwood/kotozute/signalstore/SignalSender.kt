@@ -64,6 +64,62 @@ internal class SignalSender(
      * reconstruction of it. Best effort: a send that happened is still a send that happened,
      * and failing to write the log is not a reason to report it otherwise.
      */
+    /**
+     * Throws away every session with somebody, on both identities, and our sender key with it.
+     *
+     * What upstream does before a second resend attempt: `archiveSessions` and
+     * `archiveSiblingSessions` on the ACI store and on the PNI store when there is one, then
+     * `senderKeyShared().deleteAllFor`. Archiving does not delete anything they sent us -- it
+     * retires the session so the next message builds a new one.
+     */
+    private fun repairSessionsFor(recipient: ServiceId) {
+        val name = recipient.toString()
+        listOf(
+            ProtocolDatabase.ACCOUNT_ID_TYPE_ACI,
+            ProtocolDatabase.ACCOUNT_ID_TYPE_PNI
+        ).forEach { accountIdType ->
+            runCatching {
+                val sessions = SignalSessionStore(db, accountIdType)
+                sessions.deviceIdsFor(name).forEach { deviceId ->
+                    val address =
+                        org.signal.libsignal.protocol.SignalProtocolAddress(name, deviceId)
+                    val record = sessions.loadSession(address)
+                    record.archiveCurrentState()
+                    sessions.storeSession(address, record)
+                }
+            }.onFailure { Timber.w(it, "signal retry: could not archive their sessions") }
+        }
+        runCatching {
+            db.writableDatabase.execSQL(
+                "DELETE FROM sender_key_shared WHERE address = ?", arrayOf<Any?>(name)
+            )
+        }.onFailure { Timber.w(it, "signal retry: could not forget the shared sender keys") }
+    }
+
+    /**
+     * A group's public identifier, derived from its master key.
+     *
+     * ⚠ Not the master key, which is what was being written into the log and replayed as the
+     * sealed-sender group id. Both are thirty-two bytes, so the mistake could not fail loudly:
+     * the resend simply carried a group id no recipient could match, so their client declined
+     * to ask again and the retry loop the log exists for never closed. Worse, it put the
+     * group's **master key** -- the secret the whole group is encrypted under -- into a field
+     * that travels beside the message.
+     *
+     * Signal's group id in that argument is always `GroupSecretParams.deriveFromMasterKey(...)
+     * .publicParams.groupIdentifier`, which is public by construction.
+     */
+    private fun groupIdentifierOf(masterKey: ByteArray?): ByteArray? = masterKey?.let {
+        runCatching {
+            org.signal.libsignal.zkgroup.groups.GroupSecretParams
+                .deriveFromMasterKey(org.signal.libsignal.zkgroup.groups.GroupMasterKey(it))
+                .publicParams
+                .groupIdentifier
+                .serialize()
+        }.onFailure { e -> Timber.w(e, "signal send: could not derive a group identifier") }
+            .getOrNull()
+    }
+
     private fun rememberSend(result: SendMessageResult, timestamp: Long, groupId: ByteArray?) {
         if (!result.isSuccess) return
         // What the send taught us about this person's sealed sender. Only a send that
@@ -106,16 +162,34 @@ internal class SignalSender(
         val entry = runCatching { messageLog.recall(recipient.toString(), sentTimestamp) }
             .getOrNull()
             ?: return Result.Failed("that message is no longer held")
+        fun attempt() = sender.resendContent(
+            SignalServiceAddress(recipient),
+            sealedSender.accessFor(recipient.toString()),
+            sentTimestamp,
+            entry.content,
+            ContentHint.RESENDABLE,
+            java.util.Optional.ofNullable(entry.groupId),
+            entry.urgent
+        )
+
         return try {
-            val result = sender.resendContent(
-                SignalServiceAddress(recipient),
-                sealedSender.accessFor(recipient.toString()),
-                sentTimestamp,
-                entry.content,
-                ContentHint.RESENDABLE,
-                java.util.Optional.ofNullable(entry.groupId),
-                entry.urgent
-            )
+            val result = try {
+                attempt()
+            } catch (missing: org.signal.libsignal.protocol.NoSessionException) {
+                // ⚠ The one failure this path should expect, and it had no answer for it.
+                //
+                // A retry receipt usually means the session is gone -- that is *why* they
+                // could not read the message -- so resending over the same missing session
+                // throws, and the retry receipt was the recipient's last resort. The message
+                // is then lost for good, after RESENDABLE told their client to wait for it.
+                //
+                // Upstream repairs and tries once more: archive their sessions and their other
+                // devices' sessions on both identities, forget that our sender key was ever
+                // shared with them, resend. The second attempt builds a fresh session.
+                Timber.w(missing, "signal retry: no session to send it over; repairing and trying once more")
+                repairSessionsFor(recipient)
+                attempt()
+            }
             if (result.isSuccess) {
                 Timber.i("signal retry: sent a message again for somebody who could not read it")
                 Result.Sent(sentTimestamp)
@@ -210,6 +284,10 @@ internal class SignalSender(
         val message = SignalServiceDataMessage.newBuilder()
             .withBody(body)
             .withTimestamp(timestamp)
+            // Kept. `PushGroupSendJob` attaches one too, gated on the *group* recipient's
+            // profile sharing -- a flag that rides a GroupV2Record and that this app does not
+            // hold, so there is nothing here to gate on yet. The one-to-one send below is
+            // gated, which is where the leak actually was.
             .withProfileKey(selfProfileKey)
             .asGroupMessage(group)
             // The group's own timer. Sent with every message, as Signal does: a message with
@@ -241,7 +319,8 @@ internal class SignalSender(
                 // somebody would say the message never arrived.
                 true
             )
-            results.forEach { rememberSend(it, timestamp, masterKey) }
+            val groupIdentifier = groupIdentifierOf(masterKey)
+            results.forEach { rememberSend(it, timestamp, groupIdentifier) }
             val failed = results.filterNot { it.isSuccess }
             when {
                 failed.isEmpty() -> {
@@ -583,7 +662,10 @@ internal class SignalSender(
         val timestamp = System.currentTimeMillis()
         val message = SignalServiceDataMessage.newBuilder()
             .withTimestamp(timestamp)
-            .withProfileKey(selfProfileKey)
+            // ⚠ No profile key on a reaction. Upstream's `ReactionSendJob` builds its data
+            // message with a timestamp and the reaction and nothing else -- a profile key
+            // rides ordinary messages, not the housekeeping that follows them, which is the
+            // same reason `RemoteDeleteSendJob` carries none either.
             .withReaction(
                 SignalServiceDataMessage.Reaction(emoji, remove, targetAuthor, targetSentTimestamp)
             )
@@ -605,6 +687,13 @@ internal class SignalSender(
                 true
             )
             if (result.isSuccess) {
+            // ⚠ Logged, because it went out as RESENDABLE. That hint tells the recipient's
+            // client to show nothing and wait for a resend if it cannot read the message --
+            // so promising it while keeping no copy leaves them waiting for something that
+            // can never be served. Upstream routes every resendable send through
+            // `sendResendableDataMessage`, which records the payload; sends that are not meant
+            // to be resent use a different path and a different hint.
+                rememberSend(result, timestamp, null)
                 Timber.i("signal reaction: delivered ts=%d", timestamp)
                 Result.Sent(timestamp)
             } else {
@@ -623,19 +712,29 @@ internal class SignalSender(
         emoji: String,
         remove: Boolean,
         targetAuthor: ServiceId,
-        targetSentTimestamp: Long
+        targetSentTimestamp: Long,
+        /** The group's current revision; see the note in the body. */
+        revision: Int
     ): Result {
         if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
         val timestamp = System.currentTimeMillis()
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
             .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
-            .withRevision(0)
+            // The group's real revision, not zero -- see [sendToGroup], which has said so
+            // since it was written. A message stamped 0 is never newer than a recipient's own
+            // copy, so a client whose group state predates us never refreshes and discards
+            // this as coming from a non-member. Upstream attaches the revision through one
+            // helper for every message type, reactions and withdrawals included.
+            .withRevision(revision)
             .build()
 
         val message = SignalServiceDataMessage.newBuilder()
             .withTimestamp(timestamp)
-            .withProfileKey(selfProfileKey)
+            // ⚠ No profile key on a reaction. Upstream's `ReactionSendJob` builds its data
+            // message with a timestamp and the reaction and nothing else -- a profile key
+            // rides ordinary messages, not the housekeeping that follows them, which is the
+            // same reason `RemoteDeleteSendJob` carries none either.
             .asGroupMessage(group)
             .withReaction(
                 SignalServiceDataMessage.Reaction(emoji, remove, targetAuthor, targetSentTimestamp)
@@ -659,6 +758,9 @@ internal class SignalSender(
                 // somebody would say the message never arrived.
                 true
             )
+            // Logged for the same reason as the one-to-one reaction above.
+            val reactionGroupId = groupIdentifierOf(masterKey)
+            results.forEach { rememberSend(it, timestamp, reactionGroupId) }
             val failed = results.filterNot { it.isSuccess }
             if (failed.isEmpty()) Result.Sent(timestamp)
             else Result.Failed("could not reach ${failed.size} of ${results.size} group members")
@@ -699,6 +801,13 @@ internal class SignalSender(
                 true
             )
             if (result.isSuccess) {
+            // ⚠ Logged, because it went out as RESENDABLE. That hint tells the recipient's
+            // client to show nothing and wait for a resend if it cannot read the message --
+            // so promising it while keeping no copy leaves them waiting for something that
+            // can never be served. Upstream routes every resendable send through
+            // `sendResendableDataMessage`, which records the payload; sends that are not meant
+            // to be resent use a different path and a different hint.
+                rememberSend(result, timestamp, null)
                 Timber.i("signal delete: withdrawal sent for ts=%d", targetSentTimestamp)
                 Result.Sent(timestamp)
             } else {
@@ -714,14 +823,21 @@ internal class SignalSender(
     fun sendRemoteDeleteToGroup(
         masterKey: ByteArray,
         members: List<ServiceId>,
-        targetSentTimestamp: Long
+        targetSentTimestamp: Long,
+        /** The group's current revision; see the note in the body. */
+        revision: Int
     ): Result {
         if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
         val timestamp = System.currentTimeMillis()
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
             .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
-            .withRevision(0)
+            // The group's real revision, not zero -- see [sendToGroup], which has said so
+            // since it was written. A message stamped 0 is never newer than a recipient's own
+            // copy, so a client whose group state predates us never refreshes and discards
+            // this as coming from a non-member. Upstream attaches the revision through one
+            // helper for every message type, reactions and withdrawals included.
+            .withRevision(revision)
             .build()
 
         val message = SignalServiceDataMessage.newBuilder()
@@ -742,6 +858,9 @@ internal class SignalSender(
                 null,
                 true
             )
+            // A withdrawal that cannot be resent is a withdrawal somebody never receives.
+            val deleteGroupId = groupIdentifierOf(masterKey)
+            results.forEach { rememberSend(it, timestamp, deleteGroupId) }
             val failed = results.filterNot { it.isSuccess }
             if (failed.isEmpty()) Result.Sent(timestamp)
             else Result.Failed("could not reach ${failed.size} of ${results.size} group members")
@@ -771,7 +890,20 @@ internal class SignalSender(
         val message = SignalServiceDataMessage.newBuilder()
             .withBody(body)
             .withTimestamp(timestamp)
-            .withProfileKey(selfProfileKey)
+            // ⚠ Only where the account shares its profile with them.
+            //
+            // This attached the key to every message regardless. Signal's
+            // `PushSendJob.getProfileKey` returns nothing unless the recipient
+            // `isSystemContact || isProfileSharing`, so somebody the account has
+            // un-whitelisted -- blocked and then unblocked, or sharing turned off on another
+            // device -- was handed a durable key to this account's name and avatar on the
+            // next message sent to them. Unknown counts as shared; see
+            // [SignalContactStore.isWhitelisted].
+            .withProfileKey(
+                selfProfileKey?.takeIf {
+                    runCatching { contacts.isWhitelisted(recipient.toString()) }.getOrDefault(true)
+                }
+            )
             .apply { if (streams.isNotEmpty()) withAttachments(streams) }
             // The conversation's timer, re-asserted on every message the way Signal does.
             // Omitting it does not leave the timer alone: a data message with no expireTimer

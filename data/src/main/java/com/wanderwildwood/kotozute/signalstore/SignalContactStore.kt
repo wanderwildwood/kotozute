@@ -597,6 +597,41 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         }
     }
 
+    /**
+     * Records whether the account shares its profile with somebody.
+     *
+     * ContactRecord's `whitelisted`, and the thing Signal's `PushSendJob.getProfileKey` tests
+     * before attaching this account's profile key to a message. Written from the account's own
+     * records rather than decided here -- turning sharing off is something a person does on
+     * whichever device they happen to be holding, and this is how it reaches the others.
+     *
+     * ⚠ Not a rotation: this only records what the account said. Nothing here rotates a
+     * storage id, because applying what the account told us is not a local change.
+     */
+    fun setWhitelisted(serviceId: String, whitelisted: Boolean) = withStoreLock(db) {
+        if (serviceId.isBlank()) return@withStoreLock
+        db.writableDatabase.execSQL(
+            "UPDATE recipient SET whitelisted = ? WHERE aci = ? OR pni = ?",
+            arrayOf<Any?>(if (whitelisted) 1 else 0, serviceId, serviceId)
+        )
+    }
+
+    /**
+     * Whether to give somebody this account's profile key.
+     *
+     * ⚠ Unknown counts as yes. A row that has never been touched by a storage read defaults to
+     * whitelisted, so nobody already being talked to loses their profile key -- and with it
+     * this account's name and avatar -- because of a column that arrived after them. Only an
+     * explicit "no" from the account's own records withholds it.
+     */
+    fun isWhitelisted(serviceId: String): Boolean = withStoreLock(db) {
+        if (serviceId.isBlank()) return@withStoreLock true
+        db.readableDatabase.rawQuery(
+            "SELECT whitelisted FROM recipient WHERE aci = ? OR pni = ? LIMIT 1",
+            arrayOf(serviceId, serviceId)
+        ).use { c -> if (c.moveToFirst()) c.getInt(0) != 0 else true }
+    }
+
     /** Every username known, for the picker's last fallback before a bare id. */
     fun usernames(): Map<String, String> = withStoreLock(db) {
         db.readableDatabase.rawQuery(

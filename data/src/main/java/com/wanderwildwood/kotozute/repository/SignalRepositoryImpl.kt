@@ -1434,6 +1434,8 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private fun removeWithdrawn(id: String, note: String, allow: (SignalMessage) -> Boolean) {
         var threadKey: String? = null
+        // The timestamp of a withdrawn message of *ours*, so the resend log can forget it.
+        var oursSentAt = 0L
         val doomed = mutableListOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
@@ -1441,6 +1443,7 @@ class SignalRepositoryImpl @Inject constructor(
                     ?: return@executeTransaction
                 if (!allow(row)) return@executeTransaction
                 threadKey = row.threadKey
+                if (row.outgoing) oursSentAt = row.date
                 // Whatever was attached goes with it. Withdrawing a message is somebody
                 // unsaying something; leaving the picture on disk unsays nothing.
                 doomed += attachmentIdsOf(row.attachments)
@@ -1461,6 +1464,17 @@ class SignalRepositoryImpl @Inject constructor(
             }
         }
         if (threadKey != null) {
+            // ⚠ And it stops being resendable, which it did not. The log keeps the plaintext
+            // of everything sent so it can go again if somebody's device says it could not
+            // read it -- and a withdrawn message is exactly the one that must never go again.
+            // Left there, a retry receipt arriving any time in the next fortnight would have
+            // this device deliver the message the user was told had been taken back, to the
+            // person it was taken back from. Signal drops the payloads in the same
+            // transaction as the delete.
+            if (oursSentAt > 0) {
+                runCatching { signalStore.forgetSentMessage(oursSentAt) }
+                    .onFailure { Timber.w(it, "signal: could not drop a withdrawn message from the resend log") }
+            }
             if (doomed.isNotEmpty()) {
                 runCatching { signalStore.forgetAttachments(doomed) }
                     .onFailure { Timber.w(it, "signal delete: could not remove its attachments") }

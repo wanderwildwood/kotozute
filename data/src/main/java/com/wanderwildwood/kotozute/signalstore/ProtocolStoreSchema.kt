@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 21
+    const val VERSION = 22
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -412,6 +412,13 @@ internal object ProtocolStoreSchema {
           -- dirty flag covers a muted group as well as a renamed person. Base64 of the group
           -- id, which is what a thread key already carries.
           group_id TEXT DEFAULT NULL,
+          -- Whether the account shares its profile with this person -- ContactRecord's
+          -- `whitelisted`. Signal will not attach this account's profile key to a message for
+          -- somebody who is neither a system contact nor whitelisted, which is what makes
+          -- blocking-then-unblocking, or turning sharing off elsewhere, actually mean
+          -- something. Defaults to 1 so nobody already known loses their profile key before
+          -- the first storage read says otherwise.
+          whitelisted INTEGER NOT NULL DEFAULT 1,
           -- When this person's profile was last fetched, which is NOT the same question as
           -- when the row was last written. Signal keeps them apart for exactly this reason
           -- (`RecipientTable.LAST_PROFILE_FETCH`), and conflating them here meant profiles
@@ -675,7 +682,16 @@ internal object ProtocolStoreSchema {
         //
         // ⚠ Rows written before this get device 0, which no receipt names, so they age out on
         // the sweep as they do today. Only new sends are cleared early.
-        21 to listOf("ALTER TABLE message_log ADD COLUMN device_id INTEGER NOT NULL DEFAULT 0;")
+        21 to listOf("ALTER TABLE message_log ADD COLUMN device_id INTEGER NOT NULL DEFAULT 0;"),
+        // v22: whether the account shares its profile with somebody.
+        //
+        // A profile key was attached to every outgoing message and every reaction, with no
+        // per-recipient test. Signal's `PushSendJob.getProfileKey` returns nothing unless the
+        // recipient `isSystemContact || isProfileSharing`, so anyone the account has
+        // un-whitelisted -- blocked and then unblocked, or sharing turned off on another
+        // device -- was being handed a durable key to this account's profile on the next
+        // message. The flag rides ContactRecord.whitelisted and is read with the rest.
+        22 to listOf("ALTER TABLE recipient ADD COLUMN whitelisted INTEGER NOT NULL DEFAULT 1;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

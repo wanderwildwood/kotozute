@@ -90,6 +90,34 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
         }
     }
 
+    /**
+     * Forgets every copy of one message this device sent, whoever it went to.
+     *
+     * For a message that has been taken back. The log exists so a message can be sent *again*
+     * when somebody's device says it could not read it -- and a withdrawn message is precisely
+     * one that must never be sent again. Left in place, a retry receipt arriving any time in
+     * the next fortnight would have this device deliver the message the user was told had been
+     * unsent, to the one person it was taken back from.
+     *
+     * Signal removes the payloads in the same transaction as the delete:
+     * `messageLog.deleteAllRelatedToMessage(messageId)` sits beside the row being blanked.
+     * A message is named here by the timestamp it was sent with, which is what the log is
+     * keyed on and what makes one of ours unique.
+     */
+    fun forgetSent(sentTimestamp: Long): Int = withStoreLock(db) {
+        if (sentTimestamp <= 0) return@withStoreLock 0
+        db.writableDatabase.compileStatement(
+            "DELETE FROM message_log WHERE sent_timestamp = ?"
+        ).use { statement ->
+            statement.bindLong(1, sentTimestamp)
+            statement.executeUpdateDelete().also { gone ->
+                if (gone > 0) {
+                    Timber.i("signal message log: dropped %d copy(ies) of a withdrawn message", gone)
+                }
+            }
+        }
+    }
+
     /** What was sent to somebody at that moment, or null when it is no longer held. */
     fun recall(recipient: String, sentTimestamp: Long): Entry? = withStoreLock(db) {
         db.readableDatabase.rawQuery(

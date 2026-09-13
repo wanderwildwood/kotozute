@@ -655,7 +655,16 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun linkDevice(deviceName: String, onUrl: (String) -> Unit): String? = try {
         val result = kotlinx.coroutines.runBlocking {
-            signalStore.linker().link(deviceName) { url -> onUrl(url) }
+            signalStore.linker(
+                // The account's own setting, which the provisioning message carries. Without
+                // this the phone used its local default until a Configuration sync happened to
+                // land -- so a person whose account has read receipts off could send them from
+                // this device without ever having turned them on.
+                onReadReceipts = { on ->
+                    prefs.signalReadReceipts.set(on)
+                    Timber.i("signal link: the account says read receipts are %s", on)
+                }
+            ).link(deviceName) { url -> onUrl(url) }
         }
         when (result) {
             is com.wanderwildwood.kotozute.signalstore.DeviceLinker.Result.Linked -> {

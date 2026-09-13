@@ -965,12 +965,22 @@ class SignalStore(private val context: Context) {
         io.michaelrocks.libphonenumber.android.PhoneNumberUtil.createInstance(context)
     )
 
-    fun linker(): DeviceLinker = DeviceLinker(
+    fun linker(onReadReceipts: (Boolean) -> Unit = {}): DeviceLinker = DeviceLinker(
         SignalNetworkConfig.production(),
         SignalNetworkConfig.USER_AGENT,
         account,
         { SignalSignedPreKeyStore(database, it) },
-        { SignalKyberPreKeyStore(database, it) }
+        { SignalKyberPreKeyStore(database, it) },
+        onAccountKeys = { pool ->
+            // The same derivation the KEYS sync response goes through -- one path, so the two
+            // cannot disagree about what is kept.
+            if (keys.store(pool)) {
+                Timber.i("signal link: the account's storage key came with the link")
+            } else {
+                Timber.w("signal link: the pool in the provisioning message would not derive")
+            }
+        },
+        onReadReceipts = onReadReceipts
     )
 
     /**

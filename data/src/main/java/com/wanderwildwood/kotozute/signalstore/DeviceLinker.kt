@@ -12,7 +12,7 @@ import org.whispersystems.signalservice.api.util.CredentialsProvider
 import org.whispersystems.signalservice.internal.crypto.SecondaryProvisioningCipher
 import org.whispersystems.signalservice.internal.push.ProvisionMessage
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import timber.log.Timber
@@ -43,7 +43,21 @@ class DeviceLinker internal constructor(
     private val userAgent: String,
     private val accounts: SignalAccountStore,
     private val signedPreKeys: (Int) -> SignalSignedPreKeyStore,
-    private val kyberPreKeys: (Int) -> SignalKyberPreKeyStore
+    private val kyberPreKeys: (Int) -> SignalKyberPreKeyStore,
+    /**
+     * Takes the account's entropy pool, which the provisioning message already carried.
+     *
+     * ⚠ Everything was thrown away except the profile key, and the storage key was then asked
+     * for separately -- by a `SyncMessage.Request` of type KEYS that only goes out when
+     * somebody taps "fetch contacts from Signal", and that only answers while the primary is
+     * awake. So a freshly linked phone had no contacts and no groups, and getting them needed
+     * a second, manual, round trip for a key the primary had *already handed over* in the QR
+     * exchange. Signal takes the pool out of the same message at link time and persists it
+     * before the device talks to the primary at all; its KEYS request is a recovery path.
+     */
+    private val onAccountKeys: (String) -> Unit = {},
+    /** The account's read-receipt setting, which rides the same message. */
+    private val onReadReceipts: (Boolean) -> Unit = {}
 ) {
 
     /** What the caller shows as a QR while it waits. */
@@ -84,6 +98,28 @@ class DeviceLinker internal constructor(
         return register(provision, password, deviceName)
     }
 
+    /**
+     * Publishes a link URL and waits for the primary to answer it.
+     *
+     * ⚠ One socket with a ninety-second life, and the ninety seconds are not ours to extend:
+     * `ProvisioningSocket.LIFESPAN` is ninety seconds and the library cancels its own scope
+     * with a `SocketTimeoutException` when it elapses. That clock starts the moment the QR is
+     * shown -- before the person has picked up the other phone, found Linked Devices and
+     * pointed the camera -- and running out surfaced the raw socket exception as the failure
+     * reason. The natural response, try again, re-armed exactly the same ninety seconds.
+     *
+     * Signal does not extend the life either. It opens a **new** socket every LIFESPAN/2 and
+     * republishes its URL as the QR, five times over, so the code on screen is never more than
+     * forty-five seconds old and linking has about four and a half minutes to happen in.
+     *
+     * The part that is easy to miss is why it keeps *two*: closing the old socket the instant
+     * a new one opens would strand somebody who scanned at forty-four seconds and is
+     * mid-exchange. So each new socket displaces the one before last, never the one before.
+     * `RegisterLinkDeviceQrViewModel.startNewSocket` is those four lines.
+     *
+     * A failure from any socket but the last is not a failure of the linking: it is an old
+     * code expiring, which is the ordinary case and now says nothing at all.
+     */
     private suspend fun awaitProvisionMessage(
         provisioningKeys: IdentityKeyPair,
         onUrl: UrlListener
@@ -92,47 +128,93 @@ class DeviceLinker internal constructor(
         // from another; whichever arrives first wins and the rest are dropped. Without that a
         // failure after a success -- the socket closing normally, say -- would resume twice
         // and throw from inside the library's scope.
-        // Held so that whichever path finishes first can also close the socket. It is
-        // assigned just below, but the exception handler can in principle fire before start()
-        // has returned, so it is a reference rather than a val and closing tolerates null --
-        // the `closed` flag then makes the assignment close it instead.
-        val socket = AtomicReference<java.io.Closeable?>(null)
         val done = AtomicBoolean(false)
-        val closed = AtomicBoolean(false)
-        fun closeSocket() {
-            if (closed.compareAndSet(false, true)) socket.get()?.close()
+
+        // Newest last. Guarded by itself, because the rotation timer and a socket's own
+        // callback both reach it.
+        val handles = java.util.ArrayList<java.io.Closeable>()
+        val rotations = AtomicInteger(0)
+
+        val timer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
+            Thread(r, "signal-link-rotate").apply { isDaemon = true }
         }
+
+        fun closeAll() {
+            synchronized(handles) {
+                handles.forEach { runCatching { it.close() } }
+                handles.clear()
+            }
+            timer.shutdownNow()
+        }
+
         fun finish(block: () -> Unit) {
             if (done.compareAndSet(false, true)) {
                 block()
-                closeSocket()
+                closeAll()
             }
         }
 
-        val closeable = ProvisioningSocket.start<ProvisionMessage>(
-            ProvisioningSocket.Mode.Link(false),
-            provisioningKeys,
-            configuration,
-            { id, t ->
-                Timber.w(t, "signal link: provisioning socket %d failed", id)
-                finish { continuation.resumeWithException(t) }
-            }
-        ) { socket ->
-            onUrl.onUrl(socket.getProvisioningUrl())
-            val decrypted = socket.getProvisioningMessageDecryptResult()
-            finish {
-                continuation.resume(
-                    (decrypted as? SecondaryProvisioningCipher.ProvisioningDecryptResult.Success)?.message
-                )
-            }
+        fun openSocket() {
+            if (done.get()) return
+            val closeable = runCatching {
+                ProvisioningSocket.start<ProvisionMessage>(
+                    ProvisioningSocket.Mode.Link(false),
+                    provisioningKeys,
+                    configuration,
+                    { id, t ->
+                        // Only the last one is allowed to end this. An earlier socket timing
+                        // out is a code expiring on schedule, which is what is supposed to
+                        // happen to it.
+                        if (rotations.get() >= MAX_LINK_ROTATIONS) {
+                            Timber.w(t, "signal link: the last provisioning socket failed")
+                            finish {
+                                continuation.resumeWithException(
+                                    IllegalStateException(
+                                        "nobody scanned the code in time -- ask for a new one",
+                                        t
+                                    )
+                                )
+                            }
+                        } else {
+                            Timber.i("signal link: provisioning socket %d expired; a newer code is up", id)
+                        }
+                    }
+                ) { socket ->
+                    // Republished each time, which is the point of opening a new one.
+                    onUrl.onUrl(socket.getProvisioningUrl())
+                    val decrypted = socket.getProvisioningMessageDecryptResult()
+                    finish {
+                        continuation.resume(
+                            (decrypted as? SecondaryProvisioningCipher.ProvisioningDecryptResult.Success)?.message
+                        )
+                    }
+                }
+            }.onFailure { Timber.w(it, "signal link: could not open a provisioning socket") }
+                .getOrNull() ?: return
+
+            val displaced = synchronized(handles) { admit(handles, closeable) }
+            runCatching { displaced?.close() }
+
+            // If the exchange finished while start() was returning, nothing above will close
+            // this one.
+            if (done.get()) closeAll()
         }
 
-        socket.set(closeable)
-        // Closed on every exit, including the caller giving up. The socket is a live offer to
+        openSocket()
+        timer.scheduleAtFixedRate(
+            {
+                if (done.get()) return@scheduleAtFixedRate
+                if (rotations.incrementAndGet() > MAX_LINK_ROTATIONS) return@scheduleAtFixedRate
+                openSocket()
+            },
+            LINK_ROTATE_INTERVAL_MS,
+            LINK_ROTATE_INTERVAL_MS,
+            java.util.concurrent.TimeUnit.MILLISECONDS
+        )
+
+        // Closed on every exit, including the caller giving up. A socket is a live offer to
         // join the account; leaving one open because nobody cancelled it is the wrong default.
-        // If the exchange already finished while start() was returning, close it now.
-        if (done.get()) closeSocket()
-        continuation.invokeOnCancellation { closeSocket() }
+        continuation.invokeOnCancellation { closeAll() }
     }
 
     private suspend fun register(
@@ -141,6 +223,12 @@ class DeviceLinker internal constructor(
         deviceName: String
     ): Result {
         val aci = ServiceId.ACI.parseOrThrow(provision.aci, provision.aciBinary)
+        // ⚠ The binary field first, as the ACI above already did. A modern primary sends only
+        // `pniBinary` and leaves the deprecated string empty, and reading the string alone
+        // left the account row with no PNI at all -- which is not a cosmetic gap: group
+        // authorisation parses it, and the store throws "the account has no PNI" when asked.
+        // Upstream reads `message.pniBinary ?: message.pni`, exactly this way round.
+        val pni = ServiceId.PNI.parseOrNull(provision.pni, provision.pniBinary)
         val aciIdentity = provision.aciIdentityKeyPair()
         val pniIdentity = provision.pniIdentityKeyPair()
 
@@ -233,11 +321,26 @@ class DeviceLinker internal constructor(
                 accounts.saveCredentials(
                     provision.number,
                     aci.toString(),
-                    provision.pni,
+                    pni?.toString(),
                     deviceId,
                     password
                 )
                 provision.profileKey?.let { accounts.saveProfileKey(it.toByteArray()) }
+
+                // The storage key, from the pool this message already carried. Done here so
+                // the first storage read can happen on this device's own initiative rather
+                // than waiting on a KEYS round trip somebody has to ask for.
+                provision.accountEntropyPool?.takeIf { it.isNotBlank() }?.let { pool ->
+                    runCatching { onAccountKeys(pool) }
+                        .onFailure { Timber.w(it, "signal link: the account keys would not keep") }
+                }
+
+                // And the account's read-receipt setting, rather than this device's default
+                // until a Configuration sync happens to land.
+                provision.readReceipts?.let { on ->
+                    runCatching { onReadReceipts(on) }
+                        .onFailure { Timber.w(it, "signal link: the read-receipt setting would not keep") }
+                }
                 Timber.i("signal link: linked as device %d", deviceId)
                 Result.Linked(deviceId, provision.number)
             }
@@ -281,6 +384,40 @@ class DeviceLinker internal constructor(
         )
 
     companion object {
+
+        /**
+         * Adds a new socket handle and returns the one it displaces, if any.
+         *
+         * ⚠ **Two**, not one, and that is the whole rule. Closing the previous socket the
+         * instant a new one opens would strand anybody who scanned the previous code and is
+         * part-way through the exchange. Keeping two means a code stays usable for one full
+         * rotation after it stops being displayed.
+         *
+         * Signal's `startNewSocket`: append, and while there are more than two, drop the
+         * oldest.
+         */
+        internal fun <T> admit(handles: MutableList<T>, incoming: T, keep: Int = 2): T? {
+            handles += incoming
+            return if (handles.size > keep) handles.removeAt(0) else null
+        }
+
+        /**
+         * How often a fresh link code replaces the one on screen.
+         *
+         * Half of `ProvisioningSocket.LIFESPAN`, which is ninety seconds -- Signal's
+         * `delay(ProvisioningSocket.LIFESPAN / 2)`. Half, so the code showing is never older
+         * than the rotation interval and never close to its own expiry.
+         */
+        val LINK_ROTATE_INTERVAL_MS = java.util.concurrent.TimeUnit.SECONDS.toMillis(45)
+
+        /**
+         * How many times it is replaced before giving up. Signal's `count < 5`.
+         *
+         * Five rotations at forty-five seconds is about four and a half minutes of linking
+         * time, against the ninety seconds a single socket allows.
+         */
+        const val MAX_LINK_ROTATIONS = 5
+
         /**
          * Eighteen random bytes, base64, following signal-cli's `KeyUtils.createPassword`.
          *

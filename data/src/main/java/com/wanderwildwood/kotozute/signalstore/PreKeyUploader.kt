@@ -105,6 +105,56 @@ internal class PreKeyUploader(
         return upload(accountIdType, serviceIdType)
     }
 
+    /**
+     * Puts one-time keys back when the server is running low, whatever the clock says.
+     *
+     * The other half of [maintain]. That one is the periodic path and is gated on
+     * [REFRESH_INTERVAL_MS]; this is the on-demand one, and Signal has both: `MessageDecryptor`
+     * schedules a `PreKeysSyncJob` the moment a PREKEY_MESSAGE envelope arrives, and the job
+     * reads the server's counts and refills below `ONE_TIME_PREKEY_MINIMUM` without waiting
+     * for anything. A prekey message *is* the server handing out one of these keys, so it is
+     * the one event that says the pile is shrinking.
+     *
+     * ⚠ One-time keys only. The signed prekey and the last-resort Kyber key are left alone --
+     * `PreKeyUpload` takes each part as null for exactly this, and rotating the repeated-use
+     * keys on somebody else's schedule is not what upstream does here.
+     */
+    fun refillOneTimeIfShort(): Result {
+        val aci = refillOne(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, ServiceIdType.ACI)
+        if (aci is Result.Failed) return aci
+        val pni = refillOne(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, ServiceIdType.PNI)
+        return if (pni is Result.Failed) pni else if (aci is Result.Uploaded) aci else pni
+    }
+
+    private fun refillOne(accountIdType: Int, serviceIdType: ServiceIdType): Result {
+        val identity = accounts.identityKeyPair(accountIdType) ?: return Result.NotNeeded
+        // Null means the server would not say, which is not a reason to send it a hundred
+        // keys. The periodic path will come round.
+        val counts = countsFor(serviceIdType) ?: return Result.NotNeeded
+        if (counts.first >= MINIMUM_COUNT && counts.second >= MINIMUM_COUNT) return Result.NotNeeded
+
+        val ecKeys = generateEcPreKeys(accountIdType)
+        val kyberKeys = generateKyberPreKeys(accountIdType, identity)
+        val result = connection.keys.setPreKeysSync(
+            PreKeyUpload(serviceIdType, null, ecKeys, null, kyberKeys)
+        )
+        if (result !is NetworkResult.Success) {
+            return Result.Failed("one-time pre key refill refused for $serviceIdType: $result")
+        }
+        return try {
+            ecKeys.forEach { preKeys(accountIdType).storePreKey(it.id, it) }
+            kyberKeys.forEach { kyberPreKeys(accountIdType).storeKyberPreKey(it.id, it) }
+            Timber.i(
+                "signal keys: %s refilled one-time keys (server was ec=%d kyber=%d, sent %d+%d)",
+                serviceIdType, counts.first, counts.second, ecKeys.size, kyberKeys.size
+            )
+            Result.Uploaded
+        } catch (t: Throwable) {
+            Timber.w(t, "signal keys: refilled but could not store")
+            Result.Failed("one-time pre keys uploaded but not stored: ${t.message}")
+        }
+    }
+
     /** What the server holds, as numbers rather than a log line. Null when it will not say. */
     private fun countsFor(serviceIdType: ServiceIdType): Pair<Int, Int>? =
         when (val r = connection.keys.getAvailablePreKeyCountsSync(serviceIdType)) {

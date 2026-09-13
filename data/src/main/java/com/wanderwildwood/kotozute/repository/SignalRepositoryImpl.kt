@@ -2004,11 +2004,31 @@ class SignalRepositoryImpl @Inject constructor(
         val source = when (val meta = tree.meta()) {
             null -> tree
             else -> {
-                if (key.isBlank()) throw SignalRepository.BackupKeyNeeded()
+                val header = runCatching { JSONObject(meta) }.getOrNull()
+                    ?: throw SignalRepository.NotAnExport()
                 val salt = runCatching {
-                    android.util.Base64.decode(JSONObject(meta).getString("salt"), android.util.Base64.DEFAULT)
+                    android.util.Base64.decode(header.getString("salt"), android.util.Base64.DEFAULT)
                 }.getOrNull() ?: throw SignalRepository.NotAnExport()
-                com.wanderwildwood.kotozute.signalstore.EncryptedExportSource(tree, key, salt)
+
+                // A header with no `key` was written before copies were locked with the
+                // account, and is thirty digits. Nothing about an old copy changes.
+                val lockedToAccount = header.optString(
+                    "key",
+                    com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination.DIGITS
+                ) == com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination.ACCOUNT
+
+                val lock = if (lockedToAccount) {
+                    // Nothing to ask for: the key is the account's, and this phone is on it.
+                    val backupKey = signalStore.messageBackupKey()
+                        ?: throw SignalRepository.BackupKeyNeeded()
+                    com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination
+                        .Lock.Account(backupKey)
+                } else {
+                    if (key.isBlank()) throw SignalRepository.BackupKeyNeeded()
+                    com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination
+                        .Lock.Digits(key)
+                }
+                com.wanderwildwood.kotozute.signalstore.EncryptedExportSource(tree, lock, salt)
             }
         }
         // The account's own identifiers. The bridge had to be told these -- an export
@@ -2062,11 +2082,20 @@ class SignalRepositoryImpl @Inject constructor(
         val tree = com.wanderwildwood.kotozute.signalstore.TreeExportDestination(
             context, android.net.Uri.parse(folder), "kotozute-backup-$day"
         )
-        // Generated here rather than asked for. Thirty digits nobody chose is the whole of
-        // why the derivation can be a single pass; a passphrase somebody can remember would
-        // need a slow one and would still be worth less.
-        val key = com.wanderwildwood.kotozute.signalstore.SignalBackupCrypto.newKey()
-        val destination = com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination(tree, key)
+        // ⚠ Not a secret invented here any more. Signal derives a backup key from the account
+        // -- `AccountEntropyPool.deriveMessageBackupKey()` -- so a copy opens on any device
+        // that can reach the account, and there is nothing to show once and nothing to lose.
+        // Thirty digits generated at the moment of writing and stored nowhere meant a copy
+        // died with the piece of paper, which is the failure a backup exists to prevent.
+        //
+        // The account has to have answered the KEYS request first. It is the same key the
+        // storage service needs, so a phone that has read the account's records has it.
+        val backupKey = signalStore.messageBackupKey()
+            ?: throw IllegalStateException("the account has not sent its keys yet")
+        val destination = com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination(
+            tree,
+            com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination.Lock.Account(backupKey)
+        )
         destination.writeMeta()
         val stats = com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter(
             source = RealmExportSource(),
@@ -2083,10 +2112,9 @@ class SignalRepositoryImpl @Inject constructor(
             attachments = stats.attachments,
             missing = stats.missing,
             folder = stats.folder,
-            // Grouped here: the digits leave this module once, to be read off a screen and
-            // written down, and a reader typing them back is met by normalise() which takes
-            // whatever spacing they used.
-            key = com.wanderwildwood.kotozute.signalstore.SignalBackupCrypto.group(key)
+            // Empty, and that is the change: there is no longer a secret for the reader to
+            // carry out of this screen. The copy is locked to the account.
+            key = ""
         )
     }
 

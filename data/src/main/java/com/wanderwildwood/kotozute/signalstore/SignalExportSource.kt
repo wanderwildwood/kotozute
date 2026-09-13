@@ -52,11 +52,16 @@ internal interface SignalExportSource {
  */
 internal class EncryptedExportSource(
     private val inner: SignalExportSource,
-    key: String,
+    lock: EncryptedExportDestination.Lock,
     salt: ByteArray
 ) : SignalExportSource {
 
-    private val derived = SignalBackupCrypto.derive(key, salt)
+    private val derived = when (lock) {
+        is EncryptedExportDestination.Lock.Account ->
+            SignalBackupCrypto.deriveFromAccount(lock.backupKey, salt)
+        is EncryptedExportDestination.Lock.Digits ->
+            SignalBackupCrypto.derive(lock.key, salt)
+    }
 
     override fun isExport(): Boolean = inner.isExport()
 

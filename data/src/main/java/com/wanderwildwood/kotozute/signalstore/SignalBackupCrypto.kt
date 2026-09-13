@@ -36,6 +36,7 @@ internal object SignalBackupCrypto {
     private const val NONCE_BYTES = 12
     private const val PREFIX_BYTES = 4
     private const val INFO = "kotozute backup v1"
+    private const val ACCOUNT_INFO = "kotozute backup account v1"
 
     private val random = SecureRandom()
 
@@ -65,6 +66,38 @@ internal object SignalBackupCrypto {
 
         mac.init(SecretKeySpec(prk, "HmacSHA256"))
         mac.update(INFO.toByteArray())
+        mac.update(1)
+        return mac.doFinal().copyOf(KEY_BYTES)
+    }
+
+    /**
+     * A per-copy key from the account's own backup key, rather than from digits on paper.
+     *
+     * [backupKey] is libsignal's `MessageBackupKey(pool, aci).aesKey` -- the key Signal
+     * encrypts a backup with, which every device on the account can re-derive. Nothing is
+     * shown and nothing is written down, and a copy written by one phone opens on the next.
+     *
+     * ⚠ **Why there is still a salt, when Signal's key is already final.** Signal's backup
+     * container is AES-CBC with a separate HMAC; this one is AES-GCM. A fixed key is safe in
+     * the first and dangerous in the second: every copy would share a key, and this container
+     * numbers its chunks from zero behind a four-byte random prefix, so two copies of one
+     * account colliding on that prefix would reuse a (key, nonce) pair -- which in GCM does
+     * not merely leak, it hands over the authentication key. Mixing the copy's own salt in
+     * makes each copy's key distinct and the collision impossible. That is a property of this
+     * container, not a second opinion about Signal's key.
+     *
+     * A **different** info string from [derive], so the two schemes cannot produce the same
+     * key even by accident, and a copy locked one way can never be opened by the other
+     * reporting success on garbage. Which scheme a folder used is in its header; see
+     * [EncryptedExportDestination].
+     */
+    fun deriveFromAccount(backupKey: ByteArray, salt: ByteArray): ByteArray {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(salt, "HmacSHA256"))
+        val prk = mac.doFinal(backupKey)
+
+        mac.init(SecretKeySpec(prk, "HmacSHA256"))
+        mac.update(ACCOUNT_INFO.toByteArray())
         mac.update(1)
         return mac.doFinal().copyOf(KEY_BYTES)
     }

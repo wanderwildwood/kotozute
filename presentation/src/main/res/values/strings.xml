@@ -451,14 +451,15 @@
     <string name="settings_signal_import_title">Bring history in</string>
     <string name="settings_signal_import_summary">From a Signal Desktop export copied onto this phone. Threads here start on the day this phone was linked; Signal gives a linked device nothing older</string>
     <string name="settings_signal_export_title">Write a copy out</string>
-    <string name="settings_signal_export_summary">Every Signal message held here, into a folder this can read back. Locked with a key made when you write it, shown once</string>
+    <string name="settings_signal_export_summary">Every Signal message held here, into a folder this can read back. Locked to your Signal account, so any phone signed in to it can open the copy</string>
     <string name="settings_signal_backup_key_title">The key to this copy</string>
-    <string name="settings_signal_backup_key_body">This folder is a copy written by this app, and the thirty digits it was locked with are what open it.</string>
+    <string name="settings_signal_backup_key_body">This copy was written before copies were locked to your account, and the thirty digits it was locked with are what open it.</string>
     <string name="settings_signal_backup_key_hint">The thirty digits</string>
     <string name="settings_signal_backup_key_wrong">Those digits do not open this copy. Check them against what you wrote down — six at a time, thirty in all.</string>
     <string name="settings_signal_backup_key_again">Try again</string>
     <!-- Shown once and never again: it is not kept anywhere, which is the point of it. -->
     <string name="settings_signal_history_written_key">The key to this copy is\n\n%s\n\nWrite it down now. It is not kept on this phone, and without it nothing can read the copy — not this app, not anyone.</string>
+    <string name="settings_signal_history_written_account">This copy is locked to your Signal account. Any phone signed in to it can read the copy back — there is nothing to write down.</string>
     <string name="settings_signal_history_working">Reading the export — %d message(s) so far</string>
     <string name="settings_signal_history_writing">Writing a copy — %d message(s) so far</string>
     <string name="settings_signal_history_not_an_export">There is no Signal export in that folder. The folder to choose is the one holding main.jsonl.</string>

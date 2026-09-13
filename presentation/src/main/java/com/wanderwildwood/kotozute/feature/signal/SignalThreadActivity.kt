@@ -495,7 +495,9 @@ class SignalThreadActivity : QkThemedActivity() {
         messageId: String,
         mine: String,
         outgoing: Boolean,
-        sentAt: Long
+        sentAt: Long,
+        /** Whether "take back" is already armed; see below. */
+        armed: Boolean = false
     ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
@@ -504,39 +506,61 @@ class SignalThreadActivity : QkThemedActivity() {
                 sendReaction(messageId, mine, remove = true)
             }
         }
-        // Only our own, and only while Signal would still accept it. Offering it on somebody
-        // else's message, or on one too old to withdraw, is offering something that can only
-        // end in an apology.
-        if (SignalRepository.canWithdraw(outgoing, sentAt)) {
-            actions += getString(R.string.signal_withdraw) to { confirmWithdraw(messageId) }
-        }
-        if (body.isBlank()) {
-            AlertDialog.Builder(this)
-                .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
-                .show()
-            return
-        }
-        actions += listOf(
-            getString(R.string.signal_message_copy) to {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("Signal message", body))
-                Toast.makeText(this, R.string.signal_message_copied, Toast.LENGTH_SHORT).show()
-            },
-            getString(R.string.signal_message_share) to {
-                startActivity(
-                    Intent.createChooser(
-                        Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, body)
-                        },
-                        getString(R.string.signal_message_share)
+        if (body.isNotBlank()) {
+            actions += listOf(
+                getString(R.string.signal_message_copy) to {
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Signal message", body))
+                    Toast.makeText(this, R.string.signal_message_copied, Toast.LENGTH_SHORT).show()
+                },
+                getString(R.string.signal_message_share) to {
+                    startActivity(
+                        Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, body)
+                            },
+                            getString(R.string.signal_message_share)
+                        )
                     )
-                )
+                }
+            )
+        }
+
+        // Last, because it is the destructive one, and offered only on our own messages and
+        // only while Signal would still accept it -- offering it on somebody else's message,
+        // or on one too old to withdraw, is offering something that can only end in an
+        // apology.
+        //
+        // It arms rather than opening a dialog to ask. A second dialog stacked on this one
+        // would be two full-panel repaints to ask one question; the row asks in its own face
+        // instead, and disarms itself so a stray tap leaves no live trigger behind.
+        if (SignalRepository.canWithdraw(outgoing, sentAt)) {
+            actions += if (armed) {
+                getString(R.string.signal_withdraw_armed) to { withdraw(messageId) }
+            } else {
+                getString(R.string.signal_withdraw) to {
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, armed = true)
+                }
             }
-        )
-        AlertDialog.Builder(this)
+        }
+
+        val dialog = AlertDialog.Builder(this)
             .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
             .show()
+
+        if (armed) {
+            val decor = dialog.window?.decorView
+            val disarm = Runnable {
+                if (!isFinishing && dialog.isShowing) {
+                    dialog.dismiss()
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, armed = false)
+                }
+            }
+            decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
+            // Choosing anything else, or backing out, takes the trigger with it.
+            dialog.setOnDismissListener { decor?.removeCallbacks(disarm) }
+        }
     }
 
     /**
@@ -583,20 +607,12 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     /**
-     * Asks before taking a message back, every time.
+     * Takes a message back, having been asked twice.
      *
-     * Signal asks once and remembers the answer. This asks each time: the gesture is one
-     * long-press away from "Copy text" on a 480px screen, it cannot be undone, and it reaches
-     * other people's phones. A confirmation that stops appearing is one nobody reads.
+     * Signal asks once and remembers the answer for ever. This asks every time: the gesture
+     * sits one long-press from "Copy text" on a 480px screen, it cannot be undone, and it
+     * reaches other people's phones.
      */
-    private fun confirmWithdraw(messageId: String) {
-        AlertDialog.Builder(this)
-            .setMessage(R.string.signal_withdraw_confirm)
-            .setPositiveButton(R.string.signal_withdraw_yes) { _, _ -> withdraw(messageId) }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
     private fun withdraw(messageId: String) {
         thread(isDaemon = true) {
             val failure = runCatching { signalRepo.withdraw(messageId) }.exceptionOrNull()
@@ -735,6 +751,9 @@ class SignalThreadActivity : QkThemedActivity() {
     companion object {
         /** Plain ASCII on purpose: the Kompakt's font has no glyph for the nicer arrows. */
         private const val RAIL_SWITCH_ARROW = ">"
+
+        /** How long an armed destructive row stays armed, as everywhere else in the app. */
+        private const val ARM_TIMEOUT_MS = 4000L
 
 
         /**

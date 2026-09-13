@@ -63,9 +63,23 @@ class ProtocolDatabase(
     override fun onConfigure(db: SQLiteDatabase) {
         // Write-ahead logging, because the receive path writes sessions while the UI reads.
         db.enableWriteAheadLogging()
-        // Not on by default in SQLite, and the schema declares references between the account
-        // and its identities.
-        db.execSQL("PRAGMA foreign_keys = ON;")
+    }
+
+    override fun onOpen(db: SQLiteDatabase) {
+        // ⚠ The supported call, not a raw pragma, and not in onConfigure.
+        //
+        // `PRAGMA foreign_keys = ON` applies to the one connection it runs on; with
+        // write-ahead logging there is a pool of them, so the setting held for whichever
+        // connection happened to configure the database and for none of the others. The
+        // helper's own method reconfigures the pool, which is why Signal calls
+        // `setForeignKeyConstraintsEnabled(true)` in `onOpen` rather than writing the pragma.
+        //
+        // ⚠ And the comment that used to be here was false: it said the schema declares
+        // references between the account and its identities. It declares none -- there is not
+        // one REFERENCES clause in `ProtocolStoreSchema` -- so the setting has been inert all
+        // along. Kept, correctly done, so that a migration which adds a real reference gets
+        // the cascade it expects instead of discovering this.
+        db.setForeignKeyConstraintsEnabled(true)
     }
 
     override fun onCreate(db: SQLiteDatabase) {

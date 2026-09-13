@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.security.KeyStore
+import timber.log.Timber
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -67,7 +68,8 @@ object ProtocolStoreKey {
     private fun newKey(): ByteArray = ByteArray(KEY_BYTES).also(SecureRandom()::nextBytes)
 
     private fun seal(context: Context, key: ByteArray) {
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, keystoreKey()) }
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+            .apply { init(Cipher.ENCRYPT_MODE, keystoreKey(createIfMissing = true)) }
         val sealed = cipher.doFinal(key)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(PREF_SEALED_KEY, android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP))
@@ -79,17 +81,45 @@ object ProtocolStoreKey {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
             init(
                 Cipher.DECRYPT_MODE,
-                keystoreKey(),
+                // ⚠ Never creating one here. See [keystoreKey].
+                keystoreKey(createIfMissing = false),
                 GCMParameterSpec(GCM_TAG_BITS, android.util.Base64.decode(iv, android.util.Base64.NO_WRAP))
             )
         }
         return cipher.doFinal(android.util.Base64.decode(sealed, android.util.Base64.NO_WRAP))
     }
 
-    private fun keystoreKey(): javax.crypto.SecretKey {
+    /**
+     * The hardware-held key that seals the store key, creating one only when asked.
+     *
+     * ⚠ **`createIfMissing` is the important argument.** This used to make a new keystore entry
+     * whenever it could not find one -- including on the unseal path. A sealed blob already in
+     * the preferences can only be opened by the entry that sealed it, so quietly generating a
+     * replacement does not recover anything: it guarantees the protocol store can never be
+     * opened again, and does it silently. Missing during an unseal is a fault to report, not a
+     * gap to fill.
+     *
+     * ⚠ And retried once. Android's keystore raises `UnrecoverableKeyException` transiently --
+     * around user-credential changes, and on some devices simply under load -- and one flake
+     * was aborting whatever was in flight, which on this app is a boot reconnect or a
+     * background socket wake. Signal's `KeyStoreHelper.getKeyStoreEntry` has exactly two
+     * attempts for this, and runs every keystore operation on one thread
+     * ([keystoreWork]) because concurrent access is itself a source of those failures.
+     */
+    private fun keystoreKey(createIfMissing: Boolean): javax.crypto.SecretKey = onKeystoreThread {
         val store = KeyStore.getInstance(KEYSTORE).apply { load(null) }
-        (store.getEntry(ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
-        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE).apply {
+        val existing = try {
+            store.getEntry(ALIAS, null)
+        } catch (first: java.security.UnrecoverableKeyException) {
+            Timber.w(first, "signal store: the keystore would not hand over its entry; trying once more")
+            store.getEntry(ALIAS, null)
+        }
+        (existing as? KeyStore.SecretKeyEntry)?.let { return@onKeystoreThread it.secretKey }
+
+        check(createIfMissing) {
+            "the keystore entry that sealed the protocol store key is gone"
+        }
+        KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE).apply {
             init(
                 KeyGenParameterSpec.Builder(
                     ALIAS,
@@ -104,4 +134,24 @@ object ProtocolStoreKey {
             )
         }.generateKey()
     }
+
+    /**
+     * Runs one piece of keystore work, on the one thread that does keystore work.
+     *
+     * Signal funnels every seal and unseal through a single-thread executor. Concurrent access
+     * to Android's keystore is itself a source of the transient failures the retry above exists
+     * for, and this app can ask from several places at once -- a boot broadcast, the socket
+     * service, and the UI -- which is exactly the shape that provokes it.
+     */
+    private fun <T> onKeystoreThread(body: () -> T): T = try {
+        keystoreWork.submit(body).get()
+    } catch (e: java.util.concurrent.ExecutionException) {
+        // Unwrapped, so the caller sees what actually went wrong rather than the plumbing.
+        throw e.cause ?: e
+    }
+
+    private val keystoreWork: java.util.concurrent.ExecutorService =
+        java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "kotozute-keystore").apply { isDaemon = true }
+        }
 }

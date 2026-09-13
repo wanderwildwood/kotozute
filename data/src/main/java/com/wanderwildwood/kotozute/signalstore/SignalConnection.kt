@@ -93,7 +93,9 @@ internal class SignalConnection(
 
     val unauthenticated: SignalWebSocket.UnauthenticatedWebSocket by lazy {
         val timer = AlarmSleepTimer(context)
-        val monitor = SignalSocketHealthMonitor(timer, onRejected)
+        // No keepalive sender on this one: see [SignalSocketHealthMonitor.sendKeepAlives].
+        // Upstream passes false here and true for the authenticated socket.
+        val monitor = SignalSocketHealthMonitor(timer, onRejected, sendKeepAlives = false)
         SignalWebSocket.UnauthenticatedWebSocket(
             { LibSignalChatConnection("unidentified", network, null, ALLOW_STORIES, monitor) },
             { true },

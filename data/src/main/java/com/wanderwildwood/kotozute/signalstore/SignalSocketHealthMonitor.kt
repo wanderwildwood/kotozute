@@ -52,7 +52,21 @@ internal class SignalSocketHealthMonitor(
      * linked device whose primary stays idle is eventually unlinked, and everything on it
      * goes. See [onReceivedAlerts].
      */
-    private val onPrimaryIdle: (Boolean) -> Unit = {}
+    private val onPrimaryIdle: (Boolean) -> Unit = {},
+    /**
+     * Whether this socket should send keepalives at all.
+     *
+     * ⚠ Only one of the two sockets should. Both were given a keepalive sender, so the phone
+     * ran **two** alarm-backed threads waking it on their own timers -- twice upstream's
+     * exact-alarm wakeup rate, on a device whose whole point is to sit still, for a socket
+     * that only carries outbound sealed-sender sends and profile fetches.
+     *
+     * Signal's monitor takes the same flag and its dependency provider passes true for the
+     * authenticated socket and false for the unauthenticated one. The flag gates the keepalive
+     * listener, so no sender thread is ever created for the second socket -- the rest of the
+     * monitoring, the state watchdog and the alerts, still runs.
+     */
+    private val sendKeepAlives: Boolean = true
 ) : HealthMonitor {
 
     // Scheduled rather than plain, because the connecting watchdog needs to fire later on the
@@ -99,14 +113,20 @@ internal class SignalSocketHealthMonitor(
                 .observeOn(Schedulers.computation())
                 .distinctUntilChanged()
                 .subscribe(::onStateChanged)
-            webSocket.addKeepAliveChangeListener { executor.execute(::updateKeepAliveSenderStatus) }
+            if (sendKeepAlives) {
+                webSocket.addKeepAliveChangeListener { executor.execute(::updateKeepAliveSenderStatus) }
+            }
         }
     }
 
     private fun onStateChanged(connectionState: WebSocketConnectionState) {
         Timber.d("signal socket: state -> %s", connectionState)
         executor.execute {
-            needsKeepAlive = connectionState == WebSocketConnectionState.CONNECTED
+            // ⚠ `&& sendKeepAlives` is the gate that actually works. Gating only the
+            // keepalive *listener* leaves this line starting a sender on CONNECTED anyway,
+            // which is how the second thread survived a first attempt at this. Upstream puts
+            // the flag right here: `connectionState == CONNECTED && sendKeepAlives`.
+            needsKeepAlive = connectionState == WebSocketConnectionState.CONNECTED && sendKeepAlives
             updateKeepAliveSenderStatus()
             when (connectionState) {
                 // ⚠ A socket can sit in CONNECTING for ever, and nothing was watching it.

@@ -839,11 +839,20 @@ internal class SignalSender(
         val bytes = android.util.Base64.decode(dataUri.substring(comma + 1), android.util.Base64.DEFAULT)
         if (bytes.isEmpty()) return null
 
-        // The reserved size is the *ciphertext* length, not the file's. Reserving the
-        // plaintext size leaves the upload short of room by the padding and MAC.
+        // The reserved size is the ciphertext length **of the padded plaintext**, which is
+        // what actually goes up.
+        //
+        // ⚠ This reserved the ciphertext length of the *unpadded* bytes. Signal pads every
+        // attachment before encrypting it -- the size of a file says something about it, and
+        // padding is what stops that -- so the stream the library uploads is bigger than the
+        // slot that had been booked, by about five per cent, for essentially every picture.
+        // Upstream never writes one without the other: `getCiphertextLength(PaddingInput
+        // Stream.getPaddedSize(size))` appears at every call site that reserves a slot.
+        val padded = org.whispersystems.signalservice.internal.crypto.PaddingInputStream
+            .getPaddedSize(bytes.size.toLong())
         val spec = connection.cdn.getResumableUploadSpecBlocking(
             org.whispersystems.signalservice.api.crypto.AttachmentCipherStreamUtil
-                .getCiphertextLength(bytes.size.toLong())
+                .getCiphertextLength(padded)
         )
 
         return org.whispersystems.signalservice.api.messages.SignalServiceAttachment.newStreamBuilder()

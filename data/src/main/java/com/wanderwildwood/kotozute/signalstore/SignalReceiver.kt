@@ -88,6 +88,8 @@ internal class SignalReceiver(
         var envelopes = 0
         var decrypted = 0
         var failed = 0
+        // Per batch, not per receiver: a rebuilt connection starts a fresh one.
+        identityChangedMidBatch = false
         /** Whether the server handed out one of this device's one-time keys in this batch. */
         var usedAPreKey = false
         var emptied = false
@@ -118,6 +120,11 @@ internal class SignalReceiver(
         // Only now, with everything acked and safely on disk.
         val messages = mutableListOf<com.wanderwildwood.kotozute.signal.BridgeMessage>()
         pending().forEach { (id, envelope, serverDeliveredTimestamp, alreadyAsked) ->
+            // Left where it is, to be read by the next batch on the new connection. Signal
+            // breaks the batch at exactly this point and lets the server redeliver the rest;
+            // here the envelopes are already on disk, so leaving the row alone is the same
+            // thing without needing the server to do it again.
+            if (identityChangedMidBatch) return@forEach
             // The server's own delivery receipt: type SERVER_DELIVERY_RECEIPT, whose content
             // is empty by definition. It is not a message and there is nothing in it to
             // decrypt -- it says "what you sent at this timestamp reached them".
@@ -234,6 +241,20 @@ internal class SignalReceiver(
         // inbox shows on this pass rather than the next one.
         if (envelopes > 0) runCatching { events.afterBatch() }.onFailure { Timber.w(it, "signal: after-batch") }
 
+        // ⚠ Thrown rather than returned, and thrown *here* rather than at the break: the
+        // socket is the problem, but everything already decrypted deserves to be filed and
+        // acknowledged first.
+        //
+        // That socket was authenticated as the account this device has just stopped being, so
+        // every envelope read on it from now belongs to somebody who no longer exists.
+        // [listen] treats anything but a timeout as a dead connection and builds a new one,
+        // which is what Signal does explicitly at this point -- `resetNetwork()` then
+        // `startNetwork()`. The envelopes skipped above are still on disk and are read by the
+        // next batch, so nothing depends on the server redelivering them.
+        if (identityChangedMidBatch) {
+            throw IdentityChangedMidBatch()
+        }
+
         return Received(envelopes, decrypted, failed, emptied, senders, stored)
     }
 
@@ -344,6 +365,15 @@ internal class SignalReceiver(
      * ever turns a decryption bug into unbounded growth in a database holding key material.
      */
     /** Whether this is the server sending something again, rather than a message going wrong. */
+    /**
+     * The account's phone-number identity changed part-way through a batch.
+     *
+     * Not an error: it is how this path says the connection has to be rebuilt before anything
+     * else is read. Named rather than reusing an IOException so the log says what happened.
+     */
+    internal class IdentityChangedMidBatch :
+        java.io.IOException("the account's phone-number identity changed mid-batch")
+
     /** What kind of thing a failed decryption was; see [classify]. */
     private enum class Failure {
         /** Not a fault at all. Drop it and say nothing to anyone. */
@@ -466,6 +496,15 @@ internal class SignalReceiver(
 
     /** Set by [decrypt] when it asked the sender to send it again, so the row can remember. */
     private var askedForRetry: Boolean = false
+
+    /**
+     * Set by [decrypt] when an envelope changed the account's phone-number identity.
+     *
+     * Everything after it in the batch would be decrypted against a half-swapped identity on a
+     * socket authenticated as the account this device has just stopped being, so the batch
+     * stops there and the connection is rebuilt.
+     */
+    private var identityChangedMidBatch: Boolean = false
 
     private fun decrypt(
         envelope: Envelope,
@@ -811,7 +850,13 @@ internal class SignalReceiver(
                 // The account's own phone number has changed, and the primary is handing this
                 // device the identity that goes with it.
                 result.content.syncMessage?.pniChangeNumber?.let { change ->
+                    val before = accounts.credentials().pni
                     applyNumberChange(envelope, result, change)
+                    // Only if it actually took. Upstream's test is the same shape --
+                    // `pniChangeNumber != null && SignalStore.account.pni != pniAtBatchStart`
+                    // -- because a sync that names the number this device already has is not
+                    // a change and there is nothing to reconnect for.
+                    if (accounts.credentials().pni != before) identityChangedMidBatch = true
                 }
 
                 // "Go and read your records again." The account sends this when its stored

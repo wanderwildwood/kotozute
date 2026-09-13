@@ -180,7 +180,13 @@ class SignalStore(private val context: Context) {
                 { SignalSignedPreKeyStore(database, it) },
                 { SignalKyberPreKeyStore(database, it) }
             )
-            val before = uploader.serverCounts()
+            // ⚠ Only for the deliberate, whole-batch upload. This used to run on every
+            // maintenance pass as well -- and `SignalSyncWorker` calls that every fifteen
+            // minutes -- so the phone asked the server for its prekey counts, for the ACI and
+            // again for the PNI, before and after doing nothing at all. Roughly four hundred
+            // requests a day on a device built to stay asleep, none of which changed a
+            // decision: maintenance now reads counts only once it has decided to act.
+            val before = if (maintenanceOnly) null else uploader.serverCounts()
             val result = if (maintenanceOnly) uploader.maintain() else uploader.uploadAll()
             // ⚠ A refusal is thrown, not returned as prose. Both callers wrapped this in
             // runCatching and logged whatever came back at INFO, so an upload the server
@@ -193,9 +199,16 @@ class SignalStore(private val context: Context) {
                 is PreKeyUploader.Result.NotNeeded -> "nothing owed"
                 is PreKeyUploader.Result.Failed -> throw IllegalStateException(result.reason)
             }
-            // Asked of the server, before and after. The upload's own 200 says the request was
-            // accepted; this says the keys are there to be handed out.
-            "$outcome | server before: $before | after: ${uploader.serverCounts()}"
+            // Asked of the server after anything was actually sent. The upload's own 200 says
+            // the request was accepted; this says the keys are there to be handed out. Nothing
+            // is asked when nothing was owed, which is the overwhelmingly common case.
+            when {
+                before != null ->
+                    "$outcome | server before: $before | after: ${uploader.serverCounts()}"
+                result is PreKeyUploader.Result.Uploaded ->
+                    "$outcome | server after: ${uploader.serverCounts()}"
+                else -> outcome
+            }
         } finally {
             // The socket is shared and long-lived, so it is not disconnected here; closing is
             // [disconnect]. Nor is the reader lock touched: this sends and requests, it never

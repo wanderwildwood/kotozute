@@ -67,17 +67,24 @@ internal class PreKeyUploader(
         // a linked device without a PNI is an ordinary state, not a broken one.
         if (accounts.identityKeyPair(accountIdType) == null) return Result.NotNeeded
 
-        // ⚠ Nothing is asked of the server until the interval is up, which it was not.
-        // `SignalSyncWorker` runs this every fifteen minutes, and the first thing it did was
-        // ask the server for its prekey counts -- for the ACI and again for the PNI, about a
-        // hundred and ninety requests a day, on a phone built to stay asleep.
-        //
-        // Signal gates the whole thing: `PreKeysSyncJob.checkPreKeys` enqueues the job only
-        // when a key is unregistered or inactive, or `timeSinceLastFullRefresh >=
-        // REFRESH_INTERVAL`. The counts are read inside the job, not before it. The trade is
-        // Signal's too: one-time keys running out is noticed on the next interval rather than
-        // within the quarter hour, which is what 100 keys and two days are sized for.
-        if (!rotationDue(accountIdType)) return Result.NotNeeded
+        // Nothing is asked of the server until the interval is up. Signal gates the whole
+        // thing the same way: `PreKeysSyncJob.checkPreKeys` enqueues the job only when a key
+        // is unregistered or inactive, or `timeSinceLastFullRefresh >= REFRESH_INTERVAL`, and
+        // the counts are read *inside* the job. The trade is Signal's too -- one-time keys
+        // running out is noticed on the next interval rather than within the quarter hour,
+        // which is what a hundred keys and two days are sized for.
+        val age = signedPreKeyAge(accountIdType)
+        if (!refreshOwed(age)) {
+            // Said out loud, because otherwise "nothing was owed" and "this never ran" look
+            // identical in the log -- and the gate above is the whole change. Signal logs the
+            // same branch: "No prekey job needed. Time since last full refresh: ...".
+            Timber.i(
+                "signal keys: %s not due for %d more hour(s)",
+                serviceIdType,
+                java.util.concurrent.TimeUnit.MILLISECONDS.toHours(REFRESH_INTERVAL_MS - (age ?: 0))
+            )
+            return Result.NotNeeded
+        }
 
         val counts = countsFor(serviceIdType)
         // Read before the refill, so it says what the interval cost rather than what it fixed.
@@ -106,23 +113,20 @@ internal class PreKeyUploader(
         }
 
     /**
-     * Whether the signed prekey in force has been in force too long.
+     * How long the signed prekey in force has been in force, or null if that cannot be read.
      *
-     * Unknown counts as old. A device that cannot read its own active key is exactly the one
-     * that should replace it, and replacing a key that did not need replacing costs one
-     * request.
+     * Null and negative both mean "rotate". A device that cannot read its own active key is
+     * exactly the one that should replace it, and a negative age is a clock that has moved
+     * backwards -- which would otherwise put the key permanently in the future and stop
+     * rotation coming round ever again. Signal tests `< 0` beside the threshold in both
+     * `PreKeysSyncJob` and the send path for the same reason, and these machines keep their
+     * RTC in local time, so it is not theoretical.
      */
-    private fun rotationDue(accountIdType: Int): Boolean = runCatching {
+    private fun signedPreKeyAge(accountIdType: Int): Long? = runCatching {
         val active = accounts.activeSignedPreKeyId(accountIdType)
-        if (active < 0) return@runCatching true
-        val record = signedPreKeys(accountIdType).loadSignedPreKey(active)
-        val age = System.currentTimeMillis() - record.timestamp
-        // ⚠ A negative age counts as due, as it does in Signal -- both `PreKeysSyncJob` and
-        // the send path test `< 0` alongside the threshold. A clock that has moved backwards
-        // would otherwise put the key permanently in the future and rotation would never come
-        // round again. These machines keep their RTC in local time, so this is not theoretical.
-        age >= REFRESH_INTERVAL_MS || age < 0
-    }.getOrDefault(true)
+        if (active < 0) return@runCatching null
+        System.currentTimeMillis() - signedPreKeys(accountIdType).loadSignedPreKey(active).timestamp
+    }.getOrNull()
 
     fun uploadAll(): Result {
         val aci = upload(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, ServiceIdType.ACI)
@@ -256,5 +260,16 @@ internal class PreKeyUploader(
          * yet; the constant is here so the number has one home when it gets one.
          */
         val MAXIMUM_SIGNED_PREKEY_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(14)
+
+        /**
+         * Whether the repeated-use keys are owed a refresh, given the age of the signed prekey
+         * in force. Null is an age that could not be read.
+         *
+         * Pure, and separate from the stores, so the three cases that matter can be tested
+         * without a device or a network: never rotated, rotated recently, and a clock that has
+         * moved backwards. The last one is the reason this is not simply `age >= interval`.
+         */
+        fun refreshOwed(ageMs: Long?): Boolean =
+            ageMs == null || ageMs >= REFRESH_INTERVAL_MS || ageMs < 0
     }
 }

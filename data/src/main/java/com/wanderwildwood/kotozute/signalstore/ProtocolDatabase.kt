@@ -26,7 +26,28 @@ import java.util.concurrent.locks.ReentrantLock
 class ProtocolDatabase(
     private val context: Context,
     private val passphrase: ByteArray
-) : SQLiteOpenHelper(context, NAME, passphrase, null, ProtocolStoreSchema.VERSION, 0, null, null, false) {
+) : SQLiteOpenHelper(
+    context,
+    NAME,
+    passphrase,
+    null,
+    ProtocolStoreSchema.VERSION,
+    0,
+    // ⚠ Not null. Null here is SQLCipher's default handler, which answers a corruption report
+    // by deleting the database -- and this one cannot be recreated. See
+    // [ProtocolStoreCorruption]: it diagnoses, logs, and throws instead.
+    ProtocolStoreCorruption(NAME),
+    // Still null, and deliberately. Signal passes a hook here that sets kdf_iter = 1 and
+    // cipher_compatibility = 3, which is right for a random 32-byte key -- but it applies from
+    // the moment a database is created, and adding it to a store that already exists would
+    // change how the key is derived and leave the file unopenable -- taking the identity keys,
+    // the sessions and the device password with it. Doing it properly means opening with the
+    // old parameters, `sqlcipher_export`ing to a new file with the new ones and swapping: a
+    // migration with a real failure mode, spent to save PBKDF2 time on cold opens. Not a
+    // constructor argument, and not worth it until that latency is measured to matter.
+    null,
+    false
+) {
 
     /**
      * One lock for the whole store, following signal-cli's `ReentrantSignalSessionLock`.

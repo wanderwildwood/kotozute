@@ -81,9 +81,27 @@ internal class SignalAccountDataStore(
     ): Boolean = identities.setVerified(address, verifiedKey, verified)
 
     override fun archiveSession(address: SignalProtocolAddress) = withStoreLock(db) {
-        val record = sessions.loadSession(address)
-        record.archiveCurrentState()
-        sessions.storeSession(address, record)
+        // ⚠ Only where a session actually exists. `loadSession` is libsignal's contract and
+        // returns a blank record for an unknown peer -- archiving that and storing it back
+        // wrote a **session row for somebody who had none**.
+        //
+        // Phantom rows are not inert here. `loadExistingSessions` is deliberately all-or-
+        // nothing: if any address lacks a session the whole call fails, because the caller is
+        // about to encrypt to a device list and a quietly shorter list means a message that
+        // silently does not reach someone. A phantom row makes the counts match, so no
+        // exception is raised, and libsignal is handed a record with no sender chain -- the
+        // same failure by a different door.
+        //
+        // Upstream loads the nullable row and does nothing when it is absent
+        // (`TextSecureSessionStore.archiveSession`: `if (session != null)`).
+        sessions.loadSessionOrNull(address)?.let { record ->
+            record.archiveCurrentState()
+            sessions.storeSession(address, record)
+        }
+
+        // Outside the null check, deliberately. This says "they no longer hold our sender
+        // key", which is true whether or not there was a session to archive, and it creates
+        // nothing.
         clearSenderKeySharedWith(listOf(address))
     }
 

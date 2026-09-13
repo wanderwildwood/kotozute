@@ -33,6 +33,19 @@ internal class SignalSessionStore(
     }
 
     /**
+     * The session on file, or null when there is none.
+     *
+     * ⚠ Not the same as [loadSession], which is libsignal's contract and must hand back a
+     * blank record for an unknown peer so a new session can be built into it. Anything that
+     * *modifies* an existing session needs to know the difference, because storing that blank
+     * record back writes a row for somebody who had none -- see
+     * [SignalAccountDataStore.archiveSession].
+     */
+    fun loadSessionOrNull(address: SignalProtocolAddress): SessionRecord? = withLock {
+        load(address)
+    }
+
+    /**
      * All or nothing. If any address lacks a session the whole call fails, because the caller
      * is about to encrypt to a device list and a quietly shorter list would mean a message
      * that silently does not reach someone.

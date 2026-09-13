@@ -270,7 +270,14 @@ internal class SignalKyberPreKeyStore(
             WHERE account_id_type = ? AND stale_timestamp < ? AND is_last_resort = 0
               AND _id NOT IN (
                 SELECT _id FROM kyber_pre_key
-                WHERE account_id_type = ?
+                -- ⚠ The last-resort filter belongs on BOTH halves, and upstream puts it on
+                -- both (`AND LAST_RESORT = 0` inside the subquery as well as outside it).
+                -- Without it here, the last-resort keys are ranked alongside the one-time
+                -- ones and sort to the very front -- their stale_timestamp is NULL -- so they
+                -- take slots in the keep-back set. The reserve is then short by however many
+                -- last-resort keys exist, and the keys crowded out are the *newest retired*
+                -- ones: exactly the ones a peer is most likely to still be holding.
+                WHERE account_id_type = ? AND is_last_resort = 0
                 ORDER BY
                   CASE WHEN stale_timestamp IS NULL THEN 1 ELSE 0 END DESC,
                   stale_timestamp DESC,

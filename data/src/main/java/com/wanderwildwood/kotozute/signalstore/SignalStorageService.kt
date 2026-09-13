@@ -63,6 +63,22 @@ internal class SignalStorageService(
      */
     private val blocked: (List<SignalBlockStore.Blocked>, List<ByteArray>) -> Unit = { _, _ -> },
     /**
+     * The account's own profile key, as its own record states it.
+     *
+     * ⚠ This phone sends its profile key out with **every message**, so the recipient can read
+     * the name and avatar behind it. It was read once from the provisioning message at link
+     * time and never again -- and the account rotates it: Signal generates a new one whenever
+     * somebody is hidden with no groups in common, among other paths. After that, this device
+     * went on handing everybody a key that no longer opens anything, so its own contact would
+     * quietly stop being able to see who was writing to them.
+     *
+     * The record was not even fetched: the manifest request asked for contacts and groups
+     * only. `AccountRecordProcessor` takes the remote key over the local one for the same
+     * reason this does -- a linked device has no business having an opinion about the
+     * account's profile key.
+     */
+    private val onProfileKey: (ByteArray) -> Unit = {},
+    /**
      * Muted and archived, as the account holds them, per conversation.
      *
      * Both live in the same records as blocking and were read no more than it was. Muting a
@@ -171,7 +187,16 @@ internal class SignalStorageService(
         val wanted = manifestRecord.identifiers
             .filter {
                 it.type == ManifestRecord.Identifier.Type.CONTACT ||
-                    it.type == ManifestRecord.Identifier.Type.GROUPV2
+                    it.type == ManifestRecord.Identifier.Type.GROUPV2 ||
+                    // ⚠ And the account's own record, which was never asked for.
+                    //
+                    // It is where the account keeps **its own profile key**, and this phone
+                    // sends that key out with every message so the recipient can read the
+                    // profile behind it. Ours was read once from the provisioning message and
+                    // never again, so a rotation on the primary -- which Signal does whenever
+                    // somebody is hidden with no groups in common -- left this device handing
+                    // everybody a key that no longer opens anything. See [onProfileKey].
+                    it.type == ManifestRecord.Identifier.Type.ACCOUNT
             }
             .mapNotNull { it.raw }
         if (wanted.isEmpty()) return Result(0, 0, null)
@@ -191,6 +216,7 @@ internal class SignalStorageService(
         val blockedGroups = mutableListOf<ByteArray>()
         val conversations = mutableListOf<ConversationState>()
         var groupsSeen = 0
+        var accountsSeen = 0
         // "Muted until" is a moment, not a flag: Signal stores when it ends, and a very large
         // value is how it says "for good". Compared against now rather than treated as a
         // boolean, or a mute that expired last year would still be silencing the conversation.
@@ -233,6 +259,19 @@ internal class SignalStorageService(
                     }
                     return@mapNotNull null
                 }
+                // The account's own record. Not a contact -- and refusing a *contact* record
+                // that describes this account, which [invalidReason] does, is a different
+                // rule: that one is about a record filed under the wrong type. This is the
+                // right type, and it is the only record that is legitimately about us.
+                record.account?.let { account ->
+                    accountsSeen++
+                    account.profileKey?.takeIf { it.size > 0 }?.let { key ->
+                        runCatching { onProfileKey(key.toByteArray()) }
+                            .onFailure { Timber.w(it, "signal storage: a profile key would not keep") }
+                    }
+                    return@mapNotNull null
+                }
+
                 record.contact ?: run { notContacts++; null }
             }
             val people = found.mapNotNull { record ->
@@ -385,8 +424,9 @@ internal class SignalStorageService(
         Timber.i(
             "signal storage: %d contact(s) from %d record(s), %d of them known only by phone-number identity; " +
                 "dropped %d unopened, %d not contacts, %d with no id at all (%d of those had a " +
-                "number), %d the account should not have sent",
-            kept, seen, pniOnly, unopened, notContacts, anonymous, anonymousWithNumber, invalid
+                "number), %d the account should not have sent; %d account record(s) read",
+            kept, seen, pniOnly, unopened, notContacts, anonymous, anonymousWithNumber, invalid,
+            accountsSeen
         )
         return Result(kept, seen, null, unopened, notContacts, anonymous, pniOnly, unreadable, anonymousWithNumber)
     }

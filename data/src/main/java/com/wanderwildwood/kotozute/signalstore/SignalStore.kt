@@ -630,6 +630,26 @@ class SignalStore(private val context: Context) {
                     )
                 }.onFailure { Timber.w(it, "signal storage: could not adopt an identity") }
             },
+            onProfileKey = { key ->
+                // Only when it has actually changed, so an unchanged account does not rewrite
+                // the row on every read.
+                val held = runCatching { account.profileKey() }.getOrNull()
+                if (held != null && held.contentEquals(key)) {
+                    // Said, quietly, so that "we compared them and they agree" can be told
+                    // apart from "the record carried no key and nothing was compared". A
+                    // check whose silence means two different things is not a check.
+                    Timber.i("signal storage: the account's profile key is the one this device holds")
+                } else {
+                    runCatching { account.saveProfileKey(key) }
+                        .onSuccess {
+                            Timber.w(
+                                "signal storage: the account's profile key has changed; " +
+                                    "this device was sending the old one"
+                            )
+                        }
+                        .onFailure { Timber.w(it, "signal storage: could not keep the new profile key") }
+                }
+            },
             conversationState = { states -> onConversationState(states) },
             blocked = { people, groups ->
                 // Replaces the held list rather than adding to it: a storage read is the

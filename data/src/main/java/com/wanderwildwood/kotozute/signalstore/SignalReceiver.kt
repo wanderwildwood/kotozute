@@ -425,6 +425,30 @@ internal class SignalReceiver(
                 // this position, before any handler sees the content.
                 if (!isWorthReading(envelope, result)) return@let null
 
+                // Whether the account has blocked whoever sent this, decided once.
+                //
+                // ⚠ Never against ourselves. Signal has no way to block your own account, so
+                // any entry that matches it is wrong by construction -- and the thing that
+                // check silently threw away was every note to self. Not a corner case here:
+                // the household's server alerting sends to this account *as* this account, so
+                // UPS failures, SMART warnings, backup failures and the Kuma bridge were all
+                // arriving and all being dropped before anything was stored, with no Note to
+                // Self conversation and no reason for its absence. Found by sending a plain
+                // note to self as a control after a mention test failed the same way.
+                //
+                // Signal decides this in one place too: `MessageContentProcessor.shouldIgnore`
+                // is a single function whose arms answer for each kind of content, and it runs
+                // before any handler sees the message. It is used below wherever Signal uses
+                // it -- and, notably, *not* on a receipt, which Signal goes on processing from
+                // somebody blocked.
+                val fromSelf = credentials.aci
+                    ?.takeIf { it.isNotBlank() }
+                    ?.equals(result.metadata.sourceServiceId.toString(), ignoreCase = true) == true
+                val senderBlocked = !fromSelf && blocks.isBlocked(
+                    result.metadata.sourceServiceId.toString(),
+                    result.metadata.sourceE164
+                )
+
                 // First, before anything else in this batch is decrypted. A group send
                 // encrypts once to a key the sender distributes separately, and the message
                 // that carries the key can arrive in the same batch as messages that need
@@ -566,7 +590,19 @@ internal class SignalReceiver(
                 // the ciphertext this device sent, which it does not keep -- but the session
                 // can be cleared so the *next* thing sent to them is built fresh instead of
                 // failing the same way for ever.
+                //
+                // ⚠ Not from somebody blocked, which it was. This handler sat above the block
+                // check, so a blocked contact could hand this phone a retry receipt and have
+                // it archive the session and *resend them the message* -- real content, on
+                // demand, to the one person the account had said no to. Signal answers this
+                // in `shouldIgnore`: the `decryptionErrorMessage` arm returns
+                // `senderRecipient.isBlocked`, and the gate runs before `handleRetryReceipt`
+                // is reached at all.
                 result.content.decryptionErrorMessage?.let { bytes ->
+                    if (senderBlocked) {
+                        Timber.i("signal receive: ignored a retry receipt from somebody blocked")
+                        return@let null
+                    }
                     repairSessionFor(
                         result.metadata.sourceServiceId.toString(),
                         result.metadata.sourceDeviceId,
@@ -676,24 +712,9 @@ internal class SignalReceiver(
                     ?: result.content.syncMessage?.sent?.message?.groupV2)
                     ?.masterKey?.toByteArray()
                     ?.let { runCatching { groupIdFrom(it) }.getOrNull() }
-                // ⚠ Never against ourselves. Signal has no way to block your own account, so
-                // any entry that matches it is wrong by construction -- but the check believed
-                // it, and the thing it silently threw away was every note to self.
-                //
-                // That is not a corner case here: the household's server alerting sends to this
-                // account *as* this account, so UPS failures, SMART warnings, backup failures
-                // and the Kuma bridge were all arriving and all being dropped before anything
-                // was stored. The account owner saw no Note to Self conversation at all and no
-                // reason for its absence. Found by sending a plain note to self as a control
-                // after a mention test failed the same way.
-                val fromSelf = credentials.aci
-                    ?.takeIf { it.isNotBlank() }
-                    ?.equals(result.metadata.sourceServiceId.toString(), ignoreCase = true) == true
-                if (!fromSelf && (blocks.isBlocked(
-                        result.metadata.sourceServiceId.toString(),
-                        result.metadata.sourceE164
-                    ) || blocks.isGroupBlocked(fromGroup))
-                ) {
+                // The self exemption is why a note to self survives this; it is decided once,
+                // with the rest of the reasoning, where `senderBlocked` is worked out above.
+                if (senderBlocked || (!fromSelf && blocks.isGroupBlocked(fromGroup))) {
                     Timber.i("signal receive: dropped a message from somebody or somewhere blocked")
                     return@let null
                 }

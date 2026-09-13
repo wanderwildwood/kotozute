@@ -1016,7 +1016,16 @@ class SignalThreadActivity : QkThemedActivity() {
                 ?.takeIf { it.length() > 0 }
                 ?.optJSONObject(0) ?: return
             val id = first.optString("id")
-            val type = first.optString("contentType")
+            // ⚠ `type`, not `contentType`. Every writer of this array uses `type` --
+            // SignalReceiver for what arrives, outgoingAttachmentsJson for what is sent, and
+            // SignalHistoryImporter for what is brought in -- and every reader asked for
+            // `contentType`, which nothing writes. So the type was always blank, the
+            // image branch below was never taken, and an incoming photo was drawn as
+            // "Attachment: signal-2026-09-13-103410.jpeg" instead of as the photo.
+            //
+            // The exporter had it right all along: it reads `type` here and writes
+            // `contentType` into the export format, which is where that name belongs.
+            val type = first.optString("type")
 
             // Our own sent attachments carry no id: Signal assigns one on upload and does
             // not report it back. There is nothing to fetch, but the sender should still

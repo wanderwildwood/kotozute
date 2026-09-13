@@ -429,7 +429,9 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             val id = o.optString("id")
             // Our own sent attachments carry no id: Signal assigns one on upload and never
             // reports it back, so there is nothing to fetch and nothing to show.
-            id.takeIf { it.isNotBlank() && o.optString("contentType").startsWith("image/") }
+            // `type`; see the note in SignalThreadActivity.bindAttachment. Reading
+            // `contentType` here meant this list was always empty.
+            id.takeIf { it.isNotBlank() && o.optString("type").startsWith("image/") }
         }
     }
 

@@ -1002,7 +1002,11 @@ class DesktopSyncServer(
         for (i in 0 until parsed.length()) {
             val a = parsed.optJSONObject(i) ?: continue
             val id = a.optString("id")
-            val type = a.optString("contentType").ifBlank { "application/octet-stream" }
+            // `type`; see the note in SignalThreadActivity.bindAttachment. Reading
+            // `contentType` here meant every Signal attachment fell back to
+            // application/octet-stream, so the browser offered a download instead of
+            // showing the picture.
+            val type = a.optString("type").ifBlank { "application/octet-stream" }
             val name = a.optString("filename")
             out.put(JSONObject().apply {
                 put("id", id)

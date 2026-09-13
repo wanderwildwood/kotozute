@@ -90,6 +90,15 @@ internal class SignalSessionStore(
     }
 
     override fun storeSession(address: SignalProtocolAddress, record: SessionRecord) = withLock {
+        // ⚠ A session is keyed by service id, never by phone number. Upstream asserts exactly
+        // this before inserting -- "Cannot insert an e164 into this table!" -- because the
+        // failure it prevents is silent: rows filed under a number are never found by the
+        // service-id lookups everything else does, so messages simply stop decrypting and
+        // nothing says why.
+        require(address.name.firstOrNull() != '+') {
+            "a session cannot be filed under a phone number"
+        }
+
         db.writableDatabase.execSQL(
             """
             INSERT INTO session (account_id_type, address, device_id, record)

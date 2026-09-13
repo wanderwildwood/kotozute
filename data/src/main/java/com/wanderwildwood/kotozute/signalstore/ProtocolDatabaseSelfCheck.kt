@@ -38,7 +38,7 @@ object ProtocolDatabaseSelfCheck {
             // Exercise the identity store's trust policy, which is the part that is easy to
             // get subtly wrong and impossible to notice until someone's safety number changes.
             val store = SignalIdentityKeyStore(db, ProtocolDatabase.ACCOUNT_ID_TYPE_ACI)
-            val peer = org.signal.libsignal.protocol.SignalProtocolAddress("+15550001111", 1)
+            val peer = org.signal.libsignal.protocol.SignalProtocolAddress("00000000-0000-4000-8000-000000001111", 1)
             val first = IdentityKeyPair.generate().publicKey
             val second = IdentityKeyPair.generate().publicKey
 
@@ -54,21 +54,38 @@ object ProtocolDatabaseSelfCheck {
             // must ask about the sender chain rather than the row, an incomplete device list
             // must fail loudly, and the primary must not appear among the sub-devices.
             val sessions = SignalSessionStore(db, ProtocolDatabase.ACCOUNT_ID_TYPE_ACI)
-            val a1 = org.signal.libsignal.protocol.SignalProtocolAddress("+15550002222", 1)
-            val a2 = org.signal.libsignal.protocol.SignalProtocolAddress("+15550002222", 2)
+            val a1 = org.signal.libsignal.protocol.SignalProtocolAddress("00000000-0000-4000-8000-000000002222", 1)
+            val a2 = org.signal.libsignal.protocol.SignalProtocolAddress("00000000-0000-4000-8000-000000002222", 2)
+
+            // ⚠ And that a session cannot be filed under a phone number at all.
+            //
+            // These addresses used to be phone numbers, which Signal's own session table
+            // rejects outright -- so the check was exercising a shape production never uses,
+            // and could not have caught a regression that filed sessions by number. That
+            // regression is the silent kind: rows keyed by number are never found by the
+            // service-id lookups everything else does, and messages just stop decrypting.
+            val e164Refused = try {
+                sessions.storeSession(
+                    org.signal.libsignal.protocol.SignalProtocolAddress("+15550001234", 1),
+                    SessionRecord()
+                )
+                false
+            } catch (e: IllegalArgumentException) {
+                true
+            }
 
             val unknownIsEmptyNotNull = sessions.loadSession(a1).let { !it.hasSenderChain() }
             sessions.storeSession(a1, SessionRecord())
             sessions.storeSession(a2, SessionRecord())
             val rowExistsButNotUsable = !sessions.containsSession(a1)
-            val subDevicesExcludePrimary = sessions.getSubDeviceSessions("+15550002222") == listOf(2)
+            val subDevicesExcludePrimary = sessions.getSubDeviceSessions("00000000-0000-4000-8000-000000002222") == listOf(2)
             val missingSessionThrows = try {
                 sessions.loadExistingSessions(
-                    listOf(a1, org.signal.libsignal.protocol.SignalProtocolAddress("+15550009999", 1))
+                    listOf(a1, org.signal.libsignal.protocol.SignalProtocolAddress("00000000-0000-4000-8000-000000009999", 1))
                 ); false
             } catch (e: org.signal.libsignal.protocol.NoSessionException) { true }
-            sessions.deleteAllSessions("+15550002222")
-            val deletedAll = sessions.getSubDeviceSessions("+15550002222").isEmpty()
+            sessions.deleteAllSessions("00000000-0000-4000-8000-000000002222")
+            val deletedAll = sessions.getSubDeviceSessions("00000000-0000-4000-8000-000000002222").isEmpty()
 
             // Pre keys. The behaviour that matters is the asymmetry between a one-time key
             // and a last-resort one: consuming the first must delete it, consuming the second
@@ -103,7 +120,7 @@ object ProtocolDatabaseSelfCheck {
             // and a UUID written as text would never match a lookup, which would surface as
             // group messages that will not decrypt rather than as an error pointing here.
             val senderKeys = SignalSenderKeyStore(db)
-            val groupSender = org.signal.libsignal.protocol.SignalProtocolAddress("+15550003333", 1)
+            val groupSender = org.signal.libsignal.protocol.SignalProtocolAddress("00000000-0000-4000-8000-000000003333", 1)
             val distributionId = java.util.UUID.randomUUID()
             val unknownSenderKeyIsNull = senderKeys.loadSenderKey(groupSender, distributionId) == null
             // And a stored one must come back. Worth stating separately because the not-found
@@ -232,7 +249,8 @@ object ProtocolDatabaseSelfCheck {
                 "signed-keeps-timestamp=$signedKeepsTimestamp kyber-onetime-consumed=$kyberOneTimeGone " +
                 "last-resort-survives=$lastResortSurvives | sessions: empty-not-null=$unknownIsEmptyNotNull " +
                 "row-without-chain-not-usable=$rowExistsButNotUsable subdevices-exclude-primary=$subDevicesExcludePrimary " +
-                "missing-throws=$missingSessionThrows delete-all=$deletedAll | trust: first-sighting=$trustedOnFirstSighting " +
+                "missing-throws=$missingSessionThrows delete-all=$deletedAll " +
+                "e164-refused=$e164Refused | trust: first-sighting=$trustedOnFirstSighting " +
                 "changed-refused-on-receive=$changedKeyRefusedOnReceive " +
                 "changed-blocked-on-send=$changedKeyBlockedOnSend " +
                 "readback=$readBack change-reported=$changeReported"

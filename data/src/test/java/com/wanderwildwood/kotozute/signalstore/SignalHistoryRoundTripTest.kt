@@ -367,7 +367,9 @@ class SignalHistoryRoundTripTest {
         openWith: String = key
     ): Pair<SignalHistoryExporter.Stats, Sink> {
         val folder = temp.newFolder()
-        val destination = EncryptedExportDestination(DirectoryExportDestination(folder), key)
+        val destination = EncryptedExportDestination(
+            DirectoryExportDestination(folder), EncryptedExportDestination.Lock.Digits(key)
+        )
         destination.writeMeta()
         val exported = SignalHistoryExporter(store, destination, selfAci).run()
 
@@ -375,7 +377,9 @@ class SignalHistoryRoundTripTest {
         val meta = org.json.JSONObject(plain.meta()!!)
         val salt = java.util.Base64.getDecoder().decode(meta.getString("salt"))
         SignalHistoryImporter(
-            source = EncryptedExportSource(plain, openWith, salt),
+            source = EncryptedExportSource(
+                plain, EncryptedExportDestination.Lock.Digits(openWith), salt
+            ),
             sink = sink,
             selfUuid = selfAci,
             selfNumber = "+15559998888",
@@ -425,7 +429,8 @@ class SignalHistoryRoundTripTest {
     fun `the records of a locked copy are not readable off the disk`() {
         val folder = temp.newFolder()
         val destination = EncryptedExportDestination(
-            DirectoryExportDestination(folder), SignalBackupCrypto.newKey()
+            DirectoryExportDestination(folder),
+            EncryptedExportDestination.Lock.Digits(SignalBackupCrypto.newKey())
         )
         destination.writeMeta()
         SignalHistoryExporter(oneConversation(), destination, selfAci).run()
@@ -442,19 +447,61 @@ class SignalHistoryRoundTripTest {
     @Test
     fun `a locked copy says what it is without giving anything away`() {
         val folder = temp.newFolder()
+        val digits = SignalBackupCrypto.newKey()
         val destination = EncryptedExportDestination(
-            DirectoryExportDestination(folder), SignalBackupCrypto.newKey()
+            DirectoryExportDestination(folder),
+            EncryptedExportDestination.Lock.Digits(digits)
         )
         destination.writeMeta()
         SignalHistoryExporter(oneConversation(), destination, selfAci).run()
 
         // The header is how an importer knows to ask for a key rather than failing at the
-        // first line. It carries the salt, which is not a secret, and nothing else.
+        // first line. It carries the salt, which is not a secret, and what locked it.
         val meta = org.json.JSONObject(DirectoryExportSource(folder).meta()!!)
         assertEquals(1, meta.getInt("kotozuteBackup"))
         assertEquals("hkdf-sha256", meta.getString("kdf"))
         assertTrue(meta.getString("salt").isNotBlank())
-        assertFalse(meta.has("key"))
+        // Which scheme locked it, in the same class of fact as `kdf` and `cipher`: the reader
+        // has to know whether to ask for digits or derive from the account, and naming the
+        // scheme gives away no more than naming the cipher does.
+        assertEquals(EncryptedExportDestination.DIGITS, meta.getString("key"))
+        // The key itself is not in it, which is the part that matters -- checked against the
+        // digits this copy was actually locked with, so the check can fail.
+        assertFalse(meta.toString().contains(digits))
+        assertFalse(meta.toString().contains(SignalBackupCrypto.group(digits)))
+    }
+
+    @Test
+    fun `a copy locked to the account says so, and asks for nothing`() {
+        val folder = temp.newFolder()
+        val backupKey = ByteArray(32) { (it * 5 + 2).toByte() }
+        val destination = EncryptedExportDestination(
+            DirectoryExportDestination(folder),
+            EncryptedExportDestination.Lock.Account(backupKey)
+        )
+        destination.writeMeta()
+        SignalHistoryExporter(oneConversation(), destination, selfAci).run()
+
+        val plain = DirectoryExportSource(folder)
+        val meta = org.json.JSONObject(plain.meta()!!)
+        // This is what tells an importer not to ask for digits: the account already has the
+        // key, so there is nothing for a reader to have written down.
+        assertEquals(EncryptedExportDestination.ACCOUNT, meta.getString("key"))
+        assertFalse(meta.toString().contains(backupKey.joinToString("") { "%02x".format(it) }))
+
+        // And it reads back through the account's key alone.
+        val salt = java.util.Base64.getDecoder().decode(meta.getString("salt"))
+        val sink = Sink()
+        SignalHistoryImporter(
+            source = EncryptedExportSource(
+                plain, EncryptedExportDestination.Lock.Account(backupKey), salt
+            ),
+            sink = sink,
+            selfUuid = selfAci,
+            selfNumber = "+15559998888",
+            now = { 1_700_000_000_000 }
+        ).run()
+        assertTrue(sink.inserted.isNotEmpty())
     }
 
     @Test

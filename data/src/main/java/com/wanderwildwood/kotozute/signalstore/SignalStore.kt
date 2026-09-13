@@ -597,6 +597,15 @@ class SignalStore(private val context: Context) {
     fun storageKeyKnown(): Boolean = runCatching { keys.known() }.getOrDefault(false)
 
     /**
+     * The key a written-out copy is locked with, or null before the primary has sent its keys.
+     *
+     * Derived from the account entropy pool, as Signal derives one -- so it is the same on
+     * every device on the account, and a copy written here opens anywhere that can reach it.
+     */
+    fun messageBackupKey(): ByteArray? =
+        runCatching { keys.messageBackupKey(selfAciOrNull().orEmpty()) }.getOrNull()
+
+    /**
      * Asks the primary for the account's keys. Asked once per connection and only while the
      * answer is still missing: it is the account's own key material, and there is no reason
      * to have it sent again once it is here.

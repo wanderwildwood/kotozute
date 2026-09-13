@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 19
+    const val VERSION = 20
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -302,6 +302,13 @@ internal object ProtocolStoreSchema {
         CREATE TABLE account_keys (
           _id INTEGER PRIMARY KEY CHECK (_id = 1),
           storage_key BLOB,
+          -- The account entropy pool the primary sent, kept rather than derived-from and
+          -- discarded. It is the root every other account key comes off -- Signal calls it
+          -- "The Root of All Entropy" -- and a linked device holds it in Signal too
+          -- (`SignalStore.account.accountEntropyPool`). Keeping it is what lets a written-out
+          -- copy be locked with a key derived from the account rather than thirty digits
+          -- somebody has to copy onto paper and never lose.
+          entropy_pool TEXT,
           updated_timestamp INTEGER NOT NULL
         ) STRICT;
     """
@@ -638,7 +645,19 @@ internal object ProtocolStoreSchema {
         19 to listOf(
             "ALTER TABLE recipient ADD COLUMN group_id TEXT DEFAULT NULL;",
             RECIPIENT_GROUP_ID_INDEX
-        )
+        ),
+        // v20: keep the account entropy pool, instead of deriving one key from it and
+        // throwing the rest away.
+        //
+        // A written-out copy was locked with thirty digits generated at the moment of
+        // writing, shown once and stored nowhere -- so losing the paper lost the backup, and
+        // there was no second chance to read them. Signal does not do that: a backup key is
+        // `AccountEntropyPool.deriveMessageBackupKey()`, derived from the pool the account
+        // already has, so any device that can link to the account can open any copy.
+        //
+        // The pool arrives in the KEYS sync we already ask for and was being reduced to the
+        // storage-service key on the way in. Now it is kept.
+        20 to listOf("ALTER TABLE account_keys ADD COLUMN entropy_pool TEXT;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

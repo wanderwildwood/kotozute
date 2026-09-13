@@ -492,11 +492,17 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     append('\n').append(
                         activity.getString(R.string.settings_signal_history_written_where, stats.folder)
                     )
+                    // Nothing to copy down for a copy locked to the account, which is every
+                    // copy written now -- so the screen says what opens it instead of handing
+                    // the reader thirty digits to look after.
                     append("\n\n").append(
-                        activity.getString(
-                            R.string.settings_signal_history_written_key,
-                            stats.key
-                        )
+                        if (stats.key.isBlank()) {
+                            activity.getString(R.string.settings_signal_history_written_account)
+                        } else {
+                            activity.getString(
+                                R.string.settings_signal_history_written_key, stats.key
+                            )
+                        }
                     )
                     if (stats.missing > 0) {
                         append('\n').append(

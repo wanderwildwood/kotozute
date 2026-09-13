@@ -238,9 +238,13 @@ interface SignalRepository {
         val missing: Int = 0,
         val folder: String = "",
         /**
-         * The key the copy was locked with, generated here, grouped for reading, and shown
-         * once. There is no second place it is kept: this app cannot open a backup whose key
-         * is lost, and neither can anyone else.
+         * Digits the reader has to write down, or empty when there are none.
+         *
+         * Empty for every copy written now: they are locked with a key derived from the
+         * account, as Signal derives one (`AccountEntropyPool.deriveMessageBackupKey`), so a
+         * copy opens on any device that can reach the account and nothing has to be kept on
+         * paper. The field stays because copies written before this exist and are opened by
+         * thirty digits, and because a screen that showed a key must be able to show none.
          */
         val key: String = ""
     )

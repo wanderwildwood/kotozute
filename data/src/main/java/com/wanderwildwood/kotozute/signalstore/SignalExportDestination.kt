@@ -35,11 +35,30 @@ internal interface SignalExportDestination {
  */
 internal class EncryptedExportDestination(
     private val inner: SignalExportDestination,
-    key: String
+    lock: Lock
 ) : SignalExportDestination {
 
+    /** What a copy is locked with. */
+    internal sealed interface Lock {
+        /**
+         * The account's own backup key, which is what Signal does -- a copy opens on any
+         * device that can reach this account and there is nothing to write down.
+         */
+        data class Account(val backupKey: ByteArray) : Lock
+
+        /** Thirty digits, shown once. Kept so copies written before now still open. */
+        data class Digits(val key: String) : Lock
+    }
+
     private val salt = SignalBackupCrypto.newSalt()
-    private val derived = SignalBackupCrypto.derive(key, salt)
+    private val derived = when (lock) {
+        is Lock.Account -> SignalBackupCrypto.deriveFromAccount(lock.backupKey, salt)
+        is Lock.Digits -> SignalBackupCrypto.derive(lock.key, salt)
+    }
+    private val lockName = when (lock) {
+        is Lock.Account -> ACCOUNT
+        is Lock.Digits -> DIGITS
+    }
 
     /** Written first, so a folder half-written is still recognisably ours. */
     fun writeMeta() {
@@ -49,6 +68,11 @@ internal class EncryptedExportDestination(
                     .put("kotozuteBackup", VERSION)
                     .put("kdf", "hkdf-sha256")
                     .put("cipher", "aes-256-gcm")
+                    // ⚠ New, and absent from every copy written before this. A header with no
+                    // `key` is a copy locked with digits -- which is why the reader treats a
+                    // missing field as [DIGITS] rather than as a fault. The structure is
+                    // unchanged, so the version is not bumped: only what the key came from is.
+                    .put("key", lockName)
                     .put("salt", java.util.Base64.getEncoder().encodeToString(salt))
                     .toString()
                     .toByteArray()
@@ -66,6 +90,10 @@ internal class EncryptedExportDestination(
     companion object {
         const val META = "backup.meta"
         const val VERSION = 1
+
+        /** Header values for `key`. A header without one was written before the account key. */
+        const val ACCOUNT = "account"
+        const val DIGITS = "digits"
     }
 }
 

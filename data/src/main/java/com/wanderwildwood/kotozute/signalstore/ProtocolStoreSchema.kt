@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 23
+    const val VERSION = 24
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -128,6 +128,39 @@ internal object ProtocolStoreSchema {
     """
 
     /**
+     * Every use of a last-resort Kyber key, so the same use cannot be replayed.
+     *
+     * ⚠ This is replay protection for the protocol, not bookkeeping.
+     *
+     * A one-time Kyber key is deleted the moment it is used, and that deletion is what stops
+     * the message that used it being replayed. A **last-resort** key is deliberately not
+     * deleted -- it is the fallback when the one-time keys have run out, and deleting it would
+     * leave the account with nothing to fall back to. So nothing stopped a
+     * `PreKeySignalMessage` built against it being sent again, and again: libsignal asks the
+     * store to flag the reuse, the store said nothing, and the same tuple re-established a
+     * session every time.
+     *
+     * What makes a use unique is the triple libsignal hands over: which last-resort key, which
+     * signed pre key, and the sender's base key. Seeing that triple twice is a replay, and the
+     * UNIQUE constraint is what notices -- the insert fails, and the failure is turned into the
+     * `ReusedBaseKeyException` libsignal is waiting for.
+     *
+     * Signal's `last_resort_key_tuple`, column for column. The reference is to the key's row
+     * rather than to its key id, so that rotating a last-resort key takes its history with it.
+     * It cascades, and this database does now enforce that -- see `ProtocolDatabase.onOpen`,
+     * whose comment anticipated the first migration to declare a real reference.
+     */
+    const val LAST_RESORT_KEY_TUPLE = """
+        CREATE TABLE last_resort_key_tuple (
+          _id INTEGER PRIMARY KEY,
+          kyber_prekey_id INTEGER NOT NULL REFERENCES kyber_pre_key (_id) ON DELETE CASCADE,
+          signed_key_id INTEGER NOT NULL,
+          public_key BLOB NOT NULL,
+          UNIQUE(kyber_prekey_id, signed_key_id, public_key)
+        ) STRICT;
+    """
+
+    /**
      * The double-ratchet state, one row per peer device.
      *
      * The most fragile table here: a stale record written back over a fresher one is silent
@@ -212,6 +245,8 @@ internal object ProtocolStoreSchema {
         PRE_KEY,
         SIGNED_PRE_KEY,
         KYBER_PRE_KEY,
+        // After KYBER_PRE_KEY, which it references.
+        LAST_RESORT_KEY_TUPLE,
         SESSION,
         SENDER_KEY,
         SENDER_KEY_SHARED,
@@ -701,7 +736,11 @@ internal object ProtocolStoreSchema {
         // A spent quota arrives with a retryAfterSeconds and that number was being thrown
         // away, so nothing stopped a reader retrying a lookup that could not succeed and the
         // app could not say how long remained. Signal persists it as `cdsBlockedUtil`.
-        23 to listOf("ALTER TABLE cds_state ADD COLUMN blocked_until INTEGER NOT NULL DEFAULT 0;")
+        23 to listOf("ALTER TABLE cds_state ADD COLUMN blocked_until INTEGER NOT NULL DEFAULT 0;"),
+        // v24: replay protection for the last-resort Kyber key. A new table, so nothing
+        // existing is touched and there is nothing to back-fill -- an empty seen-set is the
+        // right starting point, because a use nobody recorded cannot be shown to be a replay.
+        24 to listOf(LAST_RESORT_KEY_TUPLE)
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

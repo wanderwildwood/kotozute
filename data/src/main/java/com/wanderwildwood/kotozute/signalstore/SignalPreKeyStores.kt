@@ -1,6 +1,7 @@
 package com.wanderwildwood.kotozute.signalstore
 
 import org.signal.libsignal.protocol.InvalidKeyIdException
+import org.signal.libsignal.protocol.ReusedBaseKeyException
 import org.signal.libsignal.protocol.ecc.ECKeyPair
 import org.signal.libsignal.protocol.ecc.ECPrivateKey
 import org.signal.libsignal.protocol.ecc.ECPublicKey
@@ -10,6 +11,7 @@ import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.PreKeyStore
 import org.signal.libsignal.protocol.state.SignedPreKeyRecord
 import org.signal.libsignal.protocol.state.SignedPreKeyStore
+import timber.log.Timber
 
 /**
  * The three pre-key stores, ported from signal-cli (GPL-3.0).
@@ -192,27 +194,94 @@ internal class SignalKyberPreKeyStore(
     }
 
     /**
-     * Consumes a one-time Kyber key, and deliberately does **not** consume a last-resort one.
+     * Consumes a one-time Kyber key, or records the use of a last-resort one.
      *
-     * The `is_last_resort = 0` clause is the whole point: a last-resort key is the fallback
-     * when the one-time keys have run out, and deleting it on first use would leave the
-     * account with nothing to fall back to.
+     * Two different jobs, and which one applies depends on the key. A one-time key is deleted
+     * the moment it is used, and that deletion is what stops the message that used it from
+     * being replayed. A last-resort key is deliberately **not** deleted -- it is the fallback
+     * when the one-time keys have run out, and deleting it on first use would leave the account
+     * with nothing to fall back to.
      *
-     * ⚠ The `ReusedBaseKeyException` this signature can throw is **not** implemented, here or
-     * upstream. signal-cli carries a TODO in the same place: detecting a replayed
-     * (kyberPreKeyId, signedPreKeyId, baseKey) tuple against a last-resort key needs a seen-set
-     * that nothing yet keeps. Ported as-is rather than half-invented, and recorded so it is a
-     * known gap rather than a surprise.
+     * ⚠ Which left the last-resort key with no replay protection at all, and the comment that
+     * used to be here said upstream had none either. It has: `LastResortKeyTupleTable`, a
+     * complete implementation, reached from `handleMarkKyberPreKeyUsed`'s else-branch. The
+     * claim was wrong and it was the kind of wrong that stops the next reader looking.
+     *
+     * So a use of a last-resort key is now written down as the triple libsignal hands over --
+     * which key, which signed pre key, and the sender's base key -- against a UNIQUE
+     * constraint. Seeing it twice is a replay of a `PreKeySignalMessage`, and that is what
+     * [ReusedBaseKeyException] exists to tell libsignal, which asks for it here and until now
+     * was always told everything was fine.
+     *
+     * @throws ReusedBaseKeyException when this exact use has been seen before.
      */
     override fun markKyberPreKeyUsed(
         kyberPreKeyId: Int,
         signedPreKeyId: Int,
         baseKey: ECPublicKey
     ) = withStoreLock(db) {
-        db.writableDatabase.execSQL(
-            "DELETE FROM kyber_pre_key WHERE account_id_type = ? AND key_id = ? AND is_last_resort = 0",
-            arrayOf(accountIdType, kyberPreKeyId)
-        )
+        // One transaction, because the two halves are one decision: which branch applies is
+        // read from the same table the branch then writes to.
+        db.writableDatabase.beginTransaction()
+        try {
+            val lastResortRowId = db.writableDatabase.rawQuery(
+                "SELECT _id FROM kyber_pre_key " +
+                    "WHERE account_id_type = ? AND key_id = ? AND is_last_resort = 1",
+                arrayOf(accountIdType.toString(), kyberPreKeyId.toString())
+            ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+
+            if (lastResortRowId == null) {
+                db.writableDatabase.execSQL(
+                    "DELETE FROM kyber_pre_key " +
+                        "WHERE account_id_type = ? AND key_id = ? AND is_last_resort = 0",
+                    arrayOf(accountIdType, kyberPreKeyId)
+                )
+            } else {
+                val serialized = baseKey.serialize()
+
+                // ⚠ Asked, rather than inferred from a failed insert.
+                //
+                // Upstream catches the UNIQUE violation and converts it. That relies on
+                // knowing which exception the driver raises, and this app is on SQLCipher
+                // rather than the framework's SQLite -- guessing wrong would turn a detected
+                // replay back into a silent success, which is the exact failure being fixed.
+                // The constraint is still there and still the backstop; this is simply the
+                // half that does not depend on an exception type. It is safe to ask first
+                // because the whole thing is one transaction.
+                // ⚠ Compared as hex, not as a blob.
+                //
+                // `rawQuery` binds every argument as a string: a ByteArray handed to it
+                // arrives as that array's `toString()`, so `public_key = ?` would never match
+                // anything and every replay would be waved through. `execSQL` binds a blob
+                // properly, which is why the INSERT below can pass the bytes as they are.
+                // SQLite's own `hex()` gives both sides the same uppercase spelling.
+                val seen = db.writableDatabase.rawQuery(
+                    "SELECT 1 FROM last_resort_key_tuple " +
+                        "WHERE kyber_prekey_id = ? AND signed_key_id = ? AND hex(public_key) = ?",
+                    arrayOf(
+                        lastResortRowId.toString(),
+                        signedPreKeyId.toString(),
+                        serialized.joinToString("") { "%02X".format(it) }
+                    )
+                ).use { c -> c.moveToFirst() }
+
+                if (seen) {
+                    Timber.w("signal keys: a last-resort key set has been used twice; refusing it")
+                    throw ReusedBaseKeyException(
+                        "this last-resort key, signed pre key and base key have been used together before"
+                    )
+                }
+
+                db.writableDatabase.execSQL(
+                    "INSERT INTO last_resort_key_tuple " +
+                        "(kyber_prekey_id, signed_key_id, public_key) VALUES (?, ?, ?)",
+                    arrayOf<Any?>(lastResortRowId, signedPreKeyId, serialized)
+                )
+            }
+            db.writableDatabase.setTransactionSuccessful()
+        } finally {
+            db.writableDatabase.endTransaction()
+        }
     }
 }
 

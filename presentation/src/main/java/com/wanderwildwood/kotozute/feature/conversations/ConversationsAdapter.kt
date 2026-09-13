@@ -254,7 +254,12 @@ class ConversationsAdapter @Inject constructor(
      * disagree about what a row is for. Each one acts on the *person*: where their two rails
      * are joined the text half goes with it, which is what a single row has to mean.
      */
-    private fun showSignalRowMenu(context: Context, item: InboxItem.Signal) {
+    private fun showSignalRowMenu(
+        context: Context,
+        item: InboxItem.Signal,
+        /** Which destructive action is already armed, if any; see below. */
+        armed: PersonAction? = null
+    ) {
         val thread = item.thread
         val title = signalTitle(item)
         val actions = buildList<Pair<String, PersonAction>> {
@@ -271,40 +276,48 @@ class ConversationsAdapter @Inject constructor(
                 if (thread.archived) context.getString(R.string.signal_unarchive) to PersonAction.UNARCHIVE
                 else context.getString(R.string.signal_archive) to PersonAction.ARCHIVE
             )
-            // Block and Delete are asked about again before they happen; the rest are
-            // ordinary and reversible from the same menu.
-            add(context.getString(R.string.info_block) to PersonAction.BLOCK)
-            add(context.getString(R.string.info_delete) to PersonAction.DELETE)
+            // Last, because they are the destructive ones. Each asks in its own face rather
+            // than by stacking a second dialog on this one: the entry arms, says what a
+            // second tap will do and what it costs, and disarms itself so a stray tap leaves
+            // no live trigger for whoever picks the phone up next.
+            add(
+                context.getString(
+                    if (armed == PersonAction.BLOCK) R.string.signal_row_block_armed
+                    else R.string.info_block
+                ) to PersonAction.BLOCK
+            )
+            add(
+                context.getString(
+                    if (armed == PersonAction.DELETE) R.string.signal_row_delete_armed
+                    else R.string.info_delete
+                ) to PersonAction.DELETE
+            )
         }
         val danger = setOf(PersonAction.BLOCK, PersonAction.DELETE)
-        AlertDialog.Builder(context)
+        val dialog = AlertDialog.Builder(context)
             .setTitle(title)
             .setItems(actions.map { it.first }.toTypedArray()) { _, which ->
-                val (label, action) = actions[which]
-                if (action in danger) confirmSignalRowAction(context, title, label, thread.threadKey, action)
-                else runSignalRowAction(context, thread.threadKey, action)
+                val (_, action) = actions[which]
+                when {
+                    action !in danger -> runSignalRowAction(context, thread.threadKey, action)
+                    action == armed -> runSignalRowAction(context, thread.threadKey, action)
+                    else -> showSignalRowMenu(context, item, armed = action)
+                }
             }
             .show()
-    }
 
-    /** The one place a row can destroy something, so it asks in words before it does. */
-    private fun confirmSignalRowAction(
-        context: Context,
-        title: String,
-        label: String,
-        threadKey: String,
-        action: PersonAction
-    ) {
-        val delete = action == PersonAction.DELETE
-        AlertDialog.Builder(context)
-            .setTitle(label + ": " + title)
-            .setMessage(
-                if (delete) R.string.info_delete_armed_summary
-                else R.string.info_block_both
-            )
-            .setPositiveButton(label) { _, _ -> runSignalRowAction(context, threadKey, action) }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        if (armed != null) {
+            val decor = dialog.window?.decorView
+            val disarm = Runnable {
+                if (dialog.isShowing) {
+                    dialog.dismiss()
+                    showSignalRowMenu(context, item, armed = null)
+                }
+            }
+            decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
+            // Choosing anything else, or backing out, takes the trigger with it.
+            dialog.setOnDismissListener { decor?.removeCallbacks(disarm) }
+        }
     }
 
     private fun runSignalRowAction(
@@ -441,5 +454,10 @@ class ConversationsAdapter @Inject constructor(
     override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
         super.onDetachedFromRecyclerView(recyclerView)
         disposables.clear()
+    }
+
+    companion object {
+        /** How long an armed destructive entry stays armed, as everywhere else in the app. */
+        private const val ARM_TIMEOUT_MS = 4000L
     }
 }

@@ -916,9 +916,23 @@ internal class SignalReceiver(
                 Timber.w("signal receive: no local account id, so nothing can be validated; skipping")
                 return false
             }
+        // ⚠ The type of the ciphertext that was actually decrypted, not one guessed from the
+        // envelope around it. The validator's first rule is
+        // `envelope.type == PLAINTEXT_CONTENT || ciphertextMessageType == PLAINTEXT_CONTENT_TYPE`,
+        // and the second half of that `||` exists precisely because a sealed envelope's type
+        // is UNIDENTIFIED_SENDER whatever is inside it. Handing it `ciphertextTypeOf(envelope
+        // .type)` mapped every sealed envelope to SENDERKEY_TYPE, so `validatePlaintextContent`
+        // never ran on anything -- and PlaintextContent is the sessionless channel Signal
+        // restricts to error receipts. Sent sealed, it could carry a DataMessage or a
+        // SyncMessage and be processed as an ordinary message.
+        //
+        // ⚠ Not the same question as the one [ciphertextTypeOf] answers below. That maps the
+        // envelope's own type for a retry receipt to quote back, which is what Signal's
+        // `toCiphertextMessageType` does and is right there. The two look alike and are not:
+        // one describes the wrapper, this one describes what came out of it.
         val validation = runCatching {
             org.whispersystems.signalservice.api.messages.EnvelopeContentValidator.validate(
-                envelope, result.content, self, ciphertextTypeOf(envelope.type)
+                envelope, result.content, self, result.metadata.ciphertextMessageType
             )
         }.getOrElse {
             Timber.w(it, "signal receive: an envelope could not be validated; skipping")
@@ -1429,6 +1443,16 @@ internal class SignalReceiver(
          * The two vocabularies do not line up by value, and a retry receipt quoting the wrong
          * one names a message the sender cannot find. Taken from Signal Android's own mapping
          * rather than inferred from the enum order.
+         */
+        /**
+         * The envelope's own type, in libsignal's numbering, for a retry receipt to quote.
+         *
+         * An exact port of `MessageDecryptor.toCiphertextMessageType`, fallback included.
+         *
+         * ⚠ **Only for a retry receipt.** It describes the wrapper, not what was inside it, so
+         * it is the wrong answer for anything that asks what was actually decrypted -- the
+         * content validator among them, which used to be given this and so never saw a
+         * sealed PlaintextContent for what it was.
          */
         internal fun ciphertextTypeOf(type: Envelope.Type?): Int = when (type) {
             Envelope.Type.DOUBLE_RATCHET ->

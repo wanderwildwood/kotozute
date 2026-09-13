@@ -75,14 +75,23 @@ internal class SignalSender(
             )
         }
         val content = result.success?.content?.orElse(null) ?: return
+        // One row per device the message actually reached, which is what the send result
+        // names. Each of somebody's devices acknowledges separately, so each needs its own
+        // copy to clear -- see [SignalMessageLog.delivered]. A result that names no device
+        // still gets a row under 0 so nothing sent is unrecoverable; it simply ages out
+        // rather than being cleared early.
+        val devices = result.success?.devices?.takeIf { it.isNotEmpty() } ?: listOf(0)
         runCatching {
-            messageLog.remember(
-                recipient = result.address.serviceId.toString(),
-                sentTimestamp = timestamp,
-                content = content,
-                urgent = true,
-                groupId = groupId
-            )
+            devices.forEach { device ->
+                messageLog.remember(
+                    recipient = result.address.serviceId.toString(),
+                    deviceId = device,
+                    sentTimestamp = timestamp,
+                    content = content,
+                    urgent = true,
+                    groupId = groupId
+                )
+            }
         }.onFailure { Timber.w(it, "signal message log: could not record a send") }
     }
 

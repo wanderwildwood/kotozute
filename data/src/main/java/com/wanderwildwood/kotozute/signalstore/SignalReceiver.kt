@@ -135,6 +135,13 @@ internal class SignalReceiver(
                 if (from.isNotBlank() && at > 0) {
                     runCatching { events.receipts(from, listOf(at), false) }
                         .onFailure { Timber.w(it, "signal receive: could not record a delivery receipt") }
+                    // The plaintext copy kept for that device is no longer needed: a device
+                    // that has the message will never ask for it again. Signal clears it here
+                    // too (`IncomingMessageObserver.processReceipt` ->
+                    // `messageLog.deleteEntryForRecipient`), keeping the age trim only as a
+                    // backstop rather than as the way entries normally go.
+                    runCatching { SignalMessageLog(db).delivered(from, envelope.sourceDeviceId ?: 0, at) }
+                        .onFailure { Timber.w(it, "signal message log: could not clear a delivered send") }
                 }
                 delete(id)
                 return@forEach
@@ -502,6 +509,26 @@ internal class SignalReceiver(
                             timestamps,
                             receipt.type == org.whispersystems.signalservice.internal.push.ReceiptMessage.Type.READ
                         )
+                        // Delivery only. A read receipt says somebody looked at it, which is
+                        // not the same claim -- and Signal clears the log on the delivery arm
+                        // (`ReceiptMessageProcessor.handleDeliveryReceipt` -> `addMslDelete`)
+                        // and nowhere else.
+                        if (receipt.type ==
+                            org.whispersystems.signalservice.internal.push.ReceiptMessage.Type.DELIVERY
+                        ) {
+                            val log = SignalMessageLog(db)
+                            timestamps.forEach { at ->
+                                runCatching {
+                                    log.delivered(
+                                        result.metadata.sourceServiceId.toString(),
+                                        result.metadata.sourceDeviceId,
+                                        at
+                                    )
+                                }.onFailure {
+                                    Timber.w(it, "signal message log: could not clear a delivered send")
+                                }
+                            }
+                        }
                     }
                 }
 

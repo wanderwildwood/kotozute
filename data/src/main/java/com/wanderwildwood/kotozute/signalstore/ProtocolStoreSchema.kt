@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 20
+    const val VERSION = 21
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -459,6 +459,11 @@ internal object ProtocolStoreSchema {
         CREATE TABLE message_log (
           _id INTEGER PRIMARY KEY AUTOINCREMENT,
           recipient TEXT NOT NULL,
+          -- Which of that person's devices this copy is for. A message goes to every device
+          -- somebody has and each acknowledges separately, so a delivery receipt clears one
+          -- row and leaves the others -- which is the whole reason Signal's
+          -- `deleteEntryForRecipient` takes a device id.
+          device_id INTEGER NOT NULL DEFAULT 0,
           sent_timestamp INTEGER NOT NULL,
           content BLOB NOT NULL,
           urgent INTEGER NOT NULL DEFAULT 1,
@@ -657,7 +662,20 @@ internal object ProtocolStoreSchema {
         //
         // The pool arrives in the KEYS sync we already ask for and was being reduced to the
         // storage-service key on the way in. Now it is kept.
-        20 to listOf("ALTER TABLE account_keys ADD COLUMN entropy_pool TEXT;")
+        20 to listOf("ALTER TABLE account_keys ADD COLUMN entropy_pool TEXT;"),
+        // v21: which device a remembered send was for, so a delivery receipt can clear it.
+        //
+        // The log holds the **plaintext** Content of everything sent, so it can be sent again
+        // if somebody's device asks. Signal deletes an entry the moment delivery is confirmed
+        // and keeps the age trim only as a backstop; this kept every copy for the full
+        // fourteen days even when the recipient acknowledged it seconds later.
+        //
+        // It has to be per-device or the deletion is wrong: the first device to acknowledge
+        // would take the copy the others still need.
+        //
+        // ⚠ Rows written before this get device 0, which no receipt names, so they age out on
+        // the sweep as they do today. Only new sends are cleared early.
+        21 to listOf("ALTER TABLE message_log ADD COLUMN device_id INTEGER NOT NULL DEFAULT 0;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

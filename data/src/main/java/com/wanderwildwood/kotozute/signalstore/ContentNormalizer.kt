@@ -132,6 +132,15 @@ internal object ContentNormalizer {
         // below unreachable for any current sender.
         if (isExpirationUpdate(dataMessage)) return null
 
+        // ⚠ A withdrawal is not a message either, and it was being stored as one. Signal's
+        // `DataMessageProcessor` dispatches on a `when`: `message.hasRemoteDelete` takes its
+        // own branch and never reaches `handleTextMessage`, so a remote delete removes the
+        // message it names and inserts nothing. Here it was applied *and* normalized, leaving
+        // an empty row behind -- which on screen is a date header with nothing under it,
+        // sitting where the message that was taken back used to be. The withdrawal is handled
+        // in the receiver; there is nothing left for this to store.
+        if (dataMessage.delete != null) return null
+
         // ⚠ An edit is a rewrite of a row this app already holds, and the row it rewrites is
         // chosen by author and timestamp alone -- so an edit carrying a *different* group
         // context would move somebody's message into another conversation. Signal resolves an

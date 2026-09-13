@@ -952,6 +952,10 @@ class SignalRepositoryImpl @Inject constructor(
                     runCatching { signalStore.readStorage() }
                         .onSuccess { Timber.i("signal storage: %s", it) }
                         .onFailure { Timber.w(it, "signal storage: could not read") }
+                    // Straight after the read, because that is where a write would go and
+                    // because a row appearing here *because of* the read is the loop worth
+                    // catching. Logged and sent nowhere -- see [logStoragePushDiff].
+                    logStoragePushDiff()
                 }
             }
             thread(name = "signal-listen-$generation", isDaemon = true) { listenLoop(generation) }
@@ -2460,15 +2464,78 @@ class SignalRepositoryImpl @Inject constructor(
      * one place, whatever table holds the value -- otherwise every store that can hold part of
      * a conversation needs its own, and the sync has to consult all of them.
      *
-     * A group's state lives on a group record rather than a contact record, and this app has
-     * no row for a group in the recipient table, so group threads are left alone here. They
-     * need the group half of the write path, which does not exist yet.
+     * ⚠ Groups too, which they were not. A group's state rides a GroupV2Record rather than a
+     * ContactRecord, and that difference was being read as "the dirty flag does not apply" --
+     * so muting or archiving a group was a local change nothing recorded. Signal keeps groups
+     * as rows in the same `RecipientTable` for exactly this reason, and the flag does not care
+     * which kind of record the value will eventually travel in.
      */
     private fun markNeedsSync(threadKey: String) {
-        val serviceId = threadKey.removePrefix("direct:").takeIf { threadKey.startsWith("direct:") }
-            ?: return
-        runCatching { signalStore.rotateStorageId(serviceId) }
-            .onFailure { Timber.w(it, "signal storage: could not mark a conversation for a push") }
+        runCatching {
+            when {
+                threadKey.startsWith("direct:") ->
+                    signalStore.rotateStorageId(threadKey.removePrefix("direct:"))
+                threadKey.startsWith("group:") ->
+                    signalStore.rotateStorageIdForGroup(threadKey.removePrefix("group:"))
+                else -> return
+            }
+        }.onFailure { Timber.w(it, "signal storage: could not mark a conversation for a push") }
+    }
+
+    /**
+     * What a write to the storage service would carry, written to the log and sent nowhere.
+     *
+     * Step 2 of `docs/DECISION-storage-write.md`, and the reason it comes before the write:
+     * the marks are set from a handful of places and the only way to know they are set in the
+     * right ones -- and nowhere else -- is to watch what accumulates over a few days of
+     * ordinary use. A row that appears here after merely *reading* the account's records is
+     * the loop `StorageSyncLoopDetector` exists to catch, showing up where it costs nothing.
+     *
+     * ⚠ Not a field-level diff against the manifest, and cannot be one yet. This app keeps no
+     * copy of the record the account holds -- the read path applies what arrives and discards
+     * it -- so what this can say is "these rows are marked, and here is what they would go up
+     * as", not "this field differs". Keeping the remote record is part of step 3, not this.
+     *
+     * Nothing anybody is named is logged. What is useful here is the shape and the count; who
+     * is in a conversation is not, and a log is read in places a thread is not.
+     */
+    private fun logStoragePushDiff() {
+        val pending = runCatching { signalStore.needingStoragePush() }
+            .onFailure { Timber.w(it, "signal storage: could not read what is marked for a push") }
+            .getOrNull() ?: return
+        if (pending.isEmpty()) {
+            Timber.i("signal storage: nothing is marked for a push")
+            return
+        }
+
+        val (groups, people) = pending.partition { it.groupId != null }
+        Timber.i(
+            "signal storage: %d record(s) would be written -- %d contact, %d group",
+            pending.size, people.size, groups.size
+        )
+
+        Realm.getDefaultInstance().use { realm ->
+            pending.forEach { row ->
+                val threadKey = row.groupId?.let { "group:$it" } ?: "direct:${row.serviceId}"
+                val thread = realm.where(SignalThread::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .findFirst()
+                val blocked = runCatching {
+                    if (row.groupId != null) isBlocked(threadKey)
+                    else row.serviceId?.let { signalStore.isBlocked(it) } ?: false
+                }.getOrDefault(false)
+
+                Timber.i(
+                    "signal storage:   %s record -- named=%b profileKey=%b muted=%b archived=%b blocked=%b",
+                    if (row.groupId != null) "group" else "contact",
+                    !row.name.isNullOrBlank(),
+                    row.hasProfileKey,
+                    thread?.muted ?: false,
+                    thread?.archived ?: false,
+                    blocked
+                )
+            }
+        }
     }
 
     private fun editThread(threadKey: String, block: (SignalThread) -> Unit) {

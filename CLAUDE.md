@@ -71,6 +71,21 @@ stay off GitHub until they are fixed. Do not add that file, or a summary of its 
 entries, to this repository. Fixes land here one at a time on their own merits, and a commit
 message says what it fixed without cataloguing what is still open.
 
+### The bar
+
+David, on the Signal rail: *"I can't stress how important it is that the Signal protocol and
+part of the app works reliably, simply, and securely."* That orders the work and it settles
+arguments:
+
+- **Securely** — within a tier, the security-shaped finding goes first. Never paper over one to
+  keep a batch moving; if a fix is bigger than expected, say so and do it properly.
+- **Reliably** — a fix is not done because it compiles. A pure rule gets a unit test; anything
+  observable gets driven on a phone. "Nothing in the log" is not evidence unless a control
+  proved the log could have shown something.
+- **Simply** — take Signal's answer as it is. Do not improve on it, generalise it, or add a
+  layer. The whole reason this queue exists is that cleverness was applied where reading would
+  have done.
+
 ### “keep going” means this quest
 
 David has bound the phrase: **until the parity audit is complete, "keep going" means return to

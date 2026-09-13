@@ -267,7 +267,19 @@ class DesktopSyncServer(
         }
 
         override fun onException(exception: IOException) {
-            Timber.w(exception, "Desktop Sync WebSocket error")
+            // ⚠ A browser tab closing, a laptop sleeping, wifi changing hands: every one of
+            // those ends the socket from the far side, and this logged each as a warning with
+            // a full stack trace. Fourteen lines saying the thing that is supposed to happen
+            // happened, which is how a log stops being read.
+            //
+            // The far end going away is not this app's problem -- the client reconnects on its
+            // own, usually within seconds. Anything else still gets the trace, because an
+            // exception here that is *not* a disconnect is the interesting kind.
+            if (isOrdinaryDisconnect(exception)) {
+                Timber.i("Desktop Sync: WebSocket closed by the other end")
+            } else {
+                Timber.w(exception, "Desktop Sync WebSocket error")
+            }
             openSockets.remove(this)
         }
     }
@@ -2335,4 +2347,30 @@ class DesktopSyncServer(
         }
         return newFixedLengthResponse(status, "application/json", text)
     }
+}
+
+/**
+ * Whether a WebSocket exception is the far end going away rather than something being wrong.
+ *
+ * ⚠ A browser tab closing, a laptop sleeping, wifi changing hands: each of those ends the
+ * socket from the other side, and each used to be logged as a warning with a full stack trace.
+ * Fourteen lines saying that the thing which is supposed to happen happened — which is how a
+ * log stops being read, and the next real fault goes past unnoticed.
+ *
+ * By type where the type says it, and by message where only the message does: the socket layer
+ * reports most of these as a plain [java.net.SocketException], so the text is the only thing
+ * separating "they closed the tab" from a genuine fault. Anything not listed here stays loud,
+ * because an exception on this socket that is *not* a disconnect is the interesting kind.
+ *
+ * File-scope and internal so the rule can be tested without a running server.
+ */
+internal fun isOrdinaryDisconnect(exception: IOException): Boolean {
+    if (exception is java.io.EOFException) return true
+    if (exception is java.net.SocketTimeoutException) return true
+    val text = (exception.message ?: "").lowercase()
+    return text.contains("connection abort") ||
+        text.contains("connection reset") ||
+        text.contains("broken pipe") ||
+        text.contains("socket closed") ||
+        text.contains("stream closed")
 }

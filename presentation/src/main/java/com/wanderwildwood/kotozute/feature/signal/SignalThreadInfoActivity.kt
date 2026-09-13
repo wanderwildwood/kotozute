@@ -55,6 +55,13 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     }
     /** What the row does: block, or take a block back. Read from the list this device holds. */
     private var blocked = false
+    private var safetyArmed = false
+
+    private val disarmSafety = Runnable {
+        safetyArmed = false
+        binding.safetyAccept.title = getString(R.string.signal_safety_accept_title)
+    }
+
     private val disarmBlock = Runnable {
         blockArmed = false
         binding.block.title = getString(blockRowTitle())
@@ -375,8 +382,14 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             // Only when it has changed. Offering it the rest of the time would make accepting
             // a habit rather than a decision, and the decision is the whole mechanism.
             binding.safetyAccept.setVisible(identity.changed)
+            // Disarmed whenever the screen re-reads itself, so a row left armed cannot come
+            // back armed after a refresh. The four-second timer would catch it anyway; this
+            // makes it true rather than merely likely, which is the point of the timeout.
+            binding.safetyAccept.removeCallbacks(disarmSafety)
+            safetyArmed = false
+            binding.safetyAccept.title = getString(R.string.signal_safety_accept_title)
             if (identity.changed) {
-                binding.safetyAccept.setOnClickListener { confirmAcceptIdentity() }
+                binding.safetyAccept.setOnClickListener { acceptIdentityRow() }
             }
         }
     }
@@ -389,29 +402,42 @@ class SignalThreadInfoActivity : QkThemedActivity() {
      * by checking the digits some other way. The dialog says that plainly rather than asking
      * "are you sure?", which tells nobody anything.
      */
-    private fun confirmAcceptIdentity() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(R.string.signal_safety_accept_confirm)
-            .setMessage(R.string.signal_safety_accept_confirm_body)
-            .setNegativeButton(R.string.button_cancel, null)
-            .setPositiveButton(R.string.button_continue) { _, _ ->
-                thread(isDaemon = true) {
-                    val accepted = runCatching { signalRepo.acceptIdentity(threadKey) }.getOrDefault(false)
-                    runOnUiThread {
-                        if (isFinishing) return@runOnUiThread
-                        Toast.makeText(
-                            this,
-                            if (accepted) R.string.signal_safety_accepted
-                            else R.string.signal_safety_accept_failed,
-                            Toast.LENGTH_LONG
-                        ).show()
-                        // Re-read rather than assume: the row must disappear because the
-                        // store says so, not because a tap was registered.
-                        if (accepted) thread(isDaemon = true) { loadIdentity() }
-                    }
-                }
+    private fun acceptIdentityRow() {
+        // ⚠ The row asks, as it does for blocking and for deleting the conversation three rows
+        // away -- this was the one irreversible action on the screen still asking in a dialog.
+        //
+        // STYLE.md: "The row asks, not a dialog... irreversible is not only about stored
+        // things", and where the action needs a warning the label cannot carry, the warning
+        // takes the dash and the question follows a semicolon. The dialog it replaces was
+        // titled "Accept this key?", which is the are-you-sure that section exists to stop:
+        // the armed label says what a second tap means instead of asking whether you meant it.
+        //
+        // The friction is not lost, it moves: two taps either way, and the warning is now in
+        // the row the thumb is already on rather than in a second full-panel repaint.
+        if (!safetyArmed) {
+            safetyArmed = true
+            binding.safetyAccept.title = getString(R.string.signal_safety_accept_armed)
+            binding.safetyAccept.postDelayed(disarmSafety, ARM_TIMEOUT_MS)
+            return
+        }
+        binding.safetyAccept.removeCallbacks(disarmSafety)
+        safetyArmed = false
+        binding.safetyAccept.title = getString(R.string.signal_safety_accept_title)
+        thread(isDaemon = true) {
+            val accepted = runCatching { signalRepo.acceptIdentity(threadKey) }.getOrDefault(false)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                Toast.makeText(
+                    this,
+                    if (accepted) R.string.signal_safety_accepted
+                    else R.string.signal_safety_accept_failed,
+                    Toast.LENGTH_LONG
+                ).show()
+                // Re-read rather than assume: the row must disappear because the store says
+                // so, not because a tap was registered.
+                if (accepted) thread(isDaemon = true) { loadIdentity() }
             }
-            .show()
+        }
     }
 
     private fun renderArchive() {

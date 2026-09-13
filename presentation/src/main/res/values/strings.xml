@@ -437,8 +437,7 @@
     <string name="signal_safety_number">Safety number</string>
     <string name="signal_safety_accept_title">Accept the new key</string>
     <string name="signal_safety_accept_summary">Only after you have checked the digits with them another way. Until you do, messages to them will not send.</string>
-    <string name="signal_safety_accept_confirm">Accept this key?</string>
-    <string name="signal_safety_accept_confirm_body">You will be able to send to them again. If you have not checked the digits with them, someone else could be reading what you send.</string>
+    <string name="signal_safety_accept_armed">Accept the new key \u2014 if you have not checked the digits, someone else could be reading what you send; tap again</string>
     <string name="signal_safety_accepted">Key accepted. You can send to them again.</string>
     <string name="signal_safety_accept_failed">Could not accept the key.</string>
     <string name="signal_safety_verified">Verified. Compare these digits with theirs to confirm.</string>

@@ -749,6 +749,44 @@ internal class SignalReceiver(
                         }
                     }
 
+                // A group administrator taking somebody else's message down for everybody.
+                //
+                // ⚠ This was neither filtered nor acted on: the message was stored as a blank
+                // row and the one it named survived, so a removal for everyone left the
+                // message fully readable here with an empty bubble beside it -- the same
+                // failure the ordinary withdrawal path was written to end.
+                //
+                // Unlike an ordinary delete it names its target explicitly, because the person
+                // removing it is not the person who wrote it. Upstream requires the sender to
+                // be an administrator of the group the target is in
+                // (`MessageConstraintsUtil.isValidAdminDeleteReceive` -> `groupRecord.isAdmin`),
+                // and allows the admin threshold plus a day of delivery slack -- which is the
+                // same two days the ordinary withdrawal already uses.
+                result.content.dataMessage?.adminDelete?.let { adminDelete ->
+                    val at = adminDelete.targetSentTimestamp ?: 0L
+                    val target = org.signal.core.models.ServiceId
+                        .parseOrNull(null, adminDelete.targetAuthorAciBinary)
+                        ?.toString()
+                    val group = result.content.dataMessage?.groupV2
+                    val master = group?.masterKey?.toByteArray()
+                    val sender = result.metadata.sourceServiceId.toString()
+                    when {
+                        at <= 0 || target.isNullOrBlank() ->
+                            Timber.w("signal delete: an admin removal naming nothing; ignoring it")
+                        master == null || master.isEmpty() ->
+                            Timber.w("signal delete: an admin removal outside a group; ignoring it")
+                        !isGroupAdmin(master, group.revision ?: 0, sender) ->
+                            Timber.w("signal delete: an admin removal from somebody who is not an admin; ignoring it")
+                        else -> {
+                            val withdrawnAt = envelope.serverTimestamp
+                                ?: envelope.clientTimestamp
+                                ?: System.currentTimeMillis()
+                            runCatching { events.withdrawn(target, at, withdrawnAt) }
+                                .onFailure { Timber.w(it, "signal delete: could not apply an admin removal") }
+                        }
+                    }
+                }
+
                 // What the account has read on another device. Applied here, never answered:
                 // the device that did the reading has already told the sender, and saying so
                 // again would tell them twice.
@@ -1173,6 +1211,30 @@ internal class SignalReceiver(
         message.bodyRanges.isNotEmpty() ||
         message.sticker != null ||
         message.pollCreate != null
+
+    /**
+     * Whether somebody is an administrator of this group.
+     *
+     * ⚠ Fails **closed**, unlike its neighbours, and deliberately: this one guards a power to
+     * delete other people's messages. Not being able to read the group's state is not evidence
+     * that somebody holds that power, and upstream's own test is
+     * `groupRecord.isAdmin(deleteSender)` against a record it already has.
+     */
+    private fun isGroupAdmin(masterKey: ByteArray, revision: Int, sender: String): Boolean {
+        if (sender.isBlank()) return false
+        val id = android.util.Base64.encodeToString(masterKey, android.util.Base64.NO_WRAP)
+        val known = groupState[id]
+        val group = if (known != null && known.first >= revision) {
+            known.second
+        } else {
+            runCatching { SignalGroups(connection, accounts, contacts).fetch(masterKey) }
+                .onFailure { Timber.w(it, "signal group: could not check who administers it") }
+                .getOrNull()
+                ?.also { groupState[id] = it.revision to it }
+                ?: return false
+        }
+        return sender in group.admins
+    }
 
     /**
      * Whether somebody may post to this group at all -- that is, whether it is a broadcast

@@ -1162,6 +1162,20 @@ class SignalRepositoryImpl @Inject constructor(
         val wasRead = existing?.read == true
         val countdownStarted = existing?.expiresAt ?: 0L
 
+        // ⚠ A message never changes the conversation it is in.
+        //
+        // This is Signal's `validGroup` check, made where the target is actually known.
+        // Upstream compares an edit's group against the *target message's* thread and drops
+        // the edit when they disagree; the equivalent here is that an arriving message may
+        // rewrite a row it names but may not move it. Without this, an edit carrying no group
+        // context resolved to `direct:<sender>` and pulled one of the sender's own group
+        // messages out of the group -- on this device only, so the two phones disagreed about
+        // where a conversation's messages were.
+        if (existing != null && existing.threadKey != m.threadKey) {
+            Timber.w("signal: a message tried to move to another conversation; left where it is")
+            return false
+        }
+
         val row = existing ?: realm.createObject(SignalMessage::class.java, m.id)
         row.seq = m.seq
         row.threadKey = m.threadKey
@@ -1588,6 +1602,12 @@ class SignalRepositoryImpl @Inject constructor(
      * because refusing it would leave the conversation on a timer nobody chose.
      */
     private fun applyTimerChange(threadKey: String, seconds: Long, version: Int) = runOffThread {
+        // ⚠ Reached from every message now, not only from the one that announces a change --
+        // see [ContentNormalizer.timerUpdateIn] -- so it has to decide whether anything
+        // actually differs before it writes or says anything. Upstream's
+        // `handlePossibleExpirationUpdate` is the same shape: it acts only when the message's
+        // timer disagrees with the thread's, or carries a newer version.
+        var changed = false
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val thread = r.where(SignalThread::class.java)
@@ -1597,10 +1617,14 @@ class SignalRepositoryImpl @Inject constructor(
                     Timber.i("signal timer: ignored a timer change older than the one in force")
                     return@executeTransaction
                 }
+                val newer = version != 0 && version > thread.expireTimerVersion
+                if (thread.expiresInSeconds == seconds && !newer) return@executeTransaction
                 thread.expiresInSeconds = seconds
                 if (version != 0) thread.expireTimerVersion = version
+                changed = true
             }
         }
+        if (!changed) return@runOffThread
         Timber.i("signal timer: a conversation's disappearing-messages timer is now %d second(s)", seconds)
         contactsChanged()
     }

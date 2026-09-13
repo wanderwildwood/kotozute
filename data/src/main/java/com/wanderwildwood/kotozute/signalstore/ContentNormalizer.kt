@@ -28,6 +28,12 @@ import org.whispersystems.signalservice.internal.push.DataMessage
 internal object ContentNormalizer {
 
     /**
+     * How many body ranges are worth expanding, which is upstream's
+     * `DataMessageProcessor.BODY_RANGE_PROCESSING_LIMIT`.
+     */
+    private const val BODY_RANGE_LIMIT = 250
+
+    /**
      * Exposed for the self-check. The derivation is the part worth pinning: it is a pure
      * function of the master key, and getting it wrong produces a stable, plausible, wrong
      * thread key rather than an error.
@@ -108,6 +114,17 @@ internal object ContentNormalizer {
             else -> return null
         }
 
+        // ⚠ A recipient update is not a message, and was being stored as one.
+        //
+        // When a group send finishes reaching more of its members the primary sends the *same*
+        // transcript again with `isRecipientUpdate` set, carrying only who it reached. Read as
+        // a message it rewrote the row it named, once per update. Upstream short-circuits
+        // before it even looks at the nested data message: `if (sent.isRecipientUpdate == true)
+        // { handleGroupRecipientUpdate(...); return }`, and what that handler does is adjust
+        // per-recipient receipt status -- something this app does not keep, so there is nothing
+        // to apply and nothing to store.
+        if (sent?.isRecipientUpdate == true) return null
+
         val groupId = groupIdOf(dataMessage)
 
         val threadKey = threadKeyFor(
@@ -141,16 +158,38 @@ internal object ContentNormalizer {
         // in the receiver; there is nothing left for this to store.
         if (dataMessage.delete != null) return null
 
+        // ⚠ Nor an admin's removal, for the same reason and with worse consequences. An
+        // `adminDelete` is a group administrator taking somebody else's message down for
+        // everybody; it names a target and carries no content of its own. It was neither
+        // filtered here nor acted on, so it was stored as a blank row *and* the message it
+        // named survived -- so a removal for everyone left the message fully readable on this
+        // phone with an empty bubble beside it. Upstream gives it its own arm of the `when`
+        // (`handleAdminRemoteDelete`) which marks the target deleted and inserts nothing.
+        // Acting on it is [SignalReceiver]'s job; not storing it is this one's.
+        if (dataMessage.adminDelete != null) return null
+
         // ⚠ An edit is a rewrite of a row this app already holds, and the row it rewrites is
         // chosen by author and timestamp alone -- so an edit carrying a *different* group
         // context would move somebody's message into another conversation. Signal resolves an
         // edit against the original's thread; here the honest equivalent is to refuse one that
         // disagrees, because the original's thread is not known at this layer.
-        if (editTarget != null && groupId.isNotBlank() && content.dataMessage?.groupV2 == null &&
-            content.syncMessage?.sent?.editMessage?.dataMessage?.groupV2 == null
-        ) {
-            return null
-        }
+        // ⚠ The check that used to be here dropped every group edit anybody else made.
+        //
+        // It read "an edit, in a group, with no group context on either dataMessage" -- but in
+        // the incoming-edit branch `content.dataMessage` is null by the ordering of the `when`
+        // above, and `syncMessage.sent.editMessage` is null too, so both of those clauses were
+        // always true and the condition collapsed to "an edit, in a group". Every edit from
+        // every other group member was discarded. In the *sync* branch the last clause re-read
+        // the very dataMessage `groupId` was taken from, so it was always false and our own
+        // edits sailed through -- which is why it looked like editing worked when tested alone.
+        //
+        // And it let through the case it was written for: an edit carrying **no** group at all
+        // was not caught, so `threadKeyFor` gave it `direct:<sender>` and the original group
+        // row was rewritten into a one-to-one thread.
+        //
+        // Signal's test is two-sided -- `validGroup = groupId == targetThreadRecipient.groupId
+        // .orNull()` -- and it is made where the target message is known, which is not here.
+        // So it is made in the store instead: a row never changes the conversation it is in.
 
         // The original's timestamp for an edit, its own for anything else. An edit naming no
         // target is not an edit of anything and there is nothing to apply it to.
@@ -172,7 +211,12 @@ internal object ContentNormalizer {
         if (body.isEmpty() && dataMessage.sticker != null) {
             body = dataMessage.sticker?.emoji?.takeIf { it.isNotBlank() } ?: "(sticker)"
         }
-        body = withMentions(body, dataMessage.bodyRanges, nameFor)
+        // ⚠ At most 250, which is upstream's `BODY_RANGE_PROCESSING_LIMIT` and applied at
+        // every path that touches body ranges. Ranges may overlap and are only bounds-checked,
+        // so a short body can legitimately carry tens of thousands of in-bounds mention ranges
+        // -- each of which expands to a name. Uncapped, one small message becomes an enormous
+        // string built on the receive thread.
+        body = withMentions(body, dataMessage.bodyRanges.take(BODY_RANGE_LIMIT), nameFor)
 
         // Not a bubble in anybody's client. A vote belongs to its poll and a pin belongs to
         // the message it pins; both were being stored as a row with nothing in it, which is a
@@ -219,6 +263,15 @@ internal object ContentNormalizer {
                     !outgoing -> 0L
                     sent?.expirationStartTimestamp?.takeIf { it > 0 } != null ->
                         sent.expirationStartTimestamp!! + seconds * 1000L
+                    // ⚠ The primary's send time, never this device's clock. A transcript
+                    // drained after the phone has been offline would otherwise restart the
+                    // countdown from the moment of draining, so a sent disappearing message
+                    // outlives its timer on exactly the device that was switched off.
+                    // Upstream passes `sent.expirationStartTimestamp ?: 0` and lets zero mean
+                    // "not started"; the only time it substitutes anything, it substitutes the
+                    // primary's own `sent.timestamp`.
+                    sent != null -> (sent.timestamp ?: 0L).takeIf { it > 0 }
+                        ?.let { it + seconds * 1000L } ?: 0L
                     else -> System.currentTimeMillis() + seconds * 1000L
                 }
             } ?: 0L,
@@ -270,7 +323,25 @@ internal object ContentNormalizer {
     ): TimerUpdate? {
         val sent = content.syncMessage?.sent
         val dataMessage = sent?.message ?: content.dataMessage ?: return null
-        if (!isExpirationUpdate(dataMessage)) return null
+
+        // ⚠ Every message carries the timer it was written under, and it was only ever being
+        // read off the one message that announces a change.
+        //
+        // Signal treats the `expireTimer` on any message as authoritative and repairs the
+        // thread from it -- `handlePossibleExpirationUpdate` runs on ordinary messages and on
+        // sync transcripts alike, and acts whenever the message's timer disagrees with the
+        // thread's or carries a newer version. Learning it only from the flagged envelope
+        // means missing that one envelope -- linking after the timer was set, an expired queue,
+        // a decryption that failed -- leaves the conversation at zero for ever, with every
+        // later message quietly not disappearing.
+        //
+        // ⚠ And never for a group. A GV2 timer lives in the group's own state, so upstream
+        // refuses this form outright: "Expiration update received for GV2. Ignoring." Taking
+        // it would let one flagged message overwrite the timer read from group state and pin
+        // the version so later real updates are rejected as old.
+        val groupId = groupIdOf(dataMessage)
+        if (groupId.isNotBlank()) return null
+        if (dataMessage.expireTimer == null && !isExpirationUpdate(dataMessage)) return null
 
         val outgoing = sent?.message != null
         val counterpartUuid = if (outgoing) destinationServiceIdOf(sent!!) else metadata.sourceServiceId.toString()
@@ -279,7 +350,7 @@ internal object ContentNormalizer {
             outgoing = outgoing,
             counterpartUuid = counterpartUuid,
             counterpartNumber = counterpartNumber,
-            groupId = groupIdOf(dataMessage),
+            groupId = groupId,
             selfAci = selfAci,
             selfE164 = selfE164
         ) ?: return null

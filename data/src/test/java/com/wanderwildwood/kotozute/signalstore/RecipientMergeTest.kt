@@ -12,6 +12,12 @@ import org.junit.Test
  */
 class RecipientMergeTest {
 
+    /** A row holding no account id of its own -- the ordinary case, and safe to absorb. */
+    private fun row(id: Long) = RecipientMerge.Candidate(id)
+
+    /** A row that already belongs to somebody, named by their account id. */
+    private fun row(id: Long, aci: String) = RecipientMerge.Candidate(id, aci)
+
     @Test
     fun `somebody nobody knows is new`() {
         assertEquals(RecipientMerge.Plan.Insert, RecipientMerge.plan(byAci = null, byPni = null))
@@ -19,19 +25,19 @@ class RecipientMergeTest {
 
     @Test
     fun `known by account only is an update`() {
-        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(byAci = 7, byPni = null))
+        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(byAci = row(7), byPni = null))
     }
 
     @Test
     fun `known by phone-number identity only is an update, not a new person`() {
         // This is the moment a PNI-only row learns its account id. Inserting instead would
         // leave the old row keying a conversation nobody could reply in.
-        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(byAci = null, byPni = 7))
+        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(byAci = null, byPni = row(7)))
     }
 
     @Test
     fun `already one row is left alone`() {
-        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(byAci = 7, byPni = 7))
+        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(byAci = row(7), byPni = row(7)))
     }
 
     @Test
@@ -41,7 +47,7 @@ class RecipientMergeTest {
         // known. Keeping the other row would mean rewriting those keys.
         assertEquals(
             RecipientMerge.Plan.Merge(keep = 7, absorb = listOf(9)),
-            RecipientMerge.plan(byAci = 7, byPni = 9)
+            RecipientMerge.plan(byAci = row(7), byPni = row(9))
         )
     }
     @Test
@@ -49,7 +55,7 @@ class RecipientMergeTest {
         // The case the whole table exists for: found by number from discovery, by phone-number
         // identity from a group, and by account id from the account's own records -- months
         // apart, from sources that never mention each other.
-        val plan = RecipientMerge.plan(byAci = 7, byPni = 9, byE164 = 11)
+        val plan = RecipientMerge.plan(byAci = row(7), byPni = row(9), byE164 = row(11))
         assertEquals(RecipientMerge.Plan.Merge(keep = 7, absorb = listOf(9, 11)), plan)
     }
 
@@ -59,19 +65,110 @@ class RecipientMergeTest {
         // an account id, and it is what an address book can put a name to.
         assertEquals(
             RecipientMerge.Plan.Merge(keep = 11, absorb = listOf(9)),
-            RecipientMerge.plan(byAci = null, byPni = 9, byE164 = 11)
+            RecipientMerge.plan(byAci = null, byPni = row(9), byE164 = row(11))
         )
     }
 
     @Test
     fun `rows that are already the same row are left alone`() {
-        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(7, 7, 7))
-        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(7, null, 7))
+        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(row(7), row(7), row(7)))
+        assertEquals(RecipientMerge.Plan.Update(7), RecipientMerge.plan(row(7), null, row(7)))
+    }
+
+    @Test
+    fun `a row holding a different account id is never deleted`() {
+        // ⚠ The fault this table exists to prevent, and the one it used to have.
+        //
+        // A stale pni-to-aci pairing, or a phone number reassigned to somebody new, makes a
+        // second *real person's* row look like a duplicate. Absorbing it deletes their name,
+        // their username and their identity row, and every conversation keyed on it silently
+        // starts pointing at the first person. Nothing local can undo it.
+        //
+        // Signal refuses: an account id is forever-bound to a row. The wrong identifier is
+        // taken back and the row is left standing.
+        val plan = RecipientMerge.plan(
+            byAci = row(7, "aci-first-person"),
+            byPni = row(9, "aci-somebody-else")
+        )
+        assertEquals(
+            RecipientMerge.Plan.Merge(
+                keep = 7,
+                absorb = emptyList(),
+                steal = listOf(RecipientMerge.Steal(from = 9, held = RecipientMerge.Held.PNI))
+            ),
+            plan
+        )
+    }
+
+    @Test
+    fun `a row holding the same account id is still safe to absorb`() {
+        // Same person, reached two ways. Nothing is lost by folding these together, and this
+        // is the case the merge is actually for.
+        assertEquals(
+            RecipientMerge.Plan.Merge(keep = 7, absorb = listOf(9)),
+            RecipientMerge.plan(byAci = row(7, "aci-one"), byPni = row(9, "aci-one"))
+        )
+    }
+
+    @Test
+    fun `a number belonging to somebody else is taken back, not merged`() {
+        // The reassigned-number case, with no account row in the middle of it.
+        val plan = RecipientMerge.plan(
+            byAci = row(7, "aci-first-person"),
+            byPni = null,
+            byE164 = row(11, "aci-somebody-else")
+        )
+        assertEquals(
+            RecipientMerge.Plan.Merge(
+                keep = 7,
+                absorb = emptyList(),
+                steal = listOf(RecipientMerge.Steal(from = 11, held = RecipientMerge.Held.E164))
+            ),
+            plan
+        )
+    }
+
+    @Test
+    fun `one row is absorbed and another spared in the same decision`() {
+        // Three rows, and they are not all one person: the phone-number row has nothing of its
+        // own and folds in; the number row belongs to somebody else and does not.
+        val plan = RecipientMerge.plan(
+            byAci = row(7, "aci-first-person"),
+            byPni = row(9),
+            byE164 = row(11, "aci-somebody-else")
+        )
+        assertEquals(
+            RecipientMerge.Plan.Merge(
+                keep = 7,
+                absorb = listOf(9),
+                steal = listOf(RecipientMerge.Steal(from = 11, held = RecipientMerge.Held.E164))
+            ),
+            plan
+        )
+    }
+
+    @Test
+    fun `with no account row of our own a conflicting row is still spared`() {
+        // The keeper holds no account id, so it cannot match; the loser holds one. Absorbing
+        // would delete a person to make room for a row that knows less than they do.
+        val plan = RecipientMerge.plan(
+            byAci = null,
+            byPni = row(9, "aci-somebody-else"),
+            byE164 = row(11)
+        )
+        assertEquals(
+            RecipientMerge.Plan.Merge(
+                keep = 11,
+                absorb = emptyList(),
+                steal = listOf(RecipientMerge.Steal(from = 9, held = RecipientMerge.Held.PNI))
+            ),
+            plan
+        )
     }
 
     @Test
     fun `found only by number is an update, not a new person`() {
-        assertEquals(RecipientMerge.Plan.Update(11), RecipientMerge.plan(null, null, 11))
+        assertEquals(RecipientMerge.Plan.Update(11), RecipientMerge.plan(null, null, row(11)))
     }
 
 }

@@ -98,21 +98,29 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         username: String?
     ) {
         val now = System.currentTimeMillis()
-        val byAci = aci?.let { rowIdFor(database, "aci", it) }
-        val byPni = pni?.let { rowIdFor(database, "pni", it) }
+        val byAci = aci?.let { candidateFor(database, "aci", it) }
+        val byPni = pni?.let { candidateFor(database, "pni", it) }
         // By number too. One person can be here three times over -- found by number from
         // discovery, by phone-number identity from a group, by account id from the account's
         // own records -- learned months apart from sources that never mention each other.
-        val byE164 = e164.orNull()?.let { rowIdForNumber(database, it) }
+        val byE164 = e164.orNull()?.let { candidateForNumber(database, it) }
 
         // The one decision worth stating on its own; see [RecipientMerge].
         val existing = when (val plan = RecipientMerge.plan(byAci, byPni, byE164)) {
             is RecipientMerge.Plan.Insert -> null
             is RecipientMerge.Plan.Update -> plan.id
             is RecipientMerge.Plan.Merge -> {
-                // Several rows, one person, and this contact is what proved it.
+                // Rows that hold no account id of their own: safe to fold in and remove.
                 plan.absorb.forEach { absorb(database, keep = plan.keep, absorb = it) }
-                Timber.i("signal contacts: %d row(s) turned out to be one person", plan.absorb.size + 1)
+                // Rows that hold a different one: a different person. Take back the identifier
+                // that pointed at them and leave everything else of theirs alone.
+                plan.steal.forEach { steal(database, keep = plan.keep, from = it.from, held = it.held) }
+                if (plan.absorb.isNotEmpty()) {
+                    Timber.i(
+                        "signal contacts: %d row(s) turned out to be one person",
+                        plan.absorb.size + 1
+                    )
+                }
                 plan.keep
             }
         }
@@ -202,12 +210,80 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         "SELECT _id FROM recipient WHERE e164 = ? ORDER BY aci IS NULL LIMIT 1", arrayOf(e164)
     ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
 
+    /** As [rowIdForNumber], with the account id the row holds. See [candidateFor]. */
+    private fun candidateForNumber(
+        database: net.zetetic.database.sqlcipher.SQLiteDatabase,
+        e164: String
+    ): RecipientMerge.Candidate? = database.rawQuery(
+        "SELECT _id, aci FROM recipient WHERE e164 = ? ORDER BY aci IS NULL LIMIT 1", arrayOf(e164)
+    ).use { c ->
+        if (c.moveToFirst()) {
+            RecipientMerge.Candidate(c.getLong(0), c.getString(1)?.takeIf { it.isNotBlank() })
+        } else {
+            null
+        }
+    }
+
     private fun rowIdFor(
         database: net.zetetic.database.sqlcipher.SQLiteDatabase,
         column: String,
         value: String
     ): Long? = database.rawQuery("SELECT _id FROM recipient WHERE $column = ?", arrayOf(value))
         .use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+
+    /**
+     * The row that answers to [value], with the account id it already holds.
+     *
+     * ⚠ The account id is what decides whether that row may be deleted. A merge used to be
+     * planned from row ids alone, which cannot tell a row holding nothing but a phone number
+     * from a second real person -- see [RecipientMerge].
+     */
+    private fun candidateFor(
+        database: net.zetetic.database.sqlcipher.SQLiteDatabase,
+        column: String,
+        value: String
+    ): RecipientMerge.Candidate? =
+        database.rawQuery("SELECT _id, aci FROM recipient WHERE $column = ?", arrayOf(value))
+            .use { c ->
+                if (c.moveToFirst()) {
+                    RecipientMerge.Candidate(c.getLong(0), c.getString(1)?.takeIf { it.isNotBlank() })
+                } else {
+                    null
+                }
+            }
+
+    /**
+     * Take one identifier off a row that is **not** being deleted, and give it to the keeper.
+     *
+     * Signal's `RemovePni` then `SetPni`, in that order and for a concrete reason: `aci` and
+     * `pni` are both UNIQUE here, so setting the keeper first would collide with the value the
+     * loser still holds.
+     */
+    private fun steal(
+        database: net.zetetic.database.sqlcipher.SQLiteDatabase,
+        keep: Long,
+        from: Long,
+        held: RecipientMerge.Held
+    ) {
+        val column = when (held) {
+            RecipientMerge.Held.PNI -> "pni"
+            RecipientMerge.Held.E164 -> "e164"
+        }
+        val value = database
+            .rawQuery("SELECT $column FROM recipient WHERE _id = ?", arrayOf(from.toString()))
+            .use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            ?: return
+
+        database.execSQL("UPDATE recipient SET $column = NULL WHERE _id = ?", arrayOf<Any?>(from))
+        database.execSQL(
+            "UPDATE recipient SET $column = COALESCE($column, ?) WHERE _id = ?",
+            arrayOf<Any?>(value, keep)
+        )
+        Timber.i(
+            "signal contacts: moved a %s off a row with a different account id, and kept that row",
+            column
+        )
+    }
 
     /** One column of the row that answers to [serviceId], by either of its ids. */
     private fun <T> byServiceId(serviceId: String, column: String, read: (android.database.Cursor) -> T?): T? =
@@ -443,13 +519,18 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
      * the duplicate it fixes.
      */
     private fun join(database: net.zetetic.database.sqlcipher.SQLiteDatabase, pni: String, aci: String) {
-        val pniRow = rowIdFor(database, "pni", pni)
-        val aciRow = rowIdFor(database, "aci", aci)
+        val pniCandidate = candidateFor(database, "pni", pni)
+        val aciCandidate = candidateFor(database, "aci", aci)
+        val pniRow = pniCandidate?.id
+        val aciRow = aciCandidate?.id
 
-        when (val plan = RecipientMerge.plan(aciRow, pniRow)) {
+        when (val plan = RecipientMerge.plan(aciCandidate, pniCandidate)) {
             is RecipientMerge.Plan.Merge -> {
                 plan.absorb.forEach { absorb(database, keep = plan.keep, absorb = it) }
-                Timber.i("signal contacts: two halves of one person became one row")
+                plan.steal.forEach { steal(database, keep = plan.keep, from = it.from, held = it.held) }
+                if (plan.absorb.isNotEmpty()) {
+                    Timber.i("signal contacts: two halves of one person became one row")
+                }
                 return
             }
             else -> Unit

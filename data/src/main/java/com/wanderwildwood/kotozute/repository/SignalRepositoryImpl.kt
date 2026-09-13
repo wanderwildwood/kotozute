@@ -1386,6 +1386,9 @@ class SignalRepositoryImpl @Inject constructor(
         if (messages.isEmpty() && threads.isEmpty()) return@runOffThread
         val touched = mutableSetOf<String>()
         val removedFiles = mutableListOf<String>()
+        // See [forgetFromResendLog]. A delete that arrived from another device is still a
+        // delete: the message must stop being resendable here too.
+        val removedSentAt = mutableListOf<Long>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 messages.forEach { (author, at) ->
@@ -1393,6 +1396,7 @@ class SignalRepositoryImpl @Inject constructor(
                         .equalTo("id", "$author:$at").findFirst() ?: return@forEach
                     touched += row.threadKey
                     removedFiles += attachmentIdsOf(row.attachments)
+                    if (row.outgoing) removedSentAt += row.date
                     row.deleteFromRealm()
                 }
                 threads.forEach { key ->
@@ -1402,6 +1406,7 @@ class SignalRepositoryImpl @Inject constructor(
                     if (all.isNotEmpty()) {
                         touched += key
                         removedFiles += all.flatMap { attachmentIdsOf(it.attachments) }
+                        removedSentAt += all.filter { it.outgoing }.map { it.date }
                         // A snapshot, for the same reason every other bulk change here takes
                         // one: deleting from live results takes rows out from under the walk.
                         all.createSnapshot().forEach { it.deleteFromRealm() }
@@ -1419,6 +1424,7 @@ class SignalRepositoryImpl @Inject constructor(
                 }
             }
         }
+        forgetFromResendLog(removedSentAt)
         if (removedFiles.isNotEmpty()) {
             runCatching { signalStore.forgetAttachments(removedFiles) }
                 .onFailure { Timber.w(it, "signal delete sync: could not remove attachments") }
@@ -2145,6 +2151,16 @@ class SignalRepositoryImpl @Inject constructor(
         // Signal reclaims them as a matter of course: `deleteConversations` enqueues
         // `DeleteAbandonedAttachmentsJob` once the messages are gone.
         val doomed = mutableListOf<String>()
+        // ⚠ And the same for the resend log, which nothing cleared. It holds the plaintext of
+        // everything this device has sent, so it can go again if somebody's client says it
+        // could not read it -- and a message deleted from this phone is one that must not go
+        // again. Left there, a retry receipt arriving any time in the next fortnight would
+        // deliver a message out of a conversation the person had deleted, and the plaintext
+        // sat in a plaintext-at-rest table whose header justifies itself on holding only live
+        // messages. Signal has a SQL trigger on message delete that drops the payloads; the
+        // trigger is not portable here -- the messages are in Realm and the log in the
+        // SQLCipher store -- but purging by sent timestamp is.
+        val sentTimestamps = mutableListOf<Long>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val messages = r.where(SignalMessage::class.java)
@@ -2152,6 +2168,7 @@ class SignalRepositoryImpl @Inject constructor(
                     .findAll()
                 removed = messages.size
                 doomed += messages.flatMap { attachmentIdsOf(it.attachments) }
+                sentTimestamps += messages.filter { it.outgoing }.map { it.date }
                 messages.deleteAllFromRealm()
                 r.where(SignalThread::class.java)
                     .equalTo("threadKey", threadKey)
@@ -2163,11 +2180,41 @@ class SignalRepositoryImpl @Inject constructor(
             runCatching { signalStore.forgetAttachments(doomed) }
                 .onFailure { Timber.w(it, "signal: could not remove a deleted conversation's files") }
         }
+        forgetFromResendLog(sentTimestamps)
         Timber.i(
             "signal: a conversation was deleted from this phone, %d message(s), %d file(s)",
             removed, doomed.size
         )
         return removed
+    }
+
+    /**
+     * Makes deleted messages un-resendable.
+     *
+     * ⚠ The resend log keeps the plaintext of everything this device has sent so it can go
+     * again when somebody's client says it could not read it. That is exactly what a deleted
+     * message must not do: a retry receipt arriving any time in the next fortnight would
+     * deliver a message the person had deleted -- or, for a message withdrawn with "delete for
+     * everyone", deliver it back to the person it was withdrawn from.
+     *
+     * Signal drops the payloads by SQL trigger on message delete, and explicitly with
+     * `deleteAllRelatedToMessage` on a remote delete. The trigger cannot be ported -- the
+     * messages live in Realm and the log in the SQLCipher protocol store, so there is no table
+     * for it to fire on -- but purging by sent timestamp reaches the same rows.
+     *
+     * Only outgoing messages have log entries, so only their timestamps are worth passing.
+     */
+    private fun forgetFromResendLog(sentTimestamps: List<Long>) {
+        val wanted = sentTimestamps.filter { it > 0 }.distinct()
+        if (wanted.isEmpty()) return
+        var dropped = 0
+        wanted.forEach { at ->
+            runCatching { dropped += signalStore.forgetSentMessage(at) }
+                .onFailure { Timber.w(it, "signal: could not drop a deleted message from the resend log") }
+        }
+        if (dropped > 0) {
+            Timber.i("signal message log: %d deleted message(s) can no longer be resent", dropped)
+        }
     }
 
     override fun canBlock(): Boolean = runCatching { signalStore.blockedListKnown() }.getOrDefault(false)

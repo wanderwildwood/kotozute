@@ -87,6 +87,8 @@ internal class SignalReceiver(
         var envelopes = 0
         var decrypted = 0
         var failed = 0
+        /** Whether the server handed out one of this device's one-time keys in this batch. */
+        var usedAPreKey = false
         var emptied = false
         val senders = mutableSetOf<String>()
 
@@ -137,6 +139,15 @@ internal class SignalReceiver(
                 return@forEach
             }
 
+            // A prekey message is the server handing out one of this device's one-time keys,
+            // so it is the one event that says the pile is shrinking. Noted here and acted on
+            // once the batch is done, because a run of them is still one refill.
+            //
+            // On the envelope's type and before decryption, which is where Signal does it:
+            // `MessageDecryptor` adds a `PreKeysSyncJob` follow-up on
+            // `envelope.type == PREKEY_MESSAGE` whatever the decryption then does.
+            if (envelope.type == Envelope.Type.PREKEY_MESSAGE) usedAPreKey = true
+
             when (val result = decrypt(envelope, serverDeliveredTimestamp, alreadyAsked)) {
                 // Kept, not deleted. The envelope was acknowledged on the way past -- the
                 // server has forgotten it and will never send it again -- so deleting a row
@@ -170,6 +181,22 @@ internal class SignalReceiver(
         // announces what it stored, and a notification per message would be a notification
         // per message on a device catching up after a day offline.
         val stored = if (messages.isEmpty()) 0 else events.store(messages)
+
+        // Before the sweeps, because it is the only one that reaches the network and the only
+        // one somebody is waiting on: until these are back the server hands every new
+        // correspondent a bundle with no one-time key.
+        if (usedAPreKey) {
+            runCatching {
+                PreKeyUploader(
+                    accounts,
+                    connection,
+                    { SignalPreKeyStore(db, it) },
+                    { SignalSignedPreKeyStore(db, it) },
+                    { SignalKyberPreKeyStore(db, it) }
+                ).refillOneTimeIfShort()
+            }.onFailure { Timber.w(it, "signal keys: could not top up after a prekey message") }
+        }
+
         sweepUndecryptable()
         // One place decides what this database stops holding: sent plaintext goes on the same
         // pass as undecryptable envelopes.

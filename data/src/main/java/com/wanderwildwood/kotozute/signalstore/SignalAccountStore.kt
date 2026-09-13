@@ -234,6 +234,10 @@ internal class SignalAccountStore(private val db: ProtocolDatabase) {
         counter(accountIdType, "active_signed_pre_key_id")
     }
 
+    fun activeLastResortKyberPreKeyId(accountIdType: Int): Int = withLock {
+        counter(accountIdType, "active_last_resort_kyber_pre_key_id")
+    }
+
     private fun counter(accountIdType: Int, column: String): Int =
         db.readableDatabase.rawQuery(
             "SELECT $column FROM account_identity WHERE account_id_type = ?",

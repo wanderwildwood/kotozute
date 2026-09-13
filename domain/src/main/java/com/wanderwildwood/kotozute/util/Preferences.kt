@@ -126,6 +126,15 @@ class Preferences @Inject constructor(
      */
     /** When the bridge was last reachable, for the honest "last synced" line. */
     val signalLastSync = rxPrefs.getLong("signalLastSync", 0L)
+
+    /**
+     * When the repeated-use Signal keys were last replaced because something would not decrypt.
+     *
+     * Signal keeps the same value (`lastForcedPreKeyRefresh`) for the same reason: a forced
+     * rotation is only allowed once an hour when the keys turn out to be fine, so a run of
+     * undecryptable envelopes cannot become a run of rotations.
+     */
+    val signalLastForcedKeyRotation = rxPrefs.getLong("signalLastForcedKeyRotation", 0L)
     /**
      * Why the server last refused this device, or blank if it has not.
      *

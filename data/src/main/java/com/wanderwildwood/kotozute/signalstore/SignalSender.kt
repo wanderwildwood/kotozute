@@ -505,6 +505,44 @@ internal class SignalSender(
         Result.Failed(t.message ?: t::class.java.simpleName)
     }
 
+    /**
+     * Tells this account's **own** devices what has just been read here.
+     *
+     * Not a read receipt. A receipt goes to the person who wrote the message and is a courtesy
+     * they can switch off; this goes to the account's other devices and is how a conversation
+     * read on one of them stops being unread on the rest. Signal keeps them separate and
+     * enqueues this one unconditionally -- `MarkReadReceiver` runs
+     * `MultiDeviceReadUpdateJob.enqueue(syncMessageIds)` before it considers receipts at all,
+     * and only `SendReadReceiptJob` consults the preference.
+     *
+     * Each entry names the message the way Signal names one everywhere: whoever wrote it, and
+     * the timestamp they sent it with.
+     */
+    fun sendReadSync(read: List<Pair<ServiceId.ACI, Long>>): Result {
+        if (read.isEmpty()) return Result.Sent(System.currentTimeMillis())
+        val timestamp = System.currentTimeMillis()
+        return try {
+            val result = sender.sendSyncMessage(
+                SignalServiceSyncMessage.forRead(
+                    read.map {
+                        org.whispersystems.signalservice.api.messages.multidevice.ReadMessage(
+                            it.first, it.second
+                        )
+                    }
+                )
+            )
+            if (result.isSuccess) {
+                Timber.i("signal read sync: told our own devices about %d message(s)", read.size)
+                Result.Sent(timestamp)
+            } else {
+                Result.Failed(describe(result))
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal read sync: send threw")
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
     /** Asks the primary for the blocked list, which arrives later through the socket. */
     fun requestBlockedList(): Result = try {
         val result = sender.sendSyncMessage(

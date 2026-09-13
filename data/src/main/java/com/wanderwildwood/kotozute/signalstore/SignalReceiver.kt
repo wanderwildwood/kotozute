@@ -765,7 +765,14 @@ internal class SignalReceiver(
                             sender to at
                         }
                         if (pairs.isNotEmpty()) {
-                            runCatching { events.readElsewhere(pairs) }
+                            // When the other device read them, which is what dates a
+                            // disappearing message's clock. Signal passes the sync's own
+                            // timestamp here for that reason; the server's is preferred
+                            // because the sender chooses the other one.
+                            val readAt = envelope.serverTimestamp
+                                ?: envelope.clientTimestamp
+                                ?: System.currentTimeMillis()
+                            runCatching { events.readElsewhere(pairs, readAt) }
                                 .onFailure { Timber.w(it, "signal read sync: could not apply") }
                         }
                     }

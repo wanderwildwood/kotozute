@@ -106,6 +106,89 @@ internal class PreKeyUploader(
     }
 
     /**
+     * Whether the server holds the repeated-use keys this device thinks it does.
+     *
+     * `POST /v2/keys/check` in one call: the identity key, the active signed prekey and the
+     * last-resort Kyber key are hashed together and compared with the server's own copy. A 409
+     * means they disagree -- the device and the server have diverged and only a rotation puts
+     * them back. Anything else means they agree, and a rotation would achieve nothing while
+     * invalidating every bundle already handed out.
+     *
+     * True when consistent, false when the check says otherwise **or the keys cannot be
+     * loaded**. A device that cannot read its own active keys is one whose keys need
+     * replacing, which is upstream's reading of the same two exceptions.
+     */
+    private fun keysAgreeWithServer(accountIdType: Int, serviceIdType: ServiceIdType): Boolean {
+        val identity = accounts.identityKeyPair(accountIdType) ?: return true
+        val signedId = accounts.activeSignedPreKeyId(accountIdType)
+        val kyberId = accounts.activeLastResortKyberPreKeyId(accountIdType)
+        if (signedId < 0 || kyberId < 0) return false
+
+        val result = runCatching {
+            connection.keys.checkRepeatedUseKeysSync(
+                serviceIdType,
+                identity.publicKey,
+                signedId,
+                signedPreKeys(accountIdType).loadSignedPreKey(signedId).keyPair.publicKey,
+                kyberId,
+                kyberPreKeys(accountIdType).loadKyberPreKey(kyberId).keyPair.publicKey
+            )
+        }.getOrElse {
+            Timber.w(it, "signal keys: %s could not load its own keys to check them", serviceIdType)
+            return false
+        }
+        return when {
+            result is NetworkResult.Success -> true
+            // Explicitly the disagreement the check exists to find.
+            result is NetworkResult.StatusCodeError<*> && result.code == 409 -> false
+            // Anything else -- no network, a server having a moment -- says nothing about the
+            // keys. Treated as agreement so a bad minute cannot become a rotation.
+            else -> {
+                Timber.w("signal keys: %s could not be checked against the server: %s", serviceIdType, result)
+                true
+            }
+        }
+    }
+
+    /**
+     * Replaces the repeated-use keys because something failed to decrypt against them -- but
+     * only if they are actually wrong, or it has been long enough since the last time.
+     *
+     * ⚠ The gate is the point. A prekey message that will not open indicts the bundle it was
+     * built against, so rotating is the right instinct -- and acting on the instinct alone
+     * means anyone who can send this device traffic can make it rotate both identities' entire
+     * key sets, repeatedly, on the receive thread, each rotation invalidating the bundles other
+     * people are holding and breaking sends that were about to work.
+     *
+     * Upstream asks the server first (`checkPreKeyConsistency`) and rotates only on a 409; if
+     * the keys check out it falls back to `timeSinceLastForcedRotation >
+     * preKeyForceRefreshInterval`, an hour, so a stream of bad envelopes costs one rotation an
+     * hour rather than one each.
+     *
+     * @return what happened, for the log.
+     */
+    fun rotateIfKeysAreWrong(lastForcedAt: Long, onRotated: (Long) -> Unit): String {
+        val aciAgrees = keysAgreeWithServer(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, ServiceIdType.ACI)
+        val pniAgrees = accounts.identityKeyPair(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI)
+            ?.let { keysAgreeWithServer(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, ServiceIdType.PNI) }
+            ?: true
+
+        val since = System.currentTimeMillis() - lastForcedAt
+        val reason = when {
+            !aciAgrees -> "the account's keys disagree with the server"
+            !pniAgrees -> "the phone-number identity's keys disagree with the server"
+            // `< 0` for a clock that moved backwards, as everywhere else here.
+            since > FORCE_INTERVAL_MS || since < 0 -> "they agree, but it has been long enough"
+            else -> return "checked, and left alone: they agree and one was replaced recently"
+        }
+
+        Timber.w("signal keys: replacing the repeated-use keys -- %s", reason)
+        val result = uploadAll()
+        if (result !is Result.Failed) onRotated(System.currentTimeMillis())
+        return "$reason -> $result"
+    }
+
+    /**
      * Replaces one identity's repeated-use keys now, whatever the clock says.
      *
      * For the one case Signal forces a rotation outside its own schedule: a change of the
@@ -334,6 +417,14 @@ internal class PreKeyUploader(
          * yet; the constant is here so the number has one home when it gets one.
          */
         val MAXIMUM_SIGNED_PREKEY_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(14)
+
+        /**
+         * How often a forced rotation may actually rotate when the keys check out.
+         *
+         * Signal's `RemoteConfig.preKeyForceRefreshInterval`, an hour. It is what stops a
+         * stream of undecryptable envelopes from becoming a stream of rotations.
+         */
+        val FORCE_INTERVAL_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(1)
 
         /**
          * Whether the repeated-use keys are owed a refresh, given the age of the signed prekey

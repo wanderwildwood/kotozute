@@ -128,6 +128,26 @@ class SignalStore(private val context: Context) {
     fun uploadPreKeys(): String = runPreKeys(maintenanceOnly = false)
 
     /**
+     * Replaces the repeated-use keys because a message would not open against them -- if they
+     * are actually wrong, or it has been long enough. See [PreKeyUploader.rotateIfKeysAreWrong];
+     * the gate is what stops anyone who can send traffic from driving rotations at will.
+     */
+    fun rotatePreKeysIfWrong(lastForcedAt: Long, onRotated: (Long) -> Unit): String {
+        connection.connect()
+        return try {
+            PreKeyUploader(
+                account,
+                connection,
+                { SignalPreKeyStore(database, it) },
+                { SignalSignedPreKeyStore(database, it) },
+                { SignalKyberPreKeyStore(database, it) }
+            ).rotateIfKeysAreWrong(lastForcedAt, onRotated)
+        } finally {
+            // The socket is shared and long-lived; see runPreKeys.
+        }
+    }
+
+    /**
      * Tops up and rotates the account's keys if either is owed. See [PreKeyUploader.maintain].
      *
      * Cheap when nothing is needed -- two count requests and no upload -- so it can run on the
@@ -463,6 +483,23 @@ class SignalStore(private val context: Context) {
             SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
             SignalDataStore(database, account), connection, contacts
         ).sendReadReceipt(serviceId, timestamps) is SignalSender.Result.Sent
+    }
+
+    /**
+     * Tells this account's own devices what was read here. Not a receipt; see the sender.
+     *
+     * @param read whoever wrote each message, and the timestamp they sent it with.
+     */
+    fun sendReadSync(read: List<Pair<String, Long>>): Boolean {
+        val named = read.mapNotNull { (author, at) ->
+            org.signal.core.models.ServiceId.ACI.parseOrNull(author)?.let { it to at }
+        }
+        if (named.isEmpty()) return true
+        connection.connect()
+        return SignalSender(
+            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalDataStore(database, account), connection, contacts
+        ).sendReadSync(named) is SignalSender.Result.Sent
     }
 
     /**

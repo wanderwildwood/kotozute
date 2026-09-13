@@ -217,11 +217,21 @@ class SignalRepositoryImpl @Inject constructor(
         prefs.signalEnabled.set(false)
         prefs.signalLastSync.set(0L)
         prefs.signalRejected.set("")
+        // The same, for the whole account. "Delete Signal data" that leaves every attachment
+        // on disk is not what the row says it does.
+        val doomed = mutableListOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction {
+                doomed += it.where(SignalMessage::class.java).findAll()
+                    .flatMap { message -> attachmentIdsOf(message.attachments) }
                 it.delete(SignalMessage::class.java)
                 it.delete(SignalThread::class.java)
             }
+        }
+        if (doomed.isNotEmpty()) {
+            runCatching { signalStore.forgetAttachments(doomed) }
+                .onFailure { Timber.w(it, "signal: could not remove the account's files") }
+            Timber.i("signal: removed %d attachment file(s) with the messages", doomed.size)
         }
         publishState(signalConnected = false, error = null)
     }
@@ -821,12 +831,30 @@ class SignalRepositoryImpl @Inject constructor(
         //
         // The setting is the account's, taken from the primary; see [applyConfiguration].
         if (read && !prefs.signalReadReceipts.get()) return 0
+        // ⚠ Whose receipt it is decides which messages it can touch, and it was being ignored
+        // entirely: any outgoing row with a matching sent timestamp was marked, whoever the
+        // receipt came from. A timestamp is not a secret -- it rides on every message -- so
+        // any contact could replay one and mark this account's messages *to somebody else*
+        // delivered or read.
+        //
+        // Upstream's query is `DATE_SENT = target AND FROM_RECIPIENT_ID = self AND
+        // (TO_RECIPIENT_ID = receiptAuthor OR the recipient is not an INDIVIDUAL)`. The last
+        // clause is what lets any member of a group receipt a group message; outside a group
+        // the receipt has to come from the person it was sent to.
+        if (senderUuid.isBlank()) return 0
+        val theirThread = "direct:$senderUuid"
         var changed = 0
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 r.where(SignalMessage::class.java)
                     .equalTo("outgoing", true)
                     .`in`("date", timestamps.toTypedArray())
+                    // Theirs, or a group's. See above.
+                    .beginGroup()
+                    .equalTo("threadKey", theirThread)
+                    .or()
+                    .beginsWith("threadKey", "group:")
+                    .endGroup()
                     .findAll()
                     .forEach { message ->
                         // A read receipt implies delivery -- it cannot have been read without
@@ -1111,6 +1139,29 @@ class SignalRepositoryImpl @Inject constructor(
         }
         val existing = realm.where(SignalMessage::class.java).equalTo("id", m.id).findFirst()
         val isNew = existing == null
+
+        // ⚠ Two things belong to this device and not to whatever is arriving, and both were
+        // being overwritten.
+        //
+        // The server redelivers an envelope whose ack it did not hear, and an edit rewrites
+        // the row it names on purpose -- so "the row already exists" is two situations, and
+        // this path serves both. Signal never has to tell them apart: a UNIQUE
+        // (date_sent, from_recipient_id, thread_id) makes a redelivered insert fail outright,
+        // and an edit goes through its own handler. Here they share a door, so the fields that
+        // must survive it are named rather than the door being shut.
+        //
+        // `read` is one: a message the reader has read does not become unread because the
+        // server said it again, and an edit does not un-read it either. The thread popping
+        // back to unread with a notification is what that looked like.
+        //
+        // `expiresAt` is the other, and worse: it is *when this copy disappears*, started by
+        // reading it. Rewriting it from the wire sets it back to 0 on an already-read
+        // disappearing message -- un-starting a countdown that had begun, which leaves the
+        // copy on this phone after it has gone everywhere else. A timer that has started is
+        // not something an arriving message gets to restart.
+        val wasRead = existing?.read == true
+        val countdownStarted = existing?.expiresAt ?: 0L
+
         val row = existing ?: realm.createObject(SignalMessage::class.java, m.id)
         row.seq = m.seq
         row.threadKey = m.threadKey
@@ -1121,13 +1172,13 @@ class SignalRepositoryImpl @Inject constructor(
         row.body = m.body
         row.groupId = m.groupId
         row.quoteTs = m.quoteTs
-        row.read = m.read
+        row.read = m.read || wasRead
         row.source = m.source
         // A view-once attachment is never stored. Signal's promise is that it can be opened
         // once; a copy in Realm is a copy that can be opened for ever. The row stays so the
         // thread does not have a silent hole where a message was.
         row.attachments = if (m.viewOnce) "" else m.attachmentsJson
-        row.expiresAt = m.expiresAt
+        row.expiresAt = if (countdownStarted > 0L) countdownStarted else m.expiresAt
         row.expiresInSeconds = m.expiresInSeconds
         row.viewOnce = m.viewOnce
 
@@ -1452,7 +1503,8 @@ class SignalRepositoryImpl @Inject constructor(
             applyReceipts(sender, timestamps, read)
         }
 
-        override fun readElsewhere(read: List<Pair<String, Long>>) = applyReadElsewhere(read)
+        override fun readElsewhere(read: List<Pair<String, Long>>, readAt: Long) =
+            applyReadElsewhere(read, readAt)
 
         override fun withdrawn(author: String, sentAt: Long, withdrawnAt: Long) =
             applyWithdrawal(author, sentAt, withdrawnAt)
@@ -1473,9 +1525,22 @@ class SignalRepositoryImpl @Inject constructor(
         override fun refreshStoredRecords() = rereadStoredRecords()
 
         override fun rotatePreKeys() {
-            runCatching { signalStore.uploadPreKeys() }
-                .onSuccess { Timber.i("signal keys: replaced before a retry -- %s", it) }
-                .onFailure { Timber.w(it, "signal keys: could not replace before a retry") }
+            // ⚠ Asked, not obeyed. A prekey message that will not open indicts the bundle it
+            // was built against, so replacing the keys is the right instinct -- and acting on
+            // the instinct alone let anyone who can send this device traffic drive a full
+            // rotation of both identities, on the receive thread, once per bad envelope. Every
+            // rotation invalidates the bundles other people are already holding, so that is a
+            // way to break sends that were about to work.
+            //
+            // The server is asked first now, and the clock second; see
+            // [PreKeyUploader.rotateIfKeysAreWrong].
+            runCatching {
+                signalStore.rotatePreKeysIfWrong(prefs.signalLastForcedKeyRotation.get()) {
+                    prefs.signalLastForcedKeyRotation.set(it)
+                }
+            }
+                .onSuccess { Timber.i("signal keys: %s", it) }
+                .onFailure { Timber.w(it, "signal keys: could not check or replace before a retry") }
         }
     }
 
@@ -1592,10 +1657,19 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun applyReadElsewhere(read: List<Pair<String, Long>>) = runOffThread {
+    private fun applyReadElsewhere(read: List<Pair<String, Long>>, readAt: Long) = runOffThread {
         if (read.isEmpty()) return@runOffThread
         val ids = read.map { (sender, at) -> "$sender:$at" }
-        val readAt = System.currentTimeMillis()
+        // ⚠ Not `System.currentTimeMillis()`, which is what this used. A disappearing
+        // message's clock starts when somebody reads it, and when the reading happened on
+        // another device the only honest answer is the timestamp that device sent -- which is
+        // now a parameter. Dating it from local now meant a handset catching up on a backlog
+        // restarted every countdown from the moment it reconnected, so the copy on the phone
+        // that was *off* is the one that outlives the timer.
+        //
+        // Signal passes the sync's timestamp as `proposedExpireStarted` and takes
+        // `min(proposed, existing)` where a clock has already started, which is the same rule
+        // as the earlier of the two deadlines below.
         val touched = mutableSetOf<String>()
         val cleared = mutableSetOf<String>()
         Realm.getDefaultInstance().use { realm ->
@@ -1607,8 +1681,10 @@ class SignalRepositoryImpl @Inject constructor(
                         // Read elsewhere is still read, so the clock starts here too --
                         // otherwise a disappearing message read on her own phone would sit
                         // here for ever, never counted down and never removed.
-                        if (row.expiresInSeconds > 0 && row.expiresAt == 0L) {
-                            row.expiresAt = readAt + row.expiresInSeconds * 1000L
+                        if (row.expiresInSeconds > 0) {
+                            val proposed = readAt + row.expiresInSeconds * 1000L
+                            row.expiresAt =
+                                if (row.expiresAt == 0L) proposed else minOf(row.expiresAt, proposed)
                         }
                         touched += row.threadKey
                     }
@@ -1683,8 +1759,24 @@ class SignalRepositoryImpl @Inject constructor(
         // The receipt goes out on this device's own connection, and only where the reader
         // asked for receipts to be sent. A receipt names the messages by the timestamps they
         // were sent with, which is what was just collected.
-        if (!prefs.signalReadReceipts.get()) return@runOffThread
         if (justRead.isEmpty()) return@runOffThread
+
+        // ⚠ The account's own devices first, and whatever the receipt setting says.
+        //
+        // These are two different messages to two different audiences and only one of them is
+        // a courtesy. A read receipt goes to the person who wrote the message; a read *sync*
+        // goes to this account's other devices and is the only thing that stops a conversation
+        // read here from sitting unread and notifying on the primary and on Desktop for ever.
+        // Both were behind the receipt preference, so turning receipts off also stopped this
+        // phone telling *itself* anything -- and even with them on, nothing sent one at all.
+        //
+        // Upstream keeps the order and the independence: `MarkReadReceiver` runs
+        // `MultiDeviceReadUpdateJob.enqueue(...)` before it considers receipts, and only
+        // `SendReadReceiptJob` consults the preference.
+        runCatching { signalStore.sendReadSync(justRead.filterNot { it.first.isBlank() }) }
+            .onFailure { Timber.w(it, "signal read sync: could not tell our own devices") }
+
+        if (!prefs.signalReadReceipts.get()) return@runOffThread
 
         // ⚠ One receipt per author, not one per conversation. This used to return early for
         // anything that was not a `direct:` thread, so reading a group told nobody -- with
@@ -1822,7 +1914,12 @@ class SignalRepositoryImpl @Inject constructor(
             // filled the Signal list entirely. They stay in the store as the directory for
             // starting a new conversation -- see threadDirectory.
             .greaterThan("lastTs", 0L)
-            .sort("lastTs", Sort.DESCENDING)
+            // ⚠ Pinned first, which this ignored. Pin is offered on every Signal row and the
+            // model calls it "kept at the top of the list", and then the list sorted purely by
+            // date -- so the one thing pinning promises was the one thing it did not do.
+            // Signal's conversation list splits on the pin and orders only the remainder by
+            // date; the same split, expressed as a sort, is what a Realm query can say.
+            .sort(arrayOf("pinned", "lastTs"), arrayOf(Sort.DESCENDING, Sort.DESCENDING))
             .findAllAsync()
 
     /**
@@ -1972,12 +2069,20 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun deleteThread(threadKey: String): Int {
         var removed = 0
+        // ⚠ Collected before the rows go, because afterwards nothing says which files belonged
+        // to them. Deleting a conversation left every photo and voice note in it sitting in
+        // `files/signal-attachments`, unreferenced and unreachable, for the life of the
+        // install -- so "delete this conversation" removed the words and kept the pictures.
+        // Signal reclaims them as a matter of course: `deleteConversations` enqueues
+        // `DeleteAbandonedAttachmentsJob` once the messages are gone.
+        val doomed = mutableListOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val messages = r.where(SignalMessage::class.java)
                     .equalTo("threadKey", threadKey)
                     .findAll()
                 removed = messages.size
+                doomed += messages.flatMap { attachmentIdsOf(it.attachments) }
                 messages.deleteAllFromRealm()
                 r.where(SignalThread::class.java)
                     .equalTo("threadKey", threadKey)
@@ -1985,7 +2090,14 @@ class SignalRepositoryImpl @Inject constructor(
                     .deleteAllFromRealm()
             }
         }
-        Timber.i("signal: a conversation was deleted from this phone, %d message(s)", removed)
+        if (doomed.isNotEmpty()) {
+            runCatching { signalStore.forgetAttachments(doomed) }
+                .onFailure { Timber.w(it, "signal: could not remove a deleted conversation's files") }
+        }
+        Timber.i(
+            "signal: a conversation was deleted from this phone, %d message(s), %d file(s)",
+            removed, doomed.size
+        )
         return removed
     }
 
@@ -2449,6 +2561,21 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * Pins a conversation to the top of the list, or lets it go.
+     *
+     * ⚠ **Deliberately does not `markNeedsSync`,** and the reason is not an oversight to fix.
+     * A pin does not live on the conversation's own storage record the way mute and archive
+     * do: it rides the *account's* record, as `AccountRecord.pinnedConversations`, and Signal
+     * marks `Recipient.self()` for it -- `pinConversations` calls
+     * `markNeedsSync(Recipient.self().id)`. Marking this thread's recipient instead would
+     * rotate the wrong record's storage id and make this device believe it had a contact
+     * change to push that it does not have.
+     *
+     * This app has no row for its own account and does not read or write AccountRecord at all,
+     * so there is nothing here to mark yet. When the storage write path grows the account half,
+     * this is where the mark goes -- on self, not on the thread.
+     */
     override fun setPinned(threadKey: String, pinned: Boolean) = runOffThread {
         editThread(threadKey) { it.pinned = pinned }
     }
@@ -2590,7 +2717,15 @@ class SignalRepositoryImpl @Inject constructor(
             realm.executeTransaction { r ->
                 r.where(SignalThread::class.java)
                     .equalTo("threadKey", threadKey)
-                    .findFirst()?.archived = archived
+                    .findFirst()?.let { thread ->
+                        thread.archived = archived
+                        // ⚠ And archiving un-pins, which it did not. A pinned conversation
+                        // archived and later unarchived came back pinned and sorted above
+                        // newer conversations -- a state nobody chose, arrived at by two
+                        // settings that contradict each other. `ThreadTable.setArchived` nulls
+                        // PINNED_ORDER whenever it archives, so the two are exclusive.
+                        if (archived) thread.pinned = false
+                    }
             }
         }
     }
@@ -2601,7 +2736,9 @@ class SignalRepositoryImpl @Inject constructor(
                 realm.where(SignalThread::class.java)
                     .equalTo("archived", archived)
                     .greaterThan("lastTs", 0L)
-                    .sort("lastTs", Sort.DESCENDING)
+                    // The same order as [getThreads]; a snapshot that sorted differently from
+                    // the live list is a list that reorders itself when it refreshes.
+                    .sort(arrayOf("pinned", "lastTs"), arrayOf(Sort.DESCENDING, Sort.DESCENDING))
                     .findAll()
             )
         }

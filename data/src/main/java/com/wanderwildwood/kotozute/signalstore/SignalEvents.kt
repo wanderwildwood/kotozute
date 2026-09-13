@@ -65,7 +65,11 @@ interface SignalEvents {
     fun resend(to: String, sentTimestamp: Long) {}
 
     /** Messages the account has read on another device. */
-    fun readElsewhere(read: List<Pair<String, Long>>) {}
+    /**
+     * @param readAt when the other device said so -- the read sync's own timestamp, not now.
+     *   It dates a disappearing message's countdown; see the note where it is applied.
+     */
+    fun readElsewhere(read: List<Pair<String, Long>>, readAt: Long) {}
 
     /**
      * A message its sender has withdrawn, for everyone.

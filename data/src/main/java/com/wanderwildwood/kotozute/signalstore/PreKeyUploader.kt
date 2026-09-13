@@ -51,8 +51,9 @@ internal class PreKeyUploader(
      * linking and never rotated, so one signed prekey signs for the life of the install.
      *
      * `upload` already replaces all of it in one request, so the work here is deciding *when*,
-     * which is the part that did not exist. Signal asks the server for its counts and
-     * regenerates below a threshold; this does the same, and also rotates on age.
+     * which is the part that did not exist. That decision is now Signal's: every
+     * [REFRESH_INTERVAL_MS], the same gate `PreKeysSyncJob.checkPreKeys` puts in front of its
+     * whole job, and nothing is asked of the server in between.
      */
     fun maintain(): Result {
         val aci = maintainOne(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, ServiceIdType.ACI)
@@ -66,14 +67,33 @@ internal class PreKeyUploader(
         // a linked device without a PNI is an ordinary state, not a broken one.
         if (accounts.identityKeyPair(accountIdType) == null) return Result.NotNeeded
 
-        val counts = countsFor(serviceIdType)
-        val short = counts == null || counts.first < MINIMUM_COUNT || counts.second < MINIMUM_COUNT
-        val stale = signedPreKeyIsOld(accountIdType)
+        // ⚠ Nothing is asked of the server until the interval is up, which it was not.
+        // `SignalSyncWorker` runs this every fifteen minutes, and the first thing it did was
+        // ask the server for its prekey counts -- for the ACI and again for the PNI, about a
+        // hundred and ninety requests a day, on a phone built to stay asleep.
+        //
+        // Signal gates the whole thing: `PreKeysSyncJob.checkPreKeys` enqueues the job only
+        // when a key is unregistered or inactive, or `timeSinceLastFullRefresh >=
+        // REFRESH_INTERVAL`. The counts are read inside the job, not before it. The trade is
+        // Signal's too: one-time keys running out is noticed on the next interval rather than
+        // within the quarter hour, which is what 100 keys and two days are sized for.
+        if (!rotationDue(accountIdType)) return Result.NotNeeded
 
-        if (!short && !stale) return Result.NotNeeded
+        val counts = countsFor(serviceIdType)
+        // Read before the refill, so it says what the interval cost rather than what it fixed.
+        // Below the minimum here means the one-time keys ran out *before* the interval came
+        // round, and sessions started in the gap got a bundle with no one-time key. If this
+        // ever appears, the answer is a trigger, not a shorter interval -- Signal enqueues its
+        // job on demand as well as on the clock.
+        if (counts != null && (counts.first < MINIMUM_COUNT || counts.second < MINIMUM_COUNT)) {
+            Timber.w(
+                "signal keys: %s ran low before its refresh was due (ec=%d kyber=%d)",
+                serviceIdType, counts.first, counts.second
+            )
+        }
         Timber.i(
-            "signal keys: %s topping up (short=%b stale=%b, server ec=%s kyber=%s)",
-            serviceIdType, short, stale, counts?.first ?: "?", counts?.second ?: "?"
+            "signal keys: %s refreshing (server ec=%s kyber=%s)",
+            serviceIdType, counts?.first ?: "?", counts?.second ?: "?"
         )
         return upload(accountIdType, serviceIdType)
     }
@@ -92,11 +112,16 @@ internal class PreKeyUploader(
      * that should replace it, and replacing a key that did not need replacing costs one
      * request.
      */
-    private fun signedPreKeyIsOld(accountIdType: Int): Boolean = runCatching {
+    private fun rotationDue(accountIdType: Int): Boolean = runCatching {
         val active = accounts.activeSignedPreKeyId(accountIdType)
         if (active < 0) return@runCatching true
         val record = signedPreKeys(accountIdType).loadSignedPreKey(active)
-        System.currentTimeMillis() - record.timestamp > ROTATION_AGE_MS
+        val age = System.currentTimeMillis() - record.timestamp
+        // ⚠ A negative age counts as due, as it does in Signal -- both `PreKeysSyncJob` and
+        // the send path test `< 0` alongside the threshold. A clock that has moved backwards
+        // would otherwise put the key permanently in the future and rotation would never come
+        // round again. These machines keep their RTC in local time, so this is not theoretical.
+        age >= REFRESH_INTERVAL_MS || age < 0
     }.getOrDefault(true)
 
     fun uploadAll(): Result {
@@ -203,15 +228,33 @@ internal class PreKeyUploader(
         /** signal-cli's `PREKEY_BATCH_SIZE`. */
         const val BATCH_SIZE = 100
 
-        /** signal-cli's `PREKEY_MINIMUM_COUNT`: below this, top up. */
+        /** signal-cli's `PREKEY_MINIMUM_COUNT`, and Signal's `ONE_TIME_PREKEY_MINIMUM`. */
         const val MINIMUM_COUNT = 10
 
         /**
-         * How long a signed prekey may stay in force.
+         * How often the repeated-use keys are replaced.
          *
-         * Signal's own ceiling. Past this the key signing every session this device accepts
-         * has been the same one for a fortnight, which is the thing rotation exists to stop.
+         * Signal's `PreKeysSyncJob.REFRESH_INTERVAL`, whose comment is exactly this: "How
+         * often we want to rotate signed prekeys and last-resort kyber prekeys."
+         *
+         * ⚠ This was fourteen days, taken from [MAXIMUM_SIGNED_PREKEY_AGE_MS] below and
+         * described in a comment as "Signal's own ceiling" -- which was true, and was the
+         * wrong number. A ceiling is not a cadence: Signal rotates seven times inside it and
+         * treats reaching it as a fault to be repaired before a message can go out. Sitting
+         * exactly on the ceiling meant one signed prekey signed for every session this device
+         * accepted for a fortnight at a time, which is the thing rotation exists to stop.
          */
-        val ROTATION_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(14)
+        val REFRESH_INTERVAL_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(2)
+
+        /**
+         * The age past which a signed prekey is a fault rather than merely old.
+         *
+         * Signal's `MAXIMUM_ALLOWED_SIGNED_PREKEY_AGE`: "If signed prekeys or last-resort
+         * kyber keys are older than this, we will require rotation before sending messages."
+         * It is a stop in the *send* path (`PushSendJob`, `IndividualSendJobV2`), which
+         * rotates synchronously and refuses to send if that fails. This app has no such guard
+         * yet; the constant is here so the number has one home when it gets one.
+         */
+        val MAXIMUM_SIGNED_PREKEY_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(14)
     }
 }

@@ -7,6 +7,7 @@ import org.whispersystems.signalservice.api.SignalSessionLock
 import org.whispersystems.signalservice.api.crypto.SignalServiceCipher
 import org.whispersystems.signalservice.api.messages.EnvelopeResponse
 import org.whispersystems.signalservice.api.push.SignalServiceAddress
+import org.whispersystems.signalservice.api.push.ServiceIdType
 import org.whispersystems.signalservice.internal.push.Envelope
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
@@ -1071,6 +1072,33 @@ internal class SignalReceiver(
             // Registered already: the primary submitted these to the server as part of the
             // change, so from this device they are live rather than waiting to be uploaded.
             Timber.i("signal number change: applied a new number and phone-number identity")
+
+            // ⚠ And replaced at once, which is what was missing. These are keys another
+            // device generated and sent through a sync message, and Signal's comment where it
+            // does the same says exactly why they do not stay: "Rotate the primary-generated
+            // keys as soon as possible so we don't rely on them long-term." It sets
+            // `forcePniSignedPreKeyRotation` and enqueues `PreKeysSyncJob(forceRotationRequested
+            // = true)` right here.
+            //
+            // The periodic path cannot cover this. Its clock is the stored record's own
+            // timestamp, and the record just written is brand new -- so storing the primary's
+            // key resets the clock and leaves it in force for the full interval, which is the
+            // opposite of what applying a number change should mean.
+            runCatching {
+                PreKeyUploader(
+                    accounts,
+                    connection,
+                    { SignalPreKeyStore(db, it) },
+                    { SignalSignedPreKeyStore(db, it) },
+                    { SignalKyberPreKeyStore(db, it) }
+                ).rotateNow(ServiceIdType.PNI)
+            }.onSuccess {
+                Timber.i("signal number change: rotated the phone-number identity's keys: %s", it)
+            }.onFailure {
+                // Not fatal to the change itself. The primary's keys work; they are simply
+                // somebody else's, and the next periodic pass will come round for them.
+                Timber.w(it, "signal number change: could not rotate the new keys yet")
+            }
         }.onFailure {
             // Deliberately loud. A number change that will not apply leaves this device unable
             // to read anything sent to the account's phone-number identity, and the only

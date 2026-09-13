@@ -106,6 +106,30 @@ internal class PreKeyUploader(
     }
 
     /**
+     * Replaces one identity's repeated-use keys now, whatever the clock says.
+     *
+     * For the one case Signal forces a rotation outside its own schedule: a change of the
+     * account's phone number. The primary generates that new PNI signed prekey and last-resort
+     * Kyber key and hands them to every linked device inside a sync message, and Signal's
+     * comment at the point it does so says why this has to follow --
+     * *"Rotate the primary-generated keys as soon as possible so we don't rely on them
+     * long-term."* It sets `forcePniSignedPreKeyRotation` and enqueues
+     * `PreKeysSyncJob.create(forceRotationRequested = true)`, which bypasses the interval.
+     *
+     * ⚠ The interval cannot catch this on its own here. [signedPreKeyAge] reads the stored
+     * record's own timestamp, and the record the primary just sent is brand new -- so storing
+     * it sets this device's rotation clock back to zero and the primary's key stays in force
+     * for the whole two days.
+     */
+    fun rotateNow(serviceIdType: ServiceIdType): Result = upload(
+        when (serviceIdType) {
+            ServiceIdType.PNI -> ProtocolDatabase.ACCOUNT_ID_TYPE_PNI
+            else -> ProtocolDatabase.ACCOUNT_ID_TYPE_ACI
+        },
+        serviceIdType
+    )
+
+    /**
      * Puts one-time keys back when the server is running low, whatever the clock says.
      *
      * The other half of [maintain]. That one is the periodic path and is gated on

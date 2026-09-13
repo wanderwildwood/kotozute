@@ -76,7 +76,11 @@ message says what it fixed without cataloguing what is still open.
 David has bound the phrase: **until the parity audit is complete, "keep going" means return to
 it and keep working through it.** It is not a vague continue — it is this file, the next open
 batch, no matter what the conversation had drifted onto. The same for "continue the parity
-audit". The binding lapses only when every entry is `done` or `refuted`.
+audit". The binding lapses only when every entry is `done` or `refuted` **and a fresh audit comes back
+clean**. When the queue empties, run the audit again over the same ground: a sweep that had 98
+things to report was not looking as hard at the ninety-ninth, and fixes move code that was
+last read weeks ago. The quest ends when a round finds nothing worth fixing, not when the
+first list runs out.
 
 On that word: open the queue, read Status, start the next open batch. One batch is one file.
 Finish it, update Status in the same commit, and start the next **without stopping to ask**.

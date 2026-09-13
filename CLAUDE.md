@@ -71,10 +71,17 @@ stay off GitHub until they are fixed. Do not add that file, or a summary of its 
 entries, to this repository. Fixes land here one at a time on their own merits, and a commit
 message says what it fixed without cataloguing what is still open.
 
-When David says **"continue the parity audit"**, or just **"keep going"** while this is the
-open quest: open that file, read Status, and start the next open batch. One batch is one file.
-Finish it, update Status in the same commit to the private file, and start the next without
-stopping to ask.
+### “keep going” means this quest
+
+David has bound the phrase: **until the parity audit is complete, "keep going" means return to
+it and keep working through it.** It is not a vague continue — it is this file, the next open
+batch, no matter what the conversation had drifted onto. The same for "continue the parity
+audit". The binding lapses only when every entry is `done` or `refuted`.
+
+On that word: open the queue, read Status, start the next open batch. One batch is one file.
+Finish it, update Status in the same commit, and start the next **without stopping to ask**.
+Report at the end of a batch, not in the middle of one, and never stop to ask whether to carry
+on — the answer is already yes until the quest is finished.
 
 **The rule that keeps it on course: do not open new work.** No features, no refactors beyond
 what a finding needs, no new audits, no chasing an interesting thing found along the way.

@@ -71,6 +71,51 @@ internal class SignalPreKeyStore(
             arrayOf(accountIdType, preKeyId)
         )
     }
+    /**
+     * Marks every key not already stale as stale from [staleTime].
+     *
+     * Stale is not deleted, and the gap between them is the point: the key stops being offered
+     * now, and is removed long afterwards by [deleteAllStaleOneTimeEcPreKeys], because a peer
+     * may have fetched a bundle weeks ago and be about to use it.
+     */
+    fun markAllOneTimeEcPreKeysStaleIfNecessary(staleTime: Long) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "UPDATE pre_key SET stale_timestamp = ? " +
+                "WHERE account_id_type = ? AND stale_timestamp IS NULL",
+            arrayOf<Any?>(staleTime, accountIdType)
+        )
+    }
+
+    /**
+     * Deletes keys that went stale before [threshold], holding back the newest [minCount].
+     *
+     * The keep-back set is signal-cli's and is easy to get subtly wrong. It ranks **all** this
+     * identity's keys, fresh ones first (`stale_timestamp IS NULL` sorts ahead), and keeps the
+     * top [minCount]. Restricting it to stale keys instead -- the obvious reading -- protects
+     * the newest stale keys permanently, so they are never swept and the table grows without
+     * bound while keys the server retired long ago stay usable here.
+     *
+     * `?1`-style numbered parameters are not available on Android's SQLite, so the account id
+     * is bound twice.
+     */
+    fun deleteAllStaleOneTimeEcPreKeys(threshold: Long, minCount: Int) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            """
+            DELETE FROM pre_key
+            WHERE account_id_type = ? AND stale_timestamp < ?
+              AND _id NOT IN (
+                SELECT _id FROM pre_key
+                WHERE account_id_type = ?
+                ORDER BY
+                  CASE WHEN stale_timestamp IS NULL THEN 1 ELSE 0 END DESC,
+                  stale_timestamp DESC,
+                  _id DESC
+                LIMIT ?
+              )
+            """.trimIndent(),
+            arrayOf<Any?>(accountIdType, threshold, accountIdType, minCount)
+        )
+    }
 }
 
 internal class SignalSignedPreKeyStore(
@@ -133,6 +178,7 @@ internal class SignalSignedPreKeyStore(
         db.exists("signed_pre_key", accountIdType, signedPreKeyId)
     }
 
+
     override fun removeSignedPreKey(signedPreKeyId: Int) = withStoreLock(db) {
         db.writableDatabase.execSQL(
             "DELETE FROM signed_pre_key WHERE account_id_type = ? AND key_id = ?",
@@ -188,6 +234,76 @@ internal class SignalKyberPreKeyStore(
                 )
             )
         }
+
+
+    /**
+     * Marks every key not already stale as stale from [staleTime].
+     *
+     * Stale is not deleted, and the gap between them is the point: the key stops being offered
+     * now, and is removed long afterwards by [deleteAllStaleOneTimeKyberPreKeys], because a peer
+     * may have fetched a bundle weeks ago and be about to use it.
+     */
+    fun markAllOneTimeKyberPreKeysStaleIfNecessary(staleTime: Long) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "UPDATE kyber_pre_key SET stale_timestamp = ? " +
+                "WHERE account_id_type = ? AND stale_timestamp IS NULL AND is_last_resort = 0",
+            arrayOf<Any?>(staleTime, accountIdType)
+        )
+    }
+
+    /**
+     * Deletes keys that went stale before [threshold], holding back the newest [minCount].
+     *
+     * The keep-back set is signal-cli's and is easy to get subtly wrong. It ranks **all** this
+     * identity's keys, fresh ones first (`stale_timestamp IS NULL` sorts ahead), and keeps the
+     * top [minCount]. Restricting it to stale keys instead -- the obvious reading -- protects
+     * the newest stale keys permanently, so they are never swept and the table grows without
+     * bound while keys the server retired long ago stay usable here.
+     *
+     * `?1`-style numbered parameters are not available on Android's SQLite, so the account id
+     * is bound twice.
+     */
+    fun deleteAllStaleOneTimeKyberPreKeys(threshold: Long, minCount: Int) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            """
+            DELETE FROM kyber_pre_key
+            WHERE account_id_type = ? AND stale_timestamp < ? AND is_last_resort = 0
+              AND _id NOT IN (
+                SELECT _id FROM kyber_pre_key
+                WHERE account_id_type = ?
+                ORDER BY
+                  CASE WHEN stale_timestamp IS NULL THEN 1 ELSE 0 END DESC,
+                  stale_timestamp DESC,
+                  _id DESC
+                LIMIT ?
+              )
+            """.trimIndent(),
+            arrayOf<Any?>(accountIdType, threshold, accountIdType, minCount)
+        )
+    }
+
+    /**
+     * Every last-resort key this identity holds, so the superseded ones can be found.
+     *
+     * Upstream has `loadLastResortKyberPreKeys` on the store for the same reason
+     * (`cleanLastResortKyberPreKeys` walks it).
+     */
+    /** Delegated to from the facade, so the sweep can reach it without one. */
+    fun removeKyberPreKey(kyberPreKeyId: Int) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "DELETE FROM kyber_pre_key WHERE account_id_type = ? AND key_id = ?",
+            arrayOf<Any?>(accountIdType, kyberPreKeyId)
+        )
+    }
+
+    fun loadLastResortKyberPreKeys(): List<KyberPreKeyRecord> = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT serialized FROM kyber_pre_key WHERE account_id_type = ? AND is_last_resort = 1",
+            arrayOf(accountIdType.toString())
+        ).use { c ->
+            generateSequence { if (c.moveToNext()) KyberPreKeyRecord(c.getBlob(0)) else null }.toList()
+        }
+    }
 
     override fun containsKyberPreKey(kyberPreKeyId: Int): Boolean = withStoreLock(db) {
         db.exists("kyber_pre_key", accountIdType, kyberPreKeyId)

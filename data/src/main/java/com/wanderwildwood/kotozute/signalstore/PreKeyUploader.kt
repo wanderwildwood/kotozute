@@ -306,16 +306,25 @@ internal class PreKeyUploader(
     }
 
     /**
-     * Generates a batch, uploads it, and only then writes it down.
+     * Writes a batch down, uploads it, and only then calls it active.
      *
-     * **That order is signal-cli's and it is the safer of the two, not the obvious one.** Store
-     * first and a failed upload leaves keys the server never advertised while the id counter
-     * has already moved -- harmless clutter, but it hides the failure. Upload first and a
-     * failed store leaves the server advertising keys this device does not hold, which is
-     * worse: a peer fetches one, builds a session against it, and this device cannot complete
-     * the handshake. So the store failure resets the id offsets, and the next run regenerates
-     * from where the server actually is. Neither order is safe on its own; the recovery is
-     * what makes this one safe.
+     * ⚠ This used to upload first, and the reason given for doing so was not true.
+     *
+     * The argument was that a failed store "resets the id offsets" so the next run regenerates
+     * from where the server actually is. Nothing reset anything -- there is no such code in
+     * the catch block or anywhere in the account store -- and the case that matters is not
+     * catchable at all: if the process dies between an accepted PUT and the store loop, no
+     * catch block runs. What was left behind was the bad half of the trade: the server
+     * advertising a signed prekey and a last-resort Kyber key this device never wrote, with
+     * `active_signed_pre_key_id` still naming the old one, and every new session failing at
+     * `no signed pre key <n>` until a later refresh happened to succeed.
+     *
+     * Signal's order instead: persist every generated record and advance the counter first,
+     * upload second, and record which key is *active* only once the upload is accepted
+     * (`PreKeyUtil.generateAndStoreOneTimeEcPreKeys` stores before returning;
+     * `PreKeysSyncJob` sets the active ids after `setPreKeysSync` succeeds). Then the only
+     * inconsistency possible is a key this device holds that the server does not advertise --
+     * which costs nothing, because nobody can ask for a key the server will not hand out.
      */
     private fun upload(accountIdType: Int, serviceIdType: ServiceIdType): Result {
         val identity = accounts.identityKeyPair(accountIdType)
@@ -337,33 +346,112 @@ internal class PreKeyUploader(
         val lastResortId = accounts.nextKyberPreKeyId(accountIdType)
         val lastResort = KeyUtilsForCheck.kyberPreKey(lastResortId, identity.privateKey)
 
-        val result = connection.keys.setPreKeysSync(
-            PreKeyUpload(serviceIdType, signed, ecKeys, lastResort, kyberKeys)
-        )
-        if (result !is NetworkResult.Success) {
-            // Nothing has been written, so nothing needs undoing -- but the counter has moved,
-            // and that is deliberate: reusing an id the server may have seen is worse than
-            // skipping a range of them.
-            return Result.Failed("pre key upload refused for $serviceIdType: $result")
-        }
+        // Written first, all of it. A key held but not advertised is inert; a key advertised
+        // but not held breaks every session that asks for it.
+        try {
+            // ⚠ The outgoing batch marks the previous one stale, which is where Signal marks
+            // it (`generateAndStoreOneTimeEcPreKeys` calls
+            // `markAllOneTimeEcPreKeysStaleIfNecessary` immediately before storing). Stale is
+            // not deleted: a peer may already be holding one of these and about to use it, so
+            // it stops being offered now and is swept long after -- see [sweepOldKeys].
+            val staleFrom = System.currentTimeMillis()
+            preKeys(accountIdType).markAllOneTimeEcPreKeysStaleIfNecessary(staleFrom)
+            kyberPreKeys(accountIdType).markAllOneTimeKyberPreKeysStaleIfNecessary(staleFrom)
 
-        return try {
             ecKeys.forEach { preKeys(accountIdType).storePreKey(it.id, it) }
             kyberKeys.forEach { kyberPreKeys(accountIdType).storeKyberPreKey(it.id, it) }
             signedPreKeys(accountIdType).storeSignedPreKey(signedId, signed)
             kyberPreKeys(accountIdType).storeLastResortKyberPreKey(lastResortId, lastResort)
-            accounts.recordActiveSignedPreKey(accountIdType, signedId)
-            accounts.recordActiveLastResortKyberPreKey(accountIdType, lastResortId)
-            Timber.i(
-                "signal keys: %s uploaded ec=%d kyber=%d signedId=%d readback=%s lastResortId=%d readback=%s",
-                serviceIdType, ecKeys.size, kyberKeys.size,
-                signedId, signedPreKeys(accountIdType).containsSignedPreKey(signedId),
-                lastResortId, kyberPreKeys(accountIdType).containsKyberPreKey(lastResortId)
-            )
-            Result.Uploaded
         } catch (t: Throwable) {
-            Timber.w(t, "signal keys: uploaded but could not store; resetting id offsets")
-            Result.Failed("pre keys uploaded but not stored: ${t.message}")
+            Timber.w(t, "signal keys: could not write the new keys; not uploading them")
+            return Result.Failed("pre keys could not be stored: ${t.message}")
+        }
+
+        val result = connection.keys.setPreKeysSync(
+            PreKeyUpload(serviceIdType, signed, ecKeys, lastResort, kyberKeys)
+        )
+        if (result !is NetworkResult.Success) {
+            // The keys are on disk and the server does not know about them, which is the
+            // harmless direction: nobody can ask for a key the server will not hand out, and
+            // the sweep below clears them once they are old. The active ids are deliberately
+            // NOT advanced -- the old signed prekey is still the one the server advertises,
+            // and it must stay the one this device calls active.
+            return Result.Failed("pre key upload refused for $serviceIdType: $result")
+        }
+
+        // Only now. This is the line that says "the server is handing this one out".
+        accounts.recordActiveSignedPreKey(accountIdType, signedId)
+        accounts.recordActiveLastResortKyberPreKey(accountIdType, lastResortId)
+
+        Timber.i(
+            "signal keys: %s uploaded ec=%d kyber=%d signedId=%d readback=%s lastResortId=%d readback=%s",
+            serviceIdType, ecKeys.size, kyberKeys.size,
+            signedId, signedPreKeys(accountIdType).containsSignedPreKey(signedId),
+            lastResortId, kyberPreKeys(accountIdType).containsKyberPreKey(lastResortId)
+        )
+
+        sweepOldKeys(accountIdType, serviceIdType)
+        return Result.Uploaded
+    }
+
+    /**
+     * Removes the keys this device no longer needs to be able to use.
+     *
+     * ⚠ Nothing swept anything. Every one-time key, every signed prekey and every last-resort
+     * Kyber key the account had ever generated stayed on disk and stayed loadable -- two
+     * hundred rows more per refresh, for ever, and the private half of every key the server
+     * retired long ago still sitting there. That second part is the one that matters: the
+     * point of rotating these is that a device taken later cannot open what was sent earlier,
+     * and keeping them all defeats it.
+     *
+     * Signal sweeps at the end of every sync run, and this does it at the end of every upload
+     * for the same reason: it is the moment the replacements exist.
+     */
+    private fun sweepOldKeys(accountIdType: Int, serviceIdType: ServiceIdType) {
+        runCatching {
+            // Ninety days and two hundred kept, which are Signal's numbers
+            // (`PreKeyUtil.cleanOneTimePreKeys`). Long after "stale", deliberately: a peer can
+            // be holding a key it fetched weeks ago.
+            val threshold = System.currentTimeMillis() - ONE_TIME_KEY_LIFETIME_MS
+            preKeys(accountIdType).deleteAllStaleOneTimeEcPreKeys(threshold, ONE_TIME_KEYS_KEPT)
+            kyberPreKeys(accountIdType).deleteAllStaleOneTimeKyberPreKeys(threshold, ONE_TIME_KEYS_KEPT)
+        }.onFailure { Timber.w(it, "signal keys: could not sweep one-time keys") }
+
+        runCatching { cleanSuperseded(accountIdType) }
+            .onFailure { Timber.w(it, "signal keys: could not sweep superseded keys") }
+
+        Timber.i("signal keys: %s swept old keys", serviceIdType)
+    }
+
+    /**
+     * Drops superseded signed prekeys and last-resort Kyber keys, keeping one generation back.
+     *
+     * Signal's `cleanSignedPreKeys` and `cleanLastResortKyberPreKeys`, which are the same
+     * function twice: never touch the active key, consider only what is older than
+     * [ARCHIVE_AGE_MS], sort those youngest first and skip one. That skip is the grace --
+     * somebody may still be mid-handshake against the key this device rotated away from.
+     */
+    private fun cleanSuperseded(accountIdType: Int) {
+        val now = System.currentTimeMillis()
+
+        val activeSigned = accounts.activeSignedPreKeyId(accountIdType)
+        if (activeSigned >= 0) {
+            signedPreKeys(accountIdType).loadSignedPreKeys()
+                .filter { it.id != activeSigned }
+                .filter { now - it.timestamp > ARCHIVE_AGE_MS }
+                .sortedByDescending { it.timestamp }
+                .drop(1)
+                .forEach { signedPreKeys(accountIdType).removeSignedPreKey(it.id) }
+        }
+
+        val activeLastResort = accounts.activeLastResortKyberPreKeyId(accountIdType)
+        if (activeLastResort >= 0) {
+            kyberPreKeys(accountIdType).loadLastResortKyberPreKeys()
+                .filter { it.id != activeLastResort }
+                .filter { now - it.timestamp > ARCHIVE_AGE_MS }
+                .sortedByDescending { it.timestamp }
+                .drop(1)
+                .forEach { kyberPreKeys(accountIdType).removeKyberPreKey(it.id) }
         }
     }
 
@@ -388,6 +476,24 @@ internal class PreKeyUploader(
     companion object {
         /** signal-cli's `PREKEY_BATCH_SIZE`. */
         const val BATCH_SIZE = 100
+
+        /**
+         * How long a one-time key lives after it stops being offered, and how many are kept
+         * regardless. Signal's `cleanOneTimePreKeys`: ninety days, two hundred.
+         *
+         * Long after "stale" on purpose. A peer can fetch a bundle and not use it for weeks,
+         * and deleting the private half before then loses that message for good.
+         */
+        val ONE_TIME_KEY_LIFETIME_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(90)
+        const val ONE_TIME_KEYS_KEPT = 200
+
+        /**
+         * How old a superseded repeated-use key must be before it is dropped.
+         *
+         * Signal's `PreKeyUtil.ARCHIVE_AGE`. One generation back is always kept on top of
+         * this, so the grace is "thirty days *and* not the most recent one".
+         */
+        val ARCHIVE_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(30)
 
         /** signal-cli's `PREKEY_MINIMUM_COUNT`, and Signal's `ONE_TIME_PREKEY_MINIMUM`. */
         const val MINIMUM_COUNT = 10

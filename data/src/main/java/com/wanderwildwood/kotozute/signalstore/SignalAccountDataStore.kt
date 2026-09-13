@@ -134,12 +134,7 @@ internal class SignalAccountDataStore(
         }
     }
 
-    override fun removeKyberPreKey(kyberPreKeyId: Int) = withStoreLock(db) {
-        db.writableDatabase.execSQL(
-            "DELETE FROM kyber_pre_key WHERE account_id_type = ? AND key_id = ?",
-            arrayOf<Any?>(accountIdType, kyberPreKeyId)
-        )
-    }
+    override fun removeKyberPreKey(kyberPreKeyId: Int) = kyberPreKeys.removeKyberPreKey(kyberPreKeyId)
 
     /**
      * Marks unused one-time keys stale so they can be swept later.
@@ -148,58 +143,20 @@ internal class SignalAccountDataStore(
      * it stops being offered, and only deleted well after, because a peer may already hold it
      * and be about to use it. Deleting on the first step would drop those messages.
      */
+    // ⚠ Delegated, not implemented here. The sweep has to be reachable from the pre key
+    // uploader, which holds the individual stores and not this facade, and a second copy of
+    // the SQL is how the two drift apart.
     override fun markAllOneTimeEcPreKeysStaleIfNecessary(staleTime: Long) =
-        markStale("pre_key", staleTime)
+        preKeys.markAllOneTimeEcPreKeysStaleIfNecessary(staleTime)
 
     override fun markAllOneTimeKyberPreKeysStaleIfNecessary(staleTime: Long) =
-        markStale("kyber_pre_key", staleTime, onlyOneTime = true)
+        kyberPreKeys.markAllOneTimeKyberPreKeysStaleIfNecessary(staleTime)
 
     override fun deleteAllStaleOneTimeEcPreKeys(threshold: Long, minCount: Int) =
-        deleteStale("pre_key", threshold, minCount)
+        preKeys.deleteAllStaleOneTimeEcPreKeys(threshold, minCount)
 
     override fun deleteAllStaleOneTimeKyberPreKeys(threshold: Long, minCount: Int) =
-        deleteStale("kyber_pre_key", threshold, minCount, onlyOneTime = true)
-
-    private fun markStale(table: String, staleTime: Long, onlyOneTime: Boolean = false) = withStoreLock(db) {
-        val lastResort = if (onlyOneTime) " AND is_last_resort = 0" else ""
-        db.writableDatabase.execSQL(
-            "UPDATE $table SET stale_timestamp = ? WHERE account_id_type = ? AND stale_timestamp IS NULL$lastResort",
-            arrayOf<Any?>(staleTime, accountIdType)
-        )
-    }
-
-    /**
-     * Deletes keys that went stale before [threshold], holding back the newest [minCount].
-     *
-     * The keep-back set is signal-cli's and is easy to get subtly wrong. It ranks **all** the
-     * account's keys, fresh ones first (`stale_timestamp IS NULL` sorts ahead), and keeps the
-     * top [minCount]. Restricting it to stale keys instead — the obvious reading — protects the
-     * newest stale keys permanently, so they are never swept and the table grows without bound
-     * while keys the server has long since retired stay usable here.
-     *
-     * `?1`-style numbered parameters are not available on Android's SQLite, so the account id
-     * is bound twice.
-     */
-    private fun deleteStale(table: String, threshold: Long, minCount: Int, onlyOneTime: Boolean = false) =
-        withStoreLock(db) {
-            val lastResort = if (onlyOneTime) " AND is_last_resort = 0" else ""
-            db.writableDatabase.execSQL(
-                """
-                DELETE FROM $table
-                WHERE account_id_type = ? AND stale_timestamp < ?$lastResort
-                  AND _id NOT IN (
-                    SELECT _id FROM $table
-                    WHERE account_id_type = ?
-                    ORDER BY
-                      CASE WHEN stale_timestamp IS NULL THEN 1 ELSE 0 END DESC,
-                      stale_timestamp DESC,
-                      _id DESC
-                    LIMIT ?
-                  )
-                """.trimIndent(),
-                arrayOf<Any?>(accountIdType, threshold, accountIdType, minCount)
-            )
-        }
+        kyberPreKeys.deleteAllStaleOneTimeKyberPreKeys(threshold, minCount)
 
     // --- sender keys ----------------------------------------------------------------------
 

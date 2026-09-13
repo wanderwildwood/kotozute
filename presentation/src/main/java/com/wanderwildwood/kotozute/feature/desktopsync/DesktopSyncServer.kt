@@ -632,7 +632,7 @@ class DesktopSyncServer(
             Timber.w(failure, "Desktop Sync: account lookup")
             return jsonResponse(
                 Response.Status.OK,
-                JSONObject().put("error", failure.message ?: "the bridge did not answer")
+                JSONObject().put("error", failure.message ?: "the phone could not answer that")
             )
         }
         val devices = JSONArray()
@@ -1053,7 +1053,7 @@ class DesktopSyncServer(
         val bytes = runCatching { signalRepository.loadAttachment(id) }.getOrNull()
             ?: return jsonResponse(
                 Response.Status.NOT_FOUND,
-                JSONObject().put("error", "that attachment is no longer on the bridge")
+                JSONObject().put("error", "that attachment is no longer on the phone")
             )
         // Sniffed, because the id does not carry the type and the row that named it is not
         // to hand here. Only the three that matter for drawing: anything else is offered as
@@ -1329,7 +1329,7 @@ class DesktopSyncServer(
             Timber.w(failure, "Desktop Sync: identity lookup")
             return jsonResponse(
                 Response.Status.OK,
-                JSONObject().put("error", failure.message ?: "the bridge did not answer")
+                JSONObject().put("error", failure.message ?: "the phone could not answer that")
             )
         }
         // A contact who has never exchanged a message has no identity record, and the
@@ -1459,7 +1459,7 @@ class DesktopSyncServer(
                 if (value && !signalRepository.isConfigured()) {
                     return jsonResponse(
                         Response.Status.BAD_REQUEST,
-                        JSONObject().put("error", "pair a bridge first")
+                        JSONObject().put("error", "link this phone to Signal first")
                     )
                 }
                 signalRepository.setEnabled(value)
@@ -1792,7 +1792,7 @@ class DesktopSyncServer(
                 Timber.w(t, "Desktop Sync: Signal send failed")
                 jsonResponse(
                     Response.Status.INTERNAL_ERROR,
-                    JSONObject().put("error", t.message ?: "could not reach the Signal bridge")
+                    JSONObject().put("error", t.message ?: "the message could not be sent")
                 )
             }
         }

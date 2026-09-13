@@ -66,7 +66,7 @@ class SignalSyncWorker(appContext: Context, params: WorkerParameters) : Worker(a
                     // next attempt further out than the fifteen-minute round it replaced,
                     // which is the opposite of the point. The round is the right instrument
                     // for "come back later"; retry is for "come back now".
-                    Timber.d(t, "signal: periodic sync could not reach the bridge")
+                    Timber.d(t, "signal: periodic sync could not reach the service")
                     Result.success()
                 }
             )

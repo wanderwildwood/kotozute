@@ -408,7 +408,13 @@ internal class SignalStorageService(
         }
 
         /** Given and family into one name, or null when there is nothing to join. */
+        /**
+         * The same rule the profile fetch uses, because it is the same two fields.
+         *
+         * These two paths had each invented their own join, so a CJKV contact could read one
+         * way from a profile fetch and the other way from a storage record.
+         */
         private fun joined(given: String?, family: String?): String? =
-            listOf(given, family).joinToString(" ") { it.orEmpty() }.trim().takeIf { it.isNotBlank() }
+            ProfileNames.joined(given, family)
     }
 }

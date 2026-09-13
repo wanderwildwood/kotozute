@@ -223,6 +223,11 @@ class DeviceLinker internal constructor(
                 // unlinked rather than half-linked.
                 accounts.forgetSessionsFromPreviousLink()
 
+                // The sender certificate is one of those things, and it outlives a relink on
+                // its own: the cache is process-wide and linking again does not restart the
+                // process. See [SealedSender.forgetCertificate].
+                SealedSender.forgetCertificate()
+
                 accounts.saveIdentity(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, aciIdentity, aciRegistrationId)
                 accounts.saveIdentity(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, pniIdentity, pniRegistrationId)
                 accounts.saveCredentials(

@@ -6,7 +6,6 @@ import org.signal.network.NetworkResult
 import org.whispersystems.signalservice.api.crypto.SealedSenderAccess
 import org.whispersystems.signalservice.api.crypto.UnidentifiedAccess
 import timber.log.Timber
-import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 
 /**
@@ -42,11 +41,11 @@ internal class SealedSender(
      * @return the access to send with, or null to send identified.
      */
     fun accessFor(recipientAci: String): SealedSenderAccess? {
-        val mode = contacts.sealedSenderModeFor(recipientAci)
+        val mode = effectiveModeFor(recipientAci)
         val profileKeyBytes = contacts.profileKeyFor(recipientAci)
         val accessKey = when (keyFor(mode, profileKeyBytes != null)) {
             Key.None -> return null
-            Key.Random -> randomKey()
+            Key.Unrestricted -> UNRESTRICTED_KEY
             Key.Derived -> try {
                 UnidentifiedAccess.deriveAccessKeyFrom(ProfileKey(profileKeyBytes!!))
             } catch (t: Throwable) {
@@ -75,16 +74,34 @@ internal class SealedSender(
      * @param unidentified whether the message actually went out sealed.
      */
     fun recordOutcome(recipientAci: String, unidentified: Boolean) {
-        val mode = contacts.sealedSenderModeFor(recipientAci)
+        val mode = effectiveModeFor(recipientAci)
         val had = contacts.profileKeyFor(recipientAci) != null
         val learned = modeAfter(mode, unidentified, had) ?: return
         contacts.setSealedSenderMode(recipientAci, learned)
     }
 
-    /** What to send with. Separated from the sending so the rule itself can be tested. */
-    internal enum class Key { None, Random, Derived }
+    /**
+     * The mode to act on, which is not always the mode that was stored.
+     *
+     * ⚠ A recipient addressed only by a phone-number identity can never take sealed sender --
+     * the access key is checked against an account, and there is no account id here yet. The
+     * stored mode for such a row is meaningless, and before this it was read anyway: an
+     * UNKNOWN row got a guessed key and a doomed sealed attempt, and then [recordOutcome]
+     * wrote UNRESTRICTED against a PNI that can never accept anything.
+     *
+     * Signal computes the same override in both of its read paths rather than trusting the
+     * column -- `SealedSenderAccessUtil.getEffectiveSealedSenderAccessMode` and
+     * `Recipient.sealedSenderAccessMode` -- so it is computed once here and both readers use
+     * it. DISABLED costs nothing beyond the metadata protection that was never available:
+     * [keyFor] returns nothing, the send goes out identified, and [modeAfter] has nothing to
+     * learn from a mode that was never really tried.
+     */
+    private fun effectiveModeFor(serviceId: String): Int =
+        if (contacts.addressedOnlyByPni(serviceId)) SEALED_SENDER_DISABLED
+        else contacts.sealedSenderModeFor(serviceId)
 
-    private fun randomKey(): ByteArray = ByteArray(ACCESS_KEY_SIZE).also { SecureRandom().nextBytes(it) }
+    /** What to send with. Separated from the sending so the rule itself can be tested. */
+    internal enum class Key { None, Unrestricted, Derived }
 
     /**
      * The certificate, fetched when there is not a usable one already.
@@ -161,11 +178,11 @@ internal class SealedSender(
             // Learned, not assumed: a send to this person already had to fall back. Guessing
             // again would be a wasted round trip on every message to them.
             mode == SEALED_SENDER_DISABLED -> Key.None
-            mode == SEALED_SENDER_UNRESTRICTED -> Key.Random
+            mode == SEALED_SENDER_UNRESTRICTED -> Key.Unrestricted
             hasProfileKey -> Key.Derived
             // Enabled means their key is required and we do not have it. A guess is refused.
             mode == SEALED_SENDER_ENABLED -> Key.None
-            else -> Key.Random
+            else -> Key.Unrestricted
         }
 
         /**
@@ -186,8 +203,43 @@ internal class SealedSender(
         @Volatile private var cached: ByteArray? = null
         @Volatile private var cachedUntil = 0L
 
-        /** Signal's access keys are 16 bytes, derived or not. */
-        private const val ACCESS_KEY_SIZE = 16
+        /**
+         * Throw away the cached certificate, because it describes a device that is gone.
+         *
+         * ⚠ Sharing the cache across the process is what makes it worth having, and it is
+         * also what makes this necessary: linking again does not restart the app, so the
+         * certificate issued to the *previous* device id and identity key sat in this
+         * companion and was handed to sends for up to a day afterwards. Still signed, still
+         * unexpired, and describing a device that no longer exists -- and nothing local would
+         * notice, because the mismatch is only visible to the recipient.
+         *
+         * Signal does the same thing by enqueueing `RotateCertificateJob` at every point
+         * registration commits (`RegistrationRepository` :258 and :266,
+         * `AppRegistrationStorageController` :840 and :848). Fetching one here would mean a
+         * network call inside the link; dropping it is enough, because the next send fetches
+         * a fresh one anyway.
+         */
+        fun forgetCertificate() {
+            synchronized(Companion) {
+                cached = null
+                cachedUntil = 0L
+            }
+        }
+
+        /**
+         * The key for a recipient who accepts anything: sixteen zero bytes.
+         *
+         * Signal's `SealedSenderAccessUtil.UNRESTRICTED_KEY`, and it is a constant there
+         * because the value is not a secret and never was -- the server accepts it from
+         * anybody for a recipient in that mode. This generated sixteen fresh random bytes per
+         * send instead, which behaves identically and means no two sends can be compared: a
+         * refused sealed send could not be reproduced, because the key it was refused with was
+         * gone.
+         *
+         * ⚠ Shared and never written to. It is handed straight to `UnidentifiedAccess`, which
+         * does not modify it.
+         */
+        internal val UNRESTRICTED_KEY = ByteArray(16)
 
         /**
          * Renewed this long before it expires, so a send never races the deadline -- the clock

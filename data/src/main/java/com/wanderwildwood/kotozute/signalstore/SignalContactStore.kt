@@ -245,6 +245,24 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         byServiceId(serviceId, "sealed_sender_mode") { it.getInt(0) } ?: SEALED_SENDER_UNKNOWN
 
     /**
+     * Whether this address is a phone-number identity with no account identity behind it.
+     *
+     * Sealed sender cannot reach such a recipient: the access key is checked against the
+     * account, and there is no account here yet. Signal forces the mode to DISABLED for
+     * exactly this case rather than letting the stored mode speak --
+     * `SealedSenderAccessUtil.getEffectiveSealedSenderAccessMode` on the record path
+     * (`aci == null && pni != null`) and `Recipient.sealedSenderAccessMode` on the other
+     * (`pni.isPresent && pni == serviceId`). Two spellings of one rule.
+     *
+     * A PNI nobody has told us anything about counts too: no row means no account id, which
+     * is the state this is asking about.
+     */
+    fun addressedOnlyByPni(serviceId: String): Boolean {
+        if (!isPni(serviceId)) return false
+        return byServiceId(serviceId, "aci") { it.getString(0)?.takeIf { s -> s.isNotBlank() } } == null
+    }
+
+    /**
      * Write down what a send taught us.
      *
      * Only ever called with the outcome of a real send, so it cannot drift: if they stop

@@ -1339,28 +1339,44 @@ class SignalRepositoryImpl @Inject constructor(
      * delete naming somebody else's message resolves to a row that does not exist.
      */
     private fun applyWithdrawal(author: String, sentAt: Long, withdrawnAt: Long) = runOffThread {
-        val id = "$author:$sentAt"
+        removeWithdrawn("$author:$sentAt", "a message was withdrawn by the person who sent it") { row ->
+            // ⚠ Bounded in time, which it was not. Signal accepts a withdrawal only within
+            // `normalDeleteMaxAgeInSeconds` (a day) plus a day of slack for delivery --
+            // `MessageConstraintsUtil.isValidRemoteDeleteReceive`. Unbounded, "delete for
+            // everyone" is a power to reach back and erase any message ever sent to this
+            // phone, months later, from the person who sent it. That is not what the
+            // gesture is for, and the reader has no way to know it happened.
+            //
+            // Our own messages are exempt, as they are in Signal: a withdrawal of an
+            // outgoing message is this account tidying up after itself on another device,
+            // and there is nothing to protect the reader from.
+            if (!row.outgoing && withdrawnAt - row.date >= WITHDRAWAL_WINDOW_MS) {
+                Timber.w("signal delete: a withdrawal arrived too late to be honoured; keeping the message")
+                false
+            } else {
+                true
+            }
+        }
+    }
+
+    /**
+     * Removes a withdrawn message and puts back everything that described it.
+     *
+     * Shared by a withdrawal that arrives and one this phone sends, because the local half
+     * of the gesture is the same either way: the row goes, its attachments go with it, and
+     * the thread's preview and unread count are recomputed rather than adjusted.
+     *
+     * [allow] is asked before anything is removed and is where the two differ -- an arriving
+     * withdrawal has a window to check, one we sent has already been checked.
+     */
+    private fun removeWithdrawn(id: String, note: String, allow: (SignalMessage) -> Boolean) {
         var threadKey: String? = null
         val doomed = mutableListOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
                     ?: return@executeTransaction
-
-                // ⚠ Bounded in time, which it was not. Signal accepts a withdrawal only within
-                // `normalDeleteMaxAgeInSeconds` (a day) plus a day of slack for delivery --
-                // `MessageConstraintsUtil.isValidRemoteDeleteReceive`. Unbounded, "delete for
-                // everyone" is a power to reach back and erase any message ever sent to this
-                // phone, months later, from the person who sent it. That is not what the
-                // gesture is for, and the reader has no way to know it happened.
-                //
-                // Our own messages are exempt, as they are in Signal: a withdrawal of an
-                // outgoing message is this account tidying up after itself on another device,
-                // and there is nothing to protect the reader from.
-                if (!row.outgoing && withdrawnAt - row.date >= WITHDRAWAL_WINDOW_MS) {
-                    Timber.w("signal delete: a withdrawal arrived too late to be honoured; keeping the message")
-                    return@executeTransaction
-                }
+                if (!allow(row)) return@executeTransaction
                 threadKey = row.threadKey
                 // Whatever was attached goes with it. Withdrawing a message is somebody
                 // unsaying something; leaving the picture on disk unsays nothing.
@@ -1386,7 +1402,7 @@ class SignalRepositoryImpl @Inject constructor(
                 runCatching { signalStore.forgetAttachments(doomed) }
                     .onFailure { Timber.w(it, "signal delete: could not remove its attachments") }
             }
-            Timber.i("signal delete: a message was withdrawn by the person who sent it")
+            Timber.i("signal delete: %s", note)
             threadKey?.let { removed.onNext(it) }
             contactsChanged()
         }
@@ -2314,6 +2330,56 @@ class SignalRepositoryImpl @Inject constructor(
         // No announcing: the row is managed, and the thread screen is listening to the Realm
         // results it came from.
     }
+
+    /**
+     * Takes one of this account's own messages back, for everyone it was sent to.
+     *
+     * Signal's `MessageSender.sendRemoteDelete` marks the message deleted locally and *then*
+     * enqueues the send, because its send is a retrying job and the row has to show the
+     * user's decision immediately. This one sends first and removes afterwards: there is no
+     * job queue here, so a failed send has to leave the message standing and say so, rather
+     * than blank it on this screen and nowhere else.
+     *
+     * The window is Signal's own and is checked again here, not only in the menu -- a dialog
+     * left open across midnight is enough for the two to disagree.
+     */
+    override fun withdraw(messageId: String) {
+        val selfAci = signalStore.selfAciOrNull().orEmpty()
+        if (selfAci.isBlank()) throw IllegalStateException("this phone is not on a Signal account")
+
+        val (threadKey, sentAt, groupKey) = Realm.getDefaultInstance().use { realm ->
+            val row = realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
+                ?: throw IllegalStateException("no such message")
+            if (!SignalRepository.canWithdraw(row.outgoing, row.date)) {
+                throw IllegalStateException("that message can no longer be taken back")
+            }
+            val master = realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", row.threadKey)
+                .findAll()
+                .firstOrNull { it.groupMasterKey != null }
+                ?.groupMasterKey
+            Withdrawing(row.threadKey, row.date, master)
+        }
+
+        if (threadKey.startsWith("group:")) {
+            val master = groupKey ?: throw IllegalStateException("no group key on this thread yet")
+            signalStore.sendRemoteDeleteToGroup(master, sentAt)
+        } else {
+            signalStore.sendRemoteDelete(threadKey.removePrefix("direct:"), sentAt)
+        }
+
+        // Only now. Our own other devices hear about this through the sent transcript the
+        // send itself carries, the same way they hear about a message.
+        // It announces the thread itself -- see [removeWithdrawn].
+        removeWithdrawn(messageId, "a message was taken back") { true }
+    }
+
+    /** What a withdrawal needs off the row it is taking back. */
+    private data class Withdrawing(
+        val threadKey: String,
+        val sentAt: Long,
+        val groupMasterKey: ByteArray?
+    )
 
     /** What a reaction needs off the row it is hung on. */
     private data class Reacting(

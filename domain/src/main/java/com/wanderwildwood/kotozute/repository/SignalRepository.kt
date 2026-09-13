@@ -436,6 +436,34 @@ interface SignalRepository {
      */
     fun react(messageId: String, emoji: String, remove: Boolean)
 
+    /**
+     * Takes one of this account's own messages back, for everyone it was sent to.
+     *
+     * The other half of the withdrawal this app has always been able to receive. Only an
+     * outgoing message, and only inside [WITHDRAW_WINDOW_MS] -- see [canWithdraw], which is
+     * the same rule the menu is built from, so nothing is offered that would then be refused.
+     */
+    fun withdraw(messageId: String)
+
+    companion object {
+        /**
+         * How long a sender has to take a message back.
+         *
+         * Signal's `normalDeleteMaxAgeInSeconds`, a day, from `RemoteConfig`. The receive
+         * side allows a day more for delivery; the send side does not, because a withdrawal
+         * sent later than this is one the recipient will refuse and nobody would be told.
+         */
+        const val WITHDRAW_WINDOW_MS = 24L * 60 * 60 * 1000
+
+        /**
+         * Whether this message can still be taken back, which is Signal's own
+         * `MessageConstraintsUtil.isValidRemoteDeleteSend` reduced to what this app has:
+         * it has to be ours, and it has to be inside the window.
+         */
+        fun canWithdraw(outgoing: Boolean, sentAt: Long, now: Long = System.currentTimeMillis()) =
+            outgoing && now - sentAt < WITHDRAW_WINDOW_MS
+    }
+
     fun setBlocked(threadKey: String, blocked: Boolean)
 
     fun setPinned(threadKey: String, pinned: Boolean)

@@ -508,6 +508,35 @@ internal class SignalReceiver(
         // drop real messages if any path ever omits the field, and nothing here has proved it
         // never does. Revisit with evidence rather than by reasoning.
 
+        // Who the envelope says sent it, before anything is decrypted. Sealed sender leaves
+        // both fields empty, which is the whole point of it -- so "no source" and "sealed" are
+        // the same fact here, and Signal names the variable for the second.
+        val hadSealedSenderSource =
+            envelope.sourceServiceId.isNullOrBlank() &&
+                (envelope.sourceServiceIdBinary?.size ?: 0) == 0
+
+        // ⚠ Sealed sender is never used to write to a phone-number identity. A PNI is what
+        // somebody is addressed by when nothing else about them is known, and sealed sender
+        // requires the sender to hold a profile key they could only have from a real
+        // relationship. An envelope claiming both is malformed.
+        if (pni != null && destination == pni && hadSealedSenderSource) {
+            Timber.w("signal receive: a sealed-sender envelope addressed to our phone-number identity; ignoring it")
+            return null
+        }
+
+        // ⚠ And nothing but a delivery receipt ever comes *from* a PNI. A message does not:
+        // the sender would be addressing us from an identity that cannot hold a session.
+        // Upstream refuses it by type, which is the same test made explicit.
+        val claimedSource = ServiceId.parseOrNull(
+            envelope.sourceServiceId, envelope.sourceServiceIdBinary
+        )
+        if (claimedSource is ServiceId.PNI &&
+            envelope.type != Envelope.Type.SERVER_DELIVERY_RECEIPT
+        ) {
+            Timber.w("signal receive: an envelope from a phone-number identity that is not a receipt; ignoring it")
+            return null
+        }
+
         val cipher = SignalServiceCipher(
             SignalServiceAddress(aci, credentials.e164),
             credentials.deviceId,
@@ -535,6 +564,15 @@ internal class SignalReceiver(
                 // group contexts, attachment shapes, and the rest. Signal runs it in exactly
                 // this position, before any handler sees the content.
                 if (!isWorthReading(envelope, result)) return@let null
+
+                // ⚠ The same rule again, now that the real sender is known rather than
+                // claimed. Sealed sender hides the source in the envelope, so the first check
+                // could only ask what the envelope *said*; this one asks what came out of the
+                // decryption. Upstream does both for that reason.
+                if (result.metadata.sourceServiceId is ServiceId.PNI && hadSealedSenderSource) {
+                    Timber.w("signal receive: sealed sender used for a phone-number identity; ignoring it")
+                    return@let null
+                }
 
                 // Whether the account has blocked whoever sent this, decided once.
                 //
@@ -624,8 +662,17 @@ internal class SignalReceiver(
                 // account id are one person. Discovery hands this phone a PNI and nothing
                 // else, so without this the pairing only ever arrives second-hand, in one of
                 // the account's own storage records.
+                // ⚠ Only from an ACI. The signature proves that an account id and a
+                // phone-number identity belong to the same person, and it is checked against
+                // the *sender's* identity key -- so a PNI source would have it comparing the
+                // wrong pair and either failing honest pairings or accepting nonsense.
+                // Upstream ignores it outright when the source is not an ACI.
                 result.content.pniSignatureMessage?.let { signature ->
-                    rememberVerifiedPni(signature, result.metadata)
+                    if (result.metadata.sourceServiceId is ServiceId.ACI) {
+                        rememberVerifiedPni(signature, result.metadata)
+                    } else {
+                        Timber.w("signal receive: a pni signature from something that is not an account id; ignoring it")
+                    }
                 }
 
                 // A contacts sync is not a message and never becomes one -- it is the

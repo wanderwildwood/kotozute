@@ -813,6 +813,14 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun applyReceipts(senderUuid: String, timestamps: List<Long>, read: Boolean): Int {
         if (timestamps.isEmpty()) return 0
+        // ⚠ Read receipts are one setting in both directions, and only the outgoing half was
+        // honouring it. Signal gates `handleReadReceipt` (and the viewed one) on the same
+        // preference and leaves only delivery ungated -- so with the setting off this phone
+        // was showing other people's read marks while every other client on the account showed
+        // none, from a setting the owner had turned off.
+        //
+        // The setting is the account's, taken from the primary; see [applyConfiguration].
+        if (read && !prefs.signalReadReceipts.get()) return 0
         var changed = 0
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->

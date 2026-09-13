@@ -835,7 +835,13 @@ internal class SignalReceiver(
                         verified.destinationAci, verified.destinationAciBinary
                     )?.toString()
                     val key = verified.identityKey?.toByteArray()
-                    if (who != null && key != null && key.isNotEmpty()) {
+                    // ⚠ Never about ourselves. Upstream returns immediately on `recipient
+                    // .isSelf()`: the account cannot verify its own safety number, and acting
+                    // on one would write this device's own identity from a sync message.
+                    val aboutSelf = who != null && who.equals(credentials.aci, ignoreCase = true)
+                    if (aboutSelf) {
+                        Timber.w("signal identity: a verification about this account itself; ignoring it")
+                    } else if (who != null && key != null && key.isNotEmpty()) {
                         runCatching {
                             protocol.aciStore().setVerified(
                                 who,
@@ -967,6 +973,31 @@ internal class SignalReceiver(
                 // [senderIsInGroup] already fails open when the group cannot be fetched, which
                 // is the same direction as upstream's null check.
                 val groupContext = result.content.dataMessage?.groupV2
+
+                // ⚠ An announcement-only group was enforced on the way out and not on the way
+                // in. The setting was fetched, cached, and consulted only when refusing *our*
+                // send -- so a non-admin's message was normalized, stored and shown here while
+                // every other client in the group discarded it. A broadcast group has exactly
+                // one guarantee, and this phone was the device that broke it: the reader sees
+                // something nobody else saw and can reply to it.
+                //
+                // Upstream refuses it before insertion, in `handleGv2PreProcessing`, and the
+                // test for what counts is `hasDisallowedAnnouncementOnlyContent`: a body, an
+                // attachment, a quote, a preview, body ranges, a sticker or a poll. A reaction
+                // is not on that list and neither is a delete -- a non-admin may still react
+                // in a broadcast group, which is why this is not simply "any message".
+                val announcementRefused = groupContext != null &&
+                    result.content.dataMessage?.let { hasDisallowedAnnouncementContent(it) } == true &&
+                    !mayPostToGroup(
+                        groupContext.masterKey?.toByteArray(),
+                        groupContext.revision ?: 0,
+                        result.metadata.sourceServiceId.toString()
+                    )
+                if (announcementRefused) {
+                    Timber.w("signal receive: dropped a message from a non-admin in an announcement-only group")
+                    return@let null
+                }
+
                 if (groupContext != null && result.content.dataMessage?.reaction != null) {
                     val master = groupContext.masterKey?.toByteArray()
                     val sender = result.metadata.sourceServiceId.toString()
@@ -1110,7 +1141,55 @@ internal class SignalReceiver(
      * per revision is one round trip and then nothing. The revision is on every group message,
      * so a membership change invalidates this by itself.
      */
-    private val groupMembers = mutableMapOf<String, Pair<Int, Set<String>>>()
+    /**
+     * Group state by master key, with the revision it was read at.
+     *
+     * Was the member list alone. An announcement-only group also needs to say who its
+     * administrators are, and fetching the group twice to answer two questions about the same
+     * message is a round trip for nothing.
+     */
+    private val groupState = mutableMapOf<String, Pair<Int, SignalGroups.Group>>()
+
+    /**
+     * Whether this message is the kind an announcement-only group refuses from a non-admin.
+     *
+     * An exact port of `SignalServiceProtoUtil.hasDisallowedAnnouncementOnlyContent`. The list
+     * is the point: a reaction, a delete and a timer change are **not** on it, so a non-admin
+     * can still react in a broadcast group, which is what upstream allows.
+     */
+    private fun hasDisallowedAnnouncementContent(
+        message: org.whispersystems.signalservice.internal.push.DataMessage
+    ): Boolean = message.body != null ||
+        message.attachments.isNotEmpty() ||
+        message.quote != null ||
+        message.preview.isNotEmpty() ||
+        message.bodyRanges.isNotEmpty() ||
+        message.sticker != null ||
+        message.pollCreate != null
+
+    /**
+     * Whether somebody may post to this group at all -- that is, whether it is a broadcast
+     * group they are not an administrator of.
+     *
+     * ⚠ Fails **open**, like [senderIsInGroup] and for the same reason: a group whose state
+     * cannot be read is not evidence that the sender is barred from it, and upstream's own
+     * test is `groupRecord.isPresent && ...`, which is false when there is no record.
+     */
+    private fun mayPostToGroup(masterKey: ByteArray?, revision: Int, sender: String): Boolean {
+        if (masterKey == null || masterKey.isEmpty() || sender.isBlank()) return true
+        val id = android.util.Base64.encodeToString(masterKey, android.util.Base64.NO_WRAP)
+        val known = groupState[id]
+        val group = if (known != null && known.first >= revision) {
+            known.second
+        } else {
+            runCatching { SignalGroups(connection, accounts, contacts).fetch(masterKey) }
+                .onFailure { Timber.w(it, "signal group: could not check who may post; letting it through") }
+                .getOrNull()
+                ?.also { groupState[id] = it.revision to it }
+                ?: return true
+        }
+        return !group.announcementOnly || sender in group.admins
+    }
 
     /**
      * Whether somebody is currently in the group they are posting to.
@@ -1125,16 +1204,15 @@ internal class SignalReceiver(
     private fun senderIsInGroup(masterKey: ByteArray, revision: Int, sender: String): Boolean {
         if (sender.isBlank()) return true
         val id = android.util.Base64.encodeToString(masterKey, android.util.Base64.NO_WRAP)
-        val known = groupMembers[id]
-        if (known != null && known.first >= revision) return sender in known.second
+        val known = groupState[id]
+        if (known != null && known.first >= revision) return sender in known.second.members
 
         val group = runCatching { SignalGroups(connection, accounts, contacts).fetch(masterKey) }
             .onFailure { Timber.w(it, "signal group: could not check membership; letting it through") }
             .getOrNull() ?: return true
 
-        val members = group.members.toSet()
-        groupMembers[id] = group.revision to members
-        return sender in members
+        groupState[id] = group.revision to group
+        return sender in group.members
     }
 
     /**

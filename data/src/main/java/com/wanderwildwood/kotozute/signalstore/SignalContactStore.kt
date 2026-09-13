@@ -106,8 +106,17 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         val byE164 = e164.orNull()?.let { candidateForNumber(database, it) }
 
         // The one decision worth stating on its own; see [RecipientMerge].
-        val existing = when (val plan = RecipientMerge.plan(byAci, byPni, byE164)) {
+        val existing = when (val plan = RecipientMerge.plan(aci, byAci, byPni, byE164)) {
             is RecipientMerge.Plan.Insert -> null
+
+            is RecipientMerge.Plan.InsertAfterSteal -> {
+                // Every row that answered belongs to somebody else -- a recycled number, or a
+                // phone-number identity that has moved on. Take the stale identifiers off them
+                // and give this person a row of their own, rather than writing this person's
+                // name over the previous owner's.
+                plan.steal.forEach { steal(database, keep = null, from = it.from, held = it.held) }
+                null
+            }
             is RecipientMerge.Plan.Update -> plan.id
             is RecipientMerge.Plan.Merge -> {
                 // Rows that hold no account id of their own: safe to fold in and remove.
@@ -261,7 +270,8 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
      */
     private fun steal(
         database: net.zetetic.database.sqlcipher.SQLiteDatabase,
-        keep: Long,
+        /** The row to give it to, or null when the row that will get it does not exist yet. */
+        keep: Long?,
         from: Long,
         held: RecipientMerge.Held
     ) {
@@ -275,10 +285,14 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             ?: return
 
         database.execSQL("UPDATE recipient SET $column = NULL WHERE _id = ?", arrayOf<Any?>(from))
-        database.execSQL(
-            "UPDATE recipient SET $column = COALESCE($column, ?) WHERE _id = ?",
-            arrayOf<Any?>(value, keep)
-        )
+        if (keep != null) {
+            database.execSQL(
+                "UPDATE recipient SET $column = COALESCE($column, ?) WHERE _id = ?",
+                arrayOf<Any?>(value, keep)
+            )
+        }
+        // With no keeper the identifier is simply released: the insert that follows carries it
+        // in its own INSERT, and the UNIQUE columns would refuse it while the old row held it.
         Timber.i(
             "signal contacts: moved a %s off a row with a different account id, and kept that row",
             column
@@ -524,7 +538,13 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         val pniRow = pniCandidate?.id
         val aciRow = aciCandidate?.id
 
-        when (val plan = RecipientMerge.plan(aciCandidate, pniCandidate)) {
+        when (val plan = RecipientMerge.plan(aci, aciCandidate, pniCandidate)) {
+            is RecipientMerge.Plan.InsertAfterSteal -> {
+                // The phone-number identity has moved to somebody else. Take it off them; the
+                // account row, if there is one, keeps everything else it had.
+                plan.steal.forEach { steal(database, keep = aciRow, from = it.from, held = it.held) }
+                return
+            }
             is RecipientMerge.Plan.Merge -> {
                 plan.absorb.forEach { absorb(database, keep = plan.keep, absorb = it) }
                 plan.steal.forEach { steal(database, keep = plan.keep, from = it.from, held = it.held) }

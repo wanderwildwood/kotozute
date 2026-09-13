@@ -43,6 +43,25 @@ internal object RecipientMerge {
         /** Nobody here answers to any of the ids. */
         data object Insert : Plan
 
+        /**
+         * Every row that answered belongs to somebody else, so this person gets a row of
+         * their own and the stale identifiers are taken back first.
+         *
+         * ⚠ The recycled-number case, and the one that used to be silent. A number is given
+         * to a new person; a contact for that new person arrives; the only row holding the
+         * number is the *previous owner's*. Treating that as "the row for this number" and
+         * writing the new name into it overwrote a real person -- their name, their profile
+         * key and their username -- on a row that still carried the old owner's account id, so
+         * the conversation went on pointing at one person while showing another's name and
+         * encrypting to another's profile key.
+         *
+         * Signal removes the number from the old owner and gives it to a record of its own:
+         * `processPossibleE164AciMerge`'s "E164RecordHasNonMatchingPni" branch, which emits
+         * RemoveE164 and SetE164 and no merge. The old owner loses only the number that is no
+         * longer theirs.
+         */
+        data class InsertAfterSteal(val steal: List<Steal>) : Plan
+
         /** One row answers, or several that are already the same row. Fill in what it lacks. */
         data class Update(val id: Long) : Plan
 
@@ -75,12 +94,46 @@ internal object RecipientMerge {
      * service id it started with, and that is the account id wherever one is known; keeping a
      * different row would mean rewriting those keys, which is the part that goes wrong quietly.
      */
-    fun plan(byAci: Candidate?, byPni: Candidate?, byE164: Candidate? = null): Plan {
+    fun plan(
+        incomingAci: String?,
+        byAci: Candidate?,
+        byPni: Candidate?,
+        byE164: Candidate? = null
+    ): Plan {
         val found = listOfNotNull(byAci, byPni, byE164)
         if (found.isEmpty()) return Plan.Insert
 
-        val distinct = found.map { it.id }.distinct()
-        if (distinct.size == 1) return Plan.Update(distinct.first())
+        /**
+         * Whether this row is somebody else's.
+         *
+         * Only answerable when the arriving contact names an account id: without one there is
+         * nothing to disagree with, and a row found by number is the best guess available --
+         * which is also all upstream can do with the same tuple.
+         */
+        fun belongsToSomebodyElse(candidate: Candidate): Boolean =
+            incomingAci != null && candidate.aci != null && candidate.aci != incomingAci
+
+        // Rows found by an identifier that has moved on. They are not this person, whatever
+        // the lookup suggested, and none of them may be written into or deleted.
+        val theirs = buildList {
+            byPni?.takeIf { belongsToSomebodyElse(it) }?.let { add(Steal(it.id, Held.PNI)) }
+            byE164?.takeIf { belongsToSomebodyElse(it) }?.let { add(Steal(it.id, Held.E164)) }
+        }
+        val ours = listOfNotNull(
+            byAci,
+            byPni?.takeUnless { belongsToSomebodyElse(it) },
+            byE164?.takeUnless { belongsToSomebodyElse(it) }
+        )
+
+        // Everything that answered belongs to somebody else. Take the stale identifiers back
+        // and give this person a row of their own.
+        if (ours.isEmpty()) return Plan.InsertAfterSteal(theirs)
+
+        val distinct = ours.map { it.id }.distinct()
+        if (distinct.size == 1 && theirs.isEmpty()) return Plan.Update(distinct.first())
+        if (distinct.size == 1) {
+            return Plan.Merge(keep = distinct.first(), absorb = emptyList(), steal = theirs)
+        }
 
         // Two or more rows, and this is where it used to go wrong: they were all assumed to be
         // the same person and the losers were deleted.
@@ -96,27 +149,38 @@ internal object RecipientMerge {
         // of its own, or holds the same one. Otherwise the wrong identifier is taken off it and
         // the row is left alive: `processPossiblePniAciMerge`'s else-branch, which emits
         // RemovePni and SetPni and no Merge at all.
-        val keeper = byAci ?: byE164 ?: byPni!!
+        // Signal's order, and for its reason: account id, then number, then phone-number
+        // identity. ⚠ Not simply "the first row that answered" -- that reads in lookup order,
+        // which puts the phone-number identity ahead of the number and keeps the wrong row.
+        val keeper = ours.firstOrNull { it.id == byAci?.id }
+            ?: ours.firstOrNull { it.id == byE164?.id }
+            ?: ours.first()
         val absorb = mutableListOf<Long>()
-        val steal = mutableListOf<Steal>()
+        val alsoTheirs = mutableListOf<Steal>()
 
+        // ⚠ Two different tests, and both are needed.
+        //
+        // The one above asks "does this row belong to somebody other than the person
+        // arriving?", which only has an answer when the arriving contact names an account id.
+        // This one asks "does this row hold an account id other than the keeper's?", which has
+        // an answer even when nothing is arriving with one -- two rows found by two different
+        // identifiers can each already belong to a different person, and folding either into
+        // the other would destroy one of them.
         fun consider(candidate: Candidate?, held: Held) {
             if (candidate == null || candidate.id == keeper.id) return
+            if (theirs.any { it.from == candidate.id }) return
             if (candidate.aci == null || candidate.aci == keeper.aci) {
-                // Nothing of its own to lose. This is upstream's `pniOnly()` / `e164Only()`
-                // case, and the only one in which a row is destroyed.
+                // Nothing of its own to lose. Upstream's `pniOnly()` / `e164Only()` case, and
+                // the only one in which a row is destroyed.
                 if (candidate.id !in absorb) absorb += candidate.id
             } else {
-                // A different account id: a different person, whatever the ids suggested.
-                steal += Steal(candidate.id, held)
+                alsoTheirs += Steal(candidate.id, held)
             }
         }
 
-        // Only these two can be losers. Where there is a row by account id it is the keeper, so
-        // it is never absorbed and never stolen from.
         consider(byPni, Held.PNI)
         consider(byE164, Held.E164)
 
-        return Plan.Merge(keep = keeper.id, absorb = absorb, steal = steal)
+        return Plan.Merge(keep = keeper.id, absorb = absorb, steal = theirs + alsoTheirs)
     }
 }

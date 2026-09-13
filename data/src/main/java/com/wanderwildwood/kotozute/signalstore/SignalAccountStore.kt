@@ -101,8 +101,9 @@ internal class SignalAccountStore(private val db: ProtocolDatabase) {
     /**
      * Throws away every session and sender key from a previous link.
      *
-     * ⚠ A re-link gives this device a new device id, new identity keys and new registration
-     * ids -- but the sessions, sender keys and sender-key-shared rows from the old link are
+     * ⚠ Linking again, or registering this phone as a primary, gives it a new device id, new
+     * identity keys and new registration
+     * ids -- but the sessions, sender keys and sender-key-shared rows from the old account are
      * describing the device that no longer exists. Left in place, a send goes out over a
      * session built for the old device id with the old registration id, and the recipient has
      * nothing that matches: the message is undecryptable on arrival and there is nothing in
@@ -111,8 +112,13 @@ internal class SignalAccountStore(private val db: ProtocolDatabase) {
      * Sessions are cheap to lose and rebuild on the next message. Identity keys for peers are
      * deliberately kept: those are what safety numbers are, and forgetting them would turn
      * every contact into a first sighting and silence every change anybody had verified.
+     *
+     * Called from **both** ways this device can come to hold a new identity, because the
+     * reason is the same either way. Signal does it once for both of its own entry points, in
+     * `registerAccountLocally` -- `archiveAllSessions()` on each store plus
+     * `SenderKeyUtil.clearAllState()`, before any new key material is written.
      */
-    fun forgetSessionsFromPreviousLink() = inTransaction {
+    fun forgetSessionsFromPreviousAccount() = inTransaction {
         db.writableDatabase.execSQL("DELETE FROM session")
         db.writableDatabase.execSQL("DELETE FROM sender_key")
         db.writableDatabase.execSQL("DELETE FROM sender_key_shared")

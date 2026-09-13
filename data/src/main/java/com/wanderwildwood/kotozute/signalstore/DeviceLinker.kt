@@ -221,7 +221,7 @@ class DeviceLinker internal constructor(
                 //
                 // Before the new identity is written, so a failure here leaves the device
                 // unlinked rather than half-linked.
-                accounts.forgetSessionsFromPreviousLink()
+                accounts.forgetSessionsFromPreviousAccount()
 
                 // The sender certificate is one of those things, and it outlives a relink on
                 // its own: the cache is process-wide and linking again does not restart the

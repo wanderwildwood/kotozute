@@ -16,10 +16,14 @@ import org.junit.Test
  *
  * E.164: a plus, a country code that cannot begin with zero, and no more than fifteen digits
  * in total.
+ *
+ * ⚠ This shape is Signal's **last** check and was for a long time this app's only one. It is
+ * precisely the check a plausible typo passes -- a US number with a digit dropped is still a
+ * plus and seven-to-fifteen digits -- which is why the country rules below it exist.
  */
 class RegistrationNumberTest {
 
-    private fun accepts(number: String) = SignalRegistrar.E164.matches(number)
+    private fun accepts(number: String) = E164Numbers.matchesGenericShape(number)
 
     // The numbers here are from ranges reserved for fiction -- Ofcom's 020 7946 0xxx for the
     // UK, 555 for the US -- rather than invented ones that could turn out to belong to
@@ -81,6 +85,37 @@ class RegistrationNumberTest {
         assertFalse(accepts(" +15550001234"))
         assertFalse(accepts("+15550001234 "))
         assertFalse(accepts("+15550001234\n"))
+    }
+
+    @Test
+    fun `a US number must have exactly ten digits`() {
+        // The case the generic shape cannot catch, and the reason Signal has a rule per
+        // country: every one of these passes the shape test above.
+        assertTrue(accepts("+1555000123"))
+        assertFalse(E164Numbers.matchesCountryRule("+1555000123", "US"))
+        assertTrue(accepts("+155500012345"))
+        assertFalse(E164Numbers.matchesCountryRule("+155500012345", "US"))
+        assertTrue(E164Numbers.matchesCountryRule("+15550001234", "US"))
+    }
+
+    @Test
+    fun `a brazilian number must be the right length`() {
+        // Upstream leaves the leading 9 optional, so both of these are allowed; what the rule
+        // catches is the wrong number of digits around it.
+        assertTrue(E164Numbers.matchesCountryRule("+5511912345678", "BR"))
+        assertTrue(E164Numbers.matchesCountryRule("+551112345678", "BR"))
+        assertFalse(E164Numbers.matchesCountryRule("+55111234567", "BR"))
+        assertFalse(E164Numbers.matchesCountryRule("+5511123456789", "BR"))
+    }
+
+    @Test
+    fun `a country with no rule of its own is left to the generic shape`() {
+        // Signal has exactly two country rules. Everywhere else the shape check and
+        // libphonenumber are the whole answer, and inventing more rules here would refuse
+        // valid numbers in countries neither of us has checked.
+        assertTrue(E164Numbers.matchesCountryRule("+442079460958", "GB"))
+        assertTrue(E164Numbers.matchesCountryRule("+81300001234", "JP"))
+        assertTrue(E164Numbers.matchesCountryRule("+15550001234", null))
     }
 
     @Test

@@ -942,7 +942,8 @@ class SignalStore(private val context: Context) {
         SignalNetworkConfig.USER_AGENT,
         account,
         { SignalSignedPreKeyStore(database, it) },
-        { SignalKyberPreKeyStore(database, it) }
+        { SignalKyberPreKeyStore(database, it) },
+        io.michaelrocks.libphonenumber.android.PhoneNumberUtil.createInstance(context)
     )
 
     fun linker(): DeviceLinker = DeviceLinker(

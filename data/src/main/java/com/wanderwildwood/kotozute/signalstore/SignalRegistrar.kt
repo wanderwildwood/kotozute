@@ -48,7 +48,12 @@ class SignalRegistrar internal constructor(
     private val userAgent: String,
     private val accounts: SignalAccountStore,
     private val signedPreKeys: (Int) -> SignalSignedPreKeyStore,
-    private val kyberPreKeys: (Int) -> SignalKyberPreKeyStore
+    private val kyberPreKeys: (Int) -> SignalKyberPreKeyStore,
+    /**
+     * libphonenumber, for [E164Numbers]. Built by the caller because on Android it needs a
+     * `Context` to load its metadata, and nothing else in here has one.
+     */
+    private val phoneNumbers: io.michaelrocks.libphonenumber.android.PhoneNumberUtil
 ) {
 
     /**
@@ -62,8 +67,32 @@ class SignalRegistrar internal constructor(
         /** The server wants a captcha solved before it will send a code. */
         data class NeedsCaptcha(val sessionId: String) : Step
 
-        /** A code is on its way. [nextAttemptSeconds] is when another may be asked for. */
-        data class CodeSent(val sessionId: String, val nextAttemptSeconds: Long?) : Step
+        /**
+         * A code is on its way, and when the server will accept various things next.
+         *
+         * ⚠ Three different cooldowns, which this used to carry as one. The server answers
+         * with all three because they mean different things, and the one that was being
+         * carried -- under a name saying it was the resend cooldown -- is the wrong one:
+         *
+         * - [nextSmsSeconds] when another code may be **sent by SMS**
+         * - [nextCallSeconds] when another may be **read out by a call**
+         * - [nextAttemptSeconds] when another **submission of a code** will be accepted
+         *
+         * A resend timer is driven by the first two and never by the third: Signal's
+         * `EnterCodeFragment` counts down `nextSmsTimestamp` and `nextCallTimestamp` on the two
+         * buttons. Driving it from the third offers a resend while the server still refuses an
+         * SMS, or blocks one it would have allowed.
+         *
+         * Nothing reads these yet -- the repository layer keeps only the session id -- so this
+         * is a fault with no symptom until the first resend timer is wired up, which is exactly
+         * when a wrong field is hardest to notice.
+         */
+        data class CodeSent(
+            val sessionId: String,
+            val nextSmsSeconds: Long?,
+            val nextCallSeconds: Long?,
+            val nextAttemptSeconds: Long?
+        ) : Step
 
         /** Registered. From here the account exists and the device is this phone. */
         data class Registered(val aci: String, val e164: String) : Step
@@ -82,7 +111,11 @@ class SignalRegistrar internal constructor(
      * different person's number, or fails in a way that reads like a server problem.
      */
     suspend fun begin(e164: String): Step {
-        if (!E164.matches(e164)) return Step.Failed("that is not a phone number in +1... form")
+        // Four checks, not one: see [E164Numbers]. The shape alone is what a plausible typo
+        // passes, and a typo here texts a code to somebody else's phone.
+        if (!E164Numbers.isValidForRegistration(phoneNumbers, e164)) {
+            return Step.Failed("that is not a phone number this can register")
+        }
 
         val api = anonymousApi()
         return when (val result = api.createVerificationSession(e164, null, null, null)) {
@@ -148,7 +181,12 @@ class SignalRegistrar internal constructor(
             transport
         )) {
             is org.signal.libsignal.net.RequestResult.Success ->
-                Step.CodeSent(sessionId, result.result.nextVerificationAttempt)
+                Step.CodeSent(
+                    sessionId,
+                    nextSmsSeconds = result.result.nextSms,
+                    nextCallSeconds = result.result.nextCall,
+                    nextAttemptSeconds = result.result.nextVerificationAttempt
+                )
             else -> Step.Failed("could not send a code: $result")
         }
     }
@@ -222,6 +260,26 @@ class SignalRegistrar internal constructor(
         )) {
             is org.signal.libsignal.net.RequestResult.Success -> {
                 val response = result.result
+
+                // ⚠ Before any of the new key material, and it was missing entirely.
+                //
+                // This phone may already have been linked to another account, or registered to
+                // another number. Everything the protocol store holds from that -- every
+                // session, every sender key, every sender-key-shared row -- describes a device
+                // that no longer exists, and a send over one of those goes out on a ratchet the
+                // recipient has nothing to match. It arrives undecryptable, and for a group
+                // send it fails silently. Only the link path guarded against this, and the
+                // comment there describes exactly the fault this one had.
+                //
+                // Signal does the same cleanup unconditionally for both of its registration
+                // entry points, before storing anything new (`registerAccountLocally`, and
+                // again in `AppRegistrationStorageController`).
+                accounts.forgetSessionsFromPreviousAccount()
+
+                // And the sender certificate, which is process-wide and outlives this: it was
+                // issued to the previous device id and identity key. See batch 10.
+                SealedSender.forgetCertificate()
+
                 // Written only now, and together. Everything above can be thrown away; from
                 // here the account exists and these are the only way back to it.
                 accounts.saveIdentity(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, aciIdentity, aciRegistrationId)
@@ -325,13 +383,6 @@ class SignalRegistrar internal constructor(
         /** Signal numbers the account's first device 1, and a primary is always that one. */
         const val PRIMARY_DEVICE_ID = 1
 
-        /**
-         * A phone number the server will accept: E.164, so a plus and up to fifteen digits.
-         *
-         * Checked here rather than trusted from the screen, because the failure it prevents is
-         * not a rejected request -- it is registering a number that is not the one the person
-         * meant, which cannot be undone from this side.
-         */
-        val E164 = Regex("""^\+[1-9]\d{6,14}$""")
+
     }
 }

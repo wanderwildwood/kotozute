@@ -114,8 +114,24 @@ class SignalStore(private val context: Context) {
     @Volatile
     var onRejected: (String) -> Unit = {}
 
+    /**
+     * Told whether the server says the account's primary has gone idle.
+     *
+     * Set the same way and for the same reason as [onRejected]. Not a refusal: it is the
+     * warning that arrives *before* one, because a linked device whose primary stays idle is
+     * eventually unlinked and everything on it goes with it.
+     */
+    @Volatile
+    var onPrimaryIdle: (Boolean) -> Unit = {}
+
     internal val connection: SignalConnection by lazy {
-        SignalConnection(context, account, SignalNetworkConfig.USER_AGENT, onRejected = { onRejected(it) })
+        SignalConnection(
+            context,
+            account,
+            SignalNetworkConfig.USER_AGENT,
+            onRejected = { onRejected(it) },
+            onPrimaryIdle = { onPrimaryIdle(it) }
+        )
     }
 
     /**

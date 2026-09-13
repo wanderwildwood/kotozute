@@ -33,7 +33,14 @@ internal class SignalConnection(
      * client is refused on either, even though only the authenticated one can fail to
      * authenticate.
      */
-    private val onRejected: (String) -> Unit = {}
+    private val onRejected: (String) -> Unit = {},
+    /**
+     * Called with whether the server says the account's primary has gone idle.
+     *
+     * ⚠ Given only to the authenticated socket. An alert on the unauthenticated one is not
+     * about this account, and upstream returns before reading them there.
+     */
+    private val onPrimaryIdle: (Boolean) -> Unit = {}
 ) {
 
     /**
@@ -75,7 +82,7 @@ internal class SignalConnection(
 
     val authenticated: SignalWebSocket.AuthenticatedWebSocket by lazy {
         val timer = AlarmSleepTimer(context)
-        val monitor = SignalSocketHealthMonitor(timer, onRejected)
+        val monitor = SignalSocketHealthMonitor(timer, onRejected, onPrimaryIdle)
         SignalWebSocket.AuthenticatedWebSocket(
             { LibSignalChatConnection("normal", network, credentials, ALLOW_STORIES, monitor) },
             { true },

@@ -19,11 +19,13 @@
 package com.wanderwildwood.kotozute.common
 
 import com.wanderwildwood.kotozute.feature.signal.SignalStreamService
+import com.wanderwildwood.kotozute.signalstore.SignalForeground
 import com.wanderwildwood.kotozute.worker.SignalSyncWorker
 import android.app.Activity
 import android.app.Application
 import android.app.Service
 import android.content.BroadcastReceiver
+import android.os.Bundle
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
 import androidx.work.Configuration
@@ -224,6 +226,32 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // is disabled in the manifest and it is built by hand just above, so asking for
         // getInstance() any earlier throws and takes the whole application down with it.
         SignalSyncWorker.sync(applicationContext, prefs.signalEnabled.get())
+
+        // Whether anything of this app is on screen, for the one decision that needs it: how
+        // often the Signal socket sends a keepalive. Signal reads the same fact from
+        // `AppForegroundObserver` and halves the rate when nobody is looking, which on a phone
+        // with no push -- where that socket is the only way a message arrives -- is most of
+        // the day. Counted rather than flagged, because a configuration change stops one
+        // activity and starts the next.
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            private var started = 0
+
+            override fun onActivityStarted(activity: Activity) {
+                started++
+                SignalForeground.set(true)
+            }
+
+            override fun onActivityStopped(activity: Activity) {
+                started = (started - 1).coerceAtLeast(0)
+                if (started == 0) SignalForeground.set(false)
+            }
+
+            override fun onActivityCreated(activity: Activity, state: Bundle?) = Unit
+            override fun onActivityResumed(activity: Activity) = Unit
+            override fun onActivityPaused(activity: Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) = Unit
+            override fun onActivityDestroyed(activity: Activity) = Unit
+        })
     }
 
     override fun activityInjector(): AndroidInjector<Activity> {

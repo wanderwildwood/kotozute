@@ -135,6 +135,14 @@ class Preferences @Inject constructor(
      * undecryptable envelopes cannot become a run of rotations.
      */
     val signalLastForcedKeyRotation = rxPrefs.getLong("signalLastForcedKeyRotation", 0L)
+
+    /**
+     * Whether the server says this account's primary device has gone idle.
+     *
+     * The warning that comes before a linked device is unlinked for it. Signal keeps the same
+     * fact as `hasInactivePrimaryDeviceAlert` and shows it only on a linked device.
+     */
+    val signalPrimaryIdle = rxPrefs.getBoolean("signalPrimaryIdle", false)
     /**
      * Why the server last refused this device, or blank if it has not.
      *

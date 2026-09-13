@@ -148,6 +148,7 @@ class SignalRepositoryImpl @Inject constructor(
     init {
         publishState(signalConnected = false, error = null)
         signalStore.onRejected = ::onServerRefusedThisDevice
+        signalStore.onPrimaryIdle = ::notePrimaryIdle
         signalStore.onConversationState = ::applyConversationState
     }
 
@@ -206,6 +207,27 @@ class SignalRepositoryImpl @Inject constructor(
         runOffThread {
             stopStream()
             publishState(signalConnected = false, error = reason)
+        }
+    }
+
+    /**
+     * Records that the server says the account's primary has not been seen for a long time.
+     *
+     * ⚠ Not a fault, and not something to interrupt anybody with -- but the one warning that
+     * comes *before* the fault. A linked device whose primary stays idle is eventually
+     * unlinked by the server, and when that happens this phone loses the account and every
+     * message on it, with the first notice being that nothing works any more.
+     *
+     * Kept where a screen can read it rather than acted on here: what to do about an idle
+     * primary is to go and open Signal on it, which is not something this app can do.
+     */
+    private fun notePrimaryIdle(idle: Boolean) {
+        if (prefs.signalPrimaryIdle.get() == idle) return
+        prefs.signalPrimaryIdle.set(idle)
+        if (idle) {
+            Timber.w("signal account: the server says this account's primary device has gone idle")
+        } else {
+            Timber.i("signal account: the account's primary device is active again")
         }
     }
 

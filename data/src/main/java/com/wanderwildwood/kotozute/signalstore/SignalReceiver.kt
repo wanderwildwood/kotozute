@@ -1141,7 +1141,23 @@ internal class SignalReceiver(
             // retried on every batch; asking each time would turn one unreadable message into
             // a fortnight of receipts to that person, each making their client archive its
             // session and resend, each resend failing the same way.
-            if (!alreadyAsked) askedForRetry = askForItAgain(envelope, t)
+            // ⚠ Our own primary is a different case, and it had no answer at all.
+            //
+            // A sync message that will not decrypt cannot be answered with a retry receipt --
+            // there is nobody to ask, the sender is this account -- and [askForItAgain] has
+            // always declined to send one, saying in its comment that this is "a session to
+            // repair". Nothing repaired it. So the ratchet stayed broken, every later sync
+            // failed in exactly the same way, and the device went quietly deaf to its own
+            // account: no contact changes, no blocked list, no read syncs, no transcripts of
+            // what was sent from the other phone -- while the socket looked perfectly healthy.
+            //
+            // Upstream repairs it rather than asking: `AutomaticSessionResetJob`, which
+            // MessageDecryptor enqueues on exactly this branch (`if (sender.isSelf)`).
+            if (senderOf(envelope) == accounts.credentials().aci) {
+                repairSessionWithSelf(envelope)
+            } else if (!alreadyAsked) {
+                askedForRetry = askForItAgain(envelope, t)
+            }
             null
         }
     }
@@ -1546,6 +1562,52 @@ internal class SignalReceiver(
      * the exception rather than in the envelope, and quoting the wrong one produces a receipt
      * the sender cannot match to anything.
      */
+    /**
+     * Throws away the broken session with our own account and asks for a fresh one.
+     *
+     * Signal's `AutomaticSessionResetJob`, less the parts that do not apply here. It archives
+     * the session for that device, clears what it had shared, and -- no more often than once
+     * an hour -- sends a null message, whose whole purpose is the handshake around it.
+     *
+     * Not the local "chat session refreshed" note upstream also inserts: that goes into the
+     * sender's conversation, and the sender here is this account, so it would file a notice
+     * about the machinery into Note to Self.
+     *
+     * ⚠ The hourly limit is upstream's `automaticSessionResetInterval` default, and it is what
+     * stops a wedged session becoming a null message per envelope per batch. Held in memory
+     * rather than on disk: a restart is itself a reason to try again, and the alternative is a
+     * write on a path that runs while decryption is already failing.
+     */
+    private fun repairSessionWithSelf(envelope: Envelope) {
+        val self = accounts.credentials().aci ?: return
+        val deviceId = envelope.sourceDeviceId ?: return
+        if (deviceId == accounts.credentials().deviceId) return
+
+        runCatching {
+            protocol.aci().archiveSession(SignalProtocolAddress(self, deviceId))
+            Timber.w("signal session: our own device %d's session would not open; archived it", deviceId)
+        }.onFailure { Timber.w(it, "signal session: could not archive our own device's session") }
+
+        val now = System.currentTimeMillis()
+        val last = lastSelfResetAt[deviceId] ?: 0L
+        if (now - last < SELF_SESSION_RESET_INTERVAL_MS) {
+            Timber.i("signal session: a repair was already attempted for device %d recently", deviceId)
+            return
+        }
+        lastSelfResetAt[deviceId] = now
+
+        runCatching {
+            SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT,
+                accounts, db, protocol, connection, contacts
+            ).sendNullMessage(org.signal.core.models.ServiceId.parseOrThrow(self))
+        }.onSuccess {
+            Timber.i("signal session: asked our own account for a fresh session (%s)", it)
+        }.onFailure {
+            Timber.w(it, "signal session: could not ask for a fresh session")
+        }
+    }
+
     private fun askForItAgain(envelope: Envelope, failure: Throwable): Boolean {
         val protocolFailure = generateSequence(failure) { it.cause }
             .take(CAUSE_DEPTH)
@@ -1855,6 +1917,18 @@ internal class SignalReceiver(
     }
 
     companion object {
+
+        /**
+         * When each of our own devices last had its session thrown away and rebuilt.
+         *
+         * Upstream's `automaticSessionResetInterval`, whose default is one hour, keyed by
+         * device as it keys it. In memory only -- see [repairSessionWithSelf].
+         */
+        private val lastSelfResetAt = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+
+        private val SELF_SESSION_RESET_INTERVAL_MS =
+            java.util.concurrent.TimeUnit.HOURS.toMillis(1)
+
         /**
          * Thirty, which is what `IncomingMessageObserver` asks for on both of its reads.
          *

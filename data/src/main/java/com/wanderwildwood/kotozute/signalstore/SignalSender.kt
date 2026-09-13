@@ -482,6 +482,29 @@ internal class SignalSender(
     }
 
     /**
+     * Sends a message with no content, purely to rebuild a session.
+     *
+     * A null message carries nothing and is shown to nobody; the whole of its value is the
+     * handshake around it. Sending one after archiving a broken session is what makes the far
+     * end establish a fresh one, and is upstream's repair in
+     * `AutomaticSessionResetJob.sendNullMessage`.
+     *
+     * ⚠ Chiefly for our **own primary**. A sync message that will not decrypt cannot be
+     * answered with a retry receipt -- there is nobody to ask, the sender is this account --
+     * so without this the ratchet stays broken and every later sync fails the same way.
+     */
+    fun sendNullMessage(recipient: ServiceId): Result = try {
+        val result = sender.sendNullMessage(
+            SignalServiceAddress(recipient),
+            sealedSender.accessFor(recipient.toString())
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+    } catch (t: Throwable) {
+        Timber.w(t, "signal session: could not send a null message")
+        Result.Failed(t.message ?: t::class.java.simpleName)
+    }
+
+    /**
      * One receipt send, with the one repair that is worth making.
      *
      * A receipt is sent inside an existing session, and a session can go stale -- the far end

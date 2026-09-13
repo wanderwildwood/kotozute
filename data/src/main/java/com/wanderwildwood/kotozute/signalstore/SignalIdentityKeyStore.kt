@@ -66,10 +66,41 @@ internal class SignalIdentityKeyStore(
                 IdentityKeyStore.IdentityChange.NEW_OR_UNCHANGED
             }
             existing == identityKey -> IdentityKeyStore.IdentityChange.NEW_OR_UNCHANGED
+
+            // ⚠ Never about ourselves. Upstream makes this the first arm and does nothing but
+            // log it: a key claiming to be this account's own, and differing from the one this
+            // device holds, is not a safety number to re-accept -- it is somebody else's key
+            // under our name. Acting on it would have archived our own devices' sessions and
+            // thrown away the account's resend log on a stranger's say-so.
+            isSelfAddress(name) -> {
+                Timber.w("signal store: a different identity key for this account itself; ignoring it")
+                IdentityKeyStore.IdentityChange.NEW_OR_UNCHANGED
+            }
+
             else -> {
-                // A changed key is recorded untrusted. The safety number has changed and the
-                // person deserves to be told before anything else is sent to it.
-                insertIdentity(name, identityKey, UNTRUSTED)
+                // ⚠ How far it is demoted depends on where it was, which it did not.
+                //
+                // Upstream: a record that was VERIFIED or UNVERIFIED becomes UNVERIFIED --
+                // blocked until a person looks at it -- and anything else becomes DEFAULT,
+                // which is not blocked. Every changed key here became UNTRUSTED, so a contact
+                // who simply reinstalled Signal stopped receiving anything until somebody
+                // found the accept button, and that is most key changes.
+                //
+                // The three levels here map onto Signal's three: UNTRUSTED is its UNVERIFIED
+                // (explicitly not trusted, sends stop) and TRUSTED_UNVERIFIED is its DEFAULT
+                // (ordinary, sends go). So only somebody previously verified -- or already
+                // distrusted -- stays stopped.
+                //
+                // ⚠ Without upstream's five-second window. `isNonBlockingApprovalRequired`
+                // pauses a DEFAULT contact briefly after a change, and it needs a `firstUse`
+                // and a `nonblockingApproval` this table does not have. The substance is the
+                // prior-state rule; the pause is a UI nicety, and inventing an approximation
+                // of it would be the thing this whole exercise exists to stop.
+                val demoted = when (loadIdentity(name)?.trustLevel) {
+                    TRUSTED_VERIFIED, UNTRUSTED -> UNTRUSTED
+                    else -> TRUSTED_UNVERIFIED
+                }
+                insertIdentity(name, identityKey, demoted)
                 // ⚠ And their other devices' sessions go with it. Recording the new key while
                 // leaving those sessions in place means the next send to one of them is
                 // encrypted against an identity this device has just decided it does not
@@ -84,7 +115,20 @@ internal class SignalIdentityKeyStore(
                 // it is all encrypted to the identity they have just stopped having.
                 runCatching { SignalMessageLog(db).forget(name) }
                     .onFailure { Timber.w(it, "signal store: could not drop the message log for them") }
-                Timber.i("signal store: identity changed for a peer; recorded untrusted and sessions archived")
+                // ⚠ And forget that our sender key was ever shared with them. Upstream does
+                // this on the same branch -- `senderKeyShared().deleteAllFor(recipientId)` --
+                // because the record says "this device already has our group key" and the
+                // device it was true of is gone. Left behind, a group send would skip handing
+                // the key to somebody who can no longer open anything we send to the group.
+                runCatching {
+                    db.writableDatabase.execSQL(
+                        "DELETE FROM sender_key_shared WHERE address = ?", arrayOf<Any?>(name)
+                    )
+                }.onFailure { Timber.w(it, "signal store: could not forget the shared sender keys") }
+                Timber.i(
+                    "signal store: identity changed for a peer; recorded %s and sessions archived",
+                    if (demoted == UNTRUSTED) "untrusted" else "trusted-unverified"
+                )
                 IdentityKeyStore.IdentityChange.REPLACED_EXISTING
             }
         }
@@ -137,16 +181,20 @@ internal class SignalIdentityKeyStore(
         // here and the user still gets told the safety number changed.
         if (direction == IdentityKeyStore.Direction.RECEIVING) return@withLockReentrant true
 
-        val name = address.name
-        var known = loadIdentity(name)
-        if (known == null) {
-            insertIdentity(name, identityKey, TRUSTED_UNVERIFIED)
-            known = loadIdentity(name)
-        } else if (known.key != identityKey) {
-            insertIdentity(name, identityKey, UNTRUSTED)
-            known = loadIdentity(name)
-        }
-        known != null && known.trustLevel > UNTRUSTED
+        // ⚠ Read-only, which it was not. This used to write the candidate key before deciding
+        // about it: a first sighting was trusted and stored from inside a *check*, and a
+        // changed key **overwrote the stored record with the key being questioned** -- so the
+        // row afterwards held the new key, and accepting the safety number later accepted
+        // whatever had just been presented rather than anything the user had seen.
+        //
+        // Signal's `isTrustedIdentity` and `isTrustedForSending` write nothing at all.
+        // `saveIdentity` is the only thing that stores an identity, and libsignal calls it
+        // separately; making the check store things gave this store two writers disagreeing
+        // about which key was current.
+        val known = loadIdentity(address.name)
+            ?: return@withLockReentrant true
+        if (known.key != identityKey) return@withLockReentrant false
+        known.trustLevel > UNTRUSTED
     }
 
     /**
@@ -154,11 +202,24 @@ internal class SignalIdentityKeyStore(
      *
      * The session with the address itself is left to libsignal, which starts a fresh one
      * against the new identity. The siblings are the ones nothing else would touch.
+     *
+     * ⚠ Every other device, the primary included. This read `getSubDeviceSessions`, whose SQL
+     * excludes device 1 -- correctly, because a *sub*-device is by definition not the primary
+     * -- so when the identity that changed belonged to a linked device, the primary's session
+     * survived and went on encrypting to an identity this phone had just stopped trusting.
+     * Signal asks `getAllFor` here and excludes only the address's own device id.
      */
+    /** Whether an address is one of this account's own identifiers. */
+    private fun isSelfAddress(name: String): Boolean {
+        val credentials = SignalAccountStore(db).credentials()
+        return listOfNotNull(credentials.aci, credentials.pni, credentials.e164)
+            .any { it.isNotBlank() && it == name }
+    }
+
     private fun archiveSiblingSessions(address: SignalProtocolAddress) {
         val sessions = SignalSessionStore(db, accountIdType)
         runCatching {
-            sessions.getSubDeviceSessions(address.name)
+            sessions.deviceIdsFor(address.name)
                 .filter { it != address.deviceId }
                 .forEach { deviceId ->
                     val sibling = SignalProtocolAddress(address.name, deviceId)
@@ -291,8 +352,28 @@ internal class SignalIdentityKeyStore(
      */
     fun adoptIdentity(address: String, key: IdentityKey, verified: Boolean): Boolean =
         db.lock.withLockReentrant {
-            if (loadIdentity(address) != null) return@withLockReentrant false
-            insertIdentity(address, key, if (verified) TRUSTED_VERIFIED else TRUSTED_UNVERIFIED)
+            val wanted = if (verified) TRUSTED_VERIFIED else TRUSTED_UNVERIFIED
+            val known = loadIdentity(address)
+
+            // ⚠ Authoritative, not a first-sighting seed. This wrote only where nothing was on
+            // file, so any existing row -- however stale -- made the account's own record a
+            // no-op, and a key or a verification agreed by the account's other devices never
+            // reached this one.
+            //
+            // Upstream's `IdentityTable.updateIdentityAfterSync` rewrites whenever the key or
+            // the verified status differs, and only then. The record is not a stranger's: it
+            // is the account's own, encrypted under the account's storage key and written by
+            // its own devices, which is the same authority as the primary this device already
+            // obeys for its contacts, its blocked list and its settings.
+            if (known != null && known.key == key && known.trustLevel == wanted) {
+                return@withLockReentrant false
+            }
+            if (known != null && known.key != key) {
+                // Said out loud. A replaced key is a changed safety number however it arrived,
+                // and upstream marks an identity update at exactly this point.
+                Timber.w("signal identity: the account's records replaced a key this phone held")
+            }
+            insertIdentity(address, key, wanted)
             true
         }
 

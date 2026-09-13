@@ -58,6 +58,24 @@ internal class SignalSessionStore(
         }
     }
 
+    /**
+     * Every device this app holds a session with for [name], the primary included.
+     *
+     * ⚠ Not [getSubDeviceSessions], which is libsignal's and must keep its meaning: a
+     * *sub*-device is by definition not the primary, and its SQL excludes device 1 correctly.
+     * Archiving somebody's other sessions is a different question, and Signal asks it with
+     * `getAllFor` for exactly this reason -- if the identity that changed belongs to device 2,
+     * the primary's session is a sibling and has to go too.
+     */
+    fun deviceIdsFor(name: String): List<Int> = withLock {
+        db.readableDatabase.rawQuery(
+            "SELECT device_id FROM session WHERE account_id_type = ? AND address = ?",
+            arrayOf(accountIdType.toString(), name)
+        ).use { c ->
+            generateSequence { if (c.moveToNext()) c.getInt(0) else null }.toList()
+        }
+    }
+
     override fun storeSession(address: SignalProtocolAddress, record: SessionRecord) = withLock {
         db.writableDatabase.execSQL(
             """

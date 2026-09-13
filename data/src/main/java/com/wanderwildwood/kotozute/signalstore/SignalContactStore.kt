@@ -43,7 +43,16 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         val profileKey: ByteArray? = null,
         val pni: String? = null,
         /** The @name they chose, where the source knew one. */
-        val username: String? = null
+        val username: String? = null,
+        /**
+         * Hidden by the account owner, and when the account noticed they had left Signal.
+         *
+         * Both mean "do not offer this person", and both were being decoded and thrown away.
+         * Null where the source does not say -- a contacts sync does not carry either -- so a
+         * storage read can set them without a sync clearing them again.
+         */
+        val hidden: Boolean? = null,
+        val unregisteredAt: Long? = null
     )
 
     /** Whether a service id is a phone-number identity rather than an account. */
@@ -71,7 +80,10 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
                 if (c.serviceId.isBlank()) return@forEach
                 val aci = if (isPni(c.serviceId)) null else c.serviceId
                 val pni = c.pni ?: c.serviceId.takeIf { isPni(it) }
-                upsert(database, aci, pni, c.e164, c.name, c.profileKey, c.username)
+                upsert(
+                    database, aci, pni, c.e164, c.name, c.profileKey, c.username,
+                    c.hidden, c.unregisteredAt
+                )
             }
             database.setTransactionSuccessful()
             Timber.i("signal contacts: stored %d", contacts.size)
@@ -95,7 +107,10 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         e164: String?,
         name: String?,
         profileKey: ByteArray?,
-        username: String?
+        username: String?,
+        /** Null where the source does not carry it; see [Contact.hidden]. */
+        hidden: Boolean?,
+        unregisteredAt: Long?
     ) {
         val now = System.currentTimeMillis()
         val byAci = aci?.let { candidateFor(database, "aci", it) }
@@ -136,9 +151,15 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
 
         if (existing == null) {
             database.execSQL(
-                "INSERT INTO recipient (aci, pni, e164, name, profile_key, username, updated_timestamp) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                arrayOf<Any?>(aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(), now)
+                "INSERT INTO recipient " +
+                    "(aci, pni, e164, name, profile_key, username, hidden, unregistered_at, updated_timestamp) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                arrayOf<Any?>(
+                    aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(),
+                    // Nothing said means the column's default, not null: these are NOT NULL.
+                    if (hidden == true) 1 else 0, unregisteredAt ?: 0L,
+                    now
+                )
             )
             return
         }
@@ -176,6 +197,11 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
               name = COALESCE(?, name),
               profile_key = COALESCE(?, profile_key),
               username = COALESCE(?, username),
+              -- Fill-only, like the rest: null means "this source does not carry it". A
+              -- contacts sync says nothing about either, so it must not clear what a storage
+              -- read set.
+              hidden = COALESCE(?, hidden),
+              unregistered_at = COALESCE(?, unregistered_at),
               -- A new profile key means the name we hold was decrypted with the old one.
               -- Signal zeroes last_profile_fetch on every profile key write for this reason.
               last_profile_fetch = CASE
@@ -198,6 +224,7 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             """.trimIndent(),
             arrayOf<Any?>(
                 aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(),
+                hidden?.let { if (it) 1 else 0 }, unregisteredAt,
                 profileKey, profileKey, profileKey, profileKey, now, existing
             )
         )
@@ -475,7 +502,15 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
     fun everyone(): List<Contact> = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             "SELECT COALESCE(aci, pni), e164, name, pni, username FROM recipient " +
-                "WHERE aci IS NOT NULL OR pni IS NOT NULL",
+                "WHERE (aci IS NOT NULL OR pni IS NOT NULL) " +
+                // ⚠ The account said twice that these people should not be offered, and both
+                // were ignored. Signal's contact search does the same two exclusions --
+                // `FILTER_HIDDEN` is " AND hidden = ?" with 0, and its SIGNAL_CONTACT clause
+                // requires REGISTERED, which it clears whenever the unregistered timestamp is
+                // set. Somebody hidden came back at every read; somebody who had left Signal
+                // was offered like anyone else, and picking them starts a conversation that
+                // cannot deliver.
+                "AND hidden = 0 AND unregistered_at = 0",
             null
         ).use { c ->
             generateSequence {

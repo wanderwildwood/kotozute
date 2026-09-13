@@ -590,13 +590,32 @@ class SignalStore(private val context: Context) {
     internal var onConversationState: (List<SignalStorageService.ConversationState>) -> Unit = {}
 
     fun readStorage(): String {
+        // Who this account is, so a record describing it can be refused rather than filed as
+        // one of its own contacts. Read once per storage read, not per record.
+        val credentials = runCatching { account.credentials() }.getOrNull()
         val result = SignalStorageService(
             connection, keys, contacts,
-            identities = { who, key, verified ->
+            self = SignalStorageService.Self(
+                aci = credentials?.aci,
+                pni = credentials?.pni,
+                e164 = credentials?.e164
+            ),
+            identities = { who, key, state ->
                 // The account's own record of somebody's key, taken as this device's starting
                 // point rather than trusting whatever the server offers first.
                 runCatching {
-                    SignalDataStore(database, account).aciStore().adoptIdentity(who, key, verified)
+                    SignalDataStore(database, account).aciStore().adoptIdentity(
+                        who,
+                        key,
+                        when (state) {
+                            SignalStorageService.IdentityState.Verified ->
+                                SignalIdentityKeyStore.AdoptedState.Verified
+                            SignalStorageService.IdentityState.Unverified ->
+                                SignalIdentityKeyStore.AdoptedState.Unverified
+                            SignalStorageService.IdentityState.Default ->
+                                SignalIdentityKeyStore.AdoptedState.Default
+                        }
+                    )
                 }.onFailure { Timber.w(it, "signal storage: could not adopt an identity") }
             },
             conversationState = { states -> onConversationState(states) },

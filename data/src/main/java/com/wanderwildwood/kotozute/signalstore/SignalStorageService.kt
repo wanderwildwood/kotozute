@@ -31,10 +31,21 @@ internal class SignalStorageService(
     private val keys: SignalKeyStore,
     private val contacts: SignalContactStore,
     /**
+     * Who this account is, so a record describing it can be refused.
+     *
+     * ⚠ "You can't have a contact record for yourself. That should be an account record" --
+     * Signal's own words, on `ContactRecordProcessor.isInvalid`. Nothing here checked, so the
+     * account owner could be filed as one of their own contacts, carrying the account's own
+     * number and phone-number identity. Only the account id was filtered, much further
+     * downstream and only as a string, so a self record whose id was written differently
+     * arrived as a stranger -- and its number then became fuel for a merge.
+     */
+    private val self: Self = Self(null, null, null),
+    /**
      * Records the identity key the account already holds for somebody, and whether it has been
      * verified. Every contact record carries both, and they were decrypted and dropped.
      */
-    private val identities: (String, org.signal.libsignal.protocol.IdentityKey, Boolean) -> Unit =
+    private val identities: (String, org.signal.libsignal.protocol.IdentityKey, IdentityState) -> Unit =
         { _, _, _ -> },
     /**
      * Who the account has blocked, as its own records say.
@@ -102,6 +113,24 @@ internal class SignalStorageService(
         val anonymousWithNumber: Int = 0
     )
 
+    /** The account's own three identifiers, any of which may be absent. */
+    data class Self(val aci: String?, val pni: String?, val e164: String?)
+
+    /**
+     * What the account says about somebody's safety number.
+     *
+     * Signal's three `VerifiedStatus` values, and they are genuinely three:
+     * [Verified] the owner has checked it in person; [Unverified] the owner has explicitly
+     * said it is not verified, which stops sends until it is approved; [Default] neither, the
+     * ordinary state. Upstream's `remoteToLocalIdentityStatus` maps the record's field onto
+     * exactly these.
+     */
+    enum class IdentityState { Verified, Unverified, Default }
+
+    /** See the companion's [invalidReason]; this one just supplies [self]. */
+    private fun invalidReason(aci: String?, pni: String?, e164: String?): String? =
+        invalidReason(self, aci, pni, e164)
+
     fun read(): Result {
         val storageKey = keys.storageKey()
             ?: return Result(0, 0, "the storage key is not here yet")
@@ -151,6 +180,8 @@ internal class SignalStorageService(
         var seen = 0
         var unopened = 0
         var notContacts = 0
+        /** Records the account should not have sent; see [invalidReason]. */
+        var invalid = 0
         var anonymous = 0
         var pniOnly = 0
         var anonymousWithNumber = 0
@@ -207,6 +238,19 @@ internal class SignalStorageService(
             val people = found.mapNotNull { record ->
                 val aci = aciOf(record)
                 val pni = pniOf(record)
+                val e164 = record.e164?.takeIf { it.isNotBlank() }
+
+                // ⚠ Before anything is learned from it, and before any pairing is written.
+                //
+                // A record this app should not have been sent is not a record to take the
+                // good parts of: the pairing below writes a pni-to-aci binding on the
+                // account's authority, and an identity key adoption below that decides what
+                // key this device will trust. Both of those are worth refusing outright.
+                invalidReason(aci, pni, e164)?.let { why ->
+                    Timber.w("signal storage: ignoring a contact record -- %s", why)
+                    invalid++
+                    return@mapNotNull null
+                }
 
                 // A record carrying both is the account telling this phone, on its own
                 // authority, that these two ids are one person. It is the only pairing that
@@ -234,7 +278,19 @@ internal class SignalStorageService(
                             identities(
                                 id,
                                 org.signal.libsignal.protocol.IdentityKey(key.toByteArray()),
-                                record.identityState == ContactRecord.IdentityState.VERIFIED
+                                // ⚠ Three states, not a boolean. Collapsing it to
+                                // "is it VERIFIED" made UNVERIFIED mean the same as DEFAULT,
+                                // and they are not the same: DEFAULT is an ordinary contact,
+                                // UNVERIFIED is one the account owner has explicitly marked
+                                // as not verified, and upstream stops sending to those until
+                                // somebody approves it (`isTrustedForSending` returns false on
+                                // UNVERIFIED). Dropping the distinction silently un-did that
+                                // decision on this device.
+                                when (record.identityState) {
+                                    ContactRecord.IdentityState.VERIFIED -> IdentityState.Verified
+                                    ContactRecord.IdentityState.UNVERIFIED -> IdentityState.Unverified
+                                    else -> IdentityState.Default
+                                }
                             )
                         }.onFailure { Timber.w(it, "signal storage: an identity would not keep") }
                     }
@@ -256,20 +312,34 @@ internal class SignalStorageService(
                 if (record.blocked) {
                     blockedPeople += SignalBlockStore.Blocked(
                         aci = id,
-                        e164 = record.e164?.takeIf { it.isNotBlank() },
-                        blockedAt = 0L
+                        e164 = e164,
+                        // ⚠ Was hard-coded to zero while the record carried the real value.
+                        // The zeroes did not stay local: blocking anybody from this phone
+                        // republishes the whole list as a legacy blocked sync, and the
+                        // primary's `applyBlockedUpdate` writes what it is sent straight over
+                        // its own timestamps -- so one block here erased, account-wide, when
+                        // every other block had happened.
+                        blockedAt = record.blockedAtTimestamp
                     )
                 }
                 SignalContactStore.Contact(
                     serviceId = id,
                     // Both ids on one record is the account saying they are one person.
                     pni = pni,
-                    e164 = record.e164?.takeIf { it.isNotBlank() },
+                    e164 = e164,
                     name = nameOf(record),
                     profileKey = record.profileKey?.takeIf { it.size > 0 }?.toByteArray(),
                     // Not a name -- Signal shows it only once there is no name and no number
                     // -- but the last thing between this person and a row of hexadecimal.
-                    username = record.username?.takeIf { it.isNotBlank() }
+                    username = record.username?.takeIf { it.isNotBlank() },
+                    // ⚠ Two fields the account sets to say "do not offer this person", both
+                    // decoded and thrown away. `hidden` is the owner's deliberate choice, and
+                    // a hidden contact reappeared at every storage read because of it.
+                    // `unregisteredAtTimestamp` is the account's note that they have left
+                    // Signal, and offering them starts a conversation that can never deliver.
+                    // Signal keeps both and excludes them from contact search.
+                    hidden = record.hidden,
+                    unregisteredAt = record.unregisteredAtTimestamp
                 ).also {
                     // Whether the account shares its profile with them. Applied here rather
                     // than carried through the merge, because it is a fact about the
@@ -314,13 +384,54 @@ internal class SignalStorageService(
         }
         Timber.i(
             "signal storage: %d contact(s) from %d record(s), %d of them known only by phone-number identity; " +
-                "dropped %d unopened, %d not contacts, %d with no id at all (%d of those had a number)",
-            kept, seen, pniOnly, unopened, notContacts, anonymous, anonymousWithNumber
+                "dropped %d unopened, %d not contacts, %d with no id at all (%d of those had a " +
+                "number), %d the account should not have sent",
+            kept, seen, pniOnly, unopened, notContacts, anonymous, anonymousWithNumber, invalid
         )
         return Result(kept, seen, null, unopened, notContacts, anonymous, pniOnly, unreadable, anonymousWithNumber)
     }
 
     companion object {
+        /**
+         * What a phone number on a storage record is allowed to look like.
+         *
+         * Signal's `ContactRecordProcessor.E164_PATTERN`, and deliberately not the stricter one
+         * registration uses: this is a number somebody else's client wrote, possibly years
+         * ago, and the job here is to refuse junk rather than to re-decide what a valid number
+         * is.
+         *
+         * ⚠ Without it a legacy row, a short code or a bare unprefixed string became a row key
+         * -- and a key is exactly what a number is here. Two records carrying the same junk
+         * both match a lookup by number and are taken for one person.
+         */
+        private val E164_PATTERN = Regex("""^\+[1-9]\d{6,18}$""")
+
+        /**
+         * Whether this record is one the account should never have sent, and must not be
+         * stored. Null when it is fine.
+         *
+         * Signal's `ContactRecordProcessor.isInvalid`, case for case. It refuses the record
+         * whole rather than repairing it, and that is the part worth keeping: a record that is
+         * wrong about who somebody is cannot be made right by dropping the wrong field,
+         * because nothing says which field is the wrong one.
+         *
+         * Internal so it can be tested without a network or a store. On a healthy account it
+         * never fires, and a check that never fires is not evidence of anything.
+         */
+        internal fun invalidReason(
+            self: Self,
+            aci: String?,
+            pni: String?,
+            e164: String?
+        ): String? = when {
+            aci == null && pni == null -> "neither an account id nor a phone-number identity"
+            self.aci != null && self.aci == aci -> "it describes this account"
+            self.pni != null && self.pni == pni -> "it describes this account"
+            self.e164 != null && e164 != null && e164 == self.e164 -> "it describes this account"
+            e164 != null && !E164_PATTERN.matches(e164) -> "a phone number that is not one"
+            else -> null
+        }
+
         private const val BATCH = 200
 
         /** A group master key is 32 bytes; anything else is not one, whatever it decodes to. */

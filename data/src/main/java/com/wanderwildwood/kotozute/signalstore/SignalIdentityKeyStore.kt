@@ -339,6 +339,9 @@ internal class SignalIdentityKeyStore(
             true
         }
 
+    /** What the account's own records say about a safety number. See [adoptIdentity]. */
+    enum class AdoptedState { Verified, Unverified, Default }
+
     /**
      * Takes the key the account itself already holds for somebody as this device's own.
      *
@@ -350,9 +353,26 @@ internal class SignalIdentityKeyStore(
      * is a first sighting, and a first sighting is trusted on faith. Starting from the
      * account's own record closes that window for everybody it knows about.
      */
-    fun adoptIdentity(address: String, key: IdentityKey, verified: Boolean): Boolean =
+    fun adoptIdentity(address: String, key: IdentityKey, state: AdoptedState): Boolean =
         db.lock.withLockReentrant {
-            val wanted = if (verified) TRUSTED_VERIFIED else TRUSTED_UNVERIFIED
+            // ⚠ Three states, and UNVERIFIED is not DEFAULT.
+            //
+            // This took a Boolean, so "the owner explicitly marked this unverified" arrived
+            // looking exactly like "nothing has been said about this one" -- and those have
+            // opposite meanings. Upstream's `isTrustedForSending` returns false on UNVERIFIED,
+            // which is what UNTRUSTED does here, so the mapping is one for one:
+            // VERIFIED -> TRUSTED_VERIFIED, UNVERIFIED -> UNTRUSTED, DEFAULT ->
+            // TRUSTED_UNVERIFIED.
+            //
+            // ⚠ Not to be confused with an un-verification arriving by `SyncMessage.Verified`,
+            // which upstream writes as DEFAULT and not UNVERIFIED -- see the note in
+            // [verifyIdentity]. Same word, two different states, and only the storage record
+            // carries the blocking one.
+            val wanted = when (state) {
+                AdoptedState.Verified -> TRUSTED_VERIFIED
+                AdoptedState.Unverified -> UNTRUSTED
+                AdoptedState.Default -> TRUSTED_UNVERIFIED
+            }
             val known = loadIdentity(address)
 
             // ⚠ Authoritative, not a first-sighting seed. This wrote only where nothing was on

@@ -69,8 +69,8 @@ internal class SignalAccountDataStore(
     fun adoptIdentity(
         address: String,
         key: org.signal.libsignal.protocol.IdentityKey,
-        verified: Boolean
-    ): Boolean = identities.adoptIdentity(address, key, verified)
+        state: SignalIdentityKeyStore.AdoptedState
+    ): Boolean = identities.adoptIdentity(address, key, state)
 
     /** See [SignalIdentityKeyStore.setVerified]. Passed through so the receiver need not
      *  reach past this store to the one behind it. */

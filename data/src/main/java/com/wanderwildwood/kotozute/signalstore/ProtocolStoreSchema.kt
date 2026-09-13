@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 24
+    const val VERSION = 25
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -441,6 +441,11 @@ internal object ProtocolStoreSchema {
           -- The @name they chose, where they have one. The last thing Signal will show
           -- somebody by before giving up and calling them Unknown.
           username TEXT,
+          -- Hidden by the account owner, and when the account noticed they had left Signal.
+          -- Both come from the account's own contact record and both mean "do not offer this
+          -- person"; see the v25 migration.
+          hidden INTEGER NOT NULL DEFAULT 0,
+          unregistered_at INTEGER NOT NULL DEFAULT 0,
           -- This row's id in the account's storage service, base64 of sixteen random bytes.
           -- ⚠ Rotated on every **local** change and on nothing else: the rotation IS the
           -- record of "this differs from what the account holds". See [SignalContactStore.
@@ -740,7 +745,18 @@ internal object ProtocolStoreSchema {
         // v24: replay protection for the last-resort Kyber key. A new table, so nothing
         // existing is touched and there is nothing to back-fill -- an empty seen-set is the
         // right starting point, because a use nobody recorded cannot be shown to be a replay.
-        24 to listOf(LAST_RESORT_KEY_TUPLE)
+        24 to listOf(LAST_RESORT_KEY_TUPLE),
+        // v25: the two things the account's records say about somebody that mean "do not
+        // offer this person". `hidden` is a deliberate choice by the account owner;
+        // `unregistered_at` is the account's note that they have left Signal. Both were being
+        // decoded and dropped, so a hidden contact came back at every storage read and
+        // somebody who had left was offered as an ordinary contact -- and picking them starts
+        // a conversation that can never deliver. Signal keeps both columns and excludes them
+        // from contact search (`FILTER_HIDDEN`, and SIGNAL_CONTACT requiring REGISTERED).
+        25 to listOf(
+            "ALTER TABLE recipient ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE recipient ADD COLUMN unregistered_at INTEGER NOT NULL DEFAULT 0;"
+        )
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

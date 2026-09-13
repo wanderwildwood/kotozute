@@ -1,6 +1,8 @@
 package com.wanderwildwood.kotozute.signalstore
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.util.concurrent.TimeUnit
@@ -65,6 +67,42 @@ class LinkSocketRotationTest {
         // Half of ProvisioningSocket.LIFESPAN, which is ninety seconds, and its `count < 5`.
         assertEquals(TimeUnit.SECONDS.toMillis(45), DeviceLinker.LINK_ROTATE_INTERVAL_MS)
         assertEquals(5, DeviceLinker.MAX_LINK_ROTATIONS)
+    }
+
+    @Test
+    fun `the attempt is not abandoned while a code is still scannable`() {
+        // ⚠ The bug this replaced, as the timeline that exposed it. The timer keeps ticking
+        // after the last socket opens, so at t=225s the rotation counter has reached five
+        // while sockets E and F are alive -- and the socket that expires at that moment is D,
+        // an old one. Asking "has the counter reached the maximum?" abandoned the whole
+        // attempt there, one second after a fresh code went on screen.
+        //
+        // rotations=5 is not "no more coming": the last socket opens ON rotation 5.
+        assertFalse(
+            "t=225s: D expires, E and F are live",
+            DeviceLinker.noCodeIsStillLive(rotations = 5, opened = 6, failed = 4)
+        )
+        // t=270s: no more rotations, but F is still up.
+        assertFalse(
+            "t=270s: E expires, F is still live",
+            DeviceLinker.noCodeIsStillLive(rotations = 6, opened = 6, failed = 5)
+        )
+        // t=315s: F expires. Nothing left to scan, and only now is it a failure.
+        assertTrue(
+            "t=315s: the last code has expired",
+            DeviceLinker.noCodeIsStillLive(rotations = 6, opened = 6, failed = 6)
+        )
+    }
+
+    @Test
+    fun `an early expiry never ends the attempt`() {
+        // Every one of these is an old code expiring on schedule while newer ones are up.
+        for (r in 1..5) {
+            assertFalse(
+                "rotation $r",
+                DeviceLinker.noCodeIsStillLive(rotations = r, opened = r + 1, failed = r)
+            )
+        }
     }
 
     @Test

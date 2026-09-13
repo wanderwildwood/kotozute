@@ -134,6 +134,10 @@ class DeviceLinker internal constructor(
         // callback both reach it.
         val handles = java.util.ArrayList<java.io.Closeable>()
         val rotations = AtomicInteger(0)
+        // How many sockets have been opened, and how many of those have since failed. The
+        // difference is how many codes are still scannable -- see [noCodeIsStillLive].
+        val opened = AtomicInteger(0)
+        val failed = AtomicInteger(0)
 
         val timer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
             Thread(r, "signal-link-rotate").apply { isDaemon = true }
@@ -162,10 +166,15 @@ class DeviceLinker internal constructor(
                     provisioningKeys,
                     configuration,
                     { id, t ->
-                        // Only the last one is allowed to end this. An earlier socket timing
-                        // out is a code expiring on schedule, which is what is supposed to
-                        // happen to it.
-                        if (rotations.get() >= MAX_LINK_ROTATIONS) {
+                        // Only when nothing is left to scan. An earlier socket timing out
+                        // is a code expiring on schedule, which is what is supposed to happen
+                        // to it -- see [noCodeIsStillLive].
+                        if (noCodeIsStillLive(
+                                rotations = rotations.get(),
+                                opened = opened.get(),
+                                failed = failed.incrementAndGet()
+                            )
+                        ) {
                             Timber.w(t, "signal link: the last provisioning socket failed")
                             finish {
                                 continuation.resumeWithException(
@@ -192,6 +201,7 @@ class DeviceLinker internal constructor(
             }.onFailure { Timber.w(it, "signal link: could not open a provisioning socket") }
                 .getOrNull() ?: return
 
+            opened.incrementAndGet()
             val displaced = synchronized(handles) { admit(handles, closeable) }
             runCatching { displaced?.close() }
 
@@ -384,6 +394,27 @@ class DeviceLinker internal constructor(
         )
 
     companion object {
+
+        /**
+         * Whether every code this attempt will ever show has now expired.
+         *
+         * ⚠ The first version asked whether the *rotation counter* had reached its maximum,
+         * which is a different question and got the answer wrong by a whole rotation. The
+         * timer keeps ticking after the last socket opens, so the counter reaches five while
+         * two sockets are still alive -- and the next one to expire is an **old** socket, not
+         * the newest. The attempt was abandoned at t=225s with two scannable codes on the
+         * wire, one of them put there that same second: from the other side of the screen, a
+         * fresh code appearing and instantly failing.
+         *
+         * The right question is upstream's -- report failure only when the *current* socket
+         * fails -- expressed as arithmetic rather than socket identity, because the library
+         * hands the id to the callback and not to the opener. No more rotations are coming,
+         * **and** every socket opened has since failed, so there is nothing left to scan.
+         *
+         * @param failed counted *including* the failure being reported.
+         */
+        internal fun noCodeIsStillLive(rotations: Int, opened: Int, failed: Int): Boolean =
+            rotations > MAX_LINK_ROTATIONS && failed >= opened
 
         /**
          * Adds a new socket handle and returns the one it displaces, if any.

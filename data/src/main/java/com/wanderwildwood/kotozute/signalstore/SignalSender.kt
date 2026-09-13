@@ -621,6 +621,89 @@ internal class SignalSender(
         }
     }
 
+    /**
+     * Takes a message back, for everyone who was sent it.
+     *
+     * Signal's own shape, from `RemoteDeleteSendJob.deliver`: an ordinary data message whose
+     * only content is the sent-timestamp of the message being withdrawn. It carries **no
+     * profile key** -- Signal attaches one to messages people read, not to the housekeeping
+     * that follows them -- and it is sent urgent and resendable, because a withdrawal that
+     * waits for the recipient's next idle connection leaves the message standing on their
+     * screen in the meantime.
+     *
+     * A message is named here the way Signal names one everywhere: by who wrote it and the
+     * timestamp it was sent with. The author is this account, so only the timestamp travels.
+     */
+    fun sendRemoteDelete(recipient: ServiceId, targetSentTimestamp: Long): Result {
+        val timestamp = System.currentTimeMillis()
+        val message = SignalServiceDataMessage.newBuilder()
+            .withTimestamp(timestamp)
+            .withRemoteDelete(SignalServiceDataMessage.RemoteDelete(targetSentTimestamp))
+            .build()
+
+        return try {
+            val result = sender.sendDataMessage(
+                SignalServiceAddress(recipient),
+                sealedSender.accessFor(recipient.toString()),
+                ContentHint.RESENDABLE,
+                message,
+                SignalServiceMessageSender.IndividualSendEvents.EMPTY,
+                false,
+                true
+            )
+            if (result.isSuccess) {
+                Timber.i("signal delete: withdrawal sent for ts=%d", targetSentTimestamp)
+                Result.Sent(timestamp)
+            } else {
+                Result.Failed(describe(result))
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal delete: sending the withdrawal threw")
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
+    /** The same, to a group: it has to reach everybody who was sent the message. */
+    fun sendRemoteDeleteToGroup(
+        masterKey: ByteArray,
+        members: List<ServiceId>,
+        targetSentTimestamp: Long
+    ): Result {
+        if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
+        val timestamp = System.currentTimeMillis()
+
+        val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
+            .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+            .withRevision(0)
+            .build()
+
+        val message = SignalServiceDataMessage.newBuilder()
+            .withTimestamp(timestamp)
+            .asGroupMessage(group)
+            .withRemoteDelete(SignalServiceDataMessage.RemoteDelete(targetSentTimestamp))
+            .build()
+
+        return try {
+            val results = sender.sendDataMessage(
+                members.map { SignalServiceAddress(it) },
+                members.map { sealedSender.accessFor(it.toString()) },
+                false,
+                ContentHint.RESENDABLE,
+                message,
+                SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
+                null,
+                null,
+                true
+            )
+            val failed = results.filterNot { it.isSuccess }
+            if (failed.isEmpty()) Result.Sent(timestamp)
+            else Result.Failed("could not reach ${failed.size} of ${results.size} group members")
+        } catch (t: Throwable) {
+            Timber.w(t, "signal delete: the group withdrawal threw")
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
     fun send(
         recipient: ServiceId,
         body: String,

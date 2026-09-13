@@ -318,6 +318,48 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /**
+     * Takes one of this account's own messages back, for everyone it was sent to.
+     *
+     * [targetSentTimestamp] is the timestamp the message went out with, which is how Signal
+     * names a message everywhere. The author is always this account -- a withdrawal of
+     * somebody else's message is not a thing anyone but a group admin can do, and this app
+     * has no admin path.
+     */
+    fun sendRemoteDelete(recipient: String, targetSentTimestamp: Long): Long {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
+            ?: throw IllegalStateException("not a service id: $recipient")
+        connection.connect()
+        return when (
+            val result = SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).sendRemoteDelete(serviceId, targetSentTimestamp)
+        ) {
+            is SignalSender.Result.Sent -> result.timestamp
+            is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
+        }
+    }
+
+    /** The same, into a group, which means every member it can reach. */
+    fun sendRemoteDeleteToGroup(masterKey: ByteArray, targetSentTimestamp: Long): Long {
+        connection.connect()
+        val group = SignalGroups(connection, account, contacts).fetch(masterKey)
+            ?: throw IllegalStateException("could not read the group's members")
+        val members = group.members
+            .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+            .filter { it.toString() != account.credentials().aci }
+        return when (
+            val result = SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).sendRemoteDeleteToGroup(masterKey, members, targetSentTimestamp)
+        ) {
+            is SignalSender.Result.Sent -> result.timestamp
+            is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
+        }
+    }
+
     /** The same, into a group, which means every member it can reach. */
     fun sendReactionToGroup(
         masterKey: ByteArray,

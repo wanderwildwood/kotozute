@@ -490,13 +490,25 @@ class SignalThreadActivity : QkThemedActivity() {
      * complexity when you act on many messages at once, and here there is nothing yet that
      * takes more than one.
      */
-    private fun showMessageActions(body: String, messageId: String, mine: String) {
+    private fun showMessageActions(
+        body: String,
+        messageId: String,
+        mine: String,
+        outgoing: Boolean,
+        sentAt: Long
+    ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
         if (mine.isNotEmpty()) {
             actions += getString(R.string.signal_reaction_remove_mine, mine) to {
                 sendReaction(messageId, mine, remove = true)
             }
+        }
+        // Only our own, and only while Signal would still accept it. Offering it on somebody
+        // else's message, or on one too old to withdraw, is offering something that can only
+        // end in an apology.
+        if (SignalRepository.canWithdraw(outgoing, sentAt)) {
+            actions += getString(R.string.signal_withdraw) to { confirmWithdraw(messageId) }
         }
         if (body.isBlank()) {
             AlertDialog.Builder(this)
@@ -567,6 +579,35 @@ class SignalThreadActivity : QkThemedActivity() {
                 cell,
                 android.widget.LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             )
+        }
+    }
+
+    /**
+     * Asks before taking a message back, every time.
+     *
+     * Signal asks once and remembers the answer. This asks each time: the gesture is one
+     * long-press away from "Copy text" on a 480px screen, it cannot be undone, and it reaches
+     * other people's phones. A confirmation that stops appearing is one nobody reads.
+     */
+    private fun confirmWithdraw(messageId: String) {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.signal_withdraw_confirm)
+            .setPositiveButton(R.string.signal_withdraw_yes) { _, _ -> withdraw(messageId) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun withdraw(messageId: String) {
+        thread(isDaemon = true) {
+            val failure = runCatching { signalRepo.withdraw(messageId) }.exceptionOrNull()
+            if (failure != null) {
+                Timber.w(failure, "signal: withdrawal")
+                runOnUiThread {
+                    Toast.makeText(
+                        this, getString(R.string.signal_withdraw_failed), Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         }
     }
 
@@ -862,8 +903,10 @@ class SignalThreadActivity : QkThemedActivity() {
             // whichever one had scrolled into its place.
             val messageId = m.id
             val mine = myReaction(m)
+            val outgoing = m.outgoing
+            val sentAt = m.date
             val listener = android.view.View.OnLongClickListener {
-                showMessageActions(m.body, messageId, mine)
+                showMessageActions(m.body, messageId, mine, outgoing, sentAt)
                 true
             }
             b.body.setOnLongClickListener(listener)

@@ -538,6 +538,10 @@
     <string name="signal_schedule_failed">Could not schedule that</string>
     <string name="scheduled_via_signal">%1$s (Signal)</string>
     <string name="signal_reaction_failed">That reaction did not send</string>
+    <string name="signal_withdraw">Take back\u2026</string>
+    <string name="signal_withdraw_confirm">Take this message back? It goes from everyone\'s phone, not just this one.</string>
+    <string name="signal_withdraw_yes">Take it back</string>
+    <string name="signal_withdraw_failed">Could not take that message back</string>
     <plurals name="signal_unread">
         <item quantity="one">%d unread</item>
         <item quantity="other">%d unread</item>

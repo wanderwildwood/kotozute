@@ -1294,6 +1294,8 @@ internal class SignalReceiver(
             val stream = org.whispersystems.signalservice.api.messages.multidevice
                 .DeviceContactsInputStream(input)
             val found = mutableListOf<SignalContactStore.Contact>()
+            var avatars = 0
+            var avatarBytes = 0L
             while (true) {
                 val contact = try {
                     stream.read() ?: break
@@ -1302,6 +1304,31 @@ internal class SignalReceiver(
                     // entry should not cost every name after it in the stream.
                     if (e.message?.contains("Missing contact address") == true) continue else throw e
                 }
+                // ⚠ The avatar's bytes have to be read even though nothing here keeps one.
+                //
+                // `DeviceContactsInputStream.read()` hands back the avatar as a
+                // `LimitedInputStream` wrapped around the *same* underlying stream, and
+                // consumes none of it itself -- so whoever gets the contact must drain it
+                // before asking for the next one. Signal drains it by using it
+                // (`MultiDeviceContactSyncJob` -> `AvatarHelper.setSyncAvatar`); this app has
+                // no avatars, so it drains it and throws it away. Either way the bytes leave
+                // the stream.
+                //
+                // Skipped, the next `readRawVarint32()` read the first bytes of somebody's
+                // photo as a record length: the first contact with a picture desynced the
+                // framing and every name after it was lost, or the whole sync died on the
+                // IOException that followed. Draining happens before anything that could
+                // `continue`, because a contact we do not keep still has to be stepped over.
+                contact.avatar.orElse(null)?.inputStream?.use { avatar ->
+                    avatars++
+                    val scratch = ByteArray(8192)
+                    while (true) {
+                        val read = avatar.read(scratch)
+                        if (read < 0) break
+                        avatarBytes += read
+                    }
+                }
+
                 val aci = contact.aci.orElse(null)?.toString() ?: continue
                 found += SignalContactStore.Contact(
                     serviceId = aci,
@@ -1312,6 +1339,12 @@ internal class SignalReceiver(
                     // DataMessage instead, shared by the person themselves; see
                     // rememberProfileKey().
                 )
+            }
+            // Counted, because otherwise "this sync carried no avatars" and "the drain does
+            // nothing" are the same silence -- and the first is what a primary that is
+            // signal-cli rather than a Signal client produces.
+            if (avatars > 0) {
+                Timber.i("signal contacts: stepped over %d avatar(s), %d byte(s)", avatars, avatarBytes)
             }
             found
         }

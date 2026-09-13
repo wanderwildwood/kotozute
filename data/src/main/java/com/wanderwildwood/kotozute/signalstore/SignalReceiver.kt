@@ -344,6 +344,82 @@ internal class SignalReceiver(
      * ever turns a decryption bug into unbounded growth in a database holding key material.
      */
     /** Whether this is the server sending something again, rather than a message going wrong. */
+    /** What kind of thing a failed decryption was; see [classify]. */
+    private enum class Failure {
+        /** Not a fault at all. Drop it and say nothing to anyone. */
+        ORDINARY,
+
+        /** A real fault the sender can fix by sending again. */
+        WORTH_RETRYING,
+
+        /** A message this build cannot read however many times it is sent. */
+        UNREADABLE_BY_THIS_BUILD
+    }
+
+    /**
+     * Sorts a decryption failure, as `MessageDecryptor.buildResultForDecryptionFailure` does.
+     *
+     * Its `when` is exclusive and most of what reaches it is ignored rather than reported:
+     * a duplicate the server sent twice, a message from ourselves, a malformed structure, and
+     * anything unrecognised. Only five exceptions are worth a retry receipt.
+     *
+     * Walked up the cause chain like [isDuplicate], because these arrive wrapped.
+     */
+    private fun classify(t: Throwable): Failure {
+        val causes = generateSequence(t) { it.cause }.take(CAUSE_DEPTH).toList()
+
+        // The server resending an envelope whose ack was lost, and libsignal refusing to run
+        // the ratchet backwards -- which is the protocol working. The message is already in
+        // the thread. Upstream: ProtocolDuplicateMessageException -> Ignore.
+        if (isDuplicate(t)) return Failure.ORDINARY
+
+        // Our own message coming back to us. Sealed sender cannot be opened by the account
+        // that sent it, so this is what every sent transcript looks like when it reaches
+        // another of this account's devices -- an event, not a fault. Upstream logs it at
+        // info and ignores it.
+        if (causes.any { it is org.signal.libsignal.metadata.SelfSendException }) {
+            return Failure.ORDINARY
+        }
+
+        // Bytes that were never a message. No amount of asking makes them one.
+        if (causes.any {
+                it is org.signal.libsignal.metadata.InvalidMetadataVersionException ||
+                    it is org.signal.libsignal.metadata.InvalidMetadataMessageException ||
+                    it is org.whispersystems.signalservice.api.InvalidMessageStructureException
+            }
+        ) {
+            return Failure.ORDINARY
+        }
+
+        // Newer than this build, or older than the protocol still speaks. Upstream gives each
+        // its own result, and neither asks for a resend.
+        if (causes.any {
+                it is org.signal.libsignal.metadata.ProtocolInvalidVersionException ||
+                    it is org.signal.libsignal.metadata.ProtocolLegacyMessageException
+            }
+        ) {
+            return Failure.UNREADABLE_BY_THIS_BUILD
+        }
+
+        // The five upstream answers with a retry receipt: a session that is gone, a key that
+        // is wrong, an identity that changed, a message that will not open.
+        if (causes.any {
+                it is org.signal.libsignal.metadata.ProtocolInvalidKeyIdException ||
+                    it is org.signal.libsignal.metadata.ProtocolInvalidKeyException ||
+                    it is org.signal.libsignal.metadata.ProtocolUntrustedIdentityException ||
+                    it is org.signal.libsignal.metadata.ProtocolNoSessionException ||
+                    it is org.signal.libsignal.metadata.ProtocolInvalidMessageException
+            }
+        ) {
+            return Failure.WORTH_RETRYING
+        }
+
+        // ⚠ Anything else. Upstream drops it outright; this keeps it, deliberately -- see the
+        // note at the call site. It is still reported, because an unrecognised failure is the
+        // one worth a human noticing.
+        return Failure.WORTH_RETRYING
+    }
+
     private fun isDuplicate(t: Throwable): Boolean =
         generateSequence(t) { it.cause }.take(CAUSE_DEPTH).any { cause ->
             cause is org.signal.libsignal.protocol.DuplicateMessageException ||
@@ -842,14 +918,36 @@ internal class SignalReceiver(
                 result.metadata.sourceServiceId.toString() to message
             }
         } catch (t: Throwable) {
-            // A duplicate is not a failure. The server redelivers an envelope whose ack was
-            // lost, and libsignal refuses to run the ratchet backwards -- which is the
-            // protocol working. The message it names is already in the thread, so reporting
-            // it as unreadable tells the user something is wrong with a conversation that is
-            // perfectly intact, and there is nothing they could do about it if it were.
-            if (isDuplicate(t)) {
-                Timber.i("signal receive: the server sent a message again; already have it")
-                return null
+            // ⚠ Not every failure is a failure, and they were all being treated as one:
+            // kept for a fortnight as retained ciphertext, counted to the user as a message
+            // that could not be read, and answered with a retry receipt.
+            //
+            // Signal sorts them -- `MessageDecryptor.buildResultForDecryptionFailure` is an
+            // exclusive `when` -- and most of what arrives here is ordinary.
+            when (classify(t)) {
+                // Routine. The envelope is deleted, nothing is counted, nobody is asked.
+                Failure.ORDINARY -> {
+                    Timber.i("signal receive: an envelope with nothing to answer for; dropping it")
+                    return null
+                }
+
+                // Readable one day, perhaps, but never by asking. Signal answers an invalid
+                // version or a legacy message with an error in the conversation and no resend
+                // request -- asking would make the sender send again exactly what this build
+                // already cannot read, and again after that.
+                //
+                // Kept rather than dropped, which is where this app differs on purpose: its
+                // envelopes sit in a table rather than in a queue, so keeping one costs a row
+                // instead of blocking anything, and a build that understands the newer version
+                // can still read it. Upstream drops it for a reason -- "so we don't block the
+                // queue" -- that does not exist here.
+                Failure.UNREADABLE_BY_THIS_BUILD -> {
+                    lastFailure = "${t::class.java.simpleName}: ${t.message?.take(120).orEmpty()}"
+                    Timber.w(t, "signal receive: an envelope this build cannot read; keeping it, asking nobody")
+                    return null
+                }
+
+                Failure.WORTH_RETRYING -> Unit
             }
             // Recorded against the row, not just logged: on a release build the log goes
             // nowhere, and "one message could not be read" without a reason is a report

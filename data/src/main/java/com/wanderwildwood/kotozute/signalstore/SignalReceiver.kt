@@ -632,10 +632,25 @@ internal class SignalReceiver(
                 val fromSelf = credentials.aci
                     ?.takeIf { it.isNotBlank() }
                     ?.equals(result.metadata.sourceServiceId.toString(), ignoreCase = true) == true
-                val senderBlocked = !fromSelf && blocks.isBlocked(
-                    result.metadata.sourceServiceId.toString(),
-                    result.metadata.sourceE164
-                )
+                // ⚠ The number resolved from the recipient row, not only the envelope's.
+                //
+                // The account can hold a block by phone number and nothing else -- that is
+                // what `blocked.blockedE164s` carries -- and this tested the envelope's own
+                // `sourceE164`, which a modern server does not fill. So a block by number
+                // never matched anything: the sender was decrypted, filed, shown, notified,
+                // and answered with a delivery receipt telling them this phone is on and had
+                // received them.
+                //
+                // Signal never has this problem because blocked is a column on the recipient
+                // row, which already unifies the account id, the phone-number identity and the
+                // number; its receive path tests the resolved sender and never the envelope
+                // (`MessageContentProcessor` takes `senderRecipient` and asks that). This
+                // resolves the same way round: the number this device holds for whoever sent
+                // it, falling back to the envelope's when the row has none.
+                val senderServiceId = result.metadata.sourceServiceId.toString()
+                val senderNumber = result.metadata.sourceE164?.takeIf { it.isNotBlank() }
+                    ?: runCatching { contacts.numberFor(senderServiceId) }.getOrNull()
+                val senderBlocked = !fromSelf && blocks.isBlocked(senderServiceId, senderNumber)
 
                 // First, before anything else in this batch is decrypted. A group send
                 // encrypts once to a key the sender distributes separately, and the message

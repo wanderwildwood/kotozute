@@ -92,11 +92,33 @@ internal class SignalBlockStore(private val db: ProtocolDatabase) {
      * arriving here, raising a notification and, worse, being sent a delivery receipt telling
      * them this phone was on and had received them.
      */
-    fun isBlocked(serviceId: String?, e164: String? = null): Boolean {
-        if (serviceId.isNullOrBlank() && e164.isNullOrBlank()) return false
-        return individuals().any { blocked ->
-            (!serviceId.isNullOrBlank() && blocked.aci.equals(serviceId, ignoreCase = true)) ||
-                (!e164.isNullOrBlank() && blocked.e164.equals(e164, ignoreCase = true))
+    fun isBlocked(serviceId: String?, e164: String? = null): Boolean =
+        matches(individuals(), serviceId, e164)
+
+    companion object {
+        /**
+         * Whether any of [blocked] names this person, by either of the names they have.
+         *
+         * ⚠ Both names, and either is enough. The account can hold a block against a phone
+         * number with no account id at all -- `blocked.blockedE164s` -- and a block against an
+         * account id with no number. Testing one of them is half a block, and the half that is
+         * missed goes on arriving: decrypted, filed, shown, notified, and answered with a
+         * delivery receipt telling the blocked person the phone is on and reading them.
+         *
+         * Pure, so it can be asked without a database. The hard part was never this test; it
+         * was the caller having a number to give it -- see the receive path, which resolves it
+         * from the recipient row because a modern envelope does not carry one.
+         */
+        internal fun matches(
+            blocked: List<Blocked>,
+            serviceId: String?,
+            e164: String?
+        ): Boolean {
+            if (serviceId.isNullOrBlank() && e164.isNullOrBlank()) return false
+            return blocked.any { one ->
+                (!serviceId.isNullOrBlank() && one.aci.equals(serviceId, ignoreCase = true)) ||
+                    (!e164.isNullOrBlank() && one.e164.equals(e164, ignoreCase = true))
+            }
         }
     }
 

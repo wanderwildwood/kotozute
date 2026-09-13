@@ -577,8 +577,16 @@ class SignalStore(private val context: Context) {
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 
-    fun isBlocked(aci: String): Boolean =
-        runCatching { blocks.isBlocked(aci, null) }.getOrDefault(false)
+    /**
+     * Whether this person is blocked, by any of the names the account might have used.
+     *
+     * The number is looked up rather than required from the caller: a block can be held
+     * against a phone number alone, and passing null here asked only half the question. Every
+     * screen that greys out a blocked conversation went through this.
+     */
+    fun isBlocked(aci: String): Boolean = runCatching {
+        blocks.isBlocked(aci, contacts.numberFor(aci))
+    }.getOrDefault(false)
 
     /**
      * Reads the account's contact list out of the storage service, where modern Signal keeps

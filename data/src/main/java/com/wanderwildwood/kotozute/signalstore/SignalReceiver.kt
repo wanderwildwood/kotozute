@@ -601,13 +601,13 @@ internal class SignalReceiver(
                 result.content.decryptionErrorMessage?.let { bytes ->
                     if (senderBlocked) {
                         Timber.i("signal receive: ignored a retry receipt from somebody blocked")
-                        return@let null
+                    } else {
+                        repairSessionFor(
+                            result.metadata.sourceServiceId.toString(),
+                            result.metadata.sourceDeviceId,
+                            bytes.toByteArray()
+                        )
                     }
-                    repairSessionFor(
-                        result.metadata.sourceServiceId.toString(),
-                        result.metadata.sourceDeviceId,
-                        bytes.toByteArray()
-                    )
                 }
 
                 // What the account has verified about somebody's safety number, decided on
@@ -719,19 +719,38 @@ internal class SignalReceiver(
                     return@let null
                 }
 
-                // Somebody who is not in the group does not get to post in it.
+                // Somebody outside the group does not get to reach back into it.
                 //
-                // The group's master key was the only credential being asked for, and whoever
-                // holds it is believed: a member removed last year still has it, and so does
-                // anyone who took it from an old device or a leaked link. Their message landed
-                // in the thread looking like any other.
-                result.content.dataMessage?.groupV2?.let { group ->
-                    val master = group.masterKey?.toByteArray()
+                // ⚠ Two faults here, and the second is the interesting one.
+                //
+                // The check was a no-op for its whole life: it lived inside
+                // `groupV2?.let { ... }`, so its `return@let` bound to *that* lambda rather
+                // than to the one processing the envelope. The warning was logged, the inner
+                // lambda returned a value nobody reads, and the message was stored exactly as
+                // before. A check whose log line says it dropped something it kept is the
+                // worst way for one to fail.
+                //
+                // And it was the wrong check. It dropped *any* group message from a
+                // non-member, which Signal does not do: `shouldIgnoreDataMessage` has no
+                // membership test at all. Signal applies one only where a message reaches
+                // back and changes something somebody already has -- `handleReaction`,
+                // `handlePollCreate`, `handlePollVote`, `handlePinMessage`,
+                // `handleUnpinMessage` -- and always as `groupRecord != null && !members
+                // .contains(sender)`, so a group this device does not know yet fails open.
+                //
+                // So this is now Signal's rule rather than a broader one of our own: of those
+                // operations this app has reactions, and a reaction from outside the group is
+                // refused. An ordinary message is not, because upstream does not refuse it.
+                // [senderIsInGroup] already fails open when the group cannot be fetched, which
+                // is the same direction as upstream's null check.
+                val groupContext = result.content.dataMessage?.groupV2
+                if (groupContext != null && result.content.dataMessage?.reaction != null) {
+                    val master = groupContext.masterKey?.toByteArray()
                     val sender = result.metadata.sourceServiceId.toString()
                     if (master != null && master.isNotEmpty() &&
-                        !senderIsInGroup(master, group.revision ?: 0, sender)
+                        !senderIsInGroup(master, groupContext.revision ?: 0, sender)
                     ) {
-                        Timber.w("signal receive: dropped a group message from somebody not in the group")
+                        Timber.w("signal receive: dropped a group reaction from somebody not in the group")
                         return@let null
                     }
                 }

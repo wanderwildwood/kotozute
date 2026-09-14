@@ -30,11 +30,18 @@ import com.wanderwildwood.kotozute.interactor.DeleteOldMessages
 import com.wanderwildwood.kotozute.interactor.SyncMessages
 import com.wanderwildwood.kotozute.repository.MessageRepository
 import com.wanderwildwood.kotozute.repository.SyncRepository
+import com.wanderwildwood.kotozute.repository.UpdateCheck
+import com.wanderwildwood.kotozute.repository.UpdateInstall
+import com.wanderwildwood.kotozute.repository.UpdateRepository
 import com.wanderwildwood.kotozute.service.AutoDeleteService
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.rxkotlin.plusAssign
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.schedulers.Schedulers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
@@ -51,10 +58,29 @@ class SettingsPresenter @Inject constructor(
     private val navigator: Navigator,
     private val prefs: Preferences,
     private val signalRepo: SignalRepository,
-    private val syncMessages: SyncMessages
+    private val syncMessages: SyncMessages,
+    private val updateRepo: UpdateRepository
 ) : QkPresenter<SettingsView, SettingsState>(SettingsState()) {
 
+    private companion object {
+        /** How long an armed install row stays armed. The same as every other armed row here. */
+        const val UPDATE_ARM_TIMEOUT_MS = 5000L
+    }
+
+    /**
+     * What the update row is, kept here as well as in the state.
+     *
+     * The state is a plain `Subject` with no readable current value, and deciding what a tap
+     * means needs one. Volatile because the coroutines that finish a check or a download set it
+     * off the main thread, and the next tap reads it on the main thread.
+     */
+    @Volatile
+    private var updateRow: UpdateRow = UpdateRow.Idle("")
+
     init {
+        // The row shows what is running before anything has been asked of the network.
+        setUpdateRow(UpdateRow.Idle(runningVersion()))
+
         disposables += prefs.black.asObservable()
                 .subscribe { black -> newState { copy(black = black) } }
 
@@ -211,6 +237,8 @@ class SettingsPresenter @Inject constructor(
                         R.id.notifications -> navigator.showNotificationSettings()
 
                         R.id.swipeActions -> view.showSwipeActions()
+
+                        R.id.update -> onUpdateClicked(view)
 
                         R.id.delayed -> view.showDelayDurationDialog()
 
@@ -580,5 +608,101 @@ class SettingsPresenter @Inject constructor(
                 label to "http://$host:${DesktopSyncService.PORT}?token=$token"
             }
     }
+
+    /**
+     * The update row, which is one row doing three things depending on what it last learned.
+     *
+     * The check and the download both run off the main thread and land back on it through
+     * [newState], so the row is the only thing that reports either -- no dialog, no toast, and
+     * nothing that moves while it waits.
+     */
+    private fun onUpdateClicked(view: SettingsView) {
+        when (val row = updateRow) {
+            is UpdateRow.Busy -> Unit // Already working. A second tap is impatience, not an instruction.
+
+            // Asked again rather than remembered. The person went to Android's screen, and if
+            // they came back having granted it, tapping the row must move forward rather than
+            // send them to the same screen a second time -- which is the only door out of this
+            // state and would otherwise be a closed one.
+            is UpdateRow.NotPermitted ->
+                if (context.packageManager.canRequestPackageInstalls()) {
+                    checkForUpdate()
+                } else {
+                    view.showInstallPermissionSetting()
+                }
+
+            is UpdateRow.Available -> {
+                setUpdateRow(UpdateRow.Armed(row.version, row.running))
+                disarmUpdateAfterTimeout(row)
+            }
+
+            is UpdateRow.Armed -> {
+                setUpdateRow(UpdateRow.Busy(R.string.settings_update_downloading))
+                CoroutineScope(Dispatchers.IO).launch {
+                    val running = runningVersion()
+                    setUpdateRow(
+                        when (updateRepo.install(row.version)) {
+                            UpdateInstall.HandedOver ->
+                                UpdateRow.Reported(R.string.settings_update_handed_over, running)
+                            UpdateInstall.NotPermitted -> UpdateRow.NotPermitted
+                            UpdateInstall.WrongContents ->
+                                UpdateRow.Reported(R.string.settings_update_wrong_contents, running)
+                            UpdateInstall.Unreachable ->
+                                UpdateRow.Reported(R.string.settings_update_unreachable, running)
+                        }
+                    )
+                }
+            }
+
+            // Idle, or a report from last time that a tap clears by asking again.
+            else -> checkForUpdate()
+        }
+    }
+
+    private fun checkForUpdate() {
+        setUpdateRow(UpdateRow.Busy(R.string.settings_update_checking))
+        CoroutineScope(Dispatchers.IO).launch {
+            setUpdateRow(
+                when (val outcome = updateRepo.check()) {
+                    is UpdateCheck.Available ->
+                        UpdateRow.Available(outcome.version, runningVersion())
+                    is UpdateCheck.Current ->
+                        UpdateRow.Reported(R.string.settings_update_current, outcome.running)
+                    UpdateCheck.Unreachable ->
+                        UpdateRow.Reported(R.string.settings_update_unreachable, runningVersion())
+                    UpdateCheck.NotAReleaseBuild ->
+                        UpdateRow.Reported(R.string.settings_update_not_a_release, runningVersion())
+                }
+            )
+        }
+    }
+
+    /**
+     * Stands an armed install row back down, so a stray tap does not leave a live trigger for
+     * whoever picks the phone up next. The same five seconds every other armed row uses.
+     *
+     * Checks what the row is before standing it down: by the time this fires the person may
+     * have tapped again and started the download, and disarming that would put the row back to
+     * an offer while it was already working.
+     */
+    private fun disarmUpdateAfterTimeout(row: UpdateRow.Available) {
+        CoroutineScope(Dispatchers.Default).launch {
+            delay(UPDATE_ARM_TIMEOUT_MS)
+            val armed = updateRow
+            if (armed is UpdateRow.Armed && armed.version == row.version) {
+                setUpdateRow(UpdateRow.Available(row.version, row.running))
+            }
+        }
+    }
+
+    private fun setUpdateRow(row: UpdateRow) {
+        updateRow = row
+        newState { copy(update = row) }
+    }
+
+    /** What is installed, which the row shows and the repository compares against. */
+    private fun runningVersion(): String = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+    }.getOrDefault("")
 
 }

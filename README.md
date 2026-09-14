@@ -212,7 +212,16 @@ Download <https://github.com/wanderwildwood/kotozute/releases/latest/download/ko
 sideload it. That address always points at the newest release, and every release publishes a
 `.sha256` beside the APK if you would rather check than trust.
 
-For updates without doing this by hand, add this repository to
+After that the app can do it for you. **Settings → Check for updates** asks the release page
+what the newest version is, and offers to install it when that is newer than what is running. It
+fetches the same APK and the same `.sha256` this page serves, checks one against the other, and
+throws the download away unread rather than installing it if they disagree.
+
+That needs Android's permission to install apps — granted per app, and the row takes you to the
+screen for it if it is missing. Nothing is checked unless you tap: the app does not look for
+updates on a schedule, in the background, or when it starts.
+
+If you would rather something outside the app did it, add this repository to
 [Obtainium](https://github.com/ImranR98/Obtainium):
 
     https://github.com/wanderwildwood/kotozute

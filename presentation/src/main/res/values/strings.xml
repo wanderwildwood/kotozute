@@ -767,4 +767,20 @@
     <string name="messageLinkHandling_dialog_negative">No</string>
 
     <string name="messages_text_share_file_error">That file could not be shared</string>
+
+    <!-- The update row. One row with three faces: it offers a check, then an install, then
+         asks. Everything it has to report it reports in its own summary. -->
+    <string name="settings_update_title">Check for updates</string>
+    <string name="settings_update_checking">Checking</string>
+    <string name="settings_update_current">Nothing newer than %1$s</string>
+    <string name="settings_update_available_title">Install %1$s</string>
+    <string name="settings_update_available_summary">Replaces %1$s</string>
+    <string name="settings_update_armed_title">Install %1$s — tap again</string>
+    <string name="settings_update_downloading">Downloading</string>
+    <string name="settings_update_handed_over">Handed to the installer</string>
+    <string name="settings_update_unreachable">Could not reach the release page</string>
+    <string name="settings_update_wrong_contents">What arrived did not match its checksum, so it was discarded</string>
+    <string name="settings_update_not_permitted_title">Allow installing apps</string>
+    <string name="settings_update_not_permitted_summary">Android has to be told this app may install one. Tap to open that setting</string>
+    <string name="settings_update_not_a_release">This build did not come from a release, so there is nothing to compare it against</string>
 </resources>

@@ -24,4 +24,28 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
 
+    <!--
+      ~ Lets the app replace itself with a newer build it has downloaded, which is what the
+      ~ update row in settings does. Declaring it is not being granted it: it is one the person
+      ~ turns on per app in system settings, and can turn back off.
+      -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+
+        <!--
+          ~ Not exported: the only thing that ever triggers it is the system installer, through
+          ~ a PendingIntent this app made, and that reaches a private component fine.
+          -->
+        <!--
+          ~ Written out in full. This module's namespace is `...kotozute.data` but its code sits
+          ~ in `...kotozute.repository`, so a leading-dot name would be resolved against the
+          ~ wrong package and fail to load at the moment an update was committed.
+          -->
+        <receiver
+            android:name="com.wanderwildwood.kotozute.repository.UpdateInstallReceiver"
+            android:exported="false" />
+
+    </application>
+
 </manifest>

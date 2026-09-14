@@ -36,6 +36,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import com.bluelinelabs.conductor.RouterTransaction
+import timber.log.Timber
 import com.google.android.material.snackbar.Snackbar
 import com.jakewharton.rxbinding2.view.clicks
 import com.jakewharton.rxbinding2.view.longClicks
@@ -284,6 +285,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun messageLinkHandlingSelected(): Observable<Int> = messageLinkHandlingDialog.adapter.menuItemClicks
 
     override fun render(state: SettingsState) {
+        renderUpdate(state.update)
+
 
 
 
@@ -814,6 +817,71 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private fun setAboutVisible(menu: Menu?) {
         menu?.findItem(R.id.about)?.isVisible =
                 openSection == 0 || openSection == binding.sectionRoot.id
+    }
+
+    /**
+     * The update row, which says everything it has to say in its own two lines.
+     *
+     * Straight assignment of title and summary each time rather than only on change: the row
+     * has five or six faces and tracking which one it last wore, on a screen that repaints in
+     * full anyway, would cost more than it saved.
+     */
+    private fun renderUpdate(row: UpdateRow) {
+        val activity = activity ?: return
+        when (row) {
+            is UpdateRow.Idle -> {
+                binding.update.title = activity.getString(R.string.settings_update_title)
+                binding.update.summary = row.running
+            }
+
+            is UpdateRow.Busy -> {
+                binding.update.title = activity.getString(R.string.settings_update_title)
+                binding.update.summary = activity.getString(row.message)
+            }
+
+            is UpdateRow.Available -> {
+                binding.update.title =
+                    activity.getString(R.string.settings_update_available_title, row.version)
+                binding.update.summary =
+                    activity.getString(R.string.settings_update_available_summary, row.running)
+            }
+
+            is UpdateRow.Armed -> {
+                binding.update.title =
+                    activity.getString(R.string.settings_update_armed_title, row.version)
+                binding.update.summary =
+                    activity.getString(R.string.settings_update_available_summary, row.running)
+            }
+
+            is UpdateRow.Reported -> {
+                binding.update.title = activity.getString(R.string.settings_update_title)
+                binding.update.summary = activity.getString(row.message, row.running)
+            }
+
+            is UpdateRow.NotPermitted -> {
+                binding.update.title =
+                    activity.getString(R.string.settings_update_not_permitted_title)
+                binding.update.summary =
+                    activity.getString(R.string.settings_update_not_permitted_summary)
+            }
+        }
+    }
+
+    /**
+     * The Kompakt may have nothing registered for this screen, in which case the row keeps
+     * saying what is missing and nothing else happens -- which is no worse than before and
+     * better than taking the settings screen down over it.
+     */
+    override fun showInstallPermissionSetting() {
+        val activity = activity ?: return
+        runCatching {
+            activity.startActivity(
+                android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    android.net.Uri.parse("package:${activity.packageName}")
+                )
+            )
+        }.onFailure { Timber.w(it, "No screen for the install-packages permission") }
     }
 
 }

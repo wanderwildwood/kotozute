@@ -49,6 +49,7 @@ import com.wanderwildwood.kotozute.BuildConfig
 import com.wanderwildwood.kotozute.migration.QkRealmMigration
 import com.wanderwildwood.kotozute.util.NightModeManager
 import com.wanderwildwood.kotozute.worker.HousekeepingWorker
+import com.wanderwildwood.kotozute.worker.UpdateCheckWorker
 import io.realm.Realm
 import io.realm.RealmConfiguration
 import kotlinx.coroutines.Dispatchers
@@ -221,6 +222,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         // register, or re-register, housekeeping work manager
         HousekeepingWorker.register(applicationContext)
+        UpdateCheckWorker.register(applicationContext)
 
         // Down here, not up with the rest of the Signal setup: WorkManager's own initialiser
         // is disabled in the manifest and it is built by hand just above, so asking for

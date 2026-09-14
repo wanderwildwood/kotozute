@@ -35,6 +35,15 @@ interface NotificationManager {
 
     fun getNotificationForBackup(): NotificationCompat.Builder
 
+    /**
+     * Says that [version] has been published, and opens settings when tapped.
+     *
+     * Only ever called for a release the person has not been told about yet, and only for one
+     * that is more than a patch ahead -- this app tags several times a day, and a notification
+     * per tag is a notification nobody reads.
+     */
+    fun notifyUpdateAvailable(version: String)
+
     fun cancel(i: Int)
 
 }

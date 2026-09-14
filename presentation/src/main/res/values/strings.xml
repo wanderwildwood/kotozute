@@ -782,5 +782,10 @@
     <string name="settings_update_wrong_contents">What arrived did not match its checksum, so it was discarded</string>
     <string name="settings_update_not_permitted_title">Allow installing apps</string>
     <string name="settings_update_not_permitted_summary">Android has to be told this app may install one. Tap to open that setting</string>
+    <!-- The background check. It only ever says a version is out; installing is the row's job. -->
+    <string name="notification_update_channel_name">App updates</string>
+    <string name="notification_update_title">%1$s is out</string>
+    <string name="notification_update_text">Open settings to install it</string>
+
     <string name="settings_update_not_a_release">This build did not come from a release, so there is nothing to compare it against</string>
 </resources>

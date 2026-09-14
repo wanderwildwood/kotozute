@@ -107,6 +107,14 @@ class Preferences @Inject constructor(
         true -> NIGHT_MODE_SYSTEM
         false -> NIGHT_MODE_OFF
     })
+    /**
+     * The newest version the background check has already told someone about.
+     *
+     * Stops the same release being announced every six hours for as long as it goes uninstalled.
+     * A version rather than a flag, so the next release after an ignored one still gets said.
+     */
+    val updateNotified = rxPrefs.getString("updateNotified", "")
+
     val nightStart = rxPrefs.getString("nightStart", "18:00")
     val nightEnd = rxPrefs.getString("nightEnd", "6:00")
     val black = rxPrefs.getBoolean("black", true)

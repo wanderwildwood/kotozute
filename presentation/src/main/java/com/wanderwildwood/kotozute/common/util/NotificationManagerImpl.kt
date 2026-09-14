@@ -43,6 +43,7 @@ import com.wanderwildwood.kotozute.common.util.extensions.toPerson
 import com.wanderwildwood.kotozute.extensions.isImage
 import com.wanderwildwood.kotozute.feature.compose.ComposeActivity
 import com.wanderwildwood.kotozute.feature.qkreply.QkReplyActivity
+import com.wanderwildwood.kotozute.feature.settings.SettingsActivity
 import com.wanderwildwood.kotozute.manager.PermissionManager
 import com.wanderwildwood.kotozute.manager.ShortcutManager
 import com.wanderwildwood.kotozute.mapper.CursorToPartImpl
@@ -105,6 +106,12 @@ class NotificationManagerImpl @Inject constructor(
         // id change is the only way to alter an already-created channel. A backup in
         // progress is not unread mail and shouldn't mark the launcher icon.
         const val BACKUP_RESTORE_CHANNEL_ID = "notifications_backup_restore_v2"
+
+        // Its own channel so it can be silenced without silencing messages, and so its badge
+        // can be off from the start -- a channel's settings are fixed when it is created, so
+        // getting this wrong would need a new id and a second entry in the person's list.
+        const val UPDATE_CHANNEL_ID = "notifications_update"
+        private const val UPDATE_NOTIFICATION_ID = 920001
         private const val LEGACY_BACKUP_RESTORE_CHANNEL_ID = "notifications_backup_restore"
 
         val VIBRATE_PATTERN = longArrayOf(0, 200, 0, 200)
@@ -601,6 +608,54 @@ class NotificationManagerImpl @Inject constructor(
             0L -> DEFAULT_CHANNEL_ID
             else -> "notifications_$threadId"
         }
+    }
+
+    override fun notifyUpdateAvailable(version: String) {
+        if (Build.VERSION.SDK_INT >= 26) {
+            val channel = NotificationChannel(
+                UPDATE_CHANNEL_ID,
+                context.getString(R.string.notification_update_channel_name),
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                enableLights(false)
+                enableVibration(false)
+                // A launcher that badges on any notification would otherwise mark Messaging as
+                // having something unread, which is the one thing this icon should only ever
+                // mean. Desktop Sync's notification had to learn the same lesson.
+                setShowBadge(false)
+            }
+            context.getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
+        }
+
+        // Straight to settings, where the row that installs it is. Nothing is downloaded from
+        // here and nothing is downloaded by tapping this: the row still asks first.
+        val intent = Intent(context, SettingsActivity::class.java)
+            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            UPDATE_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, UPDATE_CHANNEL_ID)
+            .setContentTitle(context.getString(R.string.notification_update_title, version))
+            .setContentText(context.getString(R.string.notification_update_text))
+            .setSmallIcon(R.drawable.ic_file_download_black_24dp)
+            .setColor(colors.theme().theme)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setShowWhen(false)
+            .setAutoCancel(true)
+            .setContentIntent(contentIntent)
+            .build()
+
+        // Posting without the permission throws on 33+, and there is nothing useful to do
+        // about someone having turned notifications off -- they will see the row when they
+        // next open settings.
+        runCatching { notificationManager.notify(UPDATE_NOTIFICATION_ID, notification) }
+            .onFailure { Timber.w(it, "Could not post the update notification") }
     }
 
     override fun getNotificationForBackup(): NotificationCompat.Builder {

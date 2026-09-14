@@ -66,16 +66,37 @@ jobs:
             echo "KEY_PASSWORD=$KEY_PASSWORD"
           } > signing/signing.properties
 
-      # The tag is the single source of truth for the version. versionCode is derived from
-      # it rather than from the run number so it stays monotonic and reproducible: v1.2.3
-      # becomes 10203. A workflow_dispatch run has a branch name here, not a version, so it
-      # falls through to the defaults in presentation/build.gradle.
+      # The tag is the single source of truth for the version. versionCode is derived from it
+      # rather than from the run number so it stays monotonic and reproducible: v1.2.3 becomes
+      # 10020003. A workflow_dispatch run has a branch name here, not a version, so it falls
+      # through to the defaults in presentation/build.gradle.
+      #
+      # The packing used to be `major * 10000 + minor * 100 + patch`, which gave the patch two
+      # digits to live in. This app reached v1.19.66 at six releases a day, so v1.19.100 was
+      # about a week out -- and it packs to 12000, the same number as v1.20.0. Android refuses
+      # an install whose versionCode is not greater than what is there, so the first release
+      # after that would have been uninstallable for everyone, with nothing in the build to say
+      # so. The room is now four digits for the patch and three for the minor, and the two
+      # checks below fail the release rather than let a collision out again.
+      #
+      # The widening is safe to land mid-life because every code it produces is far above every
+      # code the old packing ever did: v1.19.66 was 11966 and is now 10190066.
       - name: Build release APK
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             version_name="${GITHUB_REF_NAME#v}"
             IFS=. read -r major minor patch <<< "$version_name"
-            version_code=$(( major * 10000 + minor * 100 + patch ))
+            if [ "$patch" -ge 10000 ] || [ "$minor" -ge 1000 ]; then
+              echo "::error::$version_name does not fit the versionCode packing (patch must be under 10000, minor under 1000). Widen it before tagging this." >&2
+              exit 1
+            fi
+            version_code=$(( major * 10000000 + minor * 10000 + patch ))
+            # Everything published under the old packing is below 100000. A code at or under
+            # that floor would be a silent downgrade for anyone already on a release.
+            if [ "$version_code" -le 100000 ]; then
+              echo "::error::versionCode $version_code is not above what older releases already carry." >&2
+              exit 1
+            fi
             echo "Building $version_name (versionCode $version_code)"
             ./gradlew :presentation:assembleRelease \
               -PappVersionName="$version_name" \

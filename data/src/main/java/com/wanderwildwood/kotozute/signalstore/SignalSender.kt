@@ -665,8 +665,27 @@ internal class SignalSender(
      * failure is not a network problem -- the recipient's safety number changed, and
      * retrying sends to a key this device has already refused to trust.
      */
+    /**
+     * Why a send did not happen, in words the person who tried can act on.
+     *
+     * ⚠ The identity case is the only one here the reader can *do* something about, and it was
+     * the least usable: "identity changed for 4f3a...-a UUID" told them a machine fact about
+     * somebody whose name this app already holds, and named no next step. Signal never shows a
+     * raw address for this -- it puts a sheet in front of the send naming the person, with
+     * "Send anyway" and "Verify safety number" on it.
+     *
+     * ⚠ This is the smaller half of that finding. Offering the decision *at the blocked send*,
+     * as Signal does, is a UI change and is in the round-two queue; this at least names the
+     * person and says where the decision lives.
+     */
     private fun describe(result: SendMessageResult): String = when {
-        result.identityFailure != null -> "identity changed for ${result.address.serviceId}"
+        result.identityFailure != null -> {
+            val who = runCatching { contacts.nameFor(result.address.serviceId.toString()) }
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() }
+            "the safety number changed for ${who ?: "them"}; " +
+                "open the conversation's details to check and accept it"
+        }
         result.isUnregisteredFailure -> "${result.address.serviceId} is not registered"
         result.isNetworkFailure -> "network failure sending to ${result.address.serviceId}"
         result.isInvalidPreKeyFailure -> "${result.address.serviceId} has an unusable pre key"

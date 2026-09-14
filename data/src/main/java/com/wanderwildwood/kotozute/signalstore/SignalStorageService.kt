@@ -14,7 +14,7 @@ import timber.log.Timber
 /**
  * Reading the account's contact list out of Signal's storage service.
  *
- * This exists because of one report from somebody who is not David: the new-message list
+ * This exists because of one report from somebody other than the author: the new-message list
  * showed only SMS contacts. The list is built from whoever the primary has told this phone
  * about, and the way it was told -- a contacts sync -- is a mechanism **modern Signal Android
  * no longer uses**. It keeps contacts in an encrypted store on Signal's servers instead, and

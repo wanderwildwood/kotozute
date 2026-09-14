@@ -82,7 +82,7 @@ class SignalDirectoryTest {
     fun `note to self stays as a thread and never arrives again from the contacts sync`() {
         val people = SignalDirectory.merge(
             threads = listOf(row(self, name = "Note to Self")),
-            contacts = listOf(row(self, name = "David", number = "+15550000")),
+            contacts = listOf(row(self, name = "Sam", number = "+15550000")),
             selfAci = self
         )
 
@@ -94,7 +94,7 @@ class SignalDirectoryTest {
     fun `the account itself is dropped when only the contacts sync knows it`() {
         val people = SignalDirectory.merge(
             threads = listOf(),
-            contacts = listOf(row(self, name = "David"), row(alice, name = "Alice")),
+            contacts = listOf(row(self, name = "Sam"), row(alice, name = "Alice")),
             selfAci = self
         )
 

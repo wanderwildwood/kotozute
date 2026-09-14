@@ -386,7 +386,18 @@ internal class SignalSender(
 
     sealed interface Result {
         data class Sent(val timestamp: Long) : Result
-        data class Failed(val reason: String) : Result
+
+        /**
+         * @param safetyNumberChanged whether the send was refused because the recipient's
+         *   safety number changed. Carried as a flag rather than left in the [reason] text so
+         *   a caller can *offer* the decision instead of reprinting a sentence — Signal puts
+         *   "Send anyway" and "Verify safety number" in front of exactly this failure, and a
+         *   string nobody can match on is a string nobody can act on.
+         */
+        data class Failed(
+            val reason: String,
+            val safetyNumberChanged: Boolean = false
+        ) : Result
     }
 
     /**
@@ -475,7 +486,11 @@ internal class SignalSender(
             java.util.Optional.ofNullable(groupId),
             error
         )
-        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+        if (result.isSuccess) {
+            Result.Sent(System.currentTimeMillis())
+        } else {
+            Result.Failed(describe(result), result.identityFailure != null)
+        }
     } catch (t: Throwable) {
         Timber.w(t, "signal retry: could not ask for a message to be sent again")
         Result.Failed(t.message ?: t::class.java.simpleName)
@@ -498,7 +513,11 @@ internal class SignalSender(
             SignalServiceAddress(recipient),
             sealedSender.accessFor(recipient.toString())
         )
-        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+        if (result.isSuccess) {
+            Result.Sent(System.currentTimeMillis())
+        } else {
+            Result.Failed(describe(result), result.identityFailure != null)
+        }
     } catch (t: Throwable) {
         Timber.w(t, "signal session: could not send a null message")
         Result.Failed(t.message ?: t::class.java.simpleName)
@@ -577,7 +596,11 @@ internal class SignalSender(
                 )
             )
         )
-        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+        if (result.isSuccess) {
+            Result.Sent(System.currentTimeMillis())
+        } else {
+            Result.Failed(describe(result), result.identityFailure != null)
+        }
     } catch (t: Throwable) {
         Timber.w(t, "signal keys: requesting them threw")
         Result.Failed(t.message ?: t::class.java.simpleName)
@@ -601,7 +624,11 @@ internal class SignalSender(
                 )
             )
         )
-        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+        if (result.isSuccess) {
+            Result.Sent(System.currentTimeMillis())
+        } else {
+            Result.Failed(describe(result), result.identityFailure != null)
+        }
     } catch (t: Throwable) {
         Timber.w(t, "signal configuration: requesting it threw")
         Result.Failed(t.message ?: t::class.java.simpleName)
@@ -654,7 +681,11 @@ internal class SignalSender(
                 )
             )
         )
-        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else Result.Failed(describe(result))
+        if (result.isSuccess) {
+            Result.Sent(System.currentTimeMillis())
+        } else {
+            Result.Failed(describe(result), result.identityFailure != null)
+        }
     } catch (t: Throwable) {
         Timber.w(t, "signal blocked: requesting the list threw")
         Result.Failed(t.message ?: t::class.java.simpleName)

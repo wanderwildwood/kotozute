@@ -798,7 +798,17 @@ class SignalStore(private val context: Context) {
                 SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection, contacts
             ).send(serviceId, body, attachments, expiresInSeconds, expireTimerVersion)) {
                 is SignalSender.Result.Sent -> result.timestamp
-                is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
+                // Typed, so the screen can offer "Send anyway" rather than reprint the
+                // reason. See [SafetyNumberChanged].
+                is SignalSender.Result.Failed -> if (result.safetyNumberChanged) {
+                    throw com.wanderwildwood.kotozute.repository.SafetyNumberChanged(
+                        threadKey = "direct:$recipient",
+                        name = runCatching { contacts.nameFor(recipient) }.getOrNull()
+                            ?.takeIf { it.isNotBlank() }
+                    )
+                } else {
+                    throw IllegalStateException(result.reason)
+                }
             }
         } finally {
             // The socket is shared and long-lived, so it is not disconnected here; closing is
@@ -877,8 +887,45 @@ class SignalStore(private val context: Context) {
     }.getOrNull()
 
     /** Accepts a peer's changed key so messages can be sent to them again. */
+    /**
+     * Trusts the key already on file for somebody, and throws away the sessions built on the
+     * old one.
+     *
+     * ⚠ The second half was missing, and Signal's own comment says why it matters: when
+     * `saveIdentity` reports NO_CHANGE it archives the sessions anyway, because they "appear
+     * to be out of sync". NO_CHANGE is **always** our case -- this device already holds the new
+     * key, stored untrusted, and accepting only promotes it -- so the sessions here are always
+     * the ones built against the key that was replaced.
+     *
+     * Left in place, accepting made sends allowed again and left them going out over a ratchet
+     * the other end had already moved off: refused, or arriving undecryptable, with the app
+     * showing the safety number as settled.
+     *
+     * Every device of theirs, not just the primary: upstream archives the sibling sessions too
+     * (`archiveSiblingSessions`), and a person's other devices were negotiated against the same
+     * identity. [SignalAccountDataStore.archiveSession] clears the sender-key sharing with each,
+     * which is upstream's third step.
+     */
     fun acceptIdentity(aci: String): Boolean = runCatching {
-        SignalIdentityKeyStore(database, ProtocolDatabase.ACCOUNT_ID_TYPE_ACI).acceptIdentity(aci)
+        val accepted = SignalIdentityKeyStore(database, ProtocolDatabase.ACCOUNT_ID_TYPE_ACI)
+            .acceptIdentity(aci)
+        if (accepted) {
+            val store = SignalDataStore(database, account).aciStore()
+            val devices = listOf(SignalSessionStore.PRIMARY_DEVICE_ID) +
+                runCatching { store.getSubDeviceSessions(aci) }.getOrDefault(emptyList())
+            devices.distinct().forEach { deviceId ->
+                runCatching {
+                    store.archiveSession(
+                        org.signal.libsignal.protocol.SignalProtocolAddress(aci, deviceId)
+                    )
+                }.onFailure { Timber.w(it, "signal identity: could not archive a session after accepting") }
+            }
+            Timber.i(
+                "signal identity: accepted a changed key and archived %d session(s) built on the old one",
+                devices.distinct().size
+            )
+        }
+        accepted
     }.getOrDefault(false)
 
     /** "known/with-key/named", for the Connection screen. Names come from profiles. */

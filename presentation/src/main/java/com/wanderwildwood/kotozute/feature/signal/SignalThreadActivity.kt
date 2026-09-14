@@ -26,6 +26,7 @@ import com.wanderwildwood.kotozute.databinding.SignalThreadActivityBinding
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
+import com.wanderwildwood.kotozute.repository.SafetyNumberChanged
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.common.util.DateFormatter
 import com.wanderwildwood.kotozute.common.util.MessageLinks
@@ -346,13 +347,17 @@ class SignalThreadActivity : QkThemedActivity() {
                         binding.message.setText("")
                         clearAttachment()
                     }
-                    .onFailure {
-                        // The message stays in the box, so nothing the user typed is lost.
-                        Toast.makeText(
-                            this,
-                            getString(R.string.signal_send_failed, it.message.orEmpty()),
-                            Toast.LENGTH_LONG
-                        ).show()
+                    .onFailure { failure ->
+                        // The message stays in the box either way, so nothing typed is lost.
+                        if (failure is SafetyNumberChanged) {
+                            offerSafetyNumberChoice(failure, body, attachment)
+                        } else {
+                            Toast.makeText(
+                                this,
+                                getString(R.string.signal_send_failed, failure.message.orEmpty()),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     }
             }
         }
@@ -490,6 +495,101 @@ class SignalThreadActivity : QkThemedActivity() {
      * complexity when you act on many messages at once, and here there is nothing yet that
      * takes more than one.
      */
+    /**
+     * Offers the decision where the person already is, rather than leaving them a sentence.
+     *
+     * ⚠ Signal has **no standalone "accept this key?"** anywhere. A send blocked by a changed
+     * safety number puts the choice in front of the send itself -- "Send anyway", which trusts
+     * the new key and resends in one action, alongside a way to check the number first. The
+     * thing they were already trying to do is what carries the decision.
+     *
+     * This app used to fail the send with a sentence and leave them to work out unaided that a
+     * row on another screen was the remedy. Drawn as this app draws a choice of actions -- the
+     * same picker the message menu uses -- rather than as Signal's bottom sheet, and the
+     * consequential one arms rather than asking again, per STYLE.md.
+     *
+     * Checking comes first and sending anyway last: the safer path is the one a thumb finds
+     * without aiming, and a consequential action goes last.
+     */
+    private fun offerSafetyNumberChoice(
+        failure: SafetyNumberChanged,
+        body: String,
+        attachment: String?,
+        armed: Boolean = false
+    ) {
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        actions += getString(R.string.signal_safety_verify) to {
+            startActivity(SignalThreadInfoActivity.intentFor(this, threadKey))
+        }
+        actions += if (armed) {
+            getString(R.string.signal_safety_send_anyway_armed) to {
+                acceptAndResend(body, attachment)
+            }
+        } else {
+            getString(R.string.signal_safety_send_anyway) to {
+                offerSafetyNumberChoice(failure, body, attachment, armed = true)
+            }
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            // Two strings rather than a placeholder filled with "their": "Their's safety
+            // number changed" is what one string and a fallback word produces.
+            .setTitle(
+                failure.name
+                    ?.let { getString(R.string.signal_safety_changed_title, it) }
+                    ?: getString(R.string.signal_safety_changed_title_unknown)
+            )
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
+            .show()
+
+        if (armed) {
+            val decor = dialog.window?.decorView
+            val disarm = Runnable {
+                if (!isFinishing && dialog.isShowing) {
+                    dialog.dismiss()
+                    offerSafetyNumberChoice(failure, body, attachment, armed = false)
+                }
+            }
+            decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
+            dialog.setOnDismissListener { decor?.removeCallbacks(disarm) }
+        }
+    }
+
+    /**
+     * Trusts the new key and sends the message that was refused, in one action.
+     *
+     * Upstream's `trustAndVerify` then resend. Accepting archives the sessions built on the old
+     * key -- see `SignalStore.acceptIdentity` -- so the resend negotiates a fresh one rather
+     * than going out over a ratchet the other end has moved off.
+     */
+    private fun acceptAndResend(body: String, attachment: String?) {
+        binding.send.isEnabled = false
+        thread(isDaemon = true) {
+            val accepted = runCatching { signalRepo.acceptIdentity(threadKey) }.getOrDefault(false)
+            val result = if (accepted) {
+                runCatching { signalRepo.send(threadKey, body, listOfNotNull(attachment)) }
+            } else {
+                Result.failure(IllegalStateException(getString(R.string.signal_safety_accept_failed)))
+            }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                binding.send.isEnabled = true
+                result
+                    .onSuccess {
+                        binding.message.setText("")
+                        clearAttachment()
+                    }
+                    .onFailure {
+                        Toast.makeText(
+                            this,
+                            getString(R.string.signal_send_failed, it.message.orEmpty()),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+            }
+        }
+    }
+
     private fun showMessageActions(
         body: String,
         messageId: String,

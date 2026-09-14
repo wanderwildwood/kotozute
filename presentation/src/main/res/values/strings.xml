@@ -437,6 +437,11 @@
     <string name="signal_safety_number">Safety number</string>
     <string name="signal_safety_accept_title">Accept the new key</string>
     <string name="signal_safety_accept_summary">Only after you have checked the digits with them another way. Until you do, messages to them will not send.</string>
+    <string name="signal_safety_changed_title">%1$s\'s safety number changed</string>
+    <string name="signal_safety_changed_title_unknown">Their safety number changed</string>
+    <string name="signal_safety_verify">Check the safety number</string>
+    <string name="signal_safety_send_anyway">Send anyway</string>
+    <string name="signal_safety_send_anyway_armed">Send anyway \u2014 you have not checked the new number; tap again</string>
     <string name="signal_safety_accept_armed">Accept the new key \u2014 if you have not checked the digits, someone else could be reading what you send; tap again</string>
     <string name="signal_safety_accepted">Key accepted. You can send to them again.</string>
     <string name="signal_safety_accept_failed">Could not accept the key.</string>

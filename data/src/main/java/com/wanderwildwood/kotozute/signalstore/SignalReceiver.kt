@@ -1485,6 +1485,12 @@ internal class SignalReceiver(
             }
             // Registered already: the primary submitted these to the server as part of the
             // change, so from this device they are live rather than waiting to be uploaded.
+            // ⚠ Every held group credential is now stale. They are issued against this
+            // account's ACI *and* its PNI, and the PNI has just been replaced. Upstream clears
+            // them in the same breath as storing the new identity --
+            // `ChangeNumberRepository.applyLocalNumberChange` calls
+            // `AppDependencies.groupsV2Authorization.clear()` there.
+            SignalGroups.forgetCredentials()
             Timber.i("signal number change: applied a new number and phone-number identity")
 
             // ⚠ And replaced at once, which is what was missing. These are keys another

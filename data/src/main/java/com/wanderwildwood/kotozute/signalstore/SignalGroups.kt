@@ -55,8 +55,18 @@ internal class SignalGroups(
      * Credentials are issued per day and returned a week at a time, so they are fetched once
      * and kept. Asking per group message would be a round trip for something that does not
      * change until midnight.
+     *
+     * ⚠ **On the companion, not the instance, and that is the whole point of it.** This class
+     * is built fresh at every one of its ten call sites -- `SignalGroups(connection, account,
+     * contacts).fetch(...)` -- so an instance-level map was never read twice, and every group
+     * message, reaction, delete and name lookup paid for its own credential fetch. The comment
+     * above described what the field was for and not what it did.
+     *
+     * The identical fault, with the identical fix, is written up in [SealedSender] for the
+     * sender certificate. Finding it twice in one codebase is the argument for looking at every
+     * cache on a class that is constructed per operation.
      */
-    private val credentialsByDay = mutableMapOf<Long, Any?>()
+    private val credentialsByDay get() = sharedCredentialsByDay
 
     fun fetch(masterKeyBytes: ByteArray): Group? = try {
         val masterKey = GroupMasterKey(masterKeyBytes)
@@ -308,4 +318,32 @@ internal class SignalGroups(
      */
     private fun todaySeconds(): Long =
         TimeUnit.DAYS.toSeconds(TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()))
+
+    companion object {
+        /**
+         * The group credentials this process holds, by UTC day.
+         *
+         * Process-wide because the class that reads it is not: see the note on
+         * [credentialsByDay]. A `ConcurrentHashMap` rather than a plain one because the group
+         * paths run on the receive thread, the send thread and the periodic round.
+         */
+        private val sharedCredentialsByDay = java.util.concurrent.ConcurrentHashMap<Long, Any>()
+
+        /**
+         * Throws away every held credential.
+         *
+         * ⚠ **Called when this account's phone-number identity changes.** A group credential is
+         * issued against the ACI *and* the PNI, so a number change invalidates every one of
+         * them. Upstream clears them at exactly that point --
+         * `ChangeNumberRepository.applyLocalNumberChange` calls
+         * `AppDependencies.groupsV2Authorization.clear()` in the same breath as storing the new
+         * identity.
+         *
+         * It mattered less while the cache was per-instance, because nothing survived a single
+         * call to be stale. Now that it works, this is what keeps it honest.
+         */
+        fun forgetCredentials() {
+            sharedCredentialsByDay.clear()
+        }
+    }
 }

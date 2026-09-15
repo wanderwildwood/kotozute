@@ -750,11 +750,20 @@ internal class SignalSender(
         type: SignalServiceReceiptMessage.Type,
         what: String
     ): Result {
+        // ⚠ The last argument is `includePniSignature`, not `urgent` -- read from the jar's
+        // `LocalVariableTable`, like the ones on the data-message send. A receipt has no
+        // urgency flag at all.
+        //
+        // Carried here as well as on messages because a delivery receipt is often the *first*
+        // thing this account sends back to somebody who wrote to its phone-number identity, so
+        // it is the earliest chance to show them the two identities are one person. Upstream
+        // passes it here for the same reason (`SendDeliveryReceiptJob`).
+        val owedProof = owesPniProof(recipient)
         fun attempt() = sender.sendReceipt(
             SignalServiceAddress(recipient),
             sealedSender.accessFor(recipient.toString()),
             SignalServiceReceiptMessage(type, timestamps, System.currentTimeMillis()),
-            false
+            owedProof
         )
         return try {
             val result = try {
@@ -764,6 +773,7 @@ internal class SignalSender(
                 archiveSessions(recipient)
                 attempt()
             }
+            clearPniProofIfSent(recipient, owedProof, result.isSuccess)
             if (result.isSuccess) Result.Sent(System.currentTimeMillis())
             else failed(result)
         } catch (t: Throwable) {

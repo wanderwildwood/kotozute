@@ -25,6 +25,67 @@ object SignalAttachment {
     const val MAX_IMAGE_EDGE = 1600
     const val MAX_BYTES = 24 * 1024 * 1024
 
+    /**
+     * The widest a thumbnail is ever drawn, for when the view has not been measured yet.
+     *
+     * The panel is 480 pixels across, so nothing in a list is wider than that; decoding a
+     * picture at more is buying pixels the screen cannot show. Upstream falls back to the
+     * view's layout width and skips the constraint when even that is unknown
+     * (`ThumbnailView.applySizing`); a fixed number is honest here because there is one
+     * screen and it is this one.
+     */
+    const val THUMBNAIL_EDGE = 480
+
+    /**
+     * How much to divide a picture by so neither side is longer than [maxEdge].
+     *
+     * Its own function because two screens and the send path all need the same answer, and
+     * because a decode with the wrong one is not a visible fault -- it is memory, spent
+     * silently, until a phone this small runs out of it.
+     *
+     * Powers of two only: `BitmapFactory` rounds `inSampleSize` down to one anyway, so any
+     * other value is a number that does not mean what it says.
+     */
+    fun sampleSizeFor(width: Int, height: Int, maxEdge: Int): Int {
+        if (width <= 0 || height <= 0 || maxEdge <= 0) return 1
+        var sample = 1
+        while (width / sample > maxEdge || height / sample > maxEdge) {
+            sample *= 2
+        }
+        return sample
+    }
+
+    /**
+     * Decodes [bytes] no larger than it will be drawn.
+     *
+     * ⚠ **This used to decode at full resolution.** A picture taken on a modern phone is four
+     * thousand pixels across, and a bitmap costs four bytes a pixel whatever the file size --
+     * so a two-megabyte photo became a fifty-megabyte bitmap to fill a thumbnail a few hundred
+     * pixels wide, and several of those at once is the whole heap on a phone like this.
+     *
+     * Upstream never decodes one unbounded: every conversation thumbnail goes through
+     * `ThumbnailView.applySizing`, which puts Glide's `.override(width, height)` on the
+     * request and lets `Downsampler` pick the sample size. This rail does not go through
+     * Glide, so the same rule is applied by hand.
+     */
+    fun decodeBounded(bytes: ByteArray, maxEdge: Int = THUMBNAIL_EDGE): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, maxEdge)
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+    }
+
+    /**
+     * What a decoded picture costs to keep, so a cache can be bounded by memory rather than
+     * by how many things are in it.
+     *
+     * An LRU counted in entries has no bound worth the name: eight thumbnails is eight
+     * megabytes or four hundred, depending entirely on what somebody sent.
+     */
+    fun bitmapBytes(bitmap: Bitmap): Int = bitmap.byteCount
+
     /** Thrown when the file is readable but too large to send. */
     class TooLarge : IllegalStateException("attachment too large")
 
@@ -149,11 +210,9 @@ object SignalAttachment {
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
-        var sample = 1
-        while (bounds.outWidth / sample > MAX_IMAGE_EDGE || bounds.outHeight / sample > MAX_IMAGE_EDGE) {
-            sample *= 2
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, MAX_IMAGE_EDGE)
         }
-        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
         val bmp = resolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, opts)
         } ?: return null

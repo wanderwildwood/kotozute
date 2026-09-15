@@ -1173,7 +1173,13 @@ class SignalThreadActivity : QkThemedActivity() {
 
             thread(isDaemon = true) {
                 val bytes = signalRepo.loadAttachment(id)
-                val bmp = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                // Bounded to the width it is drawn at. See [SignalAttachment.decodeBounded]:
+                // decoding a phone photo unsampled costs tens of megabytes for a thumbnail a
+                // few hundred pixels wide, and the cache below would hold several at once.
+                val bmp = bytes?.let {
+                    SignalAttachment.decodeBounded(it, b.image.width.takeIf { w -> w > 0 }
+                        ?: SignalAttachment.THUMBNAIL_EDGE)
+                }
                 if (bmp != null) imageCache.put(id, bmp)
                 runOnUiThread {
                     inFlight.remove(id)
@@ -1198,8 +1204,22 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     }
 
-    /** Small: a handful of pictures in view at once, and e-ink shows few at a time. */
-    private val imageCache = LruCache<String, android.graphics.Bitmap>(8)
+    /**
+     * Bounded by memory, not by how many pictures are in it.
+     *
+     * ⚠ It used to hold eight entries, whatever they weighed. Eight thumbnails is eight
+     * megabytes or four hundred depending entirely on what somebody sent, so the bound did
+     * not bound anything. An eighth of the heap is the ceiling Android's own guidance gives
+     * for a bitmap cache, and it is what Glide's `MemorySizeCalculator` -- which is what
+     * upstream's thumbnails are sized by -- works out from.
+     */
+    private val imageCache =
+        object : LruCache<String, android.graphics.Bitmap>(
+            (Runtime.getRuntime().maxMemory() / 8).coerceIn(2L * 1024 * 1024, 32L * 1024 * 1024).toInt()
+        ) {
+            override fun sizeOf(key: String, value: android.graphics.Bitmap): Int =
+                SignalAttachment.bitmapBytes(value)
+        }
 
     /** Attachment ids currently being fetched, so a rebind does not fetch them again. */
     private val inFlight = java.util.Collections.synchronizedSet(mutableSetOf<String>())

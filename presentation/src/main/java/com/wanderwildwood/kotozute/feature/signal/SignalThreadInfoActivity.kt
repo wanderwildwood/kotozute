@@ -490,15 +490,26 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             b.image.tag = id
             thread(isDaemon = true) {
                 val bytes = signalRepo.loadAttachment(id)
-                val bmp = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) } ?: return@thread
+                // Bounded to the width it is drawn at; see [SignalAttachment.decodeBounded].
+                val bmp = bytes?.let {
+                    SignalAttachment.decodeBounded(it, b.image.width.takeIf { w -> w > 0 }
+                        ?: SignalAttachment.THUMBNAIL_EDGE)
+                } ?: return@thread
                 cache.put(id, bmp)
                 runOnUiThread { if (b.image.tag == id) b.image.setImageBitmap(bmp) }
             }
         }
     }
 
-    /** Small: an e-ink screen shows a handful of thumbnails at a time. */
-    private val cache = LruCache<String, Bitmap>(12)
+    /**
+     * Bounded by memory, not by how many thumbnails are in it. See the note on the thread
+     * screen's cache: an LRU counted in entries has no bound worth the name.
+     */
+    private val cache = object : LruCache<String, Bitmap>(
+        (Runtime.getRuntime().maxMemory() / 8).coerceIn(2L * 1024 * 1024, 32L * 1024 * 1024).toInt()
+    ) {
+        override fun sizeOf(key: String, value: Bitmap): Int = SignalAttachment.bitmapBytes(value)
+    }
 
     companion object {
         /** Long enough to read the armed label, short enough not to stay live. */

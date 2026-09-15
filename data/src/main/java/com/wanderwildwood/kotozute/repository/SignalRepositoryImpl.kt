@@ -384,6 +384,66 @@ class SignalRepositoryImpl @Inject constructor(
             .getOrDefault(0)
     }
 
+    /**
+     * Writes into the conversation that a message arrived and could not be read.
+     *
+     * An hour after this phone asked for it again and nothing came. Until then there is every
+     * chance the resend arrives and nobody needs to know anything happened; after it, the
+     * alternative is a conversation with a silent gap in it -- and a reader cannot ask about a
+     * message they were never told existed. Upstream writes the same row on the same timer
+     * (`PendingRetryReceiptManager` -> `insertBadDecryptMessage`).
+     *
+     * ⚠ Filed under the message's **own** identity, `(sender, sentTimestamp)`, which is what
+     * every other device calls it. So a resend that turns up an hour or a week later replaces
+     * this note with the real message instead of sitting beside it -- [ingest] keys on that id.
+     * Upstream checks `messageExists` before inserting because its rows are keyed separately;
+     * here the key does that work, and goes on doing it after the insert, which a check at
+     * insert time cannot.
+     */
+    private fun noteUndecryptable(sender: String, sentTimestamp: Long, groupId: ByteArray?) {
+        val group = groupId
+            ?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
+            .orEmpty()
+        // ⚠ The shared rule, not a second copy of it. Two rules for which conversation a
+        // message belongs to do not fail loudly -- they quietly produce a second thread for a
+        // conversation that already has one, and the only symptom is a duplicate in the inbox
+        // a long time later. That is what `ThreadKeyTest` exists for.
+        val threadKey = com.wanderwildwood.kotozute.signalstore.ContentNormalizer.threadKeyFor(
+            outgoing = false,
+            counterpartUuid = sender,
+            counterpartNumber = "",
+            groupId = group,
+            selfAci = signalStore.selfAciOrNull(),
+            selfE164 = runCatching { signalStore.selfNumberOrNull() }.getOrNull()
+        ) ?: run {
+            Timber.w("signal receive: a message that would not open has no conversation to go in")
+            return
+        }
+        ingest(
+            listOf(
+                com.wanderwildwood.kotozute.signal.BridgeMessage(
+                    id = "$sender:$sentTimestamp",
+                    seq = 0,
+                    threadKey = threadKey,
+                    ts = sentTimestamp,
+                    senderUuid = sender,
+                    senderNumber = "",
+                    outgoing = false,
+                    body = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_message_unreadable),
+                    groupId = group,
+                    quoteTs = 0,
+                    // Not marked read. Somebody losing a message should hear about it the same
+                    // way they would hear about the message itself -- that is the whole point
+                    // of writing it down rather than counting it on a settings screen.
+                    read = false,
+                    source = "live",
+                    attachmentsJson = ""
+                )
+            )
+        )
+        Timber.w("signal receive: a message that would not open was noted in %s", threadKey)
+    }
+
     /** Re-derive a thread's snippet, timestamp and unread count from what is left. */
     private fun refreshThreadPreview(r: Realm, threadKey: String) {
         val thread = r.where(SignalThread::class.java)
@@ -1653,6 +1713,12 @@ class SignalRepositoryImpl @Inject constructor(
             applyTimerChange(threadKey, seconds, version)
 
         override fun refreshStoredRecords() = rereadStoredRecords()
+
+        override fun undecryptableGaveUp(
+            sender: String,
+            sentTimestamp: Long,
+            groupId: ByteArray?
+        ) = noteUndecryptable(sender, sentTimestamp, groupId)
 
         override fun rotatePreKeys() {
             // ⚠ Asked, not obeyed. A prekey message that will not open indicts the bundle it

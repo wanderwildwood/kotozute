@@ -18,4 +18,10 @@
       which has no Context to read a resource with; see the note there.
     -->
     <string name="signal_group_created_by_you">You created the group.</string>
+    <!--
+      Shown in place of a message this phone asked for again and never got. Said plainly and
+      without blame: nobody did anything wrong, and the reader can act on it only by asking the
+      person directly, so that is what it suggests.
+    -->
+    <string name="signal_message_unreadable">A message was sent here that this phone could not read. It asked for it again and it did not come. Ask them to send it once more.</string>
 </resources>

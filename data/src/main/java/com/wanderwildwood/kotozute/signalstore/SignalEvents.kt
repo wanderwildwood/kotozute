@@ -79,6 +79,29 @@ interface SignalEvents {
     fun rotatePreKeys() {}
 
     /**
+     * Says in the conversation that a message arrived and could not be read.
+     *
+     * Called once, an hour after this phone asked the sender to send it again and nothing came.
+     * Until then there is every chance the resend arrives and nobody needs to know anything
+     * happened; after it, the alternative is a conversation with a silent gap in it, which is
+     * the worst way for a message to be lost -- the reader cannot even ask about something they
+     * were never told existed.
+     *
+     * Upstream's `PendingRetryReceiptManager` does exactly this on exactly this timer, and
+     * `insertBadDecryptMessage` is the row it writes.
+     *
+     * @param sender the account id the message was from.
+     * @param sentTimestamp the timestamp the sender stamped on it -- half of its identity, so
+     *   a resend that turns up later replaces this note rather than sitting beside it.
+     * @param groupId the group it was sent to, or null for a one-to-one message.
+     */
+    fun undecryptableGaveUp(
+        sender: String,
+        sentTimestamp: Long,
+        groupId: ByteArray?
+    ) {}
+
+    /**
      * Send something again, because its recipient says they could not read it.
      *
      * The other half of a retry receipt, and the half this app could not do until it kept a

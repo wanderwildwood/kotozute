@@ -231,6 +231,7 @@ internal class SignalReceiver(
         runCatching { events.retryOwedReceipts() }
             .onFailure { Timber.w(it, "signal receipt: could not try the owed receipts") }
 
+        announceGivenUpEnvelopes()
         sweepUndecryptable()
         // One place decides what this database stops holding: sent plaintext goes on the same
         // pass as undecryptable envelopes.
@@ -385,10 +386,18 @@ internal class SignalReceiver(
         }
     }
 
-    /** Remembers that this envelope's sender has been asked. Asked once, however long it stays. */
+    /**
+     * Remembers that this envelope's sender has been asked, and who they were.
+     *
+     * Asked once, however long it stays. The sender is recorded with it because this is the
+     * last point at which anybody knows -- see [lastAskedAbout].
+     */
     private fun markAsked(id: Long) = withStoreLock(db) {
+        val asked = lastAskedAbout
         db.writableDatabase.execSQL(
-            "UPDATE envelope SET retry_requested = 1 WHERE _id = ?", arrayOf<Any?>(id)
+            "UPDATE envelope SET retry_requested = 1, retry_sender = ?, retry_device = ?, " +
+                "retry_group = ? WHERE _id = ?",
+            arrayOf<Any?>(asked?.sender, asked?.deviceId ?: 0, asked?.groupId, id)
         )
     }
 
@@ -483,6 +492,72 @@ internal class SignalReceiver(
                 cause::class.java.simpleName.contains("DuplicateMessage")
         }
 
+    /**
+     * Tells each conversation about a message that was asked for and never came.
+     *
+     * ⚠ **Nothing said anything.** A message that would not open was kept, its sender was asked
+     * once to send it again, and if they never did -- their phone off, the message deleted,
+     * the session broken at their end too -- the conversation simply had a gap in it. The only
+     * sign anywhere was a count on a settings screen, which says nothing about *who* or *when*
+     * and cannot be acted on. A reader cannot ask about a message they were never told existed.
+     *
+     * Upstream does this on the same timer: `PendingRetryReceiptManager` waits an hour from the
+     * moment the retry receipt was sent and then writes `insertBadDecryptMessage` into the
+     * thread, unless the message has since arrived.
+     *
+     * The note is filed under the message's own identity -- `(sender, sentTimestamp)` -- so a
+     * resend that turns up an hour or a week later **replaces** it rather than sitting beside
+     * it. Upstream needs a `messageExists` check before inserting because its rows are keyed
+     * separately; here the key does that work, and it goes on doing it after the insert, which
+     * upstream's check cannot.
+     */
+    private fun announceGivenUpEnvelopes() {
+        val now = System.currentTimeMillis()
+        val giveUpBefore = now - PLACEHOLDER_AFTER_MS
+        val giveUp = withStoreLock(db) {
+            db.readableDatabase.rawQuery(
+                """
+                SELECT _id, serialized, retry_sender, retry_group FROM envelope
+                WHERE retry_requested = 1
+                  AND retry_sender IS NOT NULL
+                  AND placeholder_at IS NULL
+                  AND stored_timestamp > 0
+                  AND stored_timestamp <= ?
+                ORDER BY _id
+                """.trimIndent(),
+                arrayOf(giveUpBefore.toString())
+            ).use { c ->
+                generateSequence {
+                    if (c.moveToNext()) {
+                        Triple(c.getLong(0), Envelope.ADAPTER.decode(c.getBlob(1)), c.getString(2) to c.getBlob(3))
+                    } else {
+                        null
+                    }
+                }.toList()
+            }
+        }
+        if (giveUp.isEmpty()) return
+
+        giveUp.forEach { (id, envelope, who) ->
+            val (sender, groupId) = who
+            // The sender's own timestamp, not ours: it is half of the pair that identifies the
+            // message everywhere, and the half a resend will arrive carrying.
+            val sentTimestamp = envelope.clientTimestamp ?: return@forEach
+            runCatching { events.undecryptableGaveUp(sender, sentTimestamp, groupId) }
+                .onFailure { Timber.w(it, "signal receive: could not say a message was missed") }
+            withStoreLock(db) {
+                db.writableDatabase.execSQL(
+                    "UPDATE envelope SET placeholder_at = ? WHERE _id = ?",
+                    arrayOf<Any?>(now, id)
+                )
+            }
+        }
+        Timber.w(
+            "signal receive: %d message(s) were asked for and never came; the conversations say so now",
+            giveUp.size
+        )
+    }
+
     private fun sweepUndecryptable() = withStoreLock(db) {
         val cutoff = System.currentTimeMillis() - UNDECRYPTABLE_RETENTION_MS
         db.writableDatabase.execSQL(
@@ -517,6 +592,20 @@ internal class SignalReceiver(
     private var askedForRetry: Boolean = false
 
     /**
+     * Who the message that would not open was from, set alongside [askedForRetry].
+     *
+     * ⚠ This is the only moment it is knowable. A sealed-sender envelope carries **no source**;
+     * the sender's name lives inside the protocol exception and nowhere else. Not writing it
+     * down here means a message that never arrives can never be attributed to anybody, which is
+     * the difference between a conversation saying "something from Lydia could not be read" and
+     * saying nothing at all.
+     */
+    private var lastAskedAbout: Asked? = null
+
+    /** Who a message that would not open was from, and where it belonged. */
+    private data class Asked(val sender: String, val deviceId: Int, val groupId: ByteArray?)
+
+    /**
      * Set by [decrypt] when an envelope changed the account's phone-number identity.
      *
      * Everything after it in the batch would be decrypted against a half-swapped identity on a
@@ -545,6 +634,7 @@ internal class SignalReceiver(
         // instead of deleted. One real failure quietly turned every quiet event into another.
         lastFailure = null
         askedForRetry = false
+        lastAskedAbout = null
         val credentials = accounts.credentials()
         val aci = ServiceId.ACI.parseOrNull(credentials.aci) ?: return null
 
@@ -1748,8 +1838,14 @@ internal class SignalReceiver(
                 .onFailure { Timber.w(it, "signal retry: could not replace the keys first") }
         }
 
+        val groupId = protocolFailure.groupId.orElse(null)
         return runCatching {
-            events.sendRetryReceipt(sender, error, protocolFailure.groupId.orElse(null))
+            events.sendRetryReceipt(sender, error, groupId)
+            // Written down only once the ask actually went. An envelope nobody was asked about
+            // is one the sender does not know to resend, so waiting an hour and then telling
+            // the reader it is missing would be announcing a loss this phone never tried to
+            // prevent.
+            lastAskedAbout = Asked(sender, protocolFailure.senderDevice, groupId)
             true
         }.getOrElse {
             Timber.w(it, "signal retry: could not ask for the message again")
@@ -2211,6 +2307,30 @@ internal class SignalReceiver(
 
         /** A profile key is exactly this; anything else is not one. */
         private const val PROFILE_KEY_BYTES = 32
+
+        /**
+         * How long to wait for a resend before telling the reader it never came.
+         *
+         * An hour, which is `PendingRetryReceiptManager.RETRY_RECEIPT_LIFESPAN`. Long enough
+         * that a phone which was merely asleep has woken, short enough that the gap is still
+         * part of a conversation somebody remembers having.
+         */
+        private val PLACEHOLDER_AFTER_MS = TimeUnit.HOURS.toMillis(1)
+
+        /**
+         * Whether enough time has passed to say a message is not coming.
+         *
+         * Its own function because the whole feature is a timer, and a timer is the one thing
+         * that cannot be checked by looking at it: too short and the note appears while the
+         * resend is still in flight, contradicted a minute later by the message itself; too
+         * long and nobody is told until the conversation has moved on.
+         *
+         * A stored time in the future -- a clock that moved -- is not "ready". Waiting costs
+         * the reader nothing they did not already have; announcing a loss that has not happened
+         * costs them a message they would then go and ask about for no reason.
+         */
+        internal fun readyToGiveUp(storedAt: Long, now: Long): Boolean =
+            storedAt in 1..now && now - storedAt >= PLACEHOLDER_AFTER_MS
 
         /** How long to keep an envelope that will not decrypt, in case a fix arrives. */
         private val UNDECRYPTABLE_RETENTION_MS = TimeUnit.DAYS.toMillis(14)

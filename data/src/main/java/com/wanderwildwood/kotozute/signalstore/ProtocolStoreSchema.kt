@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 28
+    const val VERSION = 29
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -233,7 +233,17 @@ internal object ProtocolStoreSchema {
           stored_timestamp INTEGER NOT NULL,
           -- Why it would not decrypt, when it would not. Null while untried.
           failure TEXT,
-          retry_requested INTEGER NOT NULL DEFAULT 0
+          retry_requested INTEGER NOT NULL DEFAULT 0,
+          -- Who sent it, once the failure has said so. ⚠ Not readable from the envelope
+          -- itself: a sealed-sender envelope carries no source, and the sender's name only
+          -- appears in the protocol exception after unsealing fails. Recorded at the moment
+          -- the resend is asked for, which is the only moment it is known. See v29.
+          retry_sender TEXT,
+          retry_device INTEGER NOT NULL DEFAULT 0,
+          -- The group it was sent to, where it was a group. Same reason.
+          retry_group BLOB,
+          -- When this app gave up waiting and said so in the conversation. Null until then.
+          placeholder_at INTEGER
         ) STRICT;
     """
 
@@ -818,6 +828,26 @@ internal object ProtocolStoreSchema {
             SELECT recipient, sent_timestamp, owed_since, 'delivery' FROM receipt_owed_old;
             """,
             "DROP TABLE receipt_owed_old;"
+        ),
+
+        /**
+         * What a message that would not open was, so the conversation can say one is missing.
+         *
+         * ⚠ A sealed-sender envelope carries no source. Who sent it is known only inside the
+         * protocol exception, at the moment the resend is asked for -- so it has to be written
+         * down then or it is gone.
+         *
+         * Four plain columns rather than a table of its own, because the envelope row already
+         * *is* the pending record: upstream keeps a separate `PendingRetryReceiptCache` only
+         * because its envelope is discarded by then, and this app keeps its envelope so a later
+         * session repair can still open it. Keeping them together means the record cannot
+         * outlive the thing it describes.
+         */
+        29 to listOf(
+            "ALTER TABLE envelope ADD COLUMN retry_sender TEXT;",
+            "ALTER TABLE envelope ADD COLUMN retry_device INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE envelope ADD COLUMN retry_group BLOB;",
+            "ALTER TABLE envelope ADD COLUMN placeholder_at INTEGER;"
         )
     )
 

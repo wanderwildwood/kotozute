@@ -1591,22 +1591,42 @@ internal class SignalReceiver(
         }.onFailure { Timber.w(it, "signal session: could not archive our own device's session") }
 
         val now = System.currentTimeMillis()
-        val last = lastSelfResetAt[deviceId] ?: 0L
-        if (now - last < SELF_SESSION_RESET_INTERVAL_MS) {
+        if (now < (nextSelfResetAt[deviceId] ?: 0L)) {
             Timber.i("signal session: a repair was already attempted for device %d recently", deviceId)
             return
         }
-        lastSelfResetAt[deviceId] = now
+        // Held off for the full interval while the attempt is in flight, so a batch of
+        // undecryptable envelopes cannot become a null message each.
+        nextSelfResetAt[deviceId] = now + SELF_SESSION_RESET_INTERVAL_MS
 
-        runCatching {
+        // ⚠ `runCatching` succeeding means it did not *throw*. sendNullMessage returns a
+        // Result, and a refused send -- no session, a server error -- is a `Result.Failed`
+        // that raises nothing, so this used to log "asked our own account for a fresh
+        // session (Failed(...))" and count it as done.
+        val sent = runCatching {
             SignalSender(
                 SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT,
                 accounts, db, protocol, connection, contacts
             ).sendNullMessage(org.signal.core.models.ServiceId.parseOrThrow(self))
-        }.onSuccess {
-            Timber.i("signal session: asked our own account for a fresh session (%s)", it)
         }.onFailure {
-            Timber.w(it, "signal session: could not ask for a fresh session")
+            Timber.w(it, "signal session: asking for a fresh session threw")
+        }.getOrNull() is SignalSender.Result.Sent
+
+        // ⚠ And the interval is only earned by a send that happened. It used to be stamped
+        // before the attempt and never revisited, so a null message that did not go bought an
+        // hour of silence anyway -- an hour in which this account's own sync messages went on
+        // failing to decrypt, which is the exact thing this repair exists to end.
+        //
+        // Upstream does not have to choose: `AutomaticSessionResetJob` sets
+        // `automaticSessionResetInterval` and then *enqueues* `NullMessageSendJob`, which is a
+        // day of unlimited attempts and retries on a `PushNetworkException`. With no job queue
+        // the nearest honest thing is to let a failure buy a short wait instead of a long one,
+        // and let the next envelope try again.
+        nextSelfResetAt[deviceId] = nextSelfResetAttempt(sent, now)
+        if (sent) {
+            Timber.i("signal session: asked our own account for a fresh session")
+        } else {
+            Timber.w("signal session: could not ask for a fresh session; will try again shortly")
         }
     }
 
@@ -1944,12 +1964,33 @@ internal class SignalReceiver(
     companion object {
 
         /**
-         * When each of our own devices last had its session thrown away and rebuilt.
+         * The earliest each of our own devices may have its session thrown away again.
          *
-         * Upstream's `automaticSessionResetInterval`, whose default is one hour, keyed by
-         * device as it keys it. In memory only -- see [repairSessionWithSelf].
+         * Was the time of the last *attempt*, which is a different question: an attempt that
+         * did not happen bought the same hour of quiet as one that did. In memory only -- see
+         * [repairSessionWithSelf].
          */
-        private val lastSelfResetAt = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+        private val nextSelfResetAt = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+
+        /**
+         * How soon to try again after a null message that did not go.
+         *
+         * A minute, which is the receive loop's own read timeout -- so the next attempt lands
+         * on the next thing that happens rather than on a timer of its own. Upstream leaves
+         * this to the job manager's backoff inside `NullMessageSendJob`; there is no job queue
+         * here, so the interval carries it.
+         */
+        private val SELF_SESSION_RESET_RETRY_MS = TimeUnit.MINUTES.toMillis(1)
+
+        /**
+         * When a device's session may next be reset, given whether the last null message went.
+         *
+         * Its own function so both answers can be tested. A success earns the full quiet of
+         * upstream's interval; a failure earns only a short wait, because the session is still
+         * broken and nothing else is going to fix it.
+         */
+        internal fun nextSelfResetAttempt(sent: Boolean, now: Long): Long =
+            now + if (sent) SELF_SESSION_RESET_INTERVAL_MS else SELF_SESSION_RESET_RETRY_MS
 
         private val SELF_SESSION_RESET_INTERVAL_MS =
             java.util.concurrent.TimeUnit.HOURS.toMillis(1)

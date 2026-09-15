@@ -364,17 +364,8 @@ class SignalRepositoryImpl @Inject constructor(
                 .findAll()
                 .filter { it.title.isBlank() }
                 .forEach { thread ->
-                    // The thread's own key first, and a message's only as the fallback for
-                    // the groups that predate the thread holding one. A group made on this
-                    // phone has no messages at all, and one whose messages have expired has
-                    // none left to read a key from.
-                    val master = thread.groupMasterKey
-                        ?: realm.where(SignalMessage::class.java)
-                            .equalTo("threadKey", thread.threadKey)
-                            .findAll()
-                            .firstOrNull { it.groupMasterKey != null }
-                            ?.groupMasterKey
-                    master?.let { toName += thread.threadKey to it }
+                    groupMasterKeyFor(realm, thread.threadKey)
+                        ?.let { toName += thread.threadKey to it }
                 }
         }
         if (toName.isEmpty()) return
@@ -770,18 +761,7 @@ class SignalRepositoryImpl @Inject constructor(
             throw IllegalStateException("sending attachments to a group is not supported yet")
         }
         val masterKey = Realm.getDefaultInstance().use { realm ->
-            // The thread's own key first. A message's copy is a fallback for the groups that
-            // predate the thread holding one -- and the reason it cannot be the only place is
-            // that a group whose messages have all expired still has to be writable.
-            realm.where(SignalThread::class.java)
-                .equalTo("threadKey", threadKey)
-                .findFirst()
-                ?.groupMasterKey
-                ?: realm.where(SignalMessage::class.java)
-                    .equalTo("threadKey", threadKey)
-                    .findAll()
-                    .firstOrNull { it.groupMasterKey != null }
-                    ?.groupMasterKey
+            groupMasterKeyFor(realm, threadKey)
         } ?: throw IllegalStateException("no group key on this thread yet")
 
         val (expiresIn, timerVersion) = timerFor(threadKey)
@@ -2637,14 +2617,7 @@ class SignalRepositoryImpl @Inject constructor(
             val who = com.wanderwildwood.kotozute.signalstore.SignalBlockList.targetAuthor(
                 row.outgoing, row.senderUuid, row.senderNumber, selfAci
             )
-            // The key a group is reached by arrives on a message and nowhere else, so it is
-            // read from the thread's rows rather than from the thread.
-            val master = realm.where(SignalMessage::class.java)
-                .equalTo("threadKey", row.threadKey)
-                .findAll()
-                .firstOrNull { it.groupMasterKey != null }
-                ?.groupMasterKey
-            Reacting(row.threadKey, who, row.date, master)
+            Reacting(row.threadKey, who, row.date, groupMasterKeyFor(realm, row.threadKey))
         }
         if (author.isBlank()) throw IllegalStateException("nothing says who wrote that message")
 
@@ -2699,12 +2672,7 @@ class SignalRepositoryImpl @Inject constructor(
             if (!SignalRepository.canWithdraw(row.outgoing, row.date)) {
                 throw IllegalStateException("that message can no longer be taken back")
             }
-            val master = realm.where(SignalMessage::class.java)
-                .equalTo("threadKey", row.threadKey)
-                .findAll()
-                .firstOrNull { it.groupMasterKey != null }
-                ?.groupMasterKey
-            Withdrawing(row.threadKey, row.date, master)
+            Withdrawing(row.threadKey, row.date, groupMasterKeyFor(realm, row.threadKey))
         }
 
         if (threadKey.startsWith("group:")) {
@@ -2719,6 +2687,26 @@ class SignalRepositoryImpl @Inject constructor(
         // It announces the thread itself -- see [removeWithdrawn].
         removeWithdrawn(messageId, "a message was taken back") { true }
     }
+
+    /**
+     * The key a group is reached by, and the one place that answers it.
+     *
+     * The thread's own first; a message's only for the groups that predate the thread holding
+     * one (Realm 26). Four callers each did this their own way and two of them were still
+     * reading only the messages, so a group made on this phone or one whose messages had all
+     * expired could be named but not reacted to, or written to but not taken back from --
+     * whichever of the four happened to have been updated.
+     */
+    private fun groupMasterKeyFor(realm: Realm, threadKey: String): ByteArray? =
+        realm.where(SignalThread::class.java)
+            .equalTo("threadKey", threadKey)
+            .findFirst()
+            ?.groupMasterKey
+            ?: realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .findAll()
+                .firstOrNull { it.groupMasterKey != null }
+                ?.groupMasterKey
 
     /** What a withdrawal needs off the row it is taking back. */
     private data class Withdrawing(

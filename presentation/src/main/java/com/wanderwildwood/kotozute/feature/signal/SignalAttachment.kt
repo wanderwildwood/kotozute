@@ -29,6 +29,65 @@ object SignalAttachment {
     class TooLarge : IllegalStateException("attachment too large")
 
     /**
+     * Whether a file of [sizeBytes] is too large to send, given before anything is read.
+     *
+     * A size of zero or less means the question could not be answered -- a provider that
+     * reports no size, which is common enough for a `file://` Uri. That is **not** a refusal:
+     * refusing on an unknown size would block sends that are perfectly fine, and the check
+     * after the read still catches a file that really is too big. It only means this device
+     * has to find out the expensive way.
+     */
+    fun tooLargeToSend(sizeBytes: Long): Boolean = sizeBytes > MAX_BYTES
+
+    /**
+     * How large a file is, without reading it.
+     *
+     * ⚠ **The size check used to happen after the whole file was in memory.** `readBytes`
+     * pulls the entire thing into a `ByteArray` and only then is its length compared against
+     * [MAX_BYTES], so a video far over the limit is not refused -- it is loaded, and on a phone
+     * with a small heap the app dies before reaching the line that would have refused it. A
+     * guard placed after the thing it guards against is not a guard.
+     *
+     * Modelled on `ShareRepository.getSize`: ask the provider through `OpenableColumns.SIZE`,
+     * and when it will not say, fall back to counting the stream through a small buffer
+     * (`MediaUtil.getMediaSize`) -- which walks the file but never holds it.
+     *
+     * The `file://` arm is ours, not upstream's: the Desktop Sync relay stages an upload as a
+     * `file://` Uri, `query` answers null for those, and a single `length()` is both cheaper
+     * and more certain than a counting pass over a file that is about to be read again.
+     */
+    fun sizeOf(context: Context, uri: Uri): Long {
+        if (uri.scheme.equals("file", ignoreCase = true)) {
+            val path = uri.path ?: return 0L
+            return java.io.File(path).length()
+        }
+        val declared = runCatching {
+            context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+                val i = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                if (i >= 0 && c.moveToFirst() && !c.isNull(i)) c.getLong(i) else 0L
+            } ?: 0L
+        }.getOrDefault(0L)
+        if (declared > 0) return declared
+
+        return runCatching {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val buffer = ByteArray(4096)
+                var total = 0L
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read == -1) break
+                    total += read
+                    // No reason to keep counting once the answer cannot change. Upstream
+                    // counts the whole file because it wants the size for a record; here the
+                    // only question is whether it is over the limit.
+                    if (total > MAX_BYTES) return@use total
+                }
+                total
+            } ?: 0L
+        }.getOrDefault(0L)
+    }
+
+    /**
      * Read [uri] and encode it. Images are downscaled and re-encoded as JPEG first, except
      * GIFs, where re-encoding would throw away the animation.
      */
@@ -40,9 +99,12 @@ object SignalAttachment {
         val resolver = context.contentResolver
         val type = uri.getType(context)
         val bytes = if (type.startsWith("image/")) {
-            downscale(resolver, uri) ?: readBytes(resolver, uri)
+            // The downscale reads at a reduced sample size and hands back a bounded JPEG, so
+            // a very large photo is made sendable rather than refused. Its fallback is a
+            // whole-file read, which is not, so that arm is measured first like any other.
+            downscale(resolver, uri) ?: readBounded(context, resolver, uri)
         } else {
-            readBytes(resolver, uri)
+            readBounded(context, resolver, uri)
         }
         if (bytes.size > MAX_BYTES) throw TooLarge()
         val encodedType = if (type.startsWith("image/") && type != "image/gif") {
@@ -60,6 +122,22 @@ object SignalAttachment {
             if (i >= 0 && c.moveToFirst()) c.getString(i) else null
         }
     }.getOrNull()
+
+    /**
+     * Refuses before reading, then reads.
+     *
+     * The check after the read stays where it is -- a provider can report a size it does not
+     * honour, and the second check is what catches that -- but by then the memory has already
+     * been asked for. This is the one that keeps it from being asked for at all.
+     */
+    private fun readBounded(
+        context: Context,
+        resolver: android.content.ContentResolver,
+        uri: Uri
+    ): ByteArray {
+        if (tooLargeToSend(sizeOf(context, uri))) throw TooLarge()
+        return readBytes(resolver, uri)
+    }
 
     private fun readBytes(resolver: android.content.ContentResolver, uri: Uri): ByteArray =
         resolver.openInputStream(uri)?.use { it.readBytes() }

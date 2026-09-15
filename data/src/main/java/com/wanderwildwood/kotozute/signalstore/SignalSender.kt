@@ -735,20 +735,39 @@ internal class SignalSender(
      * person and says where the decision lives.
      */
     private fun describe(result: SendMessageResult): String = when {
-        result.identityFailure != null -> {
-            val who = runCatching { contacts.nameFor(result.address.serviceId.toString()) }
-                .getOrNull()
-                ?.takeIf { it.isNotBlank() }
-            "the safety number changed for ${who ?: "them"}; " +
-                "open the conversation's details to check and accept it"
+        result.identityFailure != null ->
+            "the safety number changed for ${whoIs(result)}"
+        result.isUnregisteredFailure -> "${whoIs(result)} is not on Signal any more"
+        result.isNetworkFailure -> "the phone could not reach Signal"
+        // Their bundle will not open. Signal does not retry this either -- asking again gets
+        // the same bundle -- so it says what it is rather than suggesting another go.
+        result.isInvalidPreKeyFailure ->
+            "${whoIs(result)} has a key this phone cannot use; they may need to reinstall"
+        result.rateLimitFailure != null -> {
+            // The server usually says how long. Reporting the wait is the difference between
+            // a wall and a queue; upstream backs off by exactly this value.
+            val wait = result.rateLimitFailure?.retryAfterMilliseconds?.orElse(null)
+            if (wait != null && wait > 0) {
+                "sending too fast; try again in ${describeWait(wait)}"
+            } else {
+                "sending too fast; try again shortly"
+            }
         }
-        result.isUnregisteredFailure -> "${result.address.serviceId} is not registered"
-        result.isNetworkFailure -> "network failure sending to ${result.address.serviceId}"
-        result.isInvalidPreKeyFailure -> "${result.address.serviceId} has an unusable pre key"
-        result.rateLimitFailure != null -> "rate limited"
-        result.proofRequiredFailure != null -> "the server wants a proof of humanity"
-        else -> "send failed for an unreported reason"
+        // 428. The server wants the app to prove it is a person, and this build has no way to
+        // answer -- upstream opens a captcha. Said as the wall it is, rather than as jargon.
+        result.proofRequiredFailure != null ->
+            "Signal wants this phone to prove it is a person, which it cannot do yet"
+        else -> "it did not send, and the server did not say why"
     }
+
+    /** What to call the recipient of a failed send, or "they" where only an id is held. */
+    private fun whoIs(result: SendMessageResult): String =
+        runCatching { contacts.nameFor(result.address.serviceId.toString()) }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: "they"
+
+
 
     fun sendReaction(
         recipient: ServiceId,
@@ -1095,6 +1114,22 @@ internal class SignalSender(
     }
 
     companion object {
+        /**
+         * A wait in the words somebody would use for it, rather than milliseconds.
+         *
+         * Rounded **up**, always: telling somebody to wait two minutes when it is really two
+         * minutes and fifty seconds earns a second failure, and the second one reads as the
+         * app being wrong rather than the server being busy.
+         */
+        internal fun describeWait(millis: Long): String {
+            val seconds = millis / 1000
+            return when {
+                seconds < 90 -> "$seconds seconds"
+                seconds < 5400 -> "${(seconds + 59) / 60} minutes"
+                else -> "${(seconds + 3599) / 3600} hours"
+            }
+        }
+
         /** Signal's primary device, which always has a session if any do. */
         private const val DEFAULT_DEVICE_ID = 1
 

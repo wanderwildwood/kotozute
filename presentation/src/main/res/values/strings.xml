@@ -504,7 +504,8 @@
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;
          the ">" says it is a way across rather than a label. -->
     <string name="sms_rail_label_switch">SMS ></string>
-    <string name="signal_empty">No Signal conversations yet.\n\nThreads begin when a message arrives; anything older stays in Signal.</string>
+    <string name="signal_empty">No Signal conversations yet.\n\nWrite to somebody, or wait for a message; anything older stays in Signal.</string>
+    <string name="signal_new_conversation_cd">Write to somebody on Signal</string>
     <string name="signal_composer_hint">Message</string>
     <string name="signal_send">Send</string>
     <string name="signal_cannot_send_signal">Not connected to Signal — you can read, but not send</string>

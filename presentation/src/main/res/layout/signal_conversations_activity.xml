@@ -68,20 +68,48 @@
         tools:text="Cannot reach the bridge"
         xmlns:tools="http://schemas.android.com/tools" />
 
-    <com.wanderwildwood.kotozute.common.widget.QkTextView
-        android:id="@+id/empty"
+    <!-- The list and the compose button share this space so the button floats over the
+         list in the corner, the same place and the same size as the SMS inbox's. Both rails
+         are the same app on the same panel; a conversation is started the same way in each. -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:padding="32dp"
-        android:text="@string/signal_empty"
-        android:visibility="gone" />
+        android:layout_weight="1">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:padding="32dp"
+            android:text="@string/signal_empty"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <FrameLayout
+            android:id="@+id/compose"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/compose_button_background">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_edit_black_24dp"
+                android:contentDescription="@string/signal_new_conversation_cd"
+                app:tint="#FFFFFF"
+                xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+        </FrameLayout>
+
+    </FrameLayout>
 
 </LinearLayout>

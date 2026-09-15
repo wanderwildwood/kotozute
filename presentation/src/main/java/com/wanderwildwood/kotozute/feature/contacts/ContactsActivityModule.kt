@@ -28,8 +28,12 @@ import com.wanderwildwood.kotozute.injection.ViewModelKey
 class ContactsActivityModule {
 
     @Provides
-    fun provideIsSharing(activity: ContactsActivity): Boolean {
-        return activity.intent.extras?.getBoolean(ContactsActivity.SHARING_KEY, false) ?: false
+    fun provideLaunch(activity: ContactsActivity): ContactsLaunch {
+        val extras = activity.intent.extras
+        return ContactsLaunch(
+                sharing = extras?.getBoolean(ContactsActivity.SHARING_KEY, false) ?: false,
+                signal = extras?.getBoolean(ContactsActivity.SIGNAL_KEY, false) ?: false
+        )
     }
 
     @Provides

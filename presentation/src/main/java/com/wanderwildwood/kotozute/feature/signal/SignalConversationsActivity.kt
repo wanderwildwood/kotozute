@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.feature.signal
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -8,11 +9,13 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.activity.result.contract.ActivityResultContracts
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.databinding.SignalConversationsActivityBinding
 import com.wanderwildwood.kotozute.databinding.SignalThreadListItemBinding
+import com.wanderwildwood.kotozute.feature.contacts.ContactsActivity
 import com.wanderwildwood.kotozute.model.SignalThread
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.common.util.DateFormatter
@@ -43,6 +46,23 @@ class SignalConversationsActivity : QkThemedActivity() {
 
     /** Which shelf is on screen. Archiving with no way back to the thread would lose it. */
     private var showingArchived = false
+
+    /**
+     * Picking somebody to write to. The picker hands back a thread key rather than opening
+     * the conversation itself, the same as it does for the SMS composer -- so the screen
+     * that asked decides what happens next, and here that is opening the conversation with
+     * this list behind it.
+     */
+    private val newConversation = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+        val data = result.data ?: return@registerForActivityResult
+        val threadKey = data.getStringExtra(ContactsActivity.SIGNAL_THREAD_KEY).orEmpty()
+        if (threadKey.isBlank()) return@registerForActivityResult
+        val title = data.getStringExtra(ContactsActivity.SIGNAL_THREAD_TITLE).orEmpty()
+        startActivity(intentFor(this, threadKey, title))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -80,6 +100,16 @@ class SignalConversationsActivity : QkThemedActivity() {
                 }
             }
 
+        // Writing to somebody there is no conversation with yet. The address book this
+        // opens is the Signal one; reaching it used to mean crossing to the SMS inbox,
+        // opening its composer, and crossing back.
+        binding.compose.setOnClickListener {
+            newConversation.launch(
+                Intent(this, ContactsActivity::class.java)
+                    .putExtra(ContactsActivity.SIGNAL_KEY, true)
+            )
+        }
+
         // Catch up on anything missed while the app was closed.
         Thread { signalRepo.syncNow() }.also { it.isDaemon = true }.start()
         signalRepo.startStream()
@@ -110,6 +140,9 @@ class SignalConversationsActivity : QkThemedActivity() {
         // The crossing is to the SMS inbox; from the archive shelf the way out is the shelf
         // toggle, not a jump to another rail's inbox.
         binding.railBadge.setVisible(!prefs.signalWeave.get() && !showingArchived)
+        // Nothing is started from the archive shelf: a new conversation would appear on the
+        // inbox shelf, behind the screen that was showing.
+        binding.compose.setVisible(!showingArchived)
         invalidateOptionsMenu()
     }
 

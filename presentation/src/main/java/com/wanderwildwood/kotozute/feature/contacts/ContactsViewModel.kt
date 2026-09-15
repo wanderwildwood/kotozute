@@ -53,7 +53,7 @@ import kotlinx.coroutines.rx2.awaitFirst
 import javax.inject.Inject
 
 class ContactsViewModel @Inject constructor(
-    private val sharing: Boolean,
+    private val launch: ContactsLaunch,
     serializedChips: HashMap<String, String?>,
     private val contactFilter: ContactFilter,
     private val contactGroupFilter: ContactGroupFilter,
@@ -63,7 +63,10 @@ class ContactsViewModel @Inject constructor(
     private val prefs: Preferences,
     private val setDefaultPhoneNumber: SetDefaultPhoneNumber,
     private val signalRepo: SignalRepository
-) : QkViewModel<ContactsContract, ContactsState>(ContactsState()) {
+) : QkViewModel<ContactsContract, ContactsState>(ContactsState(showingSignal = launch.signal)) {
+
+    /** Text is being shared in; see [ContactsLaunch]. */
+    private val sharing: Boolean get() = launch.sharing
 
     private val contactGroups: Observable<List<ContactGroup>> by lazy { contactsRepo.getUnmanagedContactGroups() }
     private val contacts: Observable<List<Contact>> by lazy { contactsRepo.getUnmanagedContacts() }
@@ -116,9 +119,12 @@ class ContactsViewModel @Inject constructor(
 
     /**
      * Which address book is showing. Starts on the phone's, which is what this screen has
-     * always opened to and what most messages are still sent over.
+     * always opened to and what most messages are still sent over -- unless the Signal rail
+     * opened it, in which case starting on the phone's book would make crossing back the
+     * first thing anybody did.
      */
-    private val showingSignal: BehaviorSubject<Boolean> = BehaviorSubject.createDefault(false)
+    private val showingSignal: BehaviorSubject<Boolean> =
+            BehaviorSubject.createDefault(launch.signal)
 
     private val selectedChips = Observable.just(serializedChips)
             .observeOn(Schedulers.io())
@@ -140,8 +146,10 @@ class ContactsViewModel @Inject constructor(
 
         // Whether there is a second address book at all. Not while sharing: the shared text
         // goes into the SMS composer this screen returns to, so crossing would be offering to
-        // drop what is being shared.
-        newState { copy(canCrossRails = !sharing && prefs.signalEnabled.get()) }
+        // drop what is being shared. Not when the Signal rail opened this either -- what it
+        // asked for is a Signal conversation, and it has nowhere to put an SMS recipient, so
+        // the badge would be a door onto a list that could not answer.
+        newState { copy(canCrossRails = !sharing && !launch.signal && prefs.signalEnabled.get()) }
 
         // Crossing between the two address books. The query is cleared on the way: a name
         // typed while looking at one book is rarely the name wanted in the other, and leaving

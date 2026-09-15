@@ -54,6 +54,8 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
 
     companion object {
         const val SHARING_KEY = "sharing"
+        /** Open showing the Signal address book. Set when the Signal rail opens this. */
+        const val SIGNAL_KEY = "signal"
         const val CHIPS_KEY = "chips"
         const val SIGNAL_THREAD_KEY = "signalThreadKey"
         const val SIGNAL_THREAD_TITLE = "signalThreadTitle"
@@ -103,12 +105,18 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
 
         binding.railBadge.setOnClickListener { railSwitchIntent.onNext(Unit) }
 
-        val callback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                navigator.showMainActivity()
+        // Back goes to the SMS inbox, because this screen is otherwise reached from the
+        // composer and returning there would show an empty message nobody asked to keep.
+        // Opened from the Signal rail there is no such composer behind it, and the list it
+        // came from is the right place to land.
+        if (!intent.getBooleanExtra(SIGNAL_KEY, false)) {
+            val callback = object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    navigator.showMainActivity()
+                }
             }
+            onBackPressedDispatcher.addCallback(this, callback)
         }
-        onBackPressedDispatcher.addCallback(this, callback)
     }
 
     override fun onResume() {

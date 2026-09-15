@@ -91,6 +91,20 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         AppComponentManager.init(this)
         appComponent.inject(this)
 
+        // ⚠ First, before anything that might have something to say. This used to sit near the
+        // end of onCreate, after the Signal socket had been started and the first contacts and
+        // configuration requests had gone -- so with no tree planted, every one of those log
+        // calls went nowhere. In a release build that is the only channel there is, and the
+        // lines lost were exactly the ones about what this device asks the account for at
+        // startup: the hardest part of the app to reason about and the part that logs the most
+        // about itself.
+        //
+        // Found by reading a log that was missing a line the code plainly writes, and nearly
+        // explained away as an R8 artefact instead.
+        //
+        // It needs `appComponent.inject` above it for `fileLoggingTree`, and nothing else.
+        Timber.plant(Timber.DebugTree(), fileLoggingTree)
+
         Realm.init(this)
 
         // One builder, used three times: to read the plaintext database during the one-time
@@ -211,9 +225,6 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         }
 
         nightModeManager.updateCurrentTheme()
-
-        // configure timber logging
-        Timber.plant(Timber.DebugTree(), fileLoggingTree)
 
         signalRepo.refresh()
 

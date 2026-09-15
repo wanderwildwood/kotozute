@@ -686,6 +686,19 @@ class SignalStore(private val context: Context) {
         val store = SignalReceiptStore(database)
         var told = 0
 
+        // ⚠ Nobody the service has already said is gone. Upstream draws this line inside each
+        // job -- `onShouldRetry` is true for a `PushNetworkException` and **false** for a
+        // `ServerRejectedException` -- so a refusal ends the work and a dropped connection does
+        // not. Somebody who has left Signal is a refusal that will be repeated every time, and
+        // a day of unlimited attempts at them is ninety-six wakeups for an answer already
+        // known. Dropped rather than left to expire, so it stops now.
+        val gone = runCatching { store.forget { contacts.isUnregistered(it) } }
+            .onFailure { Timber.w(it, "signal receipt: could not drop what is owed to people who have left") }
+            .getOrDefault(0)
+        if (gone > 0) {
+            Timber.i("signal receipt: dropped %d owed to somebody no longer on Signal", gone)
+        }
+
         // Delivery: one message per person, carrying their own timestamps.
         val deliveries = runCatching { store.owed(SignalReceiptStore.Kind.DELIVERY) }
             .onFailure { Timber.w(it, "signal receipt: could not read who is owed one") }
@@ -728,9 +741,50 @@ class SignalStore(private val context: Context) {
             }
         }
 
+        // Read receipts: per person, like delivery, and the only one behind a setting. The
+        // setting is read here rather than where the receipt was owed, so a backlog cannot go
+        // out behind somebody who has turned receipts off since.
+        if (readReceiptsEnabled()) {
+            val reads = runCatching { store.owed(SignalReceiptStore.Kind.READ_RECEIPT) }
+                .onFailure { Timber.w(it, "signal receipt: could not read which read receipts are owed") }
+                .getOrDefault(emptyMap())
+            if (reads.isNotEmpty()) {
+                connection.connect()
+                reads.forEach { (recipient, timestamps) ->
+                    val went = runCatching { sendReadReceipt(recipient, timestamps) }
+                        .onFailure { Timber.w(it, "signal receipt: still could not send a read receipt") }
+                        .getOrDefault(false)
+                    if (went) {
+                        told++
+                        runCatching {
+                            store.clear(recipient, timestamps, SignalReceiptStore.Kind.READ_RECEIPT)
+                        }.onFailure { Timber.w(it, "signal receipt: could not clear a read receipt that went") }
+                    }
+                }
+            }
+        } else {
+            // Not held for later. Upstream's job returns without sending and is then finished
+            // and gone; keeping them would be keeping a promise the account has withdrawn.
+            runCatching { store.drop(SignalReceiptStore.Kind.READ_RECEIPT) }
+                .onSuccess { gone ->
+                    if (gone > 0) {
+                        Timber.i("signal receipt: dropped %d read receipt(s); they are switched off", gone)
+                    }
+                }
+                .onFailure { Timber.w(it, "signal receipt: could not drop the read receipts owed") }
+        }
+
         runCatching { store.abandonExpired() }
             .onFailure { Timber.w(it, "signal receipt: could not give up on the old ones") }
         return told
+    }
+
+    /** Notes that the person who wrote a message has not been told it was read here. */
+    internal fun oweReadReceipt(recipient: String, timestamps: List<Long>) {
+        runCatching {
+            SignalReceiptStore(database)
+                .owe(recipient, timestamps, SignalReceiptStore.Kind.READ_RECEIPT)
+        }.onFailure { Timber.w(it, "signal receipt: could not note that a read receipt is owed") }
     }
 
     /** Notes that our own devices have not been told a conversation was read here. */
@@ -776,6 +830,21 @@ class SignalStore(private val context: Context) {
      */
     @Volatile
     internal var onConversationState: (List<SignalStorageService.ConversationState>) -> Unit = {}
+
+    /**
+     * Whether this account sends read receipts, asked fresh each time.
+     *
+     * A lambda rather than a value, and settable for the same reason [onRejected] is: the
+     * preference lives a layer up and this class is built first. Asked *at the moment of
+     * sending*, because a read receipt owed from yesterday must not go out behind somebody who
+     * has turned receipts off since -- `SendReadReceiptJob.onRun` re-reads the setting and
+     * returns without sending, rather than trusting the check made when the job was queued.
+     *
+     * Defaults to off. A receipt not sent is a smaller mistake than one sent against the
+     * account's wishes, and this is only ever asked about work that is already owed.
+     */
+    @Volatile
+    internal var readReceiptsEnabled: () -> Boolean = { false }
 
     /**
      * Reads the account's contact list out of the storage service, where modern Signal keeps

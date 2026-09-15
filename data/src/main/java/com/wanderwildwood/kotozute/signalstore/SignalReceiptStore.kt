@@ -33,7 +33,17 @@ internal class SignalReceiptStore(private val db: ProtocolDatabase) {
         DELIVERY("delivery"),
 
         /** Tell this account's own devices it has been read here. */
-        READ_SYNC("read-sync")
+        READ_SYNC("read-sync"),
+
+        /**
+         * Tell the person who wrote it that it has been read here.
+         *
+         * ⚠ The only one of the three behind a setting, and the setting is checked **when it
+         * is sent**, not only when it is owed. `SendReadReceiptJob.onRun` re-reads
+         * `isReadReceiptsEnabled` and returns without sending -- so somebody who turns
+         * receipts off does not have yesterday's backlog go out behind them.
+         */
+        READ_RECEIPT("read-receipt")
     }
 
     /** Somebody still waiting to be told something, and since when. */
@@ -80,6 +90,36 @@ internal class SignalReceiptStore(private val db: ProtocolDatabase) {
             generateSequence { if (c.moveToNext()) Owed(c.getString(0), c.getLong(1), c.getLong(2)) else null }
                 .filter { stillWorthSending(it.since, now) }
                 .groupBy({ it.recipient }, { it.sentTimestamp })
+        }
+    }
+
+    /**
+     * Forgets everything owed to anybody [hasLeft] says is no longer on Signal.
+     *
+     * @return how many rows went.
+     */
+    fun forget(hasLeft: (String) -> Boolean): Int = withStoreLock(db) {
+        val people = db.readableDatabase.rawQuery(
+            "SELECT DISTINCT recipient FROM receipt_owed", null
+        ).use { c ->
+            generateSequence { if (c.moveToNext()) c.getString(0) else null }.toList()
+        }
+        val leavers = people.filter { runCatching { hasLeft(it) }.getOrDefault(false) }
+        if (leavers.isEmpty()) return@withStoreLock 0
+        db.writableDatabase.compileStatement("DELETE FROM receipt_owed WHERE recipient = ?").use { statement ->
+            leavers.sumOf { who ->
+                statement.clearBindings()
+                statement.bindString(1, who)
+                statement.executeUpdateDelete()
+            }
+        }
+    }
+
+    /** Forget everything owed of one kind, without sending it. */
+    fun drop(kind: Kind): Int = withStoreLock(db) {
+        db.writableDatabase.compileStatement("DELETE FROM receipt_owed WHERE kind = ?").use { statement ->
+            statement.bindString(1, kind.value)
+            statement.executeUpdateDelete()
         }
     }
 

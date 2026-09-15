@@ -142,6 +142,9 @@ class SignalRepositoryImpl @Inject constructor(
     init {
         publishState(signalConnected = false, error = null)
         signalStore.onRejected = ::onServerRefusedThisDevice
+        // Asked fresh whenever a read receipt is about to go, rather than remembered from when
+        // it was owed. See [SignalStore.readReceiptsEnabled].
+        signalStore.readReceiptsEnabled = { prefs.signalReadReceipts.get() }
         signalStore.onPrimaryIdle = ::notePrimaryIdle
         signalStore.onConversationState = ::applyConversationState
     }
@@ -1864,11 +1867,23 @@ class SignalRepositoryImpl @Inject constructor(
         justRead.groupBy({ it.first }, { it.second })
             .forEach { (sender, timestamps) ->
                 if (sender.isBlank()) return@forEach
-                runCatching { signalStore.sendReadReceipt(sender, timestamps.distinct()) }
-                    .onSuccess {
-                        Timber.i("signal receipt: told %s about %d message(s)", "somebody", timestamps.size)
-                    }
-                    .onFailure { Timber.d("read receipt not delivered: ${it.message}") }
+                val distinct = timestamps.distinct()
+                // ⚠ Two faults in four lines, and the same two as everywhere else on this
+                // axis. onSuccess fired whether or not the receipt *went* -- the call returns
+                // false when it is refused and raises nothing -- so a refusal was announced as
+                // a delivery. And the failure was logged at debug, which a release build does
+                // not keep, so the one arm that did notice said it where nobody could read it.
+                val went = runCatching { signalStore.sendReadReceipt(sender, distinct) }
+                    .onFailure { Timber.w(it, "signal receipt: sending a read receipt threw") }
+                    .getOrDefault(false)
+                if (went) {
+                    Timber.i("signal receipt: told somebody about %d message(s)", distinct.size)
+                } else {
+                    // Upstream's SendReadReceiptJob is the same day of unlimited attempts the
+                    // rest of these get. The setting is checked again when it is sent.
+                    Timber.w("signal receipt: could not send a read receipt; will keep trying")
+                    signalStore.oweReadReceipt(sender, distinct)
+                }
             }
     }
 

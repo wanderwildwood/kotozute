@@ -57,12 +57,28 @@ class ReceiptLifespanTest {
      * was read. They are what the `kind` column holds, so the strings are not decoration.
      */
     @Test
-    fun `the two kinds are named apart`() {
+    fun `the kinds are named apart`() {
         assertEquals("delivery", SignalReceiptStore.Kind.DELIVERY.value)
         assertEquals("read-sync", SignalReceiptStore.Kind.READ_SYNC.value)
+        assertEquals("read-receipt", SignalReceiptStore.Kind.READ_RECEIPT.value)
         assertEquals(
             SignalReceiptStore.Kind.values().size,
             SignalReceiptStore.Kind.values().map { it.value }.toSet().size
         )
+    }
+
+    /**
+     * Only one of them is behind a setting, and it is the one sent to the person who wrote the
+     * message. A delivery receipt reveals nothing about the reader and a read sync goes to this
+     * account's own devices; neither is anybody's to switch off.
+     */
+    @Test
+    fun `only the read receipt is the one a person can switch off`() {
+        assertEquals(
+            listOf(SignalReceiptStore.Kind.READ_RECEIPT),
+            SignalReceiptStore.Kind.values().filter { it == SignalReceiptStore.Kind.READ_RECEIPT }
+        )
+        assertFalse(SignalReceiptStore.Kind.DELIVERY == SignalReceiptStore.Kind.READ_RECEIPT)
+        assertFalse(SignalReceiptStore.Kind.READ_SYNC == SignalReceiptStore.Kind.READ_RECEIPT)
     }
 }

@@ -377,6 +377,22 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
      * worth spending the window on. The mark is local and a storage read or a later discovery
      * pass clears it.
      */
+    /**
+     * Whether the service has said this person is no longer on Signal.
+     *
+     * Read before retrying anything at them. Upstream's jobs draw the same line from the other
+     * end -- `onShouldRetry` returns true for a `PushNetworkException` and **false** for a
+     * `ServerRejectedException` -- so a refusal ends the work where a dropped connection does
+     * not. Somebody who has left is a refusal that will be repeated every time.
+     */
+    fun isUnregistered(serviceId: String): Boolean = withStoreLock(db) {
+        if (serviceId.isBlank()) return@withStoreLock false
+        db.readableDatabase.rawQuery(
+            "SELECT unregistered_at FROM recipient WHERE aci = ? OR pni = ? LIMIT 1",
+            arrayOf(serviceId, serviceId)
+        ).use { c -> c.moveToFirst() && c.getLong(0) > 0 }
+    }
+
     fun markUnregistered(serviceId: String, at: Long = System.currentTimeMillis()) = withStoreLock(db) {
         db.writableDatabase.execSQL(
             "UPDATE recipient SET unregistered_at = ? WHERE aci = ? OR pni = ?",

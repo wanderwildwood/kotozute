@@ -2,6 +2,13 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- Where Signal keeps it: the chat list's own menu, beside the new-chat button
+         rather than inside it (MainToolbarCallback.onNewGroupClick). -->
+    <item
+        android:id="@+id/signalNewGroup"
+        android:title="@string/signal_group_title"
+        app:showAsAction="never" />
+
     <!-- Without this, a Signal thread archived while the two lists are kept apart has
          nowhere to be seen again: the archive shelf lives on the SMS list, which this
          screen replaces. Archiving something into a place you cannot reach loses it. -->

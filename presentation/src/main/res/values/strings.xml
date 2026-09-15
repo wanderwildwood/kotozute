@@ -506,6 +506,15 @@
     <string name="sms_rail_label_switch">SMS ></string>
     <string name="signal_empty">No Signal conversations yet.\n\nWrite to somebody, or wait for a message; anything older stays in Signal.</string>
     <string name="signal_new_conversation_cd">Write to somebody on Signal</string>
+    <string name="signal_group_title">New group</string>
+    <string name="signal_group_create">Create</string>
+    <string name="signal_group_name_hint">Group name</string>
+    <string name="signal_group_search_hint">Search</string>
+    <string name="signal_group_nobody">Nobody to add.\n\nFetch your contacts in Settings, or wait for somebody to write.</string>
+    <string name="signal_group_no_match">Nobody by that name.</string>
+    <string name="signal_group_needs_a_name">A group needs a name.</string>
+    <string name="signal_group_needs_somebody">A group needs somebody else in it.</string>
+    <string name="signal_group_not_made">The group was not made.</string>
     <string name="signal_composer_hint">Message</string>
     <string name="signal_send">Send</string>
     <string name="signal_cannot_send_signal">Not connected to Signal — you can read, but not send</string>

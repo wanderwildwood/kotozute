@@ -100,7 +100,25 @@ class ComposeItemAdapter @Inject constructor(
             is ComposeItem.Group -> bindGroup(holder, item.value, prevItem)
             is ComposeItem.SignalPerson -> bindSignalPerson(holder, item, prevItem)
             is ComposeItem.SignalHeader -> bindSignalHeader(holder)
+            is ComposeItem.SignalNewGroup -> bindSignalNewGroup(holder)
         }
+    }
+
+    /**
+     * Making a group rather than choosing somebody.
+     *
+     * It carries a mark where the others carry a face, because it is not a person and a
+     * blank in that column would read as one whose picture had not loaded.
+     */
+    private fun bindSignalNewGroup(holder: QkBindingViewHolder<ContactListItemBinding>) {
+        holder.binding.index.isVisible = false
+        holder.binding.icon.isVisible = true
+        holder.binding.icon.setImageResource(R.drawable.ic_people_black_24dp)
+        holder.binding.avatar.recipients = emptyList()
+        holder.binding.title.text =
+            holder.itemView.context.getString(R.string.signal_group_title)
+        holder.binding.subtitle.isVisible = false
+        holder.binding.numbers.isVisible = false
     }
 
     /**
@@ -261,6 +279,9 @@ class ComposeItemAdapter @Inject constructor(
         // otherwise look like the same item as every other -- and as any other empty row.
         if (old is ComposeItem.SignalHeader || new is ComposeItem.SignalHeader) {
             return old is ComposeItem.SignalHeader && new is ComposeItem.SignalHeader
+        }
+        if (old is ComposeItem.SignalNewGroup || new is ComposeItem.SignalNewGroup) {
+            return old is ComposeItem.SignalNewGroup && new is ComposeItem.SignalNewGroup
         }
         if (old is ComposeItem.SignalPerson || new is ComposeItem.SignalPerson) {
             return old is ComposeItem.SignalPerson && new is ComposeItem.SignalPerson &&

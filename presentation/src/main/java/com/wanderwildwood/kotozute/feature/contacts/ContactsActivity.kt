@@ -22,6 +22,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProviders
 import com.jakewharton.rxbinding2.view.clicks
@@ -40,6 +41,7 @@ import com.wanderwildwood.kotozute.feature.compose.editing.ComposeItem
 import com.wanderwildwood.kotozute.feature.compose.editing.ComposeItemAdapter
 import com.wanderwildwood.kotozute.feature.compose.editing.PhoneNumberAction
 import com.wanderwildwood.kotozute.feature.compose.editing.PhoneNumberPickerAdapter
+import com.wanderwildwood.kotozute.feature.signal.SignalNewGroupActivity
 import io.reactivex.Observable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
@@ -185,6 +187,25 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
      * aside as it does for the rail badge: a Signal conversation reached this way has the
      * conversation list behind it, not an empty new message nobody asked to keep.
      */
+    /**
+     * The group is made on its own screen and handed back the same way a person is, so the
+     * composer behind this one still gets to stand aside.
+     */
+    override fun showNewGroup() {
+        binding.search.hideKeyboard()
+        newGroup.launch(SignalNewGroupActivity.intentFor(this))
+    }
+
+    private val newGroup = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+        val data = result.data ?: return@registerForActivityResult
+        val threadKey = data.getStringExtra(SIGNAL_THREAD_KEY).orEmpty()
+        if (threadKey.isBlank()) return@registerForActivityResult
+        finishWithSignalThread(threadKey, data.getStringExtra(SIGNAL_THREAD_TITLE).orEmpty())
+    }
+
     override fun finishWithSignalThread(threadKey: String, title: String) {
         binding.search.hideKeyboard()
         val intent = Intent()

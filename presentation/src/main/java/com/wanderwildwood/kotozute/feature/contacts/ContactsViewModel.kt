@@ -117,6 +117,9 @@ class ContactsViewModel @Inject constructor(
     /** Chosen from the list; handled apart from the chips, which cannot hold one. */
     private val signalPersonPicked: Subject<ComposeItem.SignalPerson> = PublishSubject.create()
 
+    /** The row that makes a group rather than choosing somebody. */
+    private val newGroupPicked: Subject<Unit> = PublishSubject.create()
+
     /**
      * Which address book is showing. Starts on the phone's, which is what this screen has
      * always opened to and what most messages are still sent over -- unless the Signal rail
@@ -188,6 +191,11 @@ class ContactsViewModel @Inject constructor(
                     // on the phone -- findable by typing a name, and unbrowsable by hand,
                     // which is no way to answer "who can I reach on Signal".
                     if (showingSignal) {
+                        // First, and only while nothing has been typed. Signal's own new-chat
+                        // list adds its NEW_GROUP row the same way and under the same
+                        // condition (ContactSelectionListFragment) -- somebody searching for
+                        // a name is not looking for this.
+                        if (query.isBlank()) composeItems += ComposeItem.SignalNewGroup
                         val normalizedQuery = query.removeAccents()
                         composeItems += signalPeople.filter { person ->
                             query.isBlank() || matches(person, query.toString(), normalizedQuery)
@@ -281,8 +289,12 @@ class ContactsViewModel @Inject constructor(
                 // and the keyboard's done key would stop choosing anybody.
                 .doOnNext { (composeItem, _) ->
                     (composeItem as? ComposeItem.SignalPerson)?.let(signalPersonPicked::onNext)
+                    if (composeItem is ComposeItem.SignalNewGroup) newGroupPicked.onNext(Unit)
                 }
-                .filter { (composeItem, _) -> composeItem !is ComposeItem.SignalPerson }
+                .filter { (composeItem, _) ->
+                    composeItem !is ComposeItem.SignalPerson &&
+                            composeItem !is ComposeItem.SignalNewGroup
+                }
                 .observeOn(Schedulers.io())
                 .map { (composeItem, force) ->
                     HashMap(composeItem.getContacts().associate { contact ->
@@ -316,6 +328,11 @@ class ContactsViewModel @Inject constructor(
                 .autoDisposable(view.scope())
                 .subscribe { result -> view.finish(result) }
 
+        newGroupPicked
+                .observeOn(AndroidSchedulers.mainThread())
+                .autoDisposable(view.scope())
+                .subscribe { view.showNewGroup() }
+
         // Chosen on Signal: leave for their Signal conversation, which exists whether or not
         // anything has been said in it yet.
         signalPersonPicked
@@ -332,11 +349,18 @@ class ContactsViewModel @Inject constructor(
  * gets typed is rarely written the same way.
  */
 internal fun matches(
-    person: ComposeItem.SignalPerson,
+    name: String,
+    number: String,
     query: String,
     normalizedQuery: String
 ): Boolean {
-    if (person.name.removeAccents().contains(normalizedQuery, ignoreCase = true)) return true
+    if (name.removeAccents().contains(normalizedQuery, ignoreCase = true)) return true
     val typed = query.filter { character -> character.isDigit() }
-    return typed.isNotEmpty() && person.number.filter { character -> character.isDigit() }.contains(typed)
+    return typed.isNotEmpty() && number.filter { character -> character.isDigit() }.contains(typed)
 }
+
+internal fun matches(
+    person: ComposeItem.SignalPerson,
+    query: String,
+    normalizedQuery: String
+): Boolean = matches(person.name, person.number, query, normalizedQuery)

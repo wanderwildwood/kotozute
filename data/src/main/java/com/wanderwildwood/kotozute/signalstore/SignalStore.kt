@@ -315,15 +315,14 @@ class SignalStore(private val context: Context) {
      * because a message is in it, so the group becomes visible when the first one is sent --
      * which is what the caller does next, and is also what tells the members it exists at all.
      */
-    fun createGroup(title: String, memberAcis: List<String>): CreatedGroup? {
+    fun createGroup(title: String, memberAcis: List<String>): CreatedGroup {
         connection.connect()
         val masterKey = SignalGroups(connection, account, contacts).create(title, memberAcis)
-            ?: return null
         val bytes = masterKey.serialize()
         val groupId = ContentNormalizer.groupIdForCheck(bytes)
         if (groupId.isBlank()) {
             Timber.w("signal groups: made a group whose id would not derive")
-            return null
+            throw IllegalStateException("The group was made but this phone cannot address it.")
         }
         return CreatedGroup(masterKey = bytes, threadKey = "group:$groupId")
     }

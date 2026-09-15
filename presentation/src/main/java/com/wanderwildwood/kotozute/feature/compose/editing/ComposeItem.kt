@@ -69,6 +69,18 @@ sealed class ComposeItem {
         override fun getContacts(): List<Contact> = emptyList()
     }
 
+    /**
+     * Making a group instead of choosing somebody.
+     *
+     * The first row of the Signal address book and nowhere else, which is where Signal puts
+     * it: `ContactSelectionListFragment` adds an arbitrary `NEW_GROUP` row to the top of the
+     * new-chat list, and only while nothing has been typed -- somebody searching for a name
+     * is not looking for this.
+     */
+    object SignalNewGroup : ComposeItem() {
+        override fun getContacts(): List<Contact> = emptyList()
+    }
+
     data class SignalPerson(
         val threadKey: String,
         val name: String,

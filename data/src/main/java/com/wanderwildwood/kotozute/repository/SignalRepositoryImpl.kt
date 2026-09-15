@@ -799,11 +799,18 @@ class SignalRepositoryImpl @Inject constructor(
             throw IllegalStateException("sending attachments to a group is not supported yet")
         }
         val masterKey = Realm.getDefaultInstance().use { realm ->
-            realm.where(SignalMessage::class.java)
+            // The thread's own key first. A message's copy is a fallback for the groups that
+            // predate the thread holding one -- and the reason it cannot be the only place is
+            // that a group whose messages have all expired still has to be writable.
+            realm.where(SignalThread::class.java)
                 .equalTo("threadKey", threadKey)
-                .findAll()
-                .firstOrNull { it.groupMasterKey != null }
+                .findFirst()
                 ?.groupMasterKey
+                ?: realm.where(SignalMessage::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .findAll()
+                    .firstOrNull { it.groupMasterKey != null }
+                    ?.groupMasterKey
         } ?: throw IllegalStateException("no group key on this thread yet")
 
         val (expiresIn, timerVersion) = timerFor(threadKey)
@@ -1264,6 +1271,11 @@ class SignalRepositoryImpl @Inject constructor(
             thread.snippetOutgoing = m.outgoing
         }
         if (m.groupMasterKey != null) row.groupMasterKey = m.groupMasterKey
+        // And on the thread, which is where it is looked up from. Backfills the groups that
+        // existed before there was anywhere on a thread to keep it.
+        if (m.groupMasterKey != null && thread.groupMasterKey == null) {
+            thread.groupMasterKey = m.groupMasterKey
+        }
         thread.unread = realm.where(SignalMessage::class.java)
             .equalTo("threadKey", m.threadKey)
             .equalTo("outgoing", false)
@@ -2505,6 +2517,32 @@ class SignalRepositoryImpl @Inject constructor(
         return SignalDirectory.merge(threads, contacts, signalStore.selfAciOrNull()) { number ->
             addressBookName(number)
         }
+    }
+
+    override fun createGroup(title: String, memberThreadKeys: List<String>): String {
+        val acis = memberThreadKeys
+            .map { key -> key.removePrefix("direct:") }
+            .filter { aci -> aci.isNotBlank() }
+        val created = signalStore.createGroup(title, acis)
+
+        // The thread, so the group is somewhere to write to before anything has been said in
+        // it. Dated now rather than left at zero: the list shows conversations that have a
+        // date, and a group that had just been made and could not be found would be worse
+        // than one with an empty last line. The line stays empty -- nothing has been said.
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val thread = r.where(SignalThread::class.java)
+                    .equalTo("threadKey", created.threadKey)
+                    .findFirst()
+                    ?: r.createObject(SignalThread::class.java, created.threadKey)
+                thread.kind = "group"
+                thread.title = title
+                thread.groupMasterKey = created.masterKey
+                if (thread.lastTs == 0L) thread.lastTs = System.currentTimeMillis()
+            }
+        }
+        Timber.i("signal groups: a new group is ready to be written to")
+        return created.threadKey
     }
 
     /**

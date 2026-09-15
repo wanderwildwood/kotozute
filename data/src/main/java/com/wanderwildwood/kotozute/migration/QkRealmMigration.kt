@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 25
+        const val SCHEMA_VERSION: Long = 26
     }
 
     @SuppressLint("ApplySharedPref")
@@ -469,6 +469,18 @@ class QkRealmMigration @Inject constructor(
                 ?.takeIf { !it.hasField("expireTimerVersion") }
                 ?.addField("expireTimerVersion", Int::class.java, FieldAttribute.REQUIRED)
                 ?.transform { m -> m.setInt("expireTimerVersion", 0) }
+
+            version++
+        }
+
+        if (version == 25L) {
+            // Where a group's master key belongs: on the group's own thread, one per group,
+            // as Signal keeps it on the group record. It was only ever on message rows, so a
+            // group whose messages had all gone could no longer be written to. Null on every
+            // existing row; the next message in a group backfills it.
+            realm.schema.get("SignalThread")
+                ?.takeIf { !it.hasField("groupMasterKey") }
+                ?.addField("groupMasterKey", ByteArray::class.java)
 
             version++
         }

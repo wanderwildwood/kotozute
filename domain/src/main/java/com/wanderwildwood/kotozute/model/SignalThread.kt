@@ -17,6 +17,18 @@ open class SignalThread : RealmObject() {
     /** Contact or group name as the bridge resolved it; may be empty. */
     var title: String = ""
 
+    /**
+     * The group's master key, for a group thread.
+     *
+     * Everything about a group is fetched from the server with this -- its name, its
+     * members, whether it takes messages from anybody. It used to be read off whichever
+     * message in the thread happened to carry one, which meant a group whose messages had
+     * all expired or been deleted could no longer be written to, and a group just made on
+     * this phone could not be written to at all. Signal keeps it on the group record
+     * (`GroupTable.V2GroupProperties.getGroupMasterKey`), one per group; this is that row.
+     */
+    var groupMasterKey: ByteArray? = null
+
     /** The other party, for a direct thread. Used to pair with an SMS thread. */
     var counterpartUuid: String = ""
     var counterpartNumber: String = ""

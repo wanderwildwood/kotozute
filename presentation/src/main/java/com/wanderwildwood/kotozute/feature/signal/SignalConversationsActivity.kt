@@ -48,10 +48,10 @@ class SignalConversationsActivity : QkThemedActivity() {
     private var showingArchived = false
 
     /**
-     * Picking somebody to write to. The picker hands back a thread key rather than opening
-     * the conversation itself, the same as it does for the SMS composer -- so the screen
-     * that asked decides what happens next, and here that is opening the conversation with
-     * this list behind it.
+     * Picking somebody to write to, or making a group. Both hand back a thread key rather
+     * than opening the conversation themselves, the same as the picker does for the SMS
+     * composer -- so the screen that asked decides what happens next, and here that is
+     * opening the conversation with this list behind it.
      */
     private val newConversation = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -152,6 +152,9 @@ class SignalConversationsActivity : QkThemedActivity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
+        // Nothing is started from the archive shelf, the same reason the compose button is
+        // not offered there.
+        menu?.findItem(R.id.signalNewGroup)?.isVisible = !showingArchived
         menu?.findItem(R.id.signalArchivedShelf)?.setTitle(
             if (showingArchived) R.string.signal_inbox_shelf else R.string.signal_archived_shelf
         )
@@ -159,6 +162,10 @@ class SignalConversationsActivity : QkThemedActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.signalNewGroup -> {
+            newConversation.launch(SignalNewGroupActivity.intentFor(this))
+            true
+        }
         R.id.signalArchivedShelf -> {
             showingArchived = !showingArchived
             bindShelf()

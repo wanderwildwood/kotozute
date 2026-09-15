@@ -378,6 +378,20 @@ interface SignalRepository {
     fun people(): List<Person>
 
     /**
+     * Makes a group on the server and gives back the thread key it will be found under.
+     *
+     * [memberThreadKeys] are the keys [people] hands out; this account is added by the
+     * server and must not be among them. Nothing is said in the group -- the members' own
+     * clients learn of it from the first message, which carries the group's key and
+     * revision the way every group message does.
+     *
+     * Throws with a sentence that can be shown when it cannot be done: an account with no
+     * profile on file cannot make a group at all, and that is worth saying plainly rather
+     * than failing quietly.
+     */
+    fun createGroup(title: String, memberThreadKeys: List<String>): String
+
+    /**
      * Threads whose title or messages match [query]. Returns each thread once, with how
      * many of its messages matched and the newest matching body; a thread that matched only
      * by name reports zero.

@@ -57,4 +57,7 @@ interface ContactsContract : QkView<ContactsState> {
     /** Leave for a Signal conversation instead of returning a recipient. */
     fun finishWithSignalThread(threadKey: String, title: String)
 
+    /** Make a group rather than choose somebody. Comes back as a thread, or not at all. */
+    fun showNewGroup()
+
 }

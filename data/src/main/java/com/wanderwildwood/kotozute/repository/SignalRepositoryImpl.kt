@@ -966,6 +966,12 @@ class SignalRepositoryImpl @Inject constructor(
         runCatching { signalStore.retryOwedReceipts() }
             .onFailure { Timber.w(it, "signal receipt: could not try the owed receipts") }
 
+        // One number, one row. Upstream repairs this with a migration on every install
+        // (`DuplicateE164MigrationJob`); here the merge logic prevents it at write time and
+        // this is the check that it has always held. Cheap: one grouped read of a small table.
+        runCatching { signalStore.reportDuplicateNumbers() }
+            .onFailure { Timber.w(it, "signal contacts: the duplicate-number check did not run") }
+
         // The phone-number identity still running on keys the primary made for it. Upstream's
         // `PreKeysSyncJob` reads the same flag and clears it once it has rotated; this round is
         // what stands in for the job.

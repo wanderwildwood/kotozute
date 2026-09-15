@@ -799,6 +799,30 @@ class SignalStore(private val context: Context) {
             }
     }
 
+    /**
+     * Says so if any number is held by more than one recipient row.
+     *
+     * The equivalent of upstream's `DuplicateE164MigrationJob`, minus the repair: see
+     * [SignalContactStore.duplicateNumbers] for why looking is the whole of it here.
+     *
+     * @return how many numbers are duplicated; zero on a healthy store.
+     */
+    fun reportDuplicateNumbers(): Int {
+        val dupes = runCatching { contacts.duplicateNumbers() }
+            .onFailure { Timber.w(it, "signal contacts: could not check for duplicate numbers") }
+            .getOrDefault(emptyList())
+        if (dupes.isNotEmpty()) {
+            // Counts only. The numbers themselves are the thing this app exists to keep, and a
+            // log is the one place they would leak out of it.
+            Timber.w(
+                "signal contacts: %d number(s) are held by more than one row (%s rows in total)",
+                dupes.size,
+                dupes.sumOf { it.second }
+            )
+        }
+        return dupes.size
+    }
+
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 

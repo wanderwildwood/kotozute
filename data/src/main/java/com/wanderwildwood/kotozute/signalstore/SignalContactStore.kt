@@ -505,6 +505,35 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
      * an id. Signal spells the same filter out as `FILTER_GROUPS = " AND group_id IS NULL"`
      * and pairs it with the service-id test wherever it asks about people.
      */
+    /**
+     * Numbers held by more than one row, which no row should be.
+     *
+     * The invariant [RecipientMerge] maintains at write time: a number arriving for somebody
+     * already holding it is an absorb or a steal, never a second row. Nineteen cases cover that
+     * decision, and none of them can speak for rows written *before* it existed -- which is the
+     * whole reason upstream ships `DuplicateE164MigrationJob` rather than trusting its own
+     * merge logic.
+     *
+     * Reported rather than repaired. Upstream's migration repairs, but it is repairing data its
+     * own old versions wrote; here the question is whether any exists at all, and the answer on
+     * a healthy store is none. If it is ever not none, the rows are worth looking at before
+     * something automatic touches them -- a wrong merge points a conversation at a stranger.
+     *
+     * @return each duplicated number and how many rows hold it.
+     */
+    fun duplicateNumbers(): List<Pair<String, Int>> = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            """
+            SELECT e164, count(*) FROM recipient
+            WHERE e164 IS NOT NULL AND e164 != ''
+            GROUP BY e164 HAVING count(*) > 1
+            """.trimIndent(),
+            null
+        ).use { c ->
+            generateSequence { if (c.moveToNext()) c.getString(0) to c.getInt(1) else null }.toList()
+        }
+    }
+
     fun counts(): Counts = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             """

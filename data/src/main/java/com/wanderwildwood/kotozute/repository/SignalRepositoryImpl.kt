@@ -925,6 +925,19 @@ class SignalRepositoryImpl @Inject constructor(
         // the read fail. The symptom was a reconnect roughly every seventy seconds with
         // healthy keepalives on either side of it, which looks like a network problem and is
         // not one. The library's own comment warns about exactly this race.
+        //
+        // ⚠ And the answer to "is this phone behind" is settled here, not left at whatever a
+        // failed sync last wrote. Returning without touching it stranded the flag: the only
+        // code that can set it true is the branch below, which never runs while the stream
+        // owns the socket -- and the stream owns the socket from process start whenever Signal
+        // is on. So one failed sync left [lastSyncCaughtUp] false for ever, and the worker that
+        // reads it asked WorkManager to retry, for ever, on a phone that was perfectly caught
+        // up. Backed off rather than spinning, but wakeups on a phone built to stay asleep.
+        //
+        // A connected stream is draining the queue continuously, which is the whole claim the
+        // flag makes. A stream that is between reconnects is not, and says so rather than
+        // claiming to be level -- the next round finds it either connected or stopped.
+        syncCaughtUp = streamConnected.get()
         0
     } else try {
         val summary = signalStore.receive(signalEvents, ::renameThreadsFromContacts)

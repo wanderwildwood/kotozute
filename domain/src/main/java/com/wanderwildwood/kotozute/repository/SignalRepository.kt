@@ -142,12 +142,17 @@ interface SignalRepository {
     fun syncNow(): Int
 
     /**
-     * Whether the last [syncNow] reached the end of what the server was holding.
+     * Whether this phone is level with what the server was holding.
      *
      * False means the catch-up stopped short -- a dropped connection part-way through a
      * backlog, or a page that failed. Nothing is lost, because the cursor only advances over
      * what actually landed, but the phone is behind and should come back for the rest rather
      * than wait out the next round.
+     *
+     * ⚠ It is an answer about the phone, not a record of the last call. While the live stream
+     * owns the socket there is no catch-up to run at all, and a flag that only a catch-up could
+     * clear would stay false for ever after one failure -- asking for a retry on a phone that
+     * was level. A connected stream is drawing level continuously and says so.
      *
      * Its own answer rather than a flag on [ConnectionState]: nine other things publish that
      * object, every one of them with this at its default, so a state change between the sync

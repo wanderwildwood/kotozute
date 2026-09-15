@@ -57,6 +57,13 @@ that starts with it, not one that reaches it at hour ten.
 
 Build in this order, and stop at each step:
 
+0. ⚠ **Unknown fields, carried through.** A storage record can hold fields this build does not
+   understand, written by a newer Signal client. Reading and discarding them is free; writing the
+   record back without them **destroys another client's data on the account**. Signal keeps them
+   per record and has a migration for the case where it once did not
+   (`ApplyUnknownFieldsToSelfMigrationJob`). This app reads and does not write, so nothing is
+   lost today -- but it is the first thing the write path needs, not the last, because by the
+   time a write exists the fields have already been dropped on the way in.
 1. Storage ids on the `recipient` table, rotated wherever the app mutates a contact. No network.
 2. A diff that says what *would* be written, logged and not sent. Run it for a while and read it.
 3. The write itself, behind validation, with conflict retry.

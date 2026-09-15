@@ -80,6 +80,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     @Inject lateinit var prefs: com.wanderwildwood.kotozute.util.Preferences
     @Inject lateinit var signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
     @Inject lateinit var signalNotifications: com.wanderwildwood.kotozute.feature.signal.SignalNotifications
+    @Inject lateinit var messageRepo: com.wanderwildwood.kotozute.repository.MessageRepository
 
     override fun onCreate() {
         super.onCreate()
@@ -141,6 +142,19 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // announce what arrived -- silent until the next launch, which is exactly the
         // session someone has just finished setting it up in. Posting is still gated,
         // inside the notifier.
+        // Anything still claiming to be sending cannot be: whatever was sending it is gone with
+        // the process that started it. Left alone the row says "Sending…" for the life of the
+        // install, and the retry the conversation offers is only for a *failed* message -- so
+        // there is nothing to press and no sign anything went wrong. Marked failed here, which
+        // is what makes it retryable.
+        //
+        // Off the main thread, and never able to stop the app starting, for the same reason
+        // everything below is guarded.
+        Thread {
+            runCatching { messageRepo.failStuckSends() }
+                .onFailure { Timber.w(it, "could not check for messages stuck sending") }
+        }.also { it.isDaemon = true }.start()
+
         // Signal is a feature of this app; SMS is the app. Nothing in here may be allowed to
         // stop the application being created, because a process that fails to start cannot
         // receive a text either -- which is exactly what happened when the stream service

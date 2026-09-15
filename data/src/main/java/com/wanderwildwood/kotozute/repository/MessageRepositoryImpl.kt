@@ -19,6 +19,7 @@
 package com.wanderwildwood.kotozute.repository
 
 import com.wanderwildwood.kotozute.manager.QkTransaction
+import android.app.Activity
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.ContentUris
@@ -93,6 +94,34 @@ open class MessageRepositoryImpl @Inject constructor(
 
     companion object {
         const val TELEPHONY_UPDATE_CHUNK_SIZE = 200
+
+        /**
+         * How long a message may claim to be sending before it is treated as never sent.
+         *
+         * ⚠ **This number is ours, not copied.** Upstream QUIK marks a message sending and then
+         * logs when the send does not happen, exactly as this did, so there is nothing upstream
+         * to defer to on either rail -- the Signal repository has no view on SMS at all.
+         *
+         * Five minutes, and the reasoning is the cost of being wrong in each direction rather
+         * than a measurement. Too short and a send still legitimately in flight is shown as
+         * failed for a moment -- which corrects itself, because the send's own PendingIntent
+         * survives the process and markSent overwrites this when it reports. Too long and a
+         * person keeps waiting on a message that is never going anywhere. A send that has
+         * reported nothing in five minutes is not about to; the one measured on this phone took
+         * 1.4 seconds end to end.
+         */
+        internal val STUCK_SEND_AFTER_MS = TimeUnit.MINUTES.toMillis(5)
+
+        /**
+         * Whether a message dated [sentAt] and still marked sending has waited too long.
+         *
+         * Its own function so both ends of the boundary can be tested. A sweep that never fires
+         * and one that fires on everything are both wrong, and neither shows on a healthy phone.
+         * A date of zero or in the future is left alone: that is a row this cannot reason about,
+         * and marking somebody's message failed on a guess is worse than leaving it.
+         */
+        internal fun isStuckSend(sentAt: Long, now: Long): Boolean =
+            sentAt in 1 until now && now - sentAt >= STUCK_SEND_AFTER_MS
     }
 
     private fun getMessagesBase(threadId: Long, query: String) =
@@ -825,7 +854,11 @@ open class MessageRepositoryImpl @Inject constructor(
     override fun sendMessage(message: Message): Collection<Message> {
         val retVal = mutableListOf<Message>()
 
-        tryOrNull(true) {
+        // ⚠ Caught here rather than by tryOrNull, which wrote the exception to the log and
+        // returned null -- so anything that threw after markSending left the message at
+        // "Sending…" exactly as a false return did, and more quietly still. A send that did
+        // not happen has to say so on the row, whichever way it did not happen.
+        try {
             // explode message if needed
             val explodedMessages = QkTransaction.explodeMessage(
                 context, message.getUri(), message.sendAsGroup
@@ -859,11 +892,26 @@ open class MessageRepositoryImpl @Inject constructor(
                     else null
 
                 // use values from os provider to resend the message, except subId
-                if (!QkTransaction.sendMessage(context, message.getUri(), sentIntent, deliveryIntent))
-                    Timber.e("message id ${message.id} not sent by smsmms")
+                //
+                // ⚠ **Marked failed, not merely logged.** This said "not sent by smsmms" and
+                // stopped, leaving the row at MESSAGE_TYPE_OUTBOX for ever -- which the
+                // conversation draws as "Sending…". That is a state with no way out:
+                // isFailedMessage() is false for OUTBOX, so the retry the UI already offers on
+                // a failed message is not offered, and nothing anywhere sweeps a stale outbox.
+                // A person is left looking at a message that says it is on its way and never
+                // was, with nothing to press.
+                //
+                // Upstream QUIK does the same thing, so this is ours rather than copied.
+                if (!QkTransaction.sendMessage(context, message.getUri(), sentIntent, deliveryIntent)) {
+                    Timber.e("message id ${message.id} not sent by smsmms; marking it failed")
+                    markFailed(message.id, Activity.RESULT_CANCELED)
+                }
             }
 
             retVal.add(message)
+        } catch (e: Exception) {
+            Timber.w(e, "message id ${message.id} could not be sent; marking it failed")
+            markFailed(message.id, Activity.RESULT_CANCELED)
         }
 
         return retVal
@@ -993,6 +1041,28 @@ open class MessageRepositoryImpl @Inject constructor(
                     )
                 }
             Unit
+        }
+
+    override fun failStuckSends(now: Long): Int =
+        Realm.getDefaultInstance().use { realm ->
+            realm.refresh()
+            val stuck = realm.where(Message::class.java)
+                .beginGroup()
+                .equalTo("type", "sms").equalTo("boxId", Sms.MESSAGE_TYPE_OUTBOX)
+                .or()
+                .equalTo("type", "mms").equalTo("boxId", Mms.MESSAGE_BOX_OUTBOX)
+                .endGroup()
+                .findAll()
+                .filter { isStuckSend(it.date, now) }
+                .map { it.id }
+            stuck.forEach { id -> markFailed(id, Activity.RESULT_CANCELED) }
+            if (stuck.isNotEmpty()) {
+                Timber.w(
+                    "%d message(s) were still marked sending and are now marked failed, so they can be sent again",
+                    stuck.size
+                )
+            }
+            stuck.size
         }
 
     override fun markSent(messageId: Long) {

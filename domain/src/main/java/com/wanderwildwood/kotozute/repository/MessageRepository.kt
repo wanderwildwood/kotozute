@@ -68,6 +68,23 @@ interface MessageRepository {
     fun markFailed(messageId: Long, resultCode: Int): Boolean
 
     /**
+     * Marks failed anything still claiming to be sending long after it could be.
+     *
+     * A message is marked sending before the send is attempted, so a send that never happens
+     * leaves the row saying "Sending…" with nothing to do about it -- the retry the UI offers
+     * is for a *failed* message, and an outbox row is not one. Nothing else ever revisits it,
+     * so without this the message sits there for the life of the install.
+     *
+     * Run at startup. A send that is genuinely still in flight across a restart is finished by
+     * its own PendingIntent, which survives the process and reports back; if that lands after
+     * this has given up on it, markSent puts it right. Being early here is self-correcting and
+     * being absent is not.
+     *
+     * @return how many were marked.
+     */
+    fun failStuckSends(now: Long = System.currentTimeMillis()): Int
+
+    /**
      * Apply the far end's delivery/read reports to the messages they acknowledge. Cheap and
      * idempotent; safe to call on any event that might have brought a report in.
      */

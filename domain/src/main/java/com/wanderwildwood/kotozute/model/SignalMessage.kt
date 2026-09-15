@@ -66,20 +66,6 @@ open class SignalMessage : RealmObject() {
     var viewOnce: Boolean = false
 
     /**
-     * Reactions on this message, as JSON: [{"emoji":"...","who":"<uuid>"}].
-     *
-     * Held on the message rather than in a table of their own. A reaction is never read
-     * except while drawing the message it belongs to, and a handful of them per message is
-     * not a thing worth a join.
-     */
-    /**
-     * When the far end acknowledged this message, and when it was read there. Zero for
-     * neither, and for every message that predates receipts being handled at all.
-     *
-     * Only meaningful on an outgoing message: a receipt is something other people send about
-     * ours.
-     */
-    /**
      * The group's master key, on a message that arrived in a group over this device's own
      * connection.
      *
@@ -89,8 +75,22 @@ open class SignalMessage : RealmObject() {
      */
     var groupMasterKey: ByteArray? = null
 
+    /**
+     * When the far end acknowledged this message, and when it was read there. Zero for
+     * neither, and for every message that predates receipts being handled at all.
+     *
+     * Only meaningful on an outgoing message: a receipt is something other people send about
+     * ours.
+     */
     var deliveredAt: Long = 0
     var readAt: Long = 0
 
+    /**
+     * Reactions on this message, as JSON: [{"emoji":"...","who":"<uuid>"}].
+     *
+     * Held on the message rather than in a table of their own. A reaction is never read
+     * except while drawing the message it belongs to, and a handful of them per message is
+     * not a thing worth a join.
+     */
     var reactions: String = ""
 }

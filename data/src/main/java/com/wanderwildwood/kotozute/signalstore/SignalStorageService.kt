@@ -514,24 +514,6 @@ internal class SignalStorageService(
         }
 
         /**
-         * What to call somebody. The name from the reader's own address book first, as
-         * everywhere else in this app: it is what they call this person, where the profile
-         * name is what the person calls themselves.
-         */
-        /**
-         * What to call this person, in Signal's own order of preference.
-         *
-         * ⚠ The **nickname** comes first, and was not being read at all. It is the name the
-         * account owner has typed for this person themselves, in Signal, overriding everything
-         * else -- which is exactly why Signal ranks it above the address book and above the
-         * profile. Skipping it meant a contact deliberately renamed showed up here under a
-         * different name than the one their own phone shows, or, for somebody with no other
-         * name and no number, under no name at all.
-         *
-         * `systemNickname` is deliberately not in this chain: Signal stores it but does not
-         * display it, and putting it here would be inventing an order rather than copying one.
-         */
-        /**
          * The id a group thread is keyed by, derived from the master key its record carries.
          *
          * The same derivation a live group message goes through, so a group blocked in the
@@ -550,6 +532,19 @@ internal class SignalStorageService(
             }.getOrNull()
         }
 
+        /**
+         * What to call this person, in Signal's own order of preference.
+         *
+         * ⚠ The **nickname** comes first, and was not being read at all. It is the name the
+         * account owner has typed for this person themselves, in Signal, overriding everything
+         * else -- which is exactly why Signal ranks it above the address book and above the
+         * profile. Skipping it meant a contact deliberately renamed showed up here under a
+         * different name than the one their own phone shows, or, for somebody with no other
+         * name and no number, under no name at all.
+         *
+         * `systemNickname` is deliberately not in this chain: Signal stores it but does not
+         * display it, and putting it here would be inventing an order rather than copying one.
+         */
         fun nameOf(record: ContactRecord): String? {
             val nickname = joined(record.nickname?.given, record.nickname?.family)
             if (nickname != null) return nickname
@@ -558,8 +553,9 @@ internal class SignalStorageService(
             return joined(record.givenName, record.familyName)
         }
 
-        /** Given and family into one name, or null when there is nothing to join. */
         /**
+         * Given and family into one name, or null when there is nothing to join.
+         *
          * The same rule the profile fetch uses, because it is the same two fields.
          *
          * These two paths had each invented their own join, so a CJKV contact could read one

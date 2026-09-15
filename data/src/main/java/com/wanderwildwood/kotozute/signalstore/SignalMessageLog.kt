@@ -140,12 +140,6 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
     }
 
     /**
-     * Drops everything older than [MAX_AGE_MS].
-     *
-     * Called on the same pass that sweeps undecryptable envelopes, so there is one place that
-     * decides what this database stops holding on to.
-     */
-    /**
      * Forgets everything kept for one person.
      *
      * ⚠ Called when their identity key changes, which is what `IdentityUtil.saveIdentity` does
@@ -166,6 +160,12 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
         gone
     }
 
+    /**
+     * Drops everything older than [MAX_AGE_MS].
+     *
+     * Called on the same pass that sweeps undecryptable envelopes, so there is one place that
+     * decides what this database stops holding on to.
+     */
     fun sweep(): Int = withStoreLock(db) {
         val cutoff = System.currentTimeMillis() - MAX_AGE_MS
         val gone = db.writableDatabase.compileStatement(
@@ -182,10 +182,6 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
         /**
          * How long a sent message is worth keeping in case somebody asks for it again.
          *
-         * A day, which is Signal's own window. A retry receipt follows the failure by minutes;
-         * past that this is plaintext kept for a resend that is never going to be asked for.
-         */
-        /**
          * Fourteen days, which is Signal's `android.retryRespondMaxAge` default and what
          * `MessageSendLogTables.trimOldMessages` is given.
          *

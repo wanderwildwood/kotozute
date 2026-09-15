@@ -294,16 +294,6 @@ internal object ContentNormalizer {
         )
     }
 
-    /**
-     * Which conversation a message belongs to.
-     *
-     * Extracted from the protobuf handling because every rule in it was arrived at by
-     * something going wrong once, and because none of them need a protobuf, a network or a
-     * native library to state -- so they can be tested, which the rest of this file cannot be
-     * (deriving a group id calls into zkgroup).
-     *
-     * @return the thread key, or null when there is nothing to hang a thread on.
-     */
     /** A conversation's disappearing-messages timer, as one message changed it. */
     data class TimerUpdate(val threadKey: String, val seconds: Long, val version: Int)
 
@@ -495,6 +485,16 @@ internal object ContentNormalizer {
         return out.toString()
     }
 
+    /**
+     * Which conversation a message belongs to.
+     *
+     * Extracted from the protobuf handling because every rule in it was arrived at by
+     * something going wrong once, and because none of them need a protobuf, a network or a
+     * native library to state -- so they can be tested, which the rest of this file cannot be
+     * (deriving a group id calls into zkgroup).
+     *
+     * @return the thread key, or null when there is nothing to hang a thread on.
+     */
     internal fun threadKeyFor(
         outgoing: Boolean,
         counterpartUuid: String,

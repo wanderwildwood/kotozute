@@ -462,7 +462,6 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         }
     }
 
-    /** How many people are known, how many have a profile key, and how many have a name. */
     /**
      * How the address book stands, in the terms that decide what a person actually sees.
      *
@@ -482,6 +481,8 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
     )
 
     /**
+     * How many people are known, how many have a profile key, and how many have a name.
+     *
      * ⚠ `WHERE group_id IS NULL`, because a group has a row in this table too (v19) and a
      * group is not a contact. Without it the settings line would count every marked group as
      * a contact -- and, having no name, number or username, as one with nothing to show but

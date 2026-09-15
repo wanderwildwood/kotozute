@@ -209,13 +209,6 @@ class MainViewModel @Inject constructor(
         )
     }
 
-    /**
-     * The text conversations that a Signal thread already stands for.
-     *
-     * One indexed lookup per Signal thread rather than a comparison of every pair: a linked
-     * device has few Signal threads and an address book has many conversations, and this runs
-     * on every rebuild of the list.
-     */
     /** The text conversation a Signal thread stands for; the phone's one joining rule. */
     private fun joinedConversationId(thread: com.wanderwildwood.kotozute.model.SignalThread): Long? =
         runCatching { signalRepo.linkedConversationId(thread.threadKey) }.getOrNull()
@@ -243,6 +236,13 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The text conversations that a Signal thread already stands for.
+     *
+     * One indexed lookup per Signal thread rather than a comparison of every pair: a linked
+     * device has few Signal threads and an address book has many conversations, and this runs
+     * on every rebuild of the list.
+     */
     private fun joinedConversations(
         signal: List<InboxItem.Signal>
     ): Map<Long, com.wanderwildwood.kotozute.model.Conversation> =

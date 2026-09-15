@@ -357,15 +357,6 @@ internal class SignalReceiver(
     }
 
     /**
-     * Drops envelopes that have sat undecrypted for too long.
-     *
-     * They are kept in the first place because the ciphertext is the only copy left once the
-     * server has been acknowledged, and a fix might yet read them. But a message that has been
-     * unreadable for a fortnight is not going to become readable, and keeping every one for
-     * ever turns a decryption bug into unbounded growth in a database holding key material.
-     */
-    /** Whether this is the server sending something again, rather than a message going wrong. */
-    /**
      * The account's phone-number identity changed part-way through a batch.
      *
      * Not an error: it is how this path says the connection has to be rebuilt before anything
@@ -483,14 +474,6 @@ internal class SignalReceiver(
         db.writableDatabase.execSQL("DELETE FROM envelope WHERE _id = ?", arrayOf<Any?>(id))
     }
 
-    /**
-     * @return the sender, or null if this envelope could not be decrypted.
-     *
-     * A failure here is logged and swallowed rather than thrown. One undecryptable message --
-     * a device we have no session with, an identity that changed since -- must not stop the
-     * ones behind it, and the envelope is already acked, so there is nothing to retry against
-     * the server anyway.
-     */
     /** Set by [decrypt] when it fails, so the caller can record it against the row. */
     private var lastFailure: String? = null
 
@@ -506,6 +489,14 @@ internal class SignalReceiver(
      */
     private var identityChangedMidBatch: Boolean = false
 
+    /**
+     * @return the sender, or null if this envelope could not be decrypted.
+     *
+     * A failure here is logged and swallowed rather than thrown. One undecryptable message --
+     * a device we have no session with, an identity that changed since -- must not stop the
+     * ones behind it, and the envelope is already acked, so there is nothing to retry against
+     * the server anyway.
+     */
     private fun decrypt(
         envelope: Envelope,
         serverDeliveredTimestamp: Long,
@@ -1163,14 +1154,6 @@ internal class SignalReceiver(
     }
 
     /**
-     * Notes the sender's profile key when a message carries one.
-     *
-     * Signal shares these deliberately -- a person's key comes with their messages once they
-     * have chosen to share their profile with you -- so this is not something that can be
-     * asked for. It has to be taken when offered, which means every message, not just the
-     * first: a rotated key arrives the same way and a stale one decrypts nothing.
-     */
-    /**
      * Keeps the key a sender uses for their group messages.
      *
      * A group send is encrypted once, to a key the sender hands out beforehand in an ordinary
@@ -1210,13 +1193,6 @@ internal class SignalReceiver(
             .serialize()
     }.getOrNull()
 
-    /**
-     * The members of each group this session has had to ask about, by revision.
-     *
-     * Asking the server per message would be a round trip per message; asking once per group
-     * per revision is one round trip and then nothing. The revision is on every group message,
-     * so a membership change invalidates this by itself.
-     */
     /**
      * Group state by master key, with the revision it was read at.
      *
@@ -1548,21 +1524,6 @@ internal class SignalReceiver(
     }
 
     /**
-     * Asks the sender to send it again, after a decrypt this phone could not do.
-     *
-     * The envelope is kept either way -- a later fix might read it -- but keeping it is not a
-     * recovery. This is: the receipt names the exact message and shows the session is broken,
-     * and the sender's client resends over a fresh one.
-     *
-     * Only for a real protocol failure. A network error or a bug here is not something the far
-     * end can fix by sending again, and asking would be noise in somebody else's app.
-     *
-     * Shape adapted from Signal Android's `MessageDecryptor.buildSendRetryReceiptJob`,
-     * including which bytes to quote back: a sealed-sender envelope has the original inside
-     * the exception rather than in the envelope, and quoting the wrong one produces a receipt
-     * the sender cannot match to anything.
-     */
-    /**
      * Throws away the broken session with our own account and asks for a fresh one.
      *
      * Signal's `AutomaticSessionResetJob`, less the parts that do not apply here. It archives
@@ -1608,6 +1569,21 @@ internal class SignalReceiver(
         }
     }
 
+    /**
+     * Asks the sender to send it again, after a decrypt this phone could not do.
+     *
+     * The envelope is kept either way -- a later fix might read it -- but keeping it is not a
+     * recovery. This is: the receipt names the exact message and shows the session is broken,
+     * and the sender's client resends over a fresh one.
+     *
+     * Only for a real protocol failure. A network error or a bug here is not something the far
+     * end can fix by sending again, and asking would be noise in somebody else's app.
+     *
+     * Shape adapted from Signal Android's `MessageDecryptor.buildSendRetryReceiptJob`,
+     * including which bytes to quote back: a sealed-sender envelope has the original inside
+     * the exception rather than in the envelope, and quoting the wrong one produces a receipt
+     * the sender cannot match to anything.
+     */
     private fun askForItAgain(envelope: Envelope, failure: Throwable): Boolean {
         val protocolFailure = generateSequence(failure) { it.cause }
             .take(CAUSE_DEPTH)
@@ -1723,6 +1699,14 @@ internal class SignalReceiver(
         Timber.i("signal pni: a phone-number identity was proved to belong to a known account")
     }
 
+    /**
+     * Notes the sender's profile key when a message carries one.
+     *
+     * Signal shares these deliberately -- a person's key comes with their messages once they
+     * have chosen to share their profile with you -- so this is not something that can be
+     * asked for. It has to be taken when offered, which means every message, not just the
+     * first: a rotated key arrives the same way and a stale one decrypts nothing.
+     */
     private fun rememberProfileKey(
         content: org.whispersystems.signalservice.internal.push.Content,
         metadata: org.whispersystems.signalservice.api.crypto.EnvelopeMetadata
@@ -1945,13 +1929,6 @@ internal class SignalReceiver(
         /** A PNI on a change-number envelope is a bare UUID, not a service id. */
         private const val RAW_UUID_BYTES = 16
 
-        /**
-         * What kind of ciphertext an envelope carried, in libsignal's numbering.
-         *
-         * The two vocabularies do not line up by value, and a retry receipt quoting the wrong
-         * one names a message the sender cannot find. Taken from Signal Android's own mapping
-         * rather than inferred from the enum order.
-         */
         /**
          * The envelope's own type, in libsignal's numbering, for a retry receipt to quote.
          *

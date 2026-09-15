@@ -28,10 +28,10 @@ private const val ATTACHMENT_PREVIEW = "\uD83D\uDCCE Attachment"
 /**
  * What a view-once message says instead of nothing.
  *
- * The bridge deliberately keeps the row -- "so the conversation does not have a silent hole
+ * The bridge deliberately kept the row -- "so the conversation does not have a silent hole
  * in it" -- with an empty body and no attachment, because the picture is gone by design.
- * Without a marker the phone reintroduced exactly the hole the bridge went out of its way
- * to avoid: an empty bubble, a blank inbox snippet, and no way to tell a view-once photo
+ * Without a marker the phone reintroduced exactly the hole the bridge had gone out of its
+ * way to avoid: an empty bubble, a blank inbox snippet, and no way to tell a view-once photo
  * you never saw from a rendering fault.
  */
 private const val VIEW_ONCE_PREVIEW = "\uD83D\uDC41 View-once photo (not kept)"
@@ -49,10 +49,10 @@ class SignalRepositoryImpl @Inject constructor(
     /**
      * This device's own Signal connection, when it has one.
      *
-     * There are now two ways Signal can reach this app: a bridge on another machine, or this
-     * device being a linked device itself. The second is the destination; the first is what
-     * it replaces. Both are supported at once because a phone that is already paired to a
-     * bridge should not lose its messages the day it learns to fetch its own.
+     * This is how Signal reaches this app, and now the only way. It was once one of two --
+     * the other being a bridge on another machine, supported alongside this one so a phone
+     * already paired to a bridge would not lose its messages the day it learned to fetch its
+     * own. That transition is finished and the bridge is gone.
      *
      * Lazy, and it must stay lazy: constructing it opens the keystore and the encrypted
      * database, and this repository is built during startup on the main thread.
@@ -65,22 +65,16 @@ class SignalRepositoryImpl @Inject constructor(
     private val noteToSelfTitle: String
         get() = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_note_to_self)
 
-    /**
-     * Which rail this device should use, when it could use either.
-     *
-     * One answer, consulted everywhere. syncNow() used to prefer the direct link while
-     * startStream() preferred the bridge, so a phone with both -- which is exactly what a
-     * phone that has been using a bridge and then links looks like -- would catch up over one
-     * and stream over the other. Both write the same rows through store(), so it deduplicates
-     * rather than duplicating, but two writers racing for the same conversation is not a
-     * thing to leave in place because it happens to be survivable.
-     *
-     * The bridge wins while one is configured. It is the rail already in use on such a phone,
-     * and unpairing it is a deliberate act the user can take when they want the other.
-     */
-    // Was: whether a bridge was paired. Signal now reaches this phone one way, so the
-    // question no longer exists -- see the v1.17 removal. Kept nowhere: every caller that
-    // asked it has been settled in favour of the device's own connection.
+    // Was: which rail to use, when this app could reach Signal either through a bridge on
+    // another machine or as a linked device itself. Signal now reaches this phone one way
+    // only -- see the v1.17 removal -- so the question no longer exists and every caller
+    // that asked it is settled in favour of the device's own connection.
+    //
+    // Worth keeping from it: syncNow() and startStream() once disagreed about which rail to
+    // prefer, so a phone with both caught up over one and streamed over the other. Both
+    // wrote the same rows through store(), which deduplicates rather than duplicating -- but
+    // two writers racing for one conversation was not a thing to leave in place merely
+    // because it happened to be survivable.
 
     /**
      * How many envelopes are sitting undecrypted.
@@ -141,7 +135,7 @@ class SignalRepositoryImpl @Inject constructor(
     /**
      * Whether a live SSE stream is currently up. syncNow() runs on other threads -- the
      * conversations screen fires one on every creation -- and its failures must not be
-     * allowed to say the bridge is unreachable while a stream is sitting there connected.
+     * allowed to say Signal is unreachable while a stream is sitting there connected.
      */
     private val streamConnected = AtomicBoolean(false)
 
@@ -262,10 +256,11 @@ class SignalRepositoryImpl @Inject constructor(
      * Delete every message whose disappearing deadline has passed, and tidy the threads they
      * were the last of.
      *
-     * The bridge sweeps its own store, but that copy is not the one anyone reads. Without
-     * this the bridge deletes the only row that was ever going to go and the phone keeps the
-     * message for ever. Reads exclude expired rows too, so a message is gone from view the
-     * moment its time is up whether or not the sweep has run.
+     * This store is the only copy there is, so nothing else will ever remove these rows. It
+     * was written when there was a second copy on a bridge: that one swept itself, which
+     * deleted the only row that was ever going to go while the phone kept the message for
+     * ever. Reads exclude expired rows too, so a message is gone from view the moment its
+     * time is up whether or not the sweep has run.
      */
     override fun purgeExpired(): Int {
         var removed = 0
@@ -354,24 +349,6 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /**
-     * Pull everything after our cursor. Runs on the caller's thread and opens its own
-     * Realm, because Realm instances belong to the thread that created them.
-     */
-    /**
-     * The same transaction and the same [store] the bridge sync uses.
-     *
-     * Deliberately not a parallel path. Every rule about threads, previews, reactions and
-     * expiry lives in [store]; a second writer with its own copy of them would drift, and the
-     * drift would show up as duplicate threads rather than as an error.
-     */
-    /**
-     * Renames threads once names are known.
-     *
-     * Threads are created the moment a message arrives, which is usually before the contacts
-     * sync has been answered -- so naming only at creation would leave every conversation
-     * that predates the sync showing a service id forever.
-     */
-    /**
      * Names group threads that have none.
      *
      * Separate from filing, and after it, for two reasons: it asks the server, which must not
@@ -387,12 +364,17 @@ class SignalRepositoryImpl @Inject constructor(
                 .findAll()
                 .filter { it.title.isBlank() }
                 .forEach { thread ->
-                    realm.where(SignalMessage::class.java)
-                        .equalTo("threadKey", thread.threadKey)
-                        .findAll()
-                        .firstOrNull { it.groupMasterKey != null }
-                        ?.groupMasterKey
-                        ?.let { toName += thread.threadKey to it }
+                    // The thread's own key first, and a message's only as the fallback for
+                    // the groups that predate the thread holding one. A group made on this
+                    // phone has no messages at all, and one whose messages have expired has
+                    // none left to read a key from.
+                    val master = thread.groupMasterKey
+                        ?: realm.where(SignalMessage::class.java)
+                            .equalTo("threadKey", thread.threadKey)
+                            .findAll()
+                            .firstOrNull { it.groupMasterKey != null }
+                            ?.groupMasterKey
+                    master?.let { toName += thread.threadKey to it }
                 }
         }
         if (toName.isEmpty()) return
@@ -682,9 +664,6 @@ class SignalRepositoryImpl @Inject constructor(
                 // rail goes on with it. Leaving it off left a device that had just linked
                 // successfully showing no conversations and no explanation -- the user having
                 // to find a second switch to make the first one mean anything.
-                //
-                // Pairing a bridge stays a separate step, because that one can be done to
-                // point at a machine that is not ready yet.
                 prefs.signalEnabled.set(true)
                 // A fresh link is the cure for every refusal, so the old reason must not
                 // outlive it -- otherwise a phone that has just been linked again shows the
@@ -717,11 +696,10 @@ class SignalRepositoryImpl @Inject constructor(
     /**
      * Sends on this device's own authority, and writes the message down.
      *
-     * The second half is not optional, and it is the difference from the bridge path. A
-     * message we send does not come back to us -- Signal does not deliver a message to the
-     * device that sent it -- so nothing else will ever produce this row. The bridge got away
-     * without it because the bridge stored the message on its own side and the phone read it
-     * back on the next sync.
+     * The second half is not optional. A message we send does not come back to us -- Signal
+     * does not deliver a message to the device that sent it -- so nothing else will ever
+     * produce this row. The bridge this replaced got away without it, because it stored the
+     * message on its own side and the phone read it back on the next sync.
      */
     private fun sendDirect(threadKey: String, body: String, attachments: List<String>): Long {
         if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments)
@@ -780,19 +758,12 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /**
-     * Describes what was attached to a message we sent.
-     *
-     * Deliberately minimal: the type only, and no id. A received attachment records an id the
-     * repository can turn into bytes; a sent one has no such copy, and inventing an id that
-     * resolves to nothing would make the row claim a file it cannot produce.
-     */
-    /**
      * Sends to a group over this device's own connection.
      *
-     * The master key comes from a message already in the thread: it is what a group message
-     * carries, and it is the only handle the server will answer questions about the group
-     * with. A thread with no message in it therefore cannot be sent to, which is a real limit
-     * and is reported rather than guessed around.
+     * The master key comes off the thread, and off a message in it only for the groups that
+     * predate the thread holding one. It is the only handle the server will answer questions
+     * about the group with, so a thread that has neither cannot be sent to -- which is
+     * reported rather than guessed around.
      */
     private fun sendDirectToGroup(threadKey: String, body: String, attachments: List<String>): Long {
         if (attachments.isNotEmpty()) {
@@ -842,6 +813,13 @@ class SignalRepositoryImpl @Inject constructor(
         return timestamp
     }
 
+    /**
+     * Describes what was attached to a message we sent.
+     *
+     * Deliberately minimal: the type only, and no id. A received attachment records an id the
+     * repository can turn into bytes; a sent one has no such copy, and inventing an id that
+     * resolves to nothing would make the row claim a file it cannot produce.
+     */
     private fun outgoingAttachmentsJson(attachments: List<String>): String {
         if (attachments.isEmpty()) return ""
         val array = org.json.JSONArray()
@@ -932,9 +910,8 @@ class SignalRepositoryImpl @Inject constructor(
     /**
      * Fetches from this device's own connection.
      *
-     * The direct equivalent of a bridge sync: drain what the server is holding, decrypt, and
-     * file through the same [store] the bridge path uses, so both produce one set of threads
-     * rather than two.
+     * Drain what the server is holding, decrypt, and file through [store] -- the one writer
+     * every arriving message goes through, whether it came from here or from the stream.
      */
     // streamWanted, not streamConnected. The flag is set synchronously inside startStream()
     // before any thread exists, whereas streamConnected is set by the loop once it is already
@@ -1052,8 +1029,8 @@ class SignalRepositoryImpl @Inject constructor(
     /**
      * The direct-link equivalent of [streamLoop].
      *
-     * Reconnects on failure with the same backoff shape as the bridge loop, and gives up its
-     * generation the same way, so the two rails cannot both believe they are current.
+     * Reconnects on failure with a backoff, and gives up its generation when it is replaced,
+     * so two loops cannot both believe they are current.
      */
     private fun listenLoop(generation: Int) {
         var attempts = 0
@@ -1167,9 +1144,8 @@ class SignalRepositoryImpl @Inject constructor(
     private fun store(realm: Realm, m: BridgeMessage): Boolean {
         if (m.id.isBlank()) return false
 
-        // A reaction is not a message. It arrives as its own row -- the bridge cannot move
-        // an existing one to the head of the change stream -- and belongs on the message it
-        // points at, not in the thread as a bubble of its own.
+        // A reaction is not a message. It arrives as its own envelope and belongs on the
+        // message it points at, not in the thread as a bubble of its own.
         if (m.reactionEmoji.isNotEmpty() && m.reactionTarget.isNotEmpty()) {
             applyReaction(realm, m)
             // Never "new" in the sense that rings: a reaction is not a message arriving.
@@ -1307,19 +1283,19 @@ class SignalRepositoryImpl @Inject constructor(
      * a table. Keyed on who reacted, so one person changing their mind replaces their own
      * and two people are two entries.
      *
-     * A reaction can outrun its message -- the bridge orders by arrival, not by what the
-     * reaction refers to -- and one whose target is not here yet is dropped rather than
-     * held. Signal resends nothing, so a queue would be a queue that never drains.
+     * A reaction can outrun its message -- envelopes arrive in the order the server held
+     * them, not in the order they refer to each other -- and one whose target is not here yet
+     * is dropped rather than held. Signal resends nothing, so a queue would never drain.
      */
     private fun applyReaction(realm: Realm, m: BridgeMessage) {
         val target = realm.where(SignalMessage::class.java)
             .equalTo("id", m.reactionTarget)
             .findFirst() ?: return
 
-        // Our own reaction is recorded as "me" rather than as this account's uuid. The
-        // phone has no copy of that uuid, and the alternative -- asking the bridge for it
-        // whenever somebody wants to take a reaction back -- is a network call to answer a
-        // question the row already knows the answer to.
+        // Our own reaction is recorded as "me" rather than as this account's uuid. It is what
+        // every row already written says, and the row knowing on its own face that it is ours
+        // is what taking one back reads -- no lookup, and nothing to get wrong for an account
+        // whose identifiers have changed under it.
         val who = if (m.outgoing) "me" else m.senderUuid.ifBlank { m.senderNumber }
         val existing = runCatching { JSONArray(target.reactions.ifBlank { "[]" }) }
             .getOrElse { JSONArray() }
@@ -1549,21 +1525,6 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /**
-     * Marks read what the account has already read on another device.
-     *
-     * A message is identified here by its author and the timestamp it was sent with, which is
-     * exactly the pair a read sync carries -- so this resolves to a row directly rather than
-     * having to guess at a thread and a cutoff.
-     *
-     * **No receipts.** The device that did the reading has already told the sender; saying so
-     * again from here would tell them twice for one reading. That is the difference between
-     * this and [markRead], and it is the whole reason it is not simply that function.
-     *
-     * Each thread's unread count is recomputed rather than decremented: counting what is
-     * actually unread cannot drift, and a decrement applied twice -- a sync redelivered, say --
-     * would leave a count that never reaches zero.
-     */
-    /**
      * Everything the receive path tells this repository, in one place.
      *
      * Each of these used to be a lambda threaded through [SignalStore] into the receiver, and
@@ -1744,6 +1705,21 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * Marks read what the account has already read on another device.
+     *
+     * A message is identified here by its author and the timestamp it was sent with, which is
+     * exactly the pair a read sync carries -- so this resolves to a row directly rather than
+     * having to guess at a thread and a cutoff.
+     *
+     * **No receipts.** The device that did the reading has already told the sender; saying so
+     * again from here would tell them twice for one reading. That is the difference between
+     * this and [markRead], and it is the whole reason it is not simply that function.
+     *
+     * Each thread's unread count is recomputed rather than decremented: counting what is
+     * actually unread cannot drift, and a decrement applied twice -- a sync redelivered, say --
+     * would leave a count that never reaches zero.
+     */
     private fun applyReadElsewhere(read: List<Pair<String, Long>>, readAt: Long) = runOffThread {
         if (read.isEmpty()) return@runOffThread
         val ids = read.map { (sender, at) -> "$sender:$at" }

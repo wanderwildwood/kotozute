@@ -124,15 +124,11 @@ class Preferences @Inject constructor(
     val desktopSyncToken = rxPrefs.getString("desktopSyncToken", "")
     val desktopSyncTailscaleOnly = rxPrefs.getBoolean("desktopSyncTailscaleOnly", true)
 
-    // Signal, via a kotozute-bridge. Off unless a bridge has actually been paired:
-    // the toggle is the result of a working setup, not a switch that can be flipped
-    // into a broken state.
+    // Signal. Off unless this phone is actually on the account: the toggle is the result of
+    // a working setup, not a switch that can be flipped into a broken state.
     val signalEnabled = rxPrefs.getBoolean("signalEnabled", false)
-    /**
-     * Which bridge store that cursor belongs to. Sequence numbers mean nothing across a
-     * rebuilt database, so a change here means start from the beginning.
-     */
-    /** When the bridge was last reachable, for the honest "last synced" line. */
+
+    /** When Signal was last reachable, for the honest "last synced" line. */
     val signalLastSync = rxPrefs.getLong("signalLastSync", 0L)
 
     /**

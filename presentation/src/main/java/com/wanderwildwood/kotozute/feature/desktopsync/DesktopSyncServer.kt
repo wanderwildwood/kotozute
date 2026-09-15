@@ -349,7 +349,7 @@ class DesktopSyncServer(
         val messageDeleteMatch = Regex("^/api/messages/(\\d+)/delete$").find(uri)
         val scheduledCancelMatch = Regex("^/api/scheduled/(\\d+)/cancel$").find(uri)
         val partMatch = Regex("^/api/parts/(\\d+)$").find(uri)
-        // The same strict shape the bridge itself enforces on an id it serves: the value
+        // A strict shape on an id this serves: the value
         // originates in a sender's attachment pointer, so nothing that could climb out of
         // a directory is allowed to reach the fetch.
         val signalPartMatch = Regex("^/api/signal/attachments/([A-Za-z0-9_-]+(?:\\.[A-Za-z0-9]+)?)$").find(uri)
@@ -424,18 +424,6 @@ class DesktopSyncServer(
         }
     }
 
-    /**
-     * The web app manifest, built here rather than shipped as a file because [start_url] has
-     * to carry the pairing token: an installed window opens straight into the dashboard, and
-     * without the token it would open to a refusal.
-     */
-    /**
-     * Exact, or case-insensitive when the token holds no lowercase of its own.
-     *
-     * Tokens are generated from an uppercase alphabet, so case carries no information and
-     * a link typed by hand should not fail on it. Tokens issued before that change are
-     * mixed-case base64, where case does carry information, so those are compared exactly.
-     */
     /**
      * Exchange a pairing code for the token. Deliberately says nothing about why a code was
      * refused -- expired, wrong, already used and never issued all read the same, because
@@ -528,8 +516,20 @@ class DesktopSyncServer(
         }.getOrNull()
     }
 
+    /**
+     * Exact, or case-insensitive when the token holds no lowercase of its own.
+     *
+     * Tokens are generated from an uppercase alphabet, so case carries no information and
+     * a link typed by hand should not fail on it. Tokens issued before that change are
+     * mixed-case base64, where case does carry information, so those are compared exactly.
+     */
     private fun tokenMatches(supplied: String?): Boolean = tokenMatches(supplied, token)
 
+    /**
+     * The web app manifest, built here rather than shipped as a file because [start_url] has
+     * to carry the pairing token: an installed window opens straight into the dashboard, and
+     * without the token it would open to a refusal.
+     */
     private fun serveManifest(session: IHTTPSession): Response {
         val supplied = session.parameters["token"]?.firstOrNull()
         val start = if (tokenMatches(supplied)) "/?token=$token" else "/"
@@ -605,7 +605,7 @@ class DesktopSyncServer(
     )
 
     /**
-     * The Signal account behind the bridge: its number, and the devices on it.
+     * The Signal account this phone is on: its number, and the devices on it.
      *
      * The browser had a status dot and nothing else, so there was no way to answer "which
      * number is this" or "what else is signed in" without picking the phone up. The device
@@ -615,8 +615,8 @@ class DesktopSyncServer(
      * Read-only. Removing a device is destructive, irreversible from here, and the kind of
      * thing that should be done where the person can see the account they are doing it to.
      *
-     * The bridge is asked live, so this reports what is true now rather than what was true
-     * when something was last cached -- and it says plainly when the bridge will not
+     * Signal is asked live, so this reports what is true now rather than what was true
+     * when something was last cached -- and it says plainly when the account will not
      * answer, rather than showing an empty account that looks like an account with nothing
      * on it.
      */
@@ -650,28 +650,6 @@ class DesktopSyncServer(
         })
     }
 
-    /**
-     * Pair the phone with a Signal bridge, from the browser.
-     *
-     * The pairing payload is about 140 characters and two thirds of it is a hex certificate
-     * fingerprint. Typing that into a phone is the single worst thing this app asks of
-     * anyone -- it is the complaint the Desktop Sync link already drew, an order of
-     * magnitude worse. The browser is already authenticated, already talking to the phone,
-     * and sitting on a real keyboard next to the machine that printed the payload.
-     *
-     * It does carry a secret, though, and the comment here used to wave that away by
-     * saying it grants nothing the relay's own token did not. That was wrong. The relay's
-     * token can be replaced from the phone in two taps -- Settings, Desktop Sync, Reset
-     * link. The bridge's token cannot: it lives in the bridge's config on the other
-     * machine, and changing it means editing that file and pairing every phone again. So
-     * of the two secrets that cross this wire, the one pasted here is the durable one, and
-     * a passive listener on the same Wi-Fi keeps it.
-     *
-     * Hence the peer check below. Over the tailnet the payload is encrypted in transit and
-     * this is fine; over plain LAN HTTP it is not, and the phone will not take it. Pairing
-     * on the phone itself still works from anywhere -- it is only the shortcut that is
-     * withheld, and only where the shortcut is the thing that leaks.
-     */
     /**
      * Put an emoji on a Signal message, or take this account's own back off.
      *
@@ -710,14 +688,6 @@ class DesktopSyncServer(
 
 
     /**
-     * Search both rails by message body, not just by name.
-     *
-     * The browser could only filter the conversation list it had already fetched, matching
-     * a title or the one snippet a row carries -- so searching for something said inside a
-     * conversation found nothing, on either rail. This is the same search the phone does,
-     * through the same repositories, so the two give the same answers.
-     */
-    /**
      * One search at a time. Each one walks every conversation and copies the matching
      * messages out of Realm, and the browser fires a fresh request per keystroke past its
      * debounce. The browser now cancels the request it has typed past, but a cancelled
@@ -727,6 +697,14 @@ class DesktopSyncServer(
      */
     private val searchLock = Any()
 
+    /**
+     * Search both rails by message body, not just by name.
+     *
+     * The browser could only filter the conversation list it had already fetched, matching
+     * a title or the one snippet a row carries -- so searching for something said inside a
+     * conversation found nothing, on either rail. This is the same search the phone does,
+     * through the same repositories, so the two give the same answers.
+     */
     private fun handleSearch(session: IHTTPSession): Response = synchronized(searchLock) {
         val query = session.parameters["q"]?.firstOrNull()?.trim().orEmpty()
         // Two characters, as the phone's search does: one letter matches most of an inbox
@@ -802,13 +780,6 @@ class DesktopSyncServer(
 
     // ---- the Signal rail -----------------------------------------------------
 
-    /**
-     * The Signal thread an id refers to, or null if the id is a telephony one.
-     *
-     * Ids are derived from the thread key rather than stored, so this walks the threads
-     * and matches. There are dozens, not thousands, and the alternative is a second
-     * identifier to keep in step with the one the inbox already uses.
-     */
     /** A Signal thread's own name, for the one-to-one case where there is no sender map. */
     private fun signalThreadTitle(threadKey: String): String? = runCatching {
         (signalRepository.getThreadsSnapshot(archived = false) +
@@ -817,6 +788,13 @@ class DesktopSyncServer(
             ?.title?.takeIf { it.isNotBlank() }
     }.getOrNull()
 
+    /**
+     * The Signal thread an id refers to, or null if the id is a telephony one.
+     *
+     * Ids are derived from the thread key rather than stored, so this walks the threads
+     * and matches. There are dozens, not thousands, and the alternative is a second
+     * identifier to keep in step with the one the inbox already uses.
+     */
     private fun signalThreadFor(id: Long): SignalThread? {
         if (!InboxItem.isSignalId(id) || !signalEnabled()) return null
         // Both shelves. Looking only at the inbox meant archiving a thread turned it, in the
@@ -827,6 +805,11 @@ class DesktopSyncServer(
             .firstOrNull { InboxItem.signalStableId(it.threadKey) == id }
     }
 
+    /** What a Signal row can be asked to do. Signal has no delete that means anything here. */
+    private val SIGNAL_THREAD_ACTIONS = setOf(
+        "archive", "unarchive", "pin", "unpin", "mute", "unmute", "unread", "block", "unblock"
+    )
+
     /**
      * The text conversation a Signal thread stands for, when the two are one person.
      *
@@ -835,11 +818,6 @@ class DesktopSyncServer(
      * they said -- and replying in one of them put the answer somewhere the other could not
      * see. The joining rule is the phone's: a shared number, or a link made by hand.
      */
-    /** What a Signal row can be asked to do. Signal has no delete that means anything here. */
-    private val SIGNAL_THREAD_ACTIONS = setOf(
-        "archive", "unarchive", "pin", "unpin", "mute", "unmute", "unread", "block", "unblock"
-    )
-
     private fun joinedConversationId(thread: SignalThread): Long? =
         runCatching { signalRepository.linkedConversationId(thread.threadKey) }.getOrNull()
             ?: numberFor(thread)?.let { number ->
@@ -934,7 +912,7 @@ class DesktopSyncServer(
         signalAttachmentsJson(m)?.let { put("attachments", it) }
         // A view-once message has no body and no attachment on purpose: the picture is
         // gone, which is the whole promise. Unflagged, the browser drew an empty bubble --
-        // the same hole the bridge keeps the row to avoid, and the same one the phone had
+        // the same hole the row is kept to avoid, and the same one the phone had
         // until this morning. A disappearing message says when it goes, so the reader can
         // tell a thread that empties itself from one that lost something.
         // Reactions others have put on this message, counted per emoji. Counted here rather
@@ -1001,7 +979,7 @@ class DesktopSyncServer(
     /**
      * A Signal message's attachments, in the shape the browser already draws for MMS.
      *
-     * The stored value is the bridge's own array, kept as text. Two things differ from the
+     * The stored value is an array kept as text. Two things differ from the
      * MMS side. The id is a string, not a row number, so these are fetched on their own
      * route. And an attachment we sent ourselves has no id at all -- Signal assigns one on
      * upload and never reports it back -- so there is nothing to fetch and the entry is
@@ -1033,11 +1011,10 @@ class DesktopSyncServer(
     }
 
     /**
-     * One Signal attachment, by the id the bridge serves it under.
+     * One Signal attachment, by the id it is filed under.
      *
-     * Fetched through the repository rather than off disk: the file lives on the bridge
-     * machine, not this phone, and the repository is what holds the pinned-TLS client that
-     * can ask for it.
+     * Fetched through the repository rather than off disk: the repository is what holds the
+     * pinned-TLS client that can fetch one that has not been kept yet.
      *
      * Whole in memory, which is the phone's own approach in its thread screen, and it is a
      * real cost here rather than a nominal one -- the first video this was tried against was
@@ -1204,14 +1181,6 @@ class DesktopSyncServer(
     }
 
     /**
-     * The inbox, or the archive when asked for it.
-     *
-     * The archive shelf exists because the browser can now file a conversation away, and
-     * a place things go into needs a place to look at them -- without this, archiving from
-     * the browser meant the conversation left the list and could only be found again on
-     * the phone.
-     */
-    /**
      * The same person's conversation on the other rail, if they have one.
      *
      * This is what the phone's rail badge is built on: one person, two conversations, and
@@ -1310,7 +1279,7 @@ class DesktopSyncServer(
      * which is either a reinstall or somebody in the middle. The browser had no way to see
      * it at all, so a reader who lived in the browser would never learn.
      *
-     * The bridge is asked live rather than read from a stored row: a safety number that is
+     * The key store is asked live rather than a stored row read: a safety number that is
      * out of date is worse than no safety number, because it is reassuring.
      */
     private fun handleThreadInfo(threadId: Long): Response {
@@ -1332,8 +1301,8 @@ class DesktopSyncServer(
                 JSONObject().put("error", failure.message ?: "the phone could not answer that")
             )
         }
-        // A contact who has never exchanged a message has no identity record, and the
-        // bridge says so with an empty string rather than an error. That is not a fault
+        // A contact who has never exchanged a message has no identity record, which comes
+        // back as an empty string rather than an error. That is not a fault
         // and must not be drawn as a blank safety number -- an empty monospace block looks
         // like something that failed rather than something that does not exist yet.
         val digits = identity.safetyNumber.filter { it.isDigit() }
@@ -1348,8 +1317,8 @@ class DesktopSyncServer(
             put("number", thread.counterpartNumber)
             // Grouped the way Signal prints it, five digits at a time, because the only
             // thing anyone does with a safety number is read it aloud to compare. Chunked
-            // from the digits alone: the bridge hands it over already spaced, and chunking
-            // that gave ragged groups like "03884 6641 6 163".
+            // from the digits alone: it arrives already spaced, and chunking that gave
+            // ragged groups like "03884 6641 6 163".
             put("safetyNumber", digits.chunked(5).joinToString(" "))
             put("verified", identity.verified)
             put("changed", identity.changed)
@@ -1452,9 +1421,9 @@ class DesktopSyncServer(
             "unreadAtTop" -> prefs.unreadAtTop.set(value)
             "signalWeave" -> prefs.signalWeave.set(value)
             "signalReadReceipts" -> prefs.signalReadReceipts.set(value)
-            // Signal is only offered once a bridge is paired, the same guard the phone's
-            // own switch has, so the browser cannot put it into a configured-but-broken
-            // state.
+            // Signal is only offered once this phone is on the account, the same guard the
+            // phone's own switch has, so the browser cannot put it into a
+            // configured-but-broken state.
             "signalEnabled" -> {
                 if (value && !signalRepository.isConfigured()) {
                     return jsonResponse(
@@ -1641,6 +1610,14 @@ class DesktopSyncServer(
         return jsonResponse(Response.Status.OK, JSONObject().put("blocked", array))
     }
 
+    /**
+     * The inbox, or the archive when asked for it.
+     *
+     * The archive shelf exists because the browser can now file a conversation away, and
+     * a place things go into needs a place to look at them -- without this, archiving from
+     * the browser meant the conversation left the list and could only be found again on
+     * the phone.
+     */
     private fun handleGetThreads(session: IHTTPSession): Response {
         val archived = session.parameters["archived"]?.firstOrNull() == "1"
         val conversations = conversationRepository

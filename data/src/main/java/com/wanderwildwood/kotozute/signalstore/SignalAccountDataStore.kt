@@ -55,16 +55,6 @@ internal class SignalAccountDataStore(
     override fun deleteSession(a: SignalProtocolAddress) = sessions.deleteSession(a)
     override fun deleteAllSessions(name: String) = sessions.deleteAllSessions(name)
 
-    /**
-     * Retires a session while keeping the record, and forgets that this device was ever given
-     * our sender key.
-     *
-     * The second half is the part that is easy to omit and expensive to omit: if the peer is
-     * still listed as having the key, no fresh key is ever distributed to them, and they
-     * quietly stop being able to read the group. libsignal calls this from inside a cipher
-     * operation that already holds the store lock, which is precisely why that lock is
-     * reentrant and shared rather than per-table.
-     */
     /** See [SignalIdentityKeyStore.adoptIdentity]. */
     fun adoptIdentity(
         address: String,
@@ -80,6 +70,16 @@ internal class SignalAccountDataStore(
         verified: Boolean
     ): Boolean = identities.setVerified(address, verifiedKey, verified)
 
+    /**
+     * Retires a session while keeping the record, and forgets that this device was ever given
+     * our sender key.
+     *
+     * The second half is the part that is easy to omit and expensive to omit: if the peer is
+     * still listed as having the key, no fresh key is ever distributed to them, and they
+     * quietly stop being able to read the group. libsignal calls this from inside a cipher
+     * operation that already holds the store lock, which is precisely why that lock is
+     * reentrant and shared rather than per-table.
+     */
     override fun archiveSession(address: SignalProtocolAddress) = withStoreLock(db) {
         // ⚠ Only where a session actually exists. `loadSession` is libsignal's contract and
         // returns a blank record for an unknown peer -- archiving that and storing it back

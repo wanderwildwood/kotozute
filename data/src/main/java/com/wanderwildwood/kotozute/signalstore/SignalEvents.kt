@@ -64,8 +64,9 @@ interface SignalEvents {
      */
     fun resend(to: String, sentTimestamp: Long) {}
 
-    /** Messages the account has read on another device. */
     /**
+     * Messages the account has read on another device.
+     *
      * @param readAt when the other device said so -- the read sync's own timestamp, not now.
      *   It dates a disappearing message's countdown; see the note where it is applied.
      */

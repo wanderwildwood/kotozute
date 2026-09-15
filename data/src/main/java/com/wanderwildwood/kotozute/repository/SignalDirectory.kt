@@ -31,23 +31,11 @@ internal object SignalDirectory {
     const val SHORT_SERVICE_ID = com.wanderwildwood.kotozute.signal.SignalName.SHORT_SERVICE_ID
 
     /**
-     * [threads] first: a thread's title is either a name this phone's own address book
-     * supplied or one the bridge resolved, and both are nearer to what the reader calls this
-     * person than whatever the primary's contacts sync happened to carry. [contacts] fills
-     * the gaps and adds everyone who has never been written to, which is the whole point of
-     * the list.
-     *
-     * [selfAci] is dropped from [contacts] but not from [threads]: Note to Self is a real
-     * conversation and reads as itself, while the same account arriving from the contacts
-     * sync would appear a second time under the account holder's own name, which reads as a
-     * stranger who happens to share it.
-     */
-    /**
      * Whether to offer, once, to read the account's contact list.
      *
-     * Three conditions, and all of them matter. [linkedDirectly] because a paired bridge
-     * resolves names on its own side and has no use for the account's key material.
-     * [storageKeyKnown] because once the list has been read there is nothing to offer.
+     * Three conditions, and all of them matter. [linkedDirectly] because a phone that is not
+     * a device on the account has no use for the account's key material. [storageKeyKnown]
+     * because once the list has been read there is nothing to offer.
      * [anyNamesKnown] because a phone whose primary answered the ordinary contacts sync is
      * already showing names, and offering to fetch something it has is noise.
      *
@@ -62,6 +50,17 @@ internal object SignalDirectory {
     ): Boolean = linkedDirectly && !storageKeyKnown && !anyNamesKnown
 
     /**
+     * [threads] first: a thread's title is either a name this phone's own address book
+     * supplied or one that arrived with the thread, and both are nearer to what the reader
+     * calls this person than whatever the primary's contacts sync happened to carry.
+     * [contacts] fills the gaps and adds everyone who has never been written to, which is the
+     * whole point of the list.
+     *
+     * [selfAci] is dropped from [contacts] but not from [threads]: Note to Self is a real
+     * conversation and reads as itself, while the same account arriving from the contacts
+     * sync would appear a second time under the account holder's own name, which reads as a
+     * stranger who happens to share it.
+     *
      * [nameForNumber] is the reader's own address book. Consulted only where neither source
      * supplied a name, and only where a number is known -- on a linked device that is the
      * difference between a list of service ids and a list of people.

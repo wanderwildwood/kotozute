@@ -195,7 +195,6 @@ internal class SignalDiscovery(
         return Result(people.size, withoutAci, fresh.size, null)
     }
 
-    /** Said in words somebody can act on, rather than as the exception's own text. */
     /**
      * Puts right what a failure leaves behind, which was nothing.
      *
@@ -237,6 +236,7 @@ internal class SignalDiscovery(
         }
     }
 
+    /** Said in words somebody can act on, rather than as the exception's own text. */
     private fun reasonFor(failure: Throwable?): String {
         val names = generateSequence(failure) { it.cause }.take(CAUSE_DEPTH)
             .joinToString(" ") { it::class.java.simpleName }

@@ -32,9 +32,6 @@ class SignalStore(private val context: Context) {
      */
     val protocol: SignalServiceDataStore by lazy { SignalDataStore(database, account) }
 
-    /** True once this device has a device id and a password -- that is, once it is linked. */
-    /** This device's own ACI, or null when it is not linked. Cheap enough to ask per thread. */
-    /** Envelopes kept because they would not decrypt. See [SignalReceiver]. */
     /**
      * Why the kept envelopes would not decrypt, most recent first.
      *
@@ -52,11 +49,13 @@ class SignalStore(private val context: Context) {
         }
     }.getOrDefault(emptyList())
 
+    /** Envelopes kept because they would not decrypt. See [SignalReceiver]. */
     fun undecryptableCount(): Int = withStoreLock(database) {
         database.readableDatabase.rawQuery("SELECT count(*) FROM envelope", null)
             .use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
     }
 
+    /** This device's own ACI, or null when it is not linked. Cheap enough to ask per thread. */
     fun selfAciOrNull(): String? = runCatching { account.credentials().aci }.getOrNull()
 
     /** Which device on the account this phone is. */
@@ -65,29 +64,9 @@ class SignalStore(private val context: Context) {
     /** This account's own number, for the messages an export attributes to it. */
     fun selfNumberOrNull(): String? = runCatching { account.credentials().e164 }.getOrNull()
 
+    /** True once this device has a device id and a password -- that is, once it is linked. */
     fun isLinked(): Boolean = ProtocolStoreKey.exists(context) && account.credentials().complete
 
-    /**
-     * The configuration is passed in rather than reached for. `SignalNetworkConfig` still
-     * lives in the presentation module -- only because the smoke test that first needed it
-     * did -- and this module cannot depend on that one. It belongs down here eventually,
-     * along with the trust store it reads off the classpath; that is a move on its own, not
-     * something to fold into a linking change.
-     */
-    /**
-     * The connection to Signal, and the APIs on it. Built from [userAgent] because the
-     * network configuration still lives a module up; see the note on [linker].
-     */
-    /**
-     * **One** connection for the whole process, shared by everything that needs the socket.
-     *
-     * Not one per operation, which is what this was. Signal allows a single authenticated
-     * websocket per device, so opening a second one does not add a connection -- it displaces
-     * the first. The symptom was a send knocking the receive loop off the air: the listen loop
-     * failed with `Connection closed!` at the exact moment a message was sent, and then
-     * reconnected on its backoff, so messages arrived late rather than not at all and the
-     * cause looked like a flaky network.
-     */
     /**
      * Whoever holds this may read the socket. Nobody else may.
      *
@@ -124,6 +103,19 @@ class SignalStore(private val context: Context) {
     @Volatile
     var onPrimaryIdle: (Boolean) -> Unit = {}
 
+    /**
+     * The connection to Signal, and the APIs on it. Built from the network configuration
+     * passed in rather than reached for, because that configuration still lives a module up;
+     * see the note on [linker].
+     *
+     * **One** for the whole process, shared by everything that needs the socket -- not one
+     * per operation, which is what this was. Signal allows a single authenticated websocket
+     * per device, so opening a second one does not add a connection: it displaces the first.
+     * The symptom was a send knocking the receive loop off the air, the listen loop failing
+     * with `Connection closed!` at the exact moment a message was sent and reconnecting on
+     * its backoff -- so messages arrived late rather than not at all, and the cause looked
+     * like a flaky network.
+     */
     internal val connection: SignalConnection by lazy {
         SignalConnection(
             context,
@@ -292,23 +284,6 @@ class SignalStore(private val context: Context) {
     }
 
     /**
-     * Sends one message, on this device's own authority. The primary is not in the path.
-     */
-    /**
-     * @return the send timestamp, which is also the message's identity.
-     * @throws IllegalStateException with the reason if the send did not happen.
-     *
-     * A value rather than a sentence. This used to return a human-readable string that the
-     * caller pulled the timestamp back out of with a regular expression -- so a change to the
-     * wording would have silently stopped messages being filed, with no compiler complaint
-     * and no failure at the point of the change.
-     */
-    /**
-     * Sends to a group, fetching its membership first.
-     *
-     * @throws IllegalStateException naming the reason if it could not be sent.
-     */
-    /**
      * Makes a group and returns the thread it will appear under.
      *
      * See [SignalGroups.create]. Nothing is filed here: a conversation in this app exists
@@ -330,6 +305,11 @@ class SignalStore(private val context: Context) {
     /** A group that now exists, and where it will show up. */
     data class CreatedGroup(val masterKey: ByteArray, val threadKey: String)
 
+    /**
+     * Sends to a group, fetching its membership first.
+     *
+     * @throws IllegalStateException naming the reason if it could not be sent.
+     */
     fun sendToGroup(
         masterKey: ByteArray,
         body: String,
@@ -611,10 +591,6 @@ class SignalStore(private val context: Context) {
     }.getOrDefault(false)
 
     /**
-     * Reads the account's contact list out of the storage service, where modern Signal keeps
-     * it. Returns what it did, in a sentence, for a status line and a log.
-     */
-    /**
      * Where muted and archived go once the account's records have been read.
      *
      * Settable rather than a constructor parameter for the same reason [onRejected] is: the
@@ -623,6 +599,10 @@ class SignalStore(private val context: Context) {
     @Volatile
     internal var onConversationState: (List<SignalStorageService.ConversationState>) -> Unit = {}
 
+    /**
+     * Reads the account's contact list out of the storage service, where modern Signal keeps
+     * it. Returns what it did, in a sentence, for a status line and a log.
+     */
     fun readStorage(): String {
         // Who this account is, so a record describing it can be refused rather than filed as
         // one of its own contacts. Read once per storage read, not per record.
@@ -805,6 +785,17 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /**
+     * Sends one message, on this device's own authority. The primary is not in the path.
+     *
+     * @return the send timestamp, which is also the message's identity.
+     * @throws IllegalStateException with the reason if the send did not happen.
+     *
+     * A value rather than a sentence. This used to return a human-readable string that the
+     * caller pulled the timestamp back out of with a regular expression -- so a change to the
+     * wording would have silently stopped messages being filed, with no compiler complaint
+     * and no failure at the point of the change.
+     */
     fun send(
         recipient: String,
         body: String,
@@ -880,10 +871,6 @@ class SignalStore(private val context: Context) {
         }
     }
 
-    /**
-     * Bound to a connection because downloading needs one, and a connection is per-operation
-     * here rather than a long-lived singleton.
-     */
     /** Names for the people on the other end, from the primary's contacts sync. */
     internal val contacts: SignalContactStore by lazy { SignalContactStore(database) }
 
@@ -896,8 +883,6 @@ class SignalStore(private val context: Context) {
     /** What contact discovery has already asked about; see [SignalDiscoveryStore]. */
     internal val discovery: SignalDiscoveryStore by lazy { SignalDiscoveryStore(database) }
 
-    /** The name known for a service id, or null. */
-    /** A peer's safety number and trust level, or null if they are unknown to the store. */
     /**
      * A group's name and members, fetched from the server using the master key a message
      * carried. Null when it cannot be had -- a group whose details are unavailable should
@@ -906,6 +891,7 @@ class SignalStore(private val context: Context) {
     internal fun groupFor(masterKey: ByteArray): SignalGroups.Group? =
         runCatching { SignalGroups(connection, account, contacts).fetch(masterKey) }.getOrNull()
 
+    /** A peer's safety number and trust level, or null if they are unknown to the store. */
     internal fun identityFor(aci: String): SignalIdentityKeyStore.Identity? = runCatching {
         val self = org.signal.core.models.ServiceId.parseOrNull(account.credentials().aci)
             ?: return@runCatching null
@@ -913,7 +899,6 @@ class SignalStore(private val context: Context) {
             .identityFor(aci, self)
     }.getOrNull()
 
-    /** Accepts a peer's changed key so messages can be sent to them again. */
     /**
      * Trusts the key already on file for somebody, and throws away the sessions built on the
      * old one.
@@ -978,9 +963,9 @@ class SignalStore(private val context: Context) {
     /** Rows the account has not been told about. Read only; nothing here writes them up. */
     internal fun needingStoragePush(): List<SignalContactStore.Pending> = contacts.needingStoragePush()
 
+    /** The name known for a service id, or null. */
     fun contactName(aci: String): String? = runCatching { contacts.nameFor(aci) }.getOrNull()
 
-    /** Every name known, for renaming threads in one pass after a sync. */
     /** The number known for one service id, or null. */
     fun contactNumber(aci: String): String? = runCatching { contacts.numberFor(aci) }.getOrNull()
 
@@ -992,6 +977,7 @@ class SignalStore(private val context: Context) {
     fun contactAciForPni(pni: String): String? =
         runCatching { contacts.aciForPni(pni) }.getOrNull()
 
+    /** Every name known, for renaming threads in one pass after a sync. */
     fun contactNames(): Map<String, String> = runCatching { contacts.all() }.getOrDefault(emptyMap())
 
     /**
@@ -1001,7 +987,6 @@ class SignalStore(private val context: Context) {
     internal fun contactDirectory(): List<SignalContactStore.Contact> =
         runCatching { contacts.everyone() }.getOrDefault(emptyList())
 
-    /** Asks the primary for its contacts. The answer arrives later, through the socket. */
     /** Asks the primary for the account's settings; the answer arrives through the socket. */
     fun requestConfiguration(): String {
         connection.connect()
@@ -1016,6 +1001,7 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /** Asks the primary for its contacts. The answer arrives later, through the socket. */
     fun requestContacts(): String {
         connection.connect()
         return try {
@@ -1038,6 +1024,10 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /**
+     * Bound to a connection because downloading needs one, and a connection is per-operation
+     * here rather than a long-lived singleton.
+     */
     private fun attachmentsFor(connection: SignalConnection) =
         SignalAttachments(context) { connection.messageReceiver }
 
@@ -1105,6 +1095,13 @@ class SignalStore(private val context: Context) {
         io.michaelrocks.libphonenumber.android.PhoneNumberUtil.createInstance(context)
     )
 
+    /**
+     * The configuration is passed in rather than reached for. `SignalNetworkConfig` still
+     * lives in the presentation module -- only because the smoke test that first needed it
+     * did -- and this module cannot depend on that one. It belongs down here eventually,
+     * along with the trust store it reads off the classpath; that is a move on its own, not
+     * something to fold into a linking change.
+     */
     fun linker(onReadReceipts: (Boolean) -> Unit = {}): DeviceLinker = DeviceLinker(
         SignalNetworkConfig.production(),
         SignalNetworkConfig.USER_AGENT,

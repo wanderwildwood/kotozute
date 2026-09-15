@@ -58,13 +58,6 @@ internal class SignalSender(
     private val messageLog by lazy { SignalMessageLog(db) }
 
     /**
-     * Writes down what was actually sent, so a retry receipt can be answered with it.
-     *
-     * The Content comes back from the send itself -- it is the one that went out, not a
-     * reconstruction of it. Best effort: a send that happened is still a send that happened,
-     * and failing to write the log is not a reason to report it otherwise.
-     */
-    /**
      * Throws away every session with somebody, on both identities, and our sender key with it.
      *
      * What upstream does before a second resend attempt: `archiveSessions` and
@@ -120,6 +113,13 @@ internal class SignalSender(
             .getOrNull()
     }
 
+    /**
+     * Writes down what was actually sent, so a retry receipt can be answered with it.
+     *
+     * The Content comes back from the send itself -- it is the one that went out, not a
+     * reconstruction of it. Best effort: a send that happened is still a send that happened,
+     * and failing to write the log is not a reason to report it otherwise.
+     */
     private fun rememberSend(result: SendMessageResult, timestamp: Long, groupId: ByteArray?) {
         if (!result.isSuccess) return
         // What the send taught us about this person's sealed sender. Only a send that
@@ -385,6 +385,11 @@ internal class SignalSender(
         }
     }
 
+    /**
+     * Why a send did not land, in the terms that matter. Worth separating: an identity
+     * failure is not a network problem -- the recipient's safety number changed, and
+     * retrying sends to a key this device has already refused to trust.
+     */
     sealed interface Result {
         data class Sent(val timestamp: Long) : Result
 
@@ -406,21 +411,6 @@ internal class SignalSender(
         ) : Result
     }
 
-    /**
-     * Sends [body] to one recipient.
-     *
-     * The timestamp is the message's identity, not a decoration: it is half of the
-     * `(author, timestamp)` pair every other device uses to recognise this message, including
-     * our own other devices when this send comes back to them as a sync. So it is generated
-     * once, here, and returned -- not read back from anything.
-     */
-    /**
-     * A reaction: an emoji hung on somebody else's message rather than a message of its own.
-     *
-     * Signal names the message being reacted to by who wrote it and when they sent it, so
-     * [targetAuthor] is the *author of that message* -- this account when the reaction is to
-     * something we sent ourselves, which is the case that reads wrong if it is guessed.
-     */
     /**
      * Sends the account's blocked list, which is how a linked device changes it.
      *
@@ -698,11 +688,6 @@ internal class SignalSender(
     }
 
     /**
-     * Why a send did not land, in the terms that matter. Worth separating: an identity
-     * failure is not a network problem -- the recipient's safety number changed, and
-     * retrying sends to a key this device has already refused to trust.
-     */
-    /**
      * Why a send did not happen, in words the person who tried can act on.
      *
      * ⚠ The identity case is the only one here the reader can *do* something about, and it was
@@ -742,18 +727,6 @@ internal class SignalSender(
     }
 
     /**
-     * Writes down that the service says somebody is not on Signal.
-     *
-     * ⚠ Called from **both** send paths. The one-to-one path had this and the group path did
-     * not, which is the same "fixed one arm of the `when` and not its neighbours" that the
-     * previous finding was about -- and worse here, because a group is exactly where a member
-     * who has left is most likely to be found: nobody writes to them one-to-one any more,
-     * which is why they went unnoticed.
-     *
-     * Upstream collects them per send (`GroupSendJobHelper`'s `unregistered` list) and its
-     * callers mark each one; this is that, at the point both paths already inspect results.
-     */
-    /**
      * The failure form for a single-recipient send, with the one thing worth remembering done
      * on the way past. One place, so a new send path cannot forget it.
      */
@@ -766,6 +739,18 @@ internal class SignalSender(
         )
     }
 
+    /**
+     * Writes down that the service says somebody is not on Signal.
+     *
+     * ⚠ Called from **both** send paths. The one-to-one path had this and the group path did
+     * not, which is the same "fixed one arm of the `when` and not its neighbours" that the
+     * previous finding was about -- and worse here, because a group is exactly where a member
+     * who has left is most likely to be found: nobody writes to them one-to-one any more,
+     * which is why they went unnoticed.
+     *
+     * Upstream collects them per send (`GroupSendJobHelper`'s `unregistered` list) and its
+     * callers mark each one; this is that, at the point both paths already inspect results.
+     */
     private fun noteIfNotRegistered(result: SendMessageResult) {
         if (!result.isUnregisteredFailure) return
         runCatching { contacts.markUnregistered(result.address.serviceId.toString()) }
@@ -781,6 +766,13 @@ internal class SignalSender(
 
 
 
+    /**
+     * A reaction: an emoji hung on somebody else's message rather than a message of its own.
+     *
+     * Signal names the message being reacted to by who wrote it and when they sent it, so
+     * [targetAuthor] is the *author of that message* -- this account when the reaction is to
+     * something we sent ourselves, which is the case that reads wrong if it is guessed.
+     */
     fun sendReaction(
         recipient: ServiceId,
         emoji: String,
@@ -1043,6 +1035,14 @@ internal class SignalSender(
         }
     }
 
+    /**
+     * Sends [body] to one recipient.
+     *
+     * The timestamp is the message's identity, not a decoration: it is half of the
+     * `(author, timestamp)` pair every other device uses to recognise this message, including
+     * our own other devices when this send comes back to them as a sync. So it is generated
+     * once, here, and returned -- not read back from anything.
+     */
     fun send(
         recipient: ServiceId,
         body: String,

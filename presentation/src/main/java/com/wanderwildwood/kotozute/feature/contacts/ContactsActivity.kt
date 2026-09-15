@@ -187,6 +187,15 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
      * aside as it does for the rail badge: a Signal conversation reached this way has the
      * conversation list behind it, not an empty new message nobody asked to keep.
      */
+    override fun finishWithSignalThread(threadKey: String, title: String) {
+        binding.search.hideKeyboard()
+        val intent = Intent()
+                .putExtra(SIGNAL_THREAD_KEY, threadKey)
+                .putExtra(SIGNAL_THREAD_TITLE, title)
+        setResult(Activity.RESULT_OK, intent)
+        finish()
+    }
+
     /**
      * The group is made on its own screen and handed back the same way a person is, so the
      * composer behind this one still gets to stand aside.
@@ -204,15 +213,6 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
         val threadKey = data.getStringExtra(SIGNAL_THREAD_KEY).orEmpty()
         if (threadKey.isBlank()) return@registerForActivityResult
         finishWithSignalThread(threadKey, data.getStringExtra(SIGNAL_THREAD_TITLE).orEmpty())
-    }
-
-    override fun finishWithSignalThread(threadKey: String, title: String) {
-        binding.search.hideKeyboard()
-        val intent = Intent()
-                .putExtra(SIGNAL_THREAD_KEY, threadKey)
-                .putExtra(SIGNAL_THREAD_TITLE, title)
-        setResult(Activity.RESULT_OK, intent)
-        finish()
     }
 
 }

@@ -7,10 +7,10 @@ import io.reactivex.Observable
 import io.realm.RealmResults
 
 /**
- * Signal, reached through a kotozute-bridge.
+ * Signal, reached by this phone as a device on the account.
  *
- * Receiving degrades softly: while the bridge is unreachable, messages queue on Signal's
- * servers and arrive when it comes back. Sending fails hard -- there is no offline queue,
+ * Receiving degrades softly: while Signal is unreachable, messages queue on its servers and
+ * arrive when the connection comes back. Sending fails hard -- there is no offline queue,
  * because a message the user believes they sent and which never arrives is worse than a
  * composer that plainly refuses. [ConnectionState] is what the UI uses to say so.
  */
@@ -60,28 +60,6 @@ interface SignalRepository {
 
     fun setEnabled(enabled: Boolean)
 
-    /** Pulls everything after our cursor. Safe to call repeatedly; it is idempotent. */
-    /**
-     * Files messages that arrived some other way than the bridge -- currently the device's own
-     * Signal connection.
-     *
-     * The same storage path the bridge sync uses, on purpose. Threads, previews, reactions and
-     * expiry all key off the same rules, so a second writer with its own idea of them would
-     * produce a second set of threads beside the real ones.
-     *
-     * @return how many were new.
-     */
-    /**
-     * Recomputes and republishes the connection state.
-     *
-     * Needed because the state starts as a literal "nothing is configured" and is otherwise
-     * only republished by an event -- pairing, a sync, a stream change. A device that is
-     * itself linked to the account has no such event at startup, so without this every Signal
-     * screen would keep offering to connect a bridge while messages arrived behind it.
-     *
-     * Does its work off the calling thread: answering it opens the keystore and an encrypted
-     * database, which is not a main-thread question.
-     */
     /**
      * Links this phone to a Signal account as a secondary device.
      *
@@ -125,6 +103,17 @@ interface SignalRepository {
     /** Submits the code and, if it is right, completes registration. */
     suspend fun registerVerify(sessionId: String, code: String, e164: String): Registration
 
+    /**
+     * Recomputes and republishes the connection state.
+     *
+     * Needed because the state starts as a literal "nothing is configured" and is otherwise
+     * only republished by an event -- a link, a sync, a stream change. A device that is
+     * itself linked to the account has no such event at startup, so without this every Signal
+     * screen would keep offering to connect while messages arrived behind it.
+     *
+     * Does its work off the calling thread: answering it opens the keystore and an encrypted
+     * database, which is not a main-thread question.
+     */
     fun refresh()
 
     /**
@@ -137,12 +126,23 @@ interface SignalRepository {
      */
     fun applyReceipts(senderUuid: String, timestamps: List<Long>, read: Boolean): Int
 
+    /**
+     * Files messages that arrived some other way than the sync -- the device's own live
+     * stream.
+     *
+     * The same storage path the sync uses, on purpose. Threads, previews, reactions and
+     * expiry all key off the same rules, so a second writer with its own idea of them would
+     * produce a second set of threads beside the real ones.
+     *
+     * @return how many were new.
+     */
     fun ingest(messages: List<BridgeMessage>): Int
 
+    /** Pulls everything after our cursor. Safe to call repeatedly; it is idempotent. */
     fun syncNow(): Int
 
     /**
-     * Whether the last [syncNow] reached the sequence the bridge said it was holding.
+     * Whether the last [syncNow] reached the end of what the server was holding.
      *
      * False means the catch-up stopped short -- a dropped connection part-way through a
      * backlog, or a page that failed. Nothing is lost, because the cursor only advances over
@@ -155,7 +155,7 @@ interface SignalRepository {
      */
     fun lastSyncCaughtUp(): Boolean
 
-    /** Holds the bridge's event stream open, reconnecting as needed. */
+    /** Holds the account's event stream open, reconnecting as needed. */
     fun startStream()
     fun stopStream()
 
@@ -164,7 +164,7 @@ interface SignalRepository {
 
     fun markRead(threadKey: String, upToTs: Long)
 
-    /** Blocking. Returns null if the bridge cannot be reached or has no such attachment. */
+    /** Blocking. Returns null if Signal cannot be reached or has no such attachment. */
     fun loadAttachment(id: String): ByteArray?
 
     /**
@@ -263,13 +263,6 @@ interface SignalRepository {
     fun importHistory(folder: String, key: String = "", onProgress: (Int) -> Unit = {}): ImportStats
 
     /**
-     * Whether this device has been given the account's blocked list.
-     *
-     * Blocking is offered only when it has. Signal syncs the list whole, so a device without
-     * one cannot change it without replacing it -- and a button that can only ever refuse is
-     * worse than no button.
-     */
-    /**
      * Asks Signal for the account's contact list. Blocking; returns what happened, in a
      * sentence somebody can read.
      */
@@ -346,6 +339,13 @@ interface SignalRepository {
     /** @return true where it was done; false where nothing could be. */
     fun actOnPerson(threadKey: String, action: PersonAction): Boolean
 
+    /**
+     * Whether this device has been given the account's blocked list.
+     *
+     * Blocking is offered only when it has. Signal syncs the list whole, so a device without
+     * one cannot change it without replacing it -- and a button that can only ever refuse is
+     * worse than no button.
+     */
     fun canBlock(): Boolean
 
     /** Whether this person is on the account's blocked list, as this device last heard it. */
@@ -421,18 +421,14 @@ interface SignalRepository {
     fun setArchived(threadKey: String, archived: Boolean)
 
     /**
-     * Block or unblock this thread's other party on the Signal account itself. Throws if
-     * the bridge cannot be reached, so the caller can say so rather than imply success.
-     */
-    /**
-     * Who the bridge is signed in as and which devices are on that account. Throws if the
-     * bridge cannot be reached, so a screen can say so rather than show a blank.
+     * Who this phone is signed in as and which devices are on that account. Throws if Signal
+     * cannot be reached, so a screen can say so rather than show a blank.
      */
     fun account(): SignalAccount
 
     /**
      * The safety number for a one-to-one thread and whether the key is still the accepted
-     * one. Throws if the bridge cannot be reached.
+     * one. Throws if Signal cannot be reached.
      */
     fun identity(threadKey: String): SignalIdentity
 
@@ -482,19 +478,23 @@ interface SignalRepository {
             outgoing && now - sentAt < WITHDRAW_WINDOW_MS
     }
 
+    /**
+     * Block or unblock this thread's other party on the Signal account itself. Throws if
+     * Signal cannot be reached, so the caller can say so rather than imply success.
+     */
     fun setBlocked(threadKey: String, blocked: Boolean)
 
     fun setPinned(threadKey: String, pinned: Boolean)
 
     fun setMuted(threadKey: String, muted: Boolean)
 
-    /** Put a thread back to unread, so it is picked up again later. */
     /**
      * Delete messages whose disappearing deadline has passed. Returns how many went. Reads
      * already hide them; this is what stops the phone being the copy that outlives the timer.
      */
     fun purgeExpired(): Int
 
+    /** Put a thread back to unread, so it is picked up again later. */
     fun markUnread(threadKey: String)
 
     /** Whether this thread's notifications are silenced. Read on the notification path. */
@@ -506,8 +506,8 @@ interface SignalRepository {
     /**
      * Emits each newly stored *incoming* message, once. Notifications live in the
      * presentation layer, so the repository announces rather than notifies -- and because
-     * it emits only on a genuinely new row, a message redelivered by the bridge or
-     * replayed on reconnect cannot ring twice.
+     * it emits only on a genuinely new row, a message replayed on reconnect cannot ring
+     * twice.
      */
     fun newIncoming(): Observable<SignalMessage>
 
@@ -541,12 +541,12 @@ data class SignalDevice(val id: Int, val name: String, val created: Long) {
     val isPrimary: Boolean get() = id == 1
 }
 
-/** The Signal account this phone reaches through the bridge. */
+/** The Signal account this phone is a device on. */
 data class SignalAccount(
     val number: String,
     val selfUuid: String,
     val devices: List<SignalDevice>,
-    /** Which of [devices] the bridge itself is, or 0 when it could not be worked out. */
+    /** Which of [devices] this phone is, or 0 when it could not be worked out. */
     val thisDeviceId: Int = 0
 )
 

@@ -197,6 +197,13 @@ internal class SignalIdentityKeyStore(
         known.trustLevel > UNTRUSTED
     }
 
+    /** Whether an address is one of this account's own identifiers. */
+    private fun isSelfAddress(name: String): Boolean {
+        val credentials = SignalAccountStore(db).credentials()
+        return listOfNotNull(credentials.aci, credentials.pni, credentials.e164)
+            .any { it.isNotBlank() && it == name }
+    }
+
     /**
      * Archives the sessions with this person's **other** devices.
      *
@@ -209,13 +216,6 @@ internal class SignalIdentityKeyStore(
      * survived and went on encrypting to an identity this phone had just stopped trusting.
      * Signal asks `getAllFor` here and excludes only the address's own device id.
      */
-    /** Whether an address is one of this account's own identifiers. */
-    private fun isSelfAddress(name: String): Boolean {
-        val credentials = SignalAccountStore(db).credentials()
-        return listOfNotNull(credentials.aci, credentials.pni, credentials.e164)
-            .any { it.isNotBlank() && it == name }
-    }
-
     private fun archiveSiblingSessions(address: SignalProtocolAddress) {
         val sessions = SignalSessionStore(db, accountIdType)
         runCatching {

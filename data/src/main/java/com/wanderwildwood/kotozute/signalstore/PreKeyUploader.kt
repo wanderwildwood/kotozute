@@ -35,9 +35,9 @@ internal class PreKeyUploader(
         data class Failed(val reason: String) : Result
     }
 
-    /** Both identities. A PNI with no keys is a phone number nobody can open a session to. */
     /**
-     * Tops up and rotates what the account holds, if either is owed.
+     * Tops up and rotates what the account holds, if either is owed -- for both identities,
+     * because a PNI with no keys is a phone number nobody can open a session to.
      *
      * ⚠ **Without this the device degrades in silence.** One batch of one-time keys is
      * published at link time and never replenished, and the server hands each one out once.

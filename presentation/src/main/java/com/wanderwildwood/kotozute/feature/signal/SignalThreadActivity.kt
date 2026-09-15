@@ -491,11 +491,6 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     /**
-     * Copy or share one message. A dialog rather than a selection mode: selection earns its
-     * complexity when you act on many messages at once, and here there is nothing yet that
-     * takes more than one.
-     */
-    /**
      * Offers the decision where the person already is, rather than leaving them a sentence.
      *
      * ⚠ Signal has **no standalone "accept this key?"** anywhere. A send blocked by a changed
@@ -590,6 +585,11 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     }
 
+    /**
+     * Copy or share one message. A dialog rather than a selection mode: selection earns its
+     * complexity when you act on many messages at once, and here there is nothing yet that
+     * takes more than one.
+     */
     private fun showMessageActions(
         body: String,
         messageId: String,

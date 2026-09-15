@@ -179,31 +179,14 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             .map { preference -> preference.clicks().map { preference } }
             .let { preferences -> Observable.merge(preferences) }
 
+    private var openSection: Int = 0
+    private var openTitle: Int = R.string.title_settings
+
     /**
      * Sections are swapped in place rather than pushed as separate controllers: every row still
      * exists in one layout, so the presenter's render() keeps working untouched. It also avoids a
      * push animation, which this app deliberately does not want on e-ink.
      */
-    /**
-     * Whether the bridge has been asked for on this visit.
-     *
-     * Deliberately not a preference: it is not a setting, it is "I went looking for it just
-     * now". Returning to the screen puts it away again, which is the right default for a
-     * feature on its way out.
-     */
-
-    /**
-     * Whether a bridge is currently paired, as of the last render.
-     *
-     * Kept because the disclosure is closed from [showSection], which has no state to consult
-     * and gets no new one -- nothing about the account changed by moving between sections, so
-     * render() is not called again and the rows would keep whatever visibility they were last
-     * given by hand.
-     */
-
-    private var openSection: Int = 0
-    private var openTitle: Int = R.string.title_settings
-
     override fun showSection(container: Int, title: Int) {
         openSection = container
         openTitle = title
@@ -530,11 +513,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     }
 
     /**
-     * On the row rather than in a dialog. It is the only thing happening, the reader is
-     * looking at the row they just tapped, and a dialog that cannot be dismissed while
-     * thousands of messages are read is a locked screen with a number on it.
-     */
-    /**
      * Asked every time, not once.
      *
      * This is the only thing in the app that sends the address book anywhere, and a row that
@@ -583,6 +561,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         }
     }
 
+    /**
+     * On the row rather than in a dialog. It is the only thing happening, the reader is
+     * looking at the row they just tapped, and a dialog that cannot be dismissed while
+     * thousands of messages are read is a locked screen with a number on it.
+     */
     override fun showSignalImportProgress(messages: Int) {
         activity?.runOnUiThread {
             binding.signalHistoryImport.summary =

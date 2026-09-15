@@ -72,10 +72,6 @@ class Navigator @Inject constructor(
     }
 
     /**
-     * @param source String to indicate where this QKSMS+ screen was launched from. This should be
-     * one of [main_menu, compose_schedule, settings_night, settings_theme]
-     */
-    /**
      * This won't work unless we use startActivityForResult
      *
      * Everything here is guarded, because this is the one path that only ever runs when we

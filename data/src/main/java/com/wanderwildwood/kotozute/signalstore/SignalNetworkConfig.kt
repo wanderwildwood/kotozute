@@ -85,12 +85,6 @@ object SignalNetworkConfig {
     )
 
     /**
-     * Signal pins its own CA, so the platform trust store is not sufficient. Loaded off the
-     * classpath the way signal-cli does it, which works on Android because AGP packages
-     * `src/main/resources` into the APK -- and which means this needs no Context, so the
-     * configuration stays a plain object.
-     */
-    /**
      * The roots that sign sender certificates, for sealed sender.
      *
      * **Two, not one, and both are current.** Signal rotated the root and kept the old one
@@ -109,6 +103,12 @@ object SignalNetworkConfig {
 
     fun certificateValidator(): CertificateValidator = CertificateValidator(unidentifiedSenderTrustRoots)
 
+    /**
+     * Signal pins its own CA, so the platform trust store is not sufficient. Loaded off the
+     * classpath the way signal-cli does it, which works on Android because AGP packages
+     * `src/main/resources` into the APK -- and which means this needs no Context, so the
+     * configuration stays a plain object.
+     */
     private val trustStore = object : TrustStore {
         override fun getKeyStoreInputStream(): InputStream =
             requireNotNull(SignalNetworkConfig::class.java.getResourceAsStream("/com/wanderwildwood/kotozute/signalnet/whisper.store")) {

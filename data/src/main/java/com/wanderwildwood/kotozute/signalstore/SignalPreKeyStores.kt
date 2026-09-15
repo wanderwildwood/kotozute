@@ -289,12 +289,6 @@ internal class SignalKyberPreKeyStore(
         )
     }
 
-    /**
-     * Every last-resort key this identity holds, so the superseded ones can be found.
-     *
-     * Upstream has `loadLastResortKyberPreKeys` on the store for the same reason
-     * (`cleanLastResortKyberPreKeys` walks it).
-     */
     /** Delegated to from the facade, so the sweep can reach it without one. */
     fun removeKyberPreKey(kyberPreKeyId: Int) = withStoreLock(db) {
         db.writableDatabase.execSQL(

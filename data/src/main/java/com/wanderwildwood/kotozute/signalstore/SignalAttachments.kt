@@ -34,8 +34,7 @@ internal class SignalAttachments(
      * Null rather than throwing, deliberately: a message whose picture failed to download is
      * still a message, and losing the text because the image was unavailable would be the
      * wrong trade.
-     */
-    /**
+     *
      * Tries more than once, because most of what goes wrong here is the network.
      *
      * A dropped socket mid-transfer, or a moment of bad wifi, used to lose a photo or a voice

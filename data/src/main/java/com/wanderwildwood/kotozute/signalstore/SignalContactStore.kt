@@ -735,7 +735,54 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
             """.trimIndent(),
             arrayOf<Any?>(absorb, absorb, absorb, absorb, absorb, keep)
         )
+        remapDependents(database, keep = keep, absorb = absorb)
         database.execSQL("DELETE FROM recipient WHERE _id = ?", arrayOf<Any?>(absorb))
+    }
+
+    /**
+     * Moves what other tables hold under the absorbed row's names onto the surviving one.
+     *
+     * ⚠ **Two tables key on a service id and neither followed a merge.** The resend log and the
+     * owed-receipt list are written with whatever address a message was sent to, so everything
+     * sent to somebody while they were known only by their phone-number identity stayed filed
+     * under that identity after they became an account. Their client's retry request arrives
+     * naming the account, the lookup misses, and a message that could have been resent cannot
+     * be -- which is exactly the case the log exists for.
+     *
+     * Upstream does the same thing for the same reason (`MessageSendLogTables.remapRecipient`,
+     * one of fourteen tables that implement `remapRecipient`), though it is forced to: its rows
+     * hold a row id that stops existing. Ours hold a string that stays valid and merely stops
+     * being the one anybody asks by, which is why this could go unnoticed.
+     *
+     * `UPDATE OR REPLACE` on the receipts, because `(recipient, sent_timestamp, kind)` is its
+     * primary key and both halves of one person can owe the same receipt. Collapsing the two
+     * into one is right: it was always one receipt.
+     */
+    private fun remapDependents(
+        database: net.zetetic.database.sqlcipher.SQLiteDatabase,
+        keep: Long,
+        absorb: Long
+    ) {
+        val canonical = database.rawQuery(
+            "SELECT COALESCE(aci, pni) FROM recipient WHERE _id = ?", arrayOf(keep.toString())
+        ).use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: return
+
+        val (absorbedAci, absorbedPni) = database.rawQuery(
+            "SELECT aci, pni FROM recipient WHERE _id = ?", arrayOf(absorb.toString())
+        ).use { c ->
+            if (c.moveToFirst()) c.getString(0) to c.getString(1) else null to null
+        }
+
+        idsToRemap(canonical, absorbedAci, absorbedPni).forEach { was ->
+            database.execSQL(
+                "UPDATE message_log SET recipient = ? WHERE recipient = ?",
+                arrayOf<Any?>(canonical, was)
+            )
+            database.execSQL(
+                "UPDATE OR REPLACE receipt_owed SET recipient = ? WHERE recipient = ?",
+                arrayOf<Any?>(canonical, was)
+            )
+        }
     }
 
     /** The account id a phone-number identity belongs to, where that is known. */
@@ -943,6 +990,25 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
          * query and this drift apart silently and the check starts answering a question nobody
          * asked.
          */
+        /**
+         * Which of an absorbed row's names other tables should stop being filed under.
+         *
+         * Pure because this is where the mistake would be silent: remapping onto the name a
+         * row already has does nothing and looks like it worked, and skipping a name leaves a
+         * message unresendable with no sign of it either way. The SQL around it is two plain
+         * UPDATE statements.
+         */
+        internal fun idsToRemap(
+            canonical: String?,
+            absorbedAci: String?,
+            absorbedPni: String?
+        ): List<String> {
+            if (canonical.isNullOrBlank()) return emptyList()
+            return listOfNotNull(absorbedAci, absorbedPni)
+                .filter { it.isNotBlank() && it != canonical }
+                .distinct()
+        }
+
         internal fun looksLikeANumber(e164: String): Boolean = when {
             e164.any { it != '+' && !it.isDigit() } -> false
             e164.length == 7 -> false

@@ -259,3 +259,69 @@ class RecipientMergeTest {
     }
 
 }
+
+/**
+ * What other tables should be re-filed under when two rows become one.
+ *
+ * The resend log and the owed-receipt list are written with whatever address a message was
+ * sent to. Everything sent to somebody while they were known only by their phone-number
+ * identity stayed filed under it after they became an account, so their client's retry request
+ * -- which names the account -- found nothing, and a message that could have been resent could
+ * not be. This is the part where a mistake is silent: remapping onto a name a row already has
+ * does nothing and looks like it worked.
+ */
+class MergeRemapTest {
+
+    private val aci = "11111111-1111-1111-1111-111111111111"
+    private val pni = "PNI:22222222-2222-2222-2222-222222222222"
+
+    @Test
+    fun `the phone-number identity is re-filed under the account`() {
+        assertEquals(
+            listOf(pni),
+            SignalContactStore.idsToRemap(canonical = aci, absorbedAci = null, absorbedPni = pni)
+        )
+    }
+
+    @Test
+    fun `the name the surviving row already uses is not remapped onto itself`() {
+        assertEquals(
+            emptyList<String>(),
+            SignalContactStore.idsToRemap(canonical = aci, absorbedAci = aci, absorbedPni = null)
+        )
+        assertEquals(
+            listOf(pni),
+            SignalContactStore.idsToRemap(canonical = aci, absorbedAci = aci, absorbedPni = pni)
+        )
+    }
+
+    @Test
+    fun `nothing is moved when there is nowhere to move it to`() {
+        // A surviving row with no service id at all. Rewriting rows to point at nothing would
+        // lose them for good; leaving them costs one unresendable message.
+        assertEquals(
+            emptyList<String>(),
+            SignalContactStore.idsToRemap(canonical = null, absorbedAci = aci, absorbedPni = pni)
+        )
+        assertEquals(
+            emptyList<String>(),
+            SignalContactStore.idsToRemap(canonical = "", absorbedAci = aci, absorbedPni = pni)
+        )
+    }
+
+    @Test
+    fun `an empty name is not a name`() {
+        assertEquals(
+            listOf(pni),
+            SignalContactStore.idsToRemap(canonical = aci, absorbedAci = "", absorbedPni = pni)
+        )
+    }
+
+    @Test
+    fun `the same name twice is moved once`() {
+        assertEquals(
+            listOf(pni),
+            SignalContactStore.idsToRemap(canonical = aci, absorbedAci = pni, absorbedPni = pni)
+        )
+    }
+}

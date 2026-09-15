@@ -270,8 +270,21 @@ class SettingsPresenter @Inject constructor(
                         // switch cannot put Signal into a configured-but-broken state.
                         R.id.signalEnabled -> signalRepo.setEnabled(!prefs.signalEnabled.get())
 
+                        // ⚠ Shown, not set. This wrote a preference the account promptly
+                        // undid: read receipts are one setting for the whole Signal account,
+                        // and a **linked device cannot change it** -- upstream's
+                        // `MultiDeviceConfigurationUpdateJob` begins
+                        // `if (isLinkedDevice()) { "Not primary device, aborting..."; return }`,
+                        // and the other half of the change is a storage-service write on the
+                        // account record, which this app does not do (docs/DECISION-storage-write.md).
+                        //
+                        // So every flip here survived until the next configuration sync, which
+                        // this phone asks for on every start -- a switch that visibly did not
+                        // stick. It now says where the setting lives instead of pretending to
+                        // hold it. The switch still shows what the account says, which is worth
+                        // knowing and is the only true thing this row ever had to offer.
                         R.id.signalReceipts ->
-                            prefs.signalReadReceipts.set(!prefs.signalReadReceipts.get())
+                            context.makeToast(R.string.settings_signal_receipts_readonly)
 
                         // The service is started and stopped from here rather than by
                         // watching the preference, so the thing that flips the switch is the

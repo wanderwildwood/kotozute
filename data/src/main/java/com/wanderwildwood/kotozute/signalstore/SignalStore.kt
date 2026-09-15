@@ -636,8 +636,17 @@ class SignalStore(private val context: Context) {
      * against a phone number alone, and passing null here asked only half the question. Every
      * screen that greys out a blocked conversation went through this.
      */
+    /**
+     * ⚠ **Fails open, deliberately, and says so.** A read this cannot answer reports "not
+     * blocked", so a message from somebody blocked would be filed and announced. Failing the
+     * other way is worse rather than safer: every conversation would grey out and refuse to
+     * send on one bad read, which is the app breaking rather than the app being careful. What
+     * is not acceptable is doing it quietly.
+     */
     fun isBlocked(aci: String): Boolean = runCatching {
         blocks.isBlocked(aci, contacts.numberFor(aci))
+    }.onFailure {
+        Timber.w(it, "signal blocked: could not read the list; treating this person as not blocked")
     }.getOrDefault(false)
 
     /**
@@ -973,8 +982,21 @@ class SignalStore(private val context: Context) {
             .acceptIdentity(aci)
         if (accepted) {
             val store = SignalDataStore(database, account).aciStore()
-            val devices = listOf(SignalSessionStore.PRIMARY_DEVICE_ID) +
-                runCatching { store.getSubDeviceSessions(aci) }.getOrDefault(emptyList())
+            // ⚠ The whole point of archiving here is the *siblings*. If they cannot be
+            // enumerated, only the primary's session is retired, and accepting reports
+            // success while sending resumes over a ratchet the other end has moved off --
+            // which is exactly the fault this archiving was added to fix. It cannot be
+            // repaired from here, so it is said out loud rather than defaulted away.
+            val siblings = runCatching { store.getSubDeviceSessions(aci) }
+                .onFailure {
+                    Timber.w(
+                        it,
+                        "signal identity: could not list the other devices' sessions; " +
+                            "accepting may leave sessions built on the key that was replaced"
+                    )
+                }
+                .getOrDefault(emptyList())
+            val devices = listOf(SignalSessionStore.PRIMARY_DEVICE_ID) + siblings
             devices.distinct().forEach { deviceId ->
                 runCatching {
                     store.archiveSession(

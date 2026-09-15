@@ -824,6 +824,26 @@ internal class SignalSender(
     }
 
     /**
+     * Whether this account shares its profile with somebody, as the account's own records say.
+     *
+     * ⚠ **A read that fails is not a yes.** [SignalContactStore.isWhitelisted] already answers
+     * `true` for a row nothing has told us about -- that is a real answer, and the right one,
+     * so an existing conversation does not lose this account's name and avatar to a column
+     * that arrived after it. What used to be folded in with it was the *store throwing*, which
+     * is not an answer at all, and it was being read as "yes, share it".
+     *
+     * The two costs are not the same size. Withholding the key wrongly costs the recipient a
+     * name and an avatar until the next send that can read the answer. Attaching it wrongly
+     * cannot be taken back: they keep a durable key to this account's profile. So a question
+     * this cannot answer is answered no, and says so.
+     *
+     * Upstream never has to decide this, because it does not swallow: `PushSendJob.getProfileKey`
+     * reads `isSystemContact || isProfileSharing` and lets a failure propagate.
+     */
+    private fun sharesProfileWith(recipient: ServiceId): Boolean =
+        sharesProfile { contacts.isWhitelisted(recipient.toString()) }
+
+    /**
      * Writes down that the service says somebody is not on Signal.
      *
      * ⚠ Called from **both** send paths. The one-to-one path had this and the group path did
@@ -1156,11 +1176,7 @@ internal class SignalSender(
             // device -- was handed a durable key to this account's name and avatar on the
             // next message sent to them. Unknown counts as shared; see
             // [SignalContactStore.isWhitelisted].
-            .withProfileKey(
-                selfProfileKey?.takeIf {
-                    runCatching { contacts.isWhitelisted(recipient.toString()) }.getOrDefault(true)
-                }
-            )
+            .withProfileKey(selfProfileKey?.takeIf { sharesProfileWith(recipient) })
             .apply { if (streams.isNotEmpty()) withAttachments(streams) }
             // The conversation's timer, re-asserted on every message the way Signal does.
             // Omitting it does not leave the timer alone: a data message with no expireTimer
@@ -1254,6 +1270,25 @@ internal class SignalSender(
     }
 
     companion object {
+
+        /**
+         * The rule on its own, so it can be tested past the case that matters.
+         *
+         * A guard that has never been seen to refuse is not evidence of anything, and the
+         * refusal here only happens when a database read throws -- which does not happen on a
+         * healthy account, which is exactly why it went unnoticed.
+         */
+        internal fun sharesProfile(read: () -> Boolean): Boolean =
+            runCatching(read)
+                .onFailure {
+                    Timber.w(
+                        it,
+                        "signal send: could not read whether this account shares its profile; " +
+                            "withholding the key"
+                    )
+                }
+                .getOrDefault(false)
+
         /**
          * A wait in the words somebody would use for it, rather than milliseconds.
          *

@@ -75,7 +75,20 @@ internal class SignalDiscovery(
             return Result(0, 0, 0, "Signal will not answer more lookups for about $minutes more minute(s)")
         }
 
-        val previous = runCatching { state.submitted() }.getOrDefault(emptySet())
+        // ⚠ Read as empty, this asks about every number as though it had never asked. The
+        // numbers asked about before are exactly the ones the token makes free, so a failure
+        // here is not a slower lookup -- it is the account's quota spent a second time on
+        // answers it has already paid for. It is still better than refusing a lookup somebody
+        // deliberately asked for, so it goes ahead and says what it could not read.
+        val previous = runCatching { state.submitted() }
+            .onFailure {
+                Timber.w(
+                    it,
+                    "signal discovery: could not read which numbers have been asked about " +
+                        "before; asking about all of them, which spends quota again"
+                )
+            }
+            .getOrDefault(emptySet())
         val fresh = valid - previous
         // ⚠ Only when there is nothing at all to send. This used to stop as soon as every
         // number had been asked about before, on the reasoning that the answers were already

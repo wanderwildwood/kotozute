@@ -1183,13 +1183,33 @@ class SignalRepositoryImpl @Inject constructor(
 
         run {
             Timber.i("signal: holding our own socket")
-            // Ask once per start. A linked device knows nobody until the primary answers, and
-            // the answer arrives through the socket below -- so the ask has to happen before
-            // the loop, not as part of it.
+            // ⚠ Not once per start, which is what this was. A linked device knows nobody
+            // until the primary answers, so the ask has to happen before the loop -- but the
+            // answer costs the *other* phone a full contact upload every single time, because
+            // the primary treats a request as `forceSync` and skips the six-hour cooldown it
+            // puts on its own syncs. See [Preferences.signalLastContactRequest]. Android
+            // restarts this process often; that was several full syncs a day on a phone that
+            // did not ask for any of them.
             runOffThread {
-                runCatching { signalStore.requestContacts() }
-                    .onSuccess { Timber.i("signal contacts: %s", it) }
-                    .onFailure { Timber.w(it, "signal contacts: could not ask") }
+                val askedAt = prefs.signalLastContactRequest.get()
+                if (contactRequestDue(askedAt, System.currentTimeMillis())) {
+                    runCatching { signalStore.requestContacts() }
+                        .onSuccess {
+                            // Stamped only on success. A request that did not go is one the
+                            // primary never heard, and recording it would buy six hours of
+                            // silence for an ask that never happened.
+                            prefs.signalLastContactRequest.set(System.currentTimeMillis())
+                            Timber.i("signal contacts: %s", it)
+                        }
+                        .onFailure { Timber.w(it, "signal contacts: could not ask") }
+                } else {
+                    Timber.i(
+                        "signal contacts: asked %d hour(s) ago; not asking the primary again yet",
+                        java.util.concurrent.TimeUnit.MILLISECONDS.toHours(
+                            System.currentTimeMillis() - askedAt
+                        )
+                    )
+                }
                 // And the account's settings, for the same reason: they are volunteered only
                 // when they change, so a device that never asks follows its own default rather
                 // than the account. Read receipts are the one that shows.
@@ -3263,6 +3283,37 @@ class SignalRepositoryImpl @Inject constructor(
                 rejected = prefs.signalRejected.get().takeIf { it.isNotBlank() },
             )
         )
+    }
+
+
+    companion object {
+
+        /**
+         * How often this phone may ask the primary to send its contacts.
+         *
+         * Six hours, which is `MultiDeviceContactUpdateJob.FULL_SYNC_TIME` -- the cooldown the
+         * primary puts on its *own* contact syncs. It does not apply it to one this phone asks
+         * for, because a request arrives as `MultiDeviceContactUpdateJob(true)` and the `true` is
+         * `forceSync`. So the number is upstream's judgement of how often a full contacts sync is
+         * worth doing, applied at the only end that can apply it.
+         */
+        private val CONTACT_REQUEST_INTERVAL_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6)
+
+        /**
+         * Whether it is time to ask the primary for its contacts again.
+         *
+         * Its own function so both edges can be tested: never asked, and a stamp in the future.
+         *
+         * ⚠ **Never-asked must ask.** This is a linked device's first and only way to learn who
+         * anybody is, so the case that has to work is the one right after linking -- and a zero
+         * stamp is exactly that case, not a recent one.
+         *
+         * A stamp in the future is a clock that moved, and it asks: the cost of asking once more
+         * is one sync on the other phone, and the cost of not asking is a device that knows
+         * nobody until the clock catches up.
+         */
+        internal fun contactRequestDue(askedAt: Long, now: Long): Boolean =
+            askedAt <= 0 || askedAt > now || now - askedAt >= CONTACT_REQUEST_INTERVAL_MS
     }
 
 }

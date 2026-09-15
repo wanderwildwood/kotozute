@@ -132,6 +132,19 @@ class Preferences @Inject constructor(
     val signalLastSync = rxPrefs.getLong("signalLastSync", 0L)
 
     /**
+     * When this phone last asked the primary to send its contacts.
+     *
+     * ⚠ **The ask is not free, and it is not free on this phone.** A linked device's contacts
+     * request makes the primary run a full contacts sync *immediately*, bypassing the cooldown
+     * it applies to its own: `SyncMessageProcessor` answers `Request.Type.CONTACTS` with
+     * `MultiDeviceContactUpdateJob(true)` -- the `true` is `forceSync`, and without it that job
+     * refuses to run twice inside `FULL_SYNC_TIME`, six hours. So asking on every process start
+     * means building and uploading the whole contact list from somebody's other phone every
+     * time Android restarts this one, which on a phone built to sleep is often.
+     */
+    val signalLastContactRequest = rxPrefs.getLong("signalLastContactRequest", 0L)
+
+    /**
      * When the repeated-use Signal keys were last replaced because something would not decrypt.
      *
      * Signal keeps the same value (`lastForcedPreKeyRefresh`) for the same reason: a forced

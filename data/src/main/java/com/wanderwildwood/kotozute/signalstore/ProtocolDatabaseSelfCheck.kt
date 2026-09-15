@@ -49,6 +49,7 @@ object ProtocolDatabaseSelfCheck {
             val changeReported =
                 store.saveIdentity(peer, first) == IdentityKeyStore.IdentityChange.REPLACED_EXISTING
 
+
             // Sessions. The behaviours checked are the ones that are wrong-but-plausible:
             // an unknown peer must yield an empty record rather than null, containsSession
             // must ask about the sender chain rather than the row, an incomplete device list
@@ -143,6 +144,26 @@ object ProtocolDatabaseSelfCheck {
             account.saveIdentity(aci, idKeys, 4242)
             val identityRoundTrip = account.identityKeyPair(aci)?.publicKey == idKeys.publicKey
             val registrationIdKept = SignalIdentityKeyStore(db, aci).localRegistrationId == 4242
+
+            // ⚠ That the identity path never writes a row for the account *itself*, on any
+            // sighting. The self guard was the **third** arm of that `when`, below the
+            // first-sighting insert, so the account's own key got a row anyway -- the one thing
+            // the guard exists to prevent. Upstream puts the check first and keeps a self row
+            // deliberately instead, marked VERIFIED
+            // (`IdentityTableCleanupMigrationJob`, whose subject is "inconsistent state for
+            // ourself in the identity table"); arriving at one through the path that judges
+            // *other people's* keys is how it gets inconsistent.
+            //
+            // ⚠ Placed **after** saveCredentials, not with the other trust checks: before it
+            // there is no account id, the address could not be this account's own, and the
+            // assertion would pass without ever exercising the arm. A check that cannot fail
+            // is not a check.
+            //
+            // A first sighting, because that is the arm that used to win.
+            val selfStore = SignalIdentityKeyStore(db, aci)
+            val me = org.signal.libsignal.protocol.SignalProtocolAddress("aci-uuid", 1)
+            selfStore.saveIdentity(me, IdentityKeyPair.generate().publicKey)
+            val selfWasNotWritten = selfStore.getIdentity(me) == null
 
             var allocated: List<Int> = emptyList()
             account.allocatePreKeyIds(aci, 3) { ids -> allocated = ids }
@@ -251,6 +272,7 @@ object ProtocolDatabaseSelfCheck {
                 "last-resort-survives=$lastResortSurvives | sessions: empty-not-null=$unknownIsEmptyNotNull " +
                 "row-without-chain-not-usable=$rowExistsButNotUsable subdevices-exclude-primary=$subDevicesExcludePrimary " +
                 "missing-throws=$missingSessionThrows delete-all=$deletedAll " +
+                "self-not-written=$selfWasNotWritten " +
                 "e164-refused=$e164Refused | trust: first-sighting=$trustedOnFirstSighting " +
                 "changed-refused-on-receive=$changedKeyRefusedOnReceive " +
                 "changed-blocked-on-send=$changedKeyBlockedOnSend " +

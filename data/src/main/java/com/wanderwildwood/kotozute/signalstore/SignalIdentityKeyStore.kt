@@ -61,21 +61,33 @@ internal class SignalIdentityKeyStore(
         val name = address.name
         val existing = loadIdentityKey(name)
         when {
+            // ⚠ Never about ourselves, and **first**, which is where upstream puts it. It was
+            // the third arm, below the insert, so the first sighting of this account's own key
+            // wrote a row for it after all -- the one thing this arm exists to prevent. What it
+            // wrote was harmless (the real key, at a trust level everything treats as fine),
+            // but the point of the guard is that nothing in this path touches our own identity
+            // at all: a key claiming to be this account's own is not a safety number to accept
+            // or refuse, it is somebody else's key under our name, and acting on it would
+            // archive our own devices' sessions and throw away the account's resend log on a
+            // stranger's say-so.
+            //
+            // Upstream keeps a self row too, but writes it deliberately and marked VERIFIED --
+            // `IdentityTableCleanupMigrationJob`, whose whole subject is "inconsistent state
+            // for ourself in the identity table". Arriving at one by accident, through the
+            // path that exists to judge *other* people's keys, is how that state gets
+            // inconsistent in the first place.
+            isSelfAddress(name) -> {
+                if (existing != null && existing != identityKey) {
+                    Timber.w("signal store: a different identity key for this account itself; ignoring it")
+                }
+                IdentityKeyStore.IdentityChange.NEW_OR_UNCHANGED
+            }
+
             existing == null -> {
                 insertIdentity(name, identityKey, TRUSTED_UNVERIFIED)
                 IdentityKeyStore.IdentityChange.NEW_OR_UNCHANGED
             }
             existing == identityKey -> IdentityKeyStore.IdentityChange.NEW_OR_UNCHANGED
-
-            // ⚠ Never about ourselves. Upstream makes this the first arm and does nothing but
-            // log it: a key claiming to be this account's own, and differing from the one this
-            // device holds, is not a safety number to re-accept -- it is somebody else's key
-            // under our name. Acting on it would have archived our own devices' sessions and
-            // thrown away the account's resend log on a stranger's say-so.
-            isSelfAddress(name) -> {
-                Timber.w("signal store: a different identity key for this account itself; ignoring it")
-                IdentityKeyStore.IdentityChange.NEW_OR_UNCHANGED
-            }
 
             else -> {
                 // ⚠ How far it is demoted depends on where it was, which it did not.

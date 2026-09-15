@@ -534,6 +534,38 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         }
     }
 
+    /**
+     * Numbers that are not shaped like numbers.
+     *
+     * The rule is `BadE164MigrationJob`'s, copied rather than invented, including the part that
+     * reads as a mistake and is not -- upstream's own comment says *"A number with exactly 7
+     * chars (strange but true -- neither shortcodes nor longcodes can be 7 chars long)"*.
+     *
+     * A malformed number is not cosmetic: every lookup by number is an equality match, so a row
+     * holding `(704) 555-0148` can never be found by the `+17045550148` anyone would search
+     * with, and the person quietly has two half-rows or none.
+     *
+     * Reported, not repaired, for the reason [duplicateNumbers] is. Upstream has three tiers of
+     * repair because it is fixing what its own old versions wrote; the question here is whether
+     * this app has ever written one.
+     *
+     * @return how many rows hold a number of that shape.
+     */
+    fun malformedNumbers(): Int = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            """
+            SELECT count(*) FROM recipient
+            WHERE e164 IS NOT NULL AND (
+              e164 GLOB '*[^+0-9]*'
+                OR (LENGTH(e164) > 7 AND e164 NOT GLOB '+[0-9]*')
+                OR (LENGTH(e164) == 7)
+                OR (LENGTH(e164) < 7 AND e164 NOT GLOB '[0-9]*')
+            )
+            """.trimIndent(),
+            null
+        ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+    }
+
     fun counts(): Counts = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             """
@@ -898,8 +930,24 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         }
     }
 
-    private companion object {
+    internal companion object {
         /** How a phone-number identity writes itself as a service id. */
         private const val PNI_PREFIX = "PNI:"
+
+        /**
+         * Whether a stored number is shaped like one, as `BadE164MigrationJob` judges it.
+         *
+         * The same four rules as the query in [malformedNumbers], as a pure function so they
+         * can be tested against upstream's own documented cases. A rule copied from another
+         * codebase is worth pinning: if it is ever edited into something subtly different, the
+         * query and this drift apart silently and the check starts answering a question nobody
+         * asked.
+         */
+        internal fun looksLikeANumber(e164: String): Boolean = when {
+            e164.any { it != '+' && !it.isDigit() } -> false
+            e164.length == 7 -> false
+            e164.length > 7 -> e164.startsWith("+") && e164.drop(1).all { it.isDigit() }
+            else -> e164.all { it.isDigit() }
+        }
     }
 }

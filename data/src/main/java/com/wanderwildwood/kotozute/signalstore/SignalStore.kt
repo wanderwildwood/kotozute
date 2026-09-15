@@ -823,6 +823,22 @@ class SignalStore(private val context: Context) {
         return dupes.size
     }
 
+    /**
+     * Says so if any stored number is not shaped like a number.
+     *
+     * `BadE164MigrationJob`'s rule, without its repair. See
+     * [SignalContactStore.malformedNumbers].
+     */
+    fun reportMalformedNumbers(): Int {
+        val bad = runCatching { contacts.malformedNumbers() }
+            .onFailure { Timber.w(it, "signal contacts: could not check the numbers' shape") }
+            .getOrDefault(0)
+        if (bad > 0) {
+            Timber.w("signal contacts: %d row(s) hold a number that is not shaped like one", bad)
+        }
+        return bad
+    }
+
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 

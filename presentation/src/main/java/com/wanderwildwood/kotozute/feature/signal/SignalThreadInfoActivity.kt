@@ -30,10 +30,13 @@ import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
  * conversation has carried, and the one setting that applies to it.
  *
  * Not the SMS screen with a different source behind it. That one is built from Recipients
- * and MmsParts, and offers notification channels, blocking and deleting -- none of which a
- * Signal thread has an equivalent for here. Blocking in particular is a Signal-side action
- * and the bridge's method allowlist does not carry it; offering a button that cannot work
- * would be worse than not offering one.
+ * and MmsParts, and offers notification channels and deleting, neither of which a Signal
+ * thread has an equivalent for here.
+ *
+ * ⚠ It also said blocking could not work, on the reasoning that it was a Signal-side action
+ * the bridge would not carry. This screen has blocked and unblocked since the account's
+ * blocked list became readable -- see the row itself, which is offered only once this device
+ * has that list.
  */
 class SignalThreadInfoActivity : QkThemedActivity() {
 
@@ -168,7 +171,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             }
         }
 
-        // Realm and the bridge both off the main thread; this screen opens over a
+        // Realm and the network both off the main thread; this screen opens over a
         // conversation and a stutter there is the one place it would be noticed.
         thread(isDaemon = true) { load() }
         thread(isDaemon = true) { loadIdentity() }
@@ -350,8 +353,8 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     }
 
     /**
-     * The safety number, fetched separately from the rest: it needs the bridge, and a
-     * screen that waits for the network to show a name would be the wrong trade.
+     * The safety number, fetched separately from the rest: it opens the protocol store, and
+     * a screen that waits for that to show a name would be the wrong trade.
      */
     private fun loadIdentity() {
         if (!threadKey.startsWith("direct:")) return // a group has one per member

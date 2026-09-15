@@ -91,7 +91,7 @@ class SignalSyncWorker(appContext: Context, params: WorkerParameters) : Worker(a
                 ExistingPeriodicWorkPolicy.KEEP,
                 PeriodicWorkRequest.Builder(SignalSyncWorker::class.java, 15, TimeUnit.MINUTES)
                     // Linear and short, because the only thing that asks for a retry is a
-                    // catch-up that stopped short of a bridge which is up and holding more.
+                    // catch-up that stopped short while the server was still holding more.
                     // That wants trying again in a moment, not in an hour.
                     .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.SECONDS)
                     .setConstraints(

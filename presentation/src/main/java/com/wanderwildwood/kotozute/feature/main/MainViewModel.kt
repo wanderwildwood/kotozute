@@ -168,8 +168,8 @@ class MainViewModel @Inject constructor(
         val smsIds = items.filterIsInstance<InboxItem.Sms>().map { it.conversation.id }
             .plus(items.filterIsInstance<InboxItem.Signal>().mapNotNull { it.joined?.id })
         if (smsIds.isNotEmpty()) markRead.execute(smsIds)
-        // Signal threads are marked up to now rather than by id: the bridge's read receipt
-        // is "everything in this thread up to this moment", which is what this means.
+        // Signal threads are marked up to now rather than by id: a Signal read receipt says
+        // "everything in this thread up to this moment", which is what this means.
         val now = System.currentTimeMillis()
         items.filterIsInstance<InboxItem.Signal>().forEach { item ->
             signalRepo.markRead(item.thread.threadKey, now)

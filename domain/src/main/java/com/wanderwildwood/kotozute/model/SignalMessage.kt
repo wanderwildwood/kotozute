@@ -12,8 +12,8 @@ import io.realm.annotations.PrimaryKey
  * MmsPart and Recipient row before rebuilding them from the provider. Signal rows in
  * those tables would be destroyed by an ordinary re-sync, so they live here instead.
  *
- * The primary key is the bridge's message id -- "<authorUuid>:<timestamp>" -- which is
- * how Signal itself identifies a message. Keying on it means a message can arrive twice
+ * The primary key is "<authorUuid>:<timestamp>", which is how Signal itself identifies a
+ * message. Keying on it means a message can arrive twice
  * (one logical message can produce several notifications, and an imported backup can
  * re-deliver what we already hold) without ever duplicating.
  */
@@ -21,7 +21,13 @@ open class SignalMessage : RealmObject() {
 
     @PrimaryKey var id: String = ""
 
-    /** Bridge-assigned cursor. Sync asks for everything after the highest seq we hold. */
+    /**
+     * ⚠ **Always zero, and read by nothing.** It was the bridge's cursor: a sync asked for
+     * everything after the highest seq held. This device's own connection has no such
+     * number -- the server's queue is drained and acked rather than paged -- so every writer
+     * sets zero and no query mentions it. Kept only because dropping an indexed column from
+     * a live store is a migration, not a deletion.
+     */
     @Index var seq: Long = 0
 
     /** "direct:<uuid>" or "group:<groupId>". */
@@ -41,21 +47,22 @@ open class SignalMessage : RealmObject() {
     var quoteTs: Long = 0
     var read: Boolean = false
 
-    /** "live" from the bridge's stream, "import" from a restored Signal backup. */
+    /** "live" from the connection's own stream, "import" from a restored Signal backup. */
     var source: String = "live"
 
     /**
-     * The bridge's attachment list, verbatim JSON. Realm cannot hold a list of plain
+     * The attachment list, verbatim JSON. Realm cannot hold a list of plain
      * objects without another RealmObject per row, and nothing queries inside this --
      * it is read once when a row is drawn.
      */
     var attachments: String = ""
 
     /**
-     * When this copy must be gone, in ms; 0 means never. The bridge purges its own row on
-     * time, but that row is not the one anybody reads -- this is. Without honouring it here
-     * the bridge deletes the only copy that was ever going to go and the phone keeps the
-     * message for ever, in the thread, in the inbox snippet, in search and in the browser.
+     * When this copy must be gone, in ms; 0 means never. This is the only copy there is, so
+     * nothing else will ever remove it -- and unhonoured it keeps the message for ever, in
+     * the thread, in the inbox snippet, in search and in the browser. It was written when a
+     * bridge held a second copy and purged that one on time, which deleted the row nobody
+     * read and left this one standing.
      */
     @Index var expiresAt: Long = 0
 

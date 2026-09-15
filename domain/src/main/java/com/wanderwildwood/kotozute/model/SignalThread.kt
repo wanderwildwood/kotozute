@@ -14,7 +14,7 @@ open class SignalThread : RealmObject() {
     /** "direct" or "group". */
     var kind: String = "direct"
 
-    /** Contact or group name as the bridge resolved it; may be empty. */
+    /** The contact's or group's name as this device resolved it; may be empty. */
     var title: String = ""
 
     /**

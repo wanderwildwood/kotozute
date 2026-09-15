@@ -155,15 +155,12 @@ object RealmEncryption {
      * Last resort, for a database that exists, claims to be encrypted, and will not open --
      * a keystore that lost its key, which some devices do on a firmware update.
      *
-     * Both rails can be filled again from somewhere else: SMS from the telephony provider on
-     * the next sync, Signal from the bridge, which keeps its own copy. What does not come
-     * back is what only ever lived here -- drafts, pins, and which conversations were
-     * archived. That is a real loss and this says so in the log rather than quietly starting
-     * over as though nothing had happened.
-     *
-     * The Signal cursor goes with the database. It is a high-water mark into the bridge's
-     * Signal delivers a message to this device once, so what a discarded database held is
-     * gone with it -- there is nothing to draw down again.
+     * SMS can be filled again from the telephony provider on the next sync. Signal cannot:
+     * this database holds the only copy of it, and Signal delivers a message to a device
+     * once, so what a discarded database held is gone with it -- there is nothing to draw
+     * down again. Nor are the drafts, the pins, or which conversations were archived, on
+     * either rail. That is a real loss and this says so in the log rather than quietly
+     * starting over as though nothing had happened.
      */
     fun discardUnreadableRealm(context: Context) {
         val dir = context.filesDir

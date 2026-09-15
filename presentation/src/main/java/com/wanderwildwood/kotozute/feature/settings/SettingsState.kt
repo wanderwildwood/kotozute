@@ -48,12 +48,9 @@ data class SettingsState(
     val desktopSyncEnabled: Boolean = false,
     val desktopSyncTailscaleOnly: Boolean = true,
     val signalPaired: Boolean = false,
-    val signalBridgeSummary: String = "",
     val signalEnabled: Boolean = false,
-    /** Linked to the account itself, as opposed to reaching it through a bridge. */
+    /** This phone is a device on the account. */
     val signalLinkedDirectly: Boolean = false,
-    /** A bridge is configured, whether or not it is the rail in use. */
-    val signalBridgePaired: Boolean = false,
     val signalStatusSummary: String = "",
     val signalKeepConnected: Boolean = false,
     val signalWeave: Boolean = true,

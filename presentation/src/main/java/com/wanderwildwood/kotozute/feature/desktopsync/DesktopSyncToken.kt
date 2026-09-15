@@ -25,9 +25,8 @@ internal fun tokenMatches(supplied: String?, token: String): Boolean {
  * `==` returns as soon as it finds a mismatch, so how long the answer takes says how much of
  * the token the caller got right, and a patient caller on the same network can walk a secret
  * out one character at a time. Over a LAN, through NanoHTTPD, against a token of this length,
- * that attack is not remotely practical -- but the bridge is careful about exactly this on
- * its side of the same secret, and a check that is careful at one end and casual at the other
- * is worth neither reasoning about nor explaining.
+ * that attack is not remotely practical -- but a check that is careful in one place and
+ * casual in another is worth neither reasoning about nor explaining.
  *
  * Length is not treated as a secret: the token's length is fixed and public.
  */

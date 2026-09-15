@@ -135,7 +135,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         // Without this the Signal stream only ran while its screen was open, so a
         // message arriving with the app closed was not picked up until the next time
-        // someone went looking -- which defeats the point of the bridge pushing at all.
+        // someone went looking -- which defeats the point of holding the stream open at all.
         // Subscribed unconditionally. Gating this on the preference meant that switching
         // Signal on for the first time started the stream but left nothing listening to
         // announce what arrived -- silent until the next launch, which is exactly the
@@ -159,10 +159,10 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         }
         }.onFailure { Timber.w(it, "signal: startup failed, carrying on without it") }
 
-        // Disappearing messages have to be swept here, not only on the bridge. The bridge
-        // deletes its own row on time, but the phone's copy is the one anybody reads -- and
-        // without this it is the copy that outlives the timer. Reads already hide an expired
-        // message, so this is about not keeping it on disk after it stopped being shown.
+        // Disappearing messages have to be swept here, because the phone's copy is the only
+        // one there is -- and without this it is the copy that outlives the timer. Reads
+        // already hide an expired message, so this is about not keeping it on disk after it
+        // stopped being shown.
         //
         // A minute, not the six-hour attachment pass: a Signal timer can be thirty seconds.
         GlobalScope.launch(Dispatchers.IO) {

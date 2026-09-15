@@ -229,8 +229,9 @@ object ProtocolDatabaseSelfCheck {
 
             // Group ids. The wire carries a master key; the id is what you get by deriving
             // secret params from it and taking the public group identifier. Base64 of the
-            // master key is stable, plausible and wrong -- the bridge files the same group
-            // under the derived id, so the two rails would split every group in two.
+            // master key is stable, plausible and wrong -- every other client files the same
+            // group under the derived id, so a thread keyed the other way is a second, private
+            // copy of a conversation everyone else shares.
             val masterKey = ByteArray(32) { it.toByte() }
             val derivedGroupId = ContentNormalizer.groupIdForCheck(masterKey)
             val rawMasterKeyB64 = android.util.Base64.encodeToString(masterKey, android.util.Base64.NO_WRAP)

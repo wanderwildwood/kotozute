@@ -1054,10 +1054,10 @@ class SignalStore(private val context: Context) {
             .joinToString("")
             .takeIf { it.isNotBlank() && it != "." && it != ".." }
             ?: return null
-        // A name that was already a plain one is kept exactly. It matters for a copy written
-        // by a bridge: there the file is named by the attachment id the messages already
-        // hold, and renaming it would leave every one of those rows pointing at a file that
-        // is now on the phone under a name nothing asks for. A name that had to be changed
+        // A name that was already a plain one is kept exactly. It matters for a copy whose
+        // file is named by the attachment id the messages already hold: renaming it would
+        // leave every one of those rows pointing at a file that is now on the phone under a
+        // name nothing asks for. A name that had to be changed
         // gets the prefix, so it cannot collide with an id that means something.
         val id = if (safe == name) name else "import-$safe"
         return id.takeIf {

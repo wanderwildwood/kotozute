@@ -924,9 +924,9 @@ class SignalThreadActivity : QkThemedActivity() {
     ) : RecyclerView.ViewHolder(b.root) {
         fun bind(m: SignalMessage, previous: SignalMessage?, next: SignalMessage?) {
             // A view-once message has no body and no attachment on purpose -- the picture
-            // is gone, which is the whole promise. The bridge keeps the row so the thread
-            // does not have a silent hole in it; drawn as an empty bubble it was the hole
-            // anyway, and indistinguishable from a rendering fault.
+            // is gone, which is the whole promise. The row is kept so the thread does not
+            // have a silent hole in it; drawn as an empty bubble it was the hole anyway, and
+            // indistinguishable from a rendering fault.
             val text = if (m.body.isEmpty() && m.viewOnce) {
                 getString(R.string.signal_view_once_received)
             } else {
@@ -1044,7 +1044,7 @@ class SignalThreadActivity : QkThemedActivity() {
          * found by date within this thread -- two messages sharing a millisecond in one
          * conversation is not a case worth carrying an author column for.
          *
-         * A thread starts empty and fills from the day the bridge was paired, so the quoted
+         * A thread starts empty and fills from the day this phone was linked, so the quoted
          * message is often simply not here. That says so rather than showing nothing, because
          * a reply with no visible antecedent is the confusion this is meant to remove.
          */

@@ -302,21 +302,16 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalUnpair.setVisible(state.signalPaired)
         // The status line only means anything once Signal is actually switched on.
         binding.signalOpen.setVisible(state.signalPaired && state.signalEnabled)
-        // Not only when a bridge is paired. Importing used to run on the bridge's machine, so
-        // the row was only of use to someone who had one; it runs here now, and a linked
-        // phone is exactly the case with no history to begin with.
-        // Not only when a bridge is paired. Importing used to run on the bridge's machine, so
-        // the row was of use only to someone who had one; it runs here now, and a linked
-        // phone is exactly the case that starts with no history at all.
-        // Not only when a bridge is paired. Importing used to run on the bridge's machine, so
-        // these were of use only to someone who had one; they run here now, and a linked
-        // phone is exactly the case that starts with no history and holds the only copy of
-        // what it has since been given.
+        // Offered to any phone that is set up, not only one that was reaching Signal through
+        // a bridge. Importing used to run on the bridge's machine, so these were of use only
+        // to somebody who had one; they run here now, and a linked phone is exactly the case
+        // that starts with no history and holds the only copy of what it has since been
+        // given.
         val signalSetUp = (state.signalPaired || state.signalLinkedDirectly) && state.signalEnabled
         binding.signalFetchContacts.setVisible(signalSetUp)
-        // Directly linked only. A paired bridge resolves numbers on its own side, so asking
-        // the enclave from here would send the address book off the phone to answer a
-        // question that is already answered.
+        // Only a phone that is itself a device on the account. Anything else has no
+        // credentials to ask the enclave with, and sending the address book off the phone to
+        // be told so is the wrong way to find out.
         binding.signalDiscoverContacts.setVisible(state.signalLinkedDirectly && state.signalEnabled)
         binding.signalHistoryImport.setVisible(signalSetUp)
         binding.signalHistoryExport.setVisible(signalSetUp)
@@ -646,8 +641,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     append(account.number).append('\n')
                     if (account.selfUuid.isNotBlank()) append(account.selfUuid).append('\n')
                     append('\n')
-                    // No device list. The bridge asked signal-cli for one; this phone can
-                    // say which device it is on the account and no more, and a list it
+                    // No device list. The bridge used to ask signal-cli for one; this phone
+                    // can say which device it is on the account and no more, and a list it
                     // cannot check is worse than saying so.
                     append(activity.getString(R.string.signal_account_this_device_is, account.thisDeviceId))
                         .append("\n\n")

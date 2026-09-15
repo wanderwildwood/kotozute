@@ -266,7 +266,7 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalOpen -> navigator.showSignalConversations()
 
-                        // Enabling is only offered once a bridge is paired, so this
+                        // Enabling is only offered once the phone is on the account, so this
                         // switch cannot put Signal into a configured-but-broken state.
                         R.id.signalEnabled -> signalRepo.setEnabled(!prefs.signalEnabled.get())
 
@@ -509,7 +509,7 @@ class SettingsPresenter @Inject constructor(
 
     /**
      * Say what is actually true. Receiving degrades softly -- messages queue on Signal's
-     * servers while the bridge is away -- but sending simply cannot happen, so the line
+     * servers while the phone is away -- but sending simply cannot happen, so the line
      * names read-only rather than implying something is on its way.
      */
     private fun signalStatusSummary(conn: SignalRepository.ConnectionState): String {
@@ -547,8 +547,9 @@ class SettingsPresenter @Inject constructor(
             }
             .orEmpty()
 
-        // A phone that is its own Signal device has no bridge to be unreachable or to refuse
-        // it, and saying otherwise sends someone to re-pair something that does not exist.
+        // A phone that is its own Signal device has nothing between it and the server to be
+        // unreachable or to refuse it, and saying otherwise sends somebody off to re-pair
+        // something that does not exist.
         // Contacts, on the direct rail only. Names come from profiles, and whether a profile
         // key has arrived is invisible from the outside -- this is the only way to tell
         // "nobody has shared one" apart from "the fetch is broken".

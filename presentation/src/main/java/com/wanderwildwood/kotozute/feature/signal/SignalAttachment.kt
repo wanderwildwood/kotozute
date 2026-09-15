@@ -9,10 +9,10 @@ import com.wanderwildwood.kotozute.extensions.getType
 import java.io.ByteArrayOutputStream
 
 /**
- * Turning a file into what the bridge takes: an RFC 2397 data URI.
+ * Turning a file into what the send path takes: an RFC 2397 data URI.
  *
- * signal-cli accepts these directly, so nothing decrypted is written to disk on the way
- * through. Shared by the thread screen and the Desktop Sync relay, because a picture sent
+ * Carried in memory rather than as a path, so nothing decrypted is written to disk on the
+ * way through. Shared by the thread screen and the Desktop Sync relay, because a picture sent
  * from the browser and the same picture sent from the phone should arrive the same size
  * and in the same format -- two copies of this would drift apart on the first change.
  */

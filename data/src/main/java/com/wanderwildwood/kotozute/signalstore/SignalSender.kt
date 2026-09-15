@@ -295,6 +295,7 @@ internal class SignalSender(
         revision: Int = 0
     ): Result {
         if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
+        refuseIfTooLong(body)?.let { return it }
         val timestamp = System.currentTimeMillis()
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
@@ -377,6 +378,38 @@ internal class SignalSender(
             Result.Failed(t.message ?: t::class.java.simpleName)
         }
     }
+
+    /**
+     * Refuses a message body no recipient would accept, rather than sending one that vanishes.
+     *
+     * ⚠ **A modern Signal client discards this message rather than showing it.**
+     * `EnvelopeContentValidator` answers `Invalid("[DataMessage] Body exceeds 2048 bytes!")` for
+     * anything over `SignalServiceMessageLimits.MAX_INLINE_BODY_SIZE_BYTES`, and an invalid
+     * envelope is dropped on the floor. The server takes it happily, so this phone would report
+     * it delivered and the person it was written to would never see it -- a message lost with a
+     * tick against it, which is the worst way for one to be lost.
+     *
+     * ⚠ This app's own receive path does **not** catch it, because the validator in the
+     * `_152` fork this depends on predates the rule. So a long message reaches another kotozute
+     * and is discarded by that person's primary Signal -- present on one of their devices and
+     * missing from another.
+     *
+     * Upstream splits instead: the body is trimmed to the limit and the whole text goes as a
+     * `LONG_TEXT` attachment (`MessageUtil.getSplitMessage`). That is a feature this app does
+     * not have, and `IndividualSendJob` keeps exactly this refusal as the backstop for when the
+     * split has not happened -- `UndeliverableMessageException("The total body size was greater
+     * than our limit")`. The backstop is what is ported; the split is worth having later.
+     */
+    private fun refuseIfTooLong(body: String): Result.Failed? =
+        if (isBodyTooLong(body)) {
+            Timber.w("signal send: a message body of %d bytes is over the limit; refusing", utf8Size(body))
+            Result.Failed(
+                "That message is too long to send. Signal takes about 2,000 characters in one " +
+                    "message; sending it in two will work."
+            )
+        } else {
+            null
+        }
 
     /**
      * Tells a group's members that it has changed -- and, at creation, that it exists.
@@ -1179,6 +1212,7 @@ internal class SignalSender(
         expiresInSeconds: Int = 0,
         expireTimerVersion: Int = 0
     ): Result {
+        refuseIfTooLong(body)?.let { return it }
         val timestamp = System.currentTimeMillis()
         val streams = try {
             attachments.mapNotNull { attachmentStream(it) }
@@ -1343,6 +1377,29 @@ internal class SignalSender(
          * a ContentTooLargeException that says what made it large.
          */
         private const val MAX_ENVELOPE_SIZE = 256L * 1024L
+
+        /**
+         * The most a message body may be, in bytes of UTF-8.
+         *
+         * `SignalServiceMessageLimits.MAX_INLINE_BODY_SIZE_BYTES`, which is two kibibytes.
+         * Written out rather than referenced because the `_152` fork of signal-service this
+         * depends on predates the class that holds it; the number is upstream's, not a guess.
+         */
+        internal const val MAX_INLINE_BODY_SIZE_BYTES = 2 * 1024
+
+        /** A body's length as the limit counts it: bytes of UTF-8, not characters. */
+        internal fun utf8Size(body: String): Int = body.toByteArray(Charsets.UTF_8).size
+
+        /**
+         * Whether a body is longer than any recipient will accept.
+         *
+         * Its own function so the boundary can be tested, and because "how long is this" has a
+         * wrong answer that looks right: `String.length` counts UTF-16 units, so an emoji or a
+         * kana costs more than it appears to and a message that passes a character check can
+         * still be refused by the far end.
+         */
+        internal fun isBodyTooLong(body: String): Boolean =
+            utf8Size(body) > MAX_INLINE_BODY_SIZE_BYTES
         private const val MAX_INCREMENTAL_MACS_PER_ENVELOPE = 10
     }
 }

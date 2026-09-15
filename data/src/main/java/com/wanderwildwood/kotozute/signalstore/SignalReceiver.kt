@@ -1725,6 +1725,18 @@ internal class SignalReceiver(
             Timber.w(it, "signal retry: could not describe the message that would not open")
             return false
         }
+        // ⚠ Counted before anything is spent on it. Past ten failures from one person inside
+        // three hours this phone stops asking, exactly as upstream stops
+        // (`MessageDecryptor`, `RemoteConfig.retryReceiptMaxCount`) -- and stopping covers the
+        // prekey rotation below as well as the receipt, because rotating is the expensive end
+        // of the loop.
+        if (!keepAskingAfterFailure(sender, System.currentTimeMillis())) {
+            Timber.w(
+                "signal retry: too many messages from this person have failed lately; " +
+                    "not asking again for now"
+            )
+            return false
+        }
         // Replace the keys before asking, not after. See [SignalEvents.rotatePreKeys]: a prekey
         // message that would not open indicts the bundle it was built against, and a resend
         // against the same bundle fails the same way.
@@ -1989,8 +2001,27 @@ internal class SignalReceiver(
             ?: return message
         if (dataMessage.attachments.isEmpty() || message.viewOnce) return message
 
+        // ⚠ Bounded, which it was not. Every pointer in the message was downloaded, and each
+        // download is allowed up to the receive ceiling -- so one message claiming five
+        // hundred attachments could ask this phone to fetch and keep more than it has room
+        // for, and would hold the receive loop while it tried. Upstream takes at most
+        // `RemoteConfig.maxAttachmentCount` (`SignalServiceProtoUtil.toPointersWithinLimit`);
+        // the number is copied because this app receives no remote config.
+        //
+        // ⛔ Upstream's other rule there -- if any pointer is a voice note, keep only that one
+        // -- is deliberately not ported. Nothing here reads the voiceNote flag; a voice note is
+        // an attachment like any other, so applying that rule would silently drop real
+        // attachments rather than tidy a presentation this app does not have.
+        val pointers = dataMessage.attachments.take(MAX_ATTACHMENT_COUNT)
+        if (pointers.size < dataMessage.attachments.size) {
+            Timber.w(
+                "signal receive: a message claimed %d attachments; keeping the first %d",
+                dataMessage.attachments.size, pointers.size
+            )
+        }
+
         val array = org.json.JSONArray()
-        dataMessage.attachments.forEach { pointer ->
+        pointers.forEach { pointer ->
             val id = attachments.download(pointer)
             array.put(
                 org.json.JSONObject()
@@ -2024,6 +2055,71 @@ internal class SignalReceiver(
          * job queue, the end of the drain is where it goes.
          */
         private val repairSelfSessionFor = java.util.Collections.synchronizedSet(mutableSetOf<Int>())
+
+        /**
+         * How many messages one person may fail to send us before this phone stops asking.
+         *
+         * ⚠ **There was no cap.** Every message that would not open made this phone rotate its
+         * prekeys and post a retry receipt, and the answer to a retry receipt is another
+         * message -- which, if the session is genuinely broken rather than momentarily
+         * confused, fails the same way. Two devices can sit in that loop indefinitely, and on
+         * a phone built to stay asleep it is battery and data spent going nowhere.
+         *
+         * Ten, and a count that clears after three hours of quiet from that person: upstream's
+         * `RemoteConfig.retryReceiptMaxCount` and `retryReceiptMaxCountResetAge`, applied in
+         * `MessageDecryptor.handleProtocolException`. The numbers are copied because this app
+         * receives no remote config; the defaults are upstream's, not a guess.
+         *
+         * ⚠ The cap gates the **prekey rotation too**, not just the receipt. Upstream reaches
+         * its rotation only past this check, which is the half that would have been easy to
+         * miss -- rotating keys is the expensive end of the loop, not the receipt.
+         */
+        private const val RETRY_RECEIPT_MAX_COUNT = 10
+
+        /**
+         * The most attachments this device will take from one message.
+         *
+         * Thirty-two, which is `RemoteConfig.maxAttachmentCount`'s default. Copied rather than
+         * read, because this app receives no remote config -- the number is upstream's.
+         */
+        internal const val MAX_ATTACHMENT_COUNT = 32
+
+        /** Upstream's `retryReceiptMaxCountResetAge`. */
+        private val RETRY_RECEIPT_COUNT_RESET_MS = TimeUnit.HOURS.toMillis(3)
+
+        /**
+         * How many messages from each person have failed lately, and when the last one did.
+         *
+         * On the companion, not the instance. [SignalReceiver] is built fresh for each drain,
+         * so a counter held on the object would reset on every batch and cap nothing -- the
+         * same trap the group credential cache was in.
+         *
+         * In memory only, as upstream's `decryptionErrorCounts` is: a restart forgives
+         * everybody, which is the right direction to be wrong in. Refusing to ask for messages
+         * because of something written down before a reboot would lose real messages to a
+         * guard meant to stop a loop.
+         */
+        private val decryptionErrors =
+            java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Long>>()
+
+        /**
+         * Counts one failure from [sender] and says whether to keep asking.
+         *
+         * Pure but for the map it keeps, and separated from the receive path so the boundary
+         * can be tested: the tenth failure is still asked about and the eleventh is not, and a
+         * person who goes quiet for three hours starts again from one.
+         */
+        internal fun keepAskingAfterFailure(
+            sender: String,
+            now: Long,
+            counts: MutableMap<String, Pair<Int, Long>> = decryptionErrors
+        ): Boolean {
+            val (previous, lastAt) = counts[sender] ?: (0 to 0L)
+            val carried = if (lastAt > 0 && now - lastAt > RETRY_RECEIPT_COUNT_RESET_MS) 0 else previous
+            val count = carried + 1
+            counts[sender] = count to now
+            return count <= RETRY_RECEIPT_MAX_COUNT
+        }
 
         /**
          * How soon to try again after a null message that did not go.

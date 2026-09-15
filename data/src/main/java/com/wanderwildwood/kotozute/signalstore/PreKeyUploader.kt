@@ -285,6 +285,55 @@ internal class PreKeyUploader(
         System.currentTimeMillis() - signedPreKeys(accountIdType).loadSignedPreKey(active).timestamp
     }.getOrNull()
 
+    /**
+     * The age of the oldest signed prekey this account is relying on, across both identities.
+     *
+     * Null when neither could be read. That is not the same as "old" and is not treated as
+     * such -- see [tooOldToSendWith].
+     */
+    fun oldestSignedPreKeyAge(): Long? {
+        val ages = listOfNotNull(
+            signedPreKeyAge(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI),
+            signedPreKeyAge(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI)
+        )
+        return ages.maxOrNull()
+    }
+
+    /**
+     * Replaces the signed prekeys if they are too old to keep sending with.
+     *
+     * ⚠ **There was no such check, and [MAXIMUM_SIGNED_PREKEY_AGE_MS]'s own doc said so:**
+     * *"This app has no such guard yet; the constant is here so the number has one home when
+     * it gets one."* This is that home.
+     *
+     * The refresh runs every two days, so this should never fire -- and "should never fire" is
+     * exactly the case worth guarding, because the way it fires is the refresh having failed
+     * quietly for a fortnight. A phone with no usable connection for two weeks, or an upload
+     * the server kept refusing, would go on signing every new session with a key that stopped
+     * being fresh long ago, and nothing would have said so.
+     *
+     * Upstream puts the guard in the send path rather than the maintenance path, which is the
+     * important part: `PushSendJob.onSend` rotates synchronously and, if that fails, refuses
+     * to send (`RetryLaterException`). The maintenance pass is what *should* keep it fresh; the
+     * send is the last moment anybody can be told it did not.
+     *
+     * @return true if it is now safe to send.
+     */
+    fun refreshIfTooOldToSendWith(): Boolean {
+        val age = oldestSignedPreKeyAge()
+        if (!tooOldToSendWith(age)) return true
+        Timber.w(
+            "signal keys: the signed prekey is %d day(s) old, past the limit; replacing it now",
+            java.util.concurrent.TimeUnit.MILLISECONDS.toDays(age ?: 0)
+        )
+        val result = uploadAll()
+        if (result is Result.Failed) {
+            Timber.w("signal keys: could not replace the overdue signed prekey -- %s", result.reason)
+            return false
+        }
+        return true
+    }
+
     fun uploadAll(): Result {
         val aci = upload(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, ServiceIdType.ACI)
         if (aci is Result.Failed) return aci
@@ -519,8 +568,8 @@ internal class PreKeyUploader(
          * Signal's `MAXIMUM_ALLOWED_SIGNED_PREKEY_AGE`: "If signed prekeys or last-resort
          * kyber keys are older than this, we will require rotation before sending messages."
          * It is a stop in the *send* path (`PushSendJob`, `IndividualSendJobV2`), which
-         * rotates synchronously and refuses to send if that fails. This app has no such guard
-         * yet; the constant is here so the number has one home when it gets one.
+         * rotates synchronously and refuses to send if that fails. Ported as
+         * [refreshIfTooOldToSendWith], called from the sender before anything goes out.
          */
         val MAXIMUM_SIGNED_PREKEY_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(14)
 
@@ -531,6 +580,22 @@ internal class PreKeyUploader(
          * stream of undecryptable envelopes from becoming a stream of rotations.
          */
         val FORCE_INTERVAL_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(1)
+
+        /**
+         * Whether a signed prekey is too old to keep sending with.
+         *
+         * ⚠ **Null is not "old".** `refreshOwed` above treats an unreadable age as "refresh
+         * anyway", which is right for maintenance: the cost of an unnecessary refresh is one
+         * upload. Here the cost of guessing wrong is somebody's message not going, so a read
+         * that could not answer is answered in the direction that costs least -- send, and let
+         * the maintenance pass sort the key out. Only a definite over-age refuses.
+         *
+         * A negative age *is* old. That is a clock that went backwards, and upstream treats it
+         * the same way (`timeSinceAciSignedPreKeyRotation < 0`): a key whose age cannot be
+         * trusted is not a key to go on signing with for another fortnight.
+         */
+        fun tooOldToSendWith(ageMs: Long?): Boolean =
+            ageMs != null && (ageMs > MAXIMUM_SIGNED_PREKEY_AGE_MS || ageMs < 0)
 
         /**
          * Whether the repeated-use keys are owed a refresh, given the age of the signed prekey

@@ -236,6 +236,18 @@ internal class SignalSender(
      * the newest one.
      */
     private val sender: SignalServiceMessageSender by lazy {
+        // ⚠ Before anything goes out, not on a maintenance pass. The refresh runs every two
+        // days and should keep this from ever firing -- and the way it fires is that refresh
+        // having failed quietly for a fortnight, which is exactly when nobody would otherwise
+        // be told. Upstream puts its guard here too, in the send path
+        // (`PushSendJob.onSend`): rotate now, and refuse rather than sign another session with
+        // a key that stopped being fresh two weeks ago.
+        if (!keysFreshEnoughToSend()) {
+            throw IllegalStateException(
+                "This phone's sending keys are out of date and it could not replace them just " +
+                    "now, so nothing was sent. It will keep trying."
+            )
+        }
         if (!sealedSender.available()) {
             throw IllegalStateException(
                 "This phone has no sealed sending certificate at the moment, so nothing was " +
@@ -282,9 +294,18 @@ internal class SignalSender(
      * back to when sender keys are not usable, and for a group of a few people the difference
      * is bandwidth rather than behaviour.
      *
-     * @return the timestamp on success, or a failure naming who it could not reach. Partial
-     *   delivery is reported as failure: saying "sent" when one member did not get it is the
-     *   kind of lie that only shows up later, in an argument about who said what.
+     * @return the timestamp when **anybody** got it, or a failure when nobody did.
+     *
+     * ⚠ This doc used to say the opposite -- that partial delivery was reported as failure --
+     * and it was true once. It stopped being true when that turned out to throw the message
+     * away: the caller turns a failure into an exception, which happens before the sender's own
+     * copy is filed, so a message that reached nine of ten people vanished from the thread of
+     * the person who wrote it while the nine sat looking at it. Retyping it delivered it twice
+     * to all nine.
+     *
+     * Signal keeps the message and records per-recipient status. This app has no per-recipient
+     * column, so it keeps the message and writes who was missed to the log, which is the part
+     * a reader can act on. See the branch in the body.
      */
     fun sendToGroup(
         masterKey: ByteArray,
@@ -377,6 +398,30 @@ internal class SignalSender(
             Timber.w(t, "signal send: group send threw")
             Result.Failed(explain(t))
         }
+    }
+
+    /**
+     * Whether the signed prekeys are fresh enough to keep sending with, replacing them if not.
+     *
+     * See [PreKeyUploader.refreshIfTooOldToSendWith] for the rule and where it comes from. The
+     * common path is one read of the local store and no network at all.
+     *
+     * ⚠ A failure to *ask* is not a refusal. If this throws -- the store will not open, the
+     * uploader cannot be built -- the send goes ahead: the guard exists to stop a stale key
+     * being used for another fortnight, and turning "I could not check" into "you cannot send"
+     * would cost somebody their message over a question nobody answered.
+     */
+    private fun keysFreshEnoughToSend(): Boolean = runCatching {
+        PreKeyUploader(
+            accounts,
+            connection,
+            { SignalPreKeyStore(db, it) },
+            { SignalSignedPreKeyStore(db, it) },
+            { SignalKyberPreKeyStore(db, it) }
+        ).refreshIfTooOldToSendWith()
+    }.getOrElse {
+        Timber.w(it, "signal keys: could not check how old the sending keys are; sending anyway")
+        true
     }
 
     /**

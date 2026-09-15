@@ -92,6 +92,7 @@ internal class SignalReceiver(
         identityChangedMidBatch = false
         /** Whether the server handed out one of this device's one-time keys in this batch. */
         var usedAPreKey = false
+        repairSelfSessionFor.clear()
         var emptied = false
         val senders = mutableSetOf<String>()
 
@@ -210,6 +211,16 @@ internal class SignalReceiver(
                     { SignalKyberPreKeyStore(db, it) }
                 ).refillOneTimeIfShort()
             }.onFailure { Timber.w(it, "signal keys: could not top up after a prekey message") }
+        }
+
+        // ⚠ Only now, with the batch through. This is as near as this app gets to upstream's
+        // `DecryptionsDrainedConstraint`, which is what `AutomaticSessionResetJob` waits on:
+        // a session is thrown away once, against a settled state, rather than once per envelope
+        // while the envelopes behind it still have to be opened against it.
+        if (repairSelfSessionFor.isNotEmpty()) {
+            val devices = repairSelfSessionFor.toList()
+            repairSelfSessionFor.clear()
+            devices.distinct().forEach { repairSessionWithSelf(it) }
         }
 
         // A batch arriving is proof the socket is back, which is what was missing when a
@@ -1170,7 +1181,14 @@ internal class SignalReceiver(
             // Upstream repairs it rather than asking: `AutomaticSessionResetJob`, which
             // MessageDecryptor enqueues on exactly this branch (`if (sender.isSelf)`).
             if (senderOf(envelope) == accounts.credentials().aci) {
-                repairSessionWithSelf(envelope)
+                // ⚠ Noted, not done here. Upstream *enqueues* `AutomaticSessionResetJob`, and
+                // that job carries `DecryptionsDrainedConstraint` -- it does not run until the
+                // queue is empty. Doing it inline meant archiving the session while the rest of
+                // this batch, encrypted against that same session, was still waiting to be
+                // decrypted; and the archive was not rate-limited at all, so every failing
+                // envelope from our own device archived it again on the way past. Only the null
+                // message was ever throttled.
+                envelope.sourceDeviceId?.let { repairSelfSessionFor += it }
             } else if (!alreadyAsked) {
                 askedForRetry = askForItAgain(envelope, t)
             }
@@ -1600,9 +1618,8 @@ internal class SignalReceiver(
      * rather than on disk: a restart is itself a reason to try again, and the alternative is a
      * write on a path that runs while decryption is already failing.
      */
-    private fun repairSessionWithSelf(envelope: Envelope) {
+    private fun repairSessionWithSelf(deviceId: Int) {
         val self = accounts.credentials().aci ?: return
-        val deviceId = envelope.sourceDeviceId ?: return
         if (deviceId == accounts.credentials().deviceId) return
 
         runCatching {
@@ -1991,6 +2008,16 @@ internal class SignalReceiver(
          * [repairSessionWithSelf].
          */
         private val nextSelfResetAt = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+
+        /**
+         * Which of our own devices need their session thrown away, once this batch is through.
+         *
+         * Collected rather than acted on, because the envelopes still to be opened in this
+         * batch were encrypted against the very session the repair discards. Upstream expresses
+         * the same ordering as a constraint on the job (`DecryptionsDrainedConstraint`); with no
+         * job queue, the end of the drain is where it goes.
+         */
+        private val repairSelfSessionFor = java.util.Collections.synchronizedSet(mutableSetOf<Int>())
 
         /**
          * How soon to try again after a null message that did not go.

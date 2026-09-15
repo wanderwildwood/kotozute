@@ -308,6 +308,29 @@ class SignalStore(private val context: Context) {
      *
      * @throws IllegalStateException naming the reason if it could not be sent.
      */
+    /**
+     * Makes a group and returns the thread it will appear under.
+     *
+     * See [SignalGroups.create]. Nothing is filed here: a conversation in this app exists
+     * because a message is in it, so the group becomes visible when the first one is sent --
+     * which is what the caller does next, and is also what tells the members it exists at all.
+     */
+    fun createGroup(title: String, memberAcis: List<String>): CreatedGroup? {
+        connection.connect()
+        val masterKey = SignalGroups(connection, account, contacts).create(title, memberAcis)
+            ?: return null
+        val bytes = masterKey.serialize()
+        val groupId = ContentNormalizer.groupIdForCheck(bytes)
+        if (groupId.isBlank()) {
+            Timber.w("signal groups: made a group whose id would not derive")
+            return null
+        }
+        return CreatedGroup(masterKey = bytes, threadKey = "group:$groupId")
+    }
+
+    /** A group that now exists, and where it will show up. */
+    data class CreatedGroup(val masterKey: ByteArray, val threadKey: String)
+
     fun sendToGroup(
         masterKey: ByteArray,
         body: String,

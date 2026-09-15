@@ -111,6 +111,20 @@ internal class SignalConnection(
         org.whispersystems.signalservice.api.account.AccountApi(authenticated)
     }
 
+    /**
+     * The zk side of groups, on its own as well as inside [groups].
+     *
+     * Creating a group needs it directly -- `createNewGroup` builds the encrypted group from
+     * the members' credentials before anything is sent -- where reading one only ever needed
+     * the api that wraps it.
+     */
+    val groupOperations: org.whispersystems.signalservice.api.groupsv2.GroupsV2Operations by lazy {
+        org.whispersystems.signalservice.api.groupsv2.GroupsV2Operations(
+            org.whispersystems.signalservice.api.groupsv2.ClientZkOperations.create(configuration),
+            GROUP_MAX_SIZE
+        )
+    }
+
     /** Group operations need the zk parameters as well as the socket. */
     val groups: org.whispersystems.signalservice.api.groupsv2.GroupsV2Api by lazy {
         org.whispersystems.signalservice.api.groupsv2.GroupsV2Api(
@@ -118,10 +132,7 @@ internal class SignalConnection(
             org.whispersystems.signalservice.internal.push.PushServiceSocket(
                 configuration, credentials, userAgent, true
             ),
-            org.whispersystems.signalservice.api.groupsv2.GroupsV2Operations(
-                org.whispersystems.signalservice.api.groupsv2.ClientZkOperations.create(configuration),
-                GROUP_MAX_SIZE
-            )
+            groupOperations
         )
     }
 

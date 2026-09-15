@@ -147,6 +147,125 @@ internal class SignalGroups(
         }
     }
 
+    /**
+     * Makes a new group and puts it on the server.
+     *
+     * A port of `GroupManagerV2.createGroupOnServer`, step for step, minus the parts this app
+     * has no equivalent of (avatars, the group record's own database row).
+     *
+     * ⚠ **A group is built from credentials, not from names.** Every member is committed as an
+     * `ExpiringProfileKeyCredential` -- a zero-knowledge proof that this account holds their
+     * profile key -- so a member whose credential cannot be fetched cannot be *added*, only
+     * **invited**, and the server decides which by what is in the request. That is why this
+     * fetches a credential per member rather than trusting the contact row.
+     *
+     * The one that must succeed is **self**: upstream refuses outright without it
+     * ("Cannot create a V2 group as self does not have a versioned profile"), because a group
+     * whose creator cannot prove their own profile key is not a group anybody can verify.
+     *
+     * @param title what to call it. The server never sees it in the clear; it is encrypted
+     *   under the group's own parameters, like everything else here.
+     * @param memberAcis everybody else. The creator is added automatically and must not be in
+     *   this list.
+     * @return the new group's master key, which is the only handle anything else needs -- a
+     *   group message carries it and nothing more.
+     */
+    fun create(title: String, memberAcis: List<String>): GroupMasterKey? {
+        val credentials = accounts.credentials()
+        val selfAci = ServiceId.ACI.parseOrNull(credentials.aci) ?: run {
+            Timber.w("signal groups: no account id, so no group can be made")
+            return null
+        }
+
+        val self = candidateFor(selfAci)
+        if (self == null || !self.hasValidProfileKeyCredential()) {
+            // Upstream repairs this by uploading its own profile and trying again. This app
+            // does not write its own profile, so the honest answer is to say what is missing
+            // rather than to send a request the server will refuse.
+            Timber.w("signal groups: this account has no profile credential, so it cannot make a group")
+            return null
+        }
+
+        val members = memberAcis
+            .mapNotNull { ServiceId.ACI.parseOrNull(it) }
+            .filter { it != selfAci }
+            .distinct()
+        if (members.isEmpty()) {
+            Timber.w("signal groups: a group needs somebody else in it")
+            return null
+        }
+
+        // A member without a credential is still a candidate -- the server turns them into an
+        // invitation rather than a member, which is Signal's own behaviour and is why the
+        // credential is Optional on the type.
+        val candidates = members.map { aci ->
+            candidateFor(aci) ?: org.whispersystems.signalservice.api.groupsv2.GroupCandidate(
+                aci, java.util.Optional.empty()
+            )
+        }.toSet()
+
+        val secretParams = GroupSecretParams.generate()
+        val newGroup = runCatching {
+            connection.groupOperations.createNewGroup(
+                secretParams,
+                title,
+                java.util.Optional.empty(),
+                self,
+                candidates,
+                org.signal.storageservice.storage.protos.groups.Member.Role.DEFAULT,
+                0
+            )
+        }.onFailure { Timber.w(it, "signal groups: could not build the new group") }.getOrNull()
+            ?: return null
+
+        val auth = authorizationFor(secretParams, todaySeconds()) ?: run {
+            Timber.w("signal groups: no authorization, so the group was not sent")
+            return null
+        }
+
+        return runCatching {
+            connection.groups.putNewGroup(newGroup, auth)
+            val masterKey = secretParams.masterKey
+            Timber.i(
+                "signal groups: made a group of %d with %d invited",
+                candidates.count { it.hasValidProfileKeyCredential() } + 1,
+                candidates.count { !it.hasValidProfileKeyCredential() }
+            )
+            masterKey
+        }.onFailure { Timber.w(it, "signal groups: the server would not take the new group") }
+            .getOrNull()
+    }
+
+    /**
+     * A member, with the proof that this account holds their profile key.
+     *
+     * Null when there is no profile key on file or the server will not issue a credential for
+     * it; the caller decides whether that means "invite them" or "give up", which is the
+     * distinction upstream draws too.
+     */
+    private fun candidateFor(
+        aci: ServiceId.ACI
+    ): org.whispersystems.signalservice.api.groupsv2.GroupCandidate? {
+        val keyBytes = contacts?.profileKeyFor(aci.toString()) ?: return null
+        val profileKey = runCatching {
+            org.signal.libsignal.zkgroup.profiles.ProfileKey(keyBytes)
+        }.getOrNull() ?: return null
+
+        val credential = runCatching {
+            kotlinx.coroutines.runBlocking {
+                connection.profiles.getVersionedProfileAndCredential(aci, profileKey, null)
+            }
+        }.getOrNull()
+            ?.let { it as? org.signal.network.NetworkResult.Success }
+            ?.result
+            ?.second
+            ?: return null
+
+        return org.whispersystems.signalservice.api.groupsv2.GroupCandidate(
+            aci, java.util.Optional.of(credential)
+        )
+    }
+
     private fun authorizationFor(
         secretParams: GroupSecretParams,
         today: Long

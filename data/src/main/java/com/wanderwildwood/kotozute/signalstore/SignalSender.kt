@@ -892,8 +892,29 @@ internal class SignalSender(
             results.forEach { rememberSend(it, timestamp, reactionGroupId) }
             results.forEach { noteIfNotRegistered(it) }
             val failed = results.filterNot { it.isSuccess }
-            if (failed.isEmpty()) Result.Sent(timestamp)
-            else Result.Failed("could not reach ${failed.size} of ${results.size} group members")
+            // ⚠ Some got it is **sent**, not failed. The group message path was fixed for this
+            // in round one and these two were left with the old shape, so the same bug lived
+            // on here: the caller turns Failed into an exception, which happens before the
+            // local copy is written, so a reaction or a withdrawal that reached nine of ten
+            // people vanished from the screen of the one person who did it while the nine kept
+            // seeing it.
+            //
+            // Signal's own words for this case, in `ReactionSendJob.onFailure`: "it sent to
+            // someone, so it stays." It rolls the local change back only when the send reached
+            // nobody at all -- which here is the branch below, where nothing is written in the
+            // first place.
+            when {
+                failed.isEmpty() -> Result.Sent(timestamp)
+                failed.size < results.size -> {
+                    Timber.w(
+                        "signal send: reached %d of %d group members ts=%d; missed %s",
+                        results.size - failed.size, results.size, timestamp,
+                        failed.joinToString { describe(it) }
+                    )
+                    Result.Sent(timestamp)
+                }
+                else -> Result.Failed("could not reach any of the ${results.size} group members")
+            }
         } catch (t: Throwable) {
             Timber.w(t, "signal reaction: group send threw")
             Result.Failed(t.message ?: t::class.java.simpleName)
@@ -993,8 +1014,29 @@ internal class SignalSender(
             results.forEach { rememberSend(it, timestamp, deleteGroupId) }
             results.forEach { noteIfNotRegistered(it) }
             val failed = results.filterNot { it.isSuccess }
-            if (failed.isEmpty()) Result.Sent(timestamp)
-            else Result.Failed("could not reach ${failed.size} of ${results.size} group members")
+            // ⚠ Some got it is **sent**, not failed. The group message path was fixed for this
+            // in round one and these two were left with the old shape, so the same bug lived
+            // on here: the caller turns Failed into an exception, which happens before the
+            // local copy is written, so a reaction or a withdrawal that reached nine of ten
+            // people vanished from the screen of the one person who did it while the nine kept
+            // seeing it.
+            //
+            // Signal's own words for this case, in `ReactionSendJob.onFailure`: "it sent to
+            // someone, so it stays." It rolls the local change back only when the send reached
+            // nobody at all -- which here is the branch below, where nothing is written in the
+            // first place.
+            when {
+                failed.isEmpty() -> Result.Sent(timestamp)
+                failed.size < results.size -> {
+                    Timber.w(
+                        "signal send: reached %d of %d group members ts=%d; missed %s",
+                        results.size - failed.size, results.size, timestamp,
+                        failed.joinToString { describe(it) }
+                    )
+                    Result.Sent(timestamp)
+                }
+                else -> Result.Failed("could not reach any of the ${results.size} group members")
+            }
         } catch (t: Throwable) {
             Timber.w(t, "signal delete: the group withdrawal threw")
             Result.Failed(t.message ?: t::class.java.simpleName)

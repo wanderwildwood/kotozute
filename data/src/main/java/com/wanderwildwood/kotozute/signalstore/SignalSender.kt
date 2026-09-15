@@ -216,7 +216,32 @@ internal class SignalSender(
         override fun getPassword(): String? = accounts.credentials().password
     }
 
+    /**
+     * The thing that puts bytes on the wire -- and the one gate in front of all of it.
+     *
+     * ⚠ **Nothing leaves this device without a sealed-sender certificate.** Upstream expresses
+     * that as `SealedSenderConstraint`, carried by every outgoing job it has, and a job whose
+     * constraint is not met does not run: it waits, for up to a day, rather than going out
+     * identified. That is a decision about privacy, not about delivery -- sealed sender is what
+     * stops the server learning who is writing to whom, and quietly dropping it because a
+     * certificate fetch failed hands that back.
+     *
+     * Here it refuses instead of waiting, because there is no job queue to wait in and a person
+     * is looking at the composer. That is this app's own stated bargain too: sending fails hard,
+     * because a message somebody believes they sent and which never arrives is worse than one
+     * that plainly refuses. The two answers agree.
+     *
+     * One gate, at the lazy property every one of the eighteen send paths already goes through,
+     * rather than a check at the top of each -- seventeen guards is sixteen chances to forget
+     * the newest one.
+     */
     private val sender: SignalServiceMessageSender by lazy {
+        if (!sealedSender.available()) {
+            throw IllegalStateException(
+                "This phone has no sealed sending certificate at the moment, so nothing was " +
+                    "sent. It will try again on its own."
+            )
+        }
         val socket = PushServiceSocket(configuration, credentials, userAgent, true)
         val aci = credentials.aci ?: error("not linked")
         SignalServiceMessageSender(

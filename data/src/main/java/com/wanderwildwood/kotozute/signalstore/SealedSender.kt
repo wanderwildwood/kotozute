@@ -117,6 +117,19 @@ internal class SealedSender(
     internal enum class Key { None, Unrestricted, Derived }
 
     /**
+     * Whether this account holds a sealed-sender certificate it may still send under.
+     *
+     * Upstream asks the same question before **anything** leaves the device.
+     * `SealedSenderConstraint` is carried by every outgoing job there is -- individual sends,
+     * group sends, every kind of receipt, reactions, deletes, resends, null messages, sender-key
+     * distribution and all forty of the multi-device syncs -- and a job whose constraint is not
+     * met does not run. It is not a question about the recipient; it is a question about us.
+     *
+     * @return true when a certificate is in hand and further from expiry than [RENEW_MARGIN_MS].
+     */
+    fun available(): Boolean = senderCertificate() != null
+
+    /**
      * The certificate, fetched when there is not a usable one already.
      *
      * ⚠ The cache is on the companion, not the instance, and that is the whole point of it:

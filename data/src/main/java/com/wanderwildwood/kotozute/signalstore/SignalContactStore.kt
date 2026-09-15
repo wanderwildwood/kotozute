@@ -82,6 +82,12 @@ internal class SignalContactStore(
      */
     fun store(contacts: List<Contact>) = withStoreLock(db) {
         val database = db.writableDatabase
+        // ⚠ Collected here and told to anybody *after* the transaction closes. Telling the
+        // listener from inside the loop means a Realm write and a thread lookup happen with a
+        // SQLCipher transaction open, once per changed contact -- unrelated work holding a
+        // write transaction on the store that holds the identity keys. The lock is reentrant
+        // so nothing deadlocks, which is exactly what makes it easy to miss.
+        val numberChanges = mutableListOf<Triple<String, String, String>>()
         database.beginTransaction()
         try {
             contacts.forEach { c ->
@@ -90,13 +96,19 @@ internal class SignalContactStore(
                 val pni = c.pni ?: c.serviceId.takeIf { isPni(it) }
                 upsert(
                     database, aci, pni, c.e164, c.name, c.profileKey, c.username,
-                    c.hidden, c.unregisteredAt
+                    c.hidden, c.unregisteredAt, numberChanges
                 )
             }
             database.setTransactionSuccessful()
             Timber.i("signal contacts: stored %d", contacts.size)
         } finally {
             database.endTransaction()
+        }
+        // Only what actually committed. A change collected from a transaction that rolled back
+        // never happened, and a note about it would describe a number this store does not hold.
+        numberChanges.forEach { (aci, from, to) ->
+            runCatching { onNumberChanged(aci, from, to) }
+                .onFailure { Timber.w(it, "signal contacts: could not note a number change") }
         }
     }
 
@@ -118,7 +130,15 @@ internal class SignalContactStore(
         username: String?,
         /** Null where the source does not carry it; see [Contact.hidden]. */
         hidden: Boolean?,
-        unregisteredAt: Long?
+        unregisteredAt: Long?,
+        /**
+         * Where a noticed number change is put down, to be announced after the commit.
+         *
+         * No default on purpose. A default empty list would let a future caller drop every
+         * change it noticed without writing anything that says so -- the silent-swallow shape
+         * this rail keeps finding, built into a signature.
+         */
+        changes: MutableList<Triple<String, String, String>>
     ) {
         val now = System.currentTimeMillis()
         val byAci = aci?.let { candidateFor(database, "aci", it) }
@@ -249,10 +269,10 @@ internal class SignalContactStore(
                 profileKey, profileKey, profileKey, profileKey, now, existing
             )
         )
-        // After the write, so a note never claims a change the store did not take.
+        // Collected, not announced. See [store]: the caller fires these once the transaction
+        // has closed.
         if (aci != null && e164 != null && noteworthyNumberChange(numberBefore, e164)) {
-            runCatching { onNumberChanged(aci, numberBefore.orEmpty(), e164) }
-                .onFailure { Timber.w(it, "signal contacts: could not note a number change") }
+            changes += Triple(aci, numberBefore.orEmpty(), e164)
         }
     }
 

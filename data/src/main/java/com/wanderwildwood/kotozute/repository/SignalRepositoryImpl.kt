@@ -410,6 +410,29 @@ class SignalRepositoryImpl @Inject constructor(
      * drift into being subtly different rows. What differs between them is only the sentence.
      */
     private fun noteLocalEvent(aci: String, body: String) {
+        val threadKey = "direct:$aci"
+        // ⚠ **Only into a conversation that already exists.** Without this, somebody among two
+        // hundred contacts changing their Signal name puts a *new* conversation in the inbox
+        // whose entire content is "X is now called Y" -- a conversation that does not exist,
+        // announcing itself.
+        //
+        // Upstream prevents the same thing from the other end: `MessageTable
+        // .buildMeaningfulMessagesQuery` excludes `PROFILE_CHANGE_TYPE` and
+        // `CHANGE_NUMBER_TYPE` outright, so a thread holding only those is not counted as
+        // having anything in it and never reaches the conversation list. This app has no
+        // meaningful-message column, so it declines to write the row at all -- the same
+        // outcome by the only means available.
+        //
+        // ⛔ Deliberately **not** applied to the could-not-read note. A message that arrived
+        // and could not be read is a real event in a real conversation, and upstream counts
+        // `BAD_DECRYPT_TYPE` as meaningful for exactly that reason.
+        val known = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java).equalTo("threadKey", threadKey).count() > 0
+        }
+        if (!known) {
+            Timber.i("signal: something changed about somebody with no conversation here; not starting one")
+            return
+        }
         val now = System.currentTimeMillis()
         ingest(
             listOf(
@@ -419,7 +442,7 @@ class SignalRepositoryImpl @Inject constructor(
                     // timestamp some other device might also use.
                     id = "local:$aci:$now",
                     seq = 0,
-                    threadKey = "direct:$aci",
+                    threadKey = threadKey,
                     ts = now,
                     senderUuid = aci,
                     senderNumber = "",

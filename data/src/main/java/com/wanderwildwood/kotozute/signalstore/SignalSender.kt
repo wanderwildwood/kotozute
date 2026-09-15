@@ -396,7 +396,12 @@ internal class SignalSender(
          */
         data class Failed(
             val reason: String,
-            val safetyNumberChanged: Boolean = false
+            val safetyNumberChanged: Boolean = false,
+            /**
+             * @see SignalContactStore.markUnregistered — the service saying somebody is not on
+             *   Signal is worth writing down, not just reporting.
+             */
+            val notRegistered: Boolean = false
         ) : Result
     }
 
@@ -489,7 +494,11 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(describe(result), result.identityFailure != null)
+            Result.Failed(
+                describe(result),
+                safetyNumberChanged = result.identityFailure != null,
+                notRegistered = result.isUnregisteredFailure
+            )
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal retry: could not ask for a message to be sent again")
@@ -516,7 +525,11 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(describe(result), result.identityFailure != null)
+            Result.Failed(
+                describe(result),
+                safetyNumberChanged = result.identityFailure != null,
+                notRegistered = result.isUnregisteredFailure
+            )
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal session: could not send a null message")
@@ -599,7 +612,11 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(describe(result), result.identityFailure != null)
+            Result.Failed(
+                describe(result),
+                safetyNumberChanged = result.identityFailure != null,
+                notRegistered = result.isUnregisteredFailure
+            )
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal keys: requesting them threw")
@@ -627,7 +644,11 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(describe(result), result.identityFailure != null)
+            Result.Failed(
+                describe(result),
+                safetyNumberChanged = result.identityFailure != null,
+                notRegistered = result.isUnregisteredFailure
+            )
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal configuration: requesting it threw")
@@ -684,7 +705,11 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(describe(result), result.identityFailure != null)
+            Result.Failed(
+                describe(result),
+                safetyNumberChanged = result.identityFailure != null,
+                notRegistered = result.isUnregisteredFailure
+            )
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal blocked: requesting the list threw")

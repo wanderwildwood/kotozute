@@ -800,7 +800,14 @@ class SignalStore(private val context: Context) {
                 is SignalSender.Result.Sent -> result.timestamp
                 // Typed, so the screen can offer "Send anyway" rather than reprint the
                 // reason. See [SafetyNumberChanged].
-                is SignalSender.Result.Failed -> if (result.safetyNumberChanged) {
+                is SignalSender.Result.Failed -> if (result.notRegistered) {
+                    // Written down, not just reported: see
+                    // [SignalContactStore.markUnregistered]. Upstream marks them from the
+                    // same signal, and its contact search then stops offering them.
+                    runCatching { contacts.markUnregistered(recipient) }
+                        .onFailure { Timber.w(it, "signal send: could not note that they have left") }
+                    throw IllegalStateException(result.reason)
+                } else if (result.safetyNumberChanged) {
                     throw com.wanderwildwood.kotozute.repository.SafetyNumberChanged(
                         threadKey = "direct:$recipient",
                         name = runCatching { contacts.nameFor(recipient) }.getOrNull()

@@ -362,6 +362,29 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         byServiceId(serviceId, "sealed_sender_mode") { it.getInt(0) } ?: SEALED_SENDER_UNKNOWN
 
     /**
+     * Notes that the service says this person is not on Signal.
+     *
+     * ⚠ A send that comes back "not registered" is the account telling us something, and it
+     * was being thrown away. The column existed and was only ever written from a storage
+     * record -- so somebody who had left Signal went on being offered in the picker, and every
+     * message to them failed the same way, until their primary noticed and wrote a record
+     * saying so.
+     *
+     * Signal marks them on exactly this signal: `SignalDatabase.recipients().markUnregistered`
+     * from the send result, and its contact search then excludes them. On the one-to-one path
+     * it also refreshes contact discovery, which is the authority; that is deliberately not
+     * done here, because discovery on this account is rate-limited and a send failure is not
+     * worth spending the window on. The mark is local and a storage read or a later discovery
+     * pass clears it.
+     */
+    fun markUnregistered(serviceId: String, at: Long = System.currentTimeMillis()) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "UPDATE recipient SET unregistered_at = ? WHERE aci = ? OR pni = ?",
+            arrayOf<Any?>(at, serviceId, serviceId)
+        )
+    }
+
+    /**
      * Whether this address is a phone-number identity with no account identity behind it.
      *
      * Sealed sender cannot reach such a recipient: the access key is checked against the

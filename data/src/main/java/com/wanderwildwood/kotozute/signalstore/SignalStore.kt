@@ -566,6 +566,12 @@ class SignalStore(private val context: Context) {
     fun forgetSentMessage(sentTimestamp: Long): Int = SignalMessageLog(database).forgetSent(sentTimestamp)
 
     /**
+     * Empties the resend log. See [SignalMessageLog.forgetEverything] -- for the case where
+     * every message goes at once and there are no timestamps left to name.
+     */
+    fun forgetEverySentMessage(): Int = SignalMessageLog(database).forgetEverything()
+
+    /**
      * Tells this account's own devices what was read here. Not a receipt; see the sender.
      *
      * @param read whoever wrote each message, and the timestamp they sent it with.

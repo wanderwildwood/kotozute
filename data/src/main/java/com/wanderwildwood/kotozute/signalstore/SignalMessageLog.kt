@@ -250,6 +250,21 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
     }
 
     /**
+     * Drops the lot.
+     *
+     * For "delete Signal data", where every message row goes at once and there is nothing
+     * left to enumerate timestamps from. Upstream reaches the same state by its trigger firing
+     * once per deleted row; there is no row here for a trigger to fire on, so it is said
+     * outright.
+     */
+    fun forgetEverything(): Int = withStoreLock(db) {
+        val gone = db.writableDatabase.compileStatement("DELETE FROM message_log")
+            .use { it.executeUpdateDelete() }
+        Timber.i("signal message log: cleared %d entry(ies) with the account's messages", gone)
+        gone
+    }
+
+    /**
      * Drops everything older than [MAX_AGE_MS].
      *
      * Called on the same pass that sweeps undecryptable envelopes, so there is one place that

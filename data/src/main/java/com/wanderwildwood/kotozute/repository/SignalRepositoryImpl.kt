@@ -253,6 +253,13 @@ class SignalRepositoryImpl @Inject constructor(
                 .onFailure { Timber.w(it, "signal: could not remove the account's files") }
             Timber.i("signal: removed %d attachment file(s) with the messages", doomed.size)
         }
+        // ⚠ And the resend log, all of it. It holds the plaintext of everything this device
+        // has ever sent; "delete Signal data" that leaves that behind is not what the row
+        // says it does -- the same fault this function already had for attachments. Not by
+        // timestamp: the rows are gone, so there is nothing left to enumerate, and nothing
+        // that survives this is worth keeping anyway.
+        runCatching { signalStore.forgetEverySentMessage() }
+            .onFailure { Timber.w(it, "signal: could not clear the resend log") }
         publishState(signalConnected = false, error = null)
     }
 
@@ -270,6 +277,14 @@ class SignalRepositoryImpl @Inject constructor(
         var removed = 0
         val doomedAttachments = mutableListOf<String>()
         val expiredThreads = mutableListOf<String>()
+        // ⚠ And the resend log, which this did not touch. A message with a thirty-second
+        // timer left its plaintext in `message_log` for the fortnight that log keeps things,
+        // so the words a disappearing message promised to take with it were still on the
+        // phone -- and still resendable to anyone whose client asked. Upstream cannot forget
+        // this at a call site because it is a SQL trigger on the messages table
+        // (`MessageSendLogTables.AFTER_MESSAGE_DELETE_TRIGGER`); here it is a call, and two
+        // of the four paths that delete a message had not made it.
+        val expiredSentTimestamps = mutableListOf<Long>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val dead = r.where(SignalMessage::class.java)
@@ -283,6 +298,7 @@ class SignalRepositoryImpl @Inject constructor(
                 // Collected before the rows go, because afterwards there is nothing left
                 // saying which files belonged to them.
                 doomedAttachments += dead.flatMap { attachmentIdsOf(it.attachments).orEmpty() }
+                expiredSentTimestamps += dead.filter { it.outgoing }.map { it.date }
                 dead.deleteAllFromRealm()
                 // A thread whose newest message just vanished would otherwise keep showing
                 // it as the preview on the inbox row.
@@ -297,6 +313,7 @@ class SignalRepositoryImpl @Inject constructor(
                 .getOrDefault(0)
             if (gone > 0) Timber.i("signal: %d expired attachment(s) removed from disk", gone)
         }
+        forgetFromResendLog(expiredSentTimestamps)
         if (removed > 0) {
             Timber.i("signal: %d expired message(s) removed", removed)
             expiredThreads.forEach { this.removed.onNext(it) }

@@ -161,9 +161,16 @@ internal class SignalAttachments(
      *
      * ⚠ **[known] must be every id, or this deletes a live attachment.** That is the reverse
      * failure and it is the worse one: an orphan left costs disk, a file destroyed costs
-     * somebody their picture. The caller aborts rather than passing a partial set, and
-     * [known] being empty is treated as "nothing was read" and does nothing -- a phone with no
-     * Signal messages has no files here to sweep anyway.
+     * somebody their picture. The caller walks every message row and **aborts rather than
+     * passing a partial set** -- upstream needs no such guard because its references come out
+     * of a SQL query that cannot half-succeed, while ours come from parsing a JSON column that
+     * can.
+     *
+     * An empty [known] is therefore taken at its word and sweeps everything, exactly as
+     * upstream's `filesOnDisk - filesInDb` does. Refusing on empty was the first shape of this
+     * and it was wrong twice over: it is not upstream's, and it left a phone whose messages
+     * had all been deleted -- the one case where every file really is abandoned -- as the one
+     * case that never got cleaned.
      *
      * The grace period is ours, not upstream's: a file is written here before the row that
      * names it exists, so a download finishing during the sweep would otherwise be deleted a
@@ -174,19 +181,8 @@ internal class SignalAttachments(
         known: Set<String>,
         now: Long = System.currentTimeMillis()
     ): Int {
-        if (known.isEmpty()) return 0
         val files = dir.listFiles() ?: return 0
-        var removed = 0
-        files.forEach { file ->
-            if (!isAbandoned(file.name, file.lastModified(), known, now)) return@forEach
-            if (runCatching { file.delete() }.getOrDefault(false)) {
-                removed++
-            } else {
-                Timber.w("signal attachment: an abandoned file would not delete")
-            }
-        }
-        if (removed > 0) Timber.i("signal attachment: %d abandoned file(s) removed", removed)
-        return removed
+        return sweep(files, known, now)
     }
 
     /**
@@ -253,6 +249,28 @@ internal class SignalAttachments(
          * (`PartFileProtector.isProtected`), so it has no window to cover.
          */
         internal const val ORPHAN_GRACE_MS = 60L * 60 * 1000
+
+        /**
+         * The sweep itself, over files somebody else listed.
+         *
+         * Split from [forgetAbandoned] only so a test can run the whole thing -- decide,
+         * delete, count -- against a real temporary directory. The rule alone being right is
+         * not the same as the loop around it being right, and this is the one function in the
+         * app that deletes a file with no other copy anywhere.
+         */
+        internal fun sweep(files: Array<File>, known: Set<String>, now: Long): Int {
+            var removed = 0
+            files.forEach { file ->
+                if (!isAbandoned(file.name, file.lastModified(), known, now)) return@forEach
+                if (runCatching { file.delete() }.getOrDefault(false)) {
+                    removed++
+                } else {
+                    Timber.w("signal attachment: an abandoned file would not delete")
+                }
+            }
+            if (removed > 0) Timber.i("signal attachment: %d abandoned file(s) removed", removed)
+            return removed
+        }
 
         /**
          * Whether one file on disk should go.

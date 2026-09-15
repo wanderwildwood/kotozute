@@ -52,7 +52,7 @@ internal class PreKeyUploader(
      *
      * `upload` already replaces all of it in one request, so the work here is deciding *when*,
      * which is the part that did not exist. That decision is now Signal's: every
-     * [REFRESH_INTERVAL_MS], the same gate `PreKeysSyncJob.checkPreKeys` puts in front of its
+     * [REFRESH_INTERVAL_MS], the same gate `PreKeysSyncJob.enqueueIfNeeded` puts in front of its
      * whole job, and nothing is asked of the server in between.
      */
     fun maintain(): Result {
@@ -68,7 +68,7 @@ internal class PreKeyUploader(
         if (accounts.identityKeyPair(accountIdType) == null) return Result.NotNeeded
 
         // Nothing is asked of the server until the interval is up. Signal gates the whole
-        // thing the same way: `PreKeysSyncJob.checkPreKeys` enqueues the job only when a key
+        // thing the same way: `PreKeysSyncJob.enqueueIfNeeded` enqueues the job only when a key
         // is unregistered or inactive, or `timeSinceLastFullRefresh >= REFRESH_INTERVAL`, and
         // the counts are read *inside* the job. The trade is Signal's too -- one-time keys
         // running out is noticed on the next interval rather than within the quarter hour,

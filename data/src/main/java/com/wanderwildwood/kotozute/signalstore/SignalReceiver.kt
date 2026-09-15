@@ -2163,7 +2163,7 @@ internal class SignalReceiver(
          *
          * Ten, and a count that clears after three hours of quiet from that person: upstream's
          * `RemoteConfig.retryReceiptMaxCount` and `retryReceiptMaxCountResetAge`, applied in
-         * `MessageDecryptor.handleProtocolException`. The numbers are copied because this app
+         * `MessageDecryptor.buildResultForDecryptionError`. The numbers are copied because this app
          * receives no remote config; the defaults are upstream's, not a guess.
          *
          * ⚠ The cap gates the **prekey rotation too**, not just the receipt. Upstream reaches

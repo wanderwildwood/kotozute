@@ -1203,7 +1203,29 @@ class SignalStore(private val context: Context) {
     }
 
     /** Names for the people on the other end, from the primary's contacts sync. */
-    internal val contacts: SignalContactStore by lazy { SignalContactStore(database) }
+    /**
+     * Where to send word that somebody's number changed, once there is anybody listening.
+     *
+     * A field rather than a constructor argument because [contacts] outlives any one listen:
+     * the store is built once and the events wrapper is built per connection, so the store
+     * cannot hold a reference to it. Null while nothing is listening, which is the right answer
+     * -- a number learned during a one-off storage read with no conversation on screen has
+     * nobody to tell.
+     */
+    @Volatile
+    private var onNumberChanged: ((aci: String, from: String, to: String) -> Unit)? = null
+
+    internal val contacts: SignalContactStore by lazy {
+        SignalContactStore(database) { aci, from, to ->
+            // Blocked people are skipped for the same reason as a name change: a blocked
+            // person should not be able to put a line into a conversation, even a line about
+            // themselves. Read through `blocks`, not `contacts`, so this never re-enters the
+            // store that is mid-write.
+            if (!runCatching { blocks.isBlocked(aci, from) }.getOrDefault(false)) {
+                onNumberChanged?.invoke(aci, from, to)
+            }
+        }
+    }
 
     /** The account's blocked list, as the primary last sent it. */
     internal val blocks: SignalBlockStore by lazy { SignalBlockStore(database) }
@@ -1490,6 +1512,13 @@ class SignalStore(private val context: Context) {
         private val outer: SignalEvents,
         private val onNamesLearned: () -> Unit
     ) : SignalEvents by outer {
+
+        init {
+            // Pointed at whoever is listening, for as long as they are. [contacts] is built
+            // once and outlives every connection, so this is the only moment the two can be
+            // introduced.
+            onNumberChanged = { aci, from, to -> outer.numberChanged(aci, from, to) }
+        }
 
         override fun onKeysLearned() {
             // The key has just arrived: read the account's contact list with it, and let the

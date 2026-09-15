@@ -27,7 +27,15 @@ internal const val SEALED_SENDER_UNRESTRICTED = 3
  * thing a conversation is keyed by. Where a person is known only by their phone-number
  * identity, that *is* their service id and these answer for it too.
  */
-internal class SignalContactStore(private val db: ProtocolDatabase) {
+internal class SignalContactStore(
+    private val db: ProtocolDatabase,
+    /**
+     * Told when somebody this account already had a number for now has a different one.
+     *
+     * Not when a number is learned for the first time -- see [noteworthyNumberChange].
+     */
+    private val onNumberChanged: (aci: String, from: String, to: String) -> Unit = { _, _, _ -> }
+) {
 
     /**
      * One person as some source knows them.
@@ -188,6 +196,19 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
                 }
             }
         }
+        // ⚠ Read before the write, because `e164 = COALESCE(?, e164)` below replaces it and
+        // afterwards nothing says what it used to be. In this app a number is not decoration:
+        // one person is one row across two rails, so their number changing re-pairs the Signal
+        // half of that row with a different text conversation. Upstream notes a number change
+        // in the conversation for its own reasons (`RecipientTable` -> `insertNumberChangeMessages`);
+        // here there is a second reason on top of theirs.
+        val numberBefore = if (e164 != null && aci != null) {
+            db.readableDatabase.rawQuery(
+                "SELECT e164 FROM recipient WHERE aci = ?", arrayOf(aci)
+            ).use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        } else {
+            null
+        }
         database.execSQL(
             """
             UPDATE recipient SET
@@ -228,6 +249,11 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
                 profileKey, profileKey, profileKey, profileKey, now, existing
             )
         )
+        // After the write, so a note never claims a change the store did not take.
+        if (aci != null && e164 != null && noteworthyNumberChange(numberBefore, e164)) {
+            runCatching { onNumberChanged(aci, numberBefore.orEmpty(), e164) }
+                .onFailure { Timber.w(it, "signal contacts: could not note a number change") }
+        }
     }
 
     private fun String?.orNull(): String? = this?.takeIf { it.isNotBlank() }
@@ -982,14 +1008,23 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         private const val PNI_PREFIX = "PNI:"
 
         /**
-         * Whether a stored number is shaped like one, as `BadE164MigrationJob` judges it.
+         * Whether a number arriving is a *change* worth telling the reader about.
          *
-         * The same four rules as the query in [malformedNumbers], as a pure function so they
-         * can be tested against upstream's own documented cases. A rule copied from another
-         * codebase is worth pinning: if it is ever edited into something subtly different, the
-         * query and this drift apart silently and the check starts answering a question nobody
-         * asked.
+         * The same shape as [SignalProfiles.noteworthyNameChange] and for the same reasons.
+         * The first number ever learned is not a change -- a contact discovered by account id
+         * has no number until one is found, and without this every one of those would announce
+         * a change the moment discovery ran. A number going away is not one either: the write
+         * below is fill-only for blanks, so the old number stays, and saying it changed to
+         * nothing would describe this app's own gap as the contact's decision.
+         *
+         * Upstream notes a number change for its own reasons (`RecipientTable`'s
+         * `ChangeNumberInsert` -> `insertNumberChangeMessages`). There is a second reason here:
+         * one person is one row across two rails, so their number changing re-pairs the Signal
+         * half of that row with a different text conversation.
          */
+        internal fun noteworthyNumberChange(held: String?, arriving: String): Boolean =
+            !held.isNullOrBlank() && arriving.isNotBlank() && held != arriving
+
         /**
          * Which of an absorbed row's names other tables should stop being filed under.
          *
@@ -1009,6 +1044,15 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
                 .distinct()
         }
 
+        /**
+         * Whether a stored number is shaped like one, as `BadE164MigrationJob` judges it.
+         *
+         * The same four rules as the query in [malformedNumbers], as a pure function so they
+         * can be tested against upstream's own documented cases. A rule copied from another
+         * codebase is worth pinning: if it is ever edited into something subtly different, the
+         * query and this drift apart silently and the check starts answering a question nobody
+         * asked.
+         */
         internal fun looksLikeANumber(e164: String): Boolean = when {
             e164.any { it != '+' && !it.isDigit() } -> false
             e164.length == 7 -> false

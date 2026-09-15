@@ -79,6 +79,17 @@ interface SignalEvents {
     fun rotatePreKeys() {}
 
     /**
+     * Says in the conversation that somebody's phone number is now different from the one it
+     * held.
+     *
+     * Upstream notes this for its own reasons (`RecipientTable`'s `ChangeNumberInsert` ->
+     * `insertNumberChangeMessages`). There is a second reason here: one person is one row
+     * across two rails, so their number changing re-pairs the Signal half of that row with a
+     * different text conversation, and nothing else would say so.
+     */
+    fun numberChanged(aci: String, from: String, to: String) {}
+
+    /**
      * Says in the conversation that somebody's name is now different from the one it held.
      *
      * Not the first name ever learned -- only a name that replaced another. A contact's

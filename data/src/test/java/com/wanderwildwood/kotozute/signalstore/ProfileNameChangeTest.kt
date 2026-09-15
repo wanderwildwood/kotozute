@@ -44,3 +44,39 @@ class ProfileNameChangeTest {
         assertFalse(SignalProfiles.noteworthyNameChange("Lydia", "Lydia"))
     }
 }
+
+/**
+ * When a number arriving is a change worth telling the reader about.
+ *
+ * The same shape as the name-change rule, and for a reason this app has that upstream does not:
+ * one person is one row across two rails, so their number changing re-pairs the Signal half of
+ * that row with a different text conversation. Nothing else would say so.
+ */
+class NumberChangeTest {
+
+    @Test
+    fun `a number replacing a different one is worth saying`() {
+        assertTrue(SignalContactStore.noteworthyNumberChange("+15551110000", "+15552220000"))
+    }
+
+    @Test
+    fun `the first number ever learned is not a change`() {
+        // A contact discovered by account id has no number until one is found. Without this,
+        // every one of them would announce a change the moment discovery ran.
+        assertFalse(SignalContactStore.noteworthyNumberChange(null, "+15551110000"))
+        assertFalse(SignalContactStore.noteworthyNumberChange("", "+15551110000"))
+    }
+
+    @Test
+    fun `a number going away is not a change`() {
+        // The write is fill-only for blanks, so the old number stays. Saying it changed to
+        // nothing would describe this app's own gap as the contact's decision.
+        assertFalse(SignalContactStore.noteworthyNumberChange("+15551110000", ""))
+        assertFalse(SignalContactStore.noteworthyNumberChange("+15551110000", "   "))
+    }
+
+    @Test
+    fun `the same number arriving again is not a change`() {
+        assertFalse(SignalContactStore.noteworthyNumberChange("+15551110000", "+15551110000"))
+    }
+}

@@ -396,7 +396,20 @@ class SignalRepositoryImpl @Inject constructor(
      * both places and copied rather than decided: a lost message is something to act on now, a
      * change of name is something to have seen when you next look.
      */
-    private fun noteNameChange(aci: String, from: String, to: String) {
+    private fun noteNameChange(aci: String, from: String, to: String) = noteLocalEvent(
+        aci,
+        context.getString(
+            com.wanderwildwood.kotozute.data.R.string.signal_profile_name_changed, from, to
+        )
+    )
+
+    /**
+     * Writes a line into somebody's conversation about something this phone noticed.
+     *
+     * One function for both notes, because two copies of "file a local row" is how the two
+     * drift into being subtly different rows. What differs between them is only the sentence.
+     */
+    private fun noteLocalEvent(aci: String, body: String) {
         val now = System.currentTimeMillis()
         ingest(
             listOf(
@@ -404,18 +417,14 @@ class SignalRepositoryImpl @Inject constructor(
                     // Not a message identity: nobody sent this and no resend will replace it,
                     // so it is stamped with when this phone noticed rather than with a
                     // timestamp some other device might also use.
-                    id = "namechange:$aci:$now",
+                    id = "local:$aci:$now",
                     seq = 0,
                     threadKey = "direct:$aci",
                     ts = now,
                     senderUuid = aci,
                     senderNumber = "",
                     outgoing = false,
-                    body = context.getString(
-                        com.wanderwildwood.kotozute.data.R.string.signal_profile_name_changed,
-                        from,
-                        to
-                    ),
+                    body = body,
                     groupId = "",
                     quoteTs = 0,
                     read = true,
@@ -424,7 +433,7 @@ class SignalRepositoryImpl @Inject constructor(
                 )
             )
         )
-        Timber.i("signal profile: a contact's name replaced the one this phone held")
+        Timber.i("signal: noted something in a conversation that nobody sent")
     }
 
     /**
@@ -1756,6 +1765,14 @@ class SignalRepositoryImpl @Inject constructor(
             applyTimerChange(threadKey, seconds, version)
 
         override fun refreshStoredRecords() = rereadStoredRecords()
+
+        override fun numberChanged(aci: String, from: String, to: String) =
+            noteLocalEvent(
+                aci,
+                context.getString(
+                    com.wanderwildwood.kotozute.data.R.string.signal_number_changed, from, to
+                )
+            )
 
         override fun profileNameChanged(aci: String, from: String, to: String) =
             noteNameChange(aci, from, to)

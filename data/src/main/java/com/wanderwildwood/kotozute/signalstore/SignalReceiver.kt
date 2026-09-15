@@ -217,6 +217,8 @@ internal class SignalReceiver(
         // maintenance, because this block is skipped when the read simply times out.
         runCatching { events.retryOwedResends() }
             .onFailure { Timber.w(it, "signal retry: could not try the owed resends") }
+        runCatching { events.retryOwedReceipts() }
+            .onFailure { Timber.w(it, "signal receipt: could not try the owed receipts") }
 
         sweepUndecryptable()
         // One place decides what this database stops holding: sent plaintext goes on the same
@@ -238,8 +240,22 @@ internal class SignalReceiver(
                 .filter { it.senderUuid.isNotBlank() && it.ts > 0 }
                 .groupBy({ it.senderUuid }, { it.ts })
                 .forEach { (sender, timestamps) ->
-                    runCatching { events.sendDeliveryReceipt(sender, timestamps.distinct()) }
-                        .onFailure { Timber.w(it, "signal receive: could not send a delivery receipt") }
+                    val distinct = timestamps.distinct()
+                    // Refused counts, not only thrown -- the ordinary failure raises nothing.
+                    val went = runCatching { events.sendDeliveryReceipt(sender, distinct) }
+                        .onFailure { Timber.w(it, "signal receive: sending a delivery receipt threw") }
+                        .getOrDefault(false)
+                    if (!went) {
+                        // Owed, not dropped. Upstream retries this for a day
+                        // (`SendDeliveryReceiptJob`), because otherwise a blip between the
+                        // message landing and the receipt going leaves the sender looking at a
+                        // message that arrived and will never say so.
+                        Timber.w("signal receive: could not send a delivery receipt; will keep trying")
+                        runCatching { SignalReceiptStore(db).owe(sender, distinct) }
+                            .onFailure { failure ->
+                                Timber.w(failure, "signal receipt: could not note that one is owed")
+                            }
+                    }
                 }
         }
 

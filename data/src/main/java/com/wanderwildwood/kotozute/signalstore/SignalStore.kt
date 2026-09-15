@@ -672,6 +672,41 @@ class SignalStore(private val context: Context) {
         return sent
     }
 
+    /**
+     * Tells every sender still owed a receipt that their message arrived.
+     *
+     * The mirror of [retryOwedResends] on the receiving side, and hung off the same two
+     * moments for the same reasons: the end of a batch, because a batch arriving is proof the
+     * socket is back, and the periodic round, because a phone nobody is messaging never has a
+     * batch.
+     *
+     * @return how many people were told.
+     */
+    fun retryOwedReceipts(): Int {
+        val store = SignalReceiptStore(database)
+        val owed = runCatching { store.owed() }
+            .onFailure { Timber.w(it, "signal receipt: could not read who is owed one") }
+            .getOrDefault(emptyMap())
+        var told = 0
+        if (owed.isNotEmpty()) {
+            connection.connect()
+            owed.forEach { (recipient, timestamps) ->
+                val went = runCatching { sendDeliveryReceipt(recipient, timestamps) }
+                    .onFailure { Timber.w(it, "signal receipt: still could not tell them") }
+                    .getOrDefault(false)
+                if (went) {
+                    told++
+                    runCatching { store.clear(recipient, timestamps) }
+                        .onFailure { Timber.w(it, "signal receipt: could not clear one that went") }
+                }
+            }
+            Timber.i("signal receipt: told %d of %d sender(s) this time", told, owed.size)
+        }
+        runCatching { store.abandonExpired() }
+            .onFailure { Timber.w(it, "signal receipt: could not give up on the old ones") }
+        return told
+    }
+
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 
@@ -1273,9 +1308,10 @@ class SignalStore(private val context: Context) {
             outer.afterBatch()
         }
 
-        override fun sendDeliveryReceipt(to: String, timestamps: List<Long>) {
+        override fun sendDeliveryReceipt(to: String, timestamps: List<Long>): Boolean =
             this@SignalStore.sendDeliveryReceipt(to, timestamps)
-        }
+
+        override fun retryOwedReceipts(): Int = this@SignalStore.retryOwedReceipts()
 
         override fun sendRetryReceipt(
             to: String,

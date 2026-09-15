@@ -978,6 +978,9 @@ class SignalRepositoryImpl @Inject constructor(
         // cover, because on a quiet phone there is no batch.
         runCatching { signalStore.retryOwedResends() }
             .onFailure { Timber.w(it, "signal retry: could not try the owed resends") }
+        // And the mirror of it: somebody whose message arrived here and was never told so.
+        runCatching { signalStore.retryOwedReceipts() }
+            .onFailure { Timber.w(it, "signal receipt: could not try the owed receipts") }
         runCatching { signalStore.maintainPreKeys() }
             .onSuccess { Timber.i("signal keys: %s", it) }
             .onFailure {

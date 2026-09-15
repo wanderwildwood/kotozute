@@ -38,8 +38,21 @@ interface SignalEvents {
     /** Messages we sent arrived, or were read, at the far end. */
     fun receipts(sender: String, timestamps: List<Long>, read: Boolean) {}
 
-    /** Tell a sender their message arrived here. */
-    fun sendDeliveryReceipt(to: String, timestamps: List<Long>) {}
+    /**
+     * Tell a sender their message arrived here.
+     *
+     * ⚠ **Returns whether it went**, for the same reason [resend] does: a receipt that is
+     * *refused* is the ordinary failure and raises nothing, so a caller told only about thrown
+     * exceptions believes almost every failure succeeded.
+     */
+    fun sendDeliveryReceipt(to: String, timestamps: List<Long>): Boolean = false
+
+    /**
+     * Try again for every sender still owed a receipt.
+     *
+     * @return how many people were told.
+     */
+    fun retryOwedReceipts(): Int = 0
 
     /** Ask a sender to send a message again, because it could not be read here. */
     fun sendRetryReceipt(to: String, error: DecryptionErrorMessage, groupId: ByteArray?) {}

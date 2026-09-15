@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 26
+    const val VERSION = 27
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -237,6 +237,27 @@ internal object ProtocolStoreSchema {
         ) STRICT;
     """
 
+    /**
+     * Delivery receipts this phone owes and has not managed to send.
+     *
+     * A receipt is what stops a sender's message saying nothing at all. Upstream treats one
+     * that fails as worth a day of unlimited retries -- `SendDeliveryReceiptJob` is
+     * `setLifespan(TimeUnit.DAYS.toMillis(1))`, `setMaxAttempts(Parameters.UNLIMITED)`, queued
+     * per recipient -- and this app sent it once and wrote a log line, so a blip left the
+     * sender looking at a message that had arrived and would never say so.
+     *
+     * Keyed on the pair that identifies the message: who sent it, and the timestamp they
+     * stamped on it. That is the whole of what a receipt carries.
+     */
+    const val RECEIPT_OWED = """
+        CREATE TABLE receipt_owed (
+          recipient TEXT NOT NULL,
+          sent_timestamp INTEGER NOT NULL,
+          owed_since INTEGER NOT NULL,
+          PRIMARY KEY (recipient, sent_timestamp)
+        ) STRICT;
+    """
+
     /** Order matters only in that account_identity is seeded after account exists. */
     val ALL = listOf(
         ACCOUNT,
@@ -262,7 +283,8 @@ internal object ProtocolStoreSchema {
         RECIPIENT_E164_INDEX,
         RECIPIENT_GROUP_ID_INDEX,
         MESSAGE_LOG,
-        MESSAGE_LOG_INDEX
+        MESSAGE_LOG_INDEX,
+        RECEIPT_OWED
     )
 
     /**
@@ -768,7 +790,11 @@ internal object ProtocolStoreSchema {
         //
         // Nullable and no default: a row with nothing owed says so by holding nothing, which
         // is also what every existing row gets.
-        26 to listOf("ALTER TABLE message_log ADD COLUMN resend_owed_since INTEGER;")
+        26 to listOf("ALTER TABLE message_log ADD COLUMN resend_owed_since INTEGER;"),
+        // v27: delivery receipts owed. The mirror of v26 on the receiving side, and the same
+        // reasoning -- upstream answers a failed one with a job retried for a day, this app
+        // answered with a single attempt. Purely additive.
+        27 to listOf(RECEIPT_OWED)
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

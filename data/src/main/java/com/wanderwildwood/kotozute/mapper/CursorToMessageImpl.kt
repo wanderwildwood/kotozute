@@ -154,10 +154,6 @@ class CursorToMessageImpl @Inject constructor(
         }
     }
 
-    override fun getMessageCursor(id: Long): Cursor? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
     private fun getMmsAddress(messageId: Long): String {
         val uri = Mms.CONTENT_URI.buildUpon()
                 .appendPath(messageId.toString())

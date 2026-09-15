@@ -29,8 +29,6 @@ interface CursorToMessage : Mapper<Pair<Cursor, CursorToMessage.MessageColumns>,
 
     fun getMessagesCursor(): Cursor?
 
-    fun getMessageCursor(id: Long): Cursor?
-
     class MessageColumns(private val cursor: Cursor) {
 
         val msgType by lazy { getColumnIndex(MmsSms.TYPE_DISCRIMINATOR_COLUMN) }

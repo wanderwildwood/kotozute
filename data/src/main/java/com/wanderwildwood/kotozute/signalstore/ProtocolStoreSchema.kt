@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 27
+    const val VERSION = 28
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -254,7 +254,9 @@ internal object ProtocolStoreSchema {
           recipient TEXT NOT NULL,
           sent_timestamp INTEGER NOT NULL,
           owed_since INTEGER NOT NULL,
-          PRIMARY KEY (recipient, sent_timestamp)
+          -- Which small message is owed about this one. See v28.
+          kind TEXT NOT NULL DEFAULT 'delivery',
+          PRIMARY KEY (recipient, sent_timestamp, kind)
         ) STRICT;
     """
 
@@ -794,7 +796,29 @@ internal object ProtocolStoreSchema {
         // v27: delivery receipts owed. The mirror of v26 on the receiving side, and the same
         // reasoning -- upstream answers a failed one with a job retried for a day, this app
         // answered with a single attempt. Purely additive.
-        27 to listOf(RECEIPT_OWED)
+        27 to listOf(RECEIPT_OWED),
+        // v28: which small message is owed. The same table serves two of them, because both
+        // are "something owed *about* a message" and a message is named the same way in each:
+        // by who wrote it and the timestamp they stamped on it.
+        //
+        //   'delivery'  -- tell the sender their message arrived here.
+        //   'read-sync' -- tell this account's *own* devices it has been read here, which is
+        //                  the only thing that stops the primary and Desktop notifying about a
+        //                  conversation already read on this phone. `MultiDeviceReadUpdateJob`,
+        //                  and upstream gives it the same day of unlimited attempts.
+        //
+        // The primary key has to grow with it: one message can owe both at once. SQLite cannot
+        // add a column to a primary key in place, so the table is rebuilt -- additive in
+        // effect, and every existing row is a delivery receipt, which is what it defaults to.
+        28 to listOf(
+            "ALTER TABLE receipt_owed RENAME TO receipt_owed_old;",
+            RECEIPT_OWED,
+            """
+            INSERT INTO receipt_owed (recipient, sent_timestamp, owed_since, kind)
+            SELECT recipient, sent_timestamp, owed_since, 'delivery' FROM receipt_owed_old;
+            """,
+            "DROP TABLE receipt_owed_old;"
+        )
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

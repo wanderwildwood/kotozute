@@ -1858,8 +1858,18 @@ class SignalRepositoryImpl @Inject constructor(
         // Upstream keeps the order and the independence: `MarkReadReceiver` runs
         // `MultiDeviceReadUpdateJob.enqueue(...)` before it considers receipts, and only
         // `SendReadReceiptJob` consults the preference.
-        runCatching { signalStore.sendReadSync(justRead.filterNot { it.first.isBlank() }) }
-            .onFailure { Timber.w(it, "signal read sync: could not tell our own devices") }
+        // ⚠ Kept when it does not go. Upstream's `MultiDeviceReadUpdateJob` is a day of
+        // unlimited attempts; one attempt and a log line meant a blip left the primary and
+        // Desktop notifying for ever about a conversation already read here -- which is the
+        // exact thing this call exists to stop, said two paragraphs up.
+        val pairs = justRead.filterNot { it.first.isBlank() }
+        val toldOurselves = runCatching { signalStore.sendReadSync(pairs) }
+            .onFailure { Timber.w(it, "signal read sync: telling our own devices threw") }
+            .getOrDefault(false)
+        if (!toldOurselves && pairs.isNotEmpty()) {
+            Timber.w("signal read sync: could not tell our own devices; will keep trying")
+            signalStore.oweReadSync(pairs)
+        }
 
         if (!prefs.signalReadReceipts.get()) return@runOffThread
 

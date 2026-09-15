@@ -251,7 +251,10 @@ internal class SignalReceiver(
                         // message landing and the receipt going leaves the sender looking at a
                         // message that arrived and will never say so.
                         Timber.w("signal receive: could not send a delivery receipt; will keep trying")
-                        runCatching { SignalReceiptStore(db).owe(sender, distinct) }
+                        runCatching {
+                            SignalReceiptStore(db)
+                                .owe(sender, distinct, SignalReceiptStore.Kind.DELIVERY)
+                        }
                             .onFailure { failure ->
                                 Timber.w(failure, "signal receipt: could not note that one is owed")
                             }

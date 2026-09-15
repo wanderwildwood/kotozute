@@ -50,4 +50,19 @@ class ReceiptLifespanTest {
     fun `the lifespan is the receipt job's own day`() {
         assertEquals(day, SignalReceiptStore.RECEIPT_LIFESPAN_MS)
     }
+
+    /**
+     * The two kinds are stored together and must stay distinguishable, because one message can
+     * owe both at once -- the sender told it arrived, and this account's own devices told it
+     * was read. They are what the `kind` column holds, so the strings are not decoration.
+     */
+    @Test
+    fun `the two kinds are named apart`() {
+        assertEquals("delivery", SignalReceiptStore.Kind.DELIVERY.value)
+        assertEquals("read-sync", SignalReceiptStore.Kind.READ_SYNC.value)
+        assertEquals(
+            SignalReceiptStore.Kind.values().size,
+            SignalReceiptStore.Kind.values().map { it.value }.toSet().size
+        )
+    }
 }

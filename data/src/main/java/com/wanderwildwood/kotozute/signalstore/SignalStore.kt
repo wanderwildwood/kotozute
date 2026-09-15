@@ -684,27 +684,65 @@ class SignalStore(private val context: Context) {
      */
     fun retryOwedReceipts(): Int {
         val store = SignalReceiptStore(database)
-        val owed = runCatching { store.owed() }
+        var told = 0
+
+        // Delivery: one message per person, carrying their own timestamps.
+        val deliveries = runCatching { store.owed(SignalReceiptStore.Kind.DELIVERY) }
             .onFailure { Timber.w(it, "signal receipt: could not read who is owed one") }
             .getOrDefault(emptyMap())
-        var told = 0
-        if (owed.isNotEmpty()) {
+        if (deliveries.isNotEmpty()) {
             connection.connect()
-            owed.forEach { (recipient, timestamps) ->
+            deliveries.forEach { (recipient, timestamps) ->
                 val went = runCatching { sendDeliveryReceipt(recipient, timestamps) }
                     .onFailure { Timber.w(it, "signal receipt: still could not tell them") }
                     .getOrDefault(false)
                 if (went) {
                     told++
-                    runCatching { store.clear(recipient, timestamps) }
-                        .onFailure { Timber.w(it, "signal receipt: could not clear one that went") }
+                    runCatching {
+                        store.clear(recipient, timestamps, SignalReceiptStore.Kind.DELIVERY)
+                    }.onFailure { Timber.w(it, "signal receipt: could not clear one that went") }
                 }
             }
-            Timber.i("signal receipt: told %d of %d sender(s) this time", told, owed.size)
+            Timber.i("signal receipt: told %d of %d sender(s) this time", told, deliveries.size)
         }
+
+        // Read sync: **one** message to this account's own devices, carrying every pair at
+        // once -- it is not addressed to the people the pairs name. So it goes or it does not,
+        // and the whole lot is cleared together.
+        val reads = runCatching { store.owed(SignalReceiptStore.Kind.READ_SYNC) }
+            .onFailure { Timber.w(it, "signal read sync: could not read what is owed") }
+            .getOrDefault(emptyMap())
+        if (reads.isNotEmpty()) {
+            val pairs = reads.flatMap { (author, timestamps) -> timestamps.map { author to it } }
+            val went = runCatching { sendReadSync(pairs) }
+                .onFailure { Timber.w(it, "signal read sync: still could not tell our own devices") }
+                .getOrDefault(false)
+            if (went) {
+                told++
+                reads.forEach { (author, timestamps) ->
+                    runCatching {
+                        store.clear(author, timestamps, SignalReceiptStore.Kind.READ_SYNC)
+                    }.onFailure { Timber.w(it, "signal read sync: could not clear one that went") }
+                }
+                Timber.i("signal read sync: told our own devices about %d message(s)", pairs.size)
+            }
+        }
+
         runCatching { store.abandonExpired() }
             .onFailure { Timber.w(it, "signal receipt: could not give up on the old ones") }
         return told
+    }
+
+    /** Notes that our own devices have not been told a conversation was read here. */
+    internal fun oweReadSync(read: List<Pair<String, Long>>) {
+        read.filterNot { it.first.isBlank() }
+            .groupBy({ it.first }, { it.second })
+            .forEach { (author, timestamps) ->
+                runCatching {
+                    SignalReceiptStore(database)
+                        .owe(author, timestamps, SignalReceiptStore.Kind.READ_SYNC)
+                }.onFailure { Timber.w(it, "signal read sync: could not note that one is owed") }
+            }
     }
 
     /** Whether this device has been told the blocked list yet. */

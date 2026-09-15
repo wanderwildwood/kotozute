@@ -198,7 +198,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal retry: could not send the message again")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -375,7 +375,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal send: group send threw")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -491,7 +491,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal groups: telling the members threw")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -523,7 +523,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal contacts: request threw")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -576,7 +576,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal blocked: sending the list threw")
-        Result.Failed(t.message ?: t::class.java.simpleName)
+        Result.Failed(explain(t))
     }
 
     /**
@@ -631,7 +631,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal retry: could not ask for a message to be sent again")
-        Result.Failed(t.message ?: t::class.java.simpleName)
+        Result.Failed(explain(t))
     }
 
     /**
@@ -658,7 +658,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal session: could not send a null message")
-        Result.Failed(t.message ?: t::class.java.simpleName)
+        Result.Failed(explain(t))
     }
 
     /**
@@ -699,7 +699,7 @@ internal class SignalSender(
             else failed(result)
         } catch (t: Throwable) {
             Timber.w(t, "signal receipt: sending %s threw", what)
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -741,7 +741,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal keys: requesting them threw")
-        Result.Failed(t.message ?: t::class.java.simpleName)
+        Result.Failed(explain(t))
     }
 
     /**
@@ -769,7 +769,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal configuration: requesting it threw")
-        Result.Failed(t.message ?: t::class.java.simpleName)
+        Result.Failed(explain(t))
     }
 
     /**
@@ -806,7 +806,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal read sync: send threw")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -826,7 +826,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal blocked: requesting the list threw")
-        Result.Failed(t.message ?: t::class.java.simpleName)
+        Result.Failed(explain(t))
     }
 
     /**
@@ -984,7 +984,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal reaction: send threw")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -1071,7 +1071,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal reaction: group send threw")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -1120,7 +1120,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal delete: sending the withdrawal threw")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -1193,7 +1193,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal delete: the group withdrawal threw")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -1278,7 +1278,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal send: threw")
-            Result.Failed(t.message ?: t::class.java.simpleName)
+            Result.Failed(explain(t))
         }
     }
 
@@ -1386,6 +1386,64 @@ internal class SignalSender(
          * depends on predates the class that holds it; the number is upstream's, not a guess.
          */
         internal const val MAX_INLINE_BODY_SIZE_BYTES = 2 * 1024
+
+        /**
+         * What to tell somebody when a send failed.
+         *
+         * ⚠ **Every catch here said `t.message ?: t::class.java.simpleName`**, so the service's
+         * four most consequential refusals reached the screen as the word
+         * "ProofRequiredException" or as nothing at all. Each of them is a different situation
+         * with a different thing to do about it, and none of them is "try again", which is what
+         * a bare failure invites.
+         *
+         * The one that matters most is `ProofRequiredException` -- a 428, the server asking the
+         * *account* to prove it is a person before it will take more messages. It cannot be
+         * answered from here: upstream's `ProofRequiredExceptionHandler` either solves a push
+         * challenge over FCM, which this phone has no part in, or raises a captcha, which is a
+         * whole screen this app does not have. So what is ported is the sentence, not the
+         * handler -- and it names where the challenge *can* be answered rather than pretending
+         * this phone can do it.
+         *
+         * The unlinked and deprecated wordings deliberately match
+         * [SignalSocketHealthMonitor]'s, because the socket already says these two and hearing
+         * the same thing in two different ways about one situation is worse than hearing it
+         * twice.
+         */
+        internal fun explain(t: Throwable): String = when (t) {
+            is org.whispersystems.signalservice.api.push.exceptions.ProofRequiredException ->
+                "Signal has asked this account to prove it is a person before it will take " +
+                    "more messages. That has to be answered in Signal on your other phone. " +
+                    "Nothing was sent." + afterWards(t.retryAfterSeconds)
+
+            is org.whispersystems.signalservice.api.push.exceptions.RateLimitException ->
+                "Signal is limiting how fast this account can send. Nothing was sent." +
+                    afterWards(t.retryAfterMilliseconds.orElse(0L) / 1000)
+
+            is org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException ->
+                "This phone is no longer linked to Signal. Link it again to send."
+
+            is org.whispersystems.signalservice.api.push.exceptions.DeprecatedVersionException ->
+                "Signal will not accept this version any more. The app needs updating."
+
+            is org.whispersystems.signalservice.api.push.exceptions.ServerRejectedException ->
+                "Signal refused this message, and sending it again will not help."
+
+            else -> t.message ?: t::class.java.simpleName
+        }
+
+        /**
+         * " Try again in about ten minutes." -- or nothing, when the server did not say.
+         *
+         * Rounded, and never to the second: a countdown accurate to the second invites somebody
+         * to sit and watch it, and the server's number is a floor rather than a promise.
+         */
+        internal fun afterWards(seconds: Long): String = when {
+            seconds <= 0 -> ""
+            seconds < 90 -> " Try again in a minute."
+            seconds < 3600 -> " Try again in about ${(seconds + 59) / 60} minutes."
+            seconds < 7200 -> " Try again in about an hour."
+            else -> " Try again in about ${(seconds + 3599) / 3600} hours."
+        }
 
         /** A body's length as the limit counts it: bytes of UTF-8, not characters. */
         internal fun utf8Size(body: String): Int = body.toByteArray(Charsets.UTF_8).size

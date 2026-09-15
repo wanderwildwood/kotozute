@@ -1674,6 +1674,22 @@ class SignalRepositoryImpl @Inject constructor(
     private val groupRevisions = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     /**
+     * The earliest each group's state may be asked for again after a fetch that did not come off.
+     *
+     * Separate from [groupRevisions] on purpose: that one records what has been *read*, and
+     * writing a revision into it is a claim the state at that revision is in hand. A failed
+     * fetch has to leave that claim unmade, so the cooldown is what stops a batch of group
+     * messages becoming a fetch each in the meantime.
+     *
+     * A minute, which is the receive loop's own read timeout, so the next attempt lands on the
+     * next thing that happens rather than on a timer of its own. Upstream leaves the pacing to
+     * the job manager's backoff inside `RequestGroupV2InfoWorkerJob`.
+     */
+    private val groupFetchNotBefore = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    private val GROUP_FETCH_RETRY_MS = java.util.concurrent.TimeUnit.MINUTES.toMillis(1)
+
+    /**
      * Re-reads a group whose revision has moved past what this device has seen.
      *
      * A group's name was only ever filled in when it was blank, so a group renamed after this
@@ -1685,21 +1701,42 @@ class SignalRepositoryImpl @Inject constructor(
         val id = android.util.Base64.encodeToString(masterKey, android.util.Base64.NO_WRAP)
         val seen = groupRevisions[id]
         if (seen != null && revision <= seen) return
-        groupRevisions[id] = revision
+
+        // ⚠ A cooldown rather than recording the revision up front. It used to write
+        // groupRevisions[id] = revision *before* fetching, so a fetch that failed still
+        // counted as done: every later message at that revision returned early here, and the
+        // group's new name and timer were never read. A rename was then lost until somebody
+        // changed the group *again*, to a higher revision.
+        //
+        // Upstream has no such trap because the fetch is a job --
+        // `RequestGroupV2InfoWorkerJob`, a day of unlimited attempts, retried on a network
+        // error and queued per group. The cooldown is what stands in for that queue: it stops
+        // a batch of group messages becoming a fetch each, without pretending the fetch
+        // happened.
+        val now = System.currentTimeMillis()
+        if (now < (groupFetchNotBefore[id] ?: 0L)) return
+        groupFetchNotBefore[id] = now + GROUP_FETCH_RETRY_MS
+
         runOffThread {
-            val group = runCatching { signalStore.groupFor(masterKey) }.getOrNull() ?: return@runOffThread
+            val group = runCatching { signalStore.groupFor(masterKey) }.getOrNull()
+            if (group == null) {
+                Timber.w("signal group: could not read the group's state; will come back to it")
+                return@runOffThread
+            }
+            // Only now, with the state actually in hand.
+            groupRevisions[id] = revision
             val title = group.title.takeIf { it.isNotBlank() } ?: ""
+            // The thread this group is, derived rather than searched for. This used to walk
+            // every group thread's messages looking for one carrying the master key -- the
+            // pre-Realm-26 way, and a spelling the sweep that replaced the others did not
+            // match. A group with no message carrying a key was never renamed at all.
+            val threadKey = "group:" + com.wanderwildwood.kotozute.signalstore.ContentNormalizer
+                .groupIdForCheck(masterKey)
             Realm.getDefaultInstance().use { realm ->
                 realm.executeTransaction { r ->
                     r.where(SignalThread::class.java)
-                        .equalTo("kind", "group")
+                        .equalTo("threadKey", threadKey)
                         .findAll()
-                        .filter { thread ->
-                            r.where(SignalMessage::class.java)
-                                .equalTo("threadKey", thread.threadKey)
-                                .findAll()
-                                .any { it.groupMasterKey?.contentEquals(masterKey) == true }
-                        }
                         // Set when it differs, not only when it is blank. That difference is
                         // the whole point: a rename that never arrives is the bug.
                         .forEach { thread ->

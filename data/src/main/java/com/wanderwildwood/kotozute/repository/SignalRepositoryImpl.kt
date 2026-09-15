@@ -145,6 +145,7 @@ class SignalRepositoryImpl @Inject constructor(
         // Asked fresh whenever a read receipt is about to go, rather than remembered from when
         // it was owed. See [SignalStore.readReceiptsEnabled].
         signalStore.readReceiptsEnabled = { prefs.signalReadReceipts.get() }
+        signalStore.onPniRotationOwed = { owed -> prefs.signalPniRotationOwed.set(owed) }
         signalStore.onPrimaryIdle = ::notePrimaryIdle
         signalStore.onConversationState = ::applyConversationState
     }
@@ -964,6 +965,15 @@ class SignalRepositoryImpl @Inject constructor(
         // And the mirror of it: somebody whose message arrived here and was never told so.
         runCatching { signalStore.retryOwedReceipts() }
             .onFailure { Timber.w(it, "signal receipt: could not try the owed receipts") }
+
+        // The phone-number identity still running on keys the primary made for it. Upstream's
+        // `PreKeysSyncJob` reads the same flag and clears it once it has rotated; this round is
+        // what stands in for the job.
+        if (prefs.signalPniRotationOwed.get()) {
+            runCatching { signalStore.rotatePniIfOwed() }
+                .onSuccess { done -> if (done) prefs.signalPniRotationOwed.set(false) }
+                .onFailure { Timber.w(it, "signal keys: could not rotate the phone-number identity") }
+        }
         runCatching { signalStore.maintainPreKeys() }
             .onSuccess { Timber.i("signal keys: %s", it) }
             .onFailure {

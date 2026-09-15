@@ -1480,7 +1480,22 @@ internal class SignalReceiver(
             // timestamp, and the record just written is brand new -- so storing the primary's
             // key resets the clock and leaves it in force for the full interval, which is the
             // opposite of what applying a number change should mean.
-            runCatching {
+            // ⚠ Owed before it is attempted, and cleared only by a rotation that happened.
+            // Upstream sets `forcePniSignedPreKeyRotation` here and clears it inside
+            // `PreKeysSyncJob`; the flag is what makes the work survive an attempt that does
+            // not come off.
+            //
+            // It has to, because the old comment here was wrong twice over. `rotateNow`
+            // returns a Result, so a *refused* rotation raised nothing and was logged as
+            // "rotated the phone-number identity's keys: Failed(...)" -- announced as done.
+            // And the consolation on the other branch, that the next periodic pass would come
+            // round for them, is exactly what the paragraph above says cannot happen: that
+            // pass measures the stored key's age, and the key the primary just sent is new.
+            // So a rotation that did not go meant this device kept somebody else's keys for
+            // the phone-number identity indefinitely, which is the one thing Signal's comment
+            // says to avoid.
+            events.pniRotationOwed(true)
+            val rotated = runCatching {
                 PreKeyUploader(
                     accounts,
                     connection,
@@ -1488,12 +1503,17 @@ internal class SignalReceiver(
                     { SignalSignedPreKeyStore(db, it) },
                     { SignalKyberPreKeyStore(db, it) }
                 ).rotateNow(ServiceIdType.PNI)
-            }.onSuccess {
-                Timber.i("signal number change: rotated the phone-number identity's keys: %s", it)
             }.onFailure {
-                // Not fatal to the change itself. The primary's keys work; they are simply
-                // somebody else's, and the next periodic pass will come round for them.
-                Timber.w(it, "signal number change: could not rotate the new keys yet")
+                Timber.w(it, "signal number change: rotating the new keys threw")
+            }.getOrNull()
+            if (rotated is PreKeyUploader.Result.Uploaded) {
+                events.pniRotationOwed(false)
+                Timber.i("signal number change: rotated the phone-number identity's keys")
+            } else {
+                Timber.w(
+                    "signal number change: the phone-number identity is still on the primary's keys (%s); owed",
+                    rotated ?: "threw"
+                )
             }
         }.onFailure {
             // Deliberately loud. A number change that will not apply leaves this device unable

@@ -54,6 +54,15 @@ interface SignalEvents {
      */
     fun retryOwedReceipts(): Int = 0
 
+    /**
+     * The phone-number identity is running on keys the primary generated.
+     *
+     * Recorded rather than only attempted. Upstream sets `forcePniSignedPreKeyRotation` when
+     * the number change arrives and clears it inside `PreKeysSyncJob`, so the rotation is owed
+     * until it has actually been done; here the flag plays the part the job queue would.
+     */
+    fun pniRotationOwed(owed: Boolean) {}
+
     /** Ask a sender to send a message again, because it could not be read here. */
     fun sendRetryReceipt(to: String, error: DecryptionErrorMessage, groupId: ByteArray?) {}
 

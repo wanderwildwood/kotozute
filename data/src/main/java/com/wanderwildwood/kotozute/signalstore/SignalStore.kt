@@ -847,6 +847,45 @@ class SignalStore(private val context: Context) {
     internal var readReceiptsEnabled: () -> Boolean = { false }
 
     /**
+     * Where "the phone-number identity still has the primary's keys" is written down.
+     *
+     * Settable for the reason [onRejected] is: the preference lives a layer up. Upstream keeps
+     * the same fact as `forcePniSignedPreKeyRotation`.
+     */
+    @Volatile
+    internal var onPniRotationOwed: (Boolean) -> Unit = {}
+
+    /**
+     * Rotates the phone-number identity's keys when they are still the ones the primary made.
+     *
+     * The other half of [onPniRotationOwed], and the part upstream gives to `PreKeysSyncJob`:
+     * it reads the flag as `pniRotationOverride` and clears it once it has rotated. Called from
+     * the periodic round, which is the only thing here that comes back on its own.
+     *
+     * @return true if the rotation happened.
+     */
+    fun rotatePniIfOwed(): Boolean {
+        connection.connect()
+        val result = runCatching {
+            PreKeyUploader(
+                account,
+                connection,
+                { SignalPreKeyStore(database, it) },
+                { SignalSignedPreKeyStore(database, it) },
+                { SignalKyberPreKeyStore(database, it) }
+            ).rotateNow(org.whispersystems.signalservice.api.push.ServiceIdType.PNI)
+        }.onFailure { Timber.w(it, "signal keys: rotating the phone-number identity threw") }
+            .getOrNull()
+        return if (result is PreKeyUploader.Result.Uploaded) {
+            Timber.i("signal keys: the phone-number identity is on its own keys again")
+            true
+        } else {
+            Timber.w("signal keys: still on the primary's phone-number keys (%s)", result ?: "threw")
+            false
+        }
+    }
+
+    /**
      * Reads the account's contact list out of the storage service, where modern Signal keeps
      * it. Returns what it did, in a sentence, for a status line and a log.
      */
@@ -1419,6 +1458,8 @@ class SignalStore(private val context: Context) {
             this@SignalStore.sendDeliveryReceipt(to, timestamps)
 
         override fun retryOwedReceipts(): Int = this@SignalStore.retryOwedReceipts()
+
+        override fun pniRotationOwed(owed: Boolean) = onPniRotationOwed(owed)
 
         override fun sendRetryReceipt(
             to: String,

@@ -7,4 +7,15 @@
       created, which is in this module. Signal's own clients use the same words.
     -->
     <string name="signal_note_to_self">Note to Self</string>
+
+    <!--
+      The first line of a group this phone just made.
+
+      Signal writes an update into the conversation at both ends: "You created the group."
+      to whoever made it, "X added you to the group." to everybody else
+      (GroupsV2UpdateMessageProducer). This app has no update row, only messages, so it says
+      the same thing as one. The receiving side's wording is in ContentNormalizer.describe,
+      which has no Context to read a resource with; see the note there.
+    -->
+    <string name="signal_group_created_by_you">You created the group.</string>
 </resources>

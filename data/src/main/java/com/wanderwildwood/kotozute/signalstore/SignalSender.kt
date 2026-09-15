@@ -354,6 +354,90 @@ internal class SignalSender(
     }
 
     /**
+     * Tells a group's members that it has changed -- and, at creation, that it exists.
+     *
+     * `GroupManagerV2.createGroup` does this as its last step: the group is put on the server,
+     * and then `SendGroupUpdateHelper.sendGroupUpdate` sends an update to the members. Without
+     * it a new group exists on the server and on this phone, and nobody else's client has any
+     * reason to ask about it -- so the group is invisible to everyone in it until somebody
+     * types something.
+     *
+     * The message is `PushGroupSendJob`'s group-update branch, exactly: the group context with
+     * its revision, **no body**, and **`ContentHint.IMPLICIT`** rather than RESENDABLE. Implicit
+     * is the right hint because the message carries nothing a person wrote -- a recipient that
+     * cannot read it should ask the server for the group's state, not ask us to send this
+     * again.
+     *
+     * No profile key either. Upstream attaches one to ordinary group messages and not to this.
+     *
+     * The signed group change upstream can attach is not sent here: at creation it passes
+     * `null` for it, and a recipient learns the change by fetching the group state the master
+     * key gives them access to.
+     */
+    fun sendGroupUpdate(
+        masterKey: ByteArray,
+        members: List<ServiceId>,
+        revision: Int,
+        expiresInSeconds: Int = 0
+    ): Result {
+        if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
+        val timestamp = System.currentTimeMillis()
+
+        val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
+            .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+            .withRevision(revision)
+            .build()
+
+        val message = SignalServiceDataMessage.newBuilder()
+            .withTimestamp(timestamp)
+            .asGroupMessage(group)
+            .withExpiration(expiresInSeconds)
+            .build()
+
+        return try {
+            val results = sender.sendDataMessage(
+                members.map { SignalServiceAddress(it) },
+                members.map { sealedSender.accessFor(it.toString()) },
+                false,
+                ContentHint.IMPLICIT,
+                message,
+                SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
+                null,
+                null,
+                // Urgent, as upstream's is: `OutgoingMessage.groupUpdateMessage` takes the
+                // default and the default is true. Being added to a group is worth waking a
+                // phone for -- it is the only notice the phone will get.
+                true
+            )
+            val groupIdentifier = groupIdentifierOf(masterKey)
+            results.forEach { rememberSend(it, timestamp, groupIdentifier) }
+            results.forEach { noteIfNotRegistered(it) }
+            val failed = results.filterNot { it.isSuccess }
+            when {
+                failed.isEmpty() -> {
+                    Timber.i("signal groups: told %d member(s) about the group", results.size)
+                    Result.Sent(timestamp)
+                }
+                // The same all/some/none shape the other group paths use: somebody heard, so
+                // this is not a failure. The ones who did not will learn of the group from the
+                // first message sent in it, which carries the same key and revision.
+                failed.size < results.size -> {
+                    Timber.w(
+                        "signal groups: told %d of %d member(s); missed %s",
+                        results.size - failed.size, results.size,
+                        failed.joinToString { describe(it) }
+                    )
+                    Result.Sent(timestamp)
+                }
+                else -> Result.Failed("could not reach any of the ${results.size} group members")
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal groups: telling the members threw")
+            Result.Failed(t.message ?: t::class.java.simpleName)
+        }
+    }
+
+    /**
      * Asks the primary to send its contacts.
      *
      * A linked device starts knowing nobody: it has no address book and cannot resolve an ACI

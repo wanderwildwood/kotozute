@@ -418,8 +418,23 @@ internal object ContentNormalizer {
      * The protocol-version check goes last, because it is the general case: a message from a
      * newer client using a feature that did not exist when this was built has no field here
      * to recognise, and saying so beats a blank.
+     *
+     * ⚠ The words are literals rather than resources because this object is deliberately free
+     * of a Context -- that is what makes every rule in it testable. The one line this app
+     * writes for *itself* on making a group is a resource, because the repository that writes
+     * it has one.
      */
-    private fun describe(m: DataMessage): String? = when {
+    internal fun describe(m: DataMessage): String? = when {
+        // A group update: the group's context, a revision, and nothing a person typed. It is
+        // how Signal says a group has been made or changed -- `PushGroupSendJob` sends exactly
+        // this, and `GroupManagerV2.createGroup` sends it the moment a group exists, which is
+        // the only notice the other members get. Revision zero is the group's first state, so
+        // it is the creation; anything later is a change this app does not decode, and
+        // upstream's own words for a change it cannot attribute are "Group updated".
+        // Who did it is already on the bubble in a group thread, which is where upstream puts
+        // the name in "X added you to the group."
+        m.groupV2 != null ->
+            if ((m.groupV2?.revision ?: 0) == 0) "Created the group." else "Updated the group."
         m.pollCreate != null ->
             m.pollCreate?.question?.takeIf { it.isNotBlank() }?.let { "(poll) $it" } ?: "(a poll)"
         m.pollTerminate != null -> "(a poll ended)"

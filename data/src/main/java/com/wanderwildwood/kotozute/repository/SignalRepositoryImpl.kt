@@ -2501,10 +2501,41 @@ class SignalRepositoryImpl @Inject constructor(
             .filter { aci -> aci.isNotBlank() }
         val created = signalStore.createGroup(title, acis)
 
-        // The thread, so the group is somewhere to write to before anything has been said in
-        // it. Dated now rather than left at zero: the list shows conversations that have a
-        // date, and a group that had just been made and could not be found would be worse
-        // than one with an empty last line. The line stays empty -- nothing has been said.
+        // Our own copy of the notice that just went out to everybody else. Upstream files one
+        // too -- `SendGroupUpdateHelper.sendGroupUpdate` inserts the outgoing update into the
+        // creator's own thread -- and here it does the work a thread needs anyway: it gives
+        // the conversation a date and a first line, so it appears in the list saying what
+        // happened rather than as an empty room with an invented timestamp on it.
+        //
+        // Written here because a message this device sends never comes back to it.
+        val selfAci = signalStore.selfAciOrNull().orEmpty()
+        val timestamp = System.currentTimeMillis()
+        ingest(
+            listOf(
+                com.wanderwildwood.kotozute.signal.BridgeMessage(
+                    id = "$selfAci:$timestamp",
+                    seq = 0,
+                    threadKey = created.threadKey,
+                    ts = timestamp,
+                    senderUuid = selfAci,
+                    senderNumber = "",
+                    outgoing = true,
+                    body = context.getString(
+                        com.wanderwildwood.kotozute.data.R.string.signal_group_created_by_you
+                    ),
+                    groupId = created.threadKey.removePrefix("group:"),
+                    quoteTs = 0,
+                    read = true,
+                    source = "live",
+                    attachmentsJson = "",
+                    expiresInSeconds = 0L,
+                    expiresAt = 0L,
+                    groupMasterKey = created.masterKey
+                )
+            )
+        )
+
+        // The title and the key, which no message carries.
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val thread = r.where(SignalThread::class.java)
@@ -2514,10 +2545,11 @@ class SignalRepositoryImpl @Inject constructor(
                 thread.kind = "group"
                 thread.title = title
                 thread.groupMasterKey = created.masterKey
-                if (thread.lastTs == 0L) thread.lastTs = System.currentTimeMillis()
             }
         }
-        Timber.i("signal groups: a new group is ready to be written to")
+        if (!created.told) {
+            Timber.w("signal groups: made the group, but its members have not been told yet")
+        }
         return created.threadKey
     }
 

@@ -290,6 +290,13 @@ class SignalStore(private val context: Context) {
      * because a message is in it, so the group becomes visible when the first one is sent --
      * which is what the caller does next, and is also what tells the members it exists at all.
      */
+    /**
+     * A new group's revision. `GroupsV2Operations.createNewGroup` builds one at zero, and the
+     * update that announces it carries that number -- so a recipient's client knows it is
+     * looking at the group's first state rather than something it has missed changes to.
+     */
+    private val NEW_GROUP_REVISION = 0
+
     fun createGroup(title: String, memberAcis: List<String>): CreatedGroup {
         connection.connect()
         val masterKey = SignalGroups(connection, account, contacts).create(title, memberAcis)
@@ -299,11 +306,54 @@ class SignalStore(private val context: Context) {
             Timber.w("signal groups: made a group whose id would not derive")
             throw IllegalStateException("The group was made but this phone cannot address it.")
         }
-        return CreatedGroup(masterKey = bytes, threadKey = "group:$groupId")
+        // Told to its members, which is upstream's last step in `GroupManagerV2.createGroup`
+        // and not an optional one: a group nobody has been told about is a group only this
+        // phone and the server know exists.
+        //
+        // Best effort, and deliberately so. The group is already made -- refusing to hand it
+        // back because the notice did not go out would leave a real group on the account with
+        // no way to reach it from here. A member who missed this learns of the group from the
+        // first message sent in it, which carries the same key and revision.
+        val told = runCatching {
+            // The group's members as the server accepted them, not the list that was asked
+            // for. A member whose profile credential could not be fetched is turned into an
+            // *invitation* rather than a member, and upstream does not send them this: its
+            // destinations are the group's members, and an invited person learns of the group
+            // from the invitation in its state. Sending to them anyway is a message their
+            // client discards for coming from outside a group they are not yet in.
+            val members = SignalGroups(connection, account, contacts).fetch(bytes)
+                ?.members
+                .orEmpty()
+                .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+                .filter { it.toString() != account.credentials().aci }
+            SignalSender(
+                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).sendGroupUpdate(bytes, members, NEW_GROUP_REVISION)
+        }.onFailure { Timber.w(it, "signal groups: could not tell the members") }.getOrNull()
+        if (told !is SignalSender.Result.Sent) {
+            Timber.w("signal groups: the group was made but its members were not told")
+        }
+
+        return CreatedGroup(
+            masterKey = bytes,
+            threadKey = "group:$groupId",
+            told = told is SignalSender.Result.Sent
+        )
     }
 
-    /** A group that now exists, and where it will show up. */
-    data class CreatedGroup(val masterKey: ByteArray, val threadKey: String)
+    /**
+     * A group that now exists, and where it will show up.
+     *
+     * [told] is whether its members have been told. False means the group is real and nobody
+     * else knows yet; the first message sent in it carries the same group context and puts
+     * that right.
+     */
+    data class CreatedGroup(
+        val masterKey: ByteArray,
+        val threadKey: String,
+        val told: Boolean = false
+    )
 
     /**
      * Sends to a group, fetching its membership first.

@@ -4,6 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
 import java.io.OutputStream
+import timber.log.Timber
 
 /**
  * Writing this phone's Signal messages back out as the JSONL an import reads.
@@ -259,7 +260,15 @@ internal class SignalHistoryExporter(
                 }
 
                 val copied = destination.file(id)?.use { out ->
-                    runCatching { file.open().use { it.copyTo(out) } }.isSuccess
+                    // Says why, rather than only that. An export is read years after it is
+                    // written, and "the attachment was never downloaded" and "this phone
+                    // could not copy the one it had" are different problems with the same
+                    // count. Upstream skips one it cannot open and says so with the
+                    // exception attached -- `BackupRepository.kt:705`,
+                    // `Log.w(TAG, "Unable to open attachment, skipping", e)`.
+                    runCatching { file.open().use { it.copyTo(out) } }
+                        .onFailure { Timber.w(it, "signal export: could not copy an attachment; leaving it out") }
+                        .isSuccess
                 } ?: false
                 if (!copied) {
                     missing++

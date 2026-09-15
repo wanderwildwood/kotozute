@@ -194,7 +194,7 @@ internal class SignalSender(
                 Timber.i("signal retry: sent a message again for somebody who could not read it")
                 Result.Sent(sentTimestamp)
             } else {
-                Result.Failed(describe(result))
+                failed(result)
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal retry: could not send the message again")
@@ -321,6 +321,7 @@ internal class SignalSender(
             )
             val groupIdentifier = groupIdentifierOf(masterKey)
             results.forEach { rememberSend(it, timestamp, groupIdentifier) }
+            results.forEach { noteIfNotRegistered(it) }
             val failed = results.filterNot { it.isSuccess }
             when {
                 failed.isEmpty() -> {
@@ -439,7 +440,7 @@ internal class SignalSender(
             Timber.i("signal blocked: sent a list of %d", individuals.size)
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(describe(result))
+            failed(result)
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal blocked: sending the list threw")
@@ -494,11 +495,7 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(
-                describe(result),
-                safetyNumberChanged = result.identityFailure != null,
-                notRegistered = result.isUnregisteredFailure
-            )
+            failed(result)
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal retry: could not ask for a message to be sent again")
@@ -525,11 +522,7 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(
-                describe(result),
-                safetyNumberChanged = result.identityFailure != null,
-                notRegistered = result.isUnregisteredFailure
-            )
+            failed(result)
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal session: could not send a null message")
@@ -571,7 +564,7 @@ internal class SignalSender(
                 attempt()
             }
             if (result.isSuccess) Result.Sent(System.currentTimeMillis())
-            else Result.Failed(describe(result))
+            else failed(result)
         } catch (t: Throwable) {
             Timber.w(t, "signal receipt: sending %s threw", what)
             Result.Failed(t.message ?: t::class.java.simpleName)
@@ -612,11 +605,7 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(
-                describe(result),
-                safetyNumberChanged = result.identityFailure != null,
-                notRegistered = result.isUnregisteredFailure
-            )
+            failed(result)
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal keys: requesting them threw")
@@ -644,11 +633,7 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(
-                describe(result),
-                safetyNumberChanged = result.identityFailure != null,
-                notRegistered = result.isUnregisteredFailure
-            )
+            failed(result)
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal configuration: requesting it threw")
@@ -685,7 +670,7 @@ internal class SignalSender(
                 Timber.i("signal read sync: told our own devices about %d message(s)", read.size)
                 Result.Sent(timestamp)
             } else {
-                Result.Failed(describe(result))
+                failed(result)
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal read sync: send threw")
@@ -705,11 +690,7 @@ internal class SignalSender(
         if (result.isSuccess) {
             Result.Sent(System.currentTimeMillis())
         } else {
-            Result.Failed(
-                describe(result),
-                safetyNumberChanged = result.identityFailure != null,
-                notRegistered = result.isUnregisteredFailure
-            )
+            failed(result)
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal blocked: requesting the list threw")
@@ -758,6 +739,37 @@ internal class SignalSender(
         result.proofRequiredFailure != null ->
             "Signal wants this phone to prove it is a person, which it cannot do yet"
         else -> "it did not send, and the server did not say why"
+    }
+
+    /**
+     * Writes down that the service says somebody is not on Signal.
+     *
+     * ⚠ Called from **both** send paths. The one-to-one path had this and the group path did
+     * not, which is the same "fixed one arm of the `when` and not its neighbours" that the
+     * previous finding was about -- and worse here, because a group is exactly where a member
+     * who has left is most likely to be found: nobody writes to them one-to-one any more,
+     * which is why they went unnoticed.
+     *
+     * Upstream collects them per send (`GroupSendJobHelper`'s `unregistered` list) and its
+     * callers mark each one; this is that, at the point both paths already inspect results.
+     */
+    /**
+     * The failure form for a single-recipient send, with the one thing worth remembering done
+     * on the way past. One place, so a new send path cannot forget it.
+     */
+    private fun failed(result: SendMessageResult): Result.Failed {
+        noteIfNotRegistered(result)
+        return Result.Failed(
+            describe(result),
+            safetyNumberChanged = result.identityFailure != null,
+            notRegistered = result.isUnregisteredFailure
+        )
+    }
+
+    private fun noteIfNotRegistered(result: SendMessageResult) {
+        if (!result.isUnregisteredFailure) return
+        runCatching { contacts.markUnregistered(result.address.serviceId.toString()) }
+            .onFailure { Timber.w(it, "signal send: could not note that they have left Signal") }
     }
 
     /** What to call the recipient of a failed send, or "they" where only an id is held. */
@@ -814,7 +826,7 @@ internal class SignalSender(
                 Timber.i("signal reaction: delivered ts=%d", timestamp)
                 Result.Sent(timestamp)
             } else {
-                Result.Failed(describe(result))
+                failed(result)
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal reaction: send threw")
@@ -878,6 +890,7 @@ internal class SignalSender(
             // Logged for the same reason as the one-to-one reaction above.
             val reactionGroupId = groupIdentifierOf(masterKey)
             results.forEach { rememberSend(it, timestamp, reactionGroupId) }
+            results.forEach { noteIfNotRegistered(it) }
             val failed = results.filterNot { it.isSuccess }
             if (failed.isEmpty()) Result.Sent(timestamp)
             else Result.Failed("could not reach ${failed.size} of ${results.size} group members")
@@ -928,7 +941,7 @@ internal class SignalSender(
                 Timber.i("signal delete: withdrawal sent for ts=%d", targetSentTimestamp)
                 Result.Sent(timestamp)
             } else {
-                Result.Failed(describe(result))
+                failed(result)
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal delete: sending the withdrawal threw")
@@ -978,6 +991,7 @@ internal class SignalSender(
             // A withdrawal that cannot be resent is a withdrawal somebody never receives.
             val deleteGroupId = groupIdentifierOf(masterKey)
             results.forEach { rememberSend(it, timestamp, deleteGroupId) }
+            results.forEach { noteIfNotRegistered(it) }
             val failed = results.filterNot { it.isSuccess }
             if (failed.isEmpty()) Result.Sent(timestamp)
             else Result.Failed("could not reach ${failed.size} of ${results.size} group members")
@@ -1059,7 +1073,7 @@ internal class SignalSender(
                 Timber.i("signal send: delivered ts=%d", timestamp)
                 Result.Sent(timestamp)
             } else {
-                Result.Failed(describe(result))
+                failed(result)
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal send: threw")

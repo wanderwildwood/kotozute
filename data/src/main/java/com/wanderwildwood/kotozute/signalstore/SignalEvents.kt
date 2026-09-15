@@ -79,6 +79,16 @@ interface SignalEvents {
     fun rotatePreKeys() {}
 
     /**
+     * Says in the conversation that somebody's name is now different from the one it held.
+     *
+     * Not the first name ever learned -- only a name that replaced another. A contact's
+     * displayed name changing under the reader is how one person gets mistaken for another,
+     * and Signal treats it as worth a permanent row in the conversation rather than a silent
+     * relabelling (`RetrieveProfileJob` -> `insertProfileNameChangeMessages`).
+     */
+    fun profileNameChanged(aci: String, from: String, to: String) {}
+
+    /**
      * Says in the conversation that a message arrived and could not be read.
      *
      * Called once, an hour after this phone asked the sender to send it again and nothing came.

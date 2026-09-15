@@ -385,6 +385,49 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /**
+     * Writes into the conversation that somebody's name has replaced a different one.
+     *
+     * A contact's displayed name changing under the reader is how one person gets mistaken for
+     * another, so it is a row in the conversation rather than a silent relabelling. Upstream
+     * does the same (`RetrieveProfileJob` -> `insertProfileNameChangeMessages`).
+     *
+     * ⚠ **Read, not unread** -- `READ to 1` in upstream's insert, against `READ to 0` and an
+     * `incrementUnread` for the could-not-read note next door. The difference is deliberate in
+     * both places and copied rather than decided: a lost message is something to act on now, a
+     * change of name is something to have seen when you next look.
+     */
+    private fun noteNameChange(aci: String, from: String, to: String) {
+        val now = System.currentTimeMillis()
+        ingest(
+            listOf(
+                com.wanderwildwood.kotozute.signal.BridgeMessage(
+                    // Not a message identity: nobody sent this and no resend will replace it,
+                    // so it is stamped with when this phone noticed rather than with a
+                    // timestamp some other device might also use.
+                    id = "namechange:$aci:$now",
+                    seq = 0,
+                    threadKey = "direct:$aci",
+                    ts = now,
+                    senderUuid = aci,
+                    senderNumber = "",
+                    outgoing = false,
+                    body = context.getString(
+                        com.wanderwildwood.kotozute.data.R.string.signal_profile_name_changed,
+                        from,
+                        to
+                    ),
+                    groupId = "",
+                    quoteTs = 0,
+                    read = true,
+                    source = "live",
+                    attachmentsJson = ""
+                )
+            )
+        )
+        Timber.i("signal profile: a contact's name replaced the one this phone held")
+    }
+
+    /**
      * Writes into the conversation that a message arrived and could not be read.
      *
      * An hour after this phone asked for it again and nothing came. Until then there is every
@@ -1713,6 +1756,9 @@ class SignalRepositoryImpl @Inject constructor(
             applyTimerChange(threadKey, seconds, version)
 
         override fun refreshStoredRecords() = rereadStoredRecords()
+
+        override fun profileNameChanged(aci: String, from: String, to: String) =
+            noteNameChange(aci, from, to)
 
         override fun undecryptableGaveUp(
             sender: String,

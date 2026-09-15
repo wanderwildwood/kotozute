@@ -21,7 +21,13 @@ import timber.log.Timber
  */
 internal class SignalProfiles(
     private val connection: SignalConnection,
-    private val contacts: SignalContactStore
+    private val contacts: SignalContactStore,
+    /**
+     * Told when somebody this account already had a name for now has a different one.
+     *
+     * Not when a name is learned for the first time -- see [noteworthyNameChange].
+     */
+    private val onNameChanged: (aci: String, from: String, to: String) -> Unit = { _, _, _ -> }
 ) {
 
     /**
@@ -45,6 +51,7 @@ internal class SignalProfiles(
      * @return how many names were learned.
      */
     fun refreshMissingNames(): Int {
+        val changed = mutableListOf<Triple<String, String, String>>()
         // Nameless people first, then whoever has gone longest without being looked at.
         // Bounded per pass: each is a round trip and this runs after a received batch.
         // ⚠ Nothing at all while the server has told us to wait. This pass runs after every
@@ -111,11 +118,25 @@ internal class SignalProfiles(
                 .onFailure { Timber.w(it, "signal profile: could not note the fetch") }
 
             profile.name?.let {
+                // ⚠ Read before the write, because afterwards there is nothing left saying
+                // what the name used to be. A contact's displayed name changing under the
+                // reader is exactly how somebody gets mistaken for somebody else, and Signal
+                // treats it as worth a permanent row in the conversation
+                // (`RetrieveProfileJob` -> `insertProfileNameChangeMessages`).
+                val held = runCatching { contacts.nameFor(aci) }.getOrNull()
+                if (noteworthyNameChange(held, it)) {
+                    changed += Triple(aci, held.orEmpty(), it)
+                }
                 learned += SignalContactStore.Contact(serviceId = aci, e164 = null, name = it)
             }
         }
 
         if (learned.isNotEmpty()) contacts.store(learned)
+        // After the write, so a note never claims a change the store did not take.
+        changed.forEach { (aci, from, to) ->
+            runCatching { onNameChanged(aci, from, to) }
+                .onFailure { Timber.w(it, "signal profile: could not note a name change") }
+        }
 
         limited?.let { e ->
             rateLimitedUntil = System.currentTimeMillis() + e.waitMs
@@ -222,6 +243,28 @@ internal class SignalProfiles(
     }
 
     companion object {
+
+        /**
+         * Whether a name arriving is a *change* worth telling the reader about.
+         *
+         * Upstream's four conditions minus the two that cannot arise here
+         * (`RetrieveProfileJob`: not blocked, not a group, not self, and
+         * `localDisplayName.isNotEmpty()`): a profile fetch here is always about another
+         * person, never a group and never this account.
+         *
+         * ⚠ **The first name ever learned is not a change.** Nearly every contact starts with
+         * no name at all, so without that condition the first successful profile fetch would
+         * write a "they changed their name" note into every conversation at once -- which is
+         * both wrong and the kind of noise that teaches a reader to ignore the real one.
+         *
+         * A name going *away* is not a change either. An empty answer is the profile fetch
+         * failing to say, not somebody choosing to be nameless, and the store keeps the old
+         * one; saying "they changed their name to nothing" would describe our own gap as their
+         * decision.
+         */
+        internal fun noteworthyNameChange(held: String?, arriving: String): Boolean =
+            !held.isNullOrBlank() && arriving.isNotBlank() && held != arriving
+
         /**
          * How long a profile is believed before it is worth asking again.
          *

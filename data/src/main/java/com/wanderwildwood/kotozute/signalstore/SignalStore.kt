@@ -1506,7 +1506,16 @@ class SignalStore(private val context: Context) {
             // Fetch whatever names became fetchable, then let the caller rename its threads --
             // only if something was actually learned, so a quiet batch does not walk the whole
             // thread list for nothing.
-            if (SignalProfiles(connection, contacts).refreshMissingNames() > 0) onNamesLearned()
+            val profiles = SignalProfiles(connection, contacts) { aci, from, to ->
+                // ⚠ Only for somebody this account can still hear from. Upstream skips a
+                // blocked recipient (`RetrieveProfileJob`'s `!recipient.isBlocked`), and the
+                // reason is the same one blocking exists for: a blocked person should not be
+                // able to put a line into a conversation, even a line about themselves.
+                if (!runCatching { blocks.isBlocked(aci, contacts.numberFor(aci)) }.getOrDefault(false)) {
+                    outer.profileNameChanged(aci, from, to)
+                }
+            }
+            if (profiles.refreshMissingNames() > 0) onNamesLearned()
             outer.afterBatch()
         }
 

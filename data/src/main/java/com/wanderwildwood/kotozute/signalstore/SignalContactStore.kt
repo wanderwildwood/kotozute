@@ -811,6 +811,55 @@ internal class SignalContactStore(
         }
     }
 
+    /**
+     * Notes that this person knows us by number and not yet by account.
+     *
+     * Set when a message from them arrives addressed to this account's **phone-number
+     * identity**. That is them saying which of our two identities they hold -- and until they
+     * are shown the two are one person, their client keeps a second, separate conversation for
+     * us. Signal marks the sender at exactly this moment
+     * (`MessageDecryptor`, `RecipientTable.markNeedsPniSignature`).
+     *
+     * ⚠ The proof is the thing this app was sending to **everybody**: the `includePniSignature`
+     * argument on the one-to-one send was hardcoded true. That hands this account's
+     * phone-number identity to people who only ever knew its account id -- which is the
+     * opposite of what the sealed-sender certificate here is chosen to avoid.
+     */
+    fun markNeedsPniSignature(serviceId: String) = withStoreLock(db) {
+        if (serviceId.isBlank()) return@withStoreLock
+        db.writableDatabase.execSQL(
+            "UPDATE recipient SET needs_pni_signature = 1 WHERE aci = ? OR pni = ?",
+            arrayOf<Any?>(serviceId, serviceId)
+        )
+    }
+
+    /** Whether this person is still owed the proof. Unknown counts as no: see [clearNeedsPniSignature]. */
+    fun needsPniSignature(serviceId: String): Boolean = withStoreLock(db) {
+        if (serviceId.isBlank()) return@withStoreLock false
+        db.readableDatabase.rawQuery(
+            "SELECT needs_pni_signature FROM recipient WHERE aci = ? OR pni = ? LIMIT 1",
+            arrayOf(serviceId, serviceId)
+        ).use { c -> c.moveToFirst() && c.getInt(0) != 0 }
+    }
+
+    /**
+     * Notes that the proof has gone.
+     *
+     * ⚠ Cleared on a **successful send**, where upstream waits for delivery
+     * (`PendingPniSignatureMessageTable`, which holds the pending sends and clears the flag
+     * when all of them are delivered). The difference is deliberate and the costs are not the
+     * same size: clearing early costs one correspondent a proof they may have to learn another
+     * way, and never clearing costs every message this account sends carrying it for ever --
+     * which is the state this replaces.
+     */
+    fun clearNeedsPniSignature(serviceId: String) = withStoreLock(db) {
+        if (serviceId.isBlank()) return@withStoreLock
+        db.writableDatabase.execSQL(
+            "UPDATE recipient SET needs_pni_signature = 0 WHERE aci = ? OR pni = ?",
+            arrayOf<Any?>(serviceId, serviceId)
+        )
+    }
+
     /** The account id a phone-number identity belongs to, where that is known. */
     fun aciForPni(pni: String): String? = withStoreLock(db) {
         db.readableDatabase.rawQuery(

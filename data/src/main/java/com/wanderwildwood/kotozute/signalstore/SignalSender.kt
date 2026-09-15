@@ -401,6 +401,30 @@ internal class SignalSender(
     }
 
     /**
+     * Whether this person is still owed proof that this account's two identities are one.
+     *
+     * ⚠ A read that fails answers **no**. The proof is only useful to somebody who reached us
+     * by number; sending it to everybody is what this replaces, and a store that will not
+     * answer is not a reason to go back to that.
+     */
+    private fun owesPniProof(recipient: ServiceId): Boolean =
+        runCatching { contacts.needsPniSignature(recipient.toString()) }
+            .onFailure { Timber.w(it, "signal send: could not tell whether the proof is owed") }
+            .getOrDefault(false)
+
+    /**
+     * Notes that the proof has gone, once a send carrying it has succeeded.
+     *
+     * Only when one was actually attached: clearing a flag for a message that did not carry
+     * the proof would leave them owed it with nothing left saying so.
+     */
+    private fun clearPniProofIfSent(recipient: ServiceId, attached: Boolean, sent: Boolean) {
+        if (!attached || !sent) return
+        runCatching { contacts.clearNeedsPniSignature(recipient.toString()) }
+            .onFailure { Timber.w(it, "signal send: could not note that the proof had gone") }
+    }
+
+    /**
      * Whether the signed prekeys are fresh enough to keep sending with, replacing them if not.
      *
      * See [PreKeyUploader.refreshIfTooOldToSendWith] for the rule and where it comes from. The
@@ -1000,20 +1024,33 @@ internal class SignalSender(
             .build()
 
         return try {
+            val owedProof = owesPniProof(recipient)
             val result = sender.sendDataMessage(
                 SignalServiceAddress(recipient),
                 sealedSender.accessFor(recipient.toString()),
                 ContentHint.RESENDABLE,
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,
-                false,
-                // urgent. The server uses this to decide whether to wake a dozing
-                // recipient with a high-priority push. Sent non-urgent, an ordinary
-                // message waits until their phone next connects on its own schedule --
-                // which, on a phone built to stay asleep, is exactly the case where
-                // somebody would say the message never arrived.
-                true
+                // ⚠⚠ **These two were the wrong way round**, and the comment below described
+                // the second one while it sat on the first. Read out of the bytecode, not
+                // guessed: parameter 6 is `urgent` and parameter 7 is `includePniSignature`.
+                //
+                // urgent. The server uses this to decide whether to wake a dozing recipient
+                // with a high-priority push. Sent non-urgent -- which every one-to-one message
+                // from this phone was -- an ordinary message waits until their phone next
+                // connects on its own schedule, which on a phone built to stay asleep is
+                // exactly the case where somebody would say the message never arrived.
+                // Upstream sends all three of these urgent (`GroupSendUtil
+                // .sendResendableDataMessage`, `urgent = true`).
+                true,
+                // includePniSignature. Only where it is owed -- somebody who messaged this
+                // account at its phone-number identity and has not yet been shown the two
+                // identities are one person. It was hardcoded **true**, so every message handed
+                // this account's PNI to people who only ever knew its account id, which is the
+                // opposite of what the ACI-only sender certificate here is chosen to avoid.
+                owedProof
             )
+            clearPniProofIfSent(recipient, owedProof, result.isSuccess)
             if (result.isSuccess) {
             // ⚠ Logged, because it went out as RESENDABLE. That hint tells the recipient's
             // client to show nothing and wait for a resend if it cannot read the message --
@@ -1141,14 +1178,17 @@ internal class SignalSender(
             .build()
 
         return try {
+            val owedProof = owesPniProof(recipient)
             val result = sender.sendDataMessage(
                 SignalServiceAddress(recipient),
                 sealedSender.accessFor(recipient.toString()),
                 ContentHint.RESENDABLE,
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,
-                false,
-                true
+                // urgent, then includePniSignature. See the note in [send]: these were the
+                // wrong way round everywhere.
+                true,
+                owedProof
             )
             if (result.isSuccess) {
             // ⚠ Logged, because it went out as RESENDABLE. That hint tells the recipient's
@@ -1158,6 +1198,7 @@ internal class SignalSender(
             // `sendResendableDataMessage`, which records the payload; sends that are not meant
             // to be resent use a different path and a different hint.
                 rememberSend(result, timestamp, null)
+                clearPniProofIfSent(recipient, owedProof, true)
                 Timber.i("signal delete: withdrawal sent for ts=%d", targetSentTimestamp)
                 Result.Sent(timestamp)
             } else {
@@ -1295,6 +1336,7 @@ internal class SignalSender(
             .build()
 
         return try {
+            val owedProof = owesPniProof(recipient)
             val result: SendMessageResult = sender.sendDataMessage(
                 SignalServiceAddress(recipient),
                 // Sealed sender when we can, identified when we cannot. Null here is not a
@@ -1306,15 +1348,27 @@ internal class SignalSender(
                 ContentHint.RESENDABLE,
                 message,
                 SignalServiceMessageSender.IndividualSendEvents.EMPTY,
-                false,
-                // urgent. The server uses this to decide whether to wake a dozing
-                // recipient with a high-priority push. Sent non-urgent, an ordinary
-                // message waits until their phone next connects on its own schedule --
-                // which, on a phone built to stay asleep, is exactly the case where
-                // somebody would say the message never arrived.
-                true
+                // ⚠⚠ **These two were the wrong way round**, and the comment below described
+                // the second one while it sat on the first. Read out of the bytecode, not
+                // guessed: parameter 6 is `urgent` and parameter 7 is `includePniSignature`.
+                //
+                // urgent. The server uses this to decide whether to wake a dozing recipient
+                // with a high-priority push. Sent non-urgent -- which every one-to-one message
+                // from this phone was -- an ordinary message waits until their phone next
+                // connects on its own schedule, which on a phone built to stay asleep is
+                // exactly the case where somebody would say the message never arrived.
+                // Upstream sends all three of these urgent (`GroupSendUtil
+                // .sendResendableDataMessage`, `urgent = true`).
+                true,
+                // includePniSignature. Only where it is owed -- somebody who messaged this
+                // account at its phone-number identity and has not yet been shown the two
+                // identities are one person. It was hardcoded **true**, so every message handed
+                // this account's PNI to people who only ever knew its account id, which is the
+                // opposite of what the ACI-only sender certificate here is chosen to avoid.
+                owedProof
             )
             rememberSend(result, timestamp, null)
+            clearPniProofIfSent(recipient, owedProof, result.isSuccess)
             if (result.isSuccess) {
                 Timber.i("signal send: delivered ts=%d", timestamp)
                 Result.Sent(timestamp)

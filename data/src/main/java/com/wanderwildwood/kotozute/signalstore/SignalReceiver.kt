@@ -680,6 +680,20 @@ internal class SignalReceiver(
             return null
         }
 
+        // ⚠ Addressed to the phone-number identity: they know us by number, not by account.
+        // Until they are shown the two are one person, their client keeps a second separate
+        // conversation for us -- the same split this app repairs on its own side, inflicted on
+        // theirs. Marked here, which is exactly where `MessageDecryptor` marks it, and the next
+        // message sent to them carries the proof.
+        if (pni != null && destination == pni) {
+            ServiceId.parseOrNull(envelope.sourceServiceId, envelope.sourceServiceIdBinary)
+                ?.let { from ->
+                    Timber.i("signal receive: a message to our phone-number identity; the sender is owed the proof they are one account")
+                    runCatching { contacts.markNeedsPniSignature(from.toString()) }
+                        .onFailure { Timber.w(it, "signal receive: could not note the owed proof") }
+                }
+        }
+
         // ⚠ And nothing but a delivery receipt ever comes *from* a PNI. A message does not:
         // the sender would be addressing us from an identity that cannot hold a session.
         // Upstream refuses it by type, which is the same test made explicit.

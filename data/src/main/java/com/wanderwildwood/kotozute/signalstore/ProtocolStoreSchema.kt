@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 29
+    const val VERSION = 30
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -490,6 +490,11 @@ internal object ProtocolStoreSchema {
           -- dirty flag covers a muted group as well as a renamed person. Base64 of the group
           -- id, which is what a thread key already carries.
           group_id TEXT DEFAULT NULL,
+          -- Whether this person has yet to be shown that this account's phone-number identity
+          -- and its account id are one person. Set when a message from them arrives addressed
+          -- to the PNI -- which is them saying they know us by number, not by account -- and
+          -- cleared once a message carrying the proof has gone. See v30.
+          needs_pni_signature INTEGER NOT NULL DEFAULT 0,
           -- Whether the account shares its profile with this person -- ContactRecord's
           -- `whitelisted`. Signal will not attach this account's profile key to a message for
           -- somebody who is neither a system contact nor whitelisted, which is what makes
@@ -828,6 +833,18 @@ internal object ProtocolStoreSchema {
             SELECT recipient, sent_timestamp, owed_since, 'delivery' FROM receipt_owed_old;
             """,
             "DROP TABLE receipt_owed_old;"
+        ),
+
+        /**
+         * Whether this person still has to be shown that our two identities are one person.
+         *
+         * Set when a message arrives addressed to this account's **phone-number identity**,
+         * which is the sender saying they know us by number and not by account. Cleared once a
+         * message carrying the proof has gone to them. See
+         * [SignalContactStore.markNeedsPniSignature].
+         */
+        30 to listOf(
+            "ALTER TABLE recipient ADD COLUMN needs_pni_signature INTEGER NOT NULL DEFAULT 0;"
         ),
 
         /**

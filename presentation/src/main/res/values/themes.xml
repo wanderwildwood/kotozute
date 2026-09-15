@@ -37,6 +37,7 @@
     </style>
 
     <style name="AppBaseTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="actionMenuTextAppearance">@style/ActionMenuText</item>
         <item name="android:divider">@color/separatorLight</item>
         <item name="android:queryBackground">@color/white</item>
         <item name="android:statusBarColor">@color/white</item>
@@ -81,6 +82,14 @@
          it had just interrupted. It was the last place the house rule was broken, and not
          in any string, so reading strings.xml would never have found it. -->
     <style name="ButtonBarButton" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+        <item name="android:textAllCaps">false</item>
+        <item name="textAllCaps">false</item>
+    </style>
+
+    <!-- The other place the house rule was broken, found the same way as the button bar
+         below it: a toolbar action with a title and no icon renders CREATE, because
+         AppCompat's action menu appearance sets textAllCaps. Not in any string either. -->
+    <style name="ActionMenuText" parent="TextAppearance.AppCompat.Widget.ActionBar.Menu">
         <item name="android:textAllCaps">false</item>
         <item name="textAllCaps">false</item>
     </style>

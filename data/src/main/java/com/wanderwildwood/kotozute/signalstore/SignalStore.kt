@@ -626,6 +626,52 @@ class SignalStore(private val context: Context) {
         ).resend(serviceId, sentTimestamp) is SignalSender.Result.Sent
     }
 
+    /**
+     * Sends again to anybody still owed a message they asked for and did not get.
+     *
+     * The standing half of a retry receipt. Upstream needs nothing like this because every
+     * send is a job and a failed job is retried for a day (`ResendMessageJob`); there is no
+     * job queue here, so the attempt that failed has to be picked up by something that runs
+     * again on its own.
+     *
+     * ⚠ **Not hung off the receive batch alone.** The obvious place was the end of a drain,
+     * and the obvious place is wrong on the account this is for: the listen loop's read times
+     * out after a minute and unwinds before the end-of-batch work, so on a phone nobody is
+     * messaging the retry would wait for traffic that is not coming. It is called from key
+     * maintenance instead, which the periodic worker runs every fifteen minutes whether or not
+     * anything has arrived -- and from the end of a batch as well, because a batch arriving is
+     * proof the socket is back.
+     *
+     * Giving up is its own step and says so: a request nobody could be reached about in a day
+     * is one to stop waking the radio for, which is that job's own lifespan.
+     *
+     * @return how many went.
+     */
+    fun retryOwedResends(): Int {
+        val log = SignalMessageLog(database)
+        val owed = runCatching { log.owedResends() }
+            .onFailure { Timber.w(it, "signal retry: could not read who is owed a resend") }
+            .getOrDefault(emptyList())
+        var sent = 0
+        if (owed.isNotEmpty()) {
+            connection.connect()
+            owed.forEach { entry ->
+                val went = runCatching { resend(entry.recipient, entry.sentTimestamp) }
+                    .onFailure { Timber.w(it, "signal retry: still could not send it again") }
+                    .getOrDefault(false)
+                if (went) {
+                    sent++
+                    runCatching { log.clearResendOwed(entry.recipient, entry.sentTimestamp) }
+                        .onFailure { Timber.w(it, "signal retry: could not clear a resend that went") }
+                }
+            }
+            Timber.i("signal retry: %d of %d owed resend(s) went this time", sent, owed.size)
+        }
+        runCatching { log.abandonExpiredResends() }
+            .onFailure { Timber.w(it, "signal retry: could not give up on the old ones") }
+        return sent
+    }
+
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 
@@ -1239,9 +1285,10 @@ class SignalStore(private val context: Context) {
             this@SignalStore.sendRetryReceipt(to, error, groupId)
         }
 
-        override fun resend(to: String, sentTimestamp: Long) {
+        override fun resend(to: String, sentTimestamp: Long): Boolean =
             this@SignalStore.resend(to, sentTimestamp)
-        }
+
+        override fun retryOwedResends(): Int = this@SignalStore.retryOwedResends()
     }
 
 }

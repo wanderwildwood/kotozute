@@ -972,6 +972,12 @@ class SignalRepositoryImpl @Inject constructor(
         runCatching { signalStore.refreshCapabilities() }
             .onSuccess { Timber.i("signal account: %s", it) }
             .onFailure { Timber.w(it, "signal account: could not refresh capabilities") }
+        // Somebody asked for a message again and the send did not happen. Upstream retries
+        // that for a day with a job; this round is the nearest thing here, and it runs whether
+        // or not anything has arrived -- which is the case the end of a receive batch cannot
+        // cover, because on a quiet phone there is no batch.
+        runCatching { signalStore.retryOwedResends() }
+            .onFailure { Timber.w(it, "signal retry: could not try the owed resends") }
         runCatching { signalStore.maintainPreKeys() }
             .onSuccess { Timber.i("signal keys: %s", it) }
             .onFailure {

@@ -212,6 +212,12 @@ internal class SignalReceiver(
             }.onFailure { Timber.w(it, "signal keys: could not top up after a prekey message") }
         }
 
+        // A batch arriving is proof the socket is back, which is what was missing when a
+        // resend first failed. The standing retry lives on the store and also runs from key
+        // maintenance, because this block is skipped when the read simply times out.
+        runCatching { events.retryOwedResends() }
+            .onFailure { Timber.w(it, "signal retry: could not try the owed resends") }
+
         sweepUndecryptable()
         // One place decides what this database stops holding: sent plaintext goes on the same
         // pass as undecryptable envelopes.
@@ -1518,8 +1524,24 @@ internal class SignalReceiver(
             // And send them the message again. Archiving only fixes the next one; this is the
             // one they actually asked about, and their client is showing nothing while it
             // waits for it -- which is what ContentHint.RESENDABLE told them to do.
-            runCatching { events.resend(sender, error.timestamp) }
-                .onFailure { Timber.w(it, "signal retry: could not send the message again") }
+            // Refused counts as failed, not only thrown. No session, a server error, somebody
+            // who has left -- those are the ordinary ways this does not happen, and none of
+            // them raises anything.
+            val went = runCatching { events.resend(sender, error.timestamp) }
+                .onFailure { Timber.w(it, "signal retry: sending it again threw") }
+                .getOrDefault(false)
+            if (!went) {
+                // Noted, not dropped. Upstream answers this with a job that keeps trying for a
+                // day (`ResendMessageJob`: lifespan one day, unlimited attempts), because what
+                // usually fails here is the network rather than the send -- and their client
+                // is sitting on nothing, waiting, because RESENDABLE told it to. The plaintext
+                // is already kept; this is the note that somebody is still owed it.
+                Timber.w("signal retry: could not send the message again; will keep trying")
+                runCatching { SignalMessageLog(db).markResendOwed(sender, error.timestamp) }
+                    .onFailure { failure ->
+                        Timber.w(failure, "signal retry: could not note that a resend is owed")
+                    }
+            }
         }.onFailure { Timber.w(it, "signal retry: could not act on a retry receipt") }
     }
 

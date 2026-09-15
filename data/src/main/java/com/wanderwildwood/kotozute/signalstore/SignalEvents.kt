@@ -61,8 +61,26 @@ interface SignalEvents {
      *
      * The other half of a retry receipt, and the half this app could not do until it kept a
      * log of what it sent. Their client is showing nothing and waiting for exactly this.
+     *
+     * ⚠ **Returns whether it went.** It used to return nothing, so a send that was *refused*
+     * -- no session, a server error, somebody who has left Signal -- was indistinguishable
+     * from one that landed, and only a thrown exception counted as failure. That is the
+     * common case, not the rare one.
+     *
+     * @return true if the message reached the server for them.
      */
-    fun resend(to: String, sentTimestamp: Long) {}
+    fun resend(to: String, sentTimestamp: Long): Boolean = false
+
+    /**
+     * Try again for everybody still owed a message they asked for.
+     *
+     * Called at the end of a batch, because a batch arriving is proof the socket is back. The
+     * same work also runs from key maintenance on the periodic round, so a quiet phone does
+     * not leave somebody waiting on traffic that is not coming.
+     *
+     * @return how many went.
+     */
+    fun retryOwedResends(): Int = 0
 
     /**
      * Messages the account has read on another device.

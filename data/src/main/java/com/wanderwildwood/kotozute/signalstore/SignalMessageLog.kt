@@ -118,6 +118,95 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
         }
     }
 
+    /**
+     * Notes that somebody asked for a message again and this phone could not send it.
+     *
+     * ⚠ **One attempt was the whole of the answer.** Upstream's `ResendMessageJob` is
+     * `setLifespan(1 day)` with `setMaxAttempts(UNLIMITED)`, queued per recipient, because the
+     * failure that matters here is not the send being refused -- it is the network going away
+     * between their asking and our answering. Logged and dropped, the message stays lost after
+     * `ContentHint.RESENDABLE` told their client to sit and wait for it.
+     *
+     * Only the first failure is dated. What matters is how long they have been waiting, not
+     * when the last attempt was, because that is what upstream's lifespan is measured from.
+     */
+    fun markResendOwed(
+        recipient: String,
+        sentTimestamp: Long,
+        now: Long = System.currentTimeMillis()
+    ): Int = withStoreLock(db) {
+        db.writableDatabase.compileStatement(
+            """
+            UPDATE message_log SET resend_owed_since = ?
+            WHERE recipient = ? AND sent_timestamp = ? AND resend_owed_since IS NULL
+            """.trimIndent()
+        ).use { statement ->
+            statement.bindLong(1, now)
+            statement.bindString(2, recipient)
+            statement.bindLong(3, sentTimestamp)
+            statement.executeUpdateDelete()
+        }
+    }
+
+    /** Somebody is no longer waiting: the message reached them, or it never will. */
+    fun clearResendOwed(recipient: String, sentTimestamp: Long): Int = withStoreLock(db) {
+        db.writableDatabase.compileStatement(
+            "UPDATE message_log SET resend_owed_since = NULL WHERE recipient = ? AND sent_timestamp = ?"
+        ).use { statement ->
+            statement.bindString(1, recipient)
+            statement.bindLong(2, sentTimestamp)
+            statement.executeUpdateDelete()
+        }
+    }
+
+    /** Somebody still waiting for a message, and since when. */
+    data class Owed(val recipient: String, val sentTimestamp: Long, val since: Long)
+
+    /**
+     * Who is still owed a resend and still worth trying, newest request first.
+     *
+     * One row per person per message, not per device: [resend] addresses a person and the
+     * library decides which of their devices to reach.
+     */
+    fun owedResends(now: Long = System.currentTimeMillis()): List<Owed> = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            """
+            SELECT recipient, sent_timestamp, MIN(resend_owed_since)
+            FROM message_log
+            WHERE resend_owed_since IS NOT NULL
+            GROUP BY recipient, sent_timestamp
+            ORDER BY MIN(resend_owed_since) DESC
+            """.trimIndent(),
+            null
+        ).use { c ->
+            generateSequence { if (c.moveToNext()) Owed(c.getString(0), c.getLong(1), c.getLong(2)) else null }
+                .filter { stillWorthResending(it.since, now) }
+                .toList()
+        }
+    }
+
+    /**
+     * Stops trying for the ones nobody can be helped by any more, and says how many.
+     *
+     * Kept as its own step rather than folded into the query so that giving up is something
+     * the log *does* and can report, not something that quietly stops happening.
+     */
+    fun abandonExpiredResends(now: Long = System.currentTimeMillis()): Int = withStoreLock(db) {
+        db.writableDatabase.compileStatement(
+            "UPDATE message_log SET resend_owed_since = NULL WHERE resend_owed_since IS NOT NULL AND resend_owed_since <= ?"
+        ).use { statement ->
+            statement.bindLong(1, now - RESEND_LIFESPAN_MS)
+            statement.executeUpdateDelete().also { gone ->
+                if (gone > 0) {
+                    Timber.w(
+                        "signal retry: gave up resending %d copy(ies); nobody was reached in a day",
+                        gone
+                    )
+                }
+            }
+        }
+    }
+
     /** What was sent to somebody at that moment, or null when it is no longer held. */
     fun recall(recipient: String, sentTimestamp: Long): Entry? = withStoreLock(db) {
         db.readableDatabase.rawQuery(
@@ -178,7 +267,7 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
         gone
     }
 
-    private companion object {
+    internal companion object {
         /**
          * How long a sent message is worth keeping in case somebody asks for it again.
          *
@@ -197,5 +286,25 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
          * asymmetry that gave this away.
          */
         private val MAX_AGE_MS = TimeUnit.DAYS.toMillis(14)
+
+        /**
+         * How long a resend somebody asked for is worth going on trying.
+         *
+         * A day, which is `ResendMessageJob`'s `setLifespan(TimeUnit.DAYS.toMillis(1))`. Not
+         * the fortnight above: that is how long the *material* is kept, so that somebody whose
+         * phone was away can still ask. This is how long to keep answering one asking, and a
+         * request nobody could be reached about in a day is one to stop waking the radio for.
+         */
+        internal val RESEND_LIFESPAN_MS = TimeUnit.DAYS.toMillis(1)
+
+        /**
+         * Whether a resend first owed at [since] is still worth attempting at [now].
+         *
+         * Its own function so the boundary can be tested. A retry that quietly stops happening
+         * and a retry that never stops are both failures, and neither shows up on a healthy
+         * account.
+         */
+        internal fun stillWorthResending(since: Long, now: Long): Boolean =
+            since > 0 && now - since < RESEND_LIFESPAN_MS
     }
 }

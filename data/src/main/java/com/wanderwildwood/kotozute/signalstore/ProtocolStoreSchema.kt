@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 25
+    const val VERSION = 26
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -519,7 +519,9 @@ internal object ProtocolStoreSchema {
           content BLOB NOT NULL,
           urgent INTEGER NOT NULL DEFAULT 1,
           group_id BLOB,
-          created_at INTEGER NOT NULL
+          created_at INTEGER NOT NULL,
+          -- When a resend was first owed for this copy, and null while none is. See v26.
+          resend_owed_since INTEGER
         );
     """
 
@@ -756,7 +758,17 @@ internal object ProtocolStoreSchema {
         25 to listOf(
             "ALTER TABLE recipient ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE recipient ADD COLUMN unregistered_at INTEGER NOT NULL DEFAULT 0;"
-        )
+        ),
+        // v26: when a resend was first owed to somebody, null while none is. A retry receipt
+        // asks for a message again and this app answered with **one attempt** -- upstream's
+        // `ResendMessageJob` is `setLifespan(1 day)` and `setMaxAttempts(UNLIMITED)`, because
+        // the failure that matters is the network going away, not the send being refused. The
+        // plaintext is already kept here for a fortnight; all that was missing was a note that
+        // somebody is still waiting for it.
+        //
+        // Nullable and no default: a row with nothing owed says so by holding nothing, which
+        // is also what every existing row gets.
+        26 to listOf("ALTER TABLE message_log ADD COLUMN resend_owed_since INTEGER;")
     )
 
     /** 0 = ACI, 1 = PNI, as signal-cli numbers them. Both rows exist from the start. */

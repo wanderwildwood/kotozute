@@ -243,7 +243,7 @@ class SignalRepositoryImpl @Inject constructor(
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction {
                 doomed += it.where(SignalMessage::class.java).findAll()
-                    .flatMap { message -> attachmentIdsOf(message.attachments) }
+                    .flatMap { message -> attachmentIdsOf(message.attachments).orEmpty() }
                 it.delete(SignalMessage::class.java)
                 it.delete(SignalThread::class.java)
             }
@@ -282,7 +282,7 @@ class SignalRepositoryImpl @Inject constructor(
                 expiredThreads += touched
                 // Collected before the rows go, because afterwards there is nothing left
                 // saying which files belonged to them.
-                doomedAttachments += dead.flatMap { attachmentIdsOf(it.attachments) }
+                doomedAttachments += dead.flatMap { attachmentIdsOf(it.attachments).orEmpty() }
                 dead.deleteAllFromRealm()
                 // A thread whose newest message just vanished would otherwise keep showing
                 // it as the preview on the inbox row.
@@ -304,15 +304,67 @@ class SignalRepositoryImpl @Inject constructor(
         return removed
     }
 
-    /** The stored attachment ids on a message row, or nothing if it had none. */
-    private fun attachmentIdsOf(json: String?): List<String> {
+    /**
+     * The stored attachment ids on a message row -- empty if it had none, **null if the row's
+     * list could not be read at all**.
+     *
+     * ⚠ Those last two were the same value, and the difference decides whether a file lives.
+     * Every caller here is a deletion path: an unreadable list meant the row was deleted and
+     * its files were never named, so the picture behind a disappearing message stayed on the
+     * handset with nothing left that could ever ask for it again. Now it says so, and
+     * [purgeAbandonedAttachments] can tell "this message has no attachments" from "I do not
+     * know what this message had" -- which is the difference between a safe sweep and one
+     * that deletes somebody's photograph.
+     */
+    private fun attachmentIdsOf(json: String?): List<String>? {
         if (json.isNullOrBlank()) return emptyList()
         return runCatching {
             val array = org.json.JSONArray(json)
             (0 until array.length()).mapNotNull { i ->
                 array.optJSONObject(i)?.optString("id")?.takeIf { it.isNotBlank() }
             }
-        }.getOrDefault(emptyList())
+        }.onFailure {
+            Timber.w(it, "signal: a message's attachment list could not be read")
+        }.getOrNull()
+    }
+
+    /**
+     * Deletes attachment files that no message refers to any more.
+     *
+     * The backstop behind every named deletion on this rail. Five paths delete a message and
+     * then ask for its files by id, and each depends on the row's JSON parsing; this one asks
+     * the opposite question -- what is on disk that nothing claims -- so a file survives none
+     * of them only by being genuinely referenced.
+     *
+     * Upstream is `AttachmentTable.deleteAbandonedAttachmentFiles`, run from
+     * `DeleteAbandonedAttachmentsJob`. It does not need the guard below, because its
+     * references are columns rather than a JSON blob and cannot half-read.
+     *
+     * ⚠ **Refuses to run on an incomplete set.** If one row's list cannot be read, this does
+     * nothing at all and says why. The two mistakes are not the same size: leaving an orphan
+     * costs disk until the next pass, and deleting a live attachment costs somebody a picture
+     * that has no other copy anywhere -- this store is the only one there is.
+     */
+    override fun purgeAbandonedAttachments(): Int {
+        val known = mutableSetOf<String>()
+        var unreadable = 0
+        Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java).findAll().forEach { message ->
+                val ids = attachmentIdsOf(message.attachments)
+                if (ids == null) unreadable++ else known += ids
+            }
+        }
+        if (unreadable > 0) {
+            Timber.w(
+                "signal: %d message(s) would not say what they had attached; not sweeping, " +
+                    "because a file this cannot account for might still be somebody's picture",
+                unreadable
+            )
+            return 0
+        }
+        return runCatching { signalStore.forgetAbandonedAttachments(known) }
+            .onFailure { Timber.w(it, "signal: could not sweep abandoned attachments") }
+            .getOrDefault(0)
     }
 
     /** Re-derive a thread's snippet, timestamp and unread count from what is left. */
@@ -1406,7 +1458,7 @@ class SignalRepositoryImpl @Inject constructor(
                     val row = r.where(SignalMessage::class.java)
                         .equalTo("id", "$author:$at").findFirst() ?: return@forEach
                     touched += row.threadKey
-                    removedFiles += attachmentIdsOf(row.attachments)
+                    removedFiles += attachmentIdsOf(row.attachments).orEmpty()
                     if (row.outgoing) removedSentAt += row.date
                     row.deleteFromRealm()
                 }
@@ -1416,7 +1468,7 @@ class SignalRepositoryImpl @Inject constructor(
                         .findAll()
                     if (all.isNotEmpty()) {
                         touched += key
-                        removedFiles += all.flatMap { attachmentIdsOf(it.attachments) }
+                        removedFiles += all.flatMap { attachmentIdsOf(it.attachments).orEmpty() }
                         removedSentAt += all.filter { it.outgoing }.map { it.date }
                         // A snapshot, for the same reason every other bulk change here takes
                         // one: deleting from live results takes rows out from under the walk.
@@ -1508,7 +1560,7 @@ class SignalRepositoryImpl @Inject constructor(
                 if (row.outgoing) oursSentAt = row.date
                 // Whatever was attached goes with it. Withdrawing a message is somebody
                 // unsaying something; leaving the picture on disk unsays nothing.
-                doomed += attachmentIdsOf(row.attachments)
+                doomed += attachmentIdsOf(row.attachments).orEmpty()
                 row.deleteFromRealm()
             }
             threadKey?.let { key ->
@@ -2237,7 +2289,7 @@ class SignalRepositoryImpl @Inject constructor(
                     .equalTo("threadKey", threadKey)
                     .findAll()
                 removed = messages.size
-                doomed += messages.flatMap { attachmentIdsOf(it.attachments) }
+                doomed += messages.flatMap { attachmentIdsOf(it.attachments).orEmpty() }
                 sentTimestamps += messages.filter { it.outgoing }.map { it.date }
                 messages.deleteAllFromRealm()
                 r.where(SignalThread::class.java)

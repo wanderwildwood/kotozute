@@ -279,11 +279,10 @@ internal class SealedSender(
         internal val UNRESTRICTED_KEY = ByteArray(16)
 
         /**
-         * Renewed this long before it expires, so a send never races the deadline -- the clock
-         * here and the server's need not agree to the minute.
-         */
-        /**
          * How long before a certificate expires to stop using it.
+         *
+         * Renewed this long before the deadline, so a send never races it -- the clock here
+         * and the server's need not agree to the minute.
          *
          * ⚠ A day, which is upstream's `CERTIFICATE_EXPIRATION_BUFFER`. It was **one hour**,
          * which meant a message could go out under a certificate with ninety seconds left on

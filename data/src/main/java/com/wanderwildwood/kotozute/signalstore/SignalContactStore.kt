@@ -362,22 +362,6 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         byServiceId(serviceId, "sealed_sender_mode") { it.getInt(0) } ?: SEALED_SENDER_UNKNOWN
 
     /**
-     * Notes that the service says this person is not on Signal.
-     *
-     * ⚠ A send that comes back "not registered" is the account telling us something, and it
-     * was being thrown away. The column existed and was only ever written from a storage
-     * record -- so somebody who had left Signal went on being offered in the picker, and every
-     * message to them failed the same way, until their primary noticed and wrote a record
-     * saying so.
-     *
-     * Signal marks them on exactly this signal: `SignalDatabase.recipients().markUnregistered`
-     * from the send result, and its contact search then excludes them. On the one-to-one path
-     * it also refreshes contact discovery, which is the authority; that is deliberately not
-     * done here, because discovery on this account is rate-limited and a send failure is not
-     * worth spending the window on. The mark is local and a storage read or a later discovery
-     * pass clears it.
-     */
-    /**
      * Whether the service has said this person is no longer on Signal.
      *
      * Read before retrying anything at them. Upstream's jobs draw the same line from the other
@@ -393,6 +377,22 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         ).use { c -> c.moveToFirst() && c.getLong(0) > 0 }
     }
 
+    /**
+     * Notes that the service says this person is not on Signal.
+     *
+     * ⚠ A send that comes back "not registered" is the account telling us something, and it
+     * was being thrown away. The column existed and was only ever written from a storage
+     * record -- so somebody who had left Signal went on being offered in the picker, and every
+     * message to them failed the same way, until their primary noticed and wrote a record
+     * saying so.
+     *
+     * Signal marks them on exactly this signal: `SignalDatabase.recipients().markUnregistered`
+     * from the send result, and its contact search then excludes them. On the one-to-one path
+     * it also refreshes contact discovery, which is the authority; that is deliberately not
+     * done here, because discovery on this account is rate-limited and a send failure is not
+     * worth spending the window on. The mark is local and a storage read or a later discovery
+     * pass clears it.
+     */
     fun markUnregistered(serviceId: String, at: Long = System.currentTimeMillis()) = withStoreLock(db) {
         db.writableDatabase.execSQL(
             "UPDATE recipient SET unregistered_at = ? WHERE aci = ? OR pni = ?",
@@ -497,15 +497,6 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
     )
 
     /**
-     * How many people are known, how many have a profile key, and how many have a name.
-     *
-     * ⚠ `WHERE group_id IS NULL`, because a group has a row in this table too (v19) and a
-     * group is not a contact. Without it the settings line would count every marked group as
-     * a contact -- and, having no name, number or username, as one with nothing to show but
-     * an id. Signal spells the same filter out as `FILTER_GROUPS = " AND group_id IS NULL"`
-     * and pairs it with the service-id test wherever it asks about people.
-     */
-    /**
      * Numbers held by more than one row, which no row should be.
      *
      * The invariant [RecipientMerge] maintains at write time: a number arriving for somebody
@@ -566,6 +557,15 @@ internal class SignalContactStore(private val db: ProtocolDatabase) {
         ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
     }
 
+    /**
+     * How many people are known, how many have a profile key, and how many have a name.
+     *
+     * ⚠ `WHERE group_id IS NULL`, because a group has a row in this table too (v19) and a
+     * group is not a contact. Without it the settings line would count every marked group as
+     * a contact -- and, having no name, number or username, as one with nothing to show but
+     * an id. Signal spells the same filter out as `FILTER_GROUPS = " AND group_id IS NULL"`
+     * and pairs it with the service-id test wherever it asks about people.
+     */
     fun counts(): Counts = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             """

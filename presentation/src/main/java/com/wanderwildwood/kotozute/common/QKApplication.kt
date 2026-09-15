@@ -187,6 +187,25 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
             }
         }
 
+        // The backstop behind that one. Deleting a message asks for its files by name, and a
+        // name can be lost -- a row whose attachment list will not parse, a crash between the
+        // row going and the file going, a download that lands after its message was withdrawn.
+        // This asks the opposite question: what is on disk that no message claims. It is what
+        // makes "the picture goes with the words" true rather than usually true.
+        //
+        // Six hours, and once at startup after a pause. It walks every message row, which is
+        // not a thing to do every minute, and an orphan costs only disk until the next pass.
+        // Upstream runs the same sweep from a job with a one-day lifespan
+        // (`DeleteAbandonedAttachmentsJob`); there is no job queue here, so it is a loop.
+        GlobalScope.launch(Dispatchers.IO) {
+            delay(2 * 60_000)
+            while (true) {
+                runCatching { signalRepo.purgeAbandonedAttachments() }
+                    .onFailure { Timber.w(it, "signal: abandoned attachment sweep") }
+                delay(6 * 60 * 60_000L)
+            }
+        }
+
         GlobalScope.launch(Dispatchers.IO) {
             referralManager.trackReferrer()
         }

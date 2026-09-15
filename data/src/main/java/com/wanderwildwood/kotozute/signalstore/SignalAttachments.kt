@@ -145,6 +145,51 @@ internal class SignalAttachments(
     }
 
     /**
+     * Deletes every file on disk that no message refers to any more.
+     *
+     * ⚠ **Nothing swept these.** Five paths delete a message and then ask for its files by id,
+     * and every one of them depends on a JSON column parsing -- so a row whose list could not
+     * be read took its files' only names with it when it went. A disappearing message's
+     * photograph then stays on the handset for ever, which is the one promise that kind of
+     * message makes. The same gap swallows a file left by a crash between the row's deletion
+     * and the file's, and by a download that finished after its message was withdrawn.
+     *
+     * Upstream's answer is exactly this sweep -- `AttachmentTable.deleteAbandonedAttachmentFiles`
+     * takes the files on disk, subtracts the ones any row names, and deletes the difference,
+     * run from `DeleteAbandonedAttachmentsJob`. Named deletion is the fast path; this is what
+     * makes the promise true when the fast path misses one.
+     *
+     * ⚠ **[known] must be every id, or this deletes a live attachment.** That is the reverse
+     * failure and it is the worse one: an orphan left costs disk, a file destroyed costs
+     * somebody their picture. The caller aborts rather than passing a partial set, and
+     * [known] being empty is treated as "nothing was read" and does nothing -- a phone with no
+     * Signal messages has no files here to sweep anyway.
+     *
+     * The grace period is ours, not upstream's: a file is written here before the row that
+     * names it exists, so a download finishing during the sweep would otherwise be deleted a
+     * moment after it arrived. Upstream has no window because it writes the row first and
+     * marks the file protected (`PartFileProtector`); we have neither, so recency stands in.
+     */
+    fun forgetAbandoned(
+        known: Set<String>,
+        now: Long = System.currentTimeMillis()
+    ): Int {
+        if (known.isEmpty()) return 0
+        val files = dir.listFiles() ?: return 0
+        var removed = 0
+        files.forEach { file ->
+            if (!isAbandoned(file.name, file.lastModified(), known, now)) return@forEach
+            if (runCatching { file.delete() }.getOrDefault(false)) {
+                removed++
+            } else {
+                Timber.w("signal attachment: an abandoned file would not delete")
+            }
+        }
+        if (removed > 0) Timber.i("signal attachment: %d abandoned file(s) removed", removed)
+        return removed
+    }
+
+    /**
      * Keeps bytes that arrived without being downloaded -- an import reading them out of a
      * folder -- under an id the rest of the app can ask for. Already there is success: the
      * same file referenced by two messages is one file.
@@ -195,6 +240,41 @@ internal class SignalAttachments(
             .take(32)
 
     companion object {
+
+        /**
+         * How long a file is left alone after it is written, whatever the rows say.
+         *
+         * A file is written here before the message row that names it exists, so without a
+         * window the sweep could delete an attachment between its download and its row -- a
+         * picture lost in the gap it arrived through. An hour is far longer than that gap and
+         * far shorter than anyone would notice a stale file for.
+         *
+         * Ours, not upstream's: upstream writes the row first and marks the file protected
+         * (`PartFileProtector.isProtected`), so it has no window to cover.
+         */
+        internal const val ORPHAN_GRACE_MS = 60L * 60 * 1000
+
+        /**
+         * Whether one file on disk should go.
+         *
+         * Pure so the two halves can be tested apart from a filesystem: **is it referenced**
+         * and **is it old enough**. Getting either backwards deletes somebody's picture, which
+         * is why the rule is not left inline in a loop over `listFiles()`.
+         */
+        internal fun isAbandoned(
+            name: String,
+            lastModified: Long,
+            known: Set<String>,
+            now: Long
+        ): Boolean = when {
+            name in known -> false
+            // A clock that went backwards, or a file stamped in the future, reads as "new".
+            // Left alone: the cost of waiting is disk, the cost of being wrong is a picture.
+            lastModified <= 0L || lastModified > now -> false
+            now - lastModified < ORPHAN_GRACE_MS -> false
+            else -> true
+        }
+
         /**
          * How many times to ask the CDN for the same attachment.
          *

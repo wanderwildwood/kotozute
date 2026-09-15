@@ -499,6 +499,14 @@ interface SignalRepository {
      */
     fun purgeExpired(): Int
 
+    /**
+     * Deletes attachment files that no message refers to any more, returning how many went.
+     *
+     * The backstop behind deleting a message's files by name. Runs rarely: it walks every
+     * message row, and an orphan costs only disk until the next pass.
+     */
+    fun purgeAbandonedAttachments(): Int
+
     /** Put a thread back to unread, so it is picked up again later. */
     fun markUnread(threadKey: String)
 

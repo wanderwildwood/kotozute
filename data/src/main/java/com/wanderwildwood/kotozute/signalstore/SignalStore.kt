@@ -284,19 +284,19 @@ class SignalStore(private val context: Context) {
     }
 
     /**
-     * Makes a group and returns the thread it will appear under.
-     *
-     * See [SignalGroups.create]. Nothing is filed here: a conversation in this app exists
-     * because a message is in it, so the group becomes visible when the first one is sent --
-     * which is what the caller does next, and is also what tells the members it exists at all.
-     */
-    /**
      * A new group's revision. `GroupsV2Operations.createNewGroup` builds one at zero, and the
      * update that announces it carries that number -- so a recipient's client knows it is
      * looking at the group's first state rather than something it has missed changes to.
      */
     private val NEW_GROUP_REVISION = 0
 
+    /**
+     * Makes a group and returns the thread it will appear under.
+     *
+     * See [SignalGroups.create]. Nothing is filed here: a conversation in this app exists
+     * because a message is in it, so the group becomes visible when the first one is sent --
+     * which is what the caller does next, and is also what tells the members it exists at all.
+     */
     fun createGroup(title: String, memberAcis: List<String>): CreatedGroup {
         connection.connect()
         val masterKey = SignalGroups(connection, account, contacts).create(title, memberAcis)
@@ -848,8 +848,7 @@ class SignalStore(private val context: Context) {
      * The number is looked up rather than required from the caller: a block can be held
      * against a phone number alone, and passing null here asked only half the question. Every
      * screen that greys out a blocked conversation went through this.
-     */
-    /**
+     *
      * ⚠ **Fails open, deliberately, and says so.** A read this cannot answer reports "not
      * blocked", so a message from somebody blocked would be filed and announced. Failing the
      * other way is worse rather than safer: every conversation would grey out and refuse to
@@ -1379,6 +1378,17 @@ class SignalStore(private val context: Context) {
     fun forgetAttachments(ids: List<String>): Int =
         SignalAttachments(context) { throw IllegalStateException("no network needed to forget") }
             .let { store -> ids.count { id -> store.forget(id) } }
+
+    /**
+     * Deletes every attachment file no message names any more.
+     *
+     * The backstop behind [forgetAttachments], which deletes by name and so depends on the
+     * name having survived. See [SignalAttachments.forgetAbandoned] -- and note the warning
+     * there: [known] must be **every** id, because this deletes what is not in it.
+     */
+    fun forgetAbandonedAttachments(known: Set<String>): Int =
+        SignalAttachments(context) { throw IllegalStateException("no network needed to forget") }
+            .forgetAbandoned(known)
 
     /**
      * Files an attachment that came from an import rather than from the network, returning

@@ -1202,7 +1202,6 @@ class SignalStore(private val context: Context) {
         }
     }
 
-    /** Names for the people on the other end, from the primary's contacts sync. */
     /**
      * Where to send word that somebody's number changed, once there is anybody listening.
      *
@@ -1215,6 +1214,7 @@ class SignalStore(private val context: Context) {
     @Volatile
     private var onNumberChanged: ((aci: String, from: String, to: String) -> Unit)? = null
 
+    /** Names for the people on the other end, from the primary's contacts sync. */
     internal val contacts: SignalContactStore by lazy {
         SignalContactStore(database) { aci, from, to ->
             // Blocked people are skipped for the same reason as a name change: a blocked

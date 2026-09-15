@@ -54,7 +54,20 @@ internal class SealedSender(
             }
         }
 
-        val cert = senderCertificate() ?: return null
+        // ⚠ A different failure from the one above, and it used to read the same. `Key.None`
+        // is a fact about *them* -- they do not accept sealed sender, or this device holds no
+        // profile key for them -- and upstream sends identified in that case too. No
+        // certificate is a fact about **us**, and upstream does not send at all: the whole
+        // point of `SealedSenderConstraint` is that a send waits for a certificate rather than
+        // going out identified without one.
+        //
+        // It still goes, because a send here has a person waiting on it rather than a job
+        // queue to sit in -- but it says which of the two happened, because one of them is
+        // this app quietly not keeping a promise it makes about itself.
+        val cert = senderCertificate() ?: run {
+            Timber.w("signal send: no sender certificate of our own; this message goes identified")
+            return null
+        }
         return try {
             SealedSenderAccess.forIndividual(UnidentifiedAccess(accessKey, cert, false))
         } catch (t: Throwable) {
@@ -136,10 +149,7 @@ internal class SealedSender(
                     // six days of whatever it asserts. After a number change that is six days
                     // of a certificate describing the old one: still signed, still unexpired,
                     // and no longer true.
-                    cachedUntil = minOf(
-                        expiryOf(bytes) - RENEW_MARGIN_MS,
-                        System.currentTimeMillis() + MAX_CERTIFICATE_AGE_MS
-                    )
+                    cachedUntil = renewAt(expiryOf(bytes), System.currentTimeMillis())
                 }
                 Timber.i("signal send: got a sender certificate")
             }
@@ -164,6 +174,20 @@ internal class SealedSender(
     }
 
     companion object {
+
+        /**
+         * When a freshly fetched certificate should stop being used.
+         *
+         * The sooner of "a day before it expires" and "a day from now". Its own function so
+         * both halves can be tested: the first is upstream's `CERTIFICATE_EXPIRATION_BUFFER`,
+         * the second is upstream replacing its certificate daily on a timer
+         * (`RotateSenderCertificateListener`) rather than holding one to the end -- after a
+         * number change, holding it means carrying up to six days of a certificate that
+         * describes the old number: still signed, still unexpired, and no longer true.
+         */
+        internal fun renewAt(expiry: Long, now: Long): Long =
+            minOf(expiry - RENEW_MARGIN_MS, now + MAX_CERTIFICATE_AGE_MS)
+
 
         /**
          * Which access key a recipient in this state should be sent with.
@@ -245,7 +269,21 @@ internal class SealedSender(
          * Renewed this long before it expires, so a send never races the deadline -- the clock
          * here and the server's need not agree to the minute.
          */
-        private val RENEW_MARGIN_MS = TimeUnit.HOURS.toMillis(1)
+        /**
+         * How long before a certificate expires to stop using it.
+         *
+         * ⚠ A day, which is upstream's `CERTIFICATE_EXPIRATION_BUFFER`. It was **one hour**,
+         * which meant a message could go out under a certificate with ninety seconds left on
+         * it -- and a certificate that expires between this device building the message and
+         * the recipient's client checking it produces a message that client discards. This
+         * phone watches the server for clock skew precisely because the two ends do not agree
+         * about now; an hour is not enough room for a disagreement it already measures.
+         *
+         * Rarely load-bearing, because [MAX_CERTIFICATE_AGE_MS] refreshes daily anyway and a
+         * certificate is good for about a week. It decides the case where the server issues a
+         * short-lived one, and there the safe direction is upstream's.
+         */
+        private val RENEW_MARGIN_MS = TimeUnit.DAYS.toMillis(1)
 
         /** Signal's `RotateSenderCertificateListener.INTERVAL`. */
         private val MAX_CERTIFICATE_AGE_MS = TimeUnit.DAYS.toMillis(1)

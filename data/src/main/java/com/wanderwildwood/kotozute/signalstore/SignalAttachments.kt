@@ -268,7 +268,15 @@ internal class SignalAttachments(
                     Timber.w("signal attachment: an abandoned file would not delete")
                 }
             }
-            if (removed > 0) Timber.i("signal attachment: %d abandoned file(s) removed", removed)
+            // Said every pass, not only when something went. A sweep that reports nothing
+            // when it removes nothing is indistinguishable from one that never ran, and this
+            // one is expected to remove nothing almost every time. Upstream logs it the same
+            // way and for the same reason -- `DeleteAbandonedAttachmentsJob.run` has no
+            // `if (deletes > 0)` around its line.
+            Timber.i(
+                "signal attachment: %d of %d file(s) were abandoned; %d referenced",
+                removed, files.size, known.size
+            )
             return removed
         }
 

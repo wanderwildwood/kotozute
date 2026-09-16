@@ -29,6 +29,7 @@ import io.realm.RealmModel
 import io.realm.RealmRecyclerViewAdapter
 import io.realm.RealmResults
 import timber.log.Timber
+import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
 
 abstract class QkRealmAdapter<T : RealmModel, VH : QkViewHolder> : RealmRecyclerViewAdapter<T, VH>(null, true) {
 
@@ -130,6 +131,7 @@ abstract class QkRealmAdapter<T : RealmModel, VH : QkViewHolder> : RealmRecycler
 
     override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
         super.onAttachedToRecyclerView(recyclerView)
+        recyclerView.stopAnimatingItems()
         addListener(data)
     }
 

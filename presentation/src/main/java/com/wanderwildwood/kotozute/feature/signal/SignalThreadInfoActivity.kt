@@ -24,6 +24,7 @@ import org.json.JSONArray
 import javax.inject.Inject
 import kotlin.concurrent.thread
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
+import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
 
 /**
  * What the SMS side calls Details, for a Signal thread: who this is, the pictures the
@@ -469,6 +470,11 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     private inner class MediaAdapter(
         private val ids: List<String>
     ) : RecyclerView.Adapter<MediaHolder>() {
+        override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+            super.onAttachedToRecyclerView(recyclerView)
+            recyclerView.stopAnimatingItems()
+        }
+
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
             MediaHolder(SignalMediaGridItemBinding.inflate(
                 LayoutInflater.from(parent.context), parent, false

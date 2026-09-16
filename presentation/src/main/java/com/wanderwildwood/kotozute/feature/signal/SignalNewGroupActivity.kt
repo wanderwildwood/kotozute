@@ -23,6 +23,7 @@ import com.wanderwildwood.kotozute.repository.SignalRepository
 import dagger.android.AndroidInjection
 import timber.log.Timber
 import javax.inject.Inject
+import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
 
 /**
  * Making a group: who is in it, and what it is called.
@@ -167,6 +168,11 @@ class SignalNewGroupActivity : QkThemedActivity() {
     }
 
     private inner class PeopleAdapter : RecyclerView.Adapter<PersonHolder>() {
+        override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+            super.onAttachedToRecyclerView(recyclerView)
+            recyclerView.stopAnimatingItems()
+        }
+
         private var items: List<SignalRepository.Person> = emptyList()
 
         fun submit(data: List<SignalRepository.Person>) {

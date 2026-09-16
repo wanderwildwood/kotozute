@@ -44,6 +44,7 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
+import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
 
 /**
  * The inbox, both rails.
@@ -66,6 +67,11 @@ class ConversationsAdapter @Inject constructor(
     private val phoneNumberUtils: PhoneNumberUtils,
     private val signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
 ) : RecyclerView.Adapter<QkBindingViewHolder<ConversationListItemBinding>>() {
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        recyclerView.stopAnimatingItems()
+    }
+
 
     private val disposables = CompositeDisposable()
 

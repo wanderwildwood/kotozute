@@ -25,12 +25,18 @@ import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
+import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
 
 /**
  * Base RecyclerView.Adapter that provides some convenience when creating a new Adapter, such as
  * data list handing and item animations
  */
 abstract class QkAdapter<T, VHT : RecyclerView.ViewHolder> : RecyclerView.Adapter<VHT>() {
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        recyclerView.stopAnimatingItems()
+    }
+
 
     var data: List<T> = ArrayList()
         set(value) {

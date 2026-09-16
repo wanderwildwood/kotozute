@@ -26,6 +26,7 @@ import javax.inject.Inject
 import android.view.Menu
 import android.view.MenuItem
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
+import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
 
 /**
  * The Signal rail on its own, until Signal threads are interleaved into the main
@@ -203,6 +204,11 @@ class SignalConversationsActivity : QkThemedActivity() {
     }
 
     private inner class ThreadAdapter : RecyclerView.Adapter<ThreadHolder>() {
+        override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+            super.onAttachedToRecyclerView(recyclerView)
+            recyclerView.stopAnimatingItems()
+        }
+
         private var items: List<SignalThread> = emptyList()
 
         fun submit(data: List<SignalThread>) {

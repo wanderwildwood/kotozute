@@ -50,6 +50,7 @@ import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.common.util.TextViewStyler
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.feature.extensions.isEmojiOnly
+import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
 
 class SignalThreadActivity : QkThemedActivity() {
 
@@ -866,6 +867,11 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     private inner class MessageAdapter : RecyclerView.Adapter<MessageHolder>() {
+        override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+            super.onAttachedToRecyclerView(recyclerView)
+            recyclerView.stopAnimatingItems()
+        }
+
         /** Everything in the thread. [items] is what is on screen, which may be a subset. */
         private var all: List<SignalMessage> = emptyList()
         private var items: List<SignalMessage> = emptyList()

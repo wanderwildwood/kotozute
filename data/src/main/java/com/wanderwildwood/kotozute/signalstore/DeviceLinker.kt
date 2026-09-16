@@ -343,9 +343,7 @@ class DeviceLinker internal constructor(
                 // needs it; an account without one cannot authorize a single group without it
                 // (`GroupsV2Api.getGroupsV2AuthorizationString` -> `receiveAuthCredentialWithoutPni`).
                 // Signal stores it at the same point, `AppRegistrationStorageController:812`.
-                provision.authCredentialSalt
-                    ?.takeIf { it.size > 0 }
-                    ?.let { accounts.saveAuthCredentialSalt(it.toByteArray()) }
+                provision.authCredentialSaltOrNull()?.let { accounts.saveAuthCredentialSalt(it) }
 
                 // The storage key, from the pool this message already carried. Done here so
                 // the first storage read can happen on this device's own initiative rather
@@ -471,6 +469,25 @@ class DeviceLinker internal constructor(
                 .encodeToString(ByteArray(18).also { SecureRandom().nextBytes(it) })
     }
 }
+
+/**
+ * The salt an account without a phone number derives its group credentials from, or null.
+ *
+ * Field 19 of the provisioning message. The service layer this app used before was built from a
+ * Signal source that predated the field, so it arrived and was dropped; see schema v32 and
+ * [SignalAccountStore.saveAuthCredentialSalt].
+ *
+ * Empty is treated as absent. A proto's bytes field is never null once set, so a primary that
+ * sets the field to nothing would otherwise have this device store a zero-length salt and hand
+ * it to `receiveAuthCredentialWithoutPni`, which wants sixteen bytes -- and the failure would
+ * surface as every group refusing to authorize, nowhere near here.
+ *
+ * `internal` rather than `private` so it can be tested: upstream's
+ * `SecondaryProvisioningCipherTest` round-trips a provisioning message but never sets this
+ * field, so nothing upstream proves it survives provisioning.
+ */
+internal fun ProvisionMessage.authCredentialSaltOrNull(): ByteArray? =
+    authCredentialSalt?.takeIf { it.size > 0 }?.toByteArray()
 
 /** The provisioning message carries both identities as separate public and private halves. */
 private fun ProvisionMessage.aciIdentityKeyPair() =

@@ -1398,6 +1398,30 @@ class SignalStore(private val context: Context) {
         SignalAttachments(context) { connection.messageReceiver }
 
     /**
+     * Fetches an attachment from a pointer kept on a message row, for a retry.
+     *
+     * See the note in `SignalReceiver.withAttachments` on why the pointer is kept at all:
+     * three immediate attempts do not cover a phone with no usable connection for the length
+     * of one batch, and without this the message says "not downloaded" until the CDN copy
+     * expires.
+     *
+     * @return the id to record, or null if it still could not be had.
+     */
+    fun downloadAttachment(pointerBytes: ByteArray): String? {
+        connection.connect()
+        val pointer = runCatching {
+            org.whispersystems.signalservice.internal.push.AttachmentPointer.ADAPTER
+                .decode(pointerBytes)
+        }.getOrElse {
+            // A pointer this build cannot parse will not become parseable, so this is not a
+            // failure to retry -- it is one to stop retrying.
+            Timber.w(it, "signal attachment: a kept pointer could not be read back")
+            return null
+        }
+        return attachmentsFor(connection).download(pointer)
+    }
+
+    /**
      * Removes the bytes behind attachments whose message is gone.
      *
      * Needs no connection: it only deletes files. See [SignalAttachments.forget] for why this

@@ -507,6 +507,14 @@ interface SignalRepository {
      */
     fun purgeAbandonedAttachments(): Int
 
+    /**
+     * Tries again for attachments that did not arrive the first time, returning how many did.
+     *
+     * Three immediate attempts cover a dropped socket; they do not cover a phone with no usable
+     * connection for the length of one batch. Bounded to a day, as upstream's download job is.
+     */
+    fun retryPendingAttachments(): Int
+
     /** Put a thread back to unread, so it is picked up again later. */
     fun markUnread(threadKey: String)
 

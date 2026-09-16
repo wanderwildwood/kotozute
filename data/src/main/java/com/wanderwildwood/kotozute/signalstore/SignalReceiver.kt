@@ -2133,14 +2133,33 @@ internal class SignalReceiver(
         val array = org.json.JSONArray()
         pointers.forEach { pointer ->
             val id = attachments.download(pointer)
-            array.put(
-                org.json.JSONObject()
-                    .put("id", id.orEmpty())
-                    .put("type", pointer.contentType.orEmpty())
-                    .put("filename", pointer.fileName.orEmpty())
-                    .put("size", pointer.size ?: 0)
-                    .put("pending", id == null)
-            )
+            val entry = org.json.JSONObject()
+                .put("id", id.orEmpty())
+                .put("type", pointer.contentType.orEmpty())
+                .put("filename", pointer.fileName.orEmpty())
+                .put("size", pointer.size ?: 0)
+                .put("pending", id == null)
+            // ⚠ **The pointer is kept when the download failed, and only then.** Three
+            // immediate attempts cover a dropped socket; they do not cover a phone with no
+            // usable connection for the length of one batch, which on a device built to sleep
+            // is an ordinary evening. Without the pointer there is nothing left to try again
+            // with, the CDN copy expires in weeks, and the message says "attachment, not
+            // downloaded" for the rest of its life.
+            //
+            // Upstream keeps trying for a full day -- `AttachmentDownloadJob` is
+            // `setLifespan(1 day)` with `setMaxAttempts(UNLIMITED)`, retrying on network
+            // errors. This is the same promise with the pointer carried on the message row
+            // rather than in a job.
+            //
+            // On the row rather than in a table of its own, deliberately: the pointer then
+            // cannot outlive the message it belongs to, which is the whole lesson of the
+            // abandoned-attachment sweep. It holds the CDN key and digest, and Realm here is
+            // encrypted -- the same place the message body already lives.
+            if (id == null) {
+                entry.put("pointer", android.util.Base64.encodeToString(pointer.encode(), android.util.Base64.NO_WRAP))
+                entry.put("firstTried", System.currentTimeMillis())
+            }
+            array.put(entry)
         }
         return message.copy(attachmentsJson = array.toString())
     }

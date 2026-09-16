@@ -346,6 +346,92 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /**
+     * Tries again for attachments that did not arrive the first time.
+     *
+     * ⚠ **An attachment that failed its three immediate attempts used to be lost for good.**
+     * Those three cover a dropped socket; they do not cover a phone with no usable connection
+     * for the length of one batch, which on a device built to sleep is an ordinary evening.
+     * With the pointer thrown away there was nothing left to try again with, and the message
+     * said "attachment, not downloaded" until the CDN copy expired weeks later.
+     *
+     * Upstream keeps trying for a full day: `AttachmentDownloadJob` is `setLifespan(1 day)`
+     * with `setMaxAttempts(UNLIMITED)`, retrying on network errors. This is the same promise
+     * without a job queue -- the pointer rides on the message row and this pass walks them.
+     *
+     * @return how many arrived this time.
+     */
+    override fun retryPendingAttachments(): Int {
+        val now = System.currentTimeMillis()
+        // Read first, write after. The download reaches the network, and holding a Realm
+        // transaction open across it would block every other writer for as long as the CDN
+        // takes -- the same care the contact store needed in finding 43.
+        val owed = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java)
+                .contains("attachments", "\"pending\":true")
+                .findAll()
+                .map { it.id to it.attachments }
+        }
+        if (owed.isEmpty()) return 0
+
+        var arrived = 0
+        var abandoned = 0
+        val rewritten = mutableListOf<Pair<String, String>>()
+        owed.forEach { (id, json) ->
+            val entries = runCatching { org.json.JSONArray(json) }.getOrNull() ?: return@forEach
+            var changed = false
+            for (i in 0 until entries.length()) {
+                val entry = entries.optJSONObject(i) ?: continue
+                if (!entry.optBoolean("pending", false)) continue
+                val pointer = entry.optString("pointer").takeIf { it.isNotBlank() } ?: continue
+                if (!stillWorthFetching(entry.optLong("firstTried", 0L), now)) {
+                    // Given up on, and said so by dropping the pointer rather than by leaving
+                    // it to be retried for ever. The row still reads "pending", which is the
+                    // truth: it never arrived.
+                    entry.remove("pointer")
+                    entry.remove("firstTried")
+                    changed = true
+                    abandoned++
+                    continue
+                }
+                val fetched = runCatching {
+                    signalStore.downloadAttachment(
+                        android.util.Base64.decode(pointer, android.util.Base64.NO_WRAP)
+                    )
+                }.onFailure {
+                    Timber.w(it, "signal attachment: a retry could not run")
+                }.getOrNull()
+                if (fetched != null) {
+                    entry.put("id", fetched)
+                    entry.put("pending", false)
+                    entry.remove("pointer")
+                    entry.remove("firstTried")
+                    changed = true
+                    arrived++
+                }
+            }
+            if (changed) rewritten += id to entries.toString()
+        }
+
+        if (rewritten.isNotEmpty()) {
+            Realm.getDefaultInstance().use { realm ->
+                realm.executeTransaction { r ->
+                    rewritten.forEach { (id, json) ->
+                        r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
+                            ?.attachments = json
+                    }
+                }
+            }
+        }
+        if (arrived > 0 || abandoned > 0) {
+            Timber.i(
+                "signal attachment: %d arrived on a retry, %d given up on after a day",
+                arrived, abandoned
+            )
+        }
+        return arrived
+    }
+
+    /**
      * Deletes attachment files that no message refers to any more.
      *
      * The backstop behind every named deletion on this rail. Five paths delete a message and
@@ -3352,6 +3438,30 @@ class SignalRepositoryImpl @Inject constructor(
 
 
     companion object {
+
+        /**
+         * How long to keep trying for an attachment that did not arrive.
+         *
+         * A day, which is `AttachmentDownloadJob`'s `setLifespan(TimeUnit.DAYS.toMillis(1))`.
+         * Past it the CDN copy is still there for a while, but somebody waiting on a picture
+         * has long since stopped waiting, and a pointer retried for ever is a pointer kept for
+         * ever.
+         */
+        private val ATTACHMENT_RETRY_WINDOW_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(1)
+
+        /**
+         * Whether an attachment that has not arrived is still worth asking for.
+         *
+         * Its own function because both edges decide whether somebody gets their picture. A
+         * first-tried time of zero is an entry written before this existed: it is given the
+         * benefit of the window rather than abandoned on sight, because the alternative is
+         * throwing away the one chance those rows have.
+         *
+         * A time in the future is a clock that moved, and it keeps trying for the same reason:
+         * the cost of one more attempt is a request, and the cost of stopping is a picture.
+         */
+        internal fun stillWorthFetching(firstTried: Long, now: Long): Boolean =
+            firstTried <= 0 || firstTried > now || now - firstTried < ATTACHMENT_RETRY_WINDOW_MS
 
         /**
          * How often this phone may ask the primary to send its contacts.

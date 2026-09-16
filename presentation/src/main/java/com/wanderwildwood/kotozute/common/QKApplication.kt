@@ -201,6 +201,19 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
             }
         }
 
+        // Attachments that did not arrive the first time. Frequent, because somebody is
+        // waiting on a picture and the window is only a day; cheap, because it is one indexed
+        // Realm query that finds nothing almost every time. A short pause first so it does not
+        // race the socket it needs.
+        GlobalScope.launch(Dispatchers.IO) {
+            delay(90_000)
+            while (true) {
+                runCatching { signalRepo.retryPendingAttachments() }
+                    .onFailure { Timber.w(it, "signal attachment: retry pass") }
+                delay(10 * 60_000L)
+            }
+        }
+
         // The backstop behind that one. Deleting a message asks for its files by name, and a
         // name can be lost -- a row whose attachment list will not parse, a crash between the
         // row going and the file going, a download that lands after its message was withdrawn.

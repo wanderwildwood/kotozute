@@ -95,7 +95,18 @@ dependencies {
     // stores' own types are libsignal's, so anything consuming them needs it on its classpath
     // too -- hiding it would only force the layer above to re-declare it.
     api 'org.signal:libsignal-android:0.102.0'
-    api 'com.github.turasa:signal-network:2.15.3_unofficial_152'
+    // Signal's service layer, built here from Signal's own source rather than taken as a
+    // prebuilt jar -- see signal-service/README.md for what that changes and what it cost.
+    // This replaces `com.github.turasa:signal-network:2.15.3_unofficial_152`.
+    //
+    // All four are named rather than leaning on what libsignal-service re-exports, because
+    // this module's own code imports from three of them directly: `org.signal.core.models`
+    // (ServiceId and friends), `org.signal.core.util`, and `org.signal.network`.
+    api project(':signal-service:lib-network')
+    api project(':signal-service:libsignal-service')
+    api project(':signal-service:network')
+    api project(':signal-service:models-jvm')
+    api project(':signal-service:util-jvm')
 
     implementation 'net.zetetic:sqlcipher-android:4.9.0'
     implementation 'androidx.sqlite:sqlite:2.4.0'

@@ -339,8 +339,14 @@ internal class SignalGroups(
                         ?.also { credentialsByDay[today] = it })
                     ?: return null
 
+                // The third argument is new: `authCredentialSalt`, from
+                // `GroupsV2Api.getGroupsV2AuthorizationString` (six parameters now, five
+                // before). It is read only when `pni` is null, and `pni` cannot be null here
+                // -- the parse above returns rather than reaching this. It is passed anyway
+                // rather than hard-coded null, so that the day this app supports an account
+                // without a phone number, the value is already the right one.
                 return connection.groups.getGroupsV2AuthorizationString(
-                    aci, pni, today, secretParams,
+                    aci, pni, accounts.authCredentialSalt(), today, secretParams,
                     forToday as org.signal.libsignal.zkgroup.auth.AuthCredentialWithPniResponse
                 )
             } catch (t: Throwable) {

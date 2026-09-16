@@ -708,17 +708,18 @@ internal class SignalSender(
         error: org.signal.libsignal.protocol.message.DecryptionErrorMessage,
         groupId: ByteArray?
     ): Result = try {
-        val result = sender.sendRetryReceipt(
+        // Returns nothing now, where it used to return a `SendMessageResult` this checked for
+        // success. Nothing is lost by dropping that check: it ends in
+        // `SignalServiceMessageSender.sendMessage(..., cancelationSignal = null, ...)`, whose
+        // only non-throwing failure is `canceledFailure`, and that needs a cancelation signal.
+        // Every other failure arrives as the exception the catch below already handles.
+        sender.sendRetryReceipt(
             SignalServiceAddress(recipient),
             sealedSender.accessFor(recipient.toString()),
             java.util.Optional.ofNullable(groupId),
             error
         )
-        if (result.isSuccess) {
-            Result.Sent(System.currentTimeMillis())
-        } else {
-            failed(result)
-        }
+        Result.Sent(System.currentTimeMillis())
     } catch (t: Throwable) {
         Timber.w(t, "signal retry: could not ask for a message to be sent again")
         Result.Failed(explain(t))

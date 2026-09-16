@@ -1,0 +1,27 @@
+// Signal-Android `core/serialization`, built from source.
+// From `core/serialization/build.gradle.kts` at b92917acdb (2026-09-10).
+//
+// Nothing in this app imports from here. It is present because `lib-network` depends on it.
+plugins {
+    id 'java-library'
+    id 'org.jetbrains.kotlin.jvm'
+    id 'org.jetbrains.kotlin.plugin.serialization'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+dependencies {
+    implementation project(':signal-service:util-jvm')
+    implementation project(':signal-service:models-jvm')
+
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0'
+    implementation "org.signal:libsignal-client:$libsignal_version"
+    api 'io.arrow-kt:arrow-core:2.2.2.1'
+}

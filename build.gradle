@@ -19,6 +19,16 @@ buildscript {
     ext.glide_version = "4.16.0"
     ext.junit_version = '4.12'
     ext.kotlin_version = '2.2.20'
+    // The self-built Signal service layer (signal-service/) -- see its build files. Both of
+    // these are OURS, not the value Signal's libs.versions.toml carries, and deliberately:
+    //   jackson    upstream pins 2.12.0; the app already resolves 2.22.1 through the old
+    //              prebuilt fork, and jackson-databind is the deserialiser a Signal envelope
+    //              goes through. Taking upstream's number here would be a downgrade.
+    //   libsignal  upstream pins 0.102.1; this is the version of `libsignal-android` the app
+    //              already declares, and the native library and the Java API ship together.
+    //              Moving it is a separate change from moving the service source.
+    ext.jackson_version = '2.22.1'
+    ext.libsignal_version = '0.102.0'
     ext.lifecycle_version = '2.1.0'
     ext.material_version = '1.0.0'
     ext.mockito_version = '2.18.3'
@@ -59,6 +69,22 @@ buildscript {
         classpath 'com.google.gms:google-services:4.3.14'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath "io.realm:realm-gradle-plugin:$realm_version"
+        // For signal-service/. The excludes are upstream's, from Signal-Android
+        // `build.gradle.kts:34-40` -- the generators for other languages and the gRPC
+        // runtime, none of which anything here generates or calls.
+        // For signal-service/lib-network and signal-service/serialization, which upstream
+        // applies as `alias(libs.plugins.kotlinx.serialization)`.
+        classpath "org.jetbrains.kotlin:kotlin-serialization:$kotlin_version"
+        classpath('com.squareup.wire:wire-gradle-plugin:6.4.5') {
+            exclude group: 'com.squareup.wire', module: 'wire-swift-generator'
+            exclude group: 'com.squareup.wire', module: 'wire-grpc-client'
+            exclude group: 'com.squareup.wire', module: 'wire-grpc-jvm'
+            exclude group: 'com.squareup.wire', module: 'wire-grpc-server-generator'
+        }
+        // Signal's custom schema handler. Upstream puts its prebuilt jar on this classpath;
+        // this is the same code, built from source by the included build in
+        // signal-service/wire-handler and substituted in by settings.gradle.
+        classpath 'org.signal:wire-handler:1.0.0'
     }
 }
 

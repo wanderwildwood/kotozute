@@ -337,6 +337,16 @@ class DeviceLinker internal constructor(
                 )
                 provision.profileKey?.let { accounts.saveProfileKey(it.toByteArray()) }
 
+                // Field 19 of the provisioning message, and new here: the service layer this
+                // app used before was built from a Signal source that predated it, so the
+                // field arrived and was dropped. An account **with** a phone number never
+                // needs it; an account without one cannot authorize a single group without it
+                // (`GroupsV2Api.getGroupsV2AuthorizationString` -> `receiveAuthCredentialWithoutPni`).
+                // Signal stores it at the same point, `AppRegistrationStorageController:812`.
+                provision.authCredentialSalt
+                    ?.takeIf { it.size > 0 }
+                    ?.let { accounts.saveAuthCredentialSalt(it.toByteArray()) }
+
                 // The storage key, from the pool this message already carried. Done here so
                 // the first storage read can happen on this device's own initiative rather
                 // than waiting on a KEYS round trip somebody has to ask for.

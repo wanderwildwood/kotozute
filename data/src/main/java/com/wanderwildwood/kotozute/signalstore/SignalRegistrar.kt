@@ -249,6 +249,11 @@ class SignalRegistrar internal constructor(
         return when (val result = api.registerAccount(
             sessionId = sessionId,
             recoveryPassword = null,
+            // New parameter, and null here deliberately: it is the third way to prove a claim
+            // to an account, used only when registering **without a phone number** against a
+            // redeemed backup receipt. `RegistrationApiV2.registerAccount:330` requires exactly
+            // one of session id, recovery password and this -- and the session id is ours.
+            receiptCredentialPresentation = null,
             e164 = e164,
             password = password,
             attributes = attributes,

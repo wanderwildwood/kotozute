@@ -1,1 +1,12 @@
+// The Signal service layer is built from Signal-Android's own source rather than taken as a
+// prebuilt jar -- see signal-service/README.md.
+//
+// wire-handler is an included build, not a module, because the wire gradle plugin loads
+// `org.signal.wire.Factory` off the *buildscript* classpath: the jar has to exist before the
+// root project is configured, which a module cannot manage. Gradle substitutes it for the
+// `org.signal:wire-handler:1.0.0` classpath dependency in build.gradle.
+includeBuild 'signal-service/wire-handler'
+
 include ':presentation', ':android-smsmms', ':domain', ':data', ':common'
+include ':signal-service:util-jvm', ':signal-service:models-jvm', ':signal-service:network'
+include ':signal-service:serialization', ':signal-service:libsignal-service', ':signal-service:lib-network'

@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 31
+    const val VERSION = 32
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -37,7 +37,8 @@ internal object ProtocolStoreSchema {
           device_id INTEGER NOT NULL DEFAULT 0,
           password TEXT,
           last_pni_change_timestamp INTEGER NOT NULL DEFAULT 0,
-          profile_key BLOB
+          profile_key BLOB,
+          auth_credential_salt BLOB
         ) STRICT;
     """
 
@@ -836,6 +837,23 @@ internal object ProtocolStoreSchema {
             SELECT recipient, sent_timestamp, owed_since, 'delivery' FROM receipt_owed_old;
             """,
             "DROP TABLE receipt_owed_old;"
+        ),
+
+        /**
+         * The salt an account without a phone number signs group credentials with.
+         *
+         * `GroupsV2Api.getGroupsV2AuthorizationString` takes it as its third argument and uses
+         * it only when the account has no PNI: with one it calls
+         * `receiveAuthCredentialWithPniAsServiceId`, without one
+         * `receiveAuthCredentialWithoutPni`, which needs the salt and throws on a null.
+         *
+         * ⚠ The primary sends it in the provisioning message, field 19, which this app did not
+         * read before -- the prebuilt service jar predated the field. **A device linked before
+         * this version has no salt and cannot be given one without re-linking**, which is
+         * harmless for an account that has a phone number and total for one that does not.
+         */
+        32 to listOf(
+            "ALTER TABLE account ADD COLUMN auth_credential_salt BLOB;"
         ),
 
         /**

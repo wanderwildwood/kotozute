@@ -1,0 +1,68 @@
+// Signal-Android `lib/libsignal-service`, built from source.
+// From `lib/libsignal-service/build.gradle.kts` at b92917acdb (2026-09-10).
+//
+// Dropped from upstream's file, none of it behaviour: `maven-publish`/`signing`/`javadoc`
+// (nothing is published from here), `java-test-fixtures` and the test dependencies (the tests
+// were not copied), `ktlint` and `idea`.
+plugins {
+    id 'java-library'
+    id 'org.jetbrains.kotlin.jvm'
+    id 'com.squareup.wire'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        freeCompilerArgs.set(['-Xjvm-default=all'])
+        suppressWarnings.set(true)
+    }
+}
+
+wire {
+    protoLibrary = true
+
+    kotlin {
+        javaInterop = true
+    }
+
+    sourcePath {
+        srcDir('src/main/protowire')
+    }
+
+    // Built from source by the included build in `wire-handler/`, not taken as upstream's
+    // prebuilt jar. See that build file for what the handler does.
+    custom {
+        schemaHandlerFactoryClass = 'org.signal.wire.Factory'
+    }
+}
+
+dependencies {
+    api 'com.googlecode.libphonenumber:libphonenumber:9.0.29'
+    api "com.fasterxml.jackson.core:jackson-databind:$jackson_version"
+    api "com.fasterxml.jackson.module:jackson-module-kotlin:$jackson_version"
+
+    implementation "org.signal:libsignal-client:$libsignal_version"
+    api 'com.squareup.okhttp3:okhttp:5.3.2'
+    api 'com.squareup.okio:okio:3.17.0'
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
+
+    api 'io.reactivex.rxjava3:rxjava:3.1.12'
+    implementation 'io.reactivex.rxjava3:rxkotlin:3.0.1'
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2'
+
+    api project(':signal-service:network')
+    implementation project(':signal-service:util-jvm')
+    implementation project(':signal-service:models-jvm')
+}

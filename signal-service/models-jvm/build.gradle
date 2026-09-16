@@ -1,0 +1,21 @@
+// Signal-Android `core/models-jvm`, built from source.
+// From `core/models-jvm/build.gradle.kts` at b92917acdb (2026-09-10).
+plugins {
+    id 'java-library'
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+dependencies {
+    implementation "org.signal:libsignal-client:$libsignal_version"
+    implementation 'com.squareup.okio:okio:3.17.0'
+    implementation project(':signal-service:util-jvm')
+}

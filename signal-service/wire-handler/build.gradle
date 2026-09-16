@@ -1,0 +1,34 @@
+// Signal's custom wire schema handler, built from its source rather than taken as a jar.
+//
+// Upstream ships this compiled: `wire-handler/wire-handler-1.0.0.jar`, put on the buildscript
+// classpath by `build.gradle.kts:42`. The source is right beside it, and building it here is the
+// whole point of the exercise -- a binary we did not build is exactly the provenance gap the
+// self-built service layer exists to close.
+//
+// From Signal-Android `wire-handler/lib/build.gradle.kts`. It is its own build, included by
+// `settings.gradle`, because the jar has to exist before the root project's buildscript is
+// resolved -- the wire plugin loads `org.signal.wire.Factory` by name from that classpath.
+//
+// What it does: rewrites `countNonNull` to `countNonDefa` in every generated Kotlin file, so a
+// oneof counts non-*default* rather than non-null values. The replacement is defined in
+// libsignal-service at `com/squareup/wire/internal/CountNonDefault.kt`. Skipping the handler
+// would still compile and would quietly change protobuf semantics.
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '2.2.20'
+    id 'java-library'
+}
+
+group = 'org.signal'
+version = '1.0.0'
+
+base {
+    archivesName.set('wire-handler')
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.squareup.wire:wire-schema:6.4.5'
+}

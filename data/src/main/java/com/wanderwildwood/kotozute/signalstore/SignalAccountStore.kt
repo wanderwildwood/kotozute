@@ -144,6 +144,30 @@ internal class SignalAccountStore(private val db: ProtocolDatabase) {
             .use { c -> if (c.moveToFirst()) c.getBlob(0) else null }
     }
 
+    /**
+     * The salt this account's group credentials are derived with, when it has no phone number.
+     *
+     * From `GroupsV2Api.getGroupsV2AuthorizationString`: with a PNI it goes unread, and without
+     * one `receiveAuthCredentialWithoutPni` requires it. Signal keeps it on the account the same
+     * way (`AccountValues.authCredentialSalt`) and hands it to a new linked device in the
+     * provisioning message.
+     */
+    fun saveAuthCredentialSalt(salt: ByteArray) = inTransaction {
+        db.writableDatabase.execSQL(
+            "UPDATE account SET auth_credential_salt = ? WHERE _id = 1", arrayOf(salt)
+        )
+    }
+
+    /**
+     * Null for every device linked before schema v32, because the field was not read then.
+     * Callers must treat that as "not known", never as "the account has none".
+     */
+    fun authCredentialSalt(): ByteArray? = withLock {
+        db.readableDatabase.rawQuery(
+            "SELECT auth_credential_salt FROM account WHERE _id = 1", null
+        ).use { c -> if (c.moveToFirst()) c.getBlob(0) else null }
+    }
+
     // --- identity ----------------------------------------------------------------------
 
     fun identityKeyPair(accountIdType: Int): IdentityKeyPair? = withLock {

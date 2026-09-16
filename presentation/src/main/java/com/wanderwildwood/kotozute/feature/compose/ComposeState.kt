@@ -48,6 +48,15 @@ data class ComposeState(
     val subscription: SubscriptionInfoCompat? = null,
     val canSend: Boolean = false,
     val muted: Boolean = false,
+    /**
+     * Whether this conversation is with one person whom the address book does not know.
+     *
+     * Gates "Add to contacts" in the thread's overflow. The action already existed -- the
+     * inbox offers it on a long press, and the conversation-info screen does it when the
+     * recipient row is tapped -- but neither is where somebody looks while reading a text
+     * from a number they want to save, so in practice it could not be found.
+     */
+    val canAddContact: Boolean = false,
     /** The same person has a Signal thread, so a way across can be offered. */
     val signalThreadKey: String? = null,
 

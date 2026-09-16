@@ -323,6 +323,17 @@ class ComposeViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .subscribe { title -> newState { copy(conversationtitle = title) } }
 
+        // Whether "Add to contacts" has anything to offer: one recipient, not already known.
+        // `contact == null` is the same test the inbox's own long-press menu uses, so the two
+        // doors agree about when the action exists.
+        disposables += conversation
+                .map { conversation ->
+                    conversation.recipients.size == 1 &&
+                        conversation.recipients.first()?.contact == null
+                }
+                .distinctUntilChanged()
+                .subscribe { can -> newState { copy(canAddContact = can) } }
+
         // Which of Mute and Unmute the menu offers. Read from the preference rather than
         // held only in the state, so a change made on the conversation's own notification
         // screen is reflected here when the thread comes back to the front.
@@ -482,6 +493,13 @@ class ComposeViewModel @Inject constructor(
             .subscribe { view.toggleSelectAll() }
 
         // Open the phone dialer if the call button is clicked
+        view.optionsItemIntent
+            .filter { it == R.id.addContact }
+            .withLatestFrom(conversation) { _, conversation -> conversation }
+            .mapNotNull { conversation -> conversation.recipients.firstOrNull()?.address }
+            .autoDisposable(view.scope())
+            .subscribe { navigator.addContact(it) }
+
         view.optionsItemIntent
             .filter { it == R.id.call }
             .withLatestFrom(state, conversation)

@@ -432,6 +432,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         binding.toolbar.menu.findItem(R.id.select_all)?.isVisible = !state.editingMode && (messageAdapter.itemCount > 1) && state.selectedMessages != 0
         binding.toolbar.menu.findItem(R.id.add)?.isVisible = state.editingMode
         binding.toolbar.menu.findItem(R.id.call)?.isVisible = !state.editingMode && state.selectedMessages == 0
+        binding.toolbar.menu.findItem(R.id.addContact)?.isVisible =
+            !state.editingMode && state.selectedMessages == 0 && state.canAddContact
         // The crossing to this person's Signal thread, and the only way to it: an overflow
         // item for the same thing would be a second door to one room, and the buried one.
         //

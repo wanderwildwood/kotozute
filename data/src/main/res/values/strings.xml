@@ -34,6 +34,12 @@
       number is what pairs the text half of it, so the old one is what the reader may have
       been texting.
     -->
+    <!--
+      Shown in a conversation after a second one was folded into it. Names what the other side
+      was known by, because that is what lets a reader recognise which conversation has just
+      disappeared from their inbox.
+    -->
+    <string name="signal_threads_joined">This conversation and the one with %1$s turned out to be the same person, so they are now one.</string>
     <string name="signal_number_changed">Their number changed from %1$s to %2$s.</string>
     <string name="signal_profile_name_changed">%1$s is now called %2$s.</string>
     <string name="signal_message_unreadable">A message was sent here that this phone could not read. It asked for it again and it did not come. Ask them to send it once more.</string>

@@ -385,6 +385,38 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /**
+     * Writes into the conversation that a second one was folded into it.
+     *
+     * ⚠ **A merge is the most visible thing this app does that nobody is told about.** Two
+     * conversations become one: the second disappears from the inbox and its messages turn up
+     * interleaved in the survivor. Without a line saying so, a reader sees a conversation they
+     * were having vanish and its contents surface somewhere else, with no explanation available
+     * anywhere.
+     *
+     * Upstream files a permanent row for it (`RecipientTable.merge` ->
+     * `MessageTable.insertThreadMergeEvent`), carrying the number the absorbed side was known
+     * by — `ThreadMergeEvent.previousE164` — which is the part that lets a reader recognise
+     * which conversation it was.
+     *
+     * Read, not unread, exactly as upstream files it: nothing was lost and nothing needs doing.
+     *
+     * ⛔ Upstream's sibling `insertSessionSwitchoverEvent` is deliberately **not** ported.
+     * Upstream skips it whenever a thread merge happened in the same pass ("Skipping SSE insert
+     * because we already had a thread merge event"), and in this app the pairing that would
+     * trigger one is the same event that drives the merge — so it would be the skipped case
+     * every time.
+     */
+    private fun noteThreadMerge(threadKey: String, wasKnownAs: String) {
+        val aci = threadKey.removePrefix("direct:")
+        noteLocalEvent(
+            aci,
+            context.getString(
+                com.wanderwildwood.kotozute.data.R.string.signal_threads_joined, wasKnownAs
+            )
+        )
+    }
+
+    /**
      * Writes into the conversation that somebody's name has replaced a different one.
      *
      * A contact's displayed name changing under the reader is how one person gets mistaken for
@@ -692,6 +724,10 @@ class SignalRepositoryImpl @Inject constructor(
         }.filter { (from, to) -> from != to }
         if (moves.isEmpty()) return
 
+        // What each merge swallowed, so the surviving conversation can say so afterwards.
+        // Collected rather than written here for the same reason as the number change: this is
+        // inside a Realm transaction, and a note is a separate write that belongs after it.
+        val merged = mutableListOf<Pair<String, String>>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 moves.forEach { (from, to) ->
@@ -719,12 +755,18 @@ class SignalRepositoryImpl @Inject constructor(
                         .findAll()
                         .createSnapshot()
                         .forEach { it.threadKey = to }
+                    // Only where there was actually a second conversation to lose. A move
+                    // that only re-keyed an empty thread is not something anybody watched
+                    // happen, and upstream draws the same line -- `insertThreadMergeEvent` is
+                    // reached only when `threadMerge.neededMerge`.
+                    if (old != null) merged += to to counterpart
                     old?.deleteFromRealm()
                     refreshThreadPreview(r, to)
                 }
             }
         }
         Timber.i("signal: joined %d split conversation(s)", moves.size)
+        merged.forEach { (threadKey, wasKnownAs) -> noteThreadMerge(threadKey, wasKnownAs) }
     }
 
     /**

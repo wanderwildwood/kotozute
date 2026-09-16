@@ -315,6 +315,44 @@
         <intent>
             <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
         </intent>
+
+        <!-- Contacts. Without these, "Add contact" does nothing on this phone: the app
+             targets API 33, so package visibility applies, `resolveActivity` returns null
+             for a contacts app it is not allowed to see, and the chooser it falls back to
+             has nothing to offer. The Kompakt does have one (com.mudita.contacts) and does
+             handle these actions; it was simply invisible. Same fault as the camera above. -->
+        <intent>
+            <action android:name="android.intent.action.INSERT" />
+            <data android:mimeType="vnd.android.cursor.dir/contact" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.INSERT_OR_EDIT" />
+            <data android:mimeType="vnd.android.cursor.item/contact" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="vnd.android.cursor.item/contact" />
+        </intent>
+
+        <!-- The dialer, for the call button on a conversation. -->
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.CALL" />
+            <data android:scheme="tel" />
+        </intent>
+
+        <!-- A browser, for the links in Settings and for a tapped link in a message. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
     </queries>
 
 </manifest>

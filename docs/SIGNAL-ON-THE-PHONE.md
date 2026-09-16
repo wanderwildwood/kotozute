@@ -4,6 +4,19 @@ Branch `signal-on-the-phone`, pushed to the **private** mirror only. Nothing her
 it is the record of adding `org.signal:libsignal-android` to this project and writing down
 what broke, in order. Each step was found by building, not by reasoning.
 
+> ⚠ **Historical from here down, on one point: the service layer.** Everything below describes
+> choosing and wiring `com.github.turasa:signal-network` — which module, which version, what its
+> POM drags in. That was true when it was written and is **no longer what this app builds**.
+>
+> Since 2026-09-16 the service layer is **Signal's own source, copied into `signal-service/` and
+> compiled here** — see `signal-service/README.md`. The sections below are kept because the
+> reasoning that led to the fork is the same reasoning that eventually led away from it, and
+> because a record that quietly rewrites itself is worth less than one that says when it stopped
+> being current.
+>
+> The rest of this document — the toolchain obstacles, jetifier, desugaring, AGP — is unaffected
+> and still describes the build.
+
 ## The obstacles, in the order the build hits them
 
 1. **Jetifier runs out of memory** on the 194 MB AAR. It rewrites support-library references

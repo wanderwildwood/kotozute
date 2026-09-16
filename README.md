@@ -269,14 +269,26 @@ Signal's own source rather than written again from a reading of the wire format,
 reason the SMS rail is QKSMS's code rather than a fresh SMS client: parity and security live in
 the details, and the details are where a hand-rolled version silently differs.
 
-- **libsignal** (`org.signal:libsignal-android`) — AGPL-3.0, unmodified, linked.
-- **signal-service** (`com.github.turasa:signal-network`, a fork of Signal's service layer) —
-  GPL-3.0, unmodified, linked.
-- **Signal Android** (`signalapp/Signal-Android`) — AGPL-3.0. Logic adapted into this app is
-  marked at the file or function that carries it, naming what it came from.
+- **libsignal** (`org.signal:libsignal-android`) — AGPL-3.0, unmodified, linked. The protocol
+  primitives, published by Signal as a binary. Nothing here reimplements any of it.
+- **Signal's service layer** — AGPL-3.0, **copied into this repository and compiled here**, under
+  `signal-service/`. Six of Signal Android's own modules (`lib/libsignal-service`, `lib/network`,
+  `core/network`, `core/util-jvm`, `core/models-jvm`, `core/serialization`) taken at commit
+  `b92917acdb`, 2026-09-10. **650 of the 651 files are byte-identical to upstream**; the one
+  exception, and the reason for it, is recorded in `signal-service/README.md` and commented at
+  the line it changes. Every file keeps its upstream copyright header and
+  `SPDX-License-Identifier`.
 
-None of these are modified in place; where Signal's code is adapted rather than linked, the
-adaptation says so where it sits. Anyone redistributing a build should carry this notice.
+  This replaced `com.github.turasa:signal-network`, a third-party fork resolved from JitPack,
+  which earlier versions of this app linked instead.
+- **Signal Android** (`signalapp/Signal-Android`) — AGPL-3.0. Logic adapted into this app, rather
+  than copied wholesale, is marked at the file or function that carries it, naming what it came
+  from.
+
+Where Signal's code is adapted rather than taken, the adaptation says so where it sits. Anyone
+redistributing a build should carry this notice — and note that the service layer being *in* this
+repository rather than linked is why this project is AGPL-3.0-or-later rather than GPL: Signal's
+code is AGPL-3.0-only, and a work containing it can be distributed no other way.
 
 Signal Android is watched the way this fork's other upstreams are. A blobless clone lives at
 `/opt/projects/signal-android-upstream`, and the weekly upstream scan tracks it with a

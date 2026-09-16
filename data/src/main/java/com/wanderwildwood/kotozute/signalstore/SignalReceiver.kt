@@ -489,8 +489,8 @@ internal class SignalReceiver(
     /**
      * Whether a data message carries anything a conversation would draw.
      *
-     * Upstream's `DataMessage.hasRenderableContent`, field for field as its `_152` fork exposes
-     * them. It is what separates a **group change** from a message that happens to carry one:
+     * Upstream's `DataMessage.hasRenderableContent`, field for field as
+     * `signal-service/libsignal-service` declares them. It is what separates a **group change** from a message that happens to carry one:
      * a change with nothing to draw is group state, and a change alongside a body or a picture
      * is content wearing a change as a hat.
      *

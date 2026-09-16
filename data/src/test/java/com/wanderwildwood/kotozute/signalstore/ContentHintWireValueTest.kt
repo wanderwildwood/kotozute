@@ -20,8 +20,12 @@ class ContentHintWireValueTest {
 
     @Test
     fun `the wire values are what the column was defined against`() {
-        // Read out of the fork's own bytecode, not upstream's source: ContentHint(name,
-        // ordinal, type) constructs DEFAULT with type 0, RESENDABLE with 1, IMPLICIT with 2.
+        // These numbers were originally read out of the prebuilt fork's bytecode, because its
+        // source could not be read. The source is in the tree now -- `ContentHint.java:8` --
+        // and it does not spell the numbers out at all: each constant takes
+        // `UnidentifiedSenderMessageContent.CONTENT_HINT_*`, which lives in libsignal, the one
+        // dependency still arriving as a published binary. So this assertion is still the only
+        // place the three values are written down, and still worth having.
         assertEquals(0, ContentHint.DEFAULT.type)
         assertEquals(1, ContentHint.RESENDABLE.type)
         assertEquals(2, ContentHint.IMPLICIT.type)

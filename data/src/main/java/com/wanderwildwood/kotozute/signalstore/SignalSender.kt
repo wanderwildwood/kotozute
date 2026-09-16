@@ -479,10 +479,12 @@ internal class SignalSender(
      * it delivered and the person it was written to would never see it -- a message lost with a
      * tick against it, which is the worst way for one to be lost.
      *
-     * ⚠ This app's own receive path does **not** catch it, because the validator in the
-     * `_152` fork this depends on predates the rule. So a long message reaches another kotozute
-     * and is discarded by that person's primary Signal -- present on one of their devices and
-     * missing from another.
+     * ⚠ This app's receive path **did not** catch it while the service layer was the `_152`
+     * jar, whose validator predated the rule: a long message reached another kotozute and was
+     * discarded by that person's primary Signal -- present on one of their devices and missing
+     * from another. Since the service layer is built from Signal's source, the same
+     * `EnvelopeContentValidator` rule runs here too, so such a message is now dropped on the
+     * way in as well. Both ends agree; neither shows it.
      *
      * Upstream splits instead: the body is trimmed to the limit and the whole text goes as a
      * `LONG_TEXT` attachment (`MessageUtil.getSplitMessage`). That is a feature this app does
@@ -1512,11 +1514,13 @@ internal class SignalSender(
         /**
          * The most a message body may be, in bytes of UTF-8.
          *
-         * `SignalServiceMessageLimits.MAX_INLINE_BODY_SIZE_BYTES`, which is two kibibytes.
-         * Written out rather than referenced because the `_152` fork of signal-service this
-         * depends on predates the class that holds it; the number is upstream's, not a guess.
+         * Upstream's own constant, referenced rather than copied. It was written out as `2 *
+         * 1024` while the service layer was the `_152` jar, which predated the class that
+         * holds it -- with the layer built from Signal's source there is nothing left to copy,
+         * and the number can no longer drift from the one the receive-side validator enforces.
          */
-        internal const val MAX_INLINE_BODY_SIZE_BYTES = 2 * 1024
+        internal val MAX_INLINE_BODY_SIZE_BYTES: Int =
+            org.whispersystems.signalservice.api.messages.SignalServiceMessageLimits.MAX_INLINE_BODY_SIZE_BYTES
 
         /**
          * What to tell somebody when a send failed.

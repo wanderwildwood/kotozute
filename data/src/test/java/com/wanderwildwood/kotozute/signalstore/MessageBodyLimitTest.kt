@@ -21,8 +21,10 @@ class MessageBodyLimitTest {
 
     @Test
     fun `the limit is the one upstream uses`() {
-        // `SignalServiceMessageLimits.kt:12` -- 2.kibiBytes. Copied rather than referenced,
-        // because the fork of signal-service this depends on predates the class.
+        // `SignalServiceMessageLimits.kt:12` -- 2.kibiBytes. The constant is referenced now
+        // rather than copied, so this asserts the number itself has not moved: if upstream
+        // ever changes it, this fails rather than the app quietly sending what the receiver
+        // will drop.
         assertEquals(2048, limit)
     }
 

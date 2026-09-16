@@ -88,6 +88,21 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // set translated "no messages" string for speakThreads interactor
         SpeakThreads.setNoMessagesString(getString(R.string.speak_no_messages))
 
+        // ⚠ Before `appComponent.inject`, and that is the point. Dagger builds the Signal
+        // repository while injecting, which opens the encrypted protocol store, which runs any
+        // pending schema migration -- all of it *before* a tree exists to hear it. Measured on
+        // hardware: the store is keyed 1.8 seconds before the first line that reaches logcat.
+        //
+        // So schema v32 migrated a live store on a Kompakt and said nothing, in a database
+        // whose own documentation says an unhandled upgrade must be loud. The loud part still
+        // works -- a failed migration throws and takes startup with it -- but the record of a
+        // *successful* one was unreachable in a release build, which is the only build on a
+        // phone.
+        //
+        // The console tree needs nothing, so it goes first and the migration has somewhere to
+        // land. The file tree still needs `fileLoggingTree` injected, so it follows below.
+        Timber.plant(Timber.DebugTree())
+
         AppComponentManager.init(this)
         appComponent.inject(this)
 
@@ -102,8 +117,10 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // Found by reading a log that was missing a line the code plainly writes, and nearly
         // explained away as an R8 artefact instead.
         //
-        // It needs `appComponent.inject` above it for `fileLoggingTree`, and nothing else.
-        Timber.plant(Timber.DebugTree(), fileLoggingTree)
+        // It needs `appComponent.inject` above it for `fileLoggingTree`, and nothing else --
+        // the console half is already planted above, before injection, so that the protocol
+        // store's migration has somewhere to log.
+        Timber.plant(fileLoggingTree)
 
         Realm.init(this)
 

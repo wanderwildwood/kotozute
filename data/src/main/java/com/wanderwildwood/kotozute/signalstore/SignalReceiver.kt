@@ -9,6 +9,7 @@ import org.whispersystems.signalservice.api.messages.EnvelopeResponse
 import org.whispersystems.signalservice.api.push.SignalServiceAddress
 import org.whispersystems.signalservice.api.push.ServiceIdType
 import org.whispersystems.signalservice.internal.push.Envelope
+import org.whispersystems.signalservice.internal.push.SyncMessage.MessageRequestResponse
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
@@ -1015,6 +1016,44 @@ internal class SignalReceiver(
                     if (messages.isNotEmpty() || threads.isNotEmpty()) {
                         runCatching { events.deletedElsewhere(messages, threads) }
                             .onFailure { Timber.w(it, "signal delete sync: could not apply") }
+                    }
+                }
+
+                // A conversation the account deleted from a message request on another
+                // device.
+                //
+                // ⚠ This arrives **nowhere else.** `SyncMessage.deleteForMe` above is the
+                // ordinary "I deleted this" sync, and the message-request flow deliberately
+                // does not emit one: upstream calls `deleteConversation(threadId,
+                // syncThreadDelete = false)` at `SyncMessageProcessor:1235`, because this
+                // message *is* the sync. So a conversation dismissed with Delete on the
+                // primary stayed on this phone for ever, and the person who had decided they
+                // did not want to see it went on seeing it here.
+                //
+                // Only the two arms that delete. The others are already covered, and by a
+                // better route than this one:
+                //  - `ACCEPT` sets profile sharing and clears blocked;
+                //  - `BLOCK`, `BLOCK_AND_SPAM` set blocked;
+                //  both of which live in the account's **storage records**, which this device
+                //  re-reads when the primary sends `fetchLatest` -- so they arrive as state
+                //  rather than as an event, which is the more reliable of the two.
+                //  - `SPAM` reports to the service and changes nothing locally.
+                //
+                // ⚠ Direct conversations only, for the same reason the delete sync above says:
+                // a group's thread key here comes from its master key, and the `groupId` in
+                // this message is not that. Guessing the derivation would either match nothing
+                // or, far worse, empty the wrong conversation.
+                result.content.syncMessage?.messageRequestResponse?.let { response ->
+                    val deletes = response.type == MessageRequestResponse.Type.DELETE ||
+                        response.type == MessageRequestResponse.Type.BLOCK_AND_DELETE
+                    val aci = ServiceId.parseOrNull(response.threadAci, response.threadAciBinary)
+                    when {
+                        !deletes -> Unit
+                        aci == null ->
+                            Timber.i("signal delete sync: a message request was deleted for a group; not guessing which")
+                        else -> runCatching {
+                            events.deletedElsewhere(emptyList(), listOf("direct:$aci"))
+                        }.onFailure { Timber.w(it, "signal delete sync: could not apply a message request delete") }
                     }
                 }
 

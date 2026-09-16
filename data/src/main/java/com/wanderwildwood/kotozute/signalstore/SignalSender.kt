@@ -219,7 +219,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal retry: could not send the message again")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -417,7 +417,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal send: group send threw")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -583,7 +583,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal groups: telling the members threw")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -615,7 +615,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal contacts: request threw")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -668,7 +668,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal blocked: sending the list threw")
-        Result.Failed(explain(t))
+        failed(t)
     }
 
     /**
@@ -724,7 +724,7 @@ internal class SignalSender(
         Result.Sent(System.currentTimeMillis())
     } catch (t: Throwable) {
         Timber.w(t, "signal retry: could not ask for a message to be sent again")
-        Result.Failed(explain(t))
+        failed(t)
     }
 
     /**
@@ -751,7 +751,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal session: could not send a null message")
-        Result.Failed(explain(t))
+        failed(t)
     }
 
     /**
@@ -802,7 +802,7 @@ internal class SignalSender(
             else failed(result)
         } catch (t: Throwable) {
             Timber.w(t, "signal receipt: sending %s threw", what)
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -844,7 +844,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal keys: requesting them threw")
-        Result.Failed(explain(t))
+        failed(t)
     }
 
     /**
@@ -872,7 +872,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal configuration: requesting it threw")
-        Result.Failed(explain(t))
+        failed(t)
     }
 
     /**
@@ -909,7 +909,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal read sync: send threw")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -929,7 +929,7 @@ internal class SignalSender(
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal blocked: requesting the list threw")
-        Result.Failed(explain(t))
+        failed(t)
     }
 
     /**
@@ -1005,6 +1005,41 @@ internal class SignalSender(
         sharesProfile { contacts.isWhitelisted(recipient.toString()) }
 
     /**
+     * What a *thrown* failure means, the way [failed] does for a returned one.
+     *
+     * ⚠ The two kinds are not interchangeable, and one of them was going unread. A send to
+     * several recipients collects an `UnregisteredUserException` per recipient and hands it back
+     * as `SendMessageResult.unregisteredFailure`; a **one-to-one** send has nowhere to put it and
+     * throws it out of `sendDataMessage` instead (`SignalServiceMessageSender:2045` rethrows it
+     * rather than converting). Every catch here turned that into `explain(t)`, whose `else` arm
+     * is `t.message` -- and `UnregisteredUserException(e164, cause)` is `super(cause)`, so its
+     * message is the *cause's* `toString()`. The person reading a conversation was shown
+     * `org.whispersystems.signalservice.api.push.exceptions.NotFoundException: ...` in place of
+     * the sentence this file already had for exactly that situation.
+     *
+     * Worse, `notRegistered` stayed false and nothing marked the contact, so the one-to-one path
+     * did not learn what the group path learns. Upstream's `IndividualSendJob:218` catches it by
+     * name, fails the message and queues a `DirectoryRefreshJob`; this is that, minus the
+     * directory refresh this app does not have.
+     *
+     * ⚠ `getE164Number()` does **not** return an e164. It is `OutgoingPushMessageList`'s
+     * `destination`, built from `recipient.getIdentifier()` -- a service id. Reading it as a
+     * phone number would look right and mark nobody.
+     */
+    private fun failed(t: Throwable): Result.Failed {
+        if (t !is org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserException) {
+            return Result.Failed(explain(t))
+        }
+        val serviceId = t.e164Number
+        runCatching { contacts.markUnregistered(serviceId) }
+            .onFailure { Timber.w(it, "signal send: could not note that they have left Signal") }
+        return Result.Failed(
+            "${whoIs(serviceId)} is not on Signal any more",
+            notRegistered = true
+        )
+    }
+
+    /**
      * Writes down that the service says somebody is not on Signal.
      *
      * ⚠ Called from **both** send paths. The one-to-one path had this and the group path did
@@ -1024,7 +1059,10 @@ internal class SignalSender(
 
     /** What to call the recipient of a failed send, or "they" where only an id is held. */
     private fun whoIs(result: SendMessageResult): String =
-        runCatching { contacts.nameFor(result.address.serviceId.toString()) }
+        whoIs(result.address.serviceId.toString())
+
+    private fun whoIs(serviceId: String): String =
+        runCatching { contacts.nameFor(serviceId) }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
             ?: "they"
@@ -1100,7 +1138,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal reaction: send threw")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -1187,7 +1225,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal reaction: group send threw")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -1240,7 +1278,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal delete: sending the withdrawal threw")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -1313,7 +1351,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal delete: the group withdrawal threw")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -1411,7 +1449,7 @@ internal class SignalSender(
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal send: threw")
-            Result.Failed(explain(t))
+            failed(t)
         }
     }
 
@@ -1562,6 +1600,14 @@ internal class SignalSender(
 
             is org.whispersystems.signalservice.api.push.exceptions.ServerRejectedException ->
                 "Signal refused this message, and sending it again will not help."
+
+            // ⚠ Unnamed here, because this is the companion and has no contact store to ask.
+            // [failed] handles it first and says who; this arm exists so that a catch added
+            // later, calling `explain` directly the way every catch here once did, still cannot
+            // put `NotFoundException` in front of a person. `UnregisteredUserException` is
+            // `super(cause)`, so its own `message` is the cause's `toString()`.
+            is org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserException ->
+                "They are not on Signal any more."
 
             else -> t.message ?: t::class.java.simpleName
         }

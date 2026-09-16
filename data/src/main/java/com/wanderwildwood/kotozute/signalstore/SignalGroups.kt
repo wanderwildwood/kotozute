@@ -68,7 +68,60 @@ internal class SignalGroups(
      */
     private val credentialsByDay get() = sharedCredentialsByDay
 
-    fun fetch(masterKeyBytes: ByteArray): Group? = try {
+    /**
+     * What happened when this device asked the server about a group.
+     *
+     * ⚠ **"Not in it any more" and "could not ask" are different facts**, and collapsing them
+     * into a null told a reader to try again for ever about something that is permanent. See
+     * [fetchOutcome].
+     */
+    sealed interface Outcome {
+        data class Got(val group: Group) : Outcome
+
+        /** The server says this account is not a member. A fact, not an error. */
+        object NotAMember : Outcome
+
+        /** The group itself is gone. */
+        object Gone : Outcome
+
+        /** Anything else -- no network, a server having a moment. Worth trying again. */
+        data class Unknown(val why: String) : Outcome
+    }
+
+    /**
+     * Asks the server about a group and says which kind of answer came back.
+     *
+     * The server answers 403 when this account is not in the group, which the library raises as
+     * `NotInGroupException` (and `GroupTerminatedException` when the group itself has ended).
+     * Upstream treats both as facts to act on rather than failures to retry -- `GroupManagerV2`
+     * and `GroupJoinRepository` both catch them by name.
+     */
+    fun fetchOutcome(masterKeyBytes: ByteArray): Outcome = try {
+        fetchOrThrow(masterKeyBytes)?.let { Outcome.Got(it) }
+            ?: Outcome.Unknown("no group credentials for today")
+    } catch (t: org.whispersystems.signalservice.internal.push.exceptions.NotInGroupException) {
+        Timber.i("signal groups: the server says this account is not in that group")
+        Outcome.NotAMember
+    } catch (t: org.whispersystems.signalservice.internal.push.exceptions.GroupTerminatedException) {
+        Timber.i("signal groups: that group has ended")
+        Outcome.Gone
+    } catch (t: Throwable) {
+        Timber.w(t, "signal groups: could not fetch group details")
+        Outcome.Unknown(t.message ?: t::class.java.simpleName)
+    }
+
+    /**
+     * The group, or null for any reason at all.
+     *
+     * Kept because the receive path must **fail open** -- see [senderIsInGroup] in the
+     * receiver: a group whose state cannot be read still delivers its messages, and turning
+     * "could not ask" into "not a member" there would drop real messages from real people.
+     * Only the send path needs to tell the two apart, and it uses [fetchOutcome].
+     */
+    fun fetch(masterKeyBytes: ByteArray): Group? =
+        (fetchOutcome(masterKeyBytes) as? Outcome.Got)?.group
+
+    private fun fetchOrThrow(masterKeyBytes: ByteArray): Group? = run {
         val masterKey = GroupMasterKey(masterKeyBytes)
         val secretParams = GroupSecretParams.deriveFromMasterKey(masterKey)
         val today = todaySeconds()
@@ -105,12 +158,6 @@ internal class SignalGroups(
             harvest(group.members)
             Timber.i("signal groups: fetched a group with %d members", it.members.size)
         }
-    } catch (t: Throwable) {
-        // A 403 means we are not in the group any more, which is a fact rather than an error;
-        // everything else is logged and treated the same way, because a group whose details
-        // cannot be fetched should still receive messages.
-        Timber.w(t, "signal groups: could not fetch group details")
-        null
     }
 
     /**

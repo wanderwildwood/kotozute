@@ -367,8 +367,23 @@ class SignalStore(private val context: Context) {
         expireTimerVersion: Int = 0
     ): Long {
         connection.connect()
-        val group = SignalGroups(connection, account, contacts).fetch(masterKey)
-            ?: throw IllegalStateException("could not read the group's members")
+        // ⚠ Which kind of "no" matters. Being removed from a group is permanent and there is
+        // nothing to try again; a server that would not answer is a minute's wait. Both used
+        // to arrive as "could not read the group's members", which tells somebody to keep
+        // retrying something that will never work.
+        val group = when (val outcome = SignalGroups(connection, account, contacts).fetchOutcome(masterKey)) {
+            is SignalGroups.Outcome.Got -> outcome.group
+            SignalGroups.Outcome.NotAMember -> throw IllegalStateException(
+                "You are not in this group any more, so nothing was sent."
+            )
+            SignalGroups.Outcome.Gone -> throw IllegalStateException(
+                "This group has ended, so nothing was sent."
+            )
+            is SignalGroups.Outcome.Unknown -> throw IllegalStateException(
+                "This phone could not reach the group just now, so nothing was sent. " +
+                    "It will work when the connection is back."
+            )
+        }
         // An announcement group takes messages from its administrators only. Sending anyway
         // succeeds locally and is discarded by every recipient -- the message is lost behind a
         // tick, with nothing to tell the sender it did not arrive. Refused here instead, where
@@ -449,8 +464,23 @@ class SignalStore(private val context: Context) {
     /** The same, into a group, which means every member it can reach. */
     fun sendRemoteDeleteToGroup(masterKey: ByteArray, targetSentTimestamp: Long): Long {
         connection.connect()
-        val group = SignalGroups(connection, account, contacts).fetch(masterKey)
-            ?: throw IllegalStateException("could not read the group's members")
+        // ⚠ Which kind of "no" matters. Being removed from a group is permanent and there is
+        // nothing to try again; a server that would not answer is a minute's wait. Both used
+        // to arrive as "could not read the group's members", which tells somebody to keep
+        // retrying something that will never work.
+        val group = when (val outcome = SignalGroups(connection, account, contacts).fetchOutcome(masterKey)) {
+            is SignalGroups.Outcome.Got -> outcome.group
+            SignalGroups.Outcome.NotAMember -> throw IllegalStateException(
+                "You are not in this group any more, so nothing was sent."
+            )
+            SignalGroups.Outcome.Gone -> throw IllegalStateException(
+                "This group has ended, so nothing was sent."
+            )
+            is SignalGroups.Outcome.Unknown -> throw IllegalStateException(
+                "This phone could not reach the group just now, so nothing was sent. " +
+                    "It will work when the connection is back."
+            )
+        }
         val members = group.members
             .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
             .filter { it.toString() != account.credentials().aci }
@@ -476,8 +506,23 @@ class SignalStore(private val context: Context) {
         val author = org.signal.core.models.ServiceId.parseOrNull(targetAuthor)
             ?: throw IllegalStateException("not a service id: $targetAuthor")
         connection.connect()
-        val group = SignalGroups(connection, account, contacts).fetch(masterKey)
-            ?: throw IllegalStateException("could not read the group's members")
+        // ⚠ Which kind of "no" matters. Being removed from a group is permanent and there is
+        // nothing to try again; a server that would not answer is a minute's wait. Both used
+        // to arrive as "could not read the group's members", which tells somebody to keep
+        // retrying something that will never work.
+        val group = when (val outcome = SignalGroups(connection, account, contacts).fetchOutcome(masterKey)) {
+            is SignalGroups.Outcome.Got -> outcome.group
+            SignalGroups.Outcome.NotAMember -> throw IllegalStateException(
+                "You are not in this group any more, so nothing was sent."
+            )
+            SignalGroups.Outcome.Gone -> throw IllegalStateException(
+                "This group has ended, so nothing was sent."
+            )
+            is SignalGroups.Outcome.Unknown -> throw IllegalStateException(
+                "This phone could not reach the group just now, so nothing was sent. " +
+                    "It will work when the connection is back."
+            )
+        }
         val members = group.members
             .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
             .filter { it.toString() != account.credentials().aci }

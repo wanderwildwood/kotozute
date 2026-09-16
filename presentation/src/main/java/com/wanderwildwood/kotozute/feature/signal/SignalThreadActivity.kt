@@ -352,6 +352,18 @@ class SignalThreadActivity : QkThemedActivity() {
                         // The message stays in the box either way, so nothing typed is lost.
                         if (failure is SafetyNumberChanged) {
                             offerSafetyNumberChoice(failure, body, attachment)
+                        } else if (failure is com.wanderwildwood.kotozute.repository.SentButNotFiled) {
+                            // ⚠ Not a failed send, and the only branch here that must not read
+                            // like one. The composer still holds the text, so the obvious next
+                            // move is to press send again -- and it has already gone. Cleared
+                            // for the same reason a successful send clears it.
+                            binding.message.setText("")
+                            clearAttachment()
+                            Toast.makeText(
+                                this,
+                                getString(R.string.signal_sent_but_not_filed),
+                                Toast.LENGTH_LONG
+                            ).show()
                         } else {
                             Toast.makeText(
                                 this,

@@ -520,6 +520,12 @@
     <string name="signal_send">Send</string>
     <string name="signal_cannot_send_signal">Not connected to Signal — you can read, but not send</string>
     <string name="signal_send_failed">Not sent: %s</string>
+    <!--
+      Shown when the send itself worked and only the local record failed. Blunt about not
+      repeating it on purpose: the composer still holds the text and every other failure here
+      says the opposite.
+    -->
+    <string name="signal_sent_but_not_filed">It was sent, but this phone could not add it to the conversation. Do not send it again.</string>
     <string name="signal_you">You</string>
     <string name="signal_switch_to_sms">Switch to SMS</string>
     <string name="signal_archive">Archive conversation</string>

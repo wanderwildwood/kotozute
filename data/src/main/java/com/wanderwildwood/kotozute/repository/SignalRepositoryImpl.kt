@@ -1069,37 +1069,43 @@ class SignalRepositoryImpl @Inject constructor(
         val timestamp = signalStore.send(recipient, body, attachments, expiresIn, timerVersion)
 
         val selfAci = signalStore.selfAciOrNull().orEmpty()
-        ingest(
-            listOf(
-                com.wanderwildwood.kotozute.signal.BridgeMessage(
-                    // The same (author, timestamp) identity every other device will use for
-                    // this message, so a sync of it -- should one ever arrive -- replaces this
-                    // row instead of duplicating it.
-                    id = "$selfAci:$timestamp",
-                    seq = 0,
-                    threadKey = threadKey,
-                    ts = timestamp,
-                    senderUuid = selfAci,
-                    senderNumber = "",
-                    outgoing = true,
-                    body = body,
-                    groupId = "",
-                    quoteTs = 0,
-                    read = true,
-                    source = "live",
-                    // What we sent, so the row can draw it. Marked not pending: unlike a
-                    // received attachment this one is not on disk under an id -- it was
-                    // uploaded from the composer's own copy -- so there is nothing to fetch
-                    // and nothing to say is missing.
-                    attachmentsJson = outgoingAttachmentsJson(attachments),
-                    // Our own copy expires too. The clock starts now because this is the
-                    // moment we sent it, which is what Signal stamps as the start for an
-                    // outgoing message.
-                    expiresInSeconds = expiresIn.toLong(),
-                    expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L
-                )
+        val row =
+            com.wanderwildwood.kotozute.signal.BridgeMessage(
+                // The same (author, timestamp) identity every other device will use for
+                // this message, so a sync of it -- should one ever arrive -- replaces this
+                // row instead of duplicating it.
+                id = "$selfAci:$timestamp",
+                seq = 0,
+                threadKey = threadKey,
+                ts = timestamp,
+                senderUuid = selfAci,
+                senderNumber = "",
+                outgoing = true,
+                body = body,
+                groupId = "",
+                quoteTs = 0,
+                read = true,
+                source = "live",
+                // What we sent, so the row can draw it. Marked not pending: unlike a
+                // received attachment this one is not on disk under an id -- it was
+                // uploaded from the composer's own copy -- so there is nothing to fetch
+                // and nothing to say is missing.
+                attachmentsJson = outgoingAttachmentsJson(attachments),
+                // Our own copy expires too. The clock starts now because this is the
+                // moment we sent it, which is what Signal stamps as the start for an
+                // outgoing message.
+                expiresInSeconds = expiresIn.toLong(),
+                expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L
             )
-        )
+        // ⚠ Past this point the message has gone. A failure from here is **not** a failed send
+        // and must not be reported as one: the text is still sitting in the composer, every
+        // other failure path says "it did not send", and the obvious response is to press send
+        // again -- which sends it twice. See [SentButNotFiled].
+        try {
+            ingest(listOf(row))
+        } catch (t: Throwable) {
+            throw com.wanderwildwood.kotozute.repository.SentButNotFiled(t)
+        }
         return timestamp
     }
 
@@ -1122,29 +1128,33 @@ class SignalRepositoryImpl @Inject constructor(
         val (expiresIn, timerVersion) = timerFor(threadKey)
         val timestamp = signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion)
         val selfAci = signalStore.selfAciOrNull().orEmpty()
-        ingest(
-            listOf(
-                com.wanderwildwood.kotozute.signal.BridgeMessage(
-                    id = "$selfAci:$timestamp",
-                    seq = 0,
-                    threadKey = threadKey,
-                    ts = timestamp,
-                    senderUuid = selfAci,
-                    senderNumber = "",
-                    outgoing = true,
-                    body = body,
-                    groupId = threadKey.removePrefix("group:"),
-                    quoteTs = 0,
-                    read = true,
-                    source = "live",
-                    attachmentsJson = "",
-                    // Our own copy of a group send expires on the group's timer too.
-                    expiresInSeconds = expiresIn.toLong(),
-                    expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
-                    groupMasterKey = masterKey
-                )
+        val row =
+            com.wanderwildwood.kotozute.signal.BridgeMessage(
+                id = "$selfAci:$timestamp",
+                seq = 0,
+                threadKey = threadKey,
+                ts = timestamp,
+                senderUuid = selfAci,
+                senderNumber = "",
+                outgoing = true,
+                body = body,
+                groupId = threadKey.removePrefix("group:"),
+                quoteTs = 0,
+                read = true,
+                source = "live",
+                attachmentsJson = "",
+                // Our own copy of a group send expires on the group's timer too.
+                expiresInSeconds = expiresIn.toLong(),
+                expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
+                groupMasterKey = masterKey
             )
-        )
+        // ⚠ The same rule as the one-to-one send: past this point it has gone, and to a whole
+        // group. Reporting it as failed invites a second copy to everybody.
+        try {
+            ingest(listOf(row))
+        } catch (t: Throwable) {
+            throw com.wanderwildwood.kotozute.repository.SentButNotFiled(t)
+        }
         return timestamp
     }
 

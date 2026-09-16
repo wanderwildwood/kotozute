@@ -16,9 +16,36 @@ at **`b92917acdb` (2026-09-10)** and compiled here:
 This replaces `com.github.turasa:signal-network:2.15.3_unofficial_152`, the prebuilt fork the app
 took from jitpack until now.
 
-Tests and test fixtures were not copied. `org.signal:libsignal-client` is **not** built here: it
-is the Rust library with a JNI shim, published by Signal, and the app already declares
-`org.signal:libsignal-android` for the native side.
+`org.signal:libsignal-client` is **not** built here: it is the Rust library with a JNI shim,
+published by Signal, and the app already declares `org.signal:libsignal-android` for the native
+side.
+
+## Signal's tests are here and they run
+
+**1,015 of them, and they pass.** Restored from upstream along with the source, with the test
+dependency versions upstream's `gradle/test-libs.versions.toml` gives:
+
+| module | tests |
+|---|---|
+| `libsignal-service` | 634 |
+| `util-jvm` | 280 |
+| `lib-network` | 80 |
+| `models-jvm` | 17 |
+| `network` | 4 |
+
+This is the strongest available check that the copy and the build are right — far better than
+anything written here could be — and it is the **only** thing that exercises the receive-side
+refusals an ordinary conversation never trips. `EnvelopeContentValidatorTest` alone is 73 tests,
+including the pair that matters most to this app: a body of *exactly* 2048 bytes is valid, one
+byte over is not, and the UTF-8 case is tested separately because 600 emoji are 1200 UTF-16 units
+and 2400 bytes.
+
+⚠ **Three refusals have no upstream test**: bad GV2 master key, missing GV2 master key, missing
+GV2 revision. Upstream does not cover them, so neither do we; they are the three of the nine that
+remain unexercised.
+
+⚠ **A failure in this suite means the copy is wrong, not that upstream is.** Re-copy the file;
+do not patch the test.
 
 ## Why
 
@@ -39,13 +66,15 @@ here is presented as this project's own work.
 
 ## What was changed, and it is a short list
 
-Two edits to Signal's code, both forced, both commented at the site:
+**650 of the 651 files copied from upstream are byte-identical to it** — measured with `cmp`,
+every file, every time this changes. Two edits to Signal's code, both forced, both commented at
+the site:
 
 1. **`network/src/main/java/org/signal/network/util/JsonUtil.java`** — `new KotlinModule()` is a
    constructor jackson removed after 2.12. Replaced with
    `ExtensionsKt.registerKotlinModule(objectMapper)`, which is what upstream's *other* JSON helper
    (`core/util/.../JsonUtils.java:25`) already does in the same tree.
-2. **Nothing else.** The six `build.gradle` files are ours — this repo has no version catalogue,
+2. **Nothing else.** The seven `build.gradle` files are ours — this repo has no version catalogue,
    so upstream's `libs.versions.toml` references are spelled out — and the publishing, ktlint,
    test-fixture and javadoc blocks are dropped because nothing here publishes or lints them.
 

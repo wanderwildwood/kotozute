@@ -37,4 +37,13 @@ dependencies {
     implementation 'io.reactivex.rxjava3:rxkotlin:3.0.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0'
     implementation "org.signal:libsignal-client:$libsignal_version"
+
+    // Signal's own test suite, restored and run against this build of its source -- versions
+    // from upstream's `gradle/test-libs.versions.toml`. The suite is the strongest check there
+    // is that these modules were copied and compiled correctly, and it is the only thing that
+    // exercises the receive-side refusals an ordinary conversation never trips.
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.willowtreeapps.assertk:assertk:0.28.1'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0'
 }

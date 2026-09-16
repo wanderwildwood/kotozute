@@ -149,6 +149,24 @@ internal object ContentNormalizer {
         // below unreachable for any current sender.
         if (isExpirationUpdate(dataMessage)) return null
 
+        // A message whose whole purpose is to hand over a new profile key.
+        //
+        // ⚠ It arrived as an **empty bubble**, which is the fault [describe] exists to prevent
+        // and could not: there is no field on it to recognise. Body empty, no attachment, no
+        // reaction, no group context, nothing for any arm of `describe` to name -- so it fell
+        // through every one of them to `null` and was stored blank. Somebody changes their
+        // profile name or picture, or rotates after a block, and a silent gap appears in the
+        // conversation.
+        //
+        // Upstream does not insert it either: `SyncMessageProcessor:286` logs "Sent transcript
+        // for a profile key update. Nothing to insert." and `SignalServiceProtoUtil.kt:77`
+        // defines the predicate this mirrors.
+        //
+        // ⚠ Dropping it loses nothing. The key is not read from here: `SignalReceiver`'s
+        // `rememberProfileKey` takes it straight off `content.dataMessage.profileKey`, before
+        // this runs and regardless of what this returns.
+        if (isProfileKeyUpdate(dataMessage)) return null
+
         // ⚠ A withdrawal is not a message either, and it was being stored as one. Signal's
         // `DataMessageProcessor` dispatches on a `when`: `message.hasRemoteDelete` takes its
         // own branch and never reaches `handleTextMessage`, so a remote delete removes the
@@ -396,6 +414,18 @@ internal object ContentNormalizer {
             parse(status.destinationServiceId, status.destinationServiceIdBinary)?.let { return it }
         }
         return ""
+    }
+
+    /**
+     * A `PROFILE_KEY_UPDATE`, which carries a key and nothing a person wrote.
+     *
+     * The flag rather than "has a profile key and no body": an ordinary message carries a
+     * profile key too, which is how they are learned at all, so the absence of content is not
+     * what distinguishes this one. `DataMessage.Flags.PROFILE_KEY_UPDATE` is.
+     */
+    internal fun isProfileKeyUpdate(m: DataMessage): Boolean {
+        val flags = m.flags ?: return false
+        return flags and DataMessage.Flags.PROFILE_KEY_UPDATE.value != 0
     }
 
     /**

@@ -123,7 +123,13 @@ interface SignalEvents {
     ) {}
 
     /**
-     * Says in the conversation that a message needs a newer version of this app to show.
+     * Says in the conversation that a message arrived and cannot be shown, and why.
+     *
+     * Three causes, one row, because what the reader needs is the same in each: a marker where
+     * a message was, rather than a gap. The [reason] decides only the sentence — and it is an
+     * enum rather than a flag because two of the three tell the reader to do *opposite* things,
+     * update this app or ask the sender to update theirs, and a boolean that gets those the
+     * wrong way round would read perfectly.
      *
      * `DataMessage.requiredProtocolVersion` is the sender stating the minimum understanding a
      * client needs to render the message *correctly*. Below it, the parts this build recognises
@@ -137,17 +143,25 @@ interface SignalEvents {
      * `MessageContentProcessor:435` inserts an error row and calls
      * `markAsUnsupportedProtocolVersion`.
      *
+     * The other two causes are decryption failures rather than content this build refuses:
+     * `ProtocolLegacyMessageException` is the *sender's* Signal being too old, and
+     * `ProtocolInvalidVersionException` is a ciphertext version this build does not speak.
+     * Upstream inserts a row for both — `MessageContentProcessor:421` and `:428`, each with its
+     * own marker — and asks for no resend, because a resend would arrive in the same form.
+     *
      * Filed under the message's own identity, like [undecryptableGaveUp], so a later build that
      * does understand it replaces the note rather than sitting beside it.
      *
      * @param sender the account id the message was from.
      * @param sentTimestamp the timestamp the sender stamped on it.
      * @param groupId the group it was sent to, or null for a one-to-one message.
+     * @param reason which sentence the conversation should carry.
      */
-    fun unsupportedMessage(
+    fun cannotShow(
         sender: String,
         sentTimestamp: Long,
-        groupId: ByteArray?
+        groupId: ByteArray?,
+        reason: CannotShow
     ) {}
 
     /**
@@ -229,4 +243,21 @@ interface SignalEvents {
      * to disappear, it tells the other person's client the conversation has been switched off.
      */
     fun timerChanged(threadKey: String, seconds: Long, version: Int) {}
+}
+
+/**
+ * Why a message that arrived cannot be put in front of somebody.
+ *
+ * Deliberately not a boolean anywhere: [SENDER_TOO_OLD] and [NEEDS_NEWER_APP] ask the reader to
+ * do opposite things, and the two are easy to state backwards.
+ */
+enum class CannotShow {
+    /** Its sender marked it as needing a protocol version this build does not implement. */
+    NEEDS_NEWER_APP,
+
+    /** It was encrypted by a Signal too old for this build to decrypt -- their end, not ours. */
+    SENDER_TOO_OLD,
+
+    /** Its ciphertext is in a version this build does not speak. Neither end is named. */
+    UNREADABLE_FORM
 }

@@ -1303,6 +1303,12 @@ internal class SignalReceiver(
                 Failure.UNREADABLE_BY_THIS_BUILD -> {
                     lastFailure = "${t::class.java.simpleName}: ${t.message?.take(120).orEmpty()}"
                     Timber.w(t, "signal receive: an envelope this build cannot read; keeping it, asking nobody")
+                    // ⚠ The half of upstream's behaviour the comment above described and this
+                    // did not do. "An error in the conversation and no resend request" is two
+                    // things; only the second was here, so the reader got a silent gap -- the
+                    // same fault `announceGivenUpEnvelopes` exists to fix for the other kind of
+                    // unreadable message, in the one case where no amount of waiting fixes it.
+                    sayItCannotBeShown(envelope, t)
                     return null
                 }
 
@@ -1549,7 +1555,14 @@ internal class SignalReceiver(
                     validation.theirVersion,
                     validation.ourVersion
                 )
-                noteUnsupported(envelope, result)
+                runCatching {
+                    events.cannotShow(
+                        result.metadata.sourceServiceId.toString(),
+                        envelope.clientTimestamp ?: return@runCatching,
+                        result.metadata.groupId,
+                        CannotShow.NEEDS_NEWER_APP
+                    )
+                }.onFailure { Timber.w(it, "signal receive: could not say a message needs a newer build") }
                 false
             }
             else -> {
@@ -1557,34 +1570,6 @@ internal class SignalReceiver(
                 false
             }
         }
-    }
-
-    /**
-     * Says in the conversation that a message needed a newer build than this one.
-     *
-     * ⚠ The group comes from the **envelope metadata**, not from the data message. The content
-     * is the thing this build has just decided it does not understand well enough to read, so
-     * reading a field out of it to decide which conversation the note belongs in would be
-     * trusting exactly what was refused. `EnvelopeMetadata.groupId` is set by the decryption
-     * layer from the sealed-sender certificate or the envelope, and is the same value the retry
-     * path already files under.
-     *
-     * Swallowed and logged rather than gated: this is the *notice*, and a conversation that
-     * fails to get one is no worse off than it was a moment ago. What must not happen is the
-     * message being processed anyway, and that is decided by the caller, not here.
-     */
-    private fun noteUnsupported(
-        envelope: Envelope,
-        result: org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult
-    ) {
-        val sentTimestamp = envelope.clientTimestamp ?: return
-        runCatching {
-            events.unsupportedMessage(
-                result.metadata.sourceServiceId.toString(),
-                sentTimestamp,
-                result.metadata.groupId
-            )
-        }.onFailure { Timber.w(it, "signal receive: could not say a message needs a newer build") }
     }
 
     /**
@@ -1868,6 +1853,57 @@ internal class SignalReceiver(
         } else {
             Timber.w("signal session: could not ask for a fresh session; will try again shortly")
         }
+    }
+
+    /**
+     * Puts a marker in the conversation where a message this build cannot decrypt should be.
+     *
+     * ⚠ **The gap this fills was named in a comment and left open.** The branch above said, of
+     * an invalid version or a legacy message, that "Signal answers with an error in the
+     * conversation and no resend request" -- and then did only the second half. The reader got
+     * a silent gap, which is the fault [announceGivenUpEnvelopes] exists to prevent for the
+     * other kind of unreadable message, and worse here: that one may still arrive, and this one
+     * never will. Upstream inserts its row at `MessageContentProcessor:421` and `:428`.
+     *
+     * Two sentences, because the two causes ask for opposite things.
+     * `ProtocolLegacyMessageException` is the *sender's* Signal being too old, and upstream's
+     * own wording tells the reader to ask them to update and resend.
+     * `ProtocolInvalidVersionException` is a ciphertext version this build does not speak, and
+     * names neither end -- which one is wrong is not knowable from here, and guessing it is the
+     * kind of confidently-wrong sentence this app tries not to write.
+     *
+     * Best effort throughout: a missing sender, a missing timestamp or a failed write costs the
+     * marker and nothing else. The envelope is already kept, and the decision not to ask for a
+     * resend was made by the caller.
+     */
+    private fun sayItCannotBeShown(envelope: Envelope, failure: Throwable) {
+        val protocolFailure = generateSequence(failure) { it.cause }
+            .take(CAUSE_DEPTH)
+            .filterIsInstance<org.signal.libsignal.metadata.ProtocolException>()
+            .firstOrNull()
+        // The sender as the exception names them, then as the envelope does. Sealed sender
+        // leaves the envelope's copy empty, and the exception's is filled from the inner
+        // message -- the same order [askForItAgain] uses, for the same reason.
+        val sender = protocolFailure?.sender?.takeIf { it.isNotBlank() }
+            ?: senderOf(envelope)
+            ?: return
+        val sentTimestamp = envelope.clientTimestamp ?: return
+        // Never about our own primary's sync stream: a note in a conversation with ourselves
+        // helps nobody, and the session repair is the actual answer there.
+        if (sender == runCatching { accounts.credentials().aci }.getOrNull()) return
+
+        val reason = if (
+            generateSequence(failure) { it.cause }.take(CAUSE_DEPTH)
+                .any { it is org.signal.libsignal.metadata.ProtocolLegacyMessageException }
+        ) {
+            CannotShow.SENDER_TOO_OLD
+        } else {
+            CannotShow.UNREADABLE_FORM
+        }
+
+        runCatching {
+            events.cannotShow(sender, sentTimestamp, protocolFailure?.groupId?.orElse(null), reason)
+        }.onFailure { Timber.w(it, "signal receive: could not say a message cannot be shown") }
     }
 
     /**

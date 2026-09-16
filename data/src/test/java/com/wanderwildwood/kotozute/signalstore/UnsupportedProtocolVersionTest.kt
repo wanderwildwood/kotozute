@@ -1,6 +1,7 @@
 package com.wanderwildwood.kotozute.signalstore
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.signal.core.models.ServiceId
@@ -74,5 +75,18 @@ class UnsupportedProtocolVersionTest {
         assertEquals(8, DataMessage.ProtocolVersion.CURRENT.value)
         assertEquals(2, DataMessage.ProtocolVersion.VIEW_ONCE.value)
         assertEquals(7, DataMessage.ProtocolVersion.PAYMENTS.value)
+    }
+
+    /**
+     * The three reasons a message cannot be shown must stay three. Two of them tell the reader
+     * to do opposite things -- update this app, or ask the sender to update theirs -- which is
+     * why [CannotShow] is an enum and not a flag, and why collapsing any two of them would be a
+     * regression rather than a simplification.
+     */
+    @Test
+    fun `the reasons a message cannot be shown are distinct`() {
+        assertEquals(3, CannotShow.entries.size)
+        assertNotEquals(CannotShow.NEEDS_NEWER_APP, CannotShow.SENDER_TOO_OLD)
+        assertNotEquals(CannotShow.SENDER_TOO_OLD, CannotShow.UNREADABLE_FORM)
     }
 }

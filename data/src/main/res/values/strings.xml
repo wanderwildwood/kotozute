@@ -49,4 +49,14 @@
       build cannot know, and guessing is the fault being avoided.
     -->
     <string name="signal_message_needs_update">A message was sent here that this app is too old to show properly. Read it on another device until this one is updated.</string>
+    <!--
+      Their Signal, not ours. Upstream's wording for the same case asks the reader to have the
+      sender update and send again, which is the only thing that can work.
+    -->
+    <string name="signal_message_sender_too_old">A message was sent here with a version of Signal this app can no longer read. Ask them to update Signal and send it again.</string>
+    <!--
+      Neither end named, because this build genuinely cannot tell which one is wrong: the
+      ciphertext is in a version it does not speak. Saying whose fault it is would be a guess.
+    -->
+    <string name="signal_message_unreadable_form">A message was sent here that this app could not read. Asking for it again would not help.</string>
 </resources>

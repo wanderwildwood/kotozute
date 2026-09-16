@@ -1973,13 +1973,21 @@ class SignalRepositoryImpl @Inject constructor(
             groupId: ByteArray?
         ) = noteUndecryptable(sender, sentTimestamp, groupId)
 
-        override fun unsupportedMessage(
+        override fun cannotShow(
             sender: String,
             sentTimestamp: Long,
-            groupId: ByteArray?
+            groupId: ByteArray?,
+            reason: com.wanderwildwood.kotozute.signalstore.CannotShow
         ) = notePlaceholder(
             sender, sentTimestamp, groupId,
-            com.wanderwildwood.kotozute.data.R.string.signal_message_needs_update
+            when (reason) {
+                com.wanderwildwood.kotozute.signalstore.CannotShow.NEEDS_NEWER_APP ->
+                    com.wanderwildwood.kotozute.data.R.string.signal_message_needs_update
+                com.wanderwildwood.kotozute.signalstore.CannotShow.SENDER_TOO_OLD ->
+                    com.wanderwildwood.kotozute.data.R.string.signal_message_sender_too_old
+                com.wanderwildwood.kotozute.signalstore.CannotShow.UNREADABLE_FORM ->
+                    com.wanderwildwood.kotozute.data.R.string.signal_message_unreadable_form
+            }
         )
 
         override fun rotatePreKeys() {

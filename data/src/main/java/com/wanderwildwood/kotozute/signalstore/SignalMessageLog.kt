@@ -22,7 +22,13 @@ import java.util.concurrent.TimeUnit
 internal class SignalMessageLog(private val db: ProtocolDatabase) {
 
     /** One thing sent, as it was sent. */
-    data class Entry(val content: Content, val urgent: Boolean, val groupId: ByteArray?)
+    data class Entry(
+        val content: Content,
+        val urgent: Boolean,
+        val groupId: ByteArray?,
+        /** The hint the original went out under, as its wire value. See v31. */
+        val contentHint: Int
+    )
 
     /**
      * Writes down one send, per recipient.
@@ -36,13 +42,20 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
         sentTimestamp: Long,
         content: Content,
         urgent: Boolean,
-        groupId: ByteArray?
+        groupId: ByteArray?,
+        /**
+         * The hint this copy went out under, as its wire value.
+         *
+         * Kept so a resend can assert what the original asserted. See v31: replaying a constant
+         * tells somebody to wait for a message after first telling them not to worry about it.
+         */
+        contentHint: Int
     ) = withStoreLock(db) {
         if (recipient.isBlank() || sentTimestamp <= 0) return@withStoreLock
         db.writableDatabase.execSQL(
             """
-            INSERT INTO message_log (recipient, device_id, sent_timestamp, content, urgent, group_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO message_log (recipient, device_id, sent_timestamp, content, urgent, group_id, created_at, content_hint)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             arrayOf<Any?>(
                 recipient,
@@ -51,7 +64,8 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
                 content.encode(),
                 if (urgent) 1 else 0,
                 groupId,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                contentHint
             )
         )
     }
@@ -211,7 +225,7 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
     fun recall(recipient: String, sentTimestamp: Long): Entry? = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             """
-            SELECT content, urgent, group_id FROM message_log
+            SELECT content, urgent, group_id, content_hint FROM message_log
             WHERE recipient = ? AND sent_timestamp = ?
             LIMIT 1
             """.trimIndent(),
@@ -222,7 +236,8 @@ internal class SignalMessageLog(private val db: ProtocolDatabase) {
                 Entry(
                     content = Content.ADAPTER.decode(c.getBlob(0)),
                     urgent = c.getInt(1) != 0,
-                    groupId = c.getBlob(2)
+                    groupId = c.getBlob(2),
+                    contentHint = c.getInt(3)
                 )
             }.onFailure { Timber.w(it, "signal message log: an entry would not decode") }.getOrNull()
         }

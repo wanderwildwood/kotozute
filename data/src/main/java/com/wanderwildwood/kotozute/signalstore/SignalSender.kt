@@ -120,7 +120,19 @@ internal class SignalSender(
      * reconstruction of it. Best effort: a send that happened is still a send that happened,
      * and failing to write the log is not a reason to report it otherwise.
      */
-    private fun rememberSend(result: SendMessageResult, timestamp: Long, groupId: ByteArray?) {
+    private fun rememberSend(
+        result: SendMessageResult,
+        timestamp: Long,
+        groupId: ByteArray?,
+        /**
+         * The hint this send went out under.
+         *
+         * Named rather than positional, and required rather than defaulted: a default would
+         * quietly record `RESENDABLE` for the one send that is not, which is the bug this
+         * parameter exists to end.
+         */
+        contentHint: ContentHint
+    ) {
         if (!result.isSuccess) return
         // What the send taught us about this person's sealed sender. Only a send that
         // actually happened is evidence, which is what the check above already ensures.
@@ -145,7 +157,8 @@ internal class SignalSender(
                     sentTimestamp = timestamp,
                     content = content,
                     urgent = true,
-                    groupId = groupId
+                    groupId = groupId,
+                    contentHint = contentHint.type
                 )
             }
         }.onFailure { Timber.w(it, "signal message log: could not record a send") }
@@ -167,7 +180,15 @@ internal class SignalSender(
             sealedSender.accessFor(recipient.toString()),
             sentTimestamp,
             entry.content,
-            ContentHint.RESENDABLE,
+            // ⚠ What the original said, not a constant. The hint tells a recipient what to do
+            // when they cannot read a message -- show an error now, show nothing and wait for
+            // a resend, or need no error at all -- and this asserted `RESENDABLE` whatever had
+            // gone out. A group update leaves as `IMPLICIT`, so a resend of one told somebody
+            // to hold a slot and wait after first telling them no error was needed.
+            //
+            // Upstream carries it on the log entry and replays it: `ResendMessageJob` reads
+            // `contentHint` off the record and passes it to `resendContent`.
+            ContentHint.fromType(entry.contentHint),
             java.util.Optional.ofNullable(entry.groupId),
             entry.urgent
         )
@@ -367,7 +388,7 @@ internal class SignalSender(
                 true
             )
             val groupIdentifier = groupIdentifierOf(masterKey)
-            results.forEach { rememberSend(it, timestamp, groupIdentifier) }
+            results.forEach { rememberSend(it, timestamp, groupIdentifier, ContentHint.RESENDABLE) }
             results.forEach { noteIfNotRegistered(it) }
             val failed = results.filterNot { it.isSuccess }
             when {
@@ -537,7 +558,7 @@ internal class SignalSender(
                 true
             )
             val groupIdentifier = groupIdentifierOf(masterKey)
-            results.forEach { rememberSend(it, timestamp, groupIdentifier) }
+            results.forEach { rememberSend(it, timestamp, groupIdentifier, ContentHint.IMPLICIT) }
             results.forEach { noteIfNotRegistered(it) }
             val failed = results.filterNot { it.isSuccess }
             when {
@@ -1068,7 +1089,7 @@ internal class SignalSender(
             // can never be served. Upstream routes every resendable send through
             // `sendResendableDataMessage`, which records the payload; sends that are not meant
             // to be resent use a different path and a different hint.
-                rememberSend(result, timestamp, null)
+                rememberSend(result, timestamp, null, ContentHint.RESENDABLE)
                 Timber.i("signal reaction: delivered ts=%d", timestamp)
                 Result.Sent(timestamp)
             } else {
@@ -1135,7 +1156,7 @@ internal class SignalSender(
             )
             // Logged for the same reason as the one-to-one reaction above.
             val reactionGroupId = groupIdentifierOf(masterKey)
-            results.forEach { rememberSend(it, timestamp, reactionGroupId) }
+            results.forEach { rememberSend(it, timestamp, reactionGroupId, ContentHint.RESENDABLE) }
             results.forEach { noteIfNotRegistered(it) }
             val failed = results.filterNot { it.isSuccess }
             // ⚠ Some got it is **sent**, not failed. The group message path was fixed for this
@@ -1207,7 +1228,7 @@ internal class SignalSender(
             // can never be served. Upstream routes every resendable send through
             // `sendResendableDataMessage`, which records the payload; sends that are not meant
             // to be resent use a different path and a different hint.
-                rememberSend(result, timestamp, null)
+                rememberSend(result, timestamp, null, ContentHint.RESENDABLE)
                 clearPniProofIfSent(recipient, owedProof, true)
                 Timber.i("signal delete: withdrawal sent for ts=%d", targetSentTimestamp)
                 Result.Sent(timestamp)
@@ -1261,7 +1282,7 @@ internal class SignalSender(
             )
             // A withdrawal that cannot be resent is a withdrawal somebody never receives.
             val deleteGroupId = groupIdentifierOf(masterKey)
-            results.forEach { rememberSend(it, timestamp, deleteGroupId) }
+            results.forEach { rememberSend(it, timestamp, deleteGroupId, ContentHint.RESENDABLE) }
             results.forEach { noteIfNotRegistered(it) }
             val failed = results.filterNot { it.isSuccess }
             // ⚠ Some got it is **sent**, not failed. The group message path was fixed for this
@@ -1377,7 +1398,7 @@ internal class SignalSender(
                 // opposite of what the ACI-only sender certificate here is chosen to avoid.
                 owedProof
             )
-            rememberSend(result, timestamp, null)
+            rememberSend(result, timestamp, null, ContentHint.RESENDABLE)
             clearPniProofIfSent(recipient, owedProof, result.isSuccess)
             if (result.isSuccess) {
                 Timber.i("signal send: delivered ts=%d", timestamp)

@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 30
+    const val VERSION = 31
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -559,6 +559,9 @@ internal object ProtocolStoreSchema {
           urgent INTEGER NOT NULL DEFAULT 1,
           group_id BLOB,
           created_at INTEGER NOT NULL,
+          -- What `ContentHint` this copy went out under, as its wire value. Kept so a resend
+          -- asserts what the original asserted rather than a constant. See v31.
+          content_hint INTEGER NOT NULL DEFAULT 1,
           -- When a resend was first owed for this copy, and null while none is. See v26.
           resend_owed_since INTEGER
         );
@@ -833,6 +836,21 @@ internal object ProtocolStoreSchema {
             SELECT recipient, sent_timestamp, owed_since, 'delivery' FROM receipt_owed_old;
             """,
             "DROP TABLE receipt_owed_old;"
+        ),
+
+        /**
+         * The hint a message was sent under, so a resend can claim the same one.
+         *
+         * ⚠ A resend used to assert `RESENDABLE` whatever the original said. The hint tells a
+         * recipient what to do when they cannot read a message -- show an error now, show
+         * nothing and wait for a resend, or need no error at all -- so replaying the wrong one
+         * tells somebody to wait for something after first telling them not to worry.
+         *
+         * Defaulting to `RESENDABLE` leaves every existing row saying exactly what the resend
+         * path already assumed, so the migration changes nothing that is already recorded.
+         */
+        31 to listOf(
+            "ALTER TABLE message_log ADD COLUMN content_hint INTEGER NOT NULL DEFAULT 1;"
         ),
 
         /**

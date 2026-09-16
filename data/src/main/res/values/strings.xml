@@ -48,6 +48,12 @@
       than this app implements. Deliberately says nothing about what the message was: this
       build cannot know, and guessing is the fault being avoided.
     -->
+    <!--
+      Shown only after a second failed key transparency check. Says what is known and no more:
+      that Signal's public log and the server disagree about this account. It deliberately does
+      not say "you are being attacked" — the check cannot tell a compromise from a server bug.
+    -->
+    <string name="signal_key_transparency_failed">Signal\'s public record and the server disagree about this account. Check your Signal devices, and do not trust safety numbers here until it clears.</string>
     <string name="signal_message_needs_update">A message was sent here that this app is too old to show properly. Read it on another device until this one is updated.</string>
     <!--
       Their Signal, not ours. Upstream's wording for the same case asks the reader to have the

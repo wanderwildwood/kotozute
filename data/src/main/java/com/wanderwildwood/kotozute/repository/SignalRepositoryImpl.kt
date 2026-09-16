@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.concurrent.thread
+import com.wanderwildwood.kotozute.signalstore.SignalKeyTransparency
 
 private const val ATTACHMENT_PREVIEW = "\uD83D\uDCCE Attachment"
 
@@ -1412,8 +1413,125 @@ class SignalRepositoryImpl @Inject constructor(
                     // catching. Logged and sent nowhere -- see [logStoragePushDiff].
                     logStoragePushDiff()
                 }
+
+                // And whether Signal's public log still agrees with the server about who this
+                // account is. Last in the block because it is the only thing here that is not
+                // needed for the app to work -- everything above buys a working conversation,
+                // this buys the knowledge that the conversation is with who it claims.
+                // ⚠ Its own thread, not the startup thread. The first attempt on hardware
+                // stopped inside the check and logged nothing further, and `withTimeout` did
+                // not release it -- a coroutine only cancels at a suspension point, and a
+                // native wait inside libsignal is not one. Until that is diagnosed, the cost
+                // of it wedging is one daemon thread rather than the block that connects the
+                // socket, reads the account's records and asks the primary for contacts.
+                // ⛔ **Off, and not because it is unfinished.** Everything below it works: the
+                // schema migrated on two live stores, the schedule runs, the gates answer. What
+                // is not understood is that the one attempt to reach the log **never returned**
+                // and logged nothing after entering the call — and `withTimeout` did not free it,
+                // because a coroutine cancels at suspension points and a native wait inside
+                // libsignal is not one.
+                //
+                // A wedged thread on its own would be a leak worth accepting once a week. The
+                // reason this stays off is that **it is not known what it holds while wedged**.
+                // The path touches the account store and the contact store, both of which take
+                // the protocol store lock, and a lock held for the life of the process by a
+                // thread nobody is watching would stop messages being received — which is a
+                // great deal worse than not checking a transparency log.
+                //
+                // Turning it on needs a debug build and a thread dump, which is a session's
+                // first task. Everything else here is done and tested.
+                if (KEY_TRANSPARENCY_ENABLED) {
+                    thread(name = "signal-kt", isDaemon = true) { checkKeyTransparency() }
+                }
             }
             thread(name = "signal-listen-$generation", isDaemon = true) { listenLoop(generation) }
+        }
+    }
+
+    /**
+     * Asks the key transparency log about this account, at most weekly.
+     *
+     * The schedule, the gates and the response to a failure are all
+     * [com.wanderwildwood.kotozute.signalstore.SignalKeyTransparency]'s, which is Signal's. This
+     * is the part that has to live here: the two flags that survive a restart, and what a second
+     * failure does in an app with no sheet to show.
+     *
+     * ⚠ **A first failure is answered by re-reading rather than by telling anybody.** Signal
+     * enqueues a storage sync and an attribute refresh and checks again tomorrow, because a
+     * mismatch is far more often this device holding something stale than a server lying. Only
+     * the second failure running reaches a person, and here that means the `error` field on the
+     * published state — the same channel an unlinked device or a dead socket uses, because it
+     * is the one place this app already says "something about this account is wrong".
+     */
+    private fun checkKeyTransparency() {
+        // ⚠ **Bounded, and that is not a detail.** This runs on the shared startup thread, and
+        // the check ends in a call that waits on the unauthenticated socket. Unbounded, a socket
+        // that never answers wedges that thread for the life of the process -- the same shape as
+        // the read timeout that once wedged the receive stream. A check that gives up is a check
+        // that did not happen, which is a state this already has a name for; a check that hangs
+        // is a bug with no symptom.
+        // Bracketing the call, because the first attempt produced no line at all and there
+        // was no way to tell a check that never started from one that never returned.
+        Timber.i("signal kt: starting a check")
+        val outcome = runCatching {
+            kotlinx.coroutines.runBlocking {
+                kotlinx.coroutines.withTimeout(CHECK_TIMEOUT_MS) {
+                    signalStore.checkKeyTransparency(
+                        now = System.currentTimeMillis(),
+                        nextDueAt = prefs.signalNextKeyTransparencyCheck.get(),
+                        alreadyFailing = prefs.signalKeyTransparencyFailed.get(),
+                        setNextDueAt = { prefs.signalNextKeyTransparencyCheck.set(it) }
+                    )
+                }
+            }
+        }.getOrElse {
+            // Including the timeout. Never a failure: the log did not disagree, it did not
+            // answer, and those are different things.
+            Timber.w(it, "signal kt: the check could not be made")
+            return
+        }
+
+        when (outcome) {
+            is SignalKeyTransparency.Outcome.Skipped ->
+                Timber.i("signal kt: not checked -- %s", outcome.because)
+
+            is SignalKeyTransparency.Outcome.Unreachable ->
+                // Never a failure. The network saying nothing is not the log disagreeing.
+                Timber.i("signal kt: could not reach the log -- %s", outcome.reason)
+
+            is SignalKeyTransparency.Outcome.Verified -> {
+                if (prefs.signalKeyTransparencyFailed.get()) {
+                    Timber.i("signal kt: verified; the earlier disagreement is resolved")
+                }
+                prefs.signalKeyTransparencyFailed.set(false)
+                prefs.signalKeyTransparencyFailureSeen.set(false)
+            }
+
+            is SignalKeyTransparency.Outcome.Failed -> {
+                prefs.signalKeyTransparencyFailed.set(true)
+                if (!outcome.tellSomebody) {
+                    // The self-correcting half, and the reason a first failure is quiet: ask
+                    // the account what it holds and tell it what this device holds, then look
+                    // again. Upstream enqueues StorageSyncJob and RefreshAttributesJob here.
+                    Timber.w("signal kt: disagreed once -- refreshing what is known and asking again tomorrow")
+                    prefs.signalNextKeyTransparencyCheck.set(
+                        System.currentTimeMillis() + java.util.concurrent.TimeUnit.DAYS.toMillis(1)
+                    )
+                    if (signalStore.storageKeyKnown()) {
+                        runCatching { signalStore.readStorage() }
+                            .onFailure { Timber.w(it, "signal kt: could not re-read the account's records") }
+                    }
+                    runCatching { signalStore.refreshCapabilities() }
+                        .onFailure { Timber.w(it, "signal kt: could not re-send this device's attributes") }
+                } else {
+                    Timber.e("signal kt: disagreed twice -- saying so")
+                    prefs.signalKeyTransparencyFailureSeen.set(true)
+                    publishState(
+                        signalConnected = state.value?.signalConnected ?: false,
+                        error = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_key_transparency_failed)
+                    )
+                }
+            }
         }
     }
 
@@ -3484,6 +3602,23 @@ class SignalRepositoryImpl @Inject constructor(
 
 
     companion object {
+        /**
+         * How long a key transparency check may take before it is abandoned.
+         *
+         * ⚠ It runs on the startup thread. Thirty seconds is upstream's own patience for the
+         * one blocking job it runs at link time (`runJobBlocking(RefreshOwnProfileJob(),
+         * 30.seconds)`), and it is long enough for a socket that is merely slow.
+         */
+        private val CHECK_TIMEOUT_MS = java.util.concurrent.TimeUnit.SECONDS.toMillis(30)
+
+        /**
+         * Whether to ask the key transparency log at all. See the call site for why it is off.
+         *
+         * ⚠ Not a feature flag anybody is expected to toggle, and not a half-built feature: a
+         * known hang with an unknown blast radius, held back until it is understood.
+         */
+        private const val KEY_TRANSPARENCY_ENABLED = false
+
 
         /**
          * How long to keep trying for an attachment that did not arrive.

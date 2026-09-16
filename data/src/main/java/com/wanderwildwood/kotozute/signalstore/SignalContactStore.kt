@@ -395,6 +395,27 @@ internal class SignalContactStore(
         )
     }
 
+    /**
+     * What key transparency last verified about this person, or null before any check.
+     *
+     * Opaque: written and read only by libsignal
+     * (`org.signal.libsignal.keytrans.Store.getAccountData`). Nothing here parses it, and
+     * nothing should — a client that second-guesses the contents is one that can be argued
+     * into accepting a substituted key.
+     *
+     * ⚠ Written by service id, like everything else on this table, so a person known by PNI
+     * before their ACI arrives keeps the same row rather than gaining a second one.
+     */
+    fun keyTransparencyDataFor(serviceId: String): ByteArray? =
+        byServiceId(serviceId, "key_transparency_data") { it.getBlob(0) }
+
+    fun saveKeyTransparencyData(serviceId: String, data: ByteArray) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "UPDATE recipient SET key_transparency_data = ? WHERE aci = ? OR pni = ?",
+            arrayOf<Any?>(data, serviceId, serviceId)
+        )
+    }
+
     /** A contact's profile key, or null. Sealed sender needs it; see [SealedSender]. */
     fun profileKeyFor(aci: String): ByteArray? = byServiceId(aci, "profile_key") { it.getBlob(0) }
 

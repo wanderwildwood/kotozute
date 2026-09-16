@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 32
+    const val VERSION = 33
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -38,7 +38,11 @@ internal object ProtocolStoreSchema {
           password TEXT,
           last_pni_change_timestamp INTEGER NOT NULL DEFAULT 0,
           profile_key BLOB,
-          auth_credential_salt BLOB
+          auth_credential_salt BLOB,
+          -- Key transparency's "distinguished" tree head: the last point in the public log
+          -- this device has checked against. It belongs to the account rather than to any
+          -- contact, which is why it sits here and the per-person data sits on `recipient`.
+          distinguished_head BLOB
         ) STRICT;
     """
 
@@ -481,6 +485,8 @@ internal object ProtocolStoreSchema {
           -- person"; see the v25 migration.
           hidden INTEGER NOT NULL DEFAULT 0,
           unregistered_at INTEGER NOT NULL DEFAULT 0,
+          -- What key transparency last verified about this person, opaque to everything here.
+          key_transparency_data BLOB,
           -- This row's id in the account's storage service, base64 of sixteen random bytes.
           -- ⚠ Rotated on every **local** change and on nothing else: the rotation IS the
           -- record of "this differs from what the account holds". See [SignalContactStore.
@@ -837,6 +843,24 @@ internal object ProtocolStoreSchema {
             SELECT recipient, sent_timestamp, owed_since, 'delivery' FROM receipt_owed_old;
             """,
             "DROP TABLE receipt_owed_old;"
+        ),
+
+        /**
+         * What key transparency remembers between checks.
+         *
+         * Two opaque blobs, both written and read only by libsignal: the account-wide
+         * *distinguished tree head* -- the last point in the public log this device verified
+         * against -- and, per person, the account data that proves their identifiers were in
+         * the log when we last looked. `org.signal.libsignal.keytrans.Store` is the interface,
+         * and its four methods are exactly these two columns.
+         *
+         * ⚠ Opaque on purpose. Nothing here parses them; a client that second-guesses the
+         * contents is a client that can be argued into accepting a substituted key, which is
+         * the whole thing key transparency exists to prevent.
+         */
+        33 to listOf(
+            "ALTER TABLE account ADD COLUMN distinguished_head BLOB;",
+            "ALTER TABLE recipient ADD COLUMN key_transparency_data BLOB;"
         ),
 
         /**

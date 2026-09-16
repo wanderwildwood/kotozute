@@ -168,6 +168,25 @@ internal class SignalAccountStore(private val db: ProtocolDatabase) {
         ).use { c -> if (c.moveToFirst()) c.getBlob(0) else null }
     }
 
+    /**
+     * Key transparency's distinguished tree head, or null before the first check.
+     *
+     * The last point in Signal's public log this device verified against. Account-wide rather
+     * than per-person, which is why it lives here. Opaque: written and read only by libsignal
+     * (`org.signal.libsignal.keytrans.Store`), and nothing in this app looks inside it.
+     */
+    fun distinguishedHead(): ByteArray? = withLock {
+        db.readableDatabase.rawQuery(
+            "SELECT distinguished_head FROM account WHERE _id = 1", null
+        ).use { c -> if (c.moveToFirst()) c.getBlob(0) else null }
+    }
+
+    fun saveDistinguishedHead(head: ByteArray) = inTransaction {
+        db.writableDatabase.execSQL(
+            "UPDATE account SET distinguished_head = ? WHERE _id = 1", arrayOf(head)
+        )
+    }
+
     // --- identity ----------------------------------------------------------------------
 
     fun identityKeyPair(accountIdType: Int): IdentityKeyPair? = withLock {

@@ -890,6 +890,21 @@ class SignalStore(private val context: Context) {
         return bad
     }
 
+    /**
+     * Runs a key transparency check if one is due. See [SignalKeyTransparency].
+     *
+     * Here rather than in the repository because this is where the account, the contacts and the
+     * connection already are; the repository owns the two flags that outlive the process.
+     */
+    internal suspend fun checkKeyTransparency(
+        now: Long,
+        nextDueAt: Long,
+        alreadyFailing: Boolean,
+        setNextDueAt: (Long) -> Unit
+    ): SignalKeyTransparency.Outcome =
+        SignalKeyTransparency(account, contacts, connection)
+            .checkIfDue(now, nextDueAt, alreadyFailing, setNextDueAt)
+
     /** Whether this device has been told the blocked list yet. */
     fun blockedListKnown(): Boolean = runCatching { blocks.known() }.getOrDefault(false)
 

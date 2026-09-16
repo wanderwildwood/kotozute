@@ -45,8 +45,9 @@
         <item name="android:textColorSecondary">@color/textSecondary</item>
         <item name="android:textColorTertiary">@color/textTertiary</item>
         <item name="android:windowBackground">@color/white</item>
-        <item name="android:windowContentTransitions">true</item>
         <item name="actionBarPopupTheme">@style/PopupTheme</item>
+        <item name="actionOverflowMenuStyle">@style/PopupMenuNoAnimation</item>
+        <item name="popupMenuStyle">@style/ListPopupNoAnimation</item>
         <item name="buttonBarButtonStyle">@style/ButtonBarButton</item>
         <item name="bubbleColor">@color/white</item>
         <item name="colorPrimary">@color/white</item>
@@ -67,6 +68,8 @@
         <item name="android:textColorTertiary">@color/textTertiary</item>
         <item name="android:windowBackground">@color/white</item>
         <item name="actionBarPopupTheme">@style/PopupTheme</item>
+        <item name="actionOverflowMenuStyle">@style/PopupMenuNoAnimation</item>
+        <item name="popupMenuStyle">@style/ListPopupNoAnimation</item>
         <item name="buttonBarButtonStyle">@style/ButtonBarButton</item>
         <item name="bubbleColor">@color/white</item>
         <item name="colorPrimary">@color/white</item>
@@ -92,6 +95,29 @@
     <style name="ActionMenuText" parent="TextAppearance.AppCompat.Widget.ActionBar.Menu">
         <item name="android:textAllCaps">false</item>
         <item name="textAllCaps">false</item>
+    </style>
+
+    <!--
+      No animation on a menu, per STYLE.md: "Nothing animates. No spinners, no crossfades, no
+      progress that moves for its own sake. An e-ink panel redraws in full; motion is a smear
+      and a battery cost."
+
+      The overflow menu was the one place it had survived. AppCompat gives its popup the
+      platform's drop-down animation, which on this panel is a partial redraw of a menu
+      growing, then the full redraw of the menu that was wanted — two refreshes and a smear
+      for no information.
+
+      `@null` resolves to animation style 0, which PopupWindow reads as "no animation" (-1 is
+      its default, not 0). Set on both the overflow menu and ordinary popup menus, because a
+      style that fixes the one the person complained about and leaves its neighbour is how this
+      comes back.
+    -->
+    <style name="PopupMenuNoAnimation" parent="Widget.AppCompat.PopupMenu.Overflow">
+        <item name="android:popupAnimationStyle">@null</item>
+    </style>
+
+    <style name="ListPopupNoAnimation" parent="Widget.AppCompat.PopupMenu">
+        <item name="android:popupAnimationStyle">@null</item>
     </style>
 
     <style name="PopupTheme" parent="ThemeOverlay.AppCompat.Light">

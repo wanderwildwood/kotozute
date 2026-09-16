@@ -328,6 +328,30 @@ class DeviceLinker internal constructor(
 
                 accounts.saveIdentity(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, aciIdentity, aciRegistrationId)
                 accounts.saveIdentity(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, pniIdentity, pniRegistrationId)
+
+                // ⚠ Before [SignalAccountStore.saveCredentials], and that is the whole reason
+                // they sit here rather than below it. `isLinked()` is
+                // `ProtocolStoreKey.exists() && credentials().complete`, so **saving the
+                // credentials is the line that makes this device count as linked**. Anything
+                // written after it that fails leaves a device reporting itself linked with a
+                // piece of the provisioning message missing.
+                //
+                // For most of what the message carries that is survivable -- the profile key
+                // is re-learnable from a sync of one of our own sends, and the storage key can
+                // be asked for again in Settings. **The salt cannot be.** It arrives once, in
+                // this message, and a device that misses it has no way to get one short of
+                // linking again. So it is written while failing still means "not linked",
+                // which is the recoverable state.
+                //
+                // Field 19, and new here: the service layer this app used before was built
+                // from a Signal source that predated it, so the field arrived and was dropped.
+                // An account **with** a phone number never needs it; an account without one
+                // cannot authorize a single group without it
+                // (`GroupsV2Api.getGroupsV2AuthorizationString` -> `receiveAuthCredentialWithoutPni`).
+                // Signal stores it during the same step, `AppRegistrationStorageController:812`.
+                provision.authCredentialSaltOrNull()?.let { accounts.saveAuthCredentialSalt(it) }
+                provision.profileKey?.let { accounts.saveProfileKey(it.toByteArray()) }
+
                 accounts.saveCredentials(
                     provision.number,
                     aci.toString(),
@@ -335,15 +359,6 @@ class DeviceLinker internal constructor(
                     deviceId,
                     password
                 )
-                provision.profileKey?.let { accounts.saveProfileKey(it.toByteArray()) }
-
-                // Field 19 of the provisioning message, and new here: the service layer this
-                // app used before was built from a Signal source that predated it, so the
-                // field arrived and was dropped. An account **with** a phone number never
-                // needs it; an account without one cannot authorize a single group without it
-                // (`GroupsV2Api.getGroupsV2AuthorizationString` -> `receiveAuthCredentialWithoutPni`).
-                // Signal stores it at the same point, `AppRegistrationStorageController:812`.
-                provision.authCredentialSaltOrNull()?.let { accounts.saveAuthCredentialSalt(it) }
 
                 // The storage key, from the pool this message already carried. Done here so
                 // the first storage read can happen on this device's own initiative rather

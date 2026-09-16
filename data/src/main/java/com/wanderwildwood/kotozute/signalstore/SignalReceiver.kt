@@ -486,6 +486,32 @@ internal class SignalReceiver(
         return Failure.WORTH_RETRYING
     }
 
+    /**
+     * Whether a data message carries anything a conversation would draw.
+     *
+     * Upstream's `DataMessage.hasRenderableContent`, field for field as its `_152` fork exposes
+     * them. It is what separates a **group change** from a message that happens to carry one:
+     * a change with nothing to draw is group state, and a change alongside a body or a picture
+     * is content wearing a change as a hat.
+     *
+     * ⚠ Written out rather than inverted from what this app happens to file, because the two
+     * are not the same question. This app does not render polls, pins or contact cards -- it
+     * describes them -- and treating "we would not draw it" as "there is nothing there" would
+     * let a blocked sender put a poll in front of somebody by attaching a group change to it.
+     */
+    private fun hasRenderableContent(
+        message: org.whispersystems.signalservice.internal.push.DataMessage
+    ): Boolean =
+        message.attachments.isNotEmpty() ||
+            message.body != null ||
+            message.quote != null ||
+            message.contact.isNotEmpty() ||
+            message.preview.isNotEmpty() ||
+            message.bodyRanges.isNotEmpty() ||
+            message.sticker != null ||
+            message.reaction != null ||
+            message.delete != null
+
     private fun isDuplicate(t: Throwable): Boolean =
         generateSequence(t) { it.cause }.take(CAUSE_DEPTH).any { cause ->
             cause is org.signal.libsignal.protocol.DuplicateMessageException ||
@@ -1132,11 +1158,30 @@ internal class SignalReceiver(
                     ?: result.content.syncMessage?.sent?.message?.groupV2)
                     ?.masterKey?.toByteArray()
                     ?.let { runCatching { groupIdFrom(it) }.getOrNull() }
+                // ⚠ **Except a group change, which still applies.** Upstream's rule is
+                // `senderRecipient.isBlocked && !isGv2Update`, and the carve-out is the point:
+                // a blocked person does not get to put anything in front of you, but the
+                // change they made to a group you are both in is not a line, it is a fact.
+                // Dropping it leaves this phone's idea of the group quietly wrong -- still
+                // showing a group it has been removed from, or the name it used to have -- and
+                // nothing would ever say so.
+                //
+                // `isGroupV2Update` is narrow by construction: `hasSignedGroupChange &&
+                // !hasRenderableContent`. A message that carries a change *and* something to
+                // draw is content, and is dropped like any other.
+                val isGroupUpdate = result.content.dataMessage?.let { m ->
+                    m.groupV2?.groupChange != null && !hasRenderableContent(m)
+                } ?: false
                 // The self exemption is why a note to self survives this; it is decided once,
                 // with the rest of the reasoning, where `senderBlocked` is worked out above.
-                if (senderBlocked || (!fromSelf && blocks.isGroupBlocked(fromGroup))) {
+                if ((senderBlocked && !isGroupUpdate) ||
+                    (!fromSelf && blocks.isGroupBlocked(fromGroup) && !isGroupUpdate)
+                ) {
                     Timber.i("signal receive: dropped a message from somebody or somewhere blocked")
                     return@let null
+                }
+                if ((senderBlocked || blocks.isGroupBlocked(fromGroup)) && isGroupUpdate) {
+                    Timber.i("signal receive: keeping a group change from somebody blocked; the group state is still theirs to change")
                 }
 
                 // Somebody outside the group does not get to reach back into it.

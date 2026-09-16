@@ -593,7 +593,26 @@ class SignalRepositoryImpl @Inject constructor(
      * here the key does that work, and goes on doing it after the insert, which a check at
      * insert time cannot.
      */
-    private fun noteUndecryptable(sender: String, sentTimestamp: Long, groupId: ByteArray?) {
+    private fun noteUndecryptable(sender: String, sentTimestamp: Long, groupId: ByteArray?) =
+        notePlaceholder(
+            sender, sentTimestamp, groupId,
+            com.wanderwildwood.kotozute.data.R.string.signal_message_unreadable
+        )
+
+    /**
+     * Writes a stand-in row where a message should have been.
+     *
+     * One body for two reasons a message cannot be shown -- it never arrived, or this build is
+     * too old to render it -- because everything except the sentence is the same and the part
+     * that is easy to get wrong is the part they share: the thread key, and filing the row under
+     * `(sender, sentTimestamp)` so the real message replaces the note if it ever lands.
+     */
+    private fun notePlaceholder(
+        sender: String,
+        sentTimestamp: Long,
+        groupId: ByteArray?,
+        @androidx.annotation.StringRes body: Int
+    ) {
         val group = groupId
             ?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
             .orEmpty()
@@ -622,7 +641,7 @@ class SignalRepositoryImpl @Inject constructor(
                     senderUuid = sender,
                     senderNumber = "",
                     outgoing = false,
-                    body = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_message_unreadable),
+                    body = context.getString(body),
                     groupId = group,
                     quoteTs = 0,
                     // Not marked read. Somebody losing a message should hear about it the same
@@ -1953,6 +1972,15 @@ class SignalRepositoryImpl @Inject constructor(
             sentTimestamp: Long,
             groupId: ByteArray?
         ) = noteUndecryptable(sender, sentTimestamp, groupId)
+
+        override fun unsupportedMessage(
+            sender: String,
+            sentTimestamp: Long,
+            groupId: ByteArray?
+        ) = notePlaceholder(
+            sender, sentTimestamp, groupId,
+            com.wanderwildwood.kotozute.data.R.string.signal_message_needs_update
+        )
 
         override fun rotatePreKeys() {
             // ⚠ Asked, not obeyed. A prekey message that will not open indicts the bundle it

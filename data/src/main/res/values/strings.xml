@@ -43,4 +43,10 @@
     <string name="signal_number_changed">Their number changed from %1$s to %2$s.</string>
     <string name="signal_profile_name_changed">%1$s is now called %2$s.</string>
     <string name="signal_message_unreadable">A message was sent here that this phone could not read. It asked for it again and it did not come. Ask them to send it once more.</string>
+    <!--
+      Shown in place of a message whose sender marked it as needing a newer version of Signal
+      than this app implements. Deliberately says nothing about what the message was: this
+      build cannot know, and guessing is the fault being avoided.
+    -->
+    <string name="signal_message_needs_update">A message was sent here that this app is too old to show properly. Read it on another device until this one is updated.</string>
 </resources>

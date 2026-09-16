@@ -123,6 +123,34 @@ interface SignalEvents {
     ) {}
 
     /**
+     * Says in the conversation that a message needs a newer version of this app to show.
+     *
+     * `DataMessage.requiredProtocolVersion` is the sender stating the minimum understanding a
+     * client needs to render the message *correctly*. Below it, the parts this build recognises
+     * still parse -- which is precisely the danger. `ProtocolVersion` is
+     * `VIEW_ONCE = 2`, `VIEW_ONCE_VIDEO = 3`, `PAYMENTS = 7`, `POLLS = 8`: rendering a
+     * view-once photo with an older understanding shows it as an ordinary one, and **the sender
+     * believes it disappeared**. That is not a missing feature, it is a broken promise.
+     *
+     * So the message is not processed at all, and this is said instead. Upstream does the same:
+     * `MessageDecryptor:205` returns `Result.UnsupportedDataMessage` rather than continuing, and
+     * `MessageContentProcessor:435` inserts an error row and calls
+     * `markAsUnsupportedProtocolVersion`.
+     *
+     * Filed under the message's own identity, like [undecryptableGaveUp], so a later build that
+     * does understand it replaces the note rather than sitting beside it.
+     *
+     * @param sender the account id the message was from.
+     * @param sentTimestamp the timestamp the sender stamped on it.
+     * @param groupId the group it was sent to, or null for a one-to-one message.
+     */
+    fun unsupportedMessage(
+        sender: String,
+        sentTimestamp: Long,
+        groupId: ByteArray?
+    ) {}
+
+    /**
      * Send something again, because its recipient says they could not read it.
      *
      * The other half of a retry receipt, and the half this app could not do until it kept a

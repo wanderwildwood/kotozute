@@ -1491,8 +1491,20 @@ internal class SignalReceiver(
      * a `syncMessage` is only ever legitimate from this account's own devices, and anything
      * else claiming to be one is somebody impersonating the owner's primary.
      *
-     * An unsupported data message is not invalid, only newer than this build understands;
-     * it is let through so the parts that are understood still land.
+     * ⚠ An unsupported data message is **not** let through, and used to be, on the reasoning
+     * that it is "not invalid, only newer than this build understands, so the parts that are
+     * understood still land". The parts landing is the danger.
+     * `DataMessage.requiredProtocolVersion` is the sender stating the minimum understanding
+     * needed to render the message *correctly*, and `ProtocolVersion` is `VIEW_ONCE = 2`,
+     * `VIEW_ONCE_VIDEO = 3`, `PAYMENTS = 7`, `POLLS = 8` -- so an older build showing what it
+     * recognises turns a view-once photo into a permanent one **while its sender believes it
+     * disappeared**. A broken promise, not a missing feature.
+     *
+     * Upstream stops: `MessageDecryptor:205` returns `Result.UnsupportedDataMessage` instead of
+     * continuing, and `MessageContentProcessor:435` writes an error row and calls
+     * `markAsUnsupportedProtocolVersion`. This does the same, through
+     * [SignalEvents.unsupportedMessage], so the conversation says something rather than showing
+     * a message wrongly or nothing at all.
      *
      * Adapted from `MessageDecryptor.decrypt`.
      */
@@ -1531,12 +1543,48 @@ internal class SignalReceiver(
         }
         return when (validation) {
             is org.whispersystems.signalservice.api.messages.EnvelopeContentValidator.Result.Valid -> true
-            is org.whispersystems.signalservice.api.messages.EnvelopeContentValidator.Result.UnsupportedDataMessage -> true
+            is org.whispersystems.signalservice.api.messages.EnvelopeContentValidator.Result.UnsupportedDataMessage -> {
+                Timber.w(
+                    "signal receive: a message needs protocol v%d and this build understands v%d; saying so rather than showing it",
+                    validation.theirVersion,
+                    validation.ourVersion
+                )
+                noteUnsupported(envelope, result)
+                false
+            }
             else -> {
                 Timber.w("signal receive: refused an envelope that did not validate")
                 false
             }
         }
+    }
+
+    /**
+     * Says in the conversation that a message needed a newer build than this one.
+     *
+     * ⚠ The group comes from the **envelope metadata**, not from the data message. The content
+     * is the thing this build has just decided it does not understand well enough to read, so
+     * reading a field out of it to decide which conversation the note belongs in would be
+     * trusting exactly what was refused. `EnvelopeMetadata.groupId` is set by the decryption
+     * layer from the sealed-sender certificate or the envelope, and is the same value the retry
+     * path already files under.
+     *
+     * Swallowed and logged rather than gated: this is the *notice*, and a conversation that
+     * fails to get one is no worse off than it was a moment ago. What must not happen is the
+     * message being processed anyway, and that is decided by the caller, not here.
+     */
+    private fun noteUnsupported(
+        envelope: Envelope,
+        result: org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult
+    ) {
+        val sentTimestamp = envelope.clientTimestamp ?: return
+        runCatching {
+            events.unsupportedMessage(
+                result.metadata.sourceServiceId.toString(),
+                sentTimestamp,
+                result.metadata.groupId
+            )
+        }.onFailure { Timber.w(it, "signal receive: could not say a message needs a newer build") }
     }
 
     /**

@@ -6,6 +6,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import io.realm.Realm
+import io.realm.DynamicRealm
 import io.realm.RealmConfiguration
 import timber.log.Timber
 import java.io.File
@@ -150,6 +151,52 @@ object RealmEncryption {
      */
     fun isEncrypted(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_ENCRYPTED, false)
+
+    /**
+     * The version Realm itself names when it refuses a file newer than this build, or null.
+     *
+     * Realm 10.15.0 says, exactly: `Illegal Argument: Provided schema version 27 is less than
+     * last set version 28.` Both numbers are in there, so the ordinary case needs no second
+     * look at the file at all -- which matters because **opening a realm writes to it**, even
+     * read-only through a DynamicRealm. A path whose purpose is to leave a database alone
+     * should touch it zero times, not once.
+     *
+     * ⚠ Matching on a library's message text is brittle, so this is only ever the fast path:
+     * when it does not match, [schemaVersionOnDisk] still opens the file and answers properly.
+     * Getting that order wrong would be serious -- a missed match falls through to deleting.
+     */
+    fun versionRefusedAsNewer(failure: Throwable): Long? =
+        Regex("schema version (\\d+) is less than last set version (\\d+)")
+            .find(failure.message.orEmpty())
+            ?.groupValues?.get(2)?.toLongOrNull()
+
+    /**
+     * The schema version of the file on disk, or null if it cannot be read at all.
+     *
+     * ⚠ **The whole point is to tell two failures apart that look identical from outside.** A
+     * keystore that lost its key leaves a file nobody can decrypt, and starting over beats an
+     * app that will not open. A file written by a *newer* build of this app is not damaged at
+     * all -- every byte is intact and the only thing wrong is that this build is behind it.
+     * [discardUnreadableRealm] deletes, and the KDoc there says what that costs: the Signal
+     * history has no second copy anywhere. Deleting a recoverable database because the check
+     * could not tell it from an unrecoverable one is the worst trade in this file.
+     *
+     * A DynamicRealm is the discriminator because it opens a file without validating it
+     * against the model classes -- which is how a migration reads one. If it opens, the key
+     * is right and the file is sound, so whatever went wrong was not "unreadable".
+     */
+    fun schemaVersionOnDisk(key: ByteArray?): Long? = runCatching {
+        // ⚠ Its own configuration, deliberately bare: the app's carries compactOnLaunch, and
+        // compacting rewrites the file. Measured -- probing with the app's config moved the
+        // file's checksum on every attempt. A path whose entire purpose is to leave a database
+        // alone must not rewrite it to find out what version it is.
+        val probe = RealmConfiguration.Builder()
+            .name(REALM_NAME)
+            .apply { if (key != null) encryptionKey(key) }
+            .build()
+        DynamicRealm.getInstance(probe).use { it.version }
+    }.onFailure { Timber.w(it, "realm: the file would not open even without its schema") }
+        .getOrNull()
 
     /**
      * Last resort, for a database that exists, claims to be encrypted, and will not open --

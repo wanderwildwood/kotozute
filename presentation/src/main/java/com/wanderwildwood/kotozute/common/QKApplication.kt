@@ -149,7 +149,32 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         // A keystore that lost its key leaves a database nobody can read. Both rails can be
         // filled again from elsewhere, so starting over beats an app that will not open.
-        runCatching { Realm.getDefaultInstance().use { it.isEmpty } }.onFailure {
+        //
+        // ⚠ **Except when the file is only newer than this build.** That failure looks
+        // identical here and is the opposite case: nothing is damaged, and installing the
+        // build that wrote it gets everything back. Discarding is irreversible and the Signal
+        // history has no second copy, so a database that can still be opened is never deleted
+        // -- this refuses to start instead, which is a state somebody can get out of.
+        //
+        // The throwable is logged either way. It was swallowed before, so after the fact
+        // there was no way to tell a lost keystore from an older APK being installed.
+        runCatching { Realm.getDefaultInstance().use { it.isEmpty } }.onFailure { failure ->
+            val onDisk = RealmEncryption.versionRefusedAsNewer(failure)
+                ?: RealmEncryption.schemaVersionOnDisk(key)
+            if (onDisk != null && onDisk > QkRealmMigration.SCHEMA_VERSION) {
+                Timber.e(
+                    failure,
+                    "realm: the database is at v%d and this build understands v%d -- keeping it, " +
+                        "install the newer build to read it again",
+                    onDisk, QkRealmMigration.SCHEMA_VERSION
+                )
+                throw IllegalStateException(
+                    "This database was written by a newer version of this app (v$onDisk; " +
+                        "this build reads v${QkRealmMigration.SCHEMA_VERSION}). Install that " +
+                        "version again -- nothing has been deleted."
+                )
+            }
+            Timber.e(failure, "realm: cannot open the database; discarding it")
             RealmEncryption.discardUnreadableRealm(this)
             val fresh = RealmEncryption.keyOrNull(this)
             if (fresh != null) RealmEncryption.encryptExistingRealm(this, fresh, realmConfig)

@@ -22,6 +22,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.concurrent.thread
 import com.wanderwildwood.kotozute.signalstore.SignalKeyTransparency
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 
 private const val ATTACHMENT_PREVIEW = "\uD83D\uDCCE Attachment"
 
@@ -1473,21 +1475,43 @@ class SignalRepositoryImpl @Inject constructor(
         // Bracketing the call, because the first attempt produced no line at all and there
         // was no way to tell a check that never started from one that never returned.
         Timber.i("signal kt: starting a check")
-        val outcome = runCatching {
-            kotlinx.coroutines.runBlocking {
-                kotlinx.coroutines.withTimeout(CHECK_TIMEOUT_MS) {
-                    signalStore.checkKeyTransparency(
-                        now = System.currentTimeMillis(),
-                        nextDueAt = prefs.signalNextKeyTransparencyCheck.get(),
-                        alreadyFailing = prefs.signalKeyTransparencyFailed.get(),
-                        setNextDueAt = { prefs.signalNextKeyTransparencyCheck.set(it) }
-                    )
-                }
-            }
-        }.getOrElse {
-            // Including the timeout. Never a failure: the log did not disagree, it did not
-            // answer, and those are different things.
-            Timber.w(it, "signal kt: the check could not be made")
+        // ⚠⚠ **Not `runBlocking`, and the reason is worth the paragraph.** The obvious bridge
+        // from this thread to a suspend function is `runBlocking`, and it does not come back.
+        // Instrumenting every step showed the check running to completion — *including the line
+        // after the socket call returned* — and the caller never receiving the result.
+        // `runBlocking` waits for its coroutine **and any children still alive in its scope**,
+        // and the socket call leaves work running there. The body finishes; the bridge does not.
+        //
+        // ⚠ A `withTimeout` around it did not help, and looked like it should. A coroutine
+        // cancels at suspension points, and neither a native wait inside libsignal nor a blocked
+        // `runBlocking` is one. That is a bound which reads as a bound and is not.
+        //
+        // So the check runs in a scope this owns and the answer is collected with a latch that
+        // really does expire. A check that gives up is a check that did not happen, which is a
+        // state this already has a name for; a check that hangs is a bug with no symptom.
+        val answer = java.util.concurrent.atomic.AtomicReference<SignalKeyTransparency.Outcome?>()
+        val done = java.util.concurrent.CountDownLatch(1)
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+        scope.launch {
+            runCatching {
+                signalStore.checkKeyTransparency(
+                    now = System.currentTimeMillis(),
+                    nextDueAt = prefs.signalNextKeyTransparencyCheck.get(),
+                    alreadyFailing = prefs.signalKeyTransparencyFailed.get(),
+                    setNextDueAt = { prefs.signalNextKeyTransparencyCheck.set(it) }
+                )
+            }.onSuccess { answer.set(it) }
+                .onFailure { Timber.w(it, "signal kt: the check could not be made") }
+            done.countDown()
+        }
+
+        val finished = done.await(CHECK_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+        // Cancelled either way. On success there may still be children holding the scope open —
+        // which is the finding above — and on a timeout there certainly are.
+        scope.cancel()
+        val outcome = answer.get()
+        if (!finished || outcome == null) {
+            Timber.w("signal kt: no answer within %d ms; that is not a failed check", CHECK_TIMEOUT_MS)
             return
         }
 

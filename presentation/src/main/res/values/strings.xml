@@ -469,6 +469,8 @@
     <string name="settings_signal_history_writing">Writing a copy — %d message(s) so far</string>
     <string name="settings_signal_history_not_an_export">There is no Signal export in that folder. The folder to choose is the one holding main.jsonl.</string>
     <string name="settings_signal_history_not_written">The copy could not be written. Choose a folder this phone can write to.</string>
+    <string name="settings_signal_history_key_asked">A copy is locked with a key that comes from your Signal, and this phone does not have it yet. It has just been asked for it. Try again in a moment.</string>
+    <string name="settings_signal_history_key_unanswered">A copy is locked with a key that comes from your Signal, and this phone does not have it yet. The request could not be sent. Check this phone is connected to Signal, then try again.</string>
     <string name="settings_signal_history_written_where">Written to %s, in the folder you chose.</string>
     <plurals name="settings_signal_history_imported">
         <item quantity="one">%d message brought in.</item>

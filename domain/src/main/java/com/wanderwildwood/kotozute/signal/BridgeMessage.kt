@@ -10,7 +10,6 @@ package com.wanderwildwood.kotozute.signal
 
 data class BridgeMessage(
     val id: String,
-    val seq: Long,
     val threadKey: String,
     val ts: Long,
     val senderUuid: String,

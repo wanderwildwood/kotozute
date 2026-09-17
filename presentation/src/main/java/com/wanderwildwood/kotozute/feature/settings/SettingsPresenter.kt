@@ -436,7 +436,7 @@ class SettingsPresenter @Inject constructor(
                                 view.showSignalExportProgress(written)
                             }
                         }
-                        view.showSignalExportResult(stats.getOrNull())
+                        view.showSignalExportResult(stats.getOrNull(), stats.exceptionOrNull())
                         stats.exceptionOrNull()?.let { Timber.w(it, "signal export failed") }
                     }.apply { isDaemon = true }.start()
                 }

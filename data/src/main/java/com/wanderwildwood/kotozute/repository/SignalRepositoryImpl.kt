@@ -562,7 +562,6 @@ class SignalRepositoryImpl @Inject constructor(
                     // so it is stamped with when this phone noticed rather than with a
                     // timestamp some other device might also use.
                     id = "local:$aci:$now",
-                    seq = 0,
                     threadKey = threadKey,
                     ts = now,
                     senderUuid = aci,
@@ -638,7 +637,6 @@ class SignalRepositoryImpl @Inject constructor(
             listOf(
                 com.wanderwildwood.kotozute.signal.BridgeMessage(
                     id = "$sender:$sentTimestamp",
-                    seq = 0,
                     threadKey = threadKey,
                     ts = sentTimestamp,
                     senderUuid = sender,
@@ -1078,7 +1076,6 @@ class SignalRepositoryImpl @Inject constructor(
                 // this message, so a sync of it -- should one ever arrive -- replaces this
                 // row instead of duplicating it.
                 id = "$selfAci:$timestamp",
-                seq = 0,
                 threadKey = threadKey,
                 ts = timestamp,
                 senderUuid = selfAci,
@@ -1134,7 +1131,6 @@ class SignalRepositoryImpl @Inject constructor(
         val row =
             com.wanderwildwood.kotozute.signal.BridgeMessage(
                 id = "$selfAci:$timestamp",
-                seq = 0,
                 threadKey = threadKey,
                 ts = timestamp,
                 senderUuid = selfAci,
@@ -1731,7 +1727,6 @@ class SignalRepositoryImpl @Inject constructor(
         }
 
         val row = existing ?: realm.createObject(SignalMessage::class.java, m.id)
-        row.seq = m.seq
         row.threadKey = m.threadKey
         row.date = m.ts
         row.senderUuid = m.senderUuid
@@ -1857,7 +1852,6 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private fun detached(m: BridgeMessage) = SignalMessage().apply {
         id = m.id
-        seq = m.seq
         threadKey = m.threadKey
         date = m.ts
         senderUuid = m.senderUuid
@@ -2671,7 +2665,20 @@ class SignalRepositoryImpl @Inject constructor(
      */
     override fun fetchContactsFromSignal(): String = when {
         !linkedDirectly() -> "This phone is not linked to Signal yet"
-        signalStore.storageKeyKnown() -> signalStore.readStorage().also { contactsChanged() }
+        // ⚠ Reads the records AND tops up what is missing. The pool is not the storage key:
+        // a phone linked under an older build has the second and not the first, and this
+        // branch used to return before ever asking -- so the one request that could fill it
+        // in was gated behind a condition that phone can never satisfy again.
+        signalStore.storageKeyKnown() -> signalStore.readStorage()
+            .also { contactsChanged() }
+            .also {
+                if (!signalStore.backupKeyKnown()) {
+                    Timber.i(
+                        "signal keys: %s",
+                        runCatching { signalStore.requestKeys() }.getOrElse { it.message.orEmpty() }
+                    )
+                }
+            }
         else -> {
             val asked = runCatching { signalStore.requestKeys() }.getOrElse { it.message.orEmpty() }
             Timber.i("signal keys: %s", asked)
@@ -2945,10 +2952,22 @@ class SignalRepositoryImpl @Inject constructor(
         // Thirty digits generated at the moment of writing and stored nowhere meant a copy
         // died with the piece of paper, which is the failure a backup exists to prevent.
         //
-        // The account has to have answered the KEYS request first. It is the same key the
-        // storage service needs, so a phone that has read the account's records has it.
-        val backupKey = signalStore.messageBackupKey()
-            ?: throw IllegalStateException("the account has not sent its keys yet")
+        // ⚠ **Not the same key the storage service needs, which is what this comment used to
+        // claim.** `SignalKeyStore.store()` writes the storage key and the pool together, so a
+        // phone that learned its keys under this code has both -- but one that learned them
+        // under the build that kept only the storage key has a row with the pool still empty,
+        // and no amount of reading the account's records fills it in. Inferring one key from
+        // the presence of another was wrong, and it made this failure unreachable to fix.
+        //
+        // So ask, here, where somebody has just said they want a copy. The answer arrives
+        // through the socket; the export cannot wait for it, and a second attempt in a moment
+        // finds the key. Asking is the only route back: the request is otherwise sent only
+        // while the storage key is missing, which on such a phone it never is.
+        val backupKey = signalStore.messageBackupKey() ?: run {
+            val asked = runCatching { signalStore.requestKeys() }.getOrElse { it.message.orEmpty() }
+            Timber.i("signal export: no backup key yet, asked the account for its keys: %s", asked)
+            throw com.wanderwildwood.kotozute.repository.AccountKeyNotSent(asked == "requested")
+        }
         val destination = com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination(
             tree,
             com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination.Lock.Account(backupKey)
@@ -3147,7 +3166,6 @@ class SignalRepositoryImpl @Inject constructor(
             listOf(
                 com.wanderwildwood.kotozute.signal.BridgeMessage(
                     id = "$selfAci:$timestamp",
-                    seq = 0,
                     threadKey = created.threadKey,
                     ts = timestamp,
                     senderUuid = selfAci,
@@ -3258,7 +3276,7 @@ class SignalRepositoryImpl @Inject constructor(
                 applyReaction(
                     r,
                     BridgeMessage(
-                        id = "", seq = 0, threadKey = threadKey, ts = ts,
+                        id = "", threadKey = threadKey, ts = ts,
                         senderUuid = selfAci, senderNumber = "", outgoing = true, body = "",
                         groupId = "", quoteTs = 0, read = true, source = "live",
                         attachmentsJson = "",

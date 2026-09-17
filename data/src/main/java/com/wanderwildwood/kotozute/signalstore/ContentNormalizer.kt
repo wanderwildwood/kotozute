@@ -251,7 +251,6 @@ internal object ContentNormalizer {
 
         return BridgeMessage(
             id = messageIdFor(authorUuid, authorNumber, timestamp),
-            seq = 0,
             threadKey = threadKey,
             ts = timestamp,
             senderUuid = authorUuid,

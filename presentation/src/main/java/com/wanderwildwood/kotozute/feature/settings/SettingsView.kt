@@ -86,7 +86,10 @@ interface SettingsView : QkViewContract<SettingsState> {
 
     /** How far a copy has got, and what it came to. */
     fun showSignalExportProgress(messages: Int)
-    fun showSignalExportResult(stats: com.wanderwildwood.kotozute.repository.SignalRepository.ExportStats?)
+    fun showSignalExportResult(
+        stats: com.wanderwildwood.kotozute.repository.SignalRepository.ExportStats?,
+        failure: Throwable?
+    )
 
 
     fun showSignalLink()

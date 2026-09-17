@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 26
+        const val SCHEMA_VERSION: Long = 27
     }
 
     @SuppressLint("ApplySharedPref")
@@ -485,6 +485,27 @@ class QkRealmMigration @Inject constructor(
             version++
         }
 
+        if (version == 26L) {
+            // SignalMessage.seq goes. It was the bridge's cursor -- a sync asked for
+            // everything after the highest seq held -- and this device's own connection has
+            // no such number, because the server's queue is drained and acked rather than
+            // paged. So every writer set zero, no query ever mentioned it, and the store has
+            // been maintaining an index over a constant on every message it holds.
+            //
+            // Dropping a column loses nothing here: the only value in it is zero. ⚠ MmsPart
+            // has a seq of its own -- the MMS part sequence, which is live -- and is not this.
+            // Says which branch it took. A step that removes a column reports nothing when the
+            // column was already absent, so "migration succeeded" alone cannot tell a deletion
+            // from a no-op -- and this one runs against the store holding the only copy of the
+            // Signal history, where the difference is the whole point of the step.
+            val had = realm.schema.get("SignalMessage")?.hasField("seq")
+            realm.schema.get("SignalMessage")
+                ?.removeIfPresent("seq")
+            Timber.d("SignalMessage.seq: ${if (had == true) "removed" else "not present ($had)"}")
+
+            version++
+        }
+
         check(version >= SCHEMA_VERSION) {
             "Migration from v$oldVersion to v$newVersion failed at v$version"
         }
@@ -518,5 +539,17 @@ class QkRealmMigration @Inject constructor(
     /** Same reasoning as addIfAbsent: a fresh realm already carries the index. */
     private fun RealmObjectSchema.addIndexIfAbsent(name: String): RealmObjectSchema =
         if (!hasField(name) || hasIndex(name)) this else addIndex(name)
+
+    /**
+     * Remove a field only if the table still has it.
+     *
+     * The mirror of addIfAbsent, and defensive for the same reason: a realm's tables are
+     * built from the model classes, not by replaying this chain, so which columns a file
+     * carries depends on the commit that created it rather than on the step about to run.
+     * removeField throws on a field that is not there, and dying at launch is the one
+     * failure a migration must not have.
+     */
+    private fun RealmObjectSchema.removeIfPresent(name: String): RealmObjectSchema =
+        if (hasField(name)) removeField(name) else this
 
 }

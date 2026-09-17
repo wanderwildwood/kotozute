@@ -298,7 +298,6 @@ internal class SignalHistoryImporter(
                 val outgoing = item.has("outgoing") || author.isSelf
                 batch += BridgeMessage(
                     id = "$idAuthor:$ts",
-                    seq = 0,
                     threadKey = threadKey,
                     ts = ts,
                     senderUuid = author.uuid,

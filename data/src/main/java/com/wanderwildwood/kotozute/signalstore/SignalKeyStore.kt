@@ -72,6 +72,17 @@ internal class SignalKeyStore(private val db: ProtocolDatabase) {
     /** Whether the primary has answered yet. */
     fun known(): Boolean = runCatching { stored() != null }.getOrDefault(false)
 
+    /**
+     * Whether the pool a written-out copy is locked with is held.
+     *
+     * ⚠ Separate from [known] on purpose. [store] writes both at once, so on a phone that
+     * learned its keys under this code the two answers always agree -- but a row written by
+     * the build that kept only the storage key has this one empty and the other full, and a
+     * caller that reads [known] to mean "has every key" gets it wrong in exactly the case
+     * that matters.
+     */
+    fun poolKnown(): Boolean = runCatching { pool() != null }.getOrDefault(false)
+
     /** The key itself, or null while it is unknown -- a reason to ask again, not to fail. */
     fun storageKey(): StorageKey? = runCatching { stored()?.let { StorageKey(it) } }
         .onFailure { Timber.w(it, "signal keys: the stored key would not load") }

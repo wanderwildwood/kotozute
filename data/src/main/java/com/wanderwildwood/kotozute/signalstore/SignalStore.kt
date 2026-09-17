@@ -1135,6 +1135,9 @@ class SignalStore(private val context: Context) {
     /** Whether the storage service key is here yet. */
     fun storageKeyKnown(): Boolean = runCatching { keys.known() }.getOrDefault(false)
 
+    /** Whether the key a written-out copy is locked with can be derived yet. */
+    fun backupKeyKnown(): Boolean = runCatching { keys.poolKnown() }.getOrDefault(false)
+
     /**
      * The key a written-out copy is locked with, or null before the primary has sent its keys.
      *

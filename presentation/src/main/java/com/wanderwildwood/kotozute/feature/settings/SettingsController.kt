@@ -455,14 +455,25 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     }
 
     override fun showSignalExportResult(
-        stats: com.wanderwildwood.kotozute.repository.SignalRepository.ExportStats?
+        stats: com.wanderwildwood.kotozute.repository.SignalRepository.ExportStats?,
+        failure: Throwable?
     ) {
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread
             binding.signalHistoryExport.summary =
                 activity.getString(R.string.settings_signal_export_summary)
+            // ⚠ Named separately because they need different answers. "Choose a folder this
+            // phone can write to" was shown for every failure, including the one that never
+            // reached the folder -- which sent people to change the one thing that was fine.
             val message = if (stats == null) {
-                activity.getString(R.string.settings_signal_history_not_written)
+                when {
+                    failure is com.wanderwildwood.kotozute.repository.AccountKeyNotSent &&
+                        failure.asked ->
+                        activity.getString(R.string.settings_signal_history_key_asked)
+                    failure is com.wanderwildwood.kotozute.repository.AccountKeyNotSent ->
+                        activity.getString(R.string.settings_signal_history_key_unanswered)
+                    else -> activity.getString(R.string.settings_signal_history_not_written)
+                }
             } else {
                 buildString {
                     append(

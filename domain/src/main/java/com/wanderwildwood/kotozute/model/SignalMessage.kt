@@ -21,19 +21,10 @@ open class SignalMessage : RealmObject() {
 
     @PrimaryKey var id: String = ""
 
-    /**
-     * ⚠ **Always zero, and read by nothing.** It was the bridge's cursor: a sync asked for
-     * everything after the highest seq held. This device's own connection has no such
-     * number -- the server's queue is drained and acked rather than paged -- so every writer
-     * sets zero and no query mentions it. Kept only because dropping an indexed column from
-     * a live store is a migration, not a deletion.
-     */
-    @Index var seq: Long = 0
-
     /** "direct:<uuid>" or "group:<groupId>". */
     @Index var threadKey: String = ""
 
-    /** Signal message timestamp, ms. Not necessarily in seq order -- an import backfills. */
+    /** Signal message timestamp, ms. Not necessarily in arrival order -- an import backfills. */
     @Index var date: Long = 0
 
     var senderUuid: String = ""

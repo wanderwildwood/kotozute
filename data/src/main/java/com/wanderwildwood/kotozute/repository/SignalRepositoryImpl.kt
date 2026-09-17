@@ -1426,25 +1426,10 @@ class SignalRepositoryImpl @Inject constructor(
                 // native wait inside libsignal is not one. Until that is diagnosed, the cost
                 // of it wedging is one daemon thread rather than the block that connects the
                 // socket, reads the account's records and asks the primary for contacts.
-                // ⛔ **Off, and not because it is unfinished.** Everything below it works: the
-                // schema migrated on two live stores, the schedule runs, the gates answer. What
-                // is not understood is that the one attempt to reach the log **never returned**
-                // and logged nothing after entering the call — and `withTimeout` did not free it,
-                // because a coroutine cancels at suspension points and a native wait inside
-                // libsignal is not one.
-                //
-                // A wedged thread on its own would be a leak worth accepting once a week. The
-                // reason this stays off is that **it is not known what it holds while wedged**.
-                // The path touches the account store and the contact store, both of which take
-                // the protocol store lock, and a lock held for the life of the process by a
-                // thread nobody is watching would stop messages being received — which is a
-                // great deal worse than not checking a transparency log.
-                //
-                // Turning it on needs a debug build and a thread dump, which is a session's
-                // first task. Everything else here is done and tested.
-                if (KEY_TRANSPARENCY_ENABLED) {
-                    thread(name = "signal-kt", isDaemon = true) { checkKeyTransparency() }
-                }
+                // ⚠ Its own thread. The check ends in a socket call, and nothing else in this
+                // block should wait on it: everything above buys a working conversation, and
+                // this buys the knowledge that the conversation is with who it claims to be.
+                thread(name = "signal-kt", isDaemon = true) { checkKeyTransparency() }
             }
             thread(name = "signal-listen-$generation", isDaemon = true) { listenLoop(generation) }
         }
@@ -1514,6 +1499,15 @@ class SignalRepositoryImpl @Inject constructor(
             Timber.w("signal kt: no answer within %d ms; that is not a failed check", CHECK_TIMEOUT_MS)
             return
         }
+
+        // ⚠ **Unconditional, and it is the whole reason this took a evening to understand.**
+        // The `Verified` arm below said nothing unless a previous check had failed, so a check
+        // that ran and passed looked exactly like a check that never returned — and it was read
+        // as a hang, through several rebuilds, while it was working the entire time. Upstream
+        // logs every outcome before deciding anything about it
+        // (`CheckKeyTransparencyJob.doRun`: "Key transparency complete, result: ..."), and the
+        // reason is this one.
+        Timber.i("signal kt: %s", outcome)
 
         when (outcome) {
             is SignalKeyTransparency.Outcome.Skipped ->
@@ -3634,14 +3628,6 @@ class SignalRepositoryImpl @Inject constructor(
          * 30.seconds)`), and it is long enough for a socket that is merely slow.
          */
         private val CHECK_TIMEOUT_MS = java.util.concurrent.TimeUnit.SECONDS.toMillis(30)
-
-        /**
-         * Whether to ask the key transparency log at all. See the call site for why it is off.
-         *
-         * ⚠ Not a feature flag anybody is expected to toggle, and not a half-built feature: a
-         * known hang with an unknown blast radius, held back until it is understood.
-         */
-        private const val KEY_TRANSPARENCY_ENABLED = false
 
 
         /**

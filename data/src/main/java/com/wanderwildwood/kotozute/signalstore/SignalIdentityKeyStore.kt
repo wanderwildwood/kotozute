@@ -126,7 +126,16 @@ internal class SignalIdentityKeyStore(
                 // And drop what was kept to resend to them. See [SignalMessageLog.forget]:
                 // it is all encrypted to the identity they have just stopped having.
                 runCatching { SignalMessageLog(db).forget(name) }
-                    .onFailure { Timber.w(it, "signal store: could not drop the message log for them") }
+                    .onFailure {
+                        // ⚠ What this costs, in the words of [SignalMessageLog.forget] itself:
+                        // everything kept for them is encrypted to the identity they have just
+                        // stopped having, so answering a retry receipt with it hands back
+                        // ciphertext they still cannot read and the same receipt comes round
+                        // again. Nothing re-runs this; the entries leave on the age sweep, so
+                        // the loop is bounded by that window rather than by anything here.
+                        // Said plainly because it is a real cost, not a tidy-up that missed.
+                        Timber.w(it, "signal store: could not drop the message log for them; stale entries until the sweep")
+                    }
                 // ⚠ And forget that our sender key was ever shared with them. Upstream does
                 // this on the same branch -- `senderKeyShared().deleteAllFor(recipientId)` --
                 // because the record says "this device already has our group key" and the

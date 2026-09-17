@@ -80,7 +80,15 @@ internal class SignalSender(
                     record.archiveCurrentState()
                     sessions.storeSession(address, record)
                 }
-            }.onFailure { Timber.w(it, "signal retry: could not archive their sessions") }
+            }.onFailure {
+                // ⚠ The sender-key record below is still dropped, deliberately. The two
+                // halves repair different things -- a stale session and a stale claim that
+                // they hold our group key -- and doing only the second is strictly better
+                // than doing neither: the group key is re-shared, and the session they
+                // cannot read is retired the next time they say so. Skipping both would
+                // leave the retry having repaired nothing at all.
+                Timber.w(it, "signal retry: could not archive their sessions; the next retry tries again")
+            }
         }
         runCatching {
             db.writableDatabase.execSQL(

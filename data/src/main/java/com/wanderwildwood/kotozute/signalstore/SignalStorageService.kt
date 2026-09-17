@@ -267,7 +267,13 @@ internal class SignalStorageService(
                     accountsSeen++
                     account.profileKey?.takeIf { it.size > 0 }?.let { key ->
                         runCatching { onProfileKey(key.toByteArray()) }
-                            .onFailure { Timber.w(it, "signal storage: a profile key would not keep") }
+                            .onFailure {
+                                // The whole manifest is re-read from scratch on every trigger
+                                // -- there is no version check that would skip it -- so the
+                                // next read of the account's records offers this key again.
+                                // Nothing else in the run depends on it having been kept.
+                                Timber.w(it, "signal storage: a profile key would not keep; the next read offers it again")
+                            }
                     }
                     return@mapNotNull null
                 }

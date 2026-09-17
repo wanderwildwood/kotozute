@@ -192,7 +192,13 @@ internal class SignalDiscovery(
         }
 
         runCatching { state.remember(fresh) }
-            .onFailure { Timber.w(it, "signal discovery: could not record what was asked") }
+            .onFailure {
+                // Fails toward spending quota, which is the direction this file argues for
+                // everywhere else: numbers left unrecorded are asked about again next run and
+                // charged for again, where the other way round would mark people answered
+                // that nothing answered. Quota grows back; a silently dropped contact does not.
+                Timber.w(it, "signal discovery: could not record what was asked; they will be asked again")
+            }
 
         var withoutAci = 0
         val people = response.results.mapNotNull { (e164, item) ->

@@ -130,6 +130,25 @@ internal class SignalDiscovery(
             return Result(0, 0, 0, "too many new numbers to look up at once")
         }
 
+        // ⚠⚠ **Read before asking, and refuse to ask without them.** These pairs are what let
+        // CDSI answer with account ids at all; sent empty, every answer comes back as a
+        // phone-number identity. That was a real bug once and the comment below records it.
+        //
+        // Defaulting to an empty map on a failed read reintroduced it silently *and made it
+        // permanent*: the degraded answers are handed to `state.remember(fresh)` below, which
+        // writes every number into `cds_submitted`, and `submitted()` is what excludes them
+        // from ever being asked about again. One failed database read would strand every
+        // contact in the run as a phone-number identity with nothing left to correct it.
+        //
+        // This is the same reasoning the failure branch below already uses -- quota grows back
+        // where a silently dropped contact does not -- so the answer is the same: do not spend
+        // the ask. Upstream passes `recipients.getAllServiceIdProfileKeyPairs()` with no catch
+        // at all, so a failure there fails the job and it runs again later; this is that.
+        val profileKeyPairs = runCatching { contacts.serviceIdProfileKeyPairs() }.getOrElse {
+            Timber.w(it, "signal discovery: could not read the profile keys to ask with; not asking")
+            return Result(0, 0, 0, "could not read this phone's own records to ask with")
+        }
+
         // Set when the service hands back a token, which it does only once it has counted the
         // run. That, not a successful answer, is what says the quota was spent.
         var counted = false
@@ -146,9 +165,7 @@ internal class SignalDiscovery(
             // "because this phone does not have them". It does: they are in the recipient
             // table, put there by the account's own storage records. Signal passes
             // `recipients.getAllServiceIdProfileKeyPairs()` on every request.
-            runCatching { contacts.serviceIdProfileKeyPairs() }
-                .onFailure { Timber.w(it, "signal discovery: could not read the profile keys to ask with") }
-                .getOrDefault(emptyMap()),
+            profileKeyPairs,
             Optional.ofNullable(sentToken),
             TIMEOUT_MS,
             connection.network

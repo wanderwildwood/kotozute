@@ -136,7 +136,15 @@ internal class SignalIdentityKeyStore(
                     db.writableDatabase.execSQL(
                         "DELETE FROM sender_key_shared WHERE address = ?", arrayOf<Any?>(name)
                     )
-                }.onFailure { Timber.w(it, "signal store: could not forget the shared sender keys") }
+                }.onFailure {
+                    // Recoverable, which is why it does not stop anything here. Left behind,
+                    // the row claims they still hold our group key and the next group send
+                    // skips handing it over -- so they cannot open it and say so, and the
+                    // retry path (`SignalSender.forgetSharedState`) deletes this same row
+                    // before resending. The cost of failing here is one group message they
+                    // have to ask again for, not a group they are silently cut out of.
+                    Timber.w(it, "signal store: could not forget the shared sender keys; the next retry clears it")
+                }
                 Timber.i(
                     "signal store: identity changed for a peer; recorded %s and sessions archived",
                     if (demoted == UNTRUSTED) "untrusted" else "trusted-unverified"

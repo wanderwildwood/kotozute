@@ -1010,7 +1010,7 @@ internal class SignalSender(
      * ⚠ The two kinds are not interchangeable, and one of them was going unread. A send to
      * several recipients collects an `UnregisteredUserException` per recipient and hands it back
      * as `SendMessageResult.unregisteredFailure`; a **one-to-one** send has nowhere to put it and
-     * throws it out of `sendDataMessage` instead (`SignalServiceMessageSender:2045` rethrows it
+     * throws it out of `sendDataMessage` instead (`SignalServiceMessageSender:2067` rethrows it
      * rather than converting). Every catch here turned that into `explain(t)`, whose `else` arm
      * is `t.message` -- and `UnregisteredUserException(e164, cause)` is `super(cause)`, so its
      * message is the *cause's* `toString()`. The person reading a conversation was shown

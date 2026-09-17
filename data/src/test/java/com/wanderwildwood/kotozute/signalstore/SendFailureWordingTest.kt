@@ -22,10 +22,11 @@ import java.util.Optional
 class SendFailureWordingTest {
 
     private fun proofRequired(retryAfterSeconds: Long): ProofRequiredException {
-        val response = ProofRequiredResponse().apply {
-            token = "a-token"
-            options = listOf("captcha")
-        }
+        // ⚠ Constructed, not mutated. Upstream turned `ProofRequiredResponse` from a Java bean
+        // into a Kotlin `data class` with `val`s, so the `apply { token = ... }` this used to do
+        // no longer compiles. Caught by this test the moment the service layer was re-vendored,
+        // which is the whole reason the copy is in the tree rather than resolved as a jar.
+        val response = ProofRequiredResponse(token = "a-token", options = listOf("captcha"))
         return ProofRequiredException(response, retryAfterSeconds)
     }
 

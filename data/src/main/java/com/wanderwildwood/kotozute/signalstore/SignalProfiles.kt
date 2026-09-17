@@ -228,7 +228,7 @@ internal class SignalProfiles(
         }
             // A profile with no readable name is still a profile, and what it says about
             // sealed sender is worth keeping. Returning null here threw that away.
-            ?: return Profile(null, profile.unidentifiedAccess, profile.isUnrestrictedUnidentifiedAccess)
+            ?: return Profile(null, profile.unidentifiedAccess, profile.unrestrictedUnidentifiedAccess)
 
         // Given and family names are ONE field separated by a NUL byte, not by a space --
         // splitting on whitespace would break every name that contains one and would keep the
@@ -239,7 +239,7 @@ internal class SignalProfiles(
         // Not a plain given-then-family join: see [ProfileNames.joined], which puts a CJKV
         // name in the order its owner writes it.
         val name = ProfileNames.joined(given, family)
-        return Profile(name, profile.unidentifiedAccess, profile.isUnrestrictedUnidentifiedAccess)
+        return Profile(name, profile.unidentifiedAccess, profile.unrestrictedUnidentifiedAccess)
     }
 
     companion object {

@@ -11,7 +11,7 @@ import org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserExce
  *
  * A send to several recipients gets an `UnregisteredUserException` per recipient folded into
  * `SendMessageResult.unregisteredFailure`. A one-to-one send has nowhere to put it and
- * **throws** it instead -- `SignalServiceMessageSender:2045` rethrows rather than converting.
+ * **throws** it instead -- `SignalServiceMessageSender:2067` rethrows rather than converting.
  *
  * Every catch in [SignalSender] used to turn that into `explain(t)`, whose last arm is
  * `t.message`. `UnregisteredUserException(id, cause)` is `super(cause)`, so `message` is the
@@ -50,7 +50,7 @@ class UnregisteredSendFailureTest {
 
     /**
      * ⚠ The accessor is named `getE164Number` and does not return one. It carries
-     * `OutgoingPushMessageList.destination`, built at `SignalServiceMessageSender:2898` from
+     * `OutgoingPushMessageList.destination`, built at `SignalServiceMessageSender:2920` from
      * `recipient.getIdentifier()` -- a service id. Marking a contact by it works; parsing it as
      * a phone number would look right and mark nobody.
      */

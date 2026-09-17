@@ -1933,6 +1933,28 @@ public class SignalServiceMessageSender {
         contactBuilder.organization(contact.getOrganization().get());
       }
 
+      if (contact.getAci().isPresent()) {
+        contactBuilder.aciBinary(contact.getAci().get().toByteString());
+      }
+
+      if (contact.getNickname().isPresent() && !contact.getNickname().get().isEmpty()) {
+        DataMessage.Contact.SignalNickname.Builder nicknameBuilder = new DataMessage.Contact.SignalNickname.Builder();
+
+        if (contact.getNickname().get().getGiven().isPresent()) {
+          nicknameBuilder.given(contact.getNickname().get().getGiven().get());
+        }
+
+        if (contact.getNickname().get().getFamily().isPresent()) {
+          nicknameBuilder.family(contact.getNickname().get().getFamily().get());
+        }
+
+        contactBuilder.nickname(nicknameBuilder.build());
+      }
+
+      if (contact.getNote().isPresent()) {
+        contactBuilder.note(contact.getNote().get());
+      }
+
       results.add(contactBuilder.build());
     }
 
@@ -2041,7 +2063,7 @@ public class SignalServiceMessageSender {
 
         try {
           SendMessageResponse response = NetworkResultUtil.toMessageSendLegacy(messages.getDestination(), messageApi.sendMessage(messages, sealedSenderAccess, story));
-          return SendMessageResult.success(recipient, messages.getDevices(), response.sentUnidentified(), response.getNeedsSync() || aciStore.isMultiDevice(), System.currentTimeMillis() - startTime, content.getContent());
+          return SendMessageResult.success(recipient, messages.getDevices(), response.getSentUnidentified(), response.getNeedsSync() || aciStore.isMultiDevice(), System.currentTimeMillis() - startTime, content.getContent());
         } catch (AuthorizationFailedException |
                  UnregisteredUserException |
                  MismatchedDevicesException |
@@ -2080,7 +2102,7 @@ public class SignalServiceMessageSender {
 
         SendMessageResponse response = socket.sendMessage(messages, sealedSenderAccess, story);
 
-        return SendMessageResult.success(recipient, messages.getDevices(), response.sentUnidentified(), response.getNeedsSync() || aciStore.isMultiDevice(), System.currentTimeMillis() - startTime, content.getContent());
+        return SendMessageResult.success(recipient, messages.getDevices(), response.getSentUnidentified(), response.getNeedsSync() || aciStore.isMultiDevice(), System.currentTimeMillis() - startTime, content.getContent());
 
       } catch (InvalidKeyException ike) {
         Log.w(TAG, ike);
@@ -2302,7 +2324,7 @@ public class SignalServiceMessageSender {
             SendMessageResult   result   = SendMessageResult.success(
                 recipient,
                 messages.getDevices(),
-                response.sentUnidentified(),
+                response.getSentUnidentified(),
                 response.getNeedsSync() || aciStore.isMultiDevice(),
                 System.currentTimeMillis() - startTime,
                 content.getContent()
@@ -2345,7 +2367,7 @@ public class SignalServiceMessageSender {
               return SendMessageResult.success(
                   recipient,
                   messages.getDevices(),
-                  response.sentUnidentified(),
+                  response.getSentUnidentified(),
                   response.getNeedsSync() || aciStore.isMultiDevice(),
                   System.currentTimeMillis() - startTime,
                   content.getContent()

@@ -348,7 +348,7 @@ class DeviceLinker internal constructor(
                 // An account **with** a phone number never needs it; an account without one
                 // cannot authorize a single group without it
                 // (`GroupsV2Api.getGroupsV2AuthorizationString` -> `receiveAuthCredentialWithoutPni`).
-                // Signal stores it during the same step, `AppRegistrationStorageController:812`.
+                // Signal stores it during the same step, `AppRegistrationStorageController:820`.
                 provision.authCredentialSaltOrNull()?.let { accounts.saveAuthCredentialSalt(it) }
                 provision.profileKey?.let { accounts.saveProfileKey(it.toByteArray()) }
 

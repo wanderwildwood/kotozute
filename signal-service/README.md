@@ -1,7 +1,7 @@
 # Signal's service layer, built from Signal's source
 
 Six modules, copied verbatim from [Signal-Android](https://github.com/signalapp/Signal-Android)
-at **`b92917acdb` (2026-09-10)** and compiled here:
+at **`d555580a46` (2026-09-16)** and compiled here:
 
 | here | upstream | what the app uses from it |
 |---|---|---|
@@ -66,7 +66,7 @@ here is presented as this project's own work.
 
 ## What was changed, and it is a short list
 
-**650 of the 651 files copied from upstream are byte-identical to it** — measured with `cmp`,
+**643 of the 644 files copied from upstream are byte-identical to it** — measured with `cmp`,
 every file, every time this changes. Two edits to Signal's code, both forced, both commented at
 the site:
 

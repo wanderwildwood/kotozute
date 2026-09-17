@@ -3,6 +3,9 @@
 plugins {
     id 'java-library'
     id 'org.jetbrains.kotlin.jvm'
+    // Added upstream since b92917acdb: NetworkResult now deserialises with kotlinx.serialization
+    // rather than only jackson.
+    id 'org.jetbrains.kotlin.plugin.serialization'
     id 'com.squareup.wire'
 }
 
@@ -37,8 +40,13 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2'
     implementation "org.signal:libsignal-client:$libsignal_version"
 
+    // Upstream added these two since b92917acdb: `NetworkResult` deserialises through
+    // `SignalJson`, which lives in core/serialization.
+    api 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0'
+
     implementation project(':signal-service:util-jvm')
     implementation project(':signal-service:models-jvm')
+    implementation project(':signal-service:serialization')
 
     // Signal's own test suite, restored and run against this build of its source -- versions
     // from upstream's `gradle/test-libs.versions.toml`. The suite is the strongest check there
@@ -47,4 +55,5 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'com.willowtreeapps.assertk:assertk:0.28.1'
+    testImplementation testFixtures(project(':signal-service:serialization'))
 }

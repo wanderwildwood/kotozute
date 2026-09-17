@@ -264,7 +264,7 @@ internal class SignalHistoryExporter(
                     // written, and "the attachment was never downloaded" and "this phone
                     // could not copy the one it had" are different problems with the same
                     // count. Upstream skips one it cannot open and says so with the
-                    // exception attached -- `backup/v2/BackupRepository.kt:705`,
+                    // exception attached -- `backup/v2/BackupRepository.kt:731`,
                     // `Log.w(TAG, "Unable to open attachment, skipping", e)`.
                     runCatching { file.open().use { it.copyTo(out) } }
                         .onFailure { Timber.w(it, "signal export: could not copy an attachment; leaving it out") }

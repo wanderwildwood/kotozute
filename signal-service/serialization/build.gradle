@@ -6,6 +6,8 @@ plugins {
     id 'java-library'
     id 'org.jetbrains.kotlin.jvm'
     id 'org.jetbrains.kotlin.plugin.serialization'
+    // Its test fixtures are used by core/network's tests, which is upstream's arrangement too.
+    id 'java-test-fixtures'
 }
 
 java {
@@ -24,4 +26,9 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0'
     implementation "org.signal:libsignal-client:$libsignal_version"
     api 'io.arrow-kt:arrow-core:2.2.2.1'
+
+    testFixturesImplementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0'
+    testFixturesImplementation "com.fasterxml.jackson.core:jackson-databind:$jackson_version"
+    testFixturesImplementation "com.fasterxml.jackson.module:jackson-module-kotlin:$jackson_version"
+    testFixturesImplementation 'com.willowtreeapps.assertk:assertk:0.28.1'
 }

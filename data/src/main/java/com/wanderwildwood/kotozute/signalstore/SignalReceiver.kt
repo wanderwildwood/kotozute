@@ -1604,8 +1604,21 @@ internal class SignalReceiver(
                 }.onFailure { Timber.w(it, "signal receive: could not say a message needs a newer build") }
                 false
             }
+            is org.whispersystems.signalservice.api.messages.EnvelopeContentValidator.Result.Invalid -> {
+                // ⚠ Says **why**. The reason was being thrown away, so every refusal on this
+                // path read the same -- a body over 2048 bytes, a bad group context and a
+                // malformed attachment were one indistinguishable line. `Invalid` carries
+                // `reason` (and a throwable) precisely so the far end can be told apart, and a
+                // refusal nobody can attribute is the shape this rail keeps finding.
+                Timber.w(
+                    validation.throwable,
+                    "signal receive: refused an envelope that did not validate: %s",
+                    validation.reason
+                )
+                false
+            }
             else -> {
-                Timber.w("signal receive: refused an envelope that did not validate")
+                Timber.w("signal receive: refused an envelope for an unrecognised reason")
                 false
             }
         }

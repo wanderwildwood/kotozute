@@ -2096,13 +2096,27 @@ class SignalRepositoryImpl @Inject constructor(
 
         override fun refreshStoredRecords() = rereadStoredRecords()
 
-        override fun numberChanged(aci: String, from: String, to: String) =
+        override fun numberChanged(aci: String, from: String, to: String) {
+            // ⚠ Nothing about somebody who has been blocked. Upstream gates **every**
+            // `ChangeNumberInsert` on `!record.isBlocked` -- five sites in `RecipientTable`,
+            // all carrying it -- so a blocked contact's number changing is applied silently
+            // and never written into the conversation. Blocking somebody and then being told
+            // about their new number is the opposite of what blocking was for.
+            //
+            // Deliberately narrow: upstream puts this guard on the number-change insert, so
+            // it goes here rather than in `noteLocalEvent`, where it would quietly change
+            // what a name change does too on no evidence.
+            if (signalStore.isBlocked(aci)) {
+                Timber.i("signal: a blocked contact's number changed; applied, not announced")
+                return
+            }
             noteLocalEvent(
                 aci,
                 context.getString(
                     com.wanderwildwood.kotozute.data.R.string.signal_number_changed, from, to
                 )
             )
+        }
 
         override fun profileNameChanged(aci: String, from: String, to: String) =
             noteNameChange(aci, from, to)

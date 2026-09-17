@@ -39,6 +39,7 @@ import dagger.android.HasActivityInjector
 import dagger.android.HasBroadcastReceiverInjector
 import dagger.android.HasServiceInjector
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.util.CrashLog
 import com.wanderwildwood.kotozute.common.util.FileLoggingTree
 import com.wanderwildwood.kotozute.injection.AppComponentManager
 import com.wanderwildwood.kotozute.injection.appComponent
@@ -102,6 +103,13 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // The console tree needs nothing, so it goes first and the migration has somewhere to
         // land. The file tree still needs `fileLoggingTree` injected, so it follows below.
         Timber.plant(Timber.DebugTree())
+
+        // ⚠ Before anything else can die. There is no crash reporting in this app on purpose,
+        // which leaves a crash on somebody else's phone invisible -- "it closed itself" is the
+        // whole of the evidence they can give. This writes the trace to private storage on the
+        // dying thread, where the person can read it and decide whether to send it; see
+        // [CrashLog]. Installed here so a failure during the rest of onCreate is caught too.
+        CrashLog.install(this, BuildConfig.VERSION_NAME)
 
         AppComponentManager.init(this)
         appComponent.inject(this)

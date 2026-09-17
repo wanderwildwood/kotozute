@@ -540,6 +540,40 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         }
     }
 
+    override fun showCrashLog(log: String) {
+        activity?.runOnUiThread {
+            val activity = activity ?: return@runOnUiThread
+            val text = log.ifBlank { activity.getString(R.string.settings_crash_log_none) }
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.settings_crash_log_title)
+                // ⚠ The text itself, not a summary of it. Whoever sends this is sending
+                // whatever is on this screen, and a stack trace can carry message content in
+                // an exception message -- so the screen is the disclosure, and there is no
+                // path that sends anything they have not been shown.
+                .setMessage(text)
+                .setPositiveButton(R.string.settings_crash_log_send) { _, _ ->
+                    if (log.isBlank()) return@setPositiveButton
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(
+                            android.content.Intent.EXTRA_SUBJECT,
+                            activity.getString(R.string.settings_crash_log_subject)
+                        )
+                        putExtra(android.content.Intent.EXTRA_TEXT, log)
+                    }
+                    // A chooser rather than a guess: this phone may have no mail app at all,
+                    // and picking one for somebody is how a share ends in a crash of its own.
+                    runCatching { activity.startActivity(android.content.Intent.createChooser(send, null)) }
+                        .onFailure { Timber.w(it, "crash log: nothing on this phone would take it") }
+                }
+                .setNegativeButton(R.string.settings_crash_log_clear) { _, _ ->
+                    com.wanderwildwood.kotozute.common.util.CrashLog.clear(activity)
+                }
+                .setNeutralButton(android.R.string.cancel, null)
+                .show()
+        }
+    }
+
     override fun askFetchContacts() {
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread

@@ -301,6 +301,12 @@
     <string name="settings_mms_size_title">Auto-compress MMS image attachments</string>
     <string name="settings_mms_weblink_title">Link handling in messages</string>
     <string name="settings_disable_screenshots_title">Disable screenshots</string>
+    <string name="settings_crash_log_title">If it has closed itself</string>
+    <string name="settings_crash_log_summary">What the app was doing the last few times it stopped. Kept on this phone only; nothing is sent anywhere unless you send it</string>
+    <string name="settings_crash_log_none">It has not closed itself since this was last cleared.</string>
+    <string name="settings_crash_log_send">Send this</string>
+    <string name="settings_crash_log_clear">Clear</string>
+    <string name="settings_crash_log_subject">Messaging crash report</string>
     <string name="settings_sync_title">Sync messages</string>
     <string name="settings_sync_summary">Re-sync your messages with the native Android SMS database</string>
     <string name="settings_syncing">Syncing…</string>

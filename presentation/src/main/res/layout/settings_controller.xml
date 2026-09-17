@@ -211,6 +211,12 @@
                 android:layout_height="wrap_content"
                 app:title="@string/backup_title" />
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/crashLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_crash_log_summary"
+                app:title="@string/settings_crash_log_title" />
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/sync"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

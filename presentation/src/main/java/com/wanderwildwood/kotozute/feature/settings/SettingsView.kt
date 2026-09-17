@@ -24,6 +24,9 @@ import io.reactivex.Observable
 
 interface SettingsView : QkViewContract<SettingsState> {
     fun preferenceClicks(): Observable<PreferenceView>
+
+    /** Shows what was recorded the last few times the app stopped, and offers to send it. */
+    fun showCrashLog(log: String)
     fun aboutLongClicks(): Observable<*>
     fun textSizeSelected(): Observable<Int>
     fun sendDelaySelected(): Observable<Int>

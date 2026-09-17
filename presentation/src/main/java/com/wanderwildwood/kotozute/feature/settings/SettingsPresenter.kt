@@ -306,6 +306,16 @@ class SettingsPresenter @Inject constructor(
                             }.apply { isDaemon = true }.start()
                         }
 
+                        // ⚠ Read on the phone, sent only if they choose to. There is no
+                        // crash reporting in this app by design, so this is the only way a
+                        // crash on somebody else's phone is ever describable -- and a stack
+                        // trace can carry message content, so it is shown before it is sent
+                        // rather than after.
+                        R.id.crashLog ->
+                            view.showCrashLog(
+                                com.wanderwildwood.kotozute.common.util.CrashLog.read(context)
+                            )
+
                         R.id.signalFetchContacts -> fetchContacts(view)
 
                         // Asks first. Everything else on this screen acts on the phone; this

@@ -141,9 +141,22 @@ internal class SignalReceiver(
                 // timestamp its *sender* stamped on it, which is the same value stored as the
                 // message's own id and date. The server's timestamp would match nothing.
                 val at = envelope.clientTimestamp ?: 0L
+                // ⚠ **Kept if it could not be recorded.** `delete(id)` below used to run
+                // whichever way this went, so a receipt whose write threw was gone for good and
+                // the message it was about stayed "sent" for ever, with the envelope already
+                // acked to the server and nothing left to redeliver. Upstream's
+                // `IncomingMessageObserver.processReceipt` has **no catch at all** -- a failed
+                // write propagates and the server sends the envelope again -- so not losing it
+                // is upstream's behaviour, reached here by the only route this app has: leave
+                // the row where it is and let the next drain retry it, exactly as a message
+                // whose persist throws is left alone rather than deleted.
+                var recorded = true
                 if (from.isNotBlank() && at > 0) {
                     runCatching { events.receipts(from, listOf(at), false) }
-                        .onFailure { Timber.w(it, "signal receive: could not record a delivery receipt") }
+                        .onFailure {
+                            recorded = false
+                            Timber.w(it, "signal receive: could not record a delivery receipt; keeping it for the next drain")
+                        }
                     // The plaintext copy kept for that device is no longer needed: a device
                     // that has the message will never ask for it again. Signal clears it here
                     // too (`IncomingMessageObserver.processReceipt` ->
@@ -152,7 +165,9 @@ internal class SignalReceiver(
                     runCatching { SignalMessageLog(db).delivered(from, envelope.sourceDeviceId ?: 0, at) }
                         .onFailure { Timber.w(it, "signal message log: could not clear a delivered send") }
                 }
-                delete(id)
+                // The message log is a cleanup and ages out on its own, so its failure is not
+                // a reason to keep the envelope; only the receipt itself is.
+                if (recorded) delete(id)
                 return@forEach
             }
 

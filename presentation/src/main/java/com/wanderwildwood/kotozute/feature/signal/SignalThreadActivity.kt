@@ -164,6 +164,8 @@ class SignalThreadActivity : QkThemedActivity() {
                 .setTitle(R.string.messageLinkHandling_dialog_title)
                 .setMessage(getString(R.string.messageLinkHandling_dialog_body, uri.toString()))
                 .setPositiveButton(R.string.messageLinkHandling_dialog_positive) { _, _ ->
+                    // Shown to the person rather than logged: they asked for this link to
+                    // open, so a phone with nothing that handles it has to say so.
                     runCatching { startActivity(Intent(Intent.ACTION_VIEW).setData(uri)) }
                         .onFailure {
                             Toast.makeText(this, R.string.signal_link_no_app, Toast.LENGTH_SHORT).show()
@@ -246,6 +248,10 @@ class SignalThreadActivity : QkThemedActivity() {
                     binding.pending.text = getString(R.string.signal_attached, pendingName)
                     binding.pending.setVisible(true)
                 }.onFailure {
+                    // ⚠ Told, not swallowed, and told differently for the one cause somebody
+                    // can act on: a file too large is a different instruction from a file that
+                    // would not read. The composer keeps no attachment either way, so nothing
+                    // is sent that the person believes was attached.
                     val msg = if (it is SignalAttachment.TooLarge) {
                         R.string.signal_attach_too_big
                     } else {
@@ -588,6 +594,10 @@ class SignalThreadActivity : QkThemedActivity() {
                         clearAttachment()
                     }
                     .onFailure {
+                        // ⚠ The composer is deliberately **not** cleared here -- clearing is
+                        // in onSuccess alone -- so a failed send leaves the text where they
+                        // typed it. The message names the reason the send path gave, because
+                        // "it failed" and "they have left Signal" need different responses.
                         Toast.makeText(
                             this,
                             getString(R.string.signal_send_failed, it.message.orEmpty()),

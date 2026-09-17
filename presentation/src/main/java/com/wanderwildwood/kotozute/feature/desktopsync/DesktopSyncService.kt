@@ -293,7 +293,12 @@ class DesktopSyncService : Service() {
                     }
                     .distinct()
                     .ifEmpty { null }
-            }.onFailure { Timber.w(it, "could not read addresses for transport %d", transport) }
+            }.onFailure {
+                // Null means "no address to offer for this transport", and the caller moves
+                // to the next one. A transport that cannot be read is skipped rather than
+                // guessed at.
+                Timber.w(it, "could not read addresses for transport %d; skipping it", transport)
+            }
                 .getOrNull()
         }
     }

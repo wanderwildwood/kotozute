@@ -528,6 +528,7 @@
     <string name="signal_group_name_hint">Group name</string>
     <string name="signal_group_search_hint">Search</string>
     <string name="signal_group_nobody">Nobody to add.\n\nFetch your contacts in Settings, or wait for somebody to write.</string>
+    <string name="signal_group_could_not_read">This phone could not read who is on Signal just now. Close this and open it again.</string>
     <string name="signal_group_no_match">Nobody by that name.</string>
     <string name="signal_group_needs_a_name">A group needs a name.</string>
     <string name="signal_group_needs_somebody">A group needs somebody else in it.</string>

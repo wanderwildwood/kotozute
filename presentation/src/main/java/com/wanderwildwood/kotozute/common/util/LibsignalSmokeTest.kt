@@ -41,7 +41,12 @@ object LibsignalSmokeTest {
             // tables back. A schema that compiles but will not open is worth nothing, and the
             // failure would otherwise surface much later, during linking, looking unrelated.
             Timber.i("signal store: %s", ProtocolDatabaseSelfCheck.describe(context))
-        }.onFailure { Timber.w(it, "libsignal-service: could not route its logging") }
+        }.onFailure {
+            // Diagnostics only. Losing the library's own log lines makes a later failure
+            // harder to read; it cannot make one happen, and refusing to start the app over
+            // a logging route would be the tail wagging the dog.
+            Timber.w(it, "libsignal-service: could not route its logging; its own lines are lost")
+        }
 
         val started = System.currentTimeMillis()
         runCatching {

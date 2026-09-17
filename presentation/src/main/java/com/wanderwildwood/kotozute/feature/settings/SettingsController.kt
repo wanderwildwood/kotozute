@@ -922,7 +922,12 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     android.net.Uri.parse("package:${activity.packageName}")
                 )
             )
-        }.onFailure { Timber.w(it, "No screen for the install-packages permission") }
+        }.onFailure {
+            // Some builds have no such settings screen. Nothing else can be done from here,
+            // and the permission is only ever wanted for an update the person asked for, so
+            // the cost is that one prompt rather than the feature.
+            Timber.w(it, "No screen for the install-packages permission; the prompt is skipped")
+        }
     }
 
 }

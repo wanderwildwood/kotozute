@@ -80,7 +80,13 @@ class SignalNewGroupActivity : QkThemedActivity() {
         // store behind it.
         Thread {
             val read = runCatching { signalRepo.people() }
-                .onFailure { Timber.w(it, "signal groups: could not read who is on Signal") }
+                // ⚠ An empty list reads to the person as "nobody you know is on Signal",
+                // which is a different claim from "this phone could not check". Remembered
+                // rather than flattened, so the empty state below can say which it was.
+                .onFailure {
+                    couldNotRead = true
+                    Timber.w(it, "signal groups: could not read who is on Signal; saying so rather than showing nobody")
+                }
                 .getOrDefault(emptyList())
             runOnUiThread {
                 people = read
@@ -102,6 +108,9 @@ class SignalNewGroupActivity : QkThemedActivity() {
         else -> super.onOptionsItemSelected(item)
     }
 
+    /** Set when the read threw, so an empty picker is not mistaken for an empty account. */
+    private var couldNotRead = false
+
     /** The list, filtered by what has been typed. */
     private fun show() {
         val query = binding.search.text?.toString().orEmpty()
@@ -113,7 +122,11 @@ class SignalNewGroupActivity : QkThemedActivity() {
         binding.empty.setVisible(shown.isEmpty())
         binding.recyclerView.setVisible(shown.isNotEmpty())
         binding.empty.setText(
-            if (people.isEmpty()) R.string.signal_group_nobody else R.string.signal_group_no_match
+            when {
+                couldNotRead -> R.string.signal_group_could_not_read
+                people.isEmpty() -> R.string.signal_group_nobody
+                else -> R.string.signal_group_no_match
+            }
         )
     }
 

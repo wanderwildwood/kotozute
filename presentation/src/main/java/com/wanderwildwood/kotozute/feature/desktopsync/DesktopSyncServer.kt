@@ -218,6 +218,10 @@ class DesktopSyncServer(
     fun notifyChanged() {
         val payload = JSONObject().put("type", "changed").toString()
         openSockets.toList().forEach { socket ->
+            // A send that throws means that browser has gone; dropping it from the set is
+            // the whole handling, and the page reconnects on its own if it is still open.
+            // A send that throws means that browser has gone; dropping it from the set is
+            // the whole handling, and the page reconnects on its own if it is still open.
             runCatching { socket.send(payload) }.onFailure { openSockets.remove(socket) }
         }
     }

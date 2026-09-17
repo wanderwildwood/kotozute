@@ -246,7 +246,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         GlobalScope.launch(Dispatchers.IO) {
             while (true) {
                 runCatching { signalRepo.purgeExpired() }
-                    .onFailure { Timber.w(it, "signal: expiry sweep") }
+                    // The loop is the recovery: this runs again in a minute, so a sweep that
+                    // throws delays a disappearing message by one pass rather than leaving it
+                    // for ever. Never allowed to break the loop, which would leave every
+                    // later expiry unswept too.
+                    .onFailure { Timber.w(it, "signal: expiry sweep; the next pass sweeps again") }
                 delay(60_000)
             }
         }
@@ -259,7 +263,10 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
             delay(90_000)
             while (true) {
                 runCatching { signalRepo.retryPendingAttachments() }
-                    .onFailure { Timber.w(it, "signal attachment: retry pass") }
+                    // Same shape as the expiry loop above: this *is* the retry, so failing it
+                    // costs one ten-minute round and nothing else, as long as the throw never
+                    // escapes and ends the loop.
+                    .onFailure { Timber.w(it, "signal attachment: retry pass; the next pass retries") }
                 delay(10 * 60_000L)
             }
         }

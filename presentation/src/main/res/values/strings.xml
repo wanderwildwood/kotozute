@@ -477,6 +477,14 @@
         <item quantity="other">%d messages brought in.</item>
     </plurals>
     <string name="settings_signal_history_already">%d were already here and were left as they are.</string>
+    <plurals name="settings_signal_history_skipped_events">
+        <item quantity="one">%d was a note about a conversation rather than a message.</item>
+        <item quantity="other">%d were notes about conversations rather than messages.</item>
+    </plurals>
+    <plurals name="settings_signal_history_skipped_deleted">
+        <item quantity="one">%d had been deleted for everyone and was not brought back.</item>
+        <item quantity="other">%d had been deleted for everyone and were not brought back.</item>
+    </plurals>
     <plurals name="settings_signal_history_attachments">
         <item quantity="one">%d attachment kept.</item>
         <item quantity="other">%d attachments kept.</item>

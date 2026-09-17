@@ -598,6 +598,24 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                             R.string.settings_signal_history_already, stats.alreadyPresent
                         ))
                     }
+                    // ⚠ The skipped rows are named, so the numbers add up. They were counted
+                    // and never shown: a copy of 49 that reports 2 brought in and 43 already
+                    // here leaves four unaccounted for, and from outside there is no way to
+                    // tell four rows deliberately not carried from four rows lost. On the one
+                    // screen whose whole job is to say a backup is complete, a total that does
+                    // not reconcile is the same as no answer at all.
+                    if (stats.skippedEvents > 0) {
+                        append('\n').append(activity.resources.getQuantityString(
+                            R.plurals.settings_signal_history_skipped_events,
+                            stats.skippedEvents, stats.skippedEvents
+                        ))
+                    }
+                    if (stats.skippedDeleted > 0) {
+                        append('\n').append(activity.resources.getQuantityString(
+                            R.plurals.settings_signal_history_skipped_deleted,
+                            stats.skippedDeleted, stats.skippedDeleted
+                        ))
+                    }
                     if (stats.attachments > 0) {
                         append('\n').append(activity.resources.getQuantityString(
                             R.plurals.settings_signal_history_attachments,

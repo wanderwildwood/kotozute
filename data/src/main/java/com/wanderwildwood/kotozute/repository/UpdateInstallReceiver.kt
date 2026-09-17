@@ -39,7 +39,13 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                 // A receiver has no task of its own to start an activity into.
                 prompt.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 runCatching { context.startActivity(prompt) }
-                    .onFailure { Timber.w(it, "Could not show the install prompt") }
+                    .onFailure {
+                        // The download is already on disk and verified; only the prompt
+                        // failed. Nothing is installed without it, which is the safe
+                        // direction, and the update is offered again on the next check
+                        // rather than being lost.
+                        Timber.w(it, "Could not show the install prompt; the next check offers it again")
+                    }
             }
 
             // Nothing follows this: the process is about to be replaced by the new build.

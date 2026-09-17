@@ -59,10 +59,20 @@ class MmsWapPushReceiver : PushReceiver() {
             Single.timer(PERSIST_GRACE_SECONDS, TimeUnit.SECONDS, Schedulers.io())
                 .subscribe { _ ->
                     runCatching { messageRepo.syncMmsReports() }
-                        .onFailure { error -> Timber.w(error, "could not apply mms reports") }
+                        .onFailure { error ->
+                            // A broadcast receiver has one chance: pendingResult.finish()
+                            // runs below either way, because leaving it unfinished holds a
+                            // wakelock and Android eventually kills the process for it. The
+                            // reports are re-read on the next delivery report or sync.
+                            Timber.w(error, "could not apply mms reports; the next report re-reads them")
+                        }
                     pendingResult.finish()
                 }
-        }.onFailure { error -> Timber.w(error, "could not schedule the mms report scan") }
+        }.onFailure { error ->
+            // Nothing scheduled means nothing to finish, so this cannot strand a wakelock.
+            // The scan runs again on the next delivery report.
+            Timber.w(error, "could not schedule the mms report scan; the next report runs it")
+        }
     }
 
     companion object {

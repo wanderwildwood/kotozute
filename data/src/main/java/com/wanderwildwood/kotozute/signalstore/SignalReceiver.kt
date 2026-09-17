@@ -1870,7 +1870,14 @@ internal class SignalReceiver(
                         Timber.w(failure, "signal retry: could not note that a resend is owed")
                     }
             }
-        }.onFailure { Timber.w(it, "signal retry: could not act on a retry receipt") }
+        }.onFailure {
+            // ⚠ Their message stays unreadable until they ask again. A retry receipt is the
+            // far end saying it could not decrypt; failing to act on one leaves them waiting,
+            // and nothing here re-drives it. Signal clients re-send the receipt, so the next
+            // one brings us back here -- but the delay is real and belongs in the log rather
+            // than passing as routine.
+            Timber.w(it, "signal retry: could not act on a retry receipt; the next receipt returns here")
+        }
     }
 
     /**

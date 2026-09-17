@@ -303,7 +303,13 @@ internal class SignalStorageService(
                 // what later folds a conversation held under the PNI into the real one.
                 if (aci != null && pni != null) {
                     runCatching { contacts.pair(pni, aci) }
-                        .onFailure { Timber.w(it, "signal storage: a pairing would not keep") }
+                        .onFailure {
+                            // One record, not the run: the remaining contacts are still read.
+                            // An unpaired PNI and ACI mean that person may appear twice until
+                            // the next storage read offers the pairing again, which the whole
+                            // manifest does every time it is read.
+                            Timber.w(it, "signal storage: a pairing would not keep; the next read offers it again")
+                        }
                 }
 
                 // The account id where there is one, the phone-number identity otherwise.
@@ -337,7 +343,12 @@ internal class SignalStorageService(
                                     else -> IdentityState.Default
                                 }
                             )
-                        }.onFailure { Timber.w(it, "signal storage: an identity would not keep") }
+                        }.onFailure {
+                            // ⚠ Their safety number stays as this phone last knew it, which is
+                            // the safe direction: an identity that fails to store cannot
+                            // silently become trusted, and the next read offers it again.
+                            Timber.w(it, "signal storage: an identity would not keep; the next read offers it again")
+                        }
                     }
                 }
 
@@ -391,7 +402,11 @@ internal class SignalStorageService(
                     // relationship and not about which row somebody belongs in.
                     runCatching { contacts.setWhitelisted(id, record.whitelisted) }
                         .onFailure { e ->
-                            Timber.w(e, "signal storage: a profile-sharing flag would not keep")
+                            // ⚠ The flag stays as this phone last knew it, which is the safe
+                            // direction: a sharing flag that fails to store cannot silently
+                            // turn into sharing. The whole manifest is read again on every
+                            // storage read, so the next one offers this record afresh.
+                            Timber.w(e, "signal storage: a profile-sharing flag would not keep; the next read offers it again")
                         }
                 }
             }

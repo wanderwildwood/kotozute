@@ -331,6 +331,10 @@ class SignalStore(private val context: Context) {
                 SignalDataStore(database, account), connection, contacts
             ).sendGroupUpdate(bytes, members, NEW_GROUP_REVISION)
         }.onFailure { Timber.w(it, "signal groups: could not tell the members") }.getOrNull()
+        // ⚠ Not swallowed, only deferred by two lines: a null here fails the check below and
+        // is reported as the group existing while nobody has been told about it. The group is
+        // still returned on purpose -- it exists on the server either way, and pretending it
+        // does not would leave somebody unable to open a group they have just made.
         if (told !is SignalSender.Result.Sent) {
             Timber.w("signal groups: the group was made but its members were not told")
         }
@@ -731,6 +735,15 @@ class SignalStore(private val context: Context) {
      * socket is back, and the periodic round, because a phone nobody is messaging never has a
      * batch.
      *
+     * ⚠ **Nothing in here clears what did not go.** Every swallowed failure below therefore
+     * means the same thing -- the row stays owed and the next pass tries it again -- because a
+     * receipt is cleared only inside a branch that has just seen it sent. That invariant is
+     * what makes nine quiet `onFailure`s correct rather than nine holes, and it is stated once
+     * here rather than nine times below.
+     *
+     * A `clear` that fails is the one exception, and costs a duplicate receipt that the far end
+     * discards.
+     *
      * @return how many people were told.
      */
     fun retryOwedReceipts(): Int {
@@ -835,7 +848,13 @@ class SignalStore(private val context: Context) {
         runCatching {
             SignalReceiptStore(database)
                 .owe(recipient, timestamps, SignalReceiptStore.Kind.READ_RECEIPT)
-        }.onFailure { Timber.w(it, "signal receipt: could not note that a read receipt is owed") }
+        }.onFailure {
+            // ⚠ Lost if this throws. The read has already happened and nothing else records
+            // the debt, so the sender is left with a message they can see was delivered and
+            // never see was read. Said plainly rather than passed over: there is nowhere else
+            // to put it, and failing the read itself to protect a receipt would be worse.
+            Timber.w(it, "signal receipt: could not note that a read receipt is owed; it is lost")
+        }
     }
 
     /** Notes that our own devices have not been told a conversation was read here. */
@@ -846,7 +865,13 @@ class SignalStore(private val context: Context) {
                 runCatching {
                     SignalReceiptStore(database)
                         .owe(author, timestamps, SignalReceiptStore.Kind.READ_SYNC)
-                }.onFailure { Timber.w(it, "signal read sync: could not note that one is owed") }
+                }.onFailure {
+                    // ⚠ Lost if this throws, like its sibling above. Nothing else records the
+                    // debt, so this account's other devices never learn the message was read
+                    // here and it stays bold on all of them. Nowhere else to put it, and
+                    // failing the read to protect the note would be the worse trade.
+                    Timber.w(it, "signal read sync: could not note that one is owed; it is lost")
+                }
             }
     }
 
@@ -860,7 +885,13 @@ class SignalStore(private val context: Context) {
      */
     fun reportDuplicateNumbers(): Int {
         val dupes = runCatching { contacts.duplicateNumbers() }
-            .onFailure { Timber.w(it, "signal contacts: could not check for duplicate numbers") }
+            .onFailure {
+                // ⚠ A failed health check reports **healthy**, which is the wrong direction for
+                // a diagnostic and is still the better of the two: inventing a fault nobody can
+                // find wastes the reader's time, and this number is only ever a report. It is
+                // logged so an empty result and an unanswered one are not the same line.
+                Timber.w(it, "signal contacts: could not check for duplicate numbers; reporting none")
+            }
             .getOrDefault(emptyList())
         if (dupes.isNotEmpty()) {
             // Counts only. The numbers themselves are the thing this app exists to keep, and a
@@ -882,7 +913,11 @@ class SignalStore(private val context: Context) {
      */
     fun reportMalformedNumbers(): Int {
         val bad = runCatching { contacts.malformedNumbers() }
-            .onFailure { Timber.w(it, "signal contacts: could not check the numbers' shape") }
+            .onFailure {
+                // Same as the duplicate check above: a diagnostic that cannot run reports
+                // nothing wrong, and says so here rather than looking like a clean store.
+                Timber.w(it, "signal contacts: could not check the numbers' shape; reporting none")
+            }
             .getOrDefault(0)
         if (bad > 0) {
             Timber.w("signal contacts: %d row(s) hold a number that is not shaped like one", bad)
@@ -1021,7 +1056,12 @@ class SignalStore(private val context: Context) {
                                 SignalIdentityKeyStore.AdoptedState.Default
                         }
                     )
-                }.onFailure { Timber.w(it, "signal storage: could not adopt an identity") }
+                }.onFailure {
+                    // One record, not the run. The rest of the account's contacts are still
+                    // read, and the next storage read offers this identity again -- the
+                    // manifest is re-read whole every time, with no version check to skip it.
+                    Timber.w(it, "signal storage: could not adopt an identity; the next read offers it again")
+                }
             },
             onProfileKey = { key ->
                 // Only when it has actually changed, so an unchanged account does not rewrite
@@ -1611,7 +1651,12 @@ class SignalStore(private val context: Context) {
             // The key has just arrived: read the account's contact list with it, and let the
             // caller rename its threads if anybody was learned.
             val read = runCatching { readStorage() }
-                .onFailure { Timber.w(it, "signal storage: could not read") }
+                .onFailure {
+                    // The key is kept regardless, which is the point: reading the list is what
+                    // failed, not learning the key, and every later read uses the same key
+                    // without needing this one to have worked.
+                    Timber.w(it, "signal storage: could not read with the key that just arrived")
+                }
                 .getOrNull()
             Timber.i("signal storage: %s", read ?: "not read")
             onNamesLearned()

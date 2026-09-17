@@ -450,7 +450,12 @@ internal class SignalSender(
     private fun clearPniProofIfSent(recipient: ServiceId, attached: Boolean, sent: Boolean) {
         if (!attached || !sent) return
         runCatching { contacts.clearNeedsPniSignature(recipient.toString()) }
-            .onFailure { Timber.w(it, "signal send: could not note that the proof had gone") }
+            .onFailure {
+                // Harmless in the one direction it can fail: the flag stays set, so the proof
+                // is attached to one more message than it needed to be. The other way round --
+                // clearing it for a message that did not carry it -- is the one this guards.
+                Timber.w(it, "signal send: could not note that the proof had gone; it goes once more")
+            }
     }
 
     /**
@@ -830,7 +835,12 @@ internal class SignalSender(
                         org.signal.libsignal.protocol.SignalProtocolAddress(recipient.toString(), device)
                     )
                 }
-        }.onFailure { Timber.w(it, "signal receipt: could not archive the stale sessions") }
+        }.onFailure {
+            // The receipt itself has already been handled; this is the tidy-up that retires a
+            // session the far end has stopped using. Left alone, the next message to them
+            // fails to decrypt on their side and their retry receipt brings us back here.
+            Timber.w(it, "signal receipt: could not archive the stale sessions; a retry returns here")
+        }
     }
 
     /**

@@ -148,7 +148,12 @@ internal class SignalSocketHealthMonitor(
                         Timber.w("signal socket: still connecting after %d ms; starting over", wait)
                         failedInConnecting = true
                         runCatching { webSocket?.forceNewWebSocket() }
-                            .onFailure { Timber.w(it, "signal socket: could not start over") }
+                            .onFailure {
+                                // The health monitor keeps running and tries again on its own
+                                // schedule; a socket that will not restart now is one the next
+                                // check finds still unhealthy and restarts then.
+                                Timber.w(it, "signal socket: could not start over; the next check tries again")
+                            }
                     }, wait, TimeUnit.MILLISECONDS)
                 }
 

@@ -198,8 +198,14 @@ class DeviceLinker internal constructor(
                         )
                     }
                 }
-            }.onFailure { Timber.w(it, "signal link: could not open a provisioning socket") }
-                .getOrNull() ?: return
+            }.onFailure {
+                // ⚠ Returns without counting this as an opened socket, which is what keeps
+                // the rotation honest: `opened` below is incremented only on a socket that
+                // exists, and `noCodeIsStillLive` decides whether anything is still scannable
+                // from those counts. A failure to open is simply one fewer live code, and the
+                // rotation opens another on its own schedule.
+                Timber.w(it, "signal link: could not open a provisioning socket; the rotation opens another")
+            }.getOrNull() ?: return
 
             opened.incrementAndGet()
             val displaced = synchronized(handles) { admit(handles, closeable) }

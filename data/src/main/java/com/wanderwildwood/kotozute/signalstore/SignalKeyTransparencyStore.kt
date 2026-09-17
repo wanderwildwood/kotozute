@@ -37,7 +37,13 @@ internal class SignalKeyTransparencyStore(
 
     override fun setLastDistinguishedTreeHead(lastDistinguishedTreeHead: ByteArray) {
         runCatching { accounts.saveDistinguishedHead(lastDistinguishedTreeHead) }
-            .onFailure { timber.log.Timber.w(it, "signal kt: could not keep the distinguished head") }
+            .onFailure {
+                // ⚠ Must not throw: libsignal calls this from inside its own verification and
+                // an exception here fails the check rather than the write. A head that did not
+                // keep costs the next check a fresh fetch of the distinguished tree, which is
+                // the ordinary cold-start cost, not a wrong answer.
+                timber.log.Timber.w(it, "signal kt: could not keep the distinguished head; the next check refetches")
+            }
     }
 
     override fun getAccountData(aci: ServiceId.Aci): Optional<ByteArray> =
@@ -47,6 +53,11 @@ internal class SignalKeyTransparencyStore(
 
     override fun setAccountData(aci: ServiceId.Aci, data: ByteArray) {
         runCatching { contacts.saveKeyTransparencyData(aci.toServiceIdString(), data) }
-            .onFailure { timber.log.Timber.w(it, "signal kt: could not keep what was verified") }
+            .onFailure {
+                // Same contract: never throw back into libsignal. Losing this makes the next
+                // check treat the account as unseen and verify it from scratch -- slower, and
+                // it cannot turn a failed verification into a passed one.
+                timber.log.Timber.w(it, "signal kt: could not keep what was verified; the next check starts fresh")
+            }
     }
 }

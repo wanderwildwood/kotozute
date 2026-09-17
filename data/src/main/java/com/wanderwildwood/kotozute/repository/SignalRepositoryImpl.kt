@@ -682,6 +682,11 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     private fun runOffThread(block: () -> Unit) {
+        // ⚠ The catch is what makes this safe to hand work to, and the log is what stops it
+        // becoming a place work disappears into. An uncaught throw on a daemon thread takes
+        // the process down with a trace nobody attributes to the caller, so every failure is
+        // caught here -- and every caller is a background errand whose failure the next run
+        // repeats, never a step somebody is waiting on.
         thread(isDaemon = true) { runCatching(block).onFailure { Timber.w(it, "signal") } }
     }
 
@@ -960,7 +965,10 @@ class SignalRepositoryImpl @Inject constructor(
         if (step is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Registered) {
             runCatching { signalStore.uploadPreKeys() }
                 .onSuccess { Timber.i("signal keys: %s", it) }
-                .onFailure { Timber.w(it, "signal keys: could not publish after registering") }
+                // Not fatal to registering, which has already happened on the server. The
+                // prekey pile is topped up on its own cadence by key maintenance, so a failure
+                // here costs a later refill rather than the account.
+                .onFailure { Timber.w(it, "signal keys: could not publish after registering; maintenance refills") }
             prefs.signalEnabled.set(true)
             publishState(signalConnected = true, error = null)
             startStream()
@@ -1005,7 +1013,9 @@ class SignalRepositoryImpl @Inject constructor(
                 // entirely healthy.
                 runCatching { signalStore.uploadPreKeys() }
                     .onSuccess { Timber.i("signal keys: %s", it) }
-                    .onFailure { Timber.w(it, "signal keys: could not publish after linking") }
+                    // Same as after registering: the link stands, and key maintenance refills
+                // the pile on its own schedule.
+                .onFailure { Timber.w(it, "signal keys: could not publish after linking; maintenance refills") }
 
                 // Linking is an explicit act that means "I want Signal on this phone", so the
                 // rail goes on with it. Leaving it off left a device that had just linked
@@ -1247,7 +1257,9 @@ class SignalRepositoryImpl @Inject constructor(
         announce(fresh)
         // A contacts sync can have landed in the same batch as the messages it names.
         renameThreadsFromContacts()
-        runCatching { nameGroupThreads() }.onFailure { Timber.w(it, "signal groups: naming failed") }
+        // Cosmetic and self-healing: a group whose name did not land shows its identifier
+        // until the next sync or message re-runs this. Nothing depends on the name.
+        runCatching { nameGroupThreads() }.onFailure { Timber.w(it, "signal groups: naming failed; the next pass renames") }
         return fresh.size
     }
 
@@ -1380,7 +1392,9 @@ class SignalRepositoryImpl @Inject constructor(
                             prefs.signalLastContactRequest.set(System.currentTimeMillis())
                             Timber.i("signal contacts: %s", it)
                         }
-                        .onFailure { Timber.w(it, "signal contacts: could not ask") }
+                        // Asking again is free and happens on the next connection; not
+                        // asking costs only that this list is a sync later than it could be.
+                        .onFailure { Timber.w(it, "signal contacts: could not ask; the next connection asks again") }
                 } else {
                     Timber.i(
                         "signal contacts: asked %d hour(s) ago; not asking the primary again yet",
@@ -1394,7 +1408,9 @@ class SignalRepositoryImpl @Inject constructor(
                 // than the account. Read receipts are the one that shows.
                 runCatching { signalStore.requestConfiguration() }
                     .onSuccess { Timber.i("signal configuration: %s", it) }
-                    .onFailure { Timber.w(it, "signal configuration: could not ask") }
+                    // The account's settings, not this phone's: until it answers, the
+                    // local defaults stand and the next connection asks again.
+                    .onFailure { Timber.w(it, "signal configuration: could not ask; the next connection asks again") }
                 // Only while it is missing. This is the account's own key material and there
                 // is no reason to have it sent again once it is here.
                 // No asking for the account's keys here. An empty contact list does not say
@@ -1405,7 +1421,9 @@ class SignalRepositoryImpl @Inject constructor(
                 if (signalStore.storageKeyKnown()) {
                     runCatching { signalStore.readStorage() }
                         .onSuccess { Timber.i("signal storage: %s", it) }
-                        .onFailure { Timber.w(it, "signal storage: could not read") }
+                        // The key is still held, so every later read uses it; this one
+                        // failing costs a sync of freshness, not the ability to read at all.
+                        .onFailure { Timber.w(it, "signal storage: could not read; later reads use the same key") }
                     // Straight after the read, because that is where a write would go and
                     // because a row appearing here *because of* the read is the loop worth
                     // catching. Logged and sent nowhere -- see [logStoragePushDiff].
@@ -1949,7 +1967,11 @@ class SignalRepositoryImpl @Inject constructor(
         forgetFromResendLog(removedSentAt)
         if (removedFiles.isNotEmpty()) {
             runCatching { signalStore.forgetAttachments(removedFiles) }
-                .onFailure { Timber.w(it, "signal delete sync: could not remove attachments") }
+                // ⚠ Files left behind, and the rows are already gone. Nothing re-runs this,
+                // so the bytes sit in private storage until the abandoned-attachment sweep
+                // notices nothing references them. Storage, not privacy: the conversation is
+                // gone from the app either way.
+                .onFailure { Timber.w(it, "signal delete sync: could not remove attachments; the sweep collects them") }
         }
         if (touched.isNotEmpty()) {
             Timber.i(
@@ -2097,6 +2119,21 @@ class SignalRepositoryImpl @Inject constructor(
         override fun refreshStoredRecords() = rereadStoredRecords()
 
         override fun numberChanged(aci: String, from: String, to: String) {
+            // ⛔ **The direct conversation only, and not the groups they are in.** Upstream's
+            // `MessageTable.insertNumberChangeMessages` writes the note into the direct thread
+            // *and* every active group containing that person, which it can do for nothing:
+            // `groups.getGroupsContainingMember` is a local table lookup.
+            //
+            // This app does not keep group membership. A group's members are fetched from the
+            // server when they are needed (`SignalGroups.fetch`), so matching upstream here
+            // would mean a round trip **per group** every time a contact sync reports a new
+            // number -- a burst of network calls, triggered by a background event, to add a
+            // line nobody is waiting for. The note is worth having where the conversation is
+            // about that one person; it is not worth that.
+            //
+            // Recorded as a decision rather than left as an absence, because the two look
+            // identical from the outside and only one of them can be argued with.
+            //
             // ⚠ Nothing about somebody who has been blocked. Upstream gates **every**
             // `ChangeNumberInsert` on `!record.isBlocked` -- five sites in `RecipientTable`,
             // all carrying it -- so a blocked contact's number changing is applied silently
@@ -2160,7 +2197,10 @@ class SignalRepositoryImpl @Inject constructor(
                 }
             }
                 .onSuccess { Timber.i("signal keys: %s", it) }
-                .onFailure { Timber.w(it, "signal keys: could not check or replace before a retry") }
+                // The retry goes ahead regardless. This is a freshness check, and sending
+                // with keys a little older than ideal is what the retry was for; refusing to
+                // retry because the check failed would turn a maybe into a certainly-not.
+                .onFailure { Timber.w(it, "signal keys: could not check or replace before a retry; retrying anyway") }
         }
     }
 
@@ -2820,7 +2860,10 @@ class SignalRepositoryImpl @Inject constructor(
         }
         if (doomed.isNotEmpty()) {
             runCatching { signalStore.forgetAttachments(doomed) }
-                .onFailure { Timber.w(it, "signal: could not remove a deleted conversation's files") }
+                // As with the delete sync above: the conversation is gone and these bytes
+                // are orphaned rather than exposed. The abandoned-attachment sweep collects
+                // what nothing references.
+                .onFailure { Timber.w(it, "signal: could not remove a deleted conversation's files; the sweep collects them") }
         }
         forgetFromResendLog(sentTimestamps)
         Timber.i(
@@ -2943,7 +2986,9 @@ class SignalRepositoryImpl @Inject constructor(
         // book beats one named from the export, and a group that arrived nameless can be
         // asked about now that it has messages in it.
         renameThreadsFromContacts()
-        runCatching { nameGroupThreads() }.onFailure { Timber.w(it, "signal groups: naming failed") }
+        // Cosmetic and self-healing: a group whose name did not land shows its identifier
+        // until the next sync or message re-runs this. Nothing depends on the name.
+        runCatching { nameGroupThreads() }.onFailure { Timber.w(it, "signal groups: naming failed; the next pass renames") }
         Timber.i("signal import: %d message(s), %d already present", stats.messages, stats.alreadyPresent)
         return SignalRepository.ImportStats(
             messages = stats.messages,

@@ -135,7 +135,12 @@ internal class SignalProfiles(
         // After the write, so a note never claims a change the store did not take.
         changed.forEach { (aci, from, to) ->
             runCatching { onNameChanged(aci, from, to) }
-                .onFailure { Timber.w(it, "signal profile: could not note a name change") }
+                .onFailure {
+                    // The name itself is already stored; this is only the note in the
+                    // conversation saying it changed. Losing the note loses a line of history,
+                    // never the name, and nothing downstream reads it.
+                    Timber.w(it, "signal profile: could not note a name change; the name itself is kept")
+                }
         }
 
         limited?.let { e ->

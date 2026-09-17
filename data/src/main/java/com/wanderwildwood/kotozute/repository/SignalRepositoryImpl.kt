@@ -2861,10 +2861,18 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun canBlock(): Boolean = runCatching { signalStore.blockedListKnown() }.getOrDefault(false)
 
-    override fun isLockedBackup(folder: String): Boolean = runCatching {
-        com.wanderwildwood.kotozute.signalstore.TreeExportSource(
+    override fun needsBackupKeyFromPerson(folder: String): Boolean = runCatching {
+        val meta = com.wanderwildwood.kotozute.signalstore.TreeExportSource(
             context, android.net.Uri.parse(folder)
-        ).meta() != null
+        ).meta() ?: return@runCatching false          // a Signal Desktop export; no key of ours
+        // The same reading [importHistory] does, and it has to stay the same reading: a header
+        // with no `key` predates account locking and is thirty digits. Anything account-locked
+        // opens with what this phone already holds and must never be asked about.
+        val header = runCatching { JSONObject(meta) }.getOrNull() ?: return@runCatching false
+        header.optString(
+            "key",
+            com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination.DIGITS
+        ) != com.wanderwildwood.kotozute.signalstore.EncryptedExportDestination.ACCOUNT
     }.getOrDefault(false)
 
     override fun importHistory(

@@ -416,7 +416,7 @@ class SettingsPresenter @Inject constructor(
         // anything is read rather than after a failure.
         view.signalExportFolderChosen()
                 .observeOn(Schedulers.io())
-                .map { folder -> folder to signalRepo.isLockedBackup(folder) }
+                .map { folder -> folder to signalRepo.needsBackupKeyFromPerson(folder) }
                 .observeOn(AndroidSchedulers.mainThread())
                 .autoDisposable(view.scope())
                 .subscribe { (folder, locked) ->

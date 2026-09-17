@@ -356,8 +356,16 @@ interface SignalRepository {
     /** Whether this person is on the account's blocked list, as this device last heard it. */
     fun isBlocked(threadKey: String): Boolean
 
-    /** Whether [folder] holds a backup this app wrote, which cannot be read without its key. */
-    fun isLockedBackup(folder: String): Boolean
+    /**
+     * Whether [folder] holds a backup that needs **thirty digits from the person** to open.
+     *
+     * ⚠ Not "is it sealed". Every backup this app writes is sealed; the ones written since
+     * copies were locked to the account open with a key the phone already has, and asking for
+     * digits that were never shown is asking for something that does not exist. That is what
+     * this used to do -- it answered "is there a header", which is true of both kinds -- and an
+     * account-locked backup could not be restored through the UI at all.
+     */
+    fun needsBackupKeyFromPerson(folder: String): Boolean
 
     /**
      * Writes this phone's Signal messages into [folder] as an export [importHistory] reads

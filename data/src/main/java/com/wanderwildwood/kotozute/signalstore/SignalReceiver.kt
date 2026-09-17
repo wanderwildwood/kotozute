@@ -226,7 +226,12 @@ internal class SignalReceiver(
                     { SignalSignedPreKeyStore(db, it) },
                     { SignalKyberPreKeyStore(db, it) }
                 ).refillOneTimeIfShort()
-            }.onFailure { Timber.w(it, "signal keys: could not top up after a prekey message") }
+            }.onFailure {
+                // Not retried here. The pile is topped up on its own cadence by key
+                // maintenance as well, so a failure now is made good on the next run rather
+                // than being worth holding the drain open for.
+                Timber.w(it, "signal keys: could not top up after a prekey message")
+            }
         }
 
         // ⚠ Only now, with the batch through. This is as near as this app gets to upstream's
@@ -242,17 +247,21 @@ internal class SignalReceiver(
         // A batch arriving is proof the socket is back, which is what was missing when a
         // resend first failed. The standing retry lives on the store and also runs from key
         // maintenance, because this block is skipped when the read simply times out.
+        // Both of these are themselves the retry. Failing leaves every owed row exactly as it
+        // was, so the next batch tries again -- which is why neither failure stops the drain.
         runCatching { events.retryOwedResends() }
-            .onFailure { Timber.w(it, "signal retry: could not try the owed resends") }
+            .onFailure { Timber.w(it, "signal retry: could not try the owed resends; they stay owed") }
         runCatching { events.retryOwedReceipts() }
-            .onFailure { Timber.w(it, "signal receipt: could not try the owed receipts") }
+            .onFailure { Timber.w(it, "signal receipt: could not try the owed receipts; they stay owed") }
 
         announceGivenUpEnvelopes()
         sweepUndecryptable()
         // One place decides what this database stops holding: sent plaintext goes on the same
         // pass as undecryptable envelopes.
         runCatching { SignalMessageLog(db).sweep() }
-            .onFailure { Timber.w(it, "signal message log: could not sweep") }
+            // A trim, not a correctness step: nothing is wrong with an entry that outlives its
+            // window by one drain, and the next pass removes it.
+            .onFailure { Timber.w(it, "signal message log: could not sweep; the next drain retries") }
 
         // Only now, and only for what is actually on disk. A delivery receipt is a claim that
         // this phone has the message; sending it before filing would make that claim on
@@ -284,7 +293,14 @@ internal class SignalReceiver(
                                 .owe(sender, distinct, SignalReceiptStore.Kind.DELIVERY)
                         }
                             .onFailure { failure ->
-                                Timber.w(failure, "signal receipt: could not note that one is owed")
+                                // ⚠ The end of the line for this receipt, and deliberately so.
+                                // Getting here means the send failed *and* the store would not
+                                // take the note -- one failure, in the database, wearing two
+                                // faces. There is nothing further to write it to, and taking
+                                // the drain down would cost every message in the batch to save
+                                // a delivery tick. Said loudly instead; the sender sees a
+                                // message that arrived and never says so.
+                                Timber.w(failure, "signal receipt: could not note that one is owed; it is lost")
                             }
                     }
                 }

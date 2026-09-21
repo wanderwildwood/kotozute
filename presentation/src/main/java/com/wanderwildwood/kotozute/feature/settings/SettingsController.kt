@@ -114,6 +114,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * here instead, and given up once there is somebody to give it to.
      */
     private var pendingExportFolder: String? = null
+    private var pendingImportResult:
+        Pair<com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?, Throwable?>? = null
     private var pendingBackupFolder: String? = null
     private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
     private val signalFetchContactsSubject: Subject<Unit> = PublishSubject.create()
@@ -154,6 +156,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         pendingBackupFolder?.let { folder ->
             pendingBackupFolder = null
             signalBackupFolderSubject.onNext(folder)
+        }
+        // An import that finished while this screen was away still has to say so.
+        pendingImportResult?.let { (stats, failure) ->
+            pendingImportResult = null
+            showSignalImportResult(stats, failure)
         }
         // the view is retained across detach, so restore whichever section was open
         setTitle(openTitle)
@@ -614,14 +621,33 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     }
 
     override fun showSignalImportResult(
-        stats: com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?
+        stats: com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?,
+        failure: Throwable?
     ) {
-        activity?.runOnUiThread {
+        // ⚠ Reading thousands of messages takes minutes, and the screen is not always still
+        // there when it ends -- the panel blanks, or the reader goes to look at something
+        // else. The result was then posted to a null activity and simply vanished: the row
+        // had stopped counting and nothing ever said what came of it. Held instead, and
+        // shown the next time this screen is open.
+        val activity = activity ?: run {
+            pendingImportResult = stats to failure
+            return
+        }
+        activity.runOnUiThread {
             val activity = activity ?: return@runOnUiThread
             binding.signalHistoryImport.summary =
                 activity.getString(R.string.settings_signal_import_summary)
             val message = if (stats == null) {
-                activity.getString(R.string.settings_signal_history_not_an_export)
+                // Two different things, and for a long time one sentence: a folder with no
+                // export in it, and an export that could not be read. The second sent people
+                // to re-pick a folder that was right all along.
+                when (failure) {
+                    null -> activity.getString(R.string.settings_signal_history_not_an_export)
+                    else -> activity.getString(
+                        R.string.settings_signal_history_unreadable,
+                        failure.message ?: failure.javaClass.simpleName
+                    )
+                }
             } else {
                 buildString {
                     append(activity.resources.getQuantityString(

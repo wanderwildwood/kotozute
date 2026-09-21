@@ -39,6 +39,21 @@
         android:text="@string/signal_link_instructions"
         tools:ignore="UnusedAttribute" />
 
+    <!-- Only when Desktop Sync is running and has an address. It is the way in for a phone
+         that already has Signal on it, where the camera route is impossible. -->
+    <TextView
+        android:id="@+id/onComputer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="16dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:textIsSelectable="true"
+        android:visibility="gone"
+        tools:ignore="UnusedAttribute"
+        tools:text="Already have Signal on this phone?"
+        tools:visibility="visible" />
+
     <ImageView
         android:id="@+id/qr"
         android:layout_width="match_parent"

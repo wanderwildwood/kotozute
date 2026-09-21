@@ -93,8 +93,13 @@ class SignalConversationsActivity : QkThemedActivity() {
 
         disposables += signalRepo.connectionState()
             .subscribe { conn ->
-                val msg = if (conn.signalConnected) null
-                    else getString(R.string.signal_cannot_send_signal)
+                // Three states, not two: connected, on its way, and not going to happen.
+                // The middle one used to read as the last one.
+                val msg = when {
+                    conn.signalConnected -> null
+                    conn.connecting -> getString(R.string.signal_connecting_signal)
+                    else -> getString(R.string.signal_cannot_send_signal)
+                }
                 runOnUiThread {
                     binding.status.text = msg.orEmpty()
                     binding.status.setVisible(msg != null)

@@ -40,7 +40,15 @@ internal class SignalConnection(
      * ⚠ Given only to the authenticated socket. An alert on the unauthenticated one is not
      * about this account, and upstream returns before reading them there.
      */
-    private val onPrimaryIdle: (Boolean) -> Unit = {}
+    private val onPrimaryIdle: (Boolean) -> Unit = {},
+    /**
+     * Called with whether this phone's own socket is reaching for the server.
+     *
+     * ⚠ The authenticated socket only, like [onPrimaryIdle]. The unauthenticated one comes
+     * and goes with sealed-sender sends; its state says nothing about whether this phone can
+     * receive, and reporting it would make the composer flicker on every send.
+     */
+    private val onConnecting: (Boolean) -> Unit = {}
 ) {
 
     /**
@@ -82,7 +90,7 @@ internal class SignalConnection(
 
     val authenticated: SignalWebSocket.AuthenticatedWebSocket by lazy {
         val timer = AlarmSleepTimer(context)
-        val monitor = SignalSocketHealthMonitor(timer, onRejected, onPrimaryIdle)
+        val monitor = SignalSocketHealthMonitor(timer, onRejected, onPrimaryIdle, onConnecting)
         SignalWebSocket.AuthenticatedWebSocket(
             { LibSignalChatConnection("normal", network, credentials, ALLOW_STORIES, monitor) },
             { true },

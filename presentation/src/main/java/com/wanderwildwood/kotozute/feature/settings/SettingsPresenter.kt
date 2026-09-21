@@ -521,9 +521,14 @@ class SettingsPresenter @Inject constructor(
                 null -> view.showSignalImportResult(stats.getOrNull())
                 is SignalRepository.WrongBackupKey -> view.showSignalBackupKeyWrong(folder)
                 is SignalRepository.BackupKeyNeeded -> view.askSignalBackupKey(folder)
+                // ⚠ These two were one answer, and the answer was "there is no Signal export
+                // in that folder" -- said whether the folder held no export or held one that
+                // could not be read. A person whose export is sitting right there is then
+                // told the only thing they know to be false, and has nothing left to try.
+                is SignalRepository.NotAnExport -> view.showSignalImportResult(null)
                 else -> {
                     Timber.w(failure, "signal import failed")
-                    view.showSignalImportResult(null)
+                    view.showSignalImportResult(null, failure)
                 }
             }
         }.apply { isDaemon = true }.start()

@@ -13,6 +13,8 @@ import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.databinding.SignalLinkActivityBinding
 import com.wanderwildwood.kotozute.repository.SignalRepository
+import com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService
+import com.wanderwildwood.kotozute.feature.desktopsync.SignalLinkOffer
 import dagger.android.AndroidInjection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,11 +64,49 @@ class SignalLinkActivity : QkThemedActivity() {
     }
 
     private fun show(url: String) {
-        // Never logged, and never put anywhere it could be read back. This string is a live
-        // offer to join the account -- whoever redeems it first becomes a device on it -- so
-        // it exists on screen and nowhere else.
+        // Never logged, and never written down. This string is a live offer to join the
+        // account -- whoever redeems it first becomes a device on it -- so it exists on this
+        // screen, and, while this screen is open, on the page this phone serves to its
+        // owner's own computer. Nowhere else, and not for a second longer. See
+        // [SignalLinkOffer] for why the computer has to be offered it at all.
         binding.qr.setImageBitmap(qrOf(url))
         binding.status.setText(R.string.signal_link_waiting)
+        SignalLinkOffer.offer(url)
+        showComputerRoute()
+    }
+
+    /**
+     * Where to read this code if the phone in your hand is the one already running Signal.
+     *
+     * Shown only when Desktop Sync is on and has an address to give, because the sentence is
+     * useless otherwise -- and a phone with no computer on its tailnet still has the QR and
+     * a second phone, which is the ordinary way in.
+     */
+    private fun showComputerRoute() {
+        if (!prefs.desktopSyncEnabled.get()) return
+        val token = prefs.desktopSyncToken.get()
+        if (token.isBlank()) return
+        val address = DesktopSyncService.reachableAddresses(this)
+            .filter {
+                !prefs.desktopSyncTailscaleOnly.get() ||
+                    it.first == DesktopSyncService.LABEL_TAILSCALE
+            }
+            .map { (_, host) ->
+                "http://$host:${DesktopSyncService.PORT}/signal-link?token=$token"
+            }
+            .firstOrNull() ?: return
+        binding.onComputer.text = getString(R.string.signal_link_on_computer, address)
+        binding.onComputer.visibility = android.view.View.VISIBLE
+    }
+
+    /**
+     * ⚠ The code stops being offered when this screen goes, not when it expires. The socket
+     * behind it dies with this activity's scope anyway, so a code left on the page after that
+     * would be a live-looking offer that cannot be redeemed -- and a secret kept past its use.
+     */
+    override fun onDestroy() {
+        SignalLinkOffer.offer(null)
+        super.onDestroy()
     }
 
     /**

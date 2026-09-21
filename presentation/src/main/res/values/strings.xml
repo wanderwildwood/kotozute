@@ -284,6 +284,10 @@
     <string name="settings_signature_title">Signature</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>
     <string name="settings_unicode_title">Strip accents from outgoing SMS</string>
+    <!-- Said on the compose screen the moment a draft re-encodes, because nothing else on
+         the phone says it and the sender is about to be cut off at 70 characters. Names the
+         setting that prevents it, in the words that setting uses. -->
+    <string name="compose_wide_characters">A character here is outside plain SMS text, so a message now holds 70 characters instead of 160. “Strip accents from outgoing SMS”, in settings, keeps it at 160.</string>
     <string name="settings_mobile_title">Mobile numbers only when composing</string>
     <string name="settings_auto_delete">Delete old messages automatically</string>
     <string name="settings_auto_delete_dialog_message">Messages will be deleted after the specified number of days</string>
@@ -344,6 +348,10 @@
     <string name="signal_link_expired">The code expired. Close this and try again.</string>
     <string name="signal_link_success">Linked. Your Signal conversations will start arriving.</string>
     <string name="signal_link_failed">Could not link: %s</string>
+    <!-- The answer to "Signal is already on this phone, so I cannot scan my own screen".
+         The code goes on the page this phone serves to the reader's own computer, and the
+         phone's own Signal reads it off the monitor. See SignalLinkOffer. -->
+    <string name="signal_link_on_computer">Already running Signal on this phone? It cannot scan its own screen. Open\n\n%s\n\non your computer, then point this phone\u2019s Signal at the monitor.</string>
     <string name="settings_signal_keep_title">Keep Signal connected</string>
     <string name="settings_signal_keep_summary">Messages arrive as they are sent, at the cost of a permanent notification. Off, Signal catches up every so often and when you open the app.</string>
     <string name="signal_stream_channel">Signal connection</string>
@@ -474,6 +482,9 @@
     <string name="settings_signal_history_working">Reading the export — %d message(s) so far</string>
     <string name="settings_signal_history_writing">Writing a copy — %d message(s) so far</string>
     <string name="settings_signal_history_not_an_export">There is no Signal export in that folder. The folder to choose is the one holding main.jsonl.</string>
+    <!-- Not the same as the folder being wrong. Said with the reason, because the folder is
+         the one thing the reader would otherwise go and change. -->
+    <string name="settings_signal_history_unreadable">That export could not be read, and nothing was brought in.\n\n%s</string>
     <string name="settings_signal_history_not_written">The copy could not be written. Choose a folder this phone can write to.</string>
     <string name="settings_signal_history_key_asked">A copy is locked with a key that comes from your Signal, and this phone does not have it yet. It has just been asked for it. Try again in a moment.</string>
     <string name="settings_signal_history_key_unanswered">A copy is locked with a key that comes from your Signal, and this phone does not have it yet. The request could not be sent. Check this phone is connected to Signal, then try again.</string>
@@ -536,6 +547,10 @@
     <string name="signal_composer_hint">Message</string>
     <string name="signal_send">Send</string>
     <string name="signal_cannot_send_signal">Not connected to Signal — you can read, but not send</string>
+    <!-- Shown instead of the line above while the socket is actually reaching for the
+         server. Every launch begins disconnected; saying only that sending cannot happen
+         made a phone that was about to work look like a phone that was broken. -->
+    <string name="signal_connecting_signal">Connecting to Signal — you can read; sending works in a moment</string>
     <string name="signal_send_failed">Not sent: %s</string>
     <!--
       Shown when the send itself worked and only the local record failed. Blunt about not

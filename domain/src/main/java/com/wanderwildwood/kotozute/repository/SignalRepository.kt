@@ -38,6 +38,14 @@ interface SignalRepository {
         val enabled: Boolean,
         /** This phone's own connection to Signal is up. */
         val signalConnected: Boolean,
+        /**
+         * The socket is reaching for the server right now.
+         *
+         * Only meaningful while [signalConnected] is false, and it is the difference between
+         * "not yet" and "not at all". Every launch starts disconnected; a screen that cannot
+         * tell the two apart tells everyone their phone is broken once per launch.
+         */
+        val connecting: Boolean = false,
         val lastSyncedAt: Long,
         val error: String? = null,
         /**

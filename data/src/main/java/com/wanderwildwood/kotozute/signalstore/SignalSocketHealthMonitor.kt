@@ -54,6 +54,16 @@ internal class SignalSocketHealthMonitor(
      */
     private val onPrimaryIdle: (Boolean) -> Unit = {},
     /**
+     * Called with whether the socket is currently reaching for the server.
+     *
+     * ⚠ "Not connected" and "not connected *yet*" are the same fact to everything below this
+     * line and completely different facts to the person holding the phone. A phone that has
+     * just woken is always disconnected for a moment, and a composer that says sending
+     * cannot happen -- without saying it is about to be able to -- reads as broken on every
+     * single launch. Somebody reported exactly that.
+     */
+    private val onConnecting: (Boolean) -> Unit = {},
+    /**
      * Whether this socket should send keepalives at all.
      *
      * ⚠ Only one of the two sockets should. Both were given a keepalive sender, so the phone
@@ -142,6 +152,7 @@ internal class SignalSocketHealthMonitor(
                 // transition out: thirty seconds, sixty if the last attempt already failed
                 // here, and then `forceNewWebSocket()`.
                 WebSocketConnectionState.CONNECTING -> {
+                    onConnecting(true)
                     connectingTimeout?.cancel(false)
                     val wait = if (failedInConnecting) CONNECTING_TIMEOUT_AGAIN else CONNECTING_TIMEOUT
                     connectingTimeout = executor.schedule({
@@ -158,6 +169,7 @@ internal class SignalSocketHealthMonitor(
                 }
 
                 WebSocketConnectionState.CONNECTED -> {
+                    onConnecting(false)
                     connectingTimeout?.cancel(false)
                     connectingTimeout = null
                     failedInConnecting = false
@@ -172,7 +184,9 @@ internal class SignalSocketHealthMonitor(
                     onRejected("Signal will not accept this version any more. The app needs updating.")
                 else -> {
                     // Any other transition is a transition *out* of connecting, so the
-                    // watchdog has done its job or is no longer about anything.
+                    // watchdog has done its job or is no longer about anything -- and
+                    // nothing is being reached for any more, whatever the reason.
+                    onConnecting(false)
                     connectingTimeout?.cancel(false)
                     connectingTimeout = null
                 }

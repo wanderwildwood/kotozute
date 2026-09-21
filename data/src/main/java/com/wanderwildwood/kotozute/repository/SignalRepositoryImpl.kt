@@ -142,6 +142,9 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private val streamConnected = AtomicBoolean(false)
 
+    /** Whether the socket is reaching for the server. See [noteConnecting]. */
+    private val reaching = AtomicBoolean(false)
+
     init {
         publishState(signalConnected = false, error = null)
         signalStore.onRejected = ::onServerRefusedThisDevice
@@ -150,6 +153,7 @@ class SignalRepositoryImpl @Inject constructor(
         signalStore.readReceiptsEnabled = { prefs.signalReadReceipts.get() }
         signalStore.onPniRotationOwed = { owed -> prefs.signalPniRotationOwed.set(owed) }
         signalStore.onPrimaryIdle = ::notePrimaryIdle
+        signalStore.onConnecting = ::noteConnecting
         signalStore.onConversationState = ::applyConversationState
     }
 
@@ -222,6 +226,21 @@ class SignalRepositoryImpl @Inject constructor(
      * Kept where a screen can read it rather than acted on here: what to do about an idle
      * primary is to go and open Signal on it, which is not something this app can do.
      */
+    /**
+     * The socket has started, or stopped, reaching for the server.
+     *
+     * Republished rather than only recorded: the composer is disabled off this state, and a
+     * flag that changes without a publish is a screen that keeps saying what stopped being
+     * true. Guarded on change because a socket announces CONNECTING on every retry.
+     */
+    private fun noteConnecting(connecting: Boolean) {
+        if (reaching.getAndSet(connecting) == connecting) return
+        publishState(
+            signalConnected = state.value?.signalConnected ?: false,
+            error = state.value?.error
+        )
+    }
+
     private fun notePrimaryIdle(idle: Boolean) {
         if (prefs.signalPrimaryIdle.get() == idle) return
         prefs.signalPrimaryIdle.set(idle)
@@ -2642,7 +2661,21 @@ class SignalRepositoryImpl @Inject constructor(
                     ?.title
                     ?.takeIf { it.isNotBlank() }
 
-                out[uuid] = fromContacts ?: fromThread ?: number.ifBlank { uuid.take(SignalDirectory.SHORT_SERVICE_ID) }
+                // Then Signal's own name for them. Without this step a group member who is
+                // not in the address book and has never been messaged one to one fell
+                // straight through to a phone number, which is what somebody in a group
+                // reported seeing beside one person's messages while everybody else in the
+                // same group read correctly: the difference was only that the others had
+                // direct threads. Signal knows that name -- it arrives with the profile --
+                // and it was simply never asked.
+                val fromSignal = runCatching { signalStore.contactName(uuid) }
+                    .getOrNull()
+                    ?.takeIf { it.isNotBlank() }
+
+                out[uuid] = fromContacts
+                    ?: fromThread
+                    ?: fromSignal
+                    ?: number.ifBlank { uuid.take(SignalDirectory.SHORT_SERVICE_ID) }
             }
         }
         return out
@@ -3696,6 +3729,9 @@ class SignalRepositoryImpl @Inject constructor(
                     runCatching { signalStore.undecryptableReasons() }.getOrDefault(emptyList()),
                 enabled = prefs.signalEnabled.get(),
                 signalConnected = signalConnected,
+                // Never both: a socket that has arrived is not still on its way, and saying
+                // so would leave the connecting line on screen for the whole session.
+                connecting = reaching.get() && !signalConnected,
                 lastSyncedAt = prefs.signalLastSync.get(),
                 error = error,
                 rejected = prefs.signalRejected.get().takeIf { it.isNotBlank() },

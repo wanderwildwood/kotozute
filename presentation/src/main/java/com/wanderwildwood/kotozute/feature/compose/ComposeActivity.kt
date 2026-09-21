@@ -507,6 +507,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         binding.counter.text = state.remaining
         binding.counter.setVisible(binding.counter.text.isNotBlank())
 
+        // The number alone cannot say why it appeared early, and "70" means nothing to
+        // somebody who has always had 160.
+        binding.encodingNotice.setVisible(state.wideCharacters)
+
         binding.sim.setVisible(state.subscription != null)
         binding.sim.contentDescription = getString(R.string.compose_sim_cd, state.subscription?.displayName)
         binding.simIndex.text = state.subscription?.simSlotIndex?.plus(1)?.toString()

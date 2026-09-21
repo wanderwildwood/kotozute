@@ -375,6 +375,7 @@ class DesktopSyncServer(
                 handleSend(session, threadSendMatch.groupValues[1].toLong())
             uri == "/api/compose" && session.method == Method.POST -> handleCompose(session)
             uri == "/desktop-entry" && session.method == Method.GET -> serveDesktopEntry()
+            uri == "/signal-link" && session.method == Method.GET -> serveSignalLink()
             uri == "/api/contacts" && session.method == Method.GET -> handleContacts(session)
             uri == "/api/sims" && session.method == Method.GET -> handleSims()
             uri == "/api/thread-for" && session.method == Method.GET -> handleThreadFor(session)
@@ -589,6 +590,75 @@ class DesktopSyncServer(
         return newFixedLengthResponse(Response.Status.OK, "application/x-desktop", entry).apply {
             addHeader("Content-Disposition", "attachment; filename=\"messaging.desktop\"")
         }
+    }
+
+    /**
+     * The Signal link code, as something a phone's camera can read off a monitor.
+     *
+     * The one route on this server that exists for the phone rather than for the computer:
+     * see [SignalLinkOffer] for why a phone that already runs Signal cannot otherwise be
+     * linked at all. The page is deliberately nothing but the code -- a monitor showing a
+     * code to a camera wants contrast and size, not a layout.
+     *
+     * Behind the token like everything else below the gate. It answers with the same page
+     * whether or not a code is live, because an unauthenticated scanner never reaches here
+     * and an authenticated reader is owed a plain answer either way.
+     */
+    private fun serveSignalLink(): Response {
+        val code = SignalLinkOffer.current
+        val body = if (code == null) {
+            "<p class=\"none\">Nothing is waiting to be linked. Open Link this phone, " +
+                "in Settings under Signal, and this page will show its code.</p>"
+        } else {
+            "<img alt=\"\" src=\"data:image/png;base64," + qrPngBase64(code) + "\">" +
+                "<p>Point this phone's Signal at the screen: Settings \u2192 Linked devices " +
+                "\u2192 Link new device.</p>"
+        }
+        // No refresh, no script, no styling beyond what a camera needs. The code lives about
+        // ninety seconds, and a page that reloaded itself would go blank in front of someone
+        // holding a phone up to it.
+        val html = "<!doctype html><html><head><meta charset=\"utf-8\">" +
+            "<title>Link this phone to Signal</title><style>" +
+            "body{background:#fff;color:#000;font:16px/1.4 sans-serif;text-align:center;margin:2rem}" +
+            "img{width:min(80vw,80vh);height:auto;image-rendering:pixelated}" +
+            ".none{max-width:32rem;margin:4rem auto}" +
+            "</style></head><body>" + body + "</body></html>"
+        return newFixedLengthResponse(Response.Status.OK, "text/html", html)
+    }
+
+    /**
+     * A QR of [text] as base64 PNG.
+     *
+     * Error correction L and a one-module quiet zone, as on the phone's own screen: the
+     * modules stay as large as they can, which is what a camera reading a backlit monitor
+     * from arm's length needs more than redundancy.
+     */
+    private fun qrPngBase64(text: String): String {
+        val size = 512
+        val matrix = com.google.zxing.qrcode.QRCodeWriter().encode(
+            text,
+            com.google.zxing.BarcodeFormat.QR_CODE,
+            size,
+            size,
+            mapOf(
+                com.google.zxing.EncodeHintType.ERROR_CORRECTION to
+                    com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.L,
+                com.google.zxing.EncodeHintType.MARGIN to 1
+            )
+        )
+        val pixels = IntArray(size * size)
+        for (y in 0 until size) {
+            for (x in 0 until size) {
+                pixels[y * size + x] = if (matrix.get(x, y)) android.graphics.Color.BLACK
+                    else android.graphics.Color.WHITE
+            }
+        }
+        val bitmap = android.graphics.Bitmap.createBitmap(
+            pixels, size, size, android.graphics.Bitmap.Config.RGB_565
+        )
+        val out = java.io.ByteArrayOutputStream()
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+        return android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
     }
 
     private fun serveAsset(name: String, mimeType: String): Response {

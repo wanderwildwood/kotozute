@@ -66,7 +66,10 @@ interface SettingsView : QkViewContract<SettingsState> {
 
     /** How far an import has got, on the row itself: it is the only thing that is happening. */
     fun showSignalImportProgress(messages: Int)
-    fun showSignalImportResult(stats: com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?)
+    fun showSignalImportResult(
+        stats: com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?,
+        failure: Throwable? = null
+    )
 
     /** What asking Signal for the contact list came to. */
     fun showSignalFetchResult(what: String)

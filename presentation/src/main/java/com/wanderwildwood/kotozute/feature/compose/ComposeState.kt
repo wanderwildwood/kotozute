@@ -45,6 +45,15 @@ data class ComposeState(
     val attaching: Boolean = false,
     val scheduling: Boolean = false,
     val remaining: String = "",
+    /**
+     * Whether this draft has dropped the message to sixteen-bit characters.
+     *
+     * One character outside the plain SMS alphabet -- a curly apostrophe a keyboard put in
+     * by itself, an accent, a dash, an emoji -- re-encodes the whole message, and a part
+     * stops holding 160 characters and starts holding 70. Nothing on screen said so, and
+     * the length it was cut at was less than half what the sender expected.
+     */
+    val wideCharacters: Boolean = false,
     val subscription: SubscriptionInfoCompat? = null,
     val canSend: Boolean = false,
     val muted: Boolean = false,

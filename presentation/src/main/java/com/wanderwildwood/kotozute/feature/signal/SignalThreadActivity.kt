@@ -147,8 +147,13 @@ class SignalThreadActivity : QkThemedActivity() {
         // fail. Sending has no offline queue: a message the user thinks they sent and
         // which never arrives is worse than being told plainly that it cannot go now.
         disposables.add(signalRepo.connectionState().subscribe { conn ->
-            val blocked = if (conn.signalConnected) null
-                else getString(R.string.signal_cannot_send_signal)
+            // Three states, not two: connected, on its way, and not going to happen. The
+            // middle one used to read as the last one, on every launch.
+            val blocked = when {
+                conn.signalConnected -> null
+                conn.connecting -> getString(R.string.signal_connecting_signal)
+                else -> getString(R.string.signal_cannot_send_signal)
+            }
             runOnUiThread {
                 binding.cannotSend.text = blocked.orEmpty()
                 binding.cannotSend.setVisible(blocked != null)

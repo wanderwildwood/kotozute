@@ -104,6 +104,16 @@ class SignalStore(private val context: Context) {
     var onPrimaryIdle: (Boolean) -> Unit = {}
 
     /**
+     * Told whether this phone is currently reaching for Signal.
+     *
+     * Set like [onRejected]. It exists so a screen can tell "not yet" from "not at all":
+     * every launch begins disconnected, and saying only that sending cannot happen makes a
+     * working phone look broken for the second before it connects.
+     */
+    @Volatile
+    var onConnecting: (Boolean) -> Unit = {}
+
+    /**
      * The connection to Signal, and the APIs on it. Built from the network configuration
      * passed in rather than reached for, because that configuration still lives a module up;
      * see the note on [linker].
@@ -122,7 +132,8 @@ class SignalStore(private val context: Context) {
             account,
             SignalNetworkConfig.USER_AGENT,
             onRejected = { onRejected(it) },
-            onPrimaryIdle = { onPrimaryIdle(it) }
+            onPrimaryIdle = { onPrimaryIdle(it) },
+            onConnecting = { onConnecting(it) }
         )
     }
 

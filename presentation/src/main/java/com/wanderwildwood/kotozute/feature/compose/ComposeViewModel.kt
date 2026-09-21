@@ -1053,16 +1053,30 @@ class ComposeViewModel @Inject constructor(
                 .map { array ->
                     val messages = array[0]
                     val remaining = array[2]
+                    // ⚠ The limit is not a constant. calculateLength reports which encoding
+                    // the draft has forced, and a message that has gone to sixteen bits holds
+                    // 70 characters to a part rather than 160 -- so the same sentence that fit
+                    // in one message yesterday is three today because a keyboard turned an
+                    // apostrophe into a curly one. This is what people mean when a message to
+                    // another country arrives in pieces or not at all.
+                    val wide = array[3] == SmsMessage.ENCODING_16BIT
 
-                    when {
+                    val counter = when {
+                        // Ten characters out is fine warning when a part is 160. It is no
+                        // warning at all when a part is 70 and nothing said the part got
+                        // smaller, so on a re-encoded draft the count speaks from the start.
+                        wide && messages <= 1 -> "$remaining"
                         messages <= 1 && remaining > 10 -> ""
                         messages <= 1 && remaining <= 10 -> "$remaining"
                         else -> "$remaining / $messages"
                     }
+                    counter to wide
                 }
                 .distinctUntilChanged()
                 .autoDisposable(view.scope())
-                .subscribe { remaining -> newState { copy(remaining = remaining) } }
+                .subscribe { (remaining, wide) ->
+                    newState { copy(remaining = remaining, wideCharacters = wide) }
+                }
 
         // Cancel the scheduled time
         view.scheduleCancelIntent

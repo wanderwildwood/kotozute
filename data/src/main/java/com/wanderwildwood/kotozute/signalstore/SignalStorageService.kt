@@ -428,6 +428,10 @@ internal class SignalStorageService(
                     pni = pni,
                     e164 = e164,
                     name = nameOf(record),
+                    // Their own profile's name as the account holds it, apart from what they
+                    // are shown as. Signal writes it from the record too, so a fetch that
+                    // follows does not announce a change the account already knew about.
+                    profileName = ProfileNames.joined(record.givenName, record.familyName),
                     profileKey = record.profileKey?.takeIf { it.size > 0 }?.toByteArray(),
                     // Not a name -- Signal shows it only once there is no name and no number
                     // -- but the last thing between this person and a row of hexadecimal.

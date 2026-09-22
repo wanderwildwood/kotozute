@@ -131,11 +131,24 @@ internal class SignalProfiles(
                 // reader is exactly how somebody gets mistaken for somebody else, and Signal
                 // treats it as worth a permanent row in the conversation
                 // (`RetrieveProfileJob` -> `insertProfileNameChangeMessages`).
-                val held = runCatching { contacts.nameFor(aci) }.getOrNull()
+                //
+                // ⚠ Measured against the last *profile* name, never the name they are shown
+                // by. For anybody in the address book those differ for good, and comparing
+                // the two announced "X is now called Y" once a day for every saved contact.
+                // Signal compares `recipient.profileName` for the same reason.
+                val held = runCatching { contacts.profileNameFor(aci) }.getOrNull()
+                val shown = runCatching { contacts.nameFor(aci) }.getOrNull()
                 if (noteworthyNameChange(held, it)) {
+                    // Old profile name to new, as Signal words it: "Mum is now called Anna B"
+                    // would read as if Mum had been the name they chose.
                     changed += Triple(aci, held.orEmpty(), it)
                 }
-                learned += SignalContactStore.Contact(serviceId = aci, e164 = null, name = it)
+                learned += SignalContactStore.Contact(
+                    serviceId = aci,
+                    e164 = null,
+                    name = it.takeIf { _ -> profileNameIsShown(shown, held) },
+                    profileName = it
+                )
             }
         }
 
@@ -346,6 +359,22 @@ internal class SignalProfiles(
          */
         internal fun noteworthyNameChange(held: String?, arriving: String): Boolean =
             !held.isNullOrBlank() && arriving.isNotBlank() && held != arriving
+
+        /**
+         * Whether the name they are shown by is their profile's, so a new profile name
+         * should replace it.
+         *
+         * Only when nothing else names them, or what names them is the old profile name.
+         * A nickname or an address-book name outranks the profile in Signal's own order (see
+         * `SignalStorageService.nameOf`), and a fetch writing over it is what made the
+         * reader's contact show up under a name they had not given them.
+         *
+         * ⚠ With no profile name held yet -- every row, the first time after v36 -- a name
+         * already shown is left alone: nothing says where it came from, and the safe guess
+         * is that the reader chose it.
+         */
+        internal fun profileNameIsShown(shown: String?, heldProfile: String?): Boolean =
+            shown.isNullOrBlank() || shown == heldProfile
 
         /**
          * How long a profile is believed before it is worth asking again.

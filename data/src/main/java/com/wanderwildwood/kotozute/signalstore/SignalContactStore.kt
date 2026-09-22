@@ -48,6 +48,11 @@ internal class SignalContactStore(
         val serviceId: String,
         val e164: String? = null,
         val name: String? = null,
+        /**
+         * The name on their own profile, where the source knew it. Not what they are shown as
+         * -- that is [name] -- but what a change in their profile is measured against. See v36.
+         */
+        val profileName: String? = null,
         val profileKey: ByteArray? = null,
         val pni: String? = null,
         /** The @name they chose, where the source knew one. */
@@ -141,7 +146,7 @@ internal class SignalContactStore(
                 val aci = if (isPni(c.serviceId)) null else c.serviceId
                 val pni = c.pni ?: c.serviceId.takeIf { isPni(it) }
                 upsert(
-                    database, aci, pni, c.e164, c.name, c.profileKey, c.username,
+                    database, aci, pni, c.e164, c.name, c.profileName, c.profileKey, c.username,
                     c.hidden, c.unregisteredAt, numberChanges, c.storageRecord, c.remoteStorageId
                 )
             }
@@ -172,6 +177,7 @@ internal class SignalContactStore(
         pni: String?,
         e164: String?,
         name: String?,
+        profileName: String?,
         profileKey: ByteArray?,
         username: String?,
         /** Null where the source does not carry it; see [Contact.hidden]. */
@@ -237,11 +243,12 @@ internal class SignalContactStore(
         if (existing == null) {
             database.execSQL(
                 "INSERT INTO recipient " +
-                    "(aci, pni, e164, name, profile_key, username, hidden, unregistered_at, " +
-                    "storage_record, remote_storage_id, updated_timestamp) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "(aci, pni, e164, name, profile_name, profile_key, username, hidden, " +
+                    "unregistered_at, storage_record, remote_storage_id, updated_timestamp) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 arrayOf<Any?>(
-                    aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(),
+                    aci, pni, e164.orNull(), name.orNull(), profileName.orNull(), profileKey,
+                    username.orNull(),
                     // Nothing said means the column's default, not null: these are NOT NULL.
                     if (hidden == true) 1 else 0, unregisteredAt ?: 0L,
                     storageRecord, remoteStorageId,
@@ -295,6 +302,7 @@ internal class SignalContactStore(
               pni = COALESCE(pni, ?),
               e164 = COALESCE(?, e164),
               name = COALESCE(?, name),
+              profile_name = COALESCE(?, profile_name),
               profile_key = COALESCE(?, profile_key),
               username = COALESCE(?, username),
               -- Fill-only, like the rest: null means "this source does not carry it". A
@@ -327,7 +335,8 @@ internal class SignalContactStore(
             WHERE _id = ?
             """.trimIndent(),
             arrayOf<Any?>(
-                aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(),
+                aci, pni, e164.orNull(), name.orNull(), profileName.orNull(), profileKey,
+                username.orNull(),
                 hidden?.let { if (it) 1 else 0 }, unregisteredAt,
                 // Positionally after unregistered_at, matching the SET clause above.
                 storageRecord, remoteStorageId,
@@ -566,6 +575,15 @@ internal class SignalContactStore(
     /** The name for one service id, or null when nobody has told us. */
     fun nameFor(aci: String): String? =
         byServiceId(aci, "name") { it.getString(0)?.takeIf { s -> s.isNotBlank() } }
+
+    /**
+     * The name on their own profile, or null when no profile has told us one yet.
+     *
+     * ⚠ Not [nameFor]. That is what the reader calls them, which for a saved contact is the
+     * address book's name -- measuring a profile against it announced a rename every day.
+     */
+    fun profileNameFor(aci: String): String? =
+        byServiceId(aci, "profile_name") { it.getString(0)?.takeIf { s -> s.isNotBlank() } }
 
     /** The number for one service id, or null when nothing has ever carried it. */
     fun numberFor(aci: String): String? =
@@ -862,10 +880,11 @@ internal class SignalContactStore(
               pni = COALESCE(pni, (SELECT pni FROM recipient WHERE _id = ?)),
               e164 = COALESCE(e164, (SELECT e164 FROM recipient WHERE _id = ?)),
               name = COALESCE(name, (SELECT name FROM recipient WHERE _id = ?)),
+              profile_name = COALESCE(profile_name, (SELECT profile_name FROM recipient WHERE _id = ?)),
               profile_key = COALESCE(profile_key, (SELECT profile_key FROM recipient WHERE _id = ?))
             WHERE _id = ?
             """.trimIndent(),
-            arrayOf<Any?>(absorb, absorb, absorb, absorb, absorb, keep)
+            arrayOf<Any?>(absorb, absorb, absorb, absorb, absorb, absorb, keep)
         )
         remapDependents(database, keep = keep, absorb = absorb)
         database.execSQL("DELETE FROM recipient WHERE _id = ?", arrayOf<Any?>(absorb))

@@ -43,6 +43,40 @@ class ProfileNameChangeTest {
         // says exactly what it said last time.
         assertFalse(SignalProfiles.noteworthyNameChange("Lydia", "Lydia"))
     }
+
+    @Test
+    fun `a saved contact is not renamed every day`() {
+        // The reported bug. Saved as "Mum", profile "Anna". What she is shown as was being
+        // compared with what her profile says, so each daily fetch said "Mum is now called
+        // Anna", stored Anna, and the next sync put Mum back. The fetch compares profile with
+        // profile now, and her profile has not changed.
+        val held = "Anna"
+        val shown = "Mum"
+        assertFalse(SignalProfiles.noteworthyNameChange(held, "Anna"))
+        // ...and the name the reader gave her stays.
+        assertFalse(SignalProfiles.profileNameIsShown(shown, held))
+    }
+
+    @Test
+    fun `a saved contact who really changes their profile name is still told`() {
+        assertTrue(SignalProfiles.noteworthyNameChange("Anna", "Anna B"))
+        assertFalse(SignalProfiles.profileNameIsShown("Mum", "Anna"))
+    }
+
+    @Test
+    fun `somebody known only by their profile follows it`() {
+        assertTrue(SignalProfiles.profileNameIsShown("Anna", "Anna"))
+        assertTrue(SignalProfiles.profileNameIsShown(null, null))
+        assertTrue(SignalProfiles.profileNameIsShown("", "Anna"))
+    }
+
+    @Test
+    fun `the first fetch after upgrading leaves a shown name alone`() {
+        // No profile name is held for anybody until the first fetch after v36. The name
+        // shown may be the reader's own, and nothing says otherwise, so it is kept.
+        assertFalse(SignalProfiles.profileNameIsShown("Mum", null))
+        assertFalse(SignalProfiles.noteworthyNameChange(null, "Anna"))
+    }
 }
 
 /**

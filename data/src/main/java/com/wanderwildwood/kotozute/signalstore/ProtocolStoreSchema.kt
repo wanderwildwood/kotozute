@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 35
+    const val VERSION = 36
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -472,6 +472,9 @@ internal object ProtocolStoreSchema {
           pni TEXT UNIQUE,
           e164 TEXT,
           name TEXT,
+          -- The name they gave their own profile, and only that. `name` is what to *call*
+          -- them, and for anybody in the address book that is the address book's. See v36.
+          profile_name TEXT,
           profile_key BLOB,
           -- Whether this person accepts sealed sender, and on what terms. Signal's
           -- SealedSenderAccessMode: 0 unknown, 1 disabled, 2 enabled, 3 unrestricted. Learned
@@ -917,6 +920,24 @@ internal object ProtocolStoreSchema {
          */
         35 to listOf(
             "ALTER TABLE recipient ADD COLUMN remote_storage_id TEXT;"
+        ),
+
+        /**
+         * The profile name on its own, apart from the name the reader knows them by.
+         *
+         * ⚠ **Without it, anybody in the address book was announced as renamed every day.**
+         * `name` holds whichever of nickname, address book and profile wins, so for a saved
+         * contact it holds the address-book name. The daily profile fetch compared its answer
+         * against *that*, found them different, wrote "X is now called Y" and stored Y; the
+         * next contact or storage sync put X back; the next day it happened again. Signal
+         * compares against `recipient.profileName` (`RetrieveProfileJob`), a column of its
+         * own, and so does this now.
+         *
+         * Starts empty. The first fetch after this fills it without a note, the same as any
+         * first name learned -- so upgrading does not write one into every conversation.
+         */
+        36 to listOf(
+            "ALTER TABLE recipient ADD COLUMN profile_name TEXT;"
         ),
 
         /**

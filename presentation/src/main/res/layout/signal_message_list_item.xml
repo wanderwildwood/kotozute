@@ -34,15 +34,35 @@
         android:layout_marginBottom="2dp"
         android:visibility="gone" />
 
+    <!--
+        Signal's own media bubble sizes: 240x320dp at most, 150x100dp at least
+        (`media_bubble_max_width`, `media_bubble_max_height`, `media_bubble_min_width_solo`,
+        `media_bubble_min_height`). Used rather than invented, because "how big is a picture
+        in a conversation" is a question every messaging app has already answered the same way.
+
+        ⚠ The **minimum** is the part that matters here. With only a height cap and
+        wrap_content, a portrait photo was capped by its long edge and came out about half
+        the panel wide — which is what the forum meant by "only very small". A minimum width
+        stops the tall ones shrinking to a sliver.
+
+        ⚠ 320dp is roughly 420px on this 210dpi panel, so it stays inside
+        [SignalAttachment.THUMBNAIL_EDGE] (480px) and the bitmap is never upscaled. Raising
+        the cap past that would need the decode bound raised with it.
+
+        Tapping still opens the full picture; this is only what it looks like in the thread.
+    -->
     <ImageView
         android:id="@+id/image"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="2dp"
         android:adjustViewBounds="true"
-        android:maxHeight="260dp"
         android:contentDescription="@string/signal_attachment_image"
-        android:visibility="gone" />
+        android:visibility="gone"
+        android:minWidth="150dp"
+        android:minHeight="100dp"
+        android:maxWidth="240dp"
+        android:maxHeight="320dp" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/attachment"

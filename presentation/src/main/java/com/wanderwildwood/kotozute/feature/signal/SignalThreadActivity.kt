@@ -1642,10 +1642,13 @@ class SignalThreadActivity : QkThemedActivity() {
                 // Bounded to the width it is drawn at. See [SignalAttachment.decodeBounded]:
                 // decoding a phone photo unsampled costs tens of megabytes for a thumbnail a
                 // few hundred pixels wide, and the cache below would hold several at once.
-                val bmp = bytes?.let {
-                    SignalAttachment.decodeBounded(it, b.image.width.takeIf { w -> w > 0 }
-                        ?: SignalAttachment.THUMBNAIL_EDGE)
-                }
+                // ⚠ **Bounded by the panel, not by the measured view.** `sampleSizeFor`
+                // caps *both* sides, so binding this to the view's width under-decodes a
+                // portrait: the view is at most 240dp wide but can be 320dp tall, and the
+                // bitmap would come back short of that and be upscaled. THUMBNAIL_EDGE is
+                // 480px, above the ~420px that 320dp comes to on this panel, so it covers
+                // either orientation. Raising the layout's cap past that means raising this.
+                val bmp = bytes?.let { SignalAttachment.decodeBounded(it) }
                 if (bmp != null) imageCache.put(id, bmp)
                 runOnUiThread {
                     inFlight.remove(id)

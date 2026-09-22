@@ -1132,19 +1132,6 @@ class DesktopSyncServer(
     }
 
     /**
-     * One Signal attachment, by the id it is filed under.
-     *
-     * Fetched through the repository rather than off disk: the repository is what holds the
-     * pinned-TLS client that can fetch one that has not been kept yet.
-     *
-     * Whole in memory, which is the phone's own approach in its thread screen, and it is a
-     * real cost here rather than a nominal one -- the first video this was tried against was
-     * 27 MB. Acceptable because the alternative is a disk cache with its own eviction and
-     * lifetime, and this is a request the user made by opening the thread. Ranges are
-     * answered from the array we already hold, which is what a video element needs before
-     * it will let anyone seek.
-     */
-    /**
      * Trusts a recipient's new safety number, so a blocked send can go.
      *
      * ⚠ The answer to the 409 from `handleSend`, and the reason that 409 carries a thread key
@@ -1220,6 +1207,19 @@ class DesktopSyncServer(
             )
     }
 
+    /**
+     * One Signal attachment, by the id it is filed under.
+     *
+     * Fetched through the repository rather than off disk: the repository is what holds the
+     * pinned-TLS client that can fetch one that has not been kept yet.
+     *
+     * Whole in memory, which is the phone's own approach in its thread screen, and it is a
+     * real cost here rather than a nominal one -- the first video this was tried against was
+     * 27 MB. Acceptable because the alternative is a disk cache with its own eviction and
+     * lifetime, and this is a request the user made by opening the thread. Ranges are
+     * answered from the array we already hold, which is what a video element needs before
+     * it will let anyone seek.
+     */
     private fun handleSignalAttachment(id: String, session: IHTTPSession): Response {
         if (!signalEnabled()) {
             return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))

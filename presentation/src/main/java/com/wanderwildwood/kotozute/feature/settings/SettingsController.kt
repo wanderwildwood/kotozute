@@ -854,7 +854,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         }
     }
 
-    /** Arm-and-confirm, for the same reason the reset row is: it destroys messages. */
     /**
      * Asks for the account's own profile name and sends it.
      *
@@ -914,6 +913,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 
+    /** Arm-and-confirm, for the same reason the reset row is: it destroys messages. */
     override fun askSignalUnpair() {
         if (unpairArmed) {
             disarmUnpair()

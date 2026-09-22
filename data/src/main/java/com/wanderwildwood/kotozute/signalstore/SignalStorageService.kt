@@ -13,6 +13,18 @@ import org.whispersystems.signalservice.internal.storage.protos.StorageRecord
 import timber.log.Timber
 
 /**
+ * One contact record as the account holds it: what it says, the bytes it came as, and the id
+ * it is filed under.
+ *
+ * A triple of unrelated things would read as one at every call site; this says which is which.
+ */
+internal data class RemoteContact(
+    val record: ContactRecord,
+    val raw: ByteArray,
+    val storageId: String
+)
+
+/**
  * Reading the account's contact list out of Signal's storage service.
  *
  * This exists because of one report from somebody other than the author: the new-message list
@@ -27,18 +39,6 @@ import timber.log.Timber
  * that record's id, and keep the contacts. Nothing is written back -- this device reads the
  * account's state and never edits it.
  */
-/**
- * One contact record as the account holds it: what it says, the bytes it came as, and the id
- * it is filed under.
- *
- * A triple of unrelated things would read as one at every call site; this says which is which.
- */
-internal data class RemoteContact(
-    val record: ContactRecord,
-    val raw: ByteArray,
-    val storageId: String
-)
-
 internal class SignalStorageService(
     private val connection: SignalConnection,
     private val keys: SignalKeyStore,

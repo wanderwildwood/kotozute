@@ -622,6 +622,15 @@ internal object ContentNormalizer {
     }
 
     /**
+     * Whether this attachment is something somebody said rather than a file they picked.
+     *
+     * Shared with [SignalReceiver], which builds the same record after downloading, so the
+     * two cannot come to different answers about the same message.
+     */
+    internal fun isVoiceNote(flags: Int?): Boolean =
+        ((flags ?: 0) and VOICE_MESSAGE_FLAG) != 0
+
+    /**
      * Attachment *metadata* only, and only as a floor.
      *
      * ⚠ Not the last word on an attachment. `SignalReceiver.withAttachments` runs after this
@@ -636,15 +645,6 @@ internal object ContentNormalizer {
      * A view-once attachment is not recorded at all. Signal's promise is that it can be opened
      * once, and writing its id into a column anything can read is not that.
      */
-    /**
-     * Whether this attachment is something somebody said rather than a file they picked.
-     *
-     * Shared with [SignalReceiver], which builds the same record after downloading, so the
-     * two cannot come to different answers about the same message.
-     */
-    internal fun isVoiceNote(flags: Int?): Boolean =
-        ((flags ?: 0) and VOICE_MESSAGE_FLAG) != 0
-
     private fun attachmentsJson(dataMessage: DataMessage, viewOnce: Boolean): String {
         if (viewOnce || dataMessage.attachments.isEmpty()) return ""
         val array = JSONArray()

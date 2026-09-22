@@ -92,20 +92,6 @@ internal class SignalContactStore(
     private fun isPni(serviceId: String) = serviceId.startsWith(PNI_PREFIX)
 
     /**
-     * Writes people down, joining halves rather than duplicating them.
-     *
-     * The rule that matters: **a value already known is never overwritten by a blank one.** A
-     * sync can carry somebody with no name -- known only as a number -- and letting that win
-     * means a later sync silently un-names people. That was true of the old table and is true
-     * of this one.
-     *
-     * Where a contact names both an account and a phone-number identity, the two are the same
-     * person by definition, so an existing row for either is filled in rather than joined by a
-     * second row. This is the narrow, safe part of what Signal's `processPnpTupleToChangeSet`
-     * does; the full set of cases -- a number moving between people, an account
-     * re-registering -- is still ahead.
-     */
-    /**
      * The account's own storage record for this row, or null if it has never been read.
      *
      * ⛔ **What a write must start from.** Step 3 decodes these bytes, sets the handful of
@@ -131,6 +117,20 @@ internal class SignalContactStore(
         ).use { c -> if (c.moveToFirst()) c.getBlob(0) else null }
     }
 
+    /**
+     * Writes people down, joining halves rather than duplicating them.
+     *
+     * The rule that matters: **a value already known is never overwritten by a blank one.** A
+     * sync can carry somebody with no name -- known only as a number -- and letting that win
+     * means a later sync silently un-names people. That was true of the old table and is true
+     * of this one.
+     *
+     * Where a contact names both an account and a phone-number identity, the two are the same
+     * person by definition, so an existing row for either is filled in rather than joined by a
+     * second row. This is the narrow, safe part of what Signal's `processPnpTupleToChangeSet`
+     * does; the full set of cases -- a number moving between people, an account
+     * re-registering -- is still ahead.
+     */
     fun store(contacts: List<Contact>) = withStoreLock(db) {
         val database = db.writableDatabase
         // ⚠ Collected here and told to anybody *after* the transaction closes. Telling the

@@ -103,8 +103,11 @@ class HousekeepingWorker(appContext: Context, workerParams: WorkerParameters)
         applicationContext.cacheDir.listFiles { entry ->
             entry.isFile &&
                     entry.name.startsWith(MediaRecorderManager.AUDIO_FILE_PREFIX) &&
-                    (entry.name.endsWith(MediaRecorderManager.AUDIO_FILE_SUFFIX) ||
-                            entry.name.endsWith(MediaRecorderManager.LEGACY_AUDIO_FILE_SUFFIX)) &&
+                    // ⚠ Every suffix the recorder has ever written, read from the recorder
+                    // itself rather than listed again here. This was two of them spelled out
+                    // by hand, which is the arrangement where adding a third format leaves
+                    // its recordings in the cache for ever and nothing says so.
+                    MediaRecorderManager.ALL_AUDIO_FILE_SUFFIXES.any { entry.name.endsWith(it) } &&
                     (entry.lastModified() < removeOlderThan)
         }?.forEach { it.delete() }  // delete recording file
 

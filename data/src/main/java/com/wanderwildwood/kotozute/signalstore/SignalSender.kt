@@ -1425,6 +1425,23 @@ internal class SignalSender(
             .withExpireTimerVersion(expireTimerVersion)
             .build()
 
+        // ⛔ **A note to self is not a message to a recipient, it is a sync transcript.**
+        //
+        // Sent the ordinary way it goes to the server addressed to this very device, and the
+        // server refuses it: `[403] Authorization failed`, which reads as broken credentials
+        // and is nothing of the kind. Signal never sends one that way --
+        // `SignalServiceMessageSender.sendSyncMessage(SignalServiceDataMessage)` wraps it as a
+        // self-send transcript, and short-circuits to success without touching the network
+        // when the account has no other devices to tell.
+        //
+        // ⚠ Unseen until now because it takes an account with exactly one device, which is
+        // what **registering** produces and what **linking** never can. A phone that had
+        // registered its own account could not write to itself at all.
+        //
+        // The local copy is filed by the caller either way, so nothing is lost when this
+        // sends nothing: with no other devices there is genuinely nobody to tell.
+        if (isSelf(recipient)) return sendToSelf(message, timestamp)
+
         return try {
             val owedProof = owesPniProof(recipient)
             val result: SendMessageResult = sender.sendDataMessage(
@@ -1472,6 +1489,44 @@ internal class SignalSender(
     }
 
     /**
+     * Whether [recipient] is this account itself.
+     *
+     * ⚠ **Both identities, not just the ACI.** An account has two -- the account id and the
+     * phone-number identity -- and which one a thread carries depends on how the person was
+     * found. Contact discovery resolves a number it cannot match to an account as a **PNI**
+     * (`found 1, 1 of them by phone-number identity`), so a Note to Self started from the
+     * address book addresses our own PNI, not our own ACI. Checking only the ACI missed it
+     * and the message went to the server as an ordinary send, which is the failure this whole
+     * guard exists to prevent.
+     */
+    private fun isSelf(recipient: ServiceId): Boolean = runCatching {
+        val credentials = accounts.credentials()
+        val aci = ServiceId.ACI.parseOrNull(credentials.aci)
+        val pni = ServiceId.PNI.parseOrNull(credentials.pni)
+        (aci != null && recipient == aci) || (pni != null && recipient == pni)
+    }.getOrDefault(false)
+
+    /**
+     * Files a note to self, as a sync transcript to whatever other devices exist.
+     *
+     * With no other devices the library sends nothing and reports success, which is the right
+     * outcome rather than a silent failure: the message is already stored here, and a
+     * transcript exists only to tell other devices what this one did.
+     */
+    private fun sendToSelf(message: SignalServiceDataMessage, timestamp: Long): Result = try {
+        val result = sender.sendSyncMessage(message)
+        if (result.isSuccess) {
+            Timber.i("signal send: note to self filed ts=%d", timestamp)
+            Result.Sent(timestamp)
+        } else {
+            failed(result)
+        }
+    } catch (t: Throwable) {
+        Timber.w(t, "signal send: note to self threw")
+        failed(t)
+    }
+
+    /**
      * Turns the app's `data:` URI into something the sender can upload.
      *
      * The composer hands attachments across as data URIs -- that is what the bridge accepted,
@@ -1514,6 +1569,12 @@ internal class SignalSender(
             .withLength(bytes.size.toLong())
             .withUploadTimestamp(System.currentTimeMillis())
             .withResumableUploadSpec(spec)
+            // ⚠ The flag is what makes a recording a voice note rather than a file. Without
+            // it the bytes arrive intact and every other Signal client offers to download
+            // them instead of to play them -- the attachment is not broken, it is just not
+            // presented as something somebody said. See [VoiceNotes] for why the marker
+            // rides inside the data URI rather than beside it.
+            .withVoiceNote(com.wanderwildwood.kotozute.signal.VoiceNotes.isMarked(dataUri))
             .build()
     }
 

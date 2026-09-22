@@ -30,6 +30,7 @@
     </androidx.appcompat.widget.Toolbar>
 
     <com.wanderwildwood.kotozute.common.widget.PagingScrollView
+        android:id="@+id/scroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
@@ -49,6 +50,20 @@
             android:layout_height="wrap_content"
             android:paddingBottom="16dp"
             android:text="@string/signal_register_warning" />
+
+        <!--
+            Debug builds only; hidden at runtime otherwise. Staging is a separate Signal with
+            its own accounts, which is what makes it possible to exercise this flow at all
+            without taking a real number over.
+        -->
+        <CheckBox
+            android:id="@+id/staging"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="16dp"
+            android:text="@string/signal_register_staging"
+            android:visibility="gone"
+            tools:visibility="visible" />
 
         <LinearLayout
             android:id="@+id/numberStep"
@@ -128,6 +143,56 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/signal_register_call_instead" />
+
+        </LinearLayout>
+
+        <!--
+            The last step, and only for a phone that registered its own account.
+
+            A registered account has no profile until this is sent, and a Signal account with
+            no profile name reaches everyone it writes to as a bare service id. A linked device
+            never sees this step: it inherits a profile the primary already wrote.
+        -->
+        <LinearLayout
+            android:id="@+id/nameStep"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="gone">
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="4dp"
+                android:text="@string/signal_register_name_hint" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkEditText
+                android:id="@+id/givenName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/signal_register_given_name"
+                android:inputType="textPersonName"
+                android:maxLines="1"
+                tools:text="Wander" />
+
+            <!-- Optional, and Signal treats it that way too: a given name alone is a name. -->
+            <com.wanderwildwood.kotozute.common.widget.QkEditText
+                android:id="@+id/familyName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="@string/signal_register_family_name"
+                android:inputType="textPersonName"
+                android:maxLines="1" />
+
+            <Button
+                android:id="@+id/saveName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/signal_register_save_name" />
 
         </LinearLayout>
 

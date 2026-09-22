@@ -33,7 +33,9 @@ internal class SignalAccountDataStore(
     private val preKeys: SignalPreKeyStore,
     private val signedPreKeys: SignalSignedPreKeyStore,
     private val kyberPreKeys: SignalKyberPreKeyStore,
-    private val senderKeys: SignalSenderKeyStore
+    private val senderKeys: SignalSenderKeyStore,
+    /** Whether the account has any device besides this one. See [SignalDataStore]. */
+    private val hasOtherDevices: () -> Boolean = { false }
 ) : SignalServiceAccountDataStore {
 
     // --- identities -----------------------------------------------------------------------
@@ -231,9 +233,14 @@ internal class SignalAccountDataStore(
     // --- account --------------------------------------------------------------------------
 
     /**
-     * A linked device is by definition not alone on the account, so this is always true here.
-     * The setter exists for the interface and has nothing to record.
+     * Whether the account has any device besides this one.
+     *
+     * ⛔ Was the literal `true`. See [SignalDataStore.isMultiDevice] for what that cost once a
+     * phone could register an account of its own and genuinely be alone on it.
+     *
+     * The setter exists for the interface and has nothing to record: the answer is derived,
+     * so there is no stored copy of it to get out of step.
      */
-    override fun isMultiDevice(): Boolean = true
+    override fun isMultiDevice(): Boolean = hasOtherDevices()
     override fun setMultiDevice(isMultiDevice: Boolean) = Unit
 }

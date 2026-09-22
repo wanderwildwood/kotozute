@@ -280,6 +280,10 @@ internal class SignalHistoryImporter(
                                 .put("type", pointer.optString("contentType"))
                                 .put("filename", pointer.optString("fileName"))
                                 .put("size", size)
+                                // ⚠ On the **entry**, beside `pointer`, not inside it --
+                                // `Backup.proto:803-804` has `FilePointer pointer = 1` and
+                                // `Flag flag = 2` as siblings.
+                                .put("voice", isVoiceMessageFlag(entry.opt("flag")))
                                 .put("pending", id == null)
                         )
                         if (id == null) lost++ else kept++
@@ -372,6 +376,35 @@ internal class SignalHistoryImporter(
     }
 
     companion object {
+
+        /**
+         * Whether an exported attachment's `flag` says it is a voice message.
+         *
+         * ⛔ **This enum is NOT `AttachmentPointer.Flags`, and must never be treated as it.**
+         * `Backup.proto:792-804` says so in its own comment: the backup flags are *mutually
+         * exclusive* where the wire flags are a bitfield, and **the raw values differ** --
+         * backup GIF is **3**, the wire's is **8**. Masking this value the way
+         * `ContentNormalizer.isVoiceNote` masks the wire one would read a backup GIF (3, which
+         * is 0b11) as a voice message, because bit 0 is set.
+         *
+         * So it is an equality test, on 1, and deliberately not shared with the wire reader
+         * however similar the two look.
+         *
+         * Accepts the name or the number, because an exporter may write either: Signal's own
+         * JSON tooling emits the enum name, and a numeric encoding is what a plain proto-to-
+         * JSON conversion gives.
+         */
+        internal fun isVoiceMessageFlag(flag: Any?): Boolean = when (flag) {
+            null, JSONObject.NULL -> false
+            is Number -> flag.toInt() == BACKUP_FLAG_VOICE_MESSAGE
+            is String -> flag == "VOICE_MESSAGE" ||
+                flag.toIntOrNull() == BACKUP_FLAG_VOICE_MESSAGE
+            else -> false
+        }
+
+        /** `Backup.proto` `MessageAttachment.Flag.VOICE_MESSAGE`. See [isVoiceMessageFlag]. */
+        internal const val BACKUP_FLAG_VOICE_MESSAGE = 1
+
         /** Rows per transaction: enough to be worth a write, small enough to report progress. */
         private const val BATCH = 200
 

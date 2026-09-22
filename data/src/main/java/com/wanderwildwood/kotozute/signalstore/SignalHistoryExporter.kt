@@ -240,6 +240,22 @@ internal class SignalHistoryExporter(
                     .put("fileName", entry.optString("filename"))
                     .put("locatorInfo", JSONObject().put("size", entry.optLong("size")))
 
+                /**
+                 * Whether this entry is a voice note, written the way Signal's own backup
+                 * writes it: a `flag` **beside** the pointer, not inside it, named rather
+                 * than numbered (`Backup.proto:792-804`).
+                 *
+                 * ⚠ Added to every entry below, including the two that could not copy a
+                 * file. A voice note whose bytes are missing is still a voice note, and the
+                 * importer draws it as one that was not downloaded -- which is true and
+                 * useful, where "attachment, not downloaded" loses what it was.
+                 */
+                val flag: String? =
+                    if (entry.optBoolean("voice")) BACKUP_FLAG_VOICE_MESSAGE else null
+                fun attachmentEntry() = JSONObject()
+                    .put("pointer", pointer)
+                    .also { if (flag != null) it.put("flag", flag) }
+
                 // An id that is not a plain name is refused rather than followed. It comes
                 // off the wire in the sender's own attachment pointer, so it is theirs to
                 // choose, and a name with a path in it would read and write outside the two
@@ -255,7 +271,7 @@ internal class SignalHistoryExporter(
                     // would disappear from the backup, not merely its picture. An entry with
                     // no file reads as "attachment, not downloaded", which is what it is.
                     missing++
-                    array.put(JSONObject().put("pointer", pointer))
+                    array.put(attachmentEntry())
                     continue
                 }
 
@@ -272,13 +288,12 @@ internal class SignalHistoryExporter(
                 } ?: false
                 if (!copied) {
                     missing++
-                    array.put(JSONObject().put("pointer", pointer))
+                    array.put(attachmentEntry())
                     continue
                 }
                 pointer.put("locatorInfo", JSONObject().put("size", file.size))
                 array.put(
-                    JSONObject()
-                        .put("pointer", pointer)
+                    attachmentEntry()
                         // Our own exports name the file outright. Matching on size alone
                         // loses BOTH of any two attachments that share a length -- two
                         // screenshots, two voice notes, the same file sent twice -- and with
@@ -312,6 +327,17 @@ internal class SignalHistoryExporter(
     }
 
     companion object {
+        /**
+         * `Backup.proto` `MessageAttachment.Flag.VOICE_MESSAGE`, written by name.
+         *
+         * ⚠ The name, not the number, and the two are not interchangeable across formats:
+         * the backup enum is mutually exclusive and numbers GIF **3**, where the wire's
+         * `AttachmentPointer.Flags` is a bitfield numbering it **8**. Writing a name keeps
+         * an export readable by anything that knows Signal's schema and removes the chance
+         * of a number being read against the wrong table.
+         */
+        internal const val BACKUP_FLAG_VOICE_MESSAGE = "VOICE_MESSAGE"
+
         private const val SELF_ID = "1"
         private const val PROGRESS_EVERY = 200
 

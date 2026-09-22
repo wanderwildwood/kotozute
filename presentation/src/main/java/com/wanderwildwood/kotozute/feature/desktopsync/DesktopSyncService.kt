@@ -61,6 +61,7 @@ class DesktopSyncService : Service() {
         private const val ACTION_START = "ACTION_START"
         private const val ACTION_STOP = "ACTION_STOP"
         private const val ACTION_RESET_TOKEN = "ACTION_RESET_TOKEN"
+        private const val ACTION_REBIND = "ACTION_REBIND"
 
         /**
          * Whether the relay is actually serving right now. Runtime-only on purpose:
@@ -84,6 +85,26 @@ class DesktopSyncService : Service() {
             if (prefs.desktopSyncEnabled.get() && !isRunning) {
                 runCatching { start(context) }
             }
+        }
+
+        /**
+         * Bind the relay again, so a setting that shapes the socket takes effect.
+         *
+         * ⛔ **Not `stop()` then `start()`.** Those are two Intents and the teardown is
+         * asynchronous, so the start can arrive while the old server still holds the port; the
+         * new bind fails and the relay is left **down**, with nothing listening and no error in
+         * front of anybody. Seen exactly once while switching HTTPS on, which is how this got
+         * written: `adbd: failed to connect to socket 'tcp:8421': Connection refused`.
+         *
+         * One action instead, torn down and brought back up in order inside the service --
+         * the same shape [resetToken] already used for the same reason.
+         */
+        fun rebind(context: Context) {
+            val intent = Intent(context, DesktopSyncService::class.java)
+                .setAction("${context.packageName}.$ACTION_REBIND")
+            // Plain startService, like resetToken: if the relay is running it is already
+            // foreground, and if it is not this just shuts back down.
+            runCatching { context.startService(intent) }
         }
 
         fun stop(context: Context) {
@@ -337,6 +358,7 @@ class DesktopSyncService : Service() {
             "$packageName.$ACTION_START" -> startRelay()
             "$packageName.$ACTION_STOP" -> stopRelay()
             "$packageName.$ACTION_RESET_TOKEN" -> resetToken()
+            "$packageName.$ACTION_REBIND" -> rebindRelay()
             // A null intent means Android restarted us itself after a process kill
             // (START_STICKY). Come back up only if the relay was left switched on.
             null -> if (prefs.desktopSyncEnabled.get()) startRelay() else stopRelay()
@@ -413,14 +435,24 @@ class DesktopSyncService : Service() {
 
     private fun resetToken() {
         prefs.desktopSyncToken.set(generateToken())
+        rebindRelay()
+    }
+
+    /**
+     * Tear the server down and bring it straight back up, in that order and in one place.
+     *
+     * ⚠ `startRelay()` bails out early when a server already exists, so the teardown is not
+     * optional -- without it the old socket keeps serving, with the old token or the old
+     * scheme, while everything reports success.
+     *
+     * Nothing bound means nothing to rebind: whatever changed is read at the next start, and
+     * an idle service is not left behind.
+     */
+    private fun rebindRelay() {
         if (server == null) {
-            // Nothing bound, so the new token will simply be picked up on next start.
-            // Don't leave an idle service behind.
             stopSelf()
             return
         }
-        // startRelay() bails out early when a server already exists, so tear the old
-        // one down first — otherwise it would keep serving the old token.
         disposables.clear()
         server?.stop()
         server = null

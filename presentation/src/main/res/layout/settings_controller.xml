@@ -268,6 +268,20 @@
                 app:summary="@string/settings_desktop_sync_link_summary"
                 app:title="@string/settings_desktop_sync_link_title" />
 
+            <!--
+                Serving over TLS, so a browser will treat the page as a secure context and
+                hand it the microphone. The summary says what it costs, because it costs
+                something visible every single visit.
+            -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/desktopSyncTls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_desktop_sync_tls_summary"
+                app:title="@string/settings_desktop_sync_tls_title"
+                app:widget="@layout/settings_switch_widget" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/desktopSyncTailscaleOnly"
                 android:layout_width="match_parent"
@@ -360,6 +374,23 @@
                 android:visibility="gone"
                 app:summary="@string/settings_signal_account_summary"
                 app:title="@string/settings_signal_account_title" />
+
+            <!--
+                Only a phone that REGISTERED its own account has anything to do here. A linked
+                device inherits the primary's profile and must not write over it.
+
+                It exists because the name was otherwise settable only during registration, in
+                one step of one flow: miss it, or close the app on it, and the account stayed
+                nameless for ever with nothing on this screen to say so, while everybody it
+                wrote to saw a bare service id.
+            -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalProfileName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_profile_name_summary"
+                app:title="@string/settings_signal_profile_name_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalKeepConnected"

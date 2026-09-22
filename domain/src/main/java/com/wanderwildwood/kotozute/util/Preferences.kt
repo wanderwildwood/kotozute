@@ -128,6 +128,22 @@ class Preferences @Inject constructor(
     // a working setup, not a switch that can be flipped into a broken state.
     val signalEnabled = rxPrefs.getBoolean("signalEnabled", false)
 
+    /**
+     * Whether to talk to Signal's **staging** servers instead of the real ones.
+     *
+     * ⛔ **A debug affordance.** Staging is a separate world with its own accounts: an account
+     * registered there cannot exchange a message with a single real person, while looking
+     * entirely registered from the inside. `SignalNetworkConfig` refuses to honour this in a
+     * release build, so the flag can be set and simply will not take effect there.
+     *
+     * ⚠ It has to persist, which is why it is a preference rather than a field set on the
+     * register screen. The environment decides which servers *everything* uses, so a phone
+     * that registered against staging and came back up pointing at production would hold
+     * staging credentials against real hosts -- which fails as authentication errors rather
+     * than as anything that names the cause.
+     */
+    val signalStaging = rxPrefs.getBoolean("signalStaging", false)
+
     /** When Signal was last reachable, for the honest "last synced" line. */
     val signalLastSync = rxPrefs.getLong("signalLastSync", 0L)
 
@@ -192,6 +208,56 @@ class Preferences @Inject constructor(
      * `PreKeysSyncJob`) for the same reason.
      */
     val signalPniRotationOwed = rxPrefs.getBoolean("signalPniRotationOwed", false)
+
+    /**
+     * Whether this device still owes the server its first full set of pre keys.
+     *
+     * The registration and linking requests carry only a **signed** key and a **last-resort**
+     * Kyber key. The one-time keys go up separately, once, right afterwards -- and if that one
+     * attempt fails there is nothing behind it. The device keeps working, so nothing looks
+     * wrong; every new session opened with it simply falls back to the last-resort key and
+     * loses the forward secrecy the one-time keys exist to provide.
+     *
+     * ⚠ **The periodic pass cannot notice**, for exactly the reason [signalPniRotationOwed]
+     * cannot: `PreKeyUploader.maintain` is gated on the *age* of the stored signed key, and on
+     * a device that has just registered that key is minutes old. So maintenance answers
+     * "not due" and uploads nothing for the length of the refresh interval -- days -- while
+     * the account has no one-time keys published at all.
+     *
+     * ⚠ Set **before** the attempt and cleared only on success, so a process that dies
+     * mid-upload still owes it. The opposite order would mark the work done by having started.
+     */
+    val signalPreKeysOwed = rxPrefs.getBoolean("signalPreKeysOwed", false)
+
+    /**
+     * Whether this device may **write** to the account's storage service.
+     *
+     * ⛔ **Off, and it must stay off until somebody turns it on deliberately against an
+     * account they are watching.** `docs/DECISION-storage-write.md` asks for exactly this, and
+     * the reason is not caution for its own sake: a manifest is applied by *every* device on
+     * the account, so a write that is wrong damages other clients' data rather than this
+     * phone's.
+     *
+     * ⚠ It cannot be exercised on the only account available to test with. A freshly
+     * registered primary has no manifest, no records and one device, so it can show neither a
+     * diff, nor a conflict, nor two devices disagreeing. Until it has been run somewhere that
+     * can show those, this flag being false is the feature working as intended.
+     */
+    val signalStorageWrite = rxPrefs.getBoolean("signalStorageWrite", false)
+
+    /**
+     * Whether Desktop Sync serves over TLS with a certificate this phone made for itself.
+     *
+     * ⚠ **Off by default, and that is not timidity.** Turning it on changes the scheme, so a
+     * browser already paired needs the link again, and every visit begins with a full-page
+     * certificate warning that has to be clicked through -- the browser correctly reporting
+     * that nothing vouches for this phone but itself.
+     *
+     * What it buys is the one thing plain HTTP cannot: a **secure context**, which is what a
+     * browser requires before it will give a page the microphone. Recording a voice note from
+     * the desktop is impossible without it, whatever the page does.
+     */
+    val desktopSyncTls = rxPrefs.getBoolean("desktopSyncTls", false)
 
     /**
      * Whether the server says this account's primary device has gone idle.

@@ -53,6 +53,26 @@ internal class SignalContactStore(
         /** The @name they chose, where the source knew one. */
         val username: String? = null,
         /**
+         * This row's storage record, exactly as the account holds it.
+         *
+         * ⛔ Step 0 of `docs/DECISION-storage-write.md`. A record can carry fields this build
+         * has never heard of; re-encoding one from only the fields it understands destroys
+         * another client's data for every device on the account. Kept whole so a write starts
+         * from these bytes and changes only what this app actually decides.
+         *
+         * ⚠ Null means "this source does not carry one" -- a contacts **sync** does not -- and
+         * a null must never overwrite a record a storage read stored. See [upsert].
+         */
+        val storageRecord: ByteArray? = null,
+        /**
+         * The id the account's manifest holds for this row. See schema v35.
+         *
+         * ⚠ Not [the local] `storage_id`, which rotates on local change. This is what a write
+         * deletes when it replaces the record, and deleting anything else would erase records
+         * this app does not model.
+         */
+        val remoteStorageId: String? = null,
+        /**
          * Hidden by the account owner, and when the account noticed they had left Signal.
          *
          * Both mean "do not offer this person", and both were being decoded and thrown away.
@@ -80,6 +100,32 @@ internal class SignalContactStore(
      * does; the full set of cases -- a number moving between people, an account
      * re-registering -- is still ahead.
      */
+    /**
+     * The account's own storage record for this row, or null if it has never been read.
+     *
+     * ⛔ **What a write must start from.** Step 3 decodes these bytes, sets the handful of
+     * fields this app actually decides, and re-encodes -- so anything a newer Signal client
+     * put there rides through untouched. Building a record from this build's fields alone
+     * would erase those fields for every device on the account.
+     *
+     * Null means this row has never appeared in a storage read: there is nothing of anyone
+     * else's to preserve, and a write would be creating the record rather than amending it.
+     */
+    fun storageRecordFor(serviceId: String): ByteArray? = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT storage_record FROM recipient WHERE aci = ? OR pni = ? LIMIT 1",
+            arrayOf(serviceId, serviceId)
+        ).use { c -> if (c.moveToFirst()) c.getBlob(0) else null }
+    }
+
+    /** The same, for a group row. Groups have no service id; see v19. */
+    fun storageRecordForGroup(groupId: String): ByteArray? = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT storage_record FROM recipient WHERE group_id = ? LIMIT 1",
+            arrayOf(groupId)
+        ).use { c -> if (c.moveToFirst()) c.getBlob(0) else null }
+    }
+
     fun store(contacts: List<Contact>) = withStoreLock(db) {
         val database = db.writableDatabase
         // ⚠ Collected here and told to anybody *after* the transaction closes. Telling the
@@ -96,7 +142,7 @@ internal class SignalContactStore(
                 val pni = c.pni ?: c.serviceId.takeIf { isPni(it) }
                 upsert(
                     database, aci, pni, c.e164, c.name, c.profileKey, c.username,
-                    c.hidden, c.unregisteredAt, numberChanges
+                    c.hidden, c.unregisteredAt, numberChanges, c.storageRecord, c.remoteStorageId
                 )
             }
             database.setTransactionSuccessful()
@@ -138,7 +184,18 @@ internal class SignalContactStore(
          * change it noticed without writing anything that says so -- the silent-swallow shape
          * this rail keeps finding, built into a signature.
          */
-        changes: MutableList<Triple<String, String, String>>
+        changes: MutableList<Triple<String, String, String>>,
+        /**
+         * The account's own copy of this row's storage record. See [Contact.storageRecord].
+         *
+         * ⚠ Applied only when non-null, like [hidden]: a contacts sync carries no record, and
+         * letting its null through would erase what a storage read had kept -- so a write
+         * would then re-encode the row from this build's fields alone, which is the exact
+         * data loss step 0 exists to prevent.
+         */
+        storageRecord: ByteArray? = null,
+        /** See [Contact.remoteStorageId]. Fill-only for the same reason as [storageRecord]. */
+        remoteStorageId: String? = null
     ) {
         val now = System.currentTimeMillis()
         val byAci = aci?.let { candidateFor(database, "aci", it) }
@@ -180,12 +237,14 @@ internal class SignalContactStore(
         if (existing == null) {
             database.execSQL(
                 "INSERT INTO recipient " +
-                    "(aci, pni, e164, name, profile_key, username, hidden, unregistered_at, updated_timestamp) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "(aci, pni, e164, name, profile_key, username, hidden, unregistered_at, " +
+                    "storage_record, remote_storage_id, updated_timestamp) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 arrayOf<Any?>(
                     aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(),
                     // Nothing said means the column's default, not null: these are NOT NULL.
                     if (hidden == true) 1 else 0, unregisteredAt ?: 0L,
+                    storageRecord, remoteStorageId,
                     now
                 )
             )
@@ -243,6 +302,10 @@ internal class SignalContactStore(
               -- read set.
               hidden = COALESCE(?, hidden),
               unregistered_at = COALESCE(?, unregistered_at),
+              -- Fill-only for the same reason, and it matters more than the others: a null
+              -- here would drop the record a write must start from. See [Contact.storageRecord].
+              storage_record = COALESCE(?, storage_record),
+              remote_storage_id = COALESCE(?, remote_storage_id),
               -- A new profile key means the name we hold was decrypted with the old one.
               -- Signal zeroes last_profile_fetch on every profile key write for this reason.
               last_profile_fetch = CASE
@@ -266,6 +329,8 @@ internal class SignalContactStore(
             arrayOf<Any?>(
                 aci, pni, e164.orNull(), name.orNull(), profileKey, username.orNull(),
                 hidden?.let { if (it) 1 else 0 }, unregisteredAt,
+                // Positionally after unregistered_at, matching the SET clause above.
+                storageRecord, remoteStorageId,
                 profileKey, profileKey, profileKey, profileKey, now, existing
             )
         )
@@ -992,14 +1057,22 @@ internal class SignalContactStore(
         val serviceId: String?,
         val groupId: String?,
         val name: String?,
-        val hasProfileKey: Boolean
+        val hasProfileKey: Boolean,
+        /** Ours, rotated on local change. What a write files the new record under. */
+        val storageId: String? = null,
+        /**
+         * The account's, from the manifest. The **only** id a write may delete, and null for
+         * a row the account has never held. See schema v35.
+         */
+        val remoteStorageId: String? = null
     )
 
     /** Rows the account has not been told about, for the diff that will one day be a write. */
     fun needingStoragePush(): List<Pending> = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             """
-            SELECT COALESCE(aci, pni), group_id, name, profile_key IS NOT NULL
+            SELECT COALESCE(aci, pni), group_id, name, profile_key IS NOT NULL,
+                   storage_id, remote_storage_id
             FROM recipient WHERE storage_id IS NOT NULL
             """.trimIndent(), null
         ).use { c ->
@@ -1009,7 +1082,9 @@ internal class SignalContactStore(
                     serviceId = c.getString(0),
                     groupId = c.getString(1),
                     name = c.getString(2),
-                    hasProfileKey = c.getInt(3) != 0
+                    hasProfileKey = c.getInt(3) != 0,
+                    storageId = c.getString(4),
+                    remoteStorageId = c.getString(5)
                 )
             }.toList()
         }

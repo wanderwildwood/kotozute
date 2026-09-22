@@ -216,17 +216,6 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /**
-     * Records that the server says the account's primary has not been seen for a long time.
-     *
-     * ⚠ Not a fault, and not something to interrupt anybody with -- but the one warning that
-     * comes *before* the fault. A linked device whose primary stays idle is eventually
-     * unlinked by the server, and when that happens this phone loses the account and every
-     * message on it, with the first notice being that nothing works any more.
-     *
-     * Kept where a screen can read it rather than acted on here: what to do about an idle
-     * primary is to go and open Signal on it, which is not something this app can do.
-     */
-    /**
      * The socket has started, or stopped, reaching for the server.
      *
      * Republished rather than only recorded: the composer is disabled off this state, and a
@@ -241,6 +230,17 @@ class SignalRepositoryImpl @Inject constructor(
         )
     }
 
+    /**
+     * Records that the server says the account's primary has not been seen for a long time.
+     *
+     * ⚠ Not a fault, and not something to interrupt anybody with -- but the one warning that
+     * comes *before* the fault. A linked device whose primary stays idle is eventually
+     * unlinked by the server, and when that happens this phone loses the account and every
+     * message on it, with the first notice being that nothing works any more.
+     *
+     * Kept where a screen can read it rather than acted on here: what to do about an idle
+     * primary is to go and open Signal on it, which is not something this app can do.
+     */
     private fun notePrimaryIdle(idle: Boolean) {
         if (prefs.signalPrimaryIdle.get() == idle) return
         prefs.signalPrimaryIdle.set(idle)
@@ -249,6 +249,35 @@ class SignalRepositoryImpl @Inject constructor(
         } else {
             Timber.i("signal account: the account's primary device is active again")
         }
+    }
+
+    /**
+     * Publishes this device's first full set of pre keys, and remembers if it could not.
+     *
+     * ⛔ **This used to be a single attempt with a comment saying maintenance would cover a
+     * failure. It would not.** `PreKeyUploader.maintain` is gated on the age of the stored
+     * signed key, and on a device that has just registered or linked that key is minutes old,
+     * so the periodic pass answers "not due" and uploads nothing for the length of the refresh
+     * interval. The device keeps working the whole time -- which is why nobody would notice --
+     * with no one-time keys published, so every new session falls back to the last-resort key.
+     *
+     * ⚠ The flag is set **before** the attempt and cleared only on success, so a process that
+     * dies mid-upload still owes it. See [Preferences.signalPreKeysOwed].
+     *
+     * Never fatal to the thing that called it: the account exists on the server by this point
+     * either way, and failing the whole registration over a refill would be worse than owing
+     * one.
+     */
+    private fun publishFirstPreKeys(after: String) {
+        prefs.signalPreKeysOwed.set(true)
+        runCatching { signalStore.uploadPreKeys() }
+            .onSuccess {
+                prefs.signalPreKeysOwed.set(false)
+                Timber.i("signal keys: %s", it)
+            }
+            .onFailure {
+                Timber.w(it, "signal keys: could not publish after %s; owed and retried later", after)
+            }
     }
 
     /** Whether this phone is on the account at all. Every screen keys its Signal UI off it. */
@@ -982,13 +1011,15 @@ class SignalRepositoryImpl @Inject constructor(
         // Registering ends in the same place linking does -- an account this device can use --
         // so the same things have to follow it, for the same reasons documented on linkDevice.
         if (step is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Registered) {
-            runCatching { signalStore.uploadPreKeys() }
-                .onSuccess { Timber.i("signal keys: %s", it) }
-                // Not fatal to registering, which has already happened on the server. The
-                // prekey pile is topped up on its own cadence by key maintenance, so a failure
-                // here costs a later refill rather than the account.
-                .onFailure { Timber.w(it, "signal keys: could not publish after registering; maintenance refills") }
+            publishFirstPreKeys("registering")
             prefs.signalEnabled.set(true)
+            // ⚠ The same reason linking clears it: a refusal recorded earlier must not
+            // outlive the thing that cures it. Registering is at least as much a cure as
+            // linking -- the account is new and this phone is its primary -- and without
+            // this a phone that had once been refused finished registration still showing
+            // "This phone is no longer linked to Signal. Link it again to receive messages."
+            // over a working account, with nothing on any screen able to clear it.
+            prefs.signalRejected.set("")
             publishState(signalConnected = true, error = null)
             startStream()
         }
@@ -1008,6 +1039,29 @@ class SignalRepositoryImpl @Inject constructor(
 
     override suspend fun registerVerify(sessionId: String, code: String, e164: String) =
         registrationStep { it.verifyAndRegister(sessionId, code, e164) }
+
+    override fun isPrimaryDevice(): Boolean = runCatching {
+        signalStore.isLinked() &&
+            signalStore.account.credentials().deviceId ==
+            com.wanderwildwood.kotozute.signalstore.SignalRegistrar.PRIMARY_DEVICE_ID
+    }
+        // A store that will not open is not a primary. Answering false is the safe way to be
+        // wrong here: it hides a row, where answering true would offer to overwrite a profile
+        // this phone may not own.
+        .getOrDefault(false)
+
+    override suspend fun registerSetProfileName(given: String, family: String): String? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                signalStore.setOwnProfileName(given, family)
+            } catch (t: Throwable) {
+                // ⚠ Reported, never swallowed. The account exists by the time this runs, so a
+                // silent failure here leaves a working account that is nameless to everybody
+                // it writes to -- the one outcome nothing else in the app would ever surface.
+                Timber.w(t, "signal profile: setting this account's name threw")
+                t.message ?: t::class.java.simpleName
+            }
+        }
 
     override fun linkDevice(deviceName: String, onUrl: (String) -> Unit): String? = try {
         val result = kotlinx.coroutines.runBlocking {
@@ -1030,11 +1084,7 @@ class SignalRepositoryImpl @Inject constructor(
                 // is exactly what one-time keys exist to prevent. Nothing else does this, so
                 // omitting it leaves a device permanently on the degraded path while looking
                 // entirely healthy.
-                runCatching { signalStore.uploadPreKeys() }
-                    .onSuccess { Timber.i("signal keys: %s", it) }
-                    // Same as after registering: the link stands, and key maintenance refills
-                // the pile on its own schedule.
-                .onFailure { Timber.w(it, "signal keys: could not publish after linking; maintenance refills") }
+                publishFirstPreKeys("linking")
 
                 // Linking is an explicit act that means "I want Signal on this phone", so the
                 // rail goes on with it. Leaving it off left a device that had just linked
@@ -1204,6 +1254,13 @@ class SignalRepositoryImpl @Inject constructor(
                     .put("type", type.ifBlank { "application/octet-stream" })
                     .put("filename", "")
                     .put("size", 0)
+                    // ⚠ Both ends, or only the far one is right. The wire flag is set from
+                    // this same marker in `SignalSender.attachmentStream`, so a voice note
+                    // sent from here already arrives as a voice note for the recipient --
+                    // while the sender's own copy of it, which is this row, read as a plain
+                    // attachment. The message would have looked wrong only to the person who
+                    // recorded it, which is the half nobody thinks to check.
+                    .put("voice", com.wanderwildwood.kotozute.signal.VoiceNotes.isMarked(dataUri))
                     .put("pending", false)
             )
         }
@@ -1372,6 +1429,18 @@ class SignalRepositoryImpl @Inject constructor(
             runCatching { signalStore.rotatePniIfOwed() }
                 .onSuccess { done -> if (done) prefs.signalPniRotationOwed.set(false) }
                 .onFailure { Timber.w(it, "signal keys: could not rotate the phone-number identity") }
+        }
+        // ⚠ The debt first, and it does NOT go through maintenance. Maintenance is gated on
+        // the stored signed key's age, so on a device that still owes its first upload it
+        // answers "not due" and does nothing -- which is the whole reason the debt is recorded
+        // rather than left to the periodic pass to notice.
+        if (prefs.signalPreKeysOwed.get()) {
+            runCatching { signalStore.uploadPreKeys() }
+                .onSuccess {
+                    prefs.signalPreKeysOwed.set(false)
+                    Timber.i("signal keys: the owed first upload went up -- %s", it)
+                }
+                .onFailure { Timber.w(it, "signal keys: still owe the first pre key upload") }
         }
         runCatching { signalStore.maintainPreKeys() }
             .onSuccess { Timber.i("signal keys: %s", it) }
@@ -1612,6 +1681,17 @@ class SignalRepositoryImpl @Inject constructor(
                 val connectedAt = System.currentTimeMillis()
                 try {
                     streamConnected.set(true)
+                    // ⚠ **A refusal that outlives its own condition is a dead end.** The
+                    // server refuses a deregistered device every time, so reaching this line
+                    // at all is proof that whatever was recorded is no longer true. Until
+                    // this, the reason was cleared only by unpairing or by linking again --
+                    // so a device that recovered by any other route (a corrected
+                    // configuration, a transient server refusal, registering) kept telling
+                    // its owner to link it again while quietly receiving their messages.
+                    if (prefs.signalRejected.get().isNotBlank()) {
+                        Timber.i("signal: the socket authenticated; clearing the old refusal")
+                        prefs.signalRejected.set("")
+                    }
                     publishState(signalConnected = true, error = null)
                     signalStore.listen(
                         keepGoing = { streamWanted.get() && streamGeneration.get() == generation },
@@ -2766,6 +2846,17 @@ class SignalRepositoryImpl @Inject constructor(
                     )
                 }
             }
+        // ⚠ A **primary** with no key material must not be sent down the branch below.
+        // `requestKeys()` asks the account's primary device to send the account entropy pool,
+        // and on this phone that is this phone: the request goes to nobody, no answer ever
+        // arrives, and the message underneath says to wait for one. That is a dead end with
+        // a reassuring caption on it -- the shape of thing that reads as "Signal is slow"
+        // for ever rather than as a fault.
+        //
+        // A primary has nobody to ask because it is the source, so it makes the key instead.
+        signalStore.ensureAccountKeysForPrimary() -> signalStore.readStorage()
+            .also { contactsChanged() }
+
         else -> {
             val asked = runCatching { signalStore.requestKeys() }.getOrElse { it.message.orEmpty() }
             Timber.i("signal keys: %s", asked)

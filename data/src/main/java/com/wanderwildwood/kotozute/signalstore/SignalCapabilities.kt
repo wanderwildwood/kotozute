@@ -72,6 +72,30 @@ internal object SignalCapabilities {
         )
 
     /**
+     * For the registration call that registers this phone as an account of its own.
+     *
+     * ⚠ `storage` is **true** here, where [forLinking] has it false, and the difference is not
+     * a stylistic one. Upstream draws exactly this line: its primary registration passes
+     * `AppCapabilities.getCapabilities(true)` and its linked registration passes `false`
+     * (`RegistrationRepository:448` against `:533`).
+     *
+     * The reason the linked case says false is that a device joining an account has been told
+     * nothing about it yet and has no storage key to claim. A device *registering* an account
+     * is the opposite case: it generates the account entropy pool itself, in the same call,
+     * so the storage key is known before the claim goes up rather than after. Saying false
+     * here would be a device disclaiming a service it is about to be the only user of.
+     */
+    fun forRegistering(): org.signal.network.api.RegistrationApiV2.AccountAttributes.Capabilities =
+        org.signal.network.api.RegistrationApiV2.AccountAttributes.Capabilities(
+            true,
+            VERSIONED_EXPIRATION_TIMER,
+            ATTACHMENT_BACKFILL,
+            SPQR,
+            USERNAME_CHANGE_SYNC_MESSAGE,
+            OPTIONAL_PHONE_NUMBER
+        )
+
+    /**
      * For the running device saying the same thing again.
      *
      * @param storage whether this device holds the account's storage key, which is the nearest

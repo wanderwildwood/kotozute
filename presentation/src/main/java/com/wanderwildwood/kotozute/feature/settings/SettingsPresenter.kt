@@ -100,6 +100,10 @@ class SettingsPresenter @Inject constructor(
                             signalPaired = conn.configured,
                             signalEnabled = conn.enabled,
                             signalLinkedDirectly = conn.linkedDirectly,
+                            // Recomputed with every connection change rather than read once:
+                            // this phone becomes a primary the moment registration finishes,
+                            // and that arrives as a connection state change.
+                            signalIsPrimary = signalRepo.isPrimaryDevice(),
                             signalStatusSummary = signalStatusSummary(conn)
                         )
                     }
@@ -130,6 +134,9 @@ class SettingsPresenter @Inject constructor(
             .subscribe {
                 newState { copy(desktopSyncSummary = desktopSyncSummary(prefs.desktopSyncEnabled.get())) }
             }
+
+        disposables += prefs.desktopSyncTls.asObservable()
+            .subscribe { enabled -> newState { copy(desktopSyncTls = enabled) } }
 
         disposables += prefs.desktopSyncTailscaleOnly.asObservable()
             .subscribe { enabled ->
@@ -299,6 +306,20 @@ class SettingsPresenter @Inject constructor(
 
                         // Read over the network, so off the main thread, and shown even
                         // when it fails: a blank dialog would not say why it was blank.
+                        // ⚠ Takes effect on the next start of the server, not this instant:
+                        // the socket is made when Desktop Sync starts, so the switch restarts
+                        // it rather than leaving the setting and the socket disagreeing.
+                        R.id.desktopSyncTls -> {
+                            prefs.desktopSyncTls.set(!prefs.desktopSyncTls.get())
+                            // ⚠ One rebind, not a stop followed by a start: those race, and
+                            // losing the race leaves the relay down with nothing listening.
+                            if (prefs.desktopSyncEnabled.get()) {
+                                DesktopSyncService.rebind(context)
+                            }
+                        }
+
+                        R.id.signalProfileName -> view.askSignalProfileName()
+
                         R.id.signalAccount -> {
                             Thread {
                                 val account = runCatching { signalRepo.account() }.getOrNull()
@@ -454,6 +475,21 @@ class SettingsPresenter @Inject constructor(
         view.signalUnpairConfirmed()
             .autoDisposable(view.scope())
             .subscribe { signalRepo.unpair() }
+
+        view.signalProfileNameEntered()
+            .autoDisposable(view.scope())
+            .subscribe { (given, family) ->
+                // Off the main thread: a profile write is a network call. Reported either
+                // way, because an account whose name did not save looks exactly like one
+                // whose name did from every screen in this app -- the difference is only
+                // visible to the people it writes to.
+                Thread {
+                    val failure = kotlinx.coroutines.runBlocking {
+                        signalRepo.registerSetProfileName(given, family)
+                    }
+                    view.showSignalProfileNameResult(failure)
+                }.apply { isDaemon = true }.start()
+            }
 
         view.signalFetchContactsConfirmed()
             .autoDisposable(view.scope())

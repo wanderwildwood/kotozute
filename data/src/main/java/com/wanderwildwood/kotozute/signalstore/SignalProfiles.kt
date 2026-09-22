@@ -23,6 +23,14 @@ internal class SignalProfiles(
     private val connection: SignalConnection,
     private val contacts: SignalContactStore,
     /**
+     * This account's own identity and profile key, for [setOwnName].
+     *
+     * Only the write needs it. Reading somebody else's profile is done with *their* key, and
+     * this class asked for nothing about itself until an account registered here had to write
+     * a profile of its own.
+     */
+    private val accounts: SignalAccountStore,
+    /**
      * Told when somebody this account already had a name for now has a different one.
      *
      * Not when a name is learned for the first time -- see [noteworthyNameChange].
@@ -189,6 +197,75 @@ internal class SignalProfiles(
             )
         }.getOrDefault(false)
         return if (verified) SEALED_SENDER_ENABLED else SEALED_SENDER_DISABLED
+    }
+
+    /**
+     * Writes this account's own profile name to the server.
+     *
+     * Needed only by a phone that **registered** its own account. A linked device inherits a
+     * profile that the primary already wrote, and has no business replacing it; a registered
+     * account has no profile at all until this runs, and a Signal account with no profile name
+     * shows up to everybody it writes to as an unnamed service id. That is not a cosmetic
+     * gap -- it is how a correspondent decides whether they are talking to who they think.
+     *
+     * The name is encrypted here, under this account's own profile key, exactly as a read
+     * decrypts one: the server stores a blob and never learns the name. [ProfileNames.serialize]
+     * makes the one field out of the two parts, so the write and the read in [fetch] agree
+     * about the separator.
+     *
+     * ⚠ The avatar is `unchanged(false)`, which reads oddly and is right: this app cannot set
+     * an avatar, and `unchanged(true)` would claim one exists. `AvatarUploadParams` documents
+     * that pairing itself.
+     *
+     * ⚠ `phoneNumberSharing` is **false**, which is Signal's default and not a choice made
+     * here. Upstream's `isPhoneNumberSharingEnabled` maps both `DEFAULT` and `NOBODY` to
+     * false, so a new account shares its number with nobody until somebody says otherwise.
+     * Sending true would publish this account's phone number to everyone it messages, as a
+     * side effect of setting a name.
+     *
+     * @return null on success, or a reason to show.
+     */
+    fun setOwnName(given: String, family: String): String? {
+        val credentials = runCatching { accounts.credentials() }.getOrNull()
+            ?: return "this phone has no account yet"
+        val aci = ServiceId.ACI.parseOrNull(credentials.aci)
+            ?: return "this account has no service id yet"
+        val rawKey = accounts.profileKey()
+            ?: return "this account has no profile key"
+        val profileKey = runCatching { ProfileKey(rawKey) }.getOrNull()
+            ?: return "this account's profile key will not load"
+
+        val serialized = ProfileNames.serialize(given, family)
+        if (serialized.isEmpty()) return "a profile needs a given name"
+
+        val result = connection.profiles.setVersionedProfile(
+            aci,
+            profileKey,
+            serialized,
+            // ⚠ **Empty strings, not nulls, and the difference is a crash.**
+            // `ProfileApi.setVersionedProfile` null-defaults the *value* it encrypts
+            // (`about ?: ""`) but hands the **raw nullable** to
+            // `ProfileCipher.getTargetAboutLength`, which dereferences it without a check
+            // (`ProfileCipher.java:214`). So a null `about` throws NullPointerException from
+            // inside the library, at the one call that sets this account's name.
+            //
+            // This app has no "about" and no status emoji, and empty is how it says so.
+            "",
+            "",
+            null,
+            org.whispersystems.signalservice.api.profiles.AvatarUploadParams.unchanged(false),
+            emptyList(),
+            false
+        )
+
+        return if (result is NetworkResult.Success) {
+            // The fact, not the name: this log is read on a phone somebody else may be holding.
+            Timber.i("signal profile: this account's own name is now set")
+            null
+        } else {
+            Timber.w("signal profile: could not set this account's name: %s", result)
+            "the server would not take the name: $result"
+        }
     }
 
     /**

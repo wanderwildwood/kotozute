@@ -53,7 +53,22 @@ class SignalRegistrar internal constructor(
      * libphonenumber, for [E164Numbers]. Built by the caller because on Android it needs a
      * `Context` to load its metadata, and nothing else in here has one.
      */
-    private val phoneNumbers: io.michaelrocks.libphonenumber.android.PhoneNumberUtil
+    private val phoneNumbers: io.michaelrocks.libphonenumber.android.PhoneNumberUtil,
+    /**
+     * Makes this account's root key. Called once, inside [register], before the credentials
+     * are written.
+     *
+     * A seam rather than a store reference for the same reason [DeviceLinker] has one: this
+     * class is built from the pieces it needs and the key store is not one of them, and the
+     * link path already hands its pool out through a lambda of exactly this shape. Returning
+     * null is a real answer -- it means no pool could be made, and registration stops.
+     */
+    private val generateAccountKeys: () -> String?,
+    /**
+     * Keeps the pool. The same callback the link path uses, so both arrive at the storage key
+     * through one derivation.
+     */
+    private val onAccountKeys: (String) -> Unit
 ) {
 
     /**
@@ -216,6 +231,17 @@ class SignalRegistrar internal constructor(
         // phone, only re-registerable.
         val password = randomPassword()
 
+        // ⚠ Made **before** the request, and registration stops here if it cannot be.
+        //
+        // This is the account's root key, and a primary has to invent it: there is no other
+        // device to be given it by. The order matters more than it looks. Generating it after
+        // a successful `registerAccount` would mean a failure here landed on an account that
+        // already exists on the server, with this phone as its only device and no key material
+        // to read its own stored state with -- recoverable only by registering the number
+        // again. Failing before the request costs nothing; the number has not moved yet.
+        val accountEntropyPool = generateAccountKeys()
+            ?: return Step.Failed("could not generate this account's key material")
+
         val aciIdentity = IdentityKeyPair.generate()
         val pniIdentity = IdentityKeyPair.generate()
         val aciRegistrationId = KeyHelper.generateRegistrationId(false)
@@ -239,7 +265,7 @@ class SignalRegistrar internal constructor(
             // Being findable by phone number is the default Signal ships, and changing it
             // quietly during registration would be deciding something for someone.
             discoverableByPhoneNumber = true,
-            capabilities = SignalCapabilities.forLinking(),
+            capabilities = SignalCapabilities.forRegistering(),
             name = null,
             pniRegistrationId = pniRegistrationId,
             recoveryPassword = null
@@ -298,6 +324,38 @@ class SignalRegistrar internal constructor(
                     password
                 )
                 accounts.saveProfileKey(profileKey)
+
+                // ⚠ After `forgetSessionsFromPreviousAccount`, and deliberately not part of
+                // it. That call clears sessions, sender keys and shared-with rows -- it does
+                // not touch `account_keys`, so a phone previously linked to another account
+                // still holds that account's pool at this point. Writing ours is what
+                // replaces it (the row is an upsert on a fixed id), and it is the only thing
+                // that does. Skipping it on any path leaves this account deriving a storage
+                // key belonging to an account that is no longer here.
+                //
+                // ⚠ **Kept off the failure path, and this is not a swallowed gate.** By the
+                // time this line runs the account exists on the server and this phone is its
+                // primary: that is done, and no exception here undoes it. Letting one
+                // propagate would report "registration failed" for an account that was in
+                // fact created, and the natural response to that -- try again -- would send
+                // somebody back to re-register a number this very phone now holds.
+                //
+                // It is recoverable, which is what makes this the right trade. The pool
+                // matters because the storage service is encrypted under a key derived from
+                // it, and a **brand-new account has no storage written yet** -- so a pool
+                // that failed to persist here can simply be generated again later, with
+                // nothing lost. That would not be true for a linked device, which must keep
+                // the exact pool the primary sent it.
+                runCatching { onAccountKeys(accountEntropyPool) }
+                    .onFailure {
+                        Timber.e(
+                            it,
+                            "signal register: registered, but this account's key material " +
+                                "would not persist -- the storage service will be unreadable " +
+                                "until a pool is generated again"
+                        )
+                    }
+
                 Timber.i("signal register: registered as primary")
                 Step.Registered(response.aci, response.e164 ?: e164)
             }

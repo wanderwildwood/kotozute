@@ -63,6 +63,36 @@ internal class SignalKeyStore(private val db: ProtocolDatabase) {
         return true
     }
 
+    /**
+     * Makes this account's key material, for a phone registering an account of its own.
+     *
+     * [store] is the other way in and the common one: a linked device is *given* the pool by
+     * the primary and derives from it. A primary has nobody to ask. It is the root of the
+     * account, so it invents it here, in the one call that also writes it down.
+     *
+     * ⚠ **Unconditional, and it must stay unconditional.** The temptation is to keep an
+     * existing pool if there is one -- it reads as the careful thing to do. It is the
+     * opposite. `account_keys` survives
+     * [SignalAccountStore.forgetSessionsFromPreviousAccount], which clears sessions and sender
+     * keys and nothing else, so a phone that was linked to somebody else's account before this
+     * still has **their** pool in the row. Keeping it would leave this new account deriving a
+     * storage key for an account it is not, reading a manifest it cannot decrypt, and doing it
+     * silently. Registering is the moment the old account stops existing here.
+     *
+     * Returns the pool so the caller can hand it to the same [store] the link path uses --
+     * one write path, so the two cannot disagree about what is kept.
+     */
+    fun generateForNewAccount(): String? {
+        val pool = runCatching { org.signal.core.models.AccountEntropyPool.generate().value }
+            .onFailure { Timber.w(it, "signal keys: could not generate an entropy pool") }
+            .getOrNull()
+            ?: return null
+
+        // Said without any of it: that a root key now exists, not what it is.
+        Timber.i("signal keys: generated this account's entropy pool")
+        return pool
+    }
+
     private fun stored(): ByteArray? = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             "SELECT storage_key FROM account_keys WHERE _id = 1", null

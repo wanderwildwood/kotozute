@@ -164,3 +164,94 @@ So this is not a bug to fix in the read path. A client that reads and never writ
 revert local changes — anything else would be inventing a resolution Signal does not have. It
 is the strongest argument yet that steps 3 and 4 are one piece of work with the read, not a
 bolt-on: until the write exists, every mark this step logs is a local decision already lost.
+
+## Step 0 is done (2026-09-22, schema v34)
+
+`recipient.storage_record` holds the account's own copy of each row's storage record, **whole
+and exactly as it arrived**. The read path keeps `StorageRecord.encode()` rather than the
+`ContactRecord` half, so unknown fields at both levels survive; `storageRecordFor` and
+`storageRecordForGroup` read it back. Nothing writes to the storage service.
+
+⚠ **Fill-only, like `hidden` and `unregistered_at`.** A contacts *sync* carries no record, and
+letting its null through `COALESCE` would erase what a storage read kept -- after which a write
+would re-encode the row from this build's fields alone, which is the precise data loss step 0
+exists to prevent.
+
+⚠ Stored whole rather than as a filtered "unknown fields" blob deliberately. Wire keeps unknown
+fields on the decoded message, so step 3 decodes these bytes, sets the few fields this app
+actually decides, and re-encodes. Keeping only what failed to parse would mean re-deriving the
+rest -- the same mistake in a smaller box.
+
+Migration verified on a live store (`migrating protocol database to v34`, account intact).
+⚠ **Not verified: that records are actually stored.** The only account available to test on is
+a freshly registered staging primary, which has **no storage manifest and no records at all**,
+so there is nothing to keep. That wants an account with records -- which is the same
+constraint step 3 runs into.
+
+### Before step 3 is written, a constraint worth stating
+
+Step 3 cannot be exercised here. The staging account has no manifest, no records and one
+device, so it cannot show a diff, a conflict, or two devices disagreeing. The real account has
+all three and must not be experimented on. So the write path, when built, should be **off
+behind a flag** -- what this document already asks for at step 4 -- and turned on deliberately
+against an account someone is watching.
+
+## Step 3 is built and inert (2026-09-22, schema v35)
+
+`SignalStorageWriter` computes and sends a write. **Nothing calls it.** `SignalStorageService.read`
+gained an `onWritable` hook that defaults to null, and `prefs.signalStorageWrite` defaults
+false, so the path exists and cannot run.
+
+⛔ **Deletes are never a set difference, and that is the whole design.** This app models
+contacts and groups; a manifest also names story distribution lists, call links, chat folders,
+sticker packs, notification profiles and the account record. `remote ids - local ids` puts
+every one of those in the delete list. Signal can do that subtraction only because
+`StorageSyncJob.getAllLocalStorageIds` folds in `unknownStorageIds.allUnknownIds`, a table this
+app does not have. So a write deletes **only the one id the row it is replacing arrived
+under**, from `recipient.remote_storage_id` (v35), and carries every other entry across
+untouched. Cost: a genuinely orphaned record is never tidied up. That is the right direction to
+be wrong in.
+
+⚠ **Ids are compared as bytes, not as base64 text.** A padding or case difference silently
+fails to match, and a delete that fails to match leaves the stale record on the account to be
+re-applied — the revert this document already observed.
+
+✅ Five unit tests, the important one being that **a field this build does not understand
+survives an amend**. Amend decodes, sets, re-encodes; Wire carries unknown fields through.
+⚠ Hand-rolling a protobuf fixture has two traps, both hit: the tag's low three bits are the
+wire type, and the tag is itself varint-encoded so anything over 127 takes two bytes. Both
+produced `EOFException` that looked like a fault in the code under test.
+
+### What is still missing before it could ever be switched on
+
+1. The flag is not yet read anywhere — nothing constructs the writer or supplies the
+   blocked/muted/archived lookup it takes.
+2. ~~Loop detection (step 4) does not exist.~~ **Done** — see below. Not yet connected to the
+   writer, because nothing constructs the writer either.
+3. Still no way to exercise it. The staging primary has no manifest, no records and one device.
+
+## Step 4 is done (2026-09-22)
+
+`StorageWriteLoopGuard`, ported from Signal's `StorageSyncLoopDetector`. Two leaky buckets:
+
+- **content** (capacity 3, drains one an hour) charged only when a write carries the *same*
+  payload as a recent one — the shape of a real loop, where something keeps reverting a change;
+- **rate** (capacity 100, drains one per ten minutes) charged on every write that followed a
+  fresh manifest, to bound loops whose payload is never stable and which the content bucket
+  therefore cannot see at all.
+
+Exempt: conflict **retries** (otherwise resolving one conflict looks like a loop) and any write
+that did not follow a fresh read (not part of the read-write cycle a loop is made of).
+`onWriteFailed` refunds the content charge but not the rate charge — a failed request asked the
+service to do just as much work. `onConverged` clears the argument outright.
+
+⚠ **Written as pure logic against an injected state**, so the thing that must not be wrong is
+testable with no network, no account and no second device — none of which exist to test a write
+against. **12 tests**, including the two that matter most: a repeating payload *is* eventually
+refused, and — the control — a stream of *different* payloads is not, however many there are.
+
+⚠ The fingerprint sorts before hashing. Inserts come out in whatever order a query produced,
+and an order-sensitive hash would make the same payload look new every time, defeating the
+content bucket entirely while appearing to work.
+⚠ Drain is integer division on whole intervals, and a clock that goes backwards drains nothing
+rather than crediting a negative age.

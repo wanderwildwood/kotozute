@@ -104,6 +104,28 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // land. The file tree still needs `fileLoggingTree` injected, so it follows below.
         Timber.plant(Timber.DebugTree())
 
+        // ⚠ Before `appComponent.inject`, for the same reason the tree above is: Dagger builds
+        // the Signal repository while injecting, and the stores it builds take a network
+        // configuration and keep it. Set after that point, this would move the register screen
+        // to staging while the message socket stayed on production -- the incoherent state
+        // `SignalNetworkConfig.environment` documents and exists to prevent.
+        //
+        // ⛔ Read directly rather than through the injected `Preferences`, which does not
+        // exist yet at this point. Through `PreferenceManager.getDefaultSharedPreferences`
+        // and not a filename of our own, because that is exactly what `AppModule:108`
+        // hands `Preferences` -- a guessed filename would read a file nothing writes and
+        // answer false for ever.
+        // `SignalNetworkConfig` refuses staging in a release build whatever this says.
+        @Suppress("DEPRECATION")
+        val staging = android.preference.PreferenceManager
+            .getDefaultSharedPreferences(this)
+            .getBoolean("signalStaging", false)
+        if (staging) {
+            com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.environment =
+                com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.Environment.STAGING
+            Timber.w("signal: talking to STAGING servers, not real Signal")
+        }
+
         // ⚠ Before anything else can die. There is no crash reporting in this app on purpose,
         // which leaves a crash on somebody else's phone invisible -- "it closed itself" is the
         // whole of the evidence they can give. This writes the trace to private storage on the

@@ -1920,7 +1920,7 @@ internal class SignalReceiver(
         // session (Failed(...))" and count it as done.
         val sent = runCatching {
             SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT,
                 accounts, db, protocol, connection, contacts
             ).sendNullMessage(org.signal.core.models.ServiceId.parseOrThrow(self))
         }.onFailure {
@@ -2357,6 +2357,11 @@ internal class SignalReceiver(
                 .put("type", pointer.contentType.orEmpty())
                 .put("filename", pointer.fileName.orEmpty())
                 .put("size", pointer.size ?: 0)
+                // The same masked read [ContentNormalizer] does, through the same function:
+                // this record and the one written before the download describe the same
+                // message, and a voice note that is one of them and not the other would play
+                // or not depending on which path filed it.
+                .put("voice", ContentNormalizer.isVoiceNote(pointer.flags))
                 .put("pending", id == null)
             // ⚠ **The pointer is kept when the download failed, and only then.** Three
             // immediate attempts cover a dropped socket; they do not cover a phone with no

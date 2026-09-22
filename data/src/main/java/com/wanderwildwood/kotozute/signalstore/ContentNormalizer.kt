@@ -34,6 +34,14 @@ internal object ContentNormalizer {
     private const val BODY_RANGE_LIMIT = 250
 
     /**
+     * `AttachmentPointer.Flags.VOICE_MESSAGE`, from `SignalService.proto:923`.
+     *
+     * Named rather than written as a literal 1 where it is used: the neighbouring flags are
+     * BORDERLESS (2) and GIF (8), and a bare `1` in a mask reads like a boolean.
+     */
+    private const val VOICE_MESSAGE_FLAG = 1
+
+    /**
      * Exposed for the self-check. The derivation is the part worth pinning: it is a pure
      * function of the master key, and getting it wrong produces a stable, plausible, wrong
      * thread key rather than an error.
@@ -628,6 +636,15 @@ internal object ContentNormalizer {
      * A view-once attachment is not recorded at all. Signal's promise is that it can be opened
      * once, and writing its id into a column anything can read is not that.
      */
+    /**
+     * Whether this attachment is something somebody said rather than a file they picked.
+     *
+     * Shared with [SignalReceiver], which builds the same record after downloading, so the
+     * two cannot come to different answers about the same message.
+     */
+    internal fun isVoiceNote(flags: Int?): Boolean =
+        ((flags ?: 0) and VOICE_MESSAGE_FLAG) != 0
+
     private fun attachmentsJson(dataMessage: DataMessage, viewOnce: Boolean): String {
         if (viewOnce || dataMessage.attachments.isEmpty()) return ""
         val array = JSONArray()
@@ -638,6 +655,12 @@ internal object ContentNormalizer {
                     .put("type", pointer.contentType.orEmpty())
                     .put("filename", pointer.fileName.orEmpty())
                     .put("size", pointer.size ?: 0)
+                    // ⚠ A bitfield, not a boolean. `AttachmentPointer.flags` carries
+                    // VOICE_MESSAGE (1), BORDERLESS (2) and GIF (8) together, so it is
+                    // masked rather than compared -- upstream does exactly this in
+                    // `AttachmentPointerUtil:40`. Reading it as `flags == 1` would drop the
+                    // flag on any client that also set another one.
+                    .put("voice", isVoiceNote(pointer.flags))
                     // Not fetched. The UI can draw a row that says so rather than pretending.
                     .put("pending", true)
             )

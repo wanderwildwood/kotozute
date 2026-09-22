@@ -280,7 +280,7 @@ class SignalStore(private val context: Context) {
         return try {
             val result = SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
-                SignalNetworkConfig.certificateValidator(), attachmentsFor(connection),
+                SignalNetworkConfig.currentCertificateValidator(), attachmentsFor(connection),
                 contacts, blocks, keys, StoreEvents(events, onNamesLearned)
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
@@ -338,7 +338,7 @@ class SignalStore(private val context: Context) {
                 .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
                 .filter { it.toString() != account.credentials().aci }
             SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).sendGroupUpdate(bytes, members, NEW_GROUP_REVISION)
         }.onFailure { Timber.w(it, "signal groups: could not tell the members") }.getOrNull()
@@ -415,7 +415,7 @@ class SignalStore(private val context: Context) {
             .filter { it.toString() != account.credentials().aci }
         return when (
             val r = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion, group.revision)
         ) {
@@ -444,7 +444,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         return when (
             val result = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).sendReaction(serviceId, emoji, remove, author, targetSentTimestamp)
         ) {
@@ -467,7 +467,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         return when (
             val result = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).sendRemoteDelete(serviceId, targetSentTimestamp)
         ) {
@@ -501,7 +501,7 @@ class SignalStore(private val context: Context) {
             .filter { it.toString() != account.credentials().aci }
         return when (
             val result = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).sendRemoteDeleteToGroup(masterKey, members, targetSentTimestamp, group.revision)
         ) {
@@ -543,7 +543,7 @@ class SignalStore(private val context: Context) {
             .filter { it.toString() != account.credentials().aci }
         return when (
             val result = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).sendReactionToGroup(masterKey, members, emoji, remove, author, targetSentTimestamp, group.revision)
         ) {
@@ -580,7 +580,7 @@ class SignalStore(private val context: Context) {
 
         return when (
             SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).sendBlockedList(individuals, groupIds)
         ) {
@@ -612,7 +612,7 @@ class SignalStore(private val context: Context) {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
         connection.connect()
         return SignalSender(
-            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
             SignalDataStore(database, account), connection, contacts
         ).sendReadReceipt(serviceId, timestamps) is SignalSender.Result.Sent
     }
@@ -643,7 +643,7 @@ class SignalStore(private val context: Context) {
         if (named.isEmpty()) return true
         connection.connect()
         return SignalSender(
-            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
             SignalDataStore(database, account), connection, contacts
         ).sendReadSync(named) is SignalSender.Result.Sent
     }
@@ -658,7 +658,7 @@ class SignalStore(private val context: Context) {
         if (timestamps.isEmpty()) return true
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
         return SignalSender(
-            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
             SignalDataStore(database, account), connection, contacts
         ).sendDeliveryReceipt(serviceId, timestamps) is SignalSender.Result.Sent
     }
@@ -676,7 +676,7 @@ class SignalStore(private val context: Context) {
     ): Boolean {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
         return SignalSender(
-            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
             SignalDataStore(database, account), connection, contacts
         ).sendRetryReceipt(serviceId, error, groupId) is SignalSender.Result.Sent
     }
@@ -687,7 +687,7 @@ class SignalStore(private val context: Context) {
     fun resend(recipient: String, sentTimestamp: Long): Boolean {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
         return SignalSender(
-            SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
             SignalDataStore(database, account), connection, contacts
         ).resend(serviceId, sentTimestamp) is SignalSender.Result.Sent
     }
@@ -1186,6 +1186,45 @@ class SignalStore(private val context: Context) {
     /** Whether the storage service key is here yet. */
     fun storageKeyKnown(): Boolean = runCatching { keys.known() }.getOrDefault(false)
 
+    /**
+     * Makes this account's key material if it is the primary and somehow has none.
+     *
+     * A **linked** device with no storage key has somebody to ask -- the primary, through a
+     * KEYS sync request -- and asking is a deliberate act in Settings. A **primary** has
+     * nobody, so the same missing key is a dead end rather than a wait: nothing would ever
+     * supply it, and every storage read would go on failing quietly for the life of the
+     * account.
+     *
+     * It should already exist: [SignalRegistrar] writes one as part of registering. This is
+     * for the one path where it does not -- that write is deliberately not allowed to fail
+     * the registration, because the account exists on the server by then and reporting a
+     * failure would be worse. This is the other half of that trade, and without it the
+     * "recoverable" in that comment is only true in principle.
+     *
+     * ⚠ Safe **only** because a pool is generated here just for a primary that has none. The
+     * storage service is encrypted under a key derived from the pool, so a fresh pool cannot
+     * read records written under an older one -- but a primary in this state has never
+     * written any, and a linked device (which must keep the exact pool its primary sent) is
+     * excluded by the device-id check rather than by hoping the case never arises.
+     *
+     * @return whether the account now has key material.
+     */
+    fun ensureAccountKeysForPrimary(): Boolean {
+        if (storageKeyKnown()) return true
+
+        val deviceId = runCatching { account.credentials().deviceId }.getOrNull()
+        if (deviceId != SignalRegistrar.PRIMARY_DEVICE_ID) {
+            // A linked device, or no account at all. Neither may invent key material.
+            return false
+        }
+
+        val pool = keys.generateForNewAccount() ?: return false
+        return runCatching { keys.store(pool) }
+            .onSuccess { Timber.w("signal keys: this primary had no key material; generated it") }
+            .onFailure { Timber.e(it, "signal keys: could not generate key material for this primary") }
+            .getOrDefault(false)
+    }
+
     /** Whether the key a written-out copy is locked with can be derived yet. */
     fun backupKeyKnown(): Boolean = runCatching { keys.poolKnown() }.getOrDefault(false)
 
@@ -1207,7 +1246,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         return when (
             val r = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).requestKeys()
         ) {
@@ -1221,7 +1260,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         return when (
             val r = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).requestBlockedList()
         ) {
@@ -1253,7 +1292,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         return try {
             when (val result = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection, contacts
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection, contacts
             ).send(serviceId, body, attachments, expiresInSeconds, expireTimerVersion)) {
                 is SignalSender.Result.Sent -> result.timestamp
                 // Typed, so the screen can offer "Send anyway" rather than reprint the
@@ -1306,7 +1345,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         SignalReceiver(
             database, account, SignalDataStore(database, account), connection,
-            SignalNetworkConfig.certificateValidator(), attachmentsFor(connection),
+            SignalNetworkConfig.currentCertificateValidator(), attachmentsFor(connection),
             contacts, blocks, keys, StoreEvents(events, onNamesLearned)
         ).listen(keepGoing) { r ->
             onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
@@ -1472,7 +1511,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         return when (
             val r = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).requestConfiguration()
         ) {
@@ -1486,7 +1525,7 @@ class SignalStore(private val context: Context) {
         connection.connect()
         return try {
             when (val r = SignalSender(
-                SignalNetworkConfig.production(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
             ).requestContactsSync()) {
                 is SignalSender.Result.Sent -> "requested"
@@ -1595,6 +1634,19 @@ class SignalStore(private val context: Context) {
     fun disconnect() = runCatching { connection.disconnect() }.getOrNull()
 
     /**
+     * Gives this account its own profile name.
+     *
+     * Only a phone that registered an account has anything to do here -- see
+     * [SignalProfiles.setOwnName]. Built on the spot rather than held, because it is used once
+     * at the end of registration and holding a profiles instance would keep a connection alive
+     * for it.
+     *
+     * @return null on success, or a reason to show.
+     */
+    fun setOwnProfileName(given: String, family: String): String? =
+        SignalProfiles(connection, contacts, account).setOwnName(given, family)
+
+    /**
      * Registering this phone as an account of its own, rather than joining one.
      *
      * Built the same way as [linker] and from the same stores, because the two flows end in
@@ -1602,12 +1654,24 @@ class SignalStore(private val context: Context) {
      * They differ only in how the server is persuaded to issue them.
      */
     fun registrar(): SignalRegistrar = SignalRegistrar(
-        SignalNetworkConfig.production(),
+        SignalNetworkConfig.configuration(),
         SignalNetworkConfig.USER_AGENT,
         account,
         { SignalSignedPreKeyStore(database, it) },
         { SignalKyberPreKeyStore(database, it) },
-        io.michaelrocks.libphonenumber.android.PhoneNumberUtil.createInstance(context)
+        io.michaelrocks.libphonenumber.android.PhoneNumberUtil.createInstance(context),
+        generateAccountKeys = { keys.generateForNewAccount() },
+        onAccountKeys = { pool ->
+            // The same derivation the link path and the KEYS sync response go through. A
+            // primary makes its pool instead of being given one; from the store's side
+            // nothing else about it is different, and a second write path here is how the
+            // two would come to disagree about what is kept.
+            if (keys.store(pool)) {
+                Timber.i("signal register: this account's storage key is derived and kept")
+            } else {
+                Timber.w("signal register: the generated pool would not derive")
+            }
+        }
     )
 
     /**
@@ -1618,7 +1682,7 @@ class SignalStore(private val context: Context) {
      * something to fold into a linking change.
      */
     fun linker(onReadReceipts: (Boolean) -> Unit = {}): DeviceLinker = DeviceLinker(
-        SignalNetworkConfig.production(),
+        SignalNetworkConfig.configuration(),
         SignalNetworkConfig.USER_AGENT,
         account,
         { SignalSignedPreKeyStore(database, it) },
@@ -1678,7 +1742,7 @@ class SignalStore(private val context: Context) {
             // Fetch whatever names became fetchable, then let the caller rename its threads --
             // only if something was actually learned, so a quiet batch does not walk the whole
             // thread list for nothing.
-            val profiles = SignalProfiles(connection, contacts) { aci, from, to ->
+            val profiles = SignalProfiles(connection, contacts, account) { aci, from, to ->
                 // ⚠ Only for somebody this account can still hear from. Upstream skips a
                 // blocked recipient (`RetrieveProfileJob`'s `!recipient.isBlocked`), and the
                 // reason is the same one blocking exists for: a blocked person should not be

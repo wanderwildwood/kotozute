@@ -181,6 +181,24 @@
             android:src="@drawable/ic_add_black_24dp"
             android:tint="@android:color/black" />
 
+        <!--
+            Tap to start, tap again to stop. Not press-and-hold: on a panel that redraws in
+            its own time there is no feedback fast enough to tell somebody their finger is
+            being registered, and a hold that is not registered produces silence rather than
+            an error.
+        -->
+        <ImageView
+            android:id="@+id/record"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginBottom="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/signal_record_cd"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:tint="@android:color/black" />
+
         <com.wanderwildwood.kotozute.common.widget.QkEditText
             android:id="@+id/message"
             style="@style/TextPrimary"

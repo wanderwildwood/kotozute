@@ -103,6 +103,15 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showSignalRegister()
 
 
+    /** Ask for this account's own profile name. Primary only; see [SettingsState.signalIsPrimary]. */
+    fun askSignalProfileName()
+
+    /** The two name parts somebody entered. */
+    fun signalProfileNameEntered(): Observable<Pair<String, String>>
+
+    /** Null on success, or a reason to show. */
+    fun showSignalProfileNameResult(failure: String?)
+
     fun askSignalUnpair()
     /**
      * Opens the Android screen where this app is allowed, or not allowed, to install packages.

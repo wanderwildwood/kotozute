@@ -91,8 +91,46 @@ internal class SignalDataStore(
         identifiers
     }
 
-    /** A linked device is never alone on the account. */
-    override fun isMultiDevice(): Boolean = true
+    override fun isMultiDevice(): Boolean = accountHasOtherDevices()
+
+    /**
+     * Whether this account has any device on it besides this one.
+     *
+     * ⛔ **This used to be the literal `true`, with the note "a linked device is never alone on
+     * the account".** That was sound while linking was the only way in. **Standalone
+     * registration made it false**: a phone that registers its own account is the only device
+     * on it, and saying otherwise has consequences the library acts on.
+     *
+     * The one that bites is Note to Self. A note to self *is* a sync transcript to your other
+     * devices, so `SignalServiceMessageSender.sendSyncMessage` short-circuits to success and
+     * sends nothing when `!isMultiDevice` (`SignalServiceMessageSender.java:730`). Claiming
+     * otherwise meant the message really went to the server, addressed to this very device,
+     * and the server answered **403** -- which surfaced as "Authorization failed" and looked
+     * like broken credentials rather than a message that should never have been sent.
+     *
+     * ⚠ The session test is a lower bound, not a census. A device we have never exchanged a
+     * message with leaves no session, so a primary can under-report right after another device
+     * links to it. That is the safe direction and the library covers it: every send also ORs
+     * in `needsSyncInResults`, which comes from what the *server* said about our account, so a
+     * real sibling still gets its transcript on the first send after it appears.
+     */
+    private fun accountHasOtherDevices(): Boolean = runCatching {
+        val credentials = accounts.credentials()
+        // Being a linked device is proof on its own: something linked us, and that something
+        // is the primary. No session needed to know it exists.
+        if (credentials.deviceId != SignalSessionStore.PRIMARY_DEVICE_ID) return@runCatching true
+
+        // Nullable: an account row exists before it has an identity. No aci is no siblings.
+        val selfAci = credentials.aci
+        if (selfAci.isNullOrBlank()) return@runCatching false
+        SignalSessionStore(db, ProtocolDatabase.ACCOUNT_ID_TYPE_ACI)
+            .deviceIdsFor(selfAci)
+            .any { it != credentials.deviceId }
+    }
+        // A store that will not answer is not evidence of siblings. False is the safe way to
+        // be wrong: it withholds a sync transcript the server will ask for anyway, where true
+        // sends a message to a device that is not there.
+        .getOrDefault(false)
 
     private fun storeFor(accountIdType: Int) = SignalAccountDataStore(
         db,
@@ -102,6 +140,9 @@ internal class SignalDataStore(
         SignalPreKeyStore(db, accountIdType),
         SignalSignedPreKeyStore(db, accountIdType),
         SignalKyberPreKeyStore(db, accountIdType),
-        SignalSenderKeyStore(db)
+        SignalSenderKeyStore(db),
+        // One answer for both stores. They implement the same method on the same account, and
+        // two literals is how they came to disagree with reality together.
+        hasOtherDevices = ::accountHasOtherDevices
     )
 }

@@ -26,7 +26,7 @@ internal class SignalConnection(
     private val accounts: SignalAccountStore,
     private val userAgent: String,
     private val configuration: org.signal.network.config.SignalServiceConfiguration =
-        SignalNetworkConfig.production(),
+        SignalNetworkConfig.configuration(),
     /**
      * Called when the server refuses this device outright. See
      * [SignalSocketHealthMonitor.onRejected] -- given to both sockets, because a deprecated
@@ -74,7 +74,28 @@ internal class SignalConnection(
      * reached through one of the APIs below.
      */
     val network by lazy {
-        Network(Network.Environment.PRODUCTION, userAgent, emptyMap(), Network.BuildVariant.PRODUCTION)
+        // ⛔ **libsignal carries its OWN environment, separate from the REST URLs**, and this
+        // was hardcoded to PRODUCTION while `SignalNetworkConfig` was pointed at staging.
+        //
+        // The result is the most confusing shape a bug can take: registration succeeded --
+        // it goes over the REST client, which *was* on staging -- and then the authenticated
+        // socket and the pre-key upload came here and asked **production** about an account
+        // production had never heard of. The server's answer was
+        // `DeviceDeregisteredException: device was deregistered`, which reads as "something
+        // deregistered your brand new account" rather than "you asked the wrong server".
+        // The unauthenticated socket connected happily throughout, because it authenticates
+        // nothing, which made it look like the network was fine.
+        //
+        // Upstream keeps the same two axes and sets them together: its staging flavour has
+        // both the staging URLs and `LIBSIGNAL_NET_ENV = Network.Environment.STAGING`.
+        //
+        // ⚠ `BuildVariant` is a **different axis** and stays PRODUCTION -- it is about which
+        // build of libsignal this is, not which servers it talks to.
+        val environment = when (SignalNetworkConfig.environment) {
+            SignalNetworkConfig.Environment.STAGING -> Network.Environment.STAGING
+            SignalNetworkConfig.Environment.PRODUCTION -> Network.Environment.PRODUCTION
+        }
+        Network(environment, userAgent, emptyMap(), Network.BuildVariant.PRODUCTION)
     }
 
     /**

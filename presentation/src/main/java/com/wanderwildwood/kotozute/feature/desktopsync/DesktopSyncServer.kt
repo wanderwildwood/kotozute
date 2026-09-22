@@ -36,6 +36,7 @@ import com.wanderwildwood.kotozute.feature.conversations.InboxItem
 import com.wanderwildwood.kotozute.feature.signal.SignalAttachment
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.model.SignalThread
+import com.wanderwildwood.kotozute.repository.SafetyNumberChanged
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import io.realm.Realm
 import fi.iki.elonen.NanoHTTPD
@@ -142,8 +143,27 @@ class DesktopSyncServer(
         // port immediately instead of failing while the old socket sits in TIME_WAIT.
         // Return the socket UNBOUND: NanoHTTPD binds it itself in ServerRunnable, and
         // binding here too fails the second bind with EADDRINUSE.
+        // ⚠ One factory, doing both jobs. NanoHTTPD's own `makeSecure` replaces the socket
+        // factory outright, which would quietly drop the SO_REUSEADDR below -- and that flag
+        // is why an auto-restore straight after a process kill can rebind instead of failing
+        // while the old socket sits in TIME_WAIT.
+        //
+        // ⚠ Still UNBOUND either way: NanoHTTPD binds it itself in ServerRunnable, and binding
+        // here too fails the second bind with EADDRINUSE.
+        val tls = if (prefs.desktopSyncTls.get()) DesktopSyncTls.serverSocketFactory(context) else null
+        if (prefs.desktopSyncTls.get() && tls == null) {
+            // Said out loud. Falling back to plain HTTP silently would leave somebody wondering
+            // why the browser still refuses the microphone on a phone they had switched TLS on
+            // for -- the setting saying one thing and the socket doing another.
+            Timber.w("desktop sync: TLS was asked for and could not be prepared; serving plainly")
+        }
         setServerSocketFactory {
-            java.net.ServerSocket().apply { reuseAddress = true }
+            val socket = tls?.createServerSocket() ?: java.net.ServerSocket()
+            Timber.i(
+                "desktop sync: socket is %s (tls asked=%s, prepared=%s)",
+                socket.javaClass.simpleName, prefs.desktopSyncTls.get(), tls != null
+            )
+            socket.apply { reuseAddress = true }
         }
 
         // NanoHTTPD stages multipart uploads through temp files, and its default manager puts
@@ -369,6 +389,10 @@ class DesktopSyncServer(
             uri == "/api/scheduled" && session.method == Method.GET -> handleScheduled()
             uri == "/api/blocked" && session.method == Method.GET -> handleBlocked()
             uri == "/api/signal/react" && session.method == Method.POST -> handleSignalReact(session)
+            uri == "/api/signal/accept-identity" && session.method == Method.POST ->
+                handleSignalAcceptIdentity(session)
+            uri == "/api/signal/withdraw" && session.method == Method.POST ->
+                handleSignalWithdraw(session)
             threadMessagesMatch != null && session.method == Method.GET ->
                 handleGetMessages(threadMessagesMatch.groupValues[1].toLong(), session)
             threadSendMatch != null && session.method == Method.POST ->
@@ -569,7 +593,10 @@ class DesktopSyncServer(
         val address = DesktopSyncService.findTailscaleAddress(context)
             ?: DesktopSyncService.findLanAddress(context)
             ?: "127.0.0.1"
-        val url = "http://$address:$listeningPort?token=$token"
+        // The scheme has to follow the socket, or the link hands somebody a page that will
+        // not load at all.
+        val scheme = if (prefs.desktopSyncTls.get()) "https" else "http"
+        val url = "$scheme://$address:$listeningPort?token=$token"
         // Prefers a Chromium browser in app mode, which gives a window with no tab strip or
         // address bar and its own entry in the menu and the switcher. Falls back to xdg-open,
         // so on a machine with neither Chrome nor Brave this still opens the right page in
@@ -979,6 +1006,19 @@ class DesktopSyncServer(
         put("isMe", m.outgoing)
         put("read", m.read)
         put("rail", "signal")
+        // ⚠ Answered here rather than worked out in the browser. Taking a message back is
+        // ours-only and inside a window, and that rule is `SignalRepository.canWithdraw` --
+        // Signal's own `isValidRemoteDeleteSend` reduced to what this app has. A second copy
+        // of it in JavaScript would drift, and the drift shows up as a menu offering
+        // something the phone then refuses, which reads as the browser being broken.
+        //
+        // ⚠ Computed at serialisation time, so it is as fresh as the message list. The window
+        // closes while a page is open; a browser that kept a stale true would offer it and be
+        // refused, which is why the phone is also the one that enforces it.
+        put(
+            "canWithdraw",
+            SignalRepository.canWithdraw(m.outgoing, m.date)
+        )
         // Real attachments, not a note saying one exists. The browser was told only
         // "attachment" for every Signal picture, video and voice note, so a photo someone
         // sent was unviewable there for as long as the thread lived -- while the phone,
@@ -1079,6 +1119,13 @@ class DesktopSyncServer(
                 put("label", name.ifBlank { type })
                 put("isImage", type.startsWith("image"))
                 put("isVideo", type.startsWith("video"))
+                // Audio was the one kind with no branch in the browser, so a voice note
+                // arrived there as a download link -- the thing the phone stopped doing.
+                put("isAudio", type.startsWith("audio"))
+                // Not the same question as `isAudio`: a voice note is something somebody
+                // said, an audio file is something they attached. The browser labels them
+                // differently for the same reason the phone does.
+                put("isVoice", a.optBoolean("voice"))
             })
         }
         return out.takeIf { it.length() > 0 }
@@ -1097,6 +1144,82 @@ class DesktopSyncServer(
      * answered from the array we already hold, which is what a video element needs before
      * it will let anyone seek.
      */
+    /**
+     * Trusts a recipient's new safety number, so a blocked send can go.
+     *
+     * ⚠ The answer to the 409 from `handleSend`, and the reason that 409 carries a thread key
+     * rather than only a sentence. Accepting is a real decision about who somebody is talking
+     * to, so it is a separate, deliberate request -- never folded into a retry that a browser
+     * could make on its own.
+     *
+     * The browser resends afterwards rather than this doing it: the message it wants to send
+     * is still in its composer, and a server that remembered it would be holding a message
+     * somebody may have changed their mind about.
+     */
+    private fun handleSignalAcceptIdentity(session: IHTTPSession): Response {
+        if (!signalEnabled()) {
+            return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
+        }
+        val threadKey = readSmallJsonField(session, "threadKey", MAX_ACTION_BODY_BYTES)?.trim().orEmpty()
+        if (threadKey.isEmpty()) {
+            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "no conversation"))
+        }
+        val accepted = runCatching { signalRepository.acceptIdentity(threadKey) }
+            .onFailure { Timber.w(it, "Desktop Sync: accepting a safety number") }
+            .getOrDefault(false)
+
+        // ⚠ `acceptIdentity` returns false when nothing was accepted, and its own
+        // documentation says so precisely so a caller cannot report success wrongly. Passing
+        // that through matters here: a browser told "accepted" would resend straight into the
+        // same refusal and look like it was ignoring the button.
+        return if (accepted) {
+            jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+        } else {
+            jsonResponse(
+                Response.Status.INTERNAL_ERROR,
+                JSONObject().put("error", "that safety number could not be accepted")
+            )
+        }
+    }
+
+    /**
+     * Takes one of this account's own messages back, for everyone it reached.
+     *
+     * The phone has had this; the browser had not, so a message sent from the browser could
+     * only be withdrawn by picking the phone up -- which is the opposite of what Desktop Sync
+     * is for.
+     *
+     * ⚠ The window and the ownership rule are **not** re-implemented here. The repository
+     * refuses an outgoing-only, inside-the-window send and this reports that refusal, so the
+     * browser cannot come to a different answer than the phone's menu about the same message.
+     */
+    private fun handleSignalWithdraw(session: IHTTPSession): Response {
+        if (!signalEnabled()) {
+            return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
+        }
+        val messageId = readSmallJsonField(session, "messageId", MAX_ACTION_BODY_BYTES)?.trim().orEmpty()
+        if (messageId.isEmpty()) {
+            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "no message"))
+        }
+        return runCatching { signalRepository.withdraw(messageId) }
+            .fold(
+                onSuccess = {
+                    notifyChanged()
+                    jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+                },
+                onFailure = { failure ->
+                    Timber.w(failure, "Desktop Sync: withdrawing a Signal message")
+                    jsonResponse(
+                        Response.Status.INTERNAL_ERROR,
+                        JSONObject().put(
+                            "error",
+                            failure.message ?: "that message could not be taken back"
+                        )
+                    )
+                }
+            )
+    }
+
     private fun handleSignalAttachment(id: String, session: IHTTPSession): Response {
         if (!signalEnabled()) {
             return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
@@ -1106,16 +1229,9 @@ class DesktopSyncServer(
                 Response.Status.NOT_FOUND,
                 JSONObject().put("error", "that attachment is no longer on the phone")
             )
-        // Sniffed, because the id does not carry the type and the row that named it is not
-        // to hand here. Only the three that matter for drawing: anything else is offered as
-        // a download, where the browser does not need to be told.
-        val mime = when {
-            bytes.size > 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "image/jpeg"
-            bytes.size > 8 && bytes[0] == 0x89.toByte() && bytes[1] == 'P'.code.toByte() -> "image/png"
-            bytes.size > 12 && String(bytes, 4, 4, Charsets.US_ASCII) == "ftyp" -> "video/mp4"
-            bytes.size > 3 && bytes[0] == 'G'.code.toByte() && bytes[1] == 'I'.code.toByte() -> "image/gif"
-            else -> "application/octet-stream"
-        }
+        // See [sniffServedType]: what the browser must be told to draw or play a file.
+        val mime = sniffServedType(bytes)
+
         val length = bytes.size.toLong()
         val range = session.headers["range"]?.let { RANGE.find(it) }
 
@@ -1837,6 +1953,30 @@ class DesktopSyncServer(
                 signalRepository.send(thread.threadKey, body, encoded)
                 notifyChanged()
                 jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+            } catch (changed: SafetyNumberChanged) {
+                // ⚠ Answered as a **decision**, not as an error string, and that distinction
+                // is the whole reason `SafetyNumberChanged` is a type. Its own documentation
+                // says a client owes the person the choice rather than the problem -- and the
+                // browser was doing precisely what that type was introduced to stop, failing
+                // the send with a sentence and leaving somebody to work out that the remedy
+                // lived on another screen. On the browser it was worse than that: there is no
+                // other screen, so the conversation was simply unsendable from here for ever.
+                //
+                // A changed key is routine -- a reinstall or a new phone produces one.
+                Timber.i("Desktop Sync: Signal send blocked by a changed safety number")
+                jsonResponse(
+                    Response.Status.CONFLICT,
+                    JSONObject()
+                        .put("error", changed.message ?: "the safety number changed")
+                        .put(
+                            "safetyNumber",
+                            JSONObject()
+                                .put("threadKey", changed.threadKey)
+                                // Null where the app has only an id: the browser says "them"
+                                // rather than showing somebody hexadecimal.
+                                .put("name", changed.name ?: JSONObject.NULL)
+                        )
+                )
             } catch (t: Throwable) {
                 // Sending has no offline queue on purpose: better to say it did not go
                 // than to accept a message that never arrives.
@@ -2386,6 +2526,12 @@ class DesktopSyncServer(
                     put("label", part.getSummary() ?: part.type)
                     put("isImage", part.type.startsWith("image"))
                     put("isVideo", part.type.startsWith("video"))
+                    // MMS carries recordings too -- the composer has always been able to
+                    // make them -- and they reached the browser as a download link for the
+                    // same reason Signal's did. MMS has no voice-note flag, so these are
+                    // audio and are not claimed to be more than that.
+                    put("isAudio", part.type.startsWith("audio"))
+                    put("isVoice", false)
                 })
             }
         if (attachments.length() > 0) put("attachments", attachments)
@@ -2425,3 +2571,39 @@ internal fun isOrdinaryDisconnect(exception: IOException): Boolean {
         text.contains("socket closed") ||
         text.contains("stream closed")
 }
+
+/**
+ * The content type to serve an attachment as, from its first bytes.
+ *
+ * Sniffed because the id does not carry a type and the row that named it is not to hand at
+ * the point it is served. Only the kinds the browser has to be told about in order to
+ * **draw** or **play** them; anything else is offered as a download, where a type is not
+ * needed and guessing one wrongly is worse than saying nothing.
+ *
+ * Top level rather than in the companion, which is private, so the byte tests can be
+ * exercised. They are the kind that look obviously right and are not -- see the AAC row.
+ */
+internal fun sniffServedType(bytes: ByteArray): String = when {
+        bytes.size > 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "image/jpeg"
+        bytes.size > 8 && bytes[0] == 0x89.toByte() && bytes[1] == 'P'.code.toByte() -> "image/png"
+        bytes.size > 12 && String(bytes, 4, 4, Charsets.US_ASCII) == "ftyp" -> "video/mp4"
+        bytes.size > 3 && bytes[0] == 'G'.code.toByte() && bytes[1] == 'I'.code.toByte() -> "image/gif"
+        // What this app records for Signal: raw ADTS AAC.
+        //
+        // ⚠ The test is `0xF6`, not `0xF0`, and the extra bit is the whole difference
+        // between AAC and MP3. Both begin with an eleven-bit sync run, so both match
+        // `FF Fx`; what separates them is the two-bit layer field, which ADTS requires to
+        // be 00 and every MPEG audio layer sets to something else. Masking only the top
+        // nibble would serve an MP3 as `audio/aac`.
+        //
+        // ⚠ Ordered after JPEG deliberately, though they cannot collide -- JPEG is FF D8
+        // and D8 masks to D0, never F0. Kept in this order so the reasoning does not have
+        // to be redone if a looser audio test is ever added.
+        bytes.size > 2 && bytes[0] == 0xFF.toByte() &&
+            (bytes[1].toInt() and 0xF6) == 0xF0 -> "audio/aac"
+        // Opus or Vorbis in Ogg, which is what some other Signal clients send.
+        bytes.size > 4 && String(bytes, 0, 4, Charsets.US_ASCII) == "OggS" -> "audio/ogg"
+        // AMR, from an MMS recording made by this app's own composer.
+        bytes.size > 6 && String(bytes, 0, 6, Charsets.US_ASCII) == "#!AMR\n" -> "audio/amr"
+        else -> "application/octet-stream"
+    }

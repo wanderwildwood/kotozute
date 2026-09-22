@@ -51,6 +51,15 @@ data class SettingsState(
     val signalEnabled: Boolean = false,
     /** This phone is a device on the account. */
     val signalLinkedDirectly: Boolean = false,
+    /**
+     * This phone is the account's **primary**, not a linked device -- so it owns the profile.
+     *
+     * Separate from [signalLinkedDirectly], which is true for both. Only a primary may write
+     * the account's own name.
+     */
+    val signalIsPrimary: Boolean = false,
+    /** Desktop Sync serves over TLS. See [Preferences.desktopSyncTls]. */
+    val desktopSyncTls: Boolean = false,
     val signalStatusSummary: String = "",
     val signalKeepConnected: Boolean = false,
     val signalWeave: Boolean = true,

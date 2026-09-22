@@ -48,6 +48,32 @@ internal object ProfileNames {
     }
 
     /**
+     * The two parts as the **one field** a profile actually carries.
+     *
+     * The counterpart of the split in [SignalProfiles.fetch], and here rather than there so
+     * the separator is written and read in one file. Signal's `ProfileName.serialize`, case
+     * for case: an empty given name serialises to the empty string whatever the family name
+     * says, a lone given name stands by itself, and only both together take the NUL.
+     *
+     * ⚠ NUL, not a space. A space is what a reader sees between the parts once they are
+     * joined for display, and writing one here would make a single given name containing a
+     * space -- which is an ordinary thing for a name to contain -- come back as two parts.
+     *
+     * Each part is trimmed and capped exactly as [joined] does, because the server is not the
+     * thing that enforces this: an over-long part is accepted, stored, and then read back by
+     * every other client as something else.
+     */
+    fun serialize(given: String?, family: String?): String {
+        val g = trimToFit(given.orEmpty().trim(), MAX_PART_LENGTH)
+        val f = trimToFit(family.orEmpty().trim(), MAX_PART_LENGTH)
+        return when {
+            g.isEmpty() -> ""
+            f.isEmpty() -> g
+            else -> "$g\u0000$f"
+        }
+    }
+
+    /**
      * Whether every character is one a CJKV name is written with.
      *
      * Signal's `CJKVUtil.isCJKV`, block for block, including the space -- a name with a space

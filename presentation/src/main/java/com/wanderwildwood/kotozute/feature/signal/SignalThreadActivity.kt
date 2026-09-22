@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.QkMediaPlayer
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.databinding.SignalMessageListItemBinding
@@ -101,6 +102,53 @@ class SignalThreadActivity : QkThemedActivity() {
     private val picker = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? -> if (uri != null) attach(uri) }
+
+    /**
+     * The attachment a "Save…" is waiting on, while the system asks where to put it.
+     *
+     * Held rather than passed, because `ACTION_CREATE_DOCUMENT` answers through a separate
+     * callback and carries nothing of ours back. Cleared as soon as it is used or abandoned.
+     */
+    private var pendingSave: SavedAttachment? = null
+
+    /** An attachment on its way out of the app: what to fetch, and what to call it. */
+    private data class SavedAttachment(val id: String, val filename: String, val type: String)
+
+    /**
+     * Where to put a saved attachment, asked of the system rather than decided here.
+     *
+     * `ACTION_CREATE_DOCUMENT` needs no storage permission and lets somebody put the file
+     * where the app that will open it can find it. That is the whole point of the request
+     * this answers: an epub is wanted **in a reader**, not in here.
+     */
+    private val saveLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*")
+    ) { destination: Uri? ->
+        val pending = pendingSave
+        pendingSave = null
+        if (destination == null || pending == null) return@registerForActivityResult
+        writeAttachmentTo(pending, destination)
+    }
+
+    /**
+     * Whether the microphone is open right now.
+     *
+     * The recorder is a process-wide singleton shared with the MMS composer, so this says
+     * only whether *this* screen started it. Asking the recorder would answer for both.
+     */
+    private var recording = false
+
+    /** When the microphone opened, for the length shown and for [MIN_RECORDING_MS]. */
+    private var recordingStartedAt = 0L
+
+    private val micPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        // Asked for because a tap asked for it, so act on the answer rather than making
+        // somebody tap again for the same thing.
+        if (granted) startRecording()
+        else Toast.makeText(this, R.string.signal_record_needs_permission, Toast.LENGTH_LONG).show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -233,6 +281,10 @@ class SignalThreadActivity : QkThemedActivity() {
         })
 
         binding.attach.setOnClickListener { picker.launch("*/*") }
+
+        binding.record.setOnClickListener {
+            if (recording) stopRecording() else askForMicThenRecord()
+        }
         binding.pending.setOnClickListener { clearAttachment() }
     }
 
@@ -266,6 +318,324 @@ class SignalThreadActivity : QkThemedActivity() {
                 }
             }
         }
+    }
+
+    // --- attachments: getting them off this screen --------------------------------------
+    //
+    // Reported on the forum: pictures showed "only very small and I can't do anything with
+    // them (like download them)", and a file like an epub -- sent to a Kompakt precisely
+    // *because* it is a quick way to get a book onto it -- could not be got out of the app at
+    // all. Both were true: an image was a capped thumbnail with no gesture on it, and anything
+    // else was a line of text.
+    //
+    // Handed to the phone rather than solved in here. This app has no image viewer and has no
+    // business growing an epub reader; the device already has both, and an attachment is
+    // useful exactly when it reaches them.
+
+    /**
+     * The first attachment on this message that is actually on the phone, or null.
+     *
+     * ⚠ An id is the test, not the presence of an entry. Two kinds of row carry no id and
+     * nothing to open: one this phone **sent** (Signal assigns an id on upload and never
+     * reports it back) and one that arrived but was never fetched. Offering "save" for either
+     * would be offering to write a file that does not exist.
+     */
+    private fun downloadableAttachment(m: SignalMessage): SavedAttachment? {
+        if (m.attachments.isBlank()) return null
+        val entry = runCatching { JSONArray(m.attachments) }.getOrNull()
+            ?.takeIf { it.length() > 0 }?.optJSONObject(0) ?: return null
+        val id = entry.optString("id")
+        if (id.isBlank() || entry.optBoolean("pending")) return null
+        return SavedAttachment(
+            id = id,
+            filename = entry.optString("filename"),
+            type = entry.optString("type")
+        )
+    }
+
+    /**
+     * Puts an attachment somewhere another app can open it, and returns the shareable uri.
+     *
+     * The bytes live in this app's private store, which nothing else can read, so they are
+     * copied into the cache directory the manifest's `FileProvider` is allowed to hand out.
+     *
+     * ⚠ The name is rebuilt rather than trusted. It arrives from whoever sent the message, so
+     * it is theirs to choose: a name carrying a path separator would write outside the one
+     * directory this is allowed to touch. See [safeFilename].
+     *
+     * @return null if the attachment is not on the phone, having said so.
+     */
+    private fun shareableUri(attachment: SavedAttachment): Uri? {
+        val bytes = runCatching { signalRepo.loadAttachment(attachment.id) }.getOrNull()
+        if (bytes == null || bytes.isEmpty()) return null
+        return runCatching {
+            val file = java.io.File(cacheDir, safeFilename(attachment))
+            file.writeBytes(bytes)
+            androidx.core.content.FileProvider.getUriForFile(
+                this, "$packageName.messagesText", file
+            )
+        }.onFailure { Timber.w(it, "signal attachment: could not stage a copy") }.getOrNull()
+    }
+
+    /** Opens an attachment in whatever app on the phone handles it. */
+    private fun openAttachment(attachment: SavedAttachment) {
+        // Reading the bytes and writing the copy are both disk work, so they happen here and
+        // only the hand-off goes back to the main thread.
+        thread(isDaemon = true) {
+            val uri = shareableUri(attachment)
+            if (uri == null) {
+                runOnUiThread {
+                    Toast.makeText(
+                        this, R.string.signal_attachment_unavailable, Toast.LENGTH_SHORT
+                    ).show()
+                }
+                return@thread
+            }
+            runOnUiThread {
+                val intent = Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, attachment.type.ifBlank { "*/*" }.lowercase())
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                runCatching { startActivity(Intent.createChooser(intent, null)) }
+                    .onFailure {
+                        // A Kompakt has few apps on it, so "nothing can open this" is an
+                        // ordinary outcome rather than a fault -- and saying so beats a
+                        // crash or a tap that does nothing.
+                        Toast.makeText(
+                            this, R.string.signal_attachment_no_app, Toast.LENGTH_LONG
+                        ).show()
+                    }
+            }
+        }
+    }
+
+    /** Asks where to put a copy, then writes it there. */
+    private fun saveAttachment(attachment: SavedAttachment) {
+        pendingSave = attachment
+        runCatching { saveLauncher.launch(safeFilename(attachment)) }
+            .onFailure {
+                pendingSave = null
+                Timber.w(it, "signal attachment: no document picker")
+                Toast.makeText(this, R.string.signal_attachment_no_app, Toast.LENGTH_LONG).show()
+            }
+    }
+
+    /**
+     * Copies the attachment into the document the person chose.
+     *
+     * Off the main thread, and it reports both ways: a save that quietly did not happen is
+     * indistinguishable from one that did until the file is looked for and is not there.
+     */
+    private fun writeAttachmentTo(attachment: SavedAttachment, destination: Uri) {
+        thread(isDaemon = true) {
+            val bytes = runCatching { signalRepo.loadAttachment(attachment.id) }.getOrNull()
+            val written = bytes != null && bytes.isNotEmpty() && runCatching {
+                contentResolver.openOutputStream(destination)?.use { it.write(bytes) }
+                    ?: throw java.io.IOException("nothing would open ${'$'}destination")
+            }.onFailure { Timber.w(it, "signal attachment: could not save") }.isSuccess
+            runOnUiThread {
+                Toast.makeText(
+                    this,
+                    if (written) R.string.signal_attachment_saved
+                    else R.string.signal_attachment_save_failed,
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    /**
+     * A name safe to write into this app's cache, from one somebody else chose.
+     *
+     * ⚠ Anything that is not a plain name is replaced rather than cleaned up: the sender picks
+     * this string, and a separator in it would put the file outside the single directory the
+     * `FileProvider` is allowed to serve. The extension is kept where there is one, because it
+     * is what a reader app matches on when the content type is vague.
+     */
+    private fun safeFilename(attachment: SavedAttachment): String {
+        val proposed = attachment.filename.substringAfterLast('/').substringAfterLast('\\').trim()
+        val cleaned = proposed.replace(Regex("[^A-Za-z0-9._-]"), "_").trim('.', '_')
+        if (cleaned.isNotBlank()) return cleaned.take(120)
+        // Nothing usable was sent. The id is unique and the type gives an extension.
+        val extension = android.webkit.MimeTypeMap.getSingleton()
+            .getExtensionFromMimeType(attachment.type.lowercase())
+        return "signal-${'$'}{attachment.id.takeLast(12)}" + if (extension != null) ".${'$'}extension" else ""
+    }
+
+    // --- voice messages ------------------------------------------------------------------
+
+    private fun askForMicThenRecord() {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            this, android.Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) startRecording() else micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+    }
+
+    /**
+     * Opens the microphone, in the format Signal's own clients record.
+     *
+     * ⚠ [MediaRecorderManager.Format.SIGNAL_AAC], not the MMS default. The recorder is shared
+     * with the MMS composer, whose format is AMR narrowband because that is what survives a
+     * carrier transcoder -- and which arrives on Signal as a file nothing offers to play.
+     */
+    private fun startRecording() {
+        val uri = com.wanderwildwood.kotozute.manager.MediaRecorderManager.startRecording(
+            this,
+            format = com.wanderwildwood.kotozute.manager.MediaRecorderManager.Format.SIGNAL_AAC
+        )
+        if (uri == Uri.EMPTY) {
+            Toast.makeText(this, R.string.signal_record_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        recording = true
+        recordingStartedAt = System.currentTimeMillis()
+        binding.pending.setText(R.string.signal_recording)
+        binding.pending.setVisible(true)
+    }
+
+    /**
+     * Closes the microphone and puts the recording in the composer, marked as a voice note.
+     *
+     * It is **not** sent here. A recording that sends itself the instant a finger lifts gives
+     * nobody the chance to think better of it, and this screen already has a send button.
+     */
+    private fun stopRecording() {
+        recording = false
+        val uri = com.wanderwildwood.kotozute.manager.MediaRecorderManager.stopRecording()
+        val heldFor = System.currentTimeMillis() - recordingStartedAt
+        if (uri == Uri.EMPTY) {
+            binding.pending.setVisible(false)
+            Toast.makeText(this, R.string.signal_record_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        // ⚠ A recording this short is usually a mis-tap, and AAC/ADTS has a further problem
+        // with them: a stream stopped before the encoder has written a frame is a file of
+        // zero length, which uploads and arrives as a voice note that plays nothing. Refusing
+        // here costs a retap; not refusing sends silence that looks fine from this end.
+        if (heldFor < MIN_RECORDING_MS) {
+            com.wanderwildwood.kotozute.util.FileUtils.deleteFile(uri)
+            binding.pending.setVisible(false)
+            Toast.makeText(this, R.string.signal_record_too_short, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        thread(isDaemon = true) {
+            val result = runCatching {
+                val bytes = contentResolver.openInputStream(uri).use { it!!.readBytes() }
+                if (bytes.isEmpty()) throw IllegalStateException("the recording is empty")
+                val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                // The marker rides inside the data URI so it cannot be separated from the
+                // bytes it describes on the way to the sender. See [VoiceNotes].
+                com.wanderwildwood.kotozute.signal.VoiceNotes.mark(
+                    "data:${com.wanderwildwood.kotozute.signal.VoiceNotes.CONTENT_TYPE};base64,$encoded"
+                )
+            }
+            // The cache copy has served its purpose either way; the bytes are in memory now
+            // and the housekeeping sweep should not be the only thing that ever removes it.
+            com.wanderwildwood.kotozute.util.FileUtils.deleteFile(uri)
+            runOnUiThread {
+                result.onSuccess { dataUri ->
+                    pendingAttachment = dataUri
+                    pendingName = getString(R.string.signal_voice_message)
+                    binding.pending.text = getString(
+                        R.string.signal_recorded,
+                        spokenLength(heldFor)
+                    )
+                    binding.pending.setVisible(true)
+                }.onFailure {
+                    binding.pending.setVisible(false)
+                    Toast.makeText(this, R.string.signal_record_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * Which voice note is playing, so a second tap on the same row stops it and a tap on a
+     * different one replaces it.
+     */
+    private var playingAttachmentId: String? = null
+
+    /**
+     * Plays a received voice note, or stops it if it is the one already playing.
+     *
+     * ⚠ Written to a cache file rather than played from memory. `MediaPlayer` takes a path,
+     * a URI or a file descriptor and none of those is a byte array; the alternative is a
+     * local socket, which is a lot of machinery for a file measured in tens of kilobytes.
+     * The copy is deleted as soon as playback ends or is replaced.
+     */
+    private fun togglePlayback(id: String, onState: (Boolean) -> Unit) {
+        if (playingAttachmentId == id) {
+            stopPlayback()
+            onState(false)
+            return
+        }
+        stopPlayback()
+
+        thread(isDaemon = true) {
+            val bytes = signalRepo.loadAttachment(id)
+            if (bytes == null || bytes.isEmpty()) {
+                runOnUiThread {
+                    onState(false)
+                    Toast.makeText(this, R.string.signal_voice_message_failed, Toast.LENGTH_SHORT).show()
+                }
+                return@thread
+            }
+            val file = java.io.File(cacheDir, "voice-$id.aac")
+            val ok = runCatching { file.writeBytes(bytes) }.isSuccess
+            runOnUiThread {
+                if (!ok) {
+                    onState(false)
+                    Toast.makeText(this, R.string.signal_voice_message_failed, Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                val started = runCatching {
+                    QkMediaPlayer.reset()
+                    QkMediaPlayer.setDataSource(this, Uri.fromFile(file))
+                    QkMediaPlayer.prepare()
+                    QkMediaPlayer.setOnCompletionListener {
+                        // The row has to be told, or it keeps offering to stop something
+                        // that already finished.
+                        playingAttachmentId = null
+                        file.delete()
+                        runOnUiThread { onState(false) }
+                    }
+                    QkMediaPlayer.start()
+                }.isSuccess
+
+                if (started) {
+                    playingAttachmentId = id
+                    playingFile = file
+                    onState(true)
+                } else {
+                    file.delete()
+                    onState(false)
+                    Toast.makeText(this, R.string.signal_voice_message_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    /** The cache copy currently being played, so it can be removed when playback stops. */
+    private var playingFile: java.io.File? = null
+
+    private fun stopPlayback() {
+        if (playingAttachmentId == null) return
+        playingAttachmentId = null
+        runCatching { QkMediaPlayer.reset() }
+        playingFile?.delete()
+        playingFile = null
+    }
+
+    /**
+     * How long a recording ran, as m:ss.
+     *
+     * Its own function rather than a `DateFormatter` entry: everything there formats a point
+     * in time against the reader's locale and calendar, and a duration is neither.
+     */
+    private fun spokenLength(millis: Long): String {
+        val seconds = (millis / 1000).coerceAtLeast(0)
+        return String.format(java.util.Locale.getDefault(), "%d:%02d", seconds / 60, seconds % 60)
     }
 
     private fun clearAttachment() {
@@ -624,11 +994,18 @@ class SignalThreadActivity : QkThemedActivity() {
         mine: String,
         outgoing: Boolean,
         sentAt: Long,
+        /** What this message carries, where it is on the phone. Null when there is nothing. */
+        attachment: SavedAttachment? = null,
         /** Whether "take back" is already armed; see below. */
         armed: Boolean = false
     ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
+        // Only where there is something to act on; see [downloadableAttachment].
+        attachment?.let { saved ->
+            actions += getString(R.string.signal_attachment_open) to { openAttachment(saved) }
+            actions += getString(R.string.signal_attachment_save) to { saveAttachment(saved) }
+        }
         if (mine.isNotEmpty()) {
             actions += getString(R.string.signal_reaction_remove_mine, mine) to {
                 sendReaction(messageId, mine, remove = true)
@@ -668,7 +1045,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 getString(R.string.signal_withdraw_armed) to { withdraw(messageId) }
             } else {
                 getString(R.string.signal_withdraw) to {
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, armed = true)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true)
                 }
             }
         }
@@ -682,7 +1059,7 @@ class SignalThreadActivity : QkThemedActivity() {
             val disarm = Runnable {
                 if (!isFinishing && dialog.isShowing) {
                     dialog.dismiss()
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, armed = false)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false)
                 }
             }
             decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
@@ -841,6 +1218,13 @@ class SignalThreadActivity : QkThemedActivity() {
 
     override fun onPause() {
         if (visibleThreadKey == threadKey) visibleThreadKey = null
+        // ⚠ The microphone does not close itself. The recorder is a process-wide singleton,
+        // so a screen left while recording would hold the mic open behind whatever comes
+        // next -- including the MMS composer, which would then find it already in use. The
+        // recording is kept rather than discarded: it is in the composer, where an unsent
+        // draft belongs.
+        if (recording) stopRecording()
+        stopPlayback()
         super.onPause()
     }
 
@@ -873,6 +1257,7 @@ class SignalThreadActivity : QkThemedActivity() {
     override fun onDestroy() {
         messages?.removeAllChangeListeners()
         disposables.clear()
+        stopPlayback()
         super.onDestroy()
     }
 
@@ -882,6 +1267,15 @@ class SignalThreadActivity : QkThemedActivity() {
 
         /** How long an armed destructive row stays armed, as everywhere else in the app. */
         private const val ARM_TIMEOUT_MS = 4000L
+
+        /**
+         * The shortest recording worth sending.
+         *
+         * Below this a tap-to-start immediately followed by tap-to-stop has usually not let
+         * the AAC encoder write a single frame, and what comes out is a zero-length file that
+         * uploads happily and plays nothing on the other end.
+         */
+        private const val MIN_RECORDING_MS = 700L
 
 
         /**
@@ -1057,8 +1451,9 @@ class SignalThreadActivity : QkThemedActivity() {
             val mine = myReaction(m)
             val outgoing = m.outgoing
             val sentAt = m.date
+            val saved = downloadableAttachment(m)
             val listener = android.view.View.OnLongClickListener {
-                showMessageActions(m.body, messageId, mine, outgoing, sentAt)
+                showMessageActions(m.body, messageId, mine, outgoing, sentAt, saved)
                 true
             }
             b.body.setOnLongClickListener(listener)
@@ -1068,6 +1463,19 @@ class SignalThreadActivity : QkThemedActivity() {
             b.attachment.setOnLongClickListener(listener)
 
             bindAttachment(m)
+
+            // A tap opens it. The picture on screen is a thumbnail sized for a message list,
+            // which is the "only very small" in the report -- the full copy is what gets
+            // handed to a viewer here. A voice note keeps its own tap, which plays it.
+            val downloadable = downloadableAttachment(m)
+            if (downloadable != null) {
+                b.image.setOnClickListener { openAttachment(downloadable) }
+                if (!b.attachment.hasOnClickListeners()) {
+                    b.attachment.setOnClickListener { openAttachment(downloadable) }
+                }
+            } else {
+                b.image.setOnClickListener(null)
+            }
         }
 
         /**
@@ -1164,11 +1572,36 @@ class SignalThreadActivity : QkThemedActivity() {
             // not report it back. There is nothing to fetch, but the sender should still
             // see that the message carried something.
             if (id.isBlank()) {
-                b.attachment.text = getString(
-                    R.string.signal_attachment_other,
-                    type.ifBlank { getString(R.string.signal_attachment_image) }
-                )
+                // ⚠ Named before it is described. Our own sent attachments carry no id --
+                // Signal assigns one on upload and does not report it back -- so this branch
+                // is every message this phone has sent, and it ran *before* the voice-note
+                // check below. A recording the sender had just made read back to them as
+                // "Attachment (audio/aac)" while the recipient saw a voice message.
+                //
+                // There is still nothing to play: no id means nothing to fetch. But saying
+                // what it is costs nothing and is the difference between a thread that
+                // reflects what was sent and one that does not.
+                b.attachment.text = if (isVoiceNote(first, type)) {
+                    getString(R.string.signal_voice_message)
+                } else {
+                    getString(
+                        R.string.signal_attachment_other,
+                        type.ifBlank { getString(R.string.signal_attachment_image) }
+                    )
+                }
                 b.attachment.setVisible(true)
+                return
+            }
+
+            // A voice note is a message, not a file. `voice` is the flag the sender set;
+            // the type check is the fallback for anything filed before that flag was read,
+            // and for a client whose voice notes are not AAC.
+            //
+            // ⚠ Only when there is an id to fetch. Our own sent recordings have none -- the
+            // branch above has already returned for those -- so this never offers a play
+            // button for something that cannot be played.
+            if (isVoiceNote(first, type)) {
+                bindVoiceNote(id, first.optBoolean("pending"))
                 return
             }
 
@@ -1232,6 +1665,59 @@ class SignalThreadActivity : QkThemedActivity() {
                     } else {
                         adapter.notifyDataSetChanged()
                     }
+                }
+            }
+        }
+
+        /**
+         * Whether this attachment is something somebody said.
+         *
+         * `voice` is the flag its sender set. The content type is the fallback, for anything
+         * filed before that flag was read and for a client whose voice notes are not AAC --
+         * see [com.wanderwildwood.kotozute.signal.VoiceNotes.isPlayableAudio] for why that
+         * net is deliberately wide.
+         *
+         * One function because two places ask, and they must not disagree: the branch for our
+         * own sent copies and the branch for everything with an id to fetch.
+         */
+        private fun isVoiceNote(entry: org.json.JSONObject, type: String): Boolean =
+            entry.optBoolean("voice") ||
+                com.wanderwildwood.kotozute.signal.VoiceNotes.isPlayableAudio(type)
+
+        /**
+         * A voice note, as a row that plays when tapped.
+         *
+         * Deliberately plain: a label and a leading glyph, no waveform and no moving progress
+         * bar. A waveform is Signal's answer on a screen that redraws sixty times a second;
+         * on this panel it is an expensive drawing of nothing anybody needs, and an animated
+         * progress bar would be a full-panel refresh several times a second while it played.
+         *
+         * ⚠ The play state is read from the activity rather than kept in the holder, because
+         * holders are recycled: a holder that scrolled away while playing would otherwise
+         * carry "playing" onto whatever message it was reused for.
+         */
+        private fun bindVoiceNote(id: String, pending: Boolean) {
+            b.attachment.setVisible(true)
+            if (pending) {
+                // Nothing to play: the bytes never arrived. Said plainly rather than offering
+                // a button that does nothing.
+                b.attachment.setText(R.string.signal_voice_message_unavailable)
+                b.attachment.setOnClickListener(null)
+                return
+            }
+
+            fun draw(playing: Boolean) {
+                b.attachment.setText(
+                    if (playing) R.string.signal_voice_message_playing
+                    else R.string.signal_voice_message_play
+                )
+            }
+            draw(playingAttachmentId == id)
+
+            b.attachment.setOnClickListener {
+                togglePlayback(id) { playing ->
+                    // Only if this holder still shows the same message.
+                    if (b.attachment.isAttachedToWindow) draw(playing)
                 }
             }
         }

@@ -112,6 +112,33 @@ interface SignalRepository {
     suspend fun registerVerify(sessionId: String, code: String, e164: String): Registration
 
     /**
+     * Gives the newly registered account its own profile name.
+     *
+     * The last step of registering, and only of registering: a linked device inherits the
+     * primary's profile and must not write over it. Until this runs the account has no
+     * profile at all, and everyone it writes to sees a service id rather than a person.
+     *
+     * Separated from [registerVerify] rather than folded into it because it is the one step
+     * that can be retried on its own -- the account already exists by then, so a failure here
+     * is worth offering again rather than starting over.
+     *
+     * @return null on success, or a reason to show.
+     */
+    suspend fun registerSetProfileName(given: String, family: String): String?
+
+    /**
+     * Whether this phone is the account's **primary** device rather than a linked one.
+     *
+     * Local and cheap -- it reads the stored device id and asks the network nothing, unlike
+     * [account], which throws when Signal cannot be reached. A settings screen has to be able
+     * to draw itself with no connection.
+     *
+     * Only a primary may write the account's profile: a linked device inherits one the
+     * primary already wrote and has no business replacing it.
+     */
+    fun isPrimaryDevice(): Boolean
+
+    /**
      * Recomputes and republishes the connection state.
      *
      * Needed because the state starts as a literal "nothing is configured" and is otherwise

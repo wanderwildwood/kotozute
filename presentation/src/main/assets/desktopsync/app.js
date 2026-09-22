@@ -769,6 +769,58 @@ messagesEl.addEventListener('drop', e => {
  * "send failed" on its own would leave someone retrying the same unreadable file forever.
  * The composer keeps its text and its queue either way, so a retry is one click.
  */
+/*
+ * A send the phone refused because the recipient's safety number changed.
+ *
+ * The phone answers 409 with the conversation and who it is, rather than a sentence, because
+ * this is a decision and not an error: a changed key is what a reinstall or a new phone
+ * produces, and it is also what interception looks like. Only the person can tell those apart,
+ * so they are asked -- and until this existed the browser simply reported the sentence, which
+ * left the conversation unsendable from here with no remedy anywhere on the page.
+ *
+ * Returns true when the caller should try the same send again.
+ *
+ * ⚠ The response body is read ONLY on 409. A Response can be read once, and every other status
+ * is passed back unread so reportSendFailure can still get the message out of it.
+ */
+async function acceptedChangedSafetyNumber(res) {
+  if (res.status !== 409) return false;
+  const payload = await res.json().catch(() => null);
+  const info = payload && payload.safetyNumber;
+  if (!info || !info.threadKey) {
+    statusEl.textContent = (payload && payload.error) || 'send failed';
+    return false;
+  }
+
+  const who = info.name || 'them';
+  const ok = confirm(
+    'The safety number for ' + who + ' has changed.\n\n' +
+    'That usually means they reinstalled Signal or got a new phone. It can also mean somebody ' +
+    'is intercepting the conversation. If you are not sure, check with them another way before ' +
+    'sending.\n\n' +
+    'Send anyway?'
+  );
+  if (!ok) {
+    // Said plainly, because nothing was sent and the composer still holds the message.
+    statusEl.textContent = 'not sent — safety number not accepted';
+    return false;
+  }
+
+  const accepted = await api('/api/signal/accept-identity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ threadKey: info.threadKey })
+  });
+  if (!accepted.ok) {
+    // ⚠ The phone answers false when nothing was accepted, precisely so this cannot report
+    // success wrongly. Retrying here would walk straight back into the same refusal and look
+    // like the button did nothing.
+    await reportSendFailure(accepted);
+    return false;
+  }
+  return true;
+}
+
 async function reportSendFailure(res) {
   const detail = await res.json().then(j => j && j.error).catch(() => null);
   statusEl.textContent = detail || 'send failed';
@@ -1162,6 +1214,13 @@ function openMessageMenu(m, x, y) {
     items.push(['Delete', () => deleteMessage(m), true]);
   }
   if (canReact && mine) items.push(['Remove my ' + mine, () => react(m, mine, true)]);
+  // Taking a Signal message back, for everyone it reached. The phone decides whether this is
+  // still possible -- it is ours-only and inside a window -- and sends the answer with the
+  // message, so this menu and the phone's cannot offer different things about the same row.
+  if (activeThreadRail === 'signal' && m.signalId && m.canWithdraw) {
+    items.push(null);
+    items.push(['Take back for everyone', () => withdrawMessage(m), true]);
+  }
   if (!items.length && !canReact) return;
 
   threadMenuEl.innerHTML = '';
@@ -1226,6 +1285,39 @@ async function react(m, emoji, remove) {
     lastMessagesSig = ''; // let the next poll redraw rather than waiting for a new message
   } catch (e) {
     statusEl.textContent = 'could not react';
+  }
+}
+
+/*
+ * Ask the phone to take one of our own Signal messages back, for everyone it reached.
+ *
+ * ⚠ Confirmed first and not undoable, like the SMS delete beside it -- but it is a different
+ * act and says so: deleting an SMS removes it from this phone, while this reaches into
+ * everybody else's copy of the conversation.
+ *
+ * Nothing is drawn optimistically. The phone rewrites the row when Signal has accepted the
+ * withdrawal, and a bubble that vanished here and came back would be worse than one that took
+ * a moment to go.
+ */
+async function withdrawMessage(m) {
+  if (!confirm('Take this message back for everyone? It will be removed from their ' +
+               'conversation too. This cannot be undone.')) return;
+  try {
+    const res = await api('/api/signal/withdraw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId: m.signalId }),
+    });
+    if (!res.ok) {
+      const detail = await res.json().then(j => j && j.error).catch(() => null);
+      statusEl.textContent = detail || 'could not take it back';
+      return;
+    }
+    statusEl.textContent = 'taken back';
+    lastMessagesSig = ''; // let the next poll redraw it
+    await loadMessages();
+  } catch (e) {
+    statusEl.textContent = 'could not take it back';
   }
 }
 
@@ -2292,6 +2384,37 @@ async function loadMessages() {
             video.replaceWith(wrap);
           });
           bubble.append(video);
+        } else if (att.isAudio) {
+          // Played here, like video, and for the same reason: the phone serves parts with a
+          // length and answers range requests, which is what a media element needs. Before
+          // this, a voice note was a download link in the browser -- the one place it still
+          // was, once the phone had stopped doing that.
+          const audio = document.createElement('audio');
+          audio.className = 'attach';
+          audio.controls = true;
+          audio.preload = 'metadata';
+          audio.src = src;
+          // A voice note is something somebody said; an audio file is something they
+          // attached. Worth the distinction here as on the phone.
+          const caption = document.createElement('div');
+          caption.className = 'attachLink';
+          caption.textContent = att.isVoice ? '🎙 Voice message' : ('🎵 ' + (att.label || att.type));
+          // Not every codec plays everywhere -- AMR from MMS in particular is one most
+          // browsers will not decode. Say so and offer the file rather than leaving a
+          // player that silently does nothing when pressed.
+          audio.addEventListener('error', () => {
+            const wrap = document.createElement('div');
+            wrap.className = 'attachLink';
+            const a = document.createElement('a');
+            a.href = audio.src;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.textContent = (att.isVoice ? '🎙 ' : '🎵 ') + (att.label || att.type);
+            wrap.append(a, document.createTextNode(' — this browser cannot play it; save it instead'));
+            audio.replaceWith(wrap);
+            caption.remove();
+          });
+          bubble.append(caption, audio);
         } else {
           const link = document.createElement('a');
           link.className = 'attachLink';
@@ -2458,7 +2581,24 @@ composerEl.addEventListener('submit', async e => {
     sendRequestBody({ body: text })
   ));
   updateSendEnabled();
-  if (res.ok) {
+  let result = res;
+  // Asked once, and only once: if the same send is refused again after the key was accepted,
+  // that is a different problem and is reported as one rather than prompted for in a loop.
+  let retried = false;
+  if (!result.ok && await acceptedChangedSafetyNumber(result)) {
+    retried = true;
+    sendEl.disabled = true;
+    result = await api('/api/threads/' + sentThreadId + '/send', Object.assign(
+      { method: 'POST' },
+      sendRequestBody({ body: text })
+    ));
+    updateSendEnabled();
+  }
+  // Declined, or the key would not be accepted. acceptedChangedSafetyNumber has already read
+  // the body and said what happened, so there is nothing further to report and the response
+  // cannot be read a second time anyway.
+  const alreadyReported = !retried && result.status === 409;
+  if (result.ok) {
     clearSendFailure();
     clearDraft(sentThreadId);
     // Only blank the box if they're still looking at the thread they sent from
@@ -2469,8 +2609,8 @@ composerEl.addEventListener('submit', async e => {
     autoGrow();
     await loadMessages();
     await loadThreads();
-  } else {
-    await reportSendFailure(res);
+  } else if (!alreadyReported) {
+    await reportSendFailure(result);
   }
 });
 

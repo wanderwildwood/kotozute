@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import org.signal.network.NetworkResult
 import org.signal.core.models.ServiceId
 import org.signal.core.models.storageservice.StorageKey
 import org.whispersystems.signalservice.api.storage.RecordIkm
@@ -26,6 +27,18 @@ import timber.log.Timber
  * that record's id, and keep the contacts. Nothing is written back -- this device reads the
  * account's state and never edits it.
  */
+/**
+ * One contact record as the account holds it: what it says, the bytes it came as, and the id
+ * it is filed under.
+ *
+ * A triple of unrelated things would read as one at every call site; this says which is which.
+ */
+internal data class RemoteContact(
+    val record: ContactRecord,
+    val raw: ByteArray,
+    val storageId: String
+)
+
 internal class SignalStorageService(
     private val connection: SignalConnection,
     private val keys: SignalKeyStore,
@@ -147,7 +160,14 @@ internal class SignalStorageService(
     private fun invalidReason(aci: String?, pni: String?, e164: String?): String? =
         invalidReason(self, aci, pni, e164)
 
-    fun read(): Result {
+    /**
+     * @param onWritable handed the manifest this read was holding, once the read has finished
+     *   cleanly, so a write can be computed against it in the same pass. Null -- the default
+     *   -- is a read that writes nothing, which is every caller until the write flag is on.
+     */
+    fun read(
+        onWritable: ((Long, List<ManifestRecord.Identifier>, org.whispersystems.signalservice.api.storage.RecordIkm?) -> Unit)? = null
+    ): Result {
         val storageKey = keys.storageKey()
             ?: return Result(0, 0, "the storage key is not here yet")
 
@@ -157,8 +177,25 @@ internal class SignalStorageService(
         val auth = api.getAuth().successOrNull()
             ?: return Result(0, 0, "the service would not give an auth token")
 
-        val manifest = api.getStorageManifest(auth).successOrNull()
-            ?: return Result(0, 0, "the manifest could not be read")
+        // ⚠ **A 404 here is not a failure.** The vendored API documents it as "No storage
+        // manifest was found", and that is the ordinary state of an account nobody has ever
+        // written records for -- which is exactly what **registering** produces. Reported as
+        // "the manifest could not be read" it looks like a fault on every sync of a healthy
+        // new account, and sends the reader looking for a broken key or a bad token.
+        //
+        // Said apart, not fixed: writing the first manifest is the storage **write** path,
+        // which `docs/DECISION-storage-write.md` stages deliberately and which needs unknown
+        // fields carried through first. Nothing here writes.
+        val manifestResult = api.getStorageManifest(auth)
+        val manifest = manifestResult.successOrNull() ?: return Result(
+            0,
+            0,
+            if (manifestResult is NetworkResult.StatusCodeError && manifestResult.code == 404) {
+                "this account has no stored records yet"
+            } else {
+                "the manifest could not be read"
+            }
+        )
 
         val manifestRecord = runCatching {
             ManifestRecord.ADAPTER.decode(
@@ -278,9 +315,16 @@ internal class SignalStorageService(
                     return@mapNotNull null
                 }
 
-                record.contact ?: run { notContacts++; null }
+                // ⛔ The **whole** record travels on, not just the contact half. Step 0 of
+                // `docs/DECISION-storage-write.md`: these bytes are what a write must start
+                // from, so that fields this build has never heard of -- written by a newer
+                // Signal client -- survive a re-encode instead of being erased for every
+                // device on the account.
+                record.contact?.let {
+                    RemoteContact(it, record.encode(), android.util.Base64.encodeToString(id, android.util.Base64.NO_WRAP))
+                } ?: run { notContacts++; null }
             }
-            val people = found.mapNotNull { record ->
+            val people = found.mapNotNull { (record, rawRecord, remoteStorageId) ->
                 val aci = aciOf(record)
                 val pni = pniOf(record)
                 val e164 = record.e164?.takeIf { it.isNotBlank() }
@@ -395,7 +439,14 @@ internal class SignalStorageService(
                     // Signal, and offering them starts a conversation that can never deliver.
                     // Signal keeps both and excludes them from contact search.
                     hidden = record.hidden,
-                    unregisteredAt = record.unregisteredAtTimestamp
+                    unregisteredAt = record.unregisteredAtTimestamp,
+                    // What the account actually holds for this row, kept whole. See
+                    // [SignalContactStore.Contact.storageRecord] -- a write starts from these
+                    // bytes so that fields this build cannot parse are put back untouched.
+                    storageRecord = rawRecord,
+                    // Which manifest entry this row is. A write replaces exactly this id and
+                    // touches no other. See schema v35.
+                    remoteStorageId = remoteStorageId
                 ).also {
                     // Whether the account shares its profile with them. Applied here rather
                     // than carried through the merge, because it is a fact about the
@@ -449,6 +500,20 @@ internal class SignalStorageService(
             kept, seen, pniOnly, unopened, notContacts, anonymous, anonymousWithNumber, invalid,
             accountsSeen
         )
+        // ⚠ **The write goes here, in the same pass, or not at all.**
+        //
+        // A locally-rotated id goes up as an insert while the stale id it replaced is deleted
+        // in the same write. Split into two passes, the stale record survives to be applied by
+        // the next read and quietly reverts the local change -- which `logStoragePushDiff`
+        // watched happen before any write existed. This is also why the writer takes the
+        // manifest this read was holding rather than fetching its own.
+        //
+        // ⛔ Only when a read was **complete**. Writing a manifest computed from a partial read
+        // is how entries get dropped, and a dropped entry is somebody else's data.
+        if (unreadable == 0) {
+            onWritable?.invoke(manifest.version, manifestRecord.identifiers, ikm)
+        }
+
         return Result(kept, seen, null, unopened, notContacts, anonymous, pniOnly, unreadable, anonymousWithNumber)
     }
 

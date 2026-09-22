@@ -43,6 +43,55 @@ object MediaRecorderManager : MediaRecorder() {
     /** Recordings made before the move off AMR-WB. Cleaned up, never written. */
     const val LEGACY_AUDIO_FILE_SUFFIX = ".3ga"
 
+    /** What a Signal voice note is recorded into. See [Format.SIGNAL_AAC]. */
+    const val SIGNAL_AUDIO_FILE_SUFFIX = ".aac"
+
+    /**
+     * Every suffix a recording has ever been written with.
+     *
+     * ⚠ Here so the cache sweep has one list to read. A recording lives in the cache until
+     * something deletes it, and a sweep that knows about two of the three suffixes does not
+     * fail -- it just quietly leaves the third kind behind for ever, on a phone with very
+     * little room. Adding a format means adding it here in the same edit.
+     */
+    val ALL_AUDIO_FILE_SUFFIXES = listOf(
+        AUDIO_FILE_SUFFIX,
+        LEGACY_AUDIO_FILE_SUFFIX,
+        SIGNAL_AUDIO_FILE_SUFFIX
+    )
+
+    /**
+     * Which rail the recording is for, which decides how it is encoded.
+     *
+     * ⚠ The two are **not interchangeable**, and this is not a quality preference. Each rail
+     * has a format its recipients can actually decode, and sending the other one arrives as a
+     * file that will not open rather than as an error anybody can act on.
+     */
+    enum class Format(val suffix: String) {
+        /**
+         * MMS: AMR narrowband.
+         *
+         * Wideband is outside the MMS baseline, so a handset or a carrier transcoder on the
+         * far end can receive the part and still have no way to decode it.
+         */
+        MMS_AMR_NB(AUDIO_FILE_SUFFIX),
+
+        /**
+         * Signal: AAC in ADTS, 44.1 kHz mono at 32 kbps.
+         *
+         * Signal's own numbers, from `MediaRecorderWrapper.java:19-41` -- sample rate,
+         * channel count and bit rate all copied rather than chosen, because a voice note is
+         * played by every other Signal client and this is the shape they expect. AMR would
+         * technically arrive, as a file nothing on the other end offers to play.
+         */
+        SIGNAL_AAC(SIGNAL_AUDIO_FILE_SUFFIX)
+    }
+
+    /** Signal's own recording numbers; see [Format.SIGNAL_AAC]. */
+    private const val SIGNAL_SAMPLE_RATE = 44100
+    private const val SIGNAL_BIT_RATE = 32000
+    private const val SIGNAL_CHANNELS = 1
+
     private var recordingState: RecordingState = RecordingState.Initial
 
     var uri: Uri = Uri.EMPTY
@@ -63,12 +112,16 @@ object MediaRecorderManager : MediaRecorder() {
         }
     }
 
-    fun startRecording(context: Context, preferredAudioDevice: AudioDeviceInfo? = null): Uri {
+    fun startRecording(
+        context: Context,
+        preferredAudioDevice: AudioDeviceInfo? = null,
+        format: Format = Format.MMS_AMR_NB
+    ): Uri {
         return try {
             val (newUri, e) = FileUtils.create(
                 FileUtils.Location.Cache,
                 context,
-                "$AUDIO_FILE_PREFIX${UUID.randomUUID()}$AUDIO_FILE_SUFFIX",
+                "$AUDIO_FILE_PREFIX${UUID.randomUUID()}${format.suffix}",
                 ""
             )
             if (e is Exception)
@@ -79,15 +132,26 @@ object MediaRecorderManager : MediaRecorder() {
             // ensure stopped before using again
             stopRecording()
 
-            // configure
-            //
-            // Narrowband, not AMR-WB in a 3GPP container. Wideband is outside the
-            // MMS baseline, so a handset or a carrier transcoder on the far end can
-            // receive the part and still have no way to decode it -- which arrives
-            // as a file that will not open rather than as an error.
+            // configure -- see [Format] for why the two rails differ.
             setAudioSource(AudioSource.MIC)
-            setOutputFormat(OutputFormat.AMR_NB)
-            setAudioEncoder(AudioEncoder.AMR_NB)
+            when (format) {
+                Format.MMS_AMR_NB -> {
+                    setOutputFormat(OutputFormat.AMR_NB)
+                    setAudioEncoder(AudioEncoder.AMR_NB)
+                }
+
+                Format.SIGNAL_AAC -> {
+                    // ⚠ ADTS, not the MPEG-4 container. Signal writes a raw ADTS stream and
+                    // its receivers expect one; `AAC_ADTS` is also the format that can be cut
+                    // short without a moov atom to finish, which matters for a recording that
+                    // ends when a finger lifts.
+                    setOutputFormat(OutputFormat.AAC_ADTS)
+                    setAudioEncoder(AudioEncoder.AAC)
+                    setAudioSamplingRate(SIGNAL_SAMPLE_RATE)
+                    setAudioEncodingBitRate(SIGNAL_BIT_RATE)
+                    setAudioChannels(SIGNAL_CHANNELS)
+                }
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
                 preferredDevice = preferredAudioDevice

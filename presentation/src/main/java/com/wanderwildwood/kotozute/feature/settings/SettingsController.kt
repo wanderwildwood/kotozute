@@ -118,6 +118,9 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         Pair<com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?, Throwable?>? = null
     private var pendingBackupFolder: String? = null
     private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
+
+    /** The account's own name, as two parts. See [askSignalProfileName]. */
+    private val signalProfileNameSubject: Subject<Pair<String, String>> = PublishSubject.create()
     private val signalFetchContactsSubject: Subject<Unit> = PublishSubject.create()
 
     private val signalDiscoverContactsSubject: Subject<Unit> = PublishSubject.create()
@@ -228,6 +231,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun signalUnpairConfirmed(): Observable<*> = signalUnpairSubject
 
+    override fun signalProfileNameEntered(): Observable<Pair<String, String>> = signalProfileNameSubject
+
     override fun signalFetchContactsConfirmed(): Observable<*> = signalFetchContactsSubject
 
     override fun signalDiscoverContactsConfirmed(): Observable<*> = signalDiscoverContactsSubject
@@ -289,6 +294,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // Nothing to reset until there's a link to reset.
         binding.desktopSync.checkbox.isChecked = state.desktopSyncEnabled
         binding.desktopSyncLink.setVisible(state.desktopSyncEnabled)
+        binding.desktopSyncTls.setVisible(state.desktopSyncEnabled)
+        binding.desktopSyncTls.checkbox.isChecked = state.desktopSyncTls
         binding.desktopSyncTailscaleOnly.setVisible(state.desktopSyncEnabled)
         binding.desktopSyncTailscaleOnly.checkbox.isChecked = state.desktopSyncTailscaleOnly
         binding.desktopSyncReset.setVisible(state.desktopSyncEnabled)
@@ -303,6 +310,9 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // would be an offer to re-register -- which is the same destructive act again, with
         // nothing gained.
         binding.signalRegister.setVisible(!state.signalLinkedDirectly)
+        // Primary only: a linked device inherits the primary's profile and must not write
+        // over it. See [SettingsState.signalIsPrimary].
+        binding.signalProfileName.setVisible(state.signalIsPrimary)
 
         binding.signalEnabled.setVisible(state.signalPaired)
         binding.signalEnabled.checkbox.isChecked = state.signalEnabled
@@ -845,6 +855,65 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     }
 
     /** Arm-and-confirm, for the same reason the reset row is: it destroys messages. */
+    /**
+     * Asks for the account's own profile name and sends it.
+     *
+     * Two fields, because a profile carries two and joining them here would guess at where
+     * one ends -- see `ProfileNames`, which puts a CJKV name in the order its owner writes it
+     * and cannot do that from a single string.
+     *
+     * ⚠ Off the main thread: this is a network write. And reported either way, because an
+     * account whose name did not save looks identical from this screen to one whose name did.
+     */
+    override fun askSignalProfileName() {
+        val context = activity ?: return
+        val column = android.widget.LinearLayout(context).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 0)
+        }
+        val given = android.widget.EditText(context).apply {
+            hint = context.getString(R.string.signal_register_given_name)
+            inputType = android.text.InputType.TYPE_TEXT_VARIATION_PERSON_NAME
+            maxLines = 1
+        }
+        val family = android.widget.EditText(context).apply {
+            hint = context.getString(R.string.signal_register_family_name)
+            inputType = android.text.InputType.TYPE_TEXT_VARIATION_PERSON_NAME
+            maxLines = 1
+        }
+        column.addView(given)
+        column.addView(family)
+
+        androidx.appcompat.app.AlertDialog.Builder(context)
+            .setTitle(R.string.settings_signal_profile_name_title)
+            .setMessage(R.string.signal_register_name_hint)
+            .setView(column)
+            .setNegativeButton(R.string.button_cancel, null)
+            .setPositiveButton(R.string.signal_register_save_name) { _, _ ->
+                val g = given.text.toString().trim()
+                val f = family.text.toString().trim()
+                // Signal's own rule: no given name is no name, whatever the family field says.
+                if (g.isEmpty()) {
+                    Toast.makeText(context, R.string.signal_register_name_hint, Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                // Handed to the presenter rather than sent from here: the controller owns
+                // no repository, and the one place that talks to Signal stays the one place.
+                signalProfileNameSubject.onNext(g to f)
+            }
+            .show()
+    }
+
+    override fun showSignalProfileNameResult(failure: String?) {
+        val context = activity ?: return
+        val message = if (failure == null) {
+            context.getString(R.string.signal_profile_name_saved)
+        } else {
+            context.getString(R.string.signal_profile_name_failed, failure)
+        }
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
+
     override fun askSignalUnpair() {
         if (unpairArmed) {
             disarmUnpair()

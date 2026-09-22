@@ -34,6 +34,13 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Only for SignalNetworkConfig, which refuses to point a release build at Signal's
+    // staging servers and needs a truthful answer about the build type to do it. It has no
+    // Context by design, so the generated constant is how it asks.
+    buildFeatures {
+        buildConfig true
+    }
+
     namespace 'com.wanderwildwood.kotozute.data'
 }
 

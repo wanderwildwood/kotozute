@@ -87,7 +87,7 @@ object LibsignalSmokeTest {
                 // capability would be a promise it cannot keep.
                 ProvisioningSocket.Mode.Link(false),
                 identity,
-                SignalNetworkConfig.production(),
+                SignalNetworkConfig.configuration(),
                 { id, t -> Timber.w(t, "signal-net: provisioning socket %d failed", id) }
             ) { socket ->
                 val url = socket.getProvisioningUrl()

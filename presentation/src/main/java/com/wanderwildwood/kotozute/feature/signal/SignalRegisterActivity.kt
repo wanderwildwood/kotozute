@@ -85,6 +85,71 @@ class SignalRegisterActivity : QkThemedActivity() {
             val id = sessionId ?: return@setOnClickListener
             step(R.string.signal_register_working) { signalRepo.registerResend(id, voice = true) }
         }
+
+        binding.saveName.setOnClickListener { saveName() }
+
+        showStagingSwitchIfDebug()
+    }
+
+    /**
+     * The staging switch, on debug builds only.
+     *
+     * ⚠ It does **not** take effect until the process restarts, and the row says so rather
+     * than pretending otherwise. The environment decides which servers everything uses and is
+     * read once at startup, before Dagger builds the stores that keep a configuration -- so
+     * flipping it under a running app would move some things and not others, which is the
+     * incoherent state `SignalNetworkConfig.environment` exists to prevent.
+     *
+     * Living on this screen rather than in Settings is deliberate: this is the only flow that
+     * has any use for it, and a release build never shows it at all.
+     */
+    private fun showStagingSwitchIfDebug() {
+        if (!com.wanderwildwood.kotozute.BuildConfig.DEBUG) return
+
+        @Suppress("DEPRECATION")
+        val prefs = android.preference.PreferenceManager.getDefaultSharedPreferences(this)
+        binding.staging.setVisible(true)
+        binding.staging.isChecked = prefs.getBoolean(STAGING_PREF, false)
+        binding.staging.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean(STAGING_PREF, checked).apply()
+            if (checked) binding.status.setText(R.string.signal_register_staging_on)
+        }
+    }
+
+    /**
+     * Sends the profile name, the last step of registering.
+     *
+     * ⚠ Not routed through [step], and not a [SignalRepository.Registration] either. By the
+     * time this runs the account **already exists** -- it was created by the call before this
+     * one -- so a failure here is not a failure to register, and rendering it as one would
+     * tell somebody their account did not happen when it did, and invite them to start over
+     * against a number that is now taken by this very phone. It fails as itself: the account
+     * stands, the name did not save, and the button can simply be pressed again.
+     */
+    private fun saveName() {
+        val given = binding.givenName.text.toString().trim()
+        val family = binding.familyName.text.toString().trim()
+        // Signal's own rule, from `ProfileName.serialize`: no given name is no name at all,
+        // whatever the family field says. Refused here so the trip is not wasted.
+        if (given.isEmpty()) {
+            binding.status.setText(R.string.signal_register_name_hint)
+            return
+        }
+
+        binding.status.setText(R.string.signal_register_naming)
+        binding.saveName.isEnabled = false
+        CoroutineScope(Dispatchers.IO).launch {
+            val failure = signalRepo.registerSetProfileName(given, family)
+            withContext(Dispatchers.Main) {
+                binding.saveName.isEnabled = true
+                if (failure == null) {
+                    binding.nameStep.setVisible(false)
+                    binding.status.setText(R.string.signal_register_named)
+                } else {
+                    binding.status.text = getString(R.string.signal_register_name_failed, failure)
+                }
+            }
+        }
     }
 
     /**
@@ -119,11 +184,14 @@ class SignalRegisterActivity : QkThemedActivity() {
             showCaptcha()
         }
 
+
         is SignalRepository.Registration.CodeSent -> {
             sessionId = result.sessionId
             binding.captcha.setVisible(false)
+            binding.warning.setVisible(false)
             binding.numberStep.setVisible(false)
             binding.codeStep.setVisible(true)
+            binding.scroll.post { binding.scroll.scrollTo(0, 0) }
             binding.status.setText(
                 if (askedForACall) R.string.signal_register_calling
                 else R.string.signal_register_code_sent
@@ -132,13 +200,30 @@ class SignalRegisterActivity : QkThemedActivity() {
 
         is SignalRepository.Registration.Registered -> {
             binding.captcha.setVisible(false)
+            // The warning is about taking a number over, which has now happened. Leaving it
+            // above the name step would push that step down the same way the captcha was.
+            binding.warning.setVisible(false)
             binding.numberStep.setVisible(false)
             binding.codeStep.setVisible(false)
+            // The account exists from here. The name is the one thing still missing, and it
+            // is asked for now rather than left to a settings screen nobody would think to
+            // visit: an account with no profile name is not obviously broken from the inside,
+            // only from the outside, where every correspondent sees a bare number.
+            binding.nameStep.setVisible(true)
+            binding.scroll.post { binding.scroll.scrollTo(0, 0) }
             binding.status.setText(R.string.signal_register_done)
         }
 
-        is SignalRepository.Registration.Failed ->
+        is SignalRepository.Registration.Failed -> {
+            // ⚠ Puts the number step back. [showCaptcha] hides it, so without this a refused
+            // captcha or a rejected number left the screen with a message and no way to try
+            // again -- the dead end that hiding it would otherwise create.
+            binding.captcha.setVisible(false)
+            binding.warning.setVisible(true)
+            binding.numberStep.setVisible(true)
+            binding.scroll.post { binding.scroll.scrollTo(0, 0) }
             binding.status.text = getString(R.string.signal_register_failed, result.reason)
+        }
     }
 
     /**
@@ -155,7 +240,25 @@ class SignalRegisterActivity : QkThemedActivity() {
      */
     @Suppress("SetJavaScriptEnabled")
     private fun showCaptcha() {
+        // ⚠ **The step above has to go, or the captcha lands below the fold.**
+        //
+        // This screen is one scrolling column and the captcha sits under the number step, so
+        // showing it without hiding anything left it starting at y=622 on an 800px panel: a
+        // ~180px sliver at the very bottom, with the line telling somebody to solve it scrolled
+        // off entirely. Measured on the emulator at the Kompakt's own 480x800.
+        //
+        // What that looks like from the outside is a button that does nothing. The request had
+        // gone, the server had answered, the WebView had loaded the challenge -- and the screen
+        // still showed a number field and "Send me a code", so the natural thing to do was press
+        // it again.
+        //
+        // There is nothing else to do at this moment, so nothing else is shown: the warning has
+        // been read, and the number cannot be changed without a new session anyway.
+        binding.warning.setVisible(false)
+        binding.numberStep.setVisible(false)
         binding.captcha.setVisible(true)
+        // A column that was scrolled down stays scrolled down when its contents change.
+        binding.scroll.post { binding.scroll.scrollTo(0, 0) }
         binding.captcha.settings.javaScriptEnabled = true
         binding.captcha.settings.allowFileAccess = false
         binding.captcha.settings.allowContentAccess = false
@@ -183,7 +286,12 @@ class SignalRegisterActivity : QkThemedActivity() {
                 }
             }
         }
-        binding.captcha.loadUrl(CAPTCHA_URL)
+        // ⚠ Follows the environment. A production captcha token is refused by staging and
+        // the reverse is true too, and the refusal reads as "solve it again" -- which never
+        // succeeds, however many times it is tried.
+        binding.captcha.loadUrl(
+            com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.currentCaptchaUrl()
+        )
     }
 
     private fun onCaptchaSolved(token: String) {
@@ -195,8 +303,10 @@ class SignalRegisterActivity : QkThemedActivity() {
     }
 
     companion object {
+        /** Read by [com.wanderwildwood.kotozute.common.QKApplication] at startup. */
+        private const val STAGING_PREF = "signalStaging"
+
         private const val CAPTCHA_HOST = "signalcaptchas.org"
-        private const val CAPTCHA_URL = "https://$CAPTCHA_HOST/registration/generate.html"
         private const val CAPTCHA_SCHEME = "signalcaptcha://"
 
         fun intent(context: Context) = Intent(context, SignalRegisterActivity::class.java)

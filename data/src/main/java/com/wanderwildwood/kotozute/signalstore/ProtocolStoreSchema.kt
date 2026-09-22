@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 33
+    const val VERSION = 35
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -492,6 +492,12 @@ internal object ProtocolStoreSchema {
           -- record of "this differs from what the account holds". See [SignalContactStore.
           -- rotateStorageId]. Null until the row has ever been pushed or marked.
           storage_id TEXT,
+          -- The account's own copy of this row's storage record, exactly as it arrived, so a
+          -- write can put back fields this build does not understand. See v34.
+          storage_record BLOB,
+          -- The id the account's manifest holds for this row, as against `storage_id` which
+          -- is ours and rotates locally. What a write deletes when it replaces it. See v35.
+          remote_storage_id TEXT,
           -- A group's row has this and nothing else -- no aci, no pni, no number. Signal's
           -- RecipientTable holds groups the same way (`getOrInsertFromGroupId`), so that one
           -- dirty flag covers a muted group as well as a renamed person. Base64 of the group
@@ -861,6 +867,56 @@ internal object ProtocolStoreSchema {
         33 to listOf(
             "ALTER TABLE account ADD COLUMN distinguished_head BLOB;",
             "ALTER TABLE recipient ADD COLUMN key_transparency_data BLOB;"
+        ),
+
+        /**
+         * The account's own copy of this row's storage record, exactly as it arrived.
+         *
+         * ⛔ **Step 0 of `docs/DECISION-storage-write.md`, and the reason it comes first.** A
+         * storage record can carry fields this build has never heard of, written by a newer
+         * Signal client. Reading and discarding them costs nothing while nothing is written
+         * back -- but the moment a write exists, re-encoding a record from only the fields
+         * this app understands **destroys another client's data on the account**, for every
+         * device on it. Signal keeps the unknown fields per record and has a migration for
+         * the period when it did not (`ApplyUnknownFieldsToSelfMigrationJob`).
+         *
+         * ⚠ The whole decrypted record is kept, not a filtered "unknown fields" blob. Wire
+         * keeps unknown fields on the decoded message, so a write starts from these bytes,
+         * sets the handful of fields this app actually decides, and re-encodes -- everything
+         * else, known or not, rides through untouched. Storing only what we failed to parse
+         * would mean re-deriving the rest, which is the same mistake in a smaller box.
+         *
+         * Null until this row has been seen in a storage read. A row with no remote record
+         * has never been on the account, so there is nothing of anyone else's to preserve.
+         */
+        34 to listOf(
+            "ALTER TABLE recipient ADD COLUMN storage_record BLOB;"
+        ),
+
+        /**
+         * The id the account's own manifest holds for this row.
+         *
+         * ⛔ **This is what makes a write's deletes safe, and it is not the same column as
+         * `storage_id`.** `storage_id` is *ours*: it rotates on every local change and is the
+         * dirty flag. This one is the account's, set only when a record is read, and it says
+         * which manifest entry this row is replacing.
+         *
+         * ⚠ The reason it exists rather than computing deletes as `remote ids - local ids`:
+         * **this app models only contacts and groups.** An account's manifest also names
+         * story distribution lists, call links, chat folders, sticker packs, notification
+         * profiles and the account record itself, none of which have a row here. A set
+         * difference would put every one of them in the delete list and **erase them for
+         * every device on the account** -- exactly the damage this whole staged plan exists
+         * to avoid. Signal can do the subtraction only because it keeps
+         * `unknownStorageIds.allUnknownIds` and folds them back into its local set
+         * (`StorageSyncJob.getAllLocalStorageIds`).
+         *
+         * So a write here deletes **only the specific id a row is replacing** and leaves every
+         * other manifest entry exactly where it is. The cost is that a genuinely orphaned
+         * remote record is never tidied up, which is the conservative direction to be wrong in.
+         */
+        35 to listOf(
+            "ALTER TABLE recipient ADD COLUMN remote_storage_id TEXT;"
         ),
 
         /**

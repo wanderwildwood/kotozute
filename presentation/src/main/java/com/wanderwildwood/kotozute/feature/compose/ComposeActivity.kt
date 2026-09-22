@@ -31,7 +31,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
-import android.provider.ContactsContract
 import android.provider.MediaStore
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -45,6 +44,8 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.app.ActivityCompat
@@ -166,6 +167,38 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     private val viewModel by lazy { ViewModelProviders.of(this, viewModelFactory)[ComposeViewModel::class.java] }
 
     private var cameraDestination: Uri? = null
+
+    private val pickMedia = registerForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        uris.forEach(attachAnyFileSelectedIntent::onNext)
+    }
+
+    private val pickFilesWithDocsUI = registerForActivityResult(
+        ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        uris.forEach(attachAnyFileSelectedIntent::onNext)
+    }
+
+    private val pickFilesWithChooser = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+
+            val uris = data.clipData?.let { clipData ->
+                (0 until clipData.itemCount).mapNotNull { clipData.getItemAt(it).uri }
+            } ?: listOfNotNull(data.data)
+
+            uris.forEach(attachAnyFileSelectedIntent::onNext)
+        }
+    }
+
+    private val pickContact = registerForActivityResult(
+        ActivityResultContracts.PickContact()
+    ) { uri ->
+        uri?.let(contactSelectedIntent::onNext)
+    }
 
     private fun getSeekBarUpdater(): ObservableSubscribeProxy<Long> {
         return Observable.interval(500, TimeUnit.MILLISECONDS)
@@ -619,10 +652,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun requestContact() {
-        val intent = Intent(Intent.ACTION_PICK)
-            .setType(ContactsContract.Contacts.CONTENT_TYPE)
-
-        startActivityForResult(Intent.createChooser(intent, null), ComposeView.ATTACH_CONTACT_REQUEST_CODE)
+        pickContact.launch(null)
     }
 
     override fun showContacts(sharing: Boolean, chips: List<Recipient>) {
@@ -713,14 +743,26 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         }
     }
 
-    override fun requestGallery(mimeType: String, requestCode: Int) {
-        val intent = Intent(Intent.ACTION_PICK)
-            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-            .addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-            .putExtra(Intent.EXTRA_LOCAL_ONLY, false)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            .setType(mimeType)
-        startActivityForResult(Intent.createChooser(intent, null), requestCode)
+    override fun requestGallery() {
+        pickMedia.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+        )
+    }
+
+    override fun requestFilePicker() {
+        // Android 17 only allows Documents UI here. Below it, keep the chooser, so any
+        // app that can hand over a file is still offered.
+        if (Build.VERSION.SDK_INT >= 37) {
+            pickFilesWithDocsUI.launch("*/*")
+        } else {
+            val intent = Intent(Intent.ACTION_PICK)
+                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                .addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                .putExtra(Intent.EXTRA_LOCAL_ONLY, false)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .setType("*/*")
+            pickFilesWithChooser.launch(Intent.createChooser(intent, null))
+        }
     }
 
     override fun setDraft(draft: String) {
@@ -812,18 +854,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
             ComposeView.TAKE_PHOTOS_REQUEST_CODE -> {
                 cameraDestination?.let(attachAnyFileSelectedIntent::onNext)
-            }
-
-            ComposeView.ATTACH_FILE_REQUEST_CODE -> {
-                data?.clipData?.itemCount
-                    ?.let { count -> 0 until count }
-                    ?.mapNotNull { i -> data.clipData?.getItemAt(i)?.uri }
-                    ?.forEach(attachAnyFileSelectedIntent::onNext)
-                    ?: data?.data?.let(attachAnyFileSelectedIntent::onNext)
-            }
-
-            ComposeView.ATTACH_CONTACT_REQUEST_CODE -> {
-                data?.data?.let(contactSelectedIntent::onNext)
             }
 
             else -> super.onActivityResult(requestCode, resultCode, data)

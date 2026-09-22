@@ -1384,6 +1384,24 @@ internal class SignalReceiver(
 
                 Failure.WORTH_RETRYING -> Unit
             }
+            // Addressed to our phone-number identity: dropped, nobody asked, nothing counted --
+            // `MessageDecryptor.buildResultForDecryptionError` returns `Result.Ignore` for it
+            // before it looks at the sender at all ("Decryption error for message sent to our
+            // PNI! Ignoring."), so no retry receipt and no unreadable-message count.
+            //
+            // A *prekey* message that would not open there still says something: the PNI
+            // bundle on the server is not one this device can answer. Upstream forces a
+            // prekey rotation for exactly that (94fcf2b2f1, `MessageDecryptor.kt:330-335`);
+            // [PreKeyUploader.rotateIfKeysAreWrong] is the same consistency check and the
+            // same interval, so a stream of these costs one rotation an hour, not one each.
+            if (addressedToPni(envelope)) {
+                Timber.w("signal receive: could not decrypt an envelope sent to our phone-number identity; dropping it")
+                if (envelope.type == Envelope.Type.PREKEY_MESSAGE) {
+                    runCatching { events.rotatePreKeys() }
+                        .onFailure { Timber.w(it, "signal receive: could not replace the keys") }
+                }
+                return null
+            }
             // Recorded against the row, not just logged: on a release build the log goes
             // nowhere, and "one message could not be read" without a reason is a report
             // nobody can act on.

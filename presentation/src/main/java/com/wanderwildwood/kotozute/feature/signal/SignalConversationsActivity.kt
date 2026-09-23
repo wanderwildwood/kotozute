@@ -3,6 +3,7 @@ package com.wanderwildwood.kotozute.feature.signal
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.graphics.Typeface
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.activity.result.contract.ActivityResultContracts
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
+import com.wanderwildwood.kotozute.common.util.extensions.resolveThemeColor
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.databinding.SignalConversationsActivityBinding
 import com.wanderwildwood.kotozute.databinding.SignalThreadListItemBinding
@@ -301,6 +303,27 @@ class SignalConversationsActivity : QkThemedActivity() {
                     getString(R.string.main_sender_you, t.snippet)
                 else -> t.snippet
             }
+            bindUnread(t.unread > 0)
+        }
+
+        /**
+         * Unread reads the way it does on the merged list: bold dark snippet up to five lines,
+         * bold time, and the dot. The name is bold either way, there as here. Both states are set every time, because a holder
+         * that drew an unread thread is recycled onto a read one.
+         */
+        private fun bindUnread(unread: Boolean) {
+            val style = if (unread) Typeface.BOLD else Typeface.NORMAL
+            // ⚠ Typeface.create keeps the font the styler chose; `setTypeface(null, …)` would
+            // drop it, and `setTypeface(tf, NORMAL)` cannot take bold back off.
+            listOf(b.subtitle, b.timestamp).forEach { it.typeface = Typeface.create(it.typeface, style) }
+            b.subtitle.setTextColor(
+                resolveThemeColor(
+                    if (unread) android.R.attr.textColorPrimary
+                    else android.R.attr.textColorSecondary
+                )
+            )
+            b.subtitle.maxLines = if (unread) 5 else 1
+            b.unread.setVisible(unread)
         }
     }
 

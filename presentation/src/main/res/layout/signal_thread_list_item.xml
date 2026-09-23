@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/conversation_list_item_background"
@@ -36,13 +37,36 @@
 
     </LinearLayout>
 
-    <com.wanderwildwood.kotozute.common.widget.QkTextView
-        android:id="@+id/subtitle"
-        style="@style/TextSecondary"
+    <!-- Unread is drawn in code exactly as the merged list draws it (ConversationsAdapter):
+         bold snippet and time, and the dot. This row had neither, so with the lists apart
+         nothing on it said a thread was waiting. -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:paddingTop="2dp" />
+        android:orientation="horizontal">
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/subtitle"
+            style="@style/TextSecondary"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:paddingTop="2dp"
+            android:layout_weight="1" />
+
+        <ImageView
+            android:id="@+id/unread"
+            android:layout_width="20dp"
+            android:layout_height="16sp"
+            android:layout_marginTop="2dp"
+            android:importantForAccessibility="no"
+            android:paddingStart="8dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:src="@drawable/circle"
+            android:visibility="gone"
+            app:tint="@android:color/black" />
+    </LinearLayout>
 
 </LinearLayout>

@@ -20,6 +20,23 @@ internal fun tokenMatches(supplied: String?, token: String): Boolean {
 }
 
 /**
+ * Whether a caller presented the right token in an `Authorization: Bearer` header.
+ *
+ * Alongside [tokenMatches] for the reason that one is here: this decides who may read every
+ * message on the phone, and it should not be the one gate that is only ever exercised by hand.
+ *
+ * The header is sent by a program rather than typed by a person, so unlike a query-string token
+ * it has to match exactly -- there is no keyboard to forgive. The scheme name is public, so only
+ * the token itself is compared without stopping at the first difference.
+ */
+internal fun bearerMatches(header: String?, token: String): Boolean {
+    if (header == null) return false
+    val prefix = "Bearer "
+    if (!header.startsWith(prefix)) return false
+    return constantTimeEquals(header.substring(prefix.length), token)
+}
+
+/**
  * Compares without stopping at the first character that differs.
  *
  * `==` returns as soon as it finds a mismatch, so how long the answer takes says how much of

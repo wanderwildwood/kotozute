@@ -54,4 +54,21 @@ class DesktopSyncTokenTest {
         assertTrue(constantTimeEquals("AAAAAAAA", "AAAAAAAA"))
         assertFalse(constantTimeEquals("AAAA", "AAAAAAAA"))
     }
+
+    @Test
+    fun `the bearer header is matched the way the query token is`() {
+        assertTrue(bearerMatches("Bearer $token", token))
+        assertFalse(bearerMatches(null, token))
+        assertFalse(bearerMatches("Bearer ", token))
+        assertFalse(bearerMatches(token, token))                          // no scheme
+        assertFalse(bearerMatches("Basic $token", token))                 // wrong scheme
+        assertFalse(bearerMatches("Bearer ${token.dropLast(1)}X", token)) // last character wrong
+    }
+
+    @Test
+    fun `a bearer token carries no keyboard, so its case is content`() {
+        // Unlike a token typed into a browser bar, this one is sent by a program. Folding case
+        // here would widen what the header accepts for nobody's benefit.
+        assertFalse(bearerMatches("Bearer ${token.lowercase()}", token))
+    }
 }

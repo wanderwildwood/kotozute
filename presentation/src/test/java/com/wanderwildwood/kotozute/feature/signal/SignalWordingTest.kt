@@ -106,14 +106,18 @@ class SignalWordingTest {
     // -- the results the sender describes ------------------------------------------------------
 
     @Test
-    fun `a failed result names the person, or says they`() {
+    fun `a failed result names the person, or is worded without a name`() {
         assertEquals("the safety number changed for Ada", send(SendFailure.SafetyNumberChanged("Ada")))
-        assertEquals("the safety number changed for they", send(SendFailure.SafetyNumberChanged(null)))
+        assertEquals("the safety number changed for this person", send(SendFailure.SafetyNumberChanged(null)))
         assertEquals("Ada is not on Signal any more", send(SendFailure.NotOnSignal("Ada")))
-        assertEquals("they is not on Signal any more", send(SendFailure.NotOnSignal(null)))
+        assertEquals("they are not on Signal any more", send(SendFailure.NotOnSignal(null)))
         assertEquals(
             "Ada has a key this phone cannot use; they may need to reinstall",
             send(SendFailure.KeyUnusable("Ada"))
+        )
+        assertEquals(
+            "they have a key this phone cannot use; they may need to reinstall",
+            send(SendFailure.KeyUnusable(null))
         )
         assertEquals("the phone could not reach Signal", send(SendFailure.Unreachable))
         assertEquals("sending too fast; try again in 2 minutes", send(SendFailure.TooFast(120_000L)))

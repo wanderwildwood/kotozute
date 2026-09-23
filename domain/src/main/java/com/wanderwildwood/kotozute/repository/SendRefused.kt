@@ -10,8 +10,8 @@ package com.wanderwildwood.kotozute.repository
  * into the reader's language. Nothing here is meant to be read by a person; the wording lives in
  * the presentation module's `SignalWording`, next to the string resources it reads.
  *
- * A name is carried as it is held, and null where only an id is: the screen says "they" rather
- * than show hexadecimal, which is what the sender always did.
+ * A name is carried as it is held, and null where only an id is: the screen words the sentence
+ * without a name rather than show hexadecimal.
  */
 sealed interface SendFailure {
 

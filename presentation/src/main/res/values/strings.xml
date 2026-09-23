@@ -887,13 +887,16 @@
     <string name="signal_send_they_left">They are not on Signal any more.</string>
     <string name="signal_send_safety_number_changed">the safety number changed for %1$s</string>
     <string name="signal_send_not_on_signal">%1$s is not on Signal any more</string>
+    <!-- The same three, where this phone knows the person only by an id and has no name to show -->
+    <string name="signal_send_safety_number_changed_unnamed">the safety number changed for this person</string>
+    <string name="signal_send_not_on_signal_unnamed">they are not on Signal any more</string>
+    <string name="signal_send_key_unusable_unnamed">they have a key this phone cannot use; they may need to reinstall</string>
     <string name="signal_send_unreachable">the phone could not reach Signal</string>
     <string name="signal_send_key_unusable">%1$s has a key this phone cannot use; they may need to reinstall</string>
     <string name="signal_send_too_fast_wait">sending too fast; try again in %1$s</string>
     <string name="signal_send_too_fast">sending too fast; try again shortly</string>
     <string name="signal_send_proof_needed">Signal wants this phone to prove it is a person, which it cannot do yet</string>
     <string name="signal_send_server_silent">it did not send, and the server did not say why</string>
-    <string name="signal_send_them">they</string>
     <string name="signal_send_no_longer_held">that message is no longer held</string>
     <string name="signal_send_no_reachable_members">the group has no members this device can reach</string>
     <string name="signal_send_nobody_reached">could not reach any of the %1$s group members</string>

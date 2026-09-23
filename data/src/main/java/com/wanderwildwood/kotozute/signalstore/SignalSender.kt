@@ -1069,7 +1069,7 @@ internal class SignalSender(
 
     /**
      * What to call the recipient of a failed send, or null where only an id is held -- the
-     * screen says "they" then.
+     * screen words the sentence without a name then.
      */
     private fun whoIs(result: SendMessageResult): String? =
         whoIs(result.address.serviceId.toString())

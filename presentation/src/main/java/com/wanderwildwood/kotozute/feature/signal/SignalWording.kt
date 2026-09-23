@@ -84,12 +84,12 @@ object SignalWording {
         SendFailure.TheyLeft -> Words.Res(R.string.signal_send_they_left)
         is SendFailure.Unexplained -> Words.Raw(failure.detail)
         is SendFailure.SafetyNumberChanged ->
-            Words.Res(R.string.signal_send_safety_number_changed, listOf(who(failure.name)))
+            named(failure.name, R.string.signal_send_safety_number_changed, R.string.signal_send_safety_number_changed_unnamed)
         is SendFailure.NotOnSignal ->
-            Words.Res(R.string.signal_send_not_on_signal, listOf(who(failure.name)))
+            named(failure.name, R.string.signal_send_not_on_signal, R.string.signal_send_not_on_signal_unnamed)
         SendFailure.Unreachable -> Words.Res(R.string.signal_send_unreachable)
         is SendFailure.KeyUnusable ->
-            Words.Res(R.string.signal_send_key_unusable, listOf(who(failure.name)))
+            named(failure.name, R.string.signal_send_key_unusable, R.string.signal_send_key_unusable_unnamed)
         is SendFailure.TooFast -> failure.waitMillis
             ?.let { Words.Res(R.string.signal_send_too_fast_wait, listOf(waitFor(it))) }
             ?: Words.Res(R.string.signal_send_too_fast)
@@ -114,8 +114,14 @@ object SignalWording {
         SendFailure.NoGroupKey -> Words.Res(R.string.signal_send_no_group_key)
     }
 
-    /** Somebody's name, or "they" where this phone holds only an id. */
-    private fun who(name: String?): Any = name ?: Words.Res(R.string.signal_send_them)
+    /**
+     * A sentence about somebody by name, or its own sentence where this phone holds only an id.
+     *
+     * Not a pronoun dropped into the named sentence: that produced "they is not on Signal any
+     * more", and a translation would have the same problem in its own grammar.
+     */
+    private fun named(name: String?, withName: Int, withoutName: Int): Words =
+        if (name != null) Words.Res(withName, listOf(name)) else Words.Res(withoutName)
 
     /**
      * A wait in the words somebody would use for it, rather than milliseconds.

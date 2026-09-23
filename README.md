@@ -43,7 +43,7 @@ An HTTP + WebSocket server runs *inside the app on the phone* and serves its own
 - An archive shelf and a blocked list, so nothing filed away is out of reach
 - Cross between someone's SMS and Signal threads from a badge in the thread header
 - Safety numbers, the Signal account and the devices on it
-- Settings: theme, unread-at-the-top, the Signal switches, Tailscale only, and a sync you can trigger from the browser
+- Settings: theme, unread-at-the-top, the Signal switches, VPN only, and a sync you can trigger from the browser
 - Scheduled messages on both rails: write one now, pick a time, and the phone sends it whether
   or not the browser is still open — and see what is waiting, and cancel it
 - Reading a thread in the browser marks it read on the phone and clears its notification
@@ -65,15 +65,17 @@ whole layout down to fit rather than breaking, but it will be small.
 
 Two independent gates.
 
-*Where you can connect from.* **Tailscale only** is on by default: any request from outside your [Tailscale](https://tailscale.com/) tailnet is refused before the token is even looked at, so another device on your café or home Wi-Fi cannot reach the dashboard even if it somehow had your link. This also means your messages are never in the clear on a network — the relay speaks plain HTTP, but every tailnet connection is encrypted end to end by Tailscale itself.
+*Where you can connect from.* **VPN only** is on by default: any request that does not come through a VPN is refused before the token is even looked at, so another device on your café or home Wi-Fi cannot reach the dashboard even if it somehow had your link. This also means your messages are never in the clear on a network — the relay speaks plain HTTP, but the VPN encrypts the connection end to end.
 
-Turn the switch off and it also accepts LAN connections, which is worth knowing about for one case: **Tailscale does not start by itself after a reboot** on MuditaOS, which has no always-on VPN toggle. Until you open Tailscale, a restricted relay refuses everyone — Settings says so plainly when that happens.
+Any VPN that gives the phone its own address works: [Tailscale](https://tailscale.com/), ZeroTier, a WireGuard or Nebula network of your own. Tailscale is recognised by its fixed address ranges; for any other VPN the relay accepts peers on the network of the phone's VPN address, and **Show link** lists that address under *VPN*. A VPN whose network overlaps the Wi-Fi's is not trusted, since that would let the house in too. A VPN that only carries the phone's traffic out to the internet, like a commercial privacy VPN, has no computer of yours on the far side and so lets nothing in.
 
-The restriction is enforced per request rather than by binding only the tailnet address, deliberately: binding it would mean the server cannot start at all while Tailscale is down, so a reboot could leave the relay dead. This way the socket always binds and simply turns non-tailnet callers away.
+Turn the switch off and it also accepts LAN connections, which is worth knowing about for one case: **a VPN does not start by itself after a reboot** on MuditaOS, which has no always-on VPN toggle. Until you open the VPN app, a restricted relay refuses everyone — Settings says so plainly when that happens.
 
-*Who you are.* Every request also needs a random 120-bit token generated on first run, so being on the tailnet isn't enough by itself — useful if your tailnet has devices you don't fully control.
+The restriction is enforced per request rather than by binding only the VPN address, deliberately: binding it would mean the server cannot start at all while the VPN is down, so a reboot could leave the relay dead. This way the socket always binds and simply turns everyone else away.
 
-Don't port-forward the port, and don't expose it with Tailscale Funnel.
+*Who you are.* Every request also needs a random 120-bit token generated on first run, so being on the VPN isn't enough by itself — useful if your VPN network has devices you don't fully control.
+
+Don't port-forward the port, and don't expose it with Tailscale Funnel or anything like it.
 
 Desktop Sync needs the `INTERNET` permission, which InkMessage deliberately left disabled and this app re-enables for exactly this feature. Leave it off and no server is ever started.
 

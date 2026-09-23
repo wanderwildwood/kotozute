@@ -122,7 +122,8 @@ class Preferences @Inject constructor(
     val systemFont = rxPrefs.getBoolean("systemFont", true)
     val desktopSyncEnabled = rxPrefs.getBoolean("desktopSyncEnabled", false)
     val desktopSyncToken = rxPrefs.getString("desktopSyncToken", "")
-    val desktopSyncTailscaleOnly = rxPrefs.getBoolean("desktopSyncTailscaleOnly", true)
+    // Was "Tailscale only"; the key keeps its old name so nobody's setting resets.
+    val desktopSyncVpnOnly = rxPrefs.getBoolean("desktopSyncTailscaleOnly", true)
 
     // Signal. Off unless this phone is actually on the account: the toggle is the result of
     // a working setup, not a switch that can be flipped into a broken state.

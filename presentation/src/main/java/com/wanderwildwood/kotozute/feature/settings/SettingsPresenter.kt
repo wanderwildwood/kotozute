@@ -143,11 +143,11 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.desktopSyncTls.asObservable()
             .subscribe { enabled -> newState { copy(desktopSyncTls = enabled) } }
 
-        disposables += prefs.desktopSyncTailscaleOnly.asObservable()
+        disposables += prefs.desktopSyncVpnOnly.asObservable()
             .subscribe { enabled ->
                 newState {
                     copy(
-                        desktopSyncTailscaleOnly = enabled,
+                        desktopSyncVpnOnly = enabled,
                         desktopSyncSummary = desktopSyncSummary(prefs.desktopSyncEnabled.get()),
                     )
                 }
@@ -268,8 +268,8 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.desktopSyncLink -> view.showDesktopSyncLinkDialog(desktopSyncUrls())
 
-                        R.id.desktopSyncTailscaleOnly ->
-                            prefs.desktopSyncTailscaleOnly.set(!prefs.desktopSyncTailscaleOnly.get())
+                        R.id.desktopSyncVpnOnly ->
+                            prefs.desktopSyncVpnOnly.set(!prefs.desktopSyncVpnOnly.get())
 
                         R.id.desktopSyncReset -> view.askDesktopSyncReset()
 
@@ -658,11 +658,11 @@ class SettingsPresenter @Inject constructor(
         if (!DesktopSyncService.isRunning) {
             return context.getString(R.string.settings_desktop_sync_summary_starting)
         }
-        val tailscale = DesktopSyncService.findTailscaleAddress(context)
-        if (prefs.desktopSyncTailscaleOnly.get() && tailscale == null) {
-            return context.getString(R.string.settings_desktop_sync_summary_no_tailscale)
+        val vpn = DesktopSyncService.findVpnAddress(context)
+        if (prefs.desktopSyncVpnOnly.get() && vpn == null) {
+            return context.getString(R.string.settings_desktop_sync_summary_no_vpn)
         }
-        if (tailscale == null && DesktopSyncService.findLanAddress(context) == null) {
+        if (vpn == null && DesktopSyncService.findLanAddress(context) == null) {
             return context.getString(R.string.settings_desktop_sync_summary_no_network)
         }
         return context.getString(R.string.settings_desktop_sync_summary_on)
@@ -671,15 +671,15 @@ class SettingsPresenter @Inject constructor(
     /**
      * Every address the computer could open, labelled, or empty if nothing can reach this
      * phone right now. All of them rather than one: the relay binds every interface, and
-     * which address the computer can see is not knowable from here. Under the tailnet
-     * restriction only the tailnet address is offered, because the others answer 403.
+     * which address the computer can see is not knowable from here. Under the VPN
+     * restriction only VPN addresses are offered, because the others answer 403.
      */
     private fun desktopSyncUrls(): List<Pair<String, String>> {
         val token = prefs.desktopSyncToken.get()
         return DesktopSyncService.reachableAddresses(context)
             .filter {
-                !prefs.desktopSyncTailscaleOnly.get() ||
-                    it.first == DesktopSyncService.LABEL_TAILSCALE
+                !prefs.desktopSyncVpnOnly.get() ||
+                    it.first in DesktopSyncService.VPN_LABELS
             }
             .map { (label, host) ->
                 label to "http://$host:${DesktopSyncService.PORT}?token=$token"

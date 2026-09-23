@@ -80,7 +80,7 @@ class SignalLinkActivity : QkThemedActivity() {
      * Where to read this code if the phone in your hand is the one already running Signal.
      *
      * Shown only when Desktop Sync is on and has an address to give, because the sentence is
-     * useless otherwise -- and a phone with no computer on its tailnet still has the QR and
+     * useless otherwise -- and a phone with no computer on its VPN still has the QR and
      * a second phone, which is the ordinary way in.
      */
     private fun showComputerRoute() {
@@ -89,8 +89,8 @@ class SignalLinkActivity : QkThemedActivity() {
         if (token.isBlank()) return
         val address = DesktopSyncService.reachableAddresses(this)
             .filter {
-                !prefs.desktopSyncTailscaleOnly.get() ||
-                    it.first == DesktopSyncService.LABEL_TAILSCALE
+                !prefs.desktopSyncVpnOnly.get() ||
+                    it.first in DesktopSyncService.VPN_LABELS
             }
             .map { (_, host) ->
                 "http://$host:${DesktopSyncService.PORT}/signal-link?token=$token"

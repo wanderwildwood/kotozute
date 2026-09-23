@@ -296,8 +296,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.desktopSyncLink.setVisible(state.desktopSyncEnabled)
         binding.desktopSyncTls.setVisible(state.desktopSyncEnabled)
         binding.desktopSyncTls.checkbox.isChecked = state.desktopSyncTls
-        binding.desktopSyncTailscaleOnly.setVisible(state.desktopSyncEnabled)
-        binding.desktopSyncTailscaleOnly.checkbox.isChecked = state.desktopSyncTailscaleOnly
+        binding.desktopSyncVpnOnly.setVisible(state.desktopSyncEnabled)
+        binding.desktopSyncVpnOnly.checkbox.isChecked = state.desktopSyncVpnOnly
         binding.desktopSyncReset.setVisible(state.desktopSyncEnabled)
 
         // Linking again is not additive -- it registers a new device and abandons the old
@@ -781,7 +781,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         }
 
         // All of them, labelled. The relay listens on every interface, so on a phone with
-        // both Wi-Fi and Tailscale up there is more than one right answer and no way from
+        // both Wi-Fi and a VPN up there is more than one right answer and no way from
         // here to know which the computer can see. Showing one and hiding the rest is what
         // made a wrong address so hard to diagnose: the page just never loaded.
         val message = buildString {
@@ -803,7 +803,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
         // The link carries a long random token and is read off a phone to be entered on a
         // computer. Without this it can only be copied out by hand, one character at a time.
-        // With more than one address the copy button takes the first, which is the tailnet
+        // With more than one address the copy button takes the first, which is the VPN
         // address when there is one; the rest are selectable in the dialog.
         builder.setNeutralButton(R.string.settings_desktop_sync_link_copy) { _, _ ->
             val clipboard = activity!!

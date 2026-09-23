@@ -33,6 +33,7 @@ import com.wanderwildwood.kotozute.BuildConfig
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.NetworkInterface
 import java.security.SecureRandom
 import javax.inject.Inject
@@ -150,19 +151,122 @@ class DesktopSyncService : Service() {
         }
 
         /**
-         * True for a peer we'll talk to when "Tailscale only" is on: a tailnet address
-         * (CGNAT v4, or Tailscale's fd7a:115c:a1e0::/48 v6) or this device itself.
+         * True for a peer we'll talk to when "VPN only" is on: a tailnet address (CGNAT v4,
+         * or Tailscale's fd7a:115c:a1e0::/48 v6), an address on the network of whatever
+         * other VPN this phone is running (ZeroTier, WireGuard, Nebula...), or this device.
          *
-         * The relay still binds every interface, deliberately: binding only the tailnet
-         * address would mean the server cannot start at all while Tailscale is down, and
-         * Tailscale does not come up by itself after a reboot. Refusing at the request
-         * layer keeps the socket alive and simply turns non-tailnet callers away.
+         * Tailscale is recognised by its fixed ranges. Every other VPN picks its own, so for
+         * those the answer comes from the tunnel itself: its address and prefix length say
+         * which peers sit on the far side of it.
+         *
+         * The relay still binds every interface, deliberately: binding only the VPN address
+         * would mean the server cannot start at all while the VPN is down, and Tailscale does
+         * not come up by itself after a reboot. Refusing at the request layer keeps the
+         * socket alive and simply turns everyone else away.
          */
-        fun isAllowedPeer(ip: String?): Boolean {
+        fun isAllowedPeer(ip: String?, context: Context?): Boolean =
+            isAllowedPeer(ip, vpnSubnets(context))
+
+        /** [isAllowedPeer] with the VPN networks already in hand, which is what the tests use. */
+        fun isAllowedPeer(ip: String?, vpnNets: List<Subnet>): Boolean {
             val addr = ip?.substringBefore('%')?.lowercase() ?: return false
             if (addr == "127.0.0.1" || addr == "::1" || addr == "0:0:0:0:0:0:0:1") return true
             if (isTailscale(addr)) return true
-            return addr.startsWith("fd7a:115c:a1e0")
+            if (addr.startsWith("fd7a:115c:a1e0")) return true
+            if (vpnNets.isEmpty()) return false
+            val peer = literalAddress(addr) ?: return false
+            return vpnNets.any { it.contains(peer) }
+        }
+
+        /** A network: an address on it and how many leading bits name the network. */
+        class Subnet(val address: InetAddress, val prefix: Int) {
+            fun contains(peer: InetAddress): Boolean {
+                val a = address.address
+                val b = peer.address
+                // A v4 peer never matches a v6 network, or the reverse.
+                if (a.size != b.size) return false
+                // An interface can report a length that makes no sense; trust nothing then.
+                if (prefix < 0 || prefix > a.size * 8) return false
+                val whole = prefix / 8
+                for (i in 0 until whole) if (a[i] != b[i]) return false
+                val rest = prefix % 8
+                if (rest == 0) return true
+                val mask = (0xFF shl (8 - rest)) and 0xFF
+                return (a[whole].toInt() and mask) == (b[whole].toInt() and mask)
+            }
+
+            override fun toString() = "${address.hostAddress}/$prefix"
+        }
+
+        /**
+         * The address as an InetAddress, only if it is already a numeric literal. The peer
+         * address comes straight off the socket and always is, but getByName on anything
+         * else would go and ask DNS, and a gate should never wait on a lookup.
+         */
+        private fun literalAddress(addr: String): InetAddress? {
+            if (!Regex("^[0-9a-f.:]+$").matches(addr)) return null
+            return runCatching { InetAddress.getByName(addr) }.getOrNull()
+        }
+
+        /**
+         * The networks on the far side of every VPN this phone has up, other than Tailscale's,
+         * which is recognised by range instead.
+         *
+         * Two kinds are left out, because trusting them would let in exactly what the switch
+         * exists to refuse:
+         * - one that also holds a Wi-Fi or wired address of this phone. A VPN numbered the same
+         *   as the home network would otherwise admit every device in the house.
+         * - one wider than a /8 (v4) or a /32 (v6). A tunnel that claims most of the internet
+         *   as its own network is describing a route, not a set of peers.
+         *
+         * Read at most every few seconds. Every request asks, including each image on a page,
+         * and the answer only changes when a VPN comes up or goes down.
+         */
+        fun vpnSubnets(context: Context?): List<Subnet> {
+            val now = android.os.SystemClock.elapsedRealtime()
+            cachedVpnSubnets?.let { (at, nets) -> if (now - at < VPN_CACHE_MS) return nets }
+            val nets = readVpnSubnets(context)
+            cachedVpnSubnets = now to nets
+            return nets
+        }
+
+        @Volatile private var cachedVpnSubnets: Pair<Long, List<Subnet>>? = null
+        private const val VPN_CACHE_MS = 5_000L
+
+        private fun readVpnSubnets(context: Context?): List<Subnet> {
+            val cm = context?.getSystemService(Context.CONNECTIVITY_SERVICE)
+                as? ConnectivityManager ?: return emptyList()
+            return runCatching {
+                fun subnetsOf(vpn: Boolean): List<Subnet> = cm.allNetworks
+                    .filter { network ->
+                        val caps = cm.getNetworkCapabilities(network) ?: return@filter false
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == vpn &&
+                            (vpn || caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                                caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+                    }
+                    .mapNotNull { cm.getLinkProperties(it)?.interfaceName }
+                    .distinct()
+                    .flatMap { iface ->
+                        NetworkInterface.getByName(iface)?.interfaceAddresses.orEmpty()
+                            .mapNotNull { ia ->
+                                val addr = ia.address ?: return@mapNotNull null
+                                if (addr.isLoopbackAddress || addr.isLinkLocalAddress) null
+                                else Subnet(addr, ia.networkPrefixLength.toInt())
+                            }
+                    }
+
+                val local = subnetsOf(vpn = false)
+                subnetsOf(vpn = true)
+                    .filterNot { net ->
+                        val host = net.address.hostAddress?.lowercase().orEmpty()
+                        isTailscale(host) || host.startsWith("fd7a:115c:a1e0")
+                    }
+                    .filter { net -> net.prefix >= (if (net.address is Inet4Address) 8 else 32) }
+                    .filterNot { net -> local.any { net.contains(it.address) || it.contains(net.address) } }
+            }.onFailure {
+                // Empty means "no VPN to trust", which refuses more, never less.
+                Timber.w(it, "could not read the VPN networks; trusting none of them")
+            }.getOrNull().orEmpty()
         }
 
         /**
@@ -183,6 +287,26 @@ class DesktopSyncService : Service() {
 
         /** Kept for callers with no Context to hand; prefer the overload that has one. */
         fun findTailscaleAddress(): String? = findTailscaleAddress(null)
+
+        /**
+         * This phone's address on a VPN other than Tailscale, if one is up: ZeroTier and the
+         * like. Only an address on a network [vpnSubnets] would let a computer in from, so a
+         * VPN numbered like the home Wi-Fi is not offered as a way in and then refused.
+         */
+        fun findOtherVpnAddress(context: Context?): String? {
+            val trusted = vpnSubnets(context)
+            if (trusted.isEmpty()) return null
+            return addressesOn(context, NetworkCapabilities.TRANSPORT_VPN)
+                ?.filterNot(::isTailscale)
+                ?.firstOrNull { addr ->
+                    val a = literalAddress(addr) ?: return@firstOrNull false
+                    trusted.any { it.contains(a) }
+                }
+        }
+
+        /** Tailscale's address if it is up, otherwise any other VPN's. */
+        fun findVpnAddress(context: Context?): String? =
+            findTailscaleAddress(context) ?: findOtherVpnAddress(context)
 
         /**
          * A normal private LAN address, if any. Worth surfacing because the relay
@@ -245,6 +369,9 @@ class DesktopSyncService : Service() {
             findTailscaleAddress(context)
                 ?.takeIf { it !in cellular }
                 ?.let { keep(it, LABEL_TAILSCALE) }
+            findOtherVpnAddress(context)
+                ?.takeIf { it !in cellular }
+                ?.let { keep(it, LABEL_VPN) }
             addressesOn(context, NetworkCapabilities.TRANSPORT_WIFI)
                 ?.filter { !isTailscale(it) && isPrivate(it) }
                 ?.forEach { keep(it, LABEL_WIFI) }
@@ -264,6 +391,9 @@ class DesktopSyncService : Service() {
         }
 
         const val LABEL_TAILSCALE = "Tailscale"
+        const val LABEL_VPN = "VPN"
+        /** The labels whose addresses "VPN only" lets through; the rest would answer 403. */
+        val VPN_LABELS = setOf(LABEL_TAILSCALE, LABEL_VPN)
         const val LABEL_WIFI = "Wi-Fi"
         const val LABEL_ETHERNET = "Wired"
         const val LABEL_LOCAL = "Local network"
@@ -396,7 +526,7 @@ class DesktopSyncService : Service() {
             signalEnabled = { prefs.signalEnabled.get() },
             // Read live, so flipping the setting takes effect on the next request
             // instead of needing the relay stopped and started again.
-            tailscaleOnly = { prefs.desktopSyncTailscaleOnly.get() },
+            vpnOnly = { prefs.desktopSyncVpnOnly.get() },
             blockingManager = { prefs.blockingManager.get() },
             prefs = prefs,
             syncMessages = syncMessages,

@@ -46,7 +46,7 @@ data class SettingsState(
     val syncProgress: SyncRepository.SyncProgress = SyncRepository.SyncProgress.Idle,
     val desktopSyncSummary: String = "",
     val desktopSyncEnabled: Boolean = false,
-    val desktopSyncTailscaleOnly: Boolean = true,
+    val desktopSyncVpnOnly: Boolean = true,
     val signalPaired: Boolean = false,
     val signalEnabled: Boolean = false,
     /** This phone is a device on the account. */

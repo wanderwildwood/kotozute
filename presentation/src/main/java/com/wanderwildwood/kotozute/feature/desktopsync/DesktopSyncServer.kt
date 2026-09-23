@@ -1,12 +1,12 @@
 /*
  * Desktop Sync relay: a small embedded HTTP + WebSocket server exposing this
- * device's SMS conversations to a browser dashboard over Tailscale. No relay
- * server involved — the desktop client talks directly to this port on the
- * Kompakt's Tailscale IP.
+ * device's SMS conversations to a browser dashboard over a VPN (Tailscale,
+ * ZeroTier, ...). No relay server involved — the desktop client talks
+ * directly to this port on the phone's VPN address.
  *
  * Every request (HTTP and the WebSocket upgrade) must carry the pairing
- * token, since Tailscale restricts *who* can reach this port but not what
- * they can do once they're on the tailnet.
+ * token, since the VPN restricts *who* can reach this port but not what
+ * they can do once they're on its network.
  */
 package com.wanderwildwood.kotozute.feature.desktopsync
 
@@ -64,7 +64,7 @@ class DesktopSyncServer(
     private val subscriptionManager: SubscriptionManagerCompat,
     private val signalRepository: SignalRepository,
     private val signalEnabled: () -> Boolean,
-    private val tailscaleOnly: () -> Boolean,
+    private val vpnOnly: () -> Boolean,
     /** Which blocking backend to record against a block, read live like the two above. */
     private val blockingManager: () -> Int,
     /**
@@ -83,11 +83,11 @@ class DesktopSyncServer(
 
     /**
      * Whether this peer is allowed to talk to us at all, before the token is even looked at.
-     * With "Tailscale only" on, anything that isn't a tailnet address is refused outright,
+     * With "VPN only" on, anything that doesn't come through a VPN is refused outright,
      * so a device sharing the home Wi-Fi cannot reach the dashboard even holding the token.
      */
     private fun peerAllowed(ip: String?): Boolean =
-        !tailscaleOnly() || DesktopSyncService.isAllowedPeer(ip)
+        !vpnOnly() || DesktopSyncService.isAllowedPeer(ip, context)
 
     private companion object {
         /**
@@ -263,8 +263,8 @@ class DesktopSyncServer(
 
         override fun onOpen() {
             if (!peerAllowed(handshakeRequest.remoteIpAddress)) {
-                Timber.w("Desktop Sync: WebSocket rejected (peer not on the tailnet)")
-                runCatching { close(CloseCode.PolicyViolation, "not on the tailnet", false) }
+                Timber.w("Desktop Sync: WebSocket rejected (peer not on a VPN)")
+                runCatching { close(CloseCode.PolicyViolation, "not on a VPN", false) }
                 return
             }
             val authed = tokenMatches(handshakeRequest.parameters["token"]?.firstOrNull())
@@ -316,7 +316,7 @@ class DesktopSyncServer(
         // off-tailnet caller should not be able to tell a running relay from a closed
         // port by fetching index.html.
         if (!peerAllowed(session.remoteIpAddress)) {
-            Timber.w("Desktop Sync: request refused (peer not on the tailnet)")
+            Timber.w("Desktop Sync: request refused (peer not on a VPN)")
             // An empty 404, not a 403 explaining itself. The comment above says this check
             // exists so an off-tailnet caller cannot tell a running relay from a closed
             // port -- and then the refusal announced the relay, the bound port and the
@@ -591,7 +591,7 @@ class DesktopSyncServer(
      * web page is allowed to write to ~/.local/share.
      */
     private fun serveDesktopEntry(): Response {
-        val address = DesktopSyncService.findTailscaleAddress(context)
+        val address = DesktopSyncService.findVpnAddress(context)
             ?: DesktopSyncService.findLanAddress(context)
             ?: "127.0.0.1"
         // The scheme has to follow the socket, or the link hands somebody a page that will
@@ -1598,7 +1598,7 @@ class DesktopSyncServer(
         put("signalEnabled", prefs.signalEnabled.get())
         put("signalWeave", prefs.signalWeave.get())
         put("signalReadReceipts", prefs.signalReadReceipts.get())
-        put("tailscaleOnly", prefs.desktopSyncTailscaleOnly.get())
+        put("vpnOnly", prefs.desktopSyncVpnOnly.get())
         // Read-only, so the settings screen can say what it is talking to.
         put("signalConfigured", signalRepository.isConfigured())
     })
@@ -1627,18 +1627,19 @@ class DesktopSyncServer(
             // Turning this ON from a LAN browser would cut that browser off mid-request,
             // which reads as the app breaking. Turning it off is allowed: that only ever
             // widens what can reach the relay, and the person doing it is already through.
-            "tailscaleOnly" -> {
-                if (value && !DesktopSyncService.isAllowedPeer(session.remoteIpAddress)) {
+            // "tailscaleOnly" is the old name, for a dashboard tab opened before the update.
+            "vpnOnly", "tailscaleOnly" -> {
+                if (value && !DesktopSyncService.isAllowedPeer(session.remoteIpAddress, context)) {
                     return jsonResponse(
                         Response.Status.BAD_REQUEST,
                         JSONObject().put(
                             "error",
                             "that would disconnect this browser — turn it on from the phone, " +
-                                "or reach this page over Tailscale first"
+                                "or reach this page over your VPN first"
                         )
                     )
                 }
-                prefs.desktopSyncTailscaleOnly.set(value)
+                prefs.desktopSyncVpnOnly.set(value)
             }
             else -> return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "no such setting"))
         }

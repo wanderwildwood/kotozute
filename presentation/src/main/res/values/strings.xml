@@ -639,8 +639,8 @@
     <string name="settings_desktop_sync_link_none">Desktop Sync is on, but this phone has no usable address yet.</string>
     <string name="settings_desktop_sync_tls_title">Use HTTPS</string>
     <string name="settings_desktop_sync_tls_summary">Needed before a browser will let the page use the microphone. The phone makes its own certificate, so every visit starts with a security warning you have to accept, and an already-paired browser needs the link again.</string>
-    <string name="settings_desktop_sync_tailscale_only_title">Tailscale only</string>
-    <string name="settings_desktop_sync_tailscale_only_summary">Refuse connections that aren\'t on your tailnet</string>
+    <string name="settings_desktop_sync_vpn_only_title">VPN only</string>
+    <string name="settings_desktop_sync_vpn_only_summary">Refuse connections that don\'t come through a VPN</string>
     <string name="settings_desktop_sync_reset_title">Reset Desktop Sync link</string>
     <string name="settings_desktop_sync_reset_summary">Replace the token in your link</string>
     <string name="settings_desktop_sync_reset_armed">Reset link — tap again</string>
@@ -1004,7 +1004,7 @@
 
     <!-- Desktop Sync's row while it is on. "On" alone means a computer can reach it. -->
     <string name="settings_desktop_sync_summary_starting">Starting…</string>
-    <string name="settings_desktop_sync_summary_no_tailscale">On, but Tailscale isn\'t connected</string>
+    <string name="settings_desktop_sync_summary_no_vpn">On, but no VPN is connected</string>
     <string name="settings_desktop_sync_summary_no_network">On, but this phone has no network yet</string>
     <string name="settings_desktop_sync_summary_on">On</string>
 

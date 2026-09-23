@@ -283,12 +283,12 @@
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/desktopSyncTailscaleOnly"
+                android:id="@+id/desktopSyncVpnOnly"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="gone"
-                app:summary="@string/settings_desktop_sync_tailscale_only_summary"
-                app:title="@string/settings_desktop_sync_tailscale_only_title"
+                app:summary="@string/settings_desktop_sync_vpn_only_summary"
+                app:title="@string/settings_desktop_sync_vpn_only_title"
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView

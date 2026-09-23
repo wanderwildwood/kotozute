@@ -1640,9 +1640,9 @@ async function openSettings() {
   }
 
   settingsPanelEl.append(heading('Desktop Sync'));
-  settingsPanelEl.append(settingRow('Tailscale only',
-    'Refuse connections that are not on your tailnet', s.tailscaleOnly,
-    (v, b) => setSetting('tailscaleOnly', v, b)));
+  settingsPanelEl.append(settingRow('VPN only',
+    'Refuse connections that do not come through a VPN', s.vpnOnly,
+    (v, b) => setSetting('vpnOnly', v, b)));
 
   settingsPanelEl.append(document.createElement('hr'));
   settingsPanelEl.append(heading('Phone'));

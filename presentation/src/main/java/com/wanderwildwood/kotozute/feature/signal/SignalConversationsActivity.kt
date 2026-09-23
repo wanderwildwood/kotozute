@@ -47,6 +47,7 @@ class SignalConversationsActivity : QkThemedActivity() {
 
     /** Which shelf is on screen. Archiving with no way back to the thread would lose it. */
     private var showingArchived = false
+    private val openedAsHome by lazy { intent.getBooleanExtra(EXTRA_AS_HOME, false) }
 
     /**
      * Picking somebody to write to, or making a group. Both hand back a thread key rather
@@ -79,7 +80,12 @@ class SignalConversationsActivity : QkThemedActivity() {
 
         // Only while the two lists are being kept apart. Reached from Settings while they
         // are woven, there is no SMS-only list to go back to and the badge would mislead.
-        binding.railBadge.setOnClickListener { navigator.showMainActivity() }
+        binding.railBadge.setOnClickListener {
+            navigator.crossToSmsList()
+            finish()
+        }
+        binding.filterAll.setOnClickListener { chooseFilter(FILTER_ALL) }
+        binding.filterGroups.setOnClickListener { chooseFilter(FILTER_GROUPS) }
 
         adapter = ThreadAdapter()
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
@@ -130,13 +136,6 @@ class SignalConversationsActivity : QkThemedActivity() {
         threads?.removeAllChangeListeners()
         val results = signalRepo.getThreads(showingArchived)
         threads = results
-        results.addChangeListener { data, _ ->
-            adapter.submit(data)
-            val empty = data.isEmpty()
-            binding.empty.setVisible(empty)
-            binding.recyclerView.setVisible(!empty)
-        }
-        adapter.submit(results)
         binding.empty.text = getString(
             if (showingArchived) R.string.signal_archived_empty else R.string.signal_empty
         )
@@ -145,11 +144,49 @@ class SignalConversationsActivity : QkThemedActivity() {
         )
         // The crossing is to the SMS inbox; from the archive shelf the way out is the shelf
         // toggle, not a jump to another rail's inbox.
-        binding.railBadge.setVisible(!prefs.signalWeave.get() && !showingArchived)
+        val separate = !prefs.signalWeave.get() && !showingArchived
+        binding.railBadge.setVisible(separate)
+        binding.filterTabs.setVisible(separate)
+        binding.toolbarTitle.setVisible(!separate)
+        selectFilterTab()
+        // Opened as the first screen there is nothing to go up to; the archive shelf still
+        // has its way back to the inbox.
+        supportActionBar?.setDisplayHomeAsUpEnabled(showingArchived || !openedAsHome)
+        // After the tabs are shown or hidden: whether the tab applies depends on it.
+        results.addChangeListener { data, _ -> show(data) }
+        show(results)
         // Nothing is started from the archive shelf: a new conversation would appear on the
         // inbox shelf, behind the screen that was showing.
         binding.compose.setVisible(!showingArchived)
         invalidateOptionsMenu()
+    }
+
+    /** The tab applies only where the tabs are showing, so the archive shelf is never short. */
+    private fun show(data: List<SignalThread>) {
+        val filtered = binding.filterTabs.visibility == View.VISIBLE &&
+            prefs.signalConversationFilter.get() == FILTER_GROUPS
+        val shown = if (filtered) data.filter { it.kind == "group" } else data
+        adapter.submit(shown)
+        val empty = shown.isEmpty()
+        binding.empty.setVisible(empty)
+        binding.recyclerView.setVisible(!empty)
+    }
+
+    private fun chooseFilter(filter: Int) {
+        prefs.signalConversationFilter.set(filter)
+        selectFilterTab()
+        threads?.let(::show)
+    }
+
+    private fun selectFilterTab() {
+        val groups = prefs.signalConversationFilter.get() == FILTER_GROUPS
+        listOf(binding.filterAll to !groups, binding.filterGroups to groups)
+            .forEach { (tab, selected) ->
+                tab.setBackgroundResource(
+                    if (selected) R.drawable.filter_tab_selected else android.R.color.transparent
+                )
+                tab.setTextColor(if (selected) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
+            }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -268,6 +305,9 @@ class SignalConversationsActivity : QkThemedActivity() {
     }
 
     companion object {
+        const val EXTRA_AS_HOME = "asHome"
+        private const val FILTER_ALL = 0
+        private const val FILTER_GROUPS = 1
         private const val EXTRA_KEY = "threadKey"
         private const val EXTRA_TITLE = "threadTitle"
 

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -23,6 +24,54 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="16sp" />
+
+            <!-- In the title's place while the lists are kept apart, as the SMS list has
+                 them: the same tabs, less Unknown, which a Signal thread never is. -->
+            <LinearLayout
+                android:id="@+id/filterTabs"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="48dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/filterAll"
+                android:layout_width="wrap_content"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:minWidth="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="@string/filter_all"
+                android:textStyle="bold"
+                android:background="@android:color/transparent"
+                android:textColor="#000000"
+                app:textSize="secondary" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/filterGroups"
+                android:layout_width="wrap_content"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:minWidth="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="@string/filter_groups"
+                android:textStyle="bold"
+                android:background="@android:color/transparent"
+                android:textColor="#000000"
+                app:textSize="secondary" />
+
+            </LinearLayout>
 
             <!-- Crosses back to the SMS list. Present only while the two lists are being
                  kept apart; woven, this screen is not reached from a list at all. -->

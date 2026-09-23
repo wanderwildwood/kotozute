@@ -110,6 +110,11 @@ class MainActivity : QkThemedActivity(), MainView {
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null && opensOnSignal(intent)) {
+            navigator.showSignalConversations(asHome = true)
+            finish()
+            return
+        }
         setContentView(binding.root)
         viewModel.bindView(this)
         onNewIntentIntent.onNext(intent)
@@ -160,6 +165,18 @@ class MainActivity : QkThemedActivity(), MainView {
         // Setup filter tabs
         setupFilterTabs()
     }
+
+    /**
+     * Opened from the launcher with the lists kept apart and Signal chosen to open first.
+     * Only the launcher: a notification, a share or the Signal list's own badge all mean
+     * this screen.
+     */
+    private fun opensOnSignal(intent: Intent?): Boolean =
+        intent?.action == Intent.ACTION_MAIN &&
+            intent.hasCategory(Intent.CATEGORY_LAUNCHER) &&
+            prefs.signalEnabled.get() &&
+            !prefs.signalWeave.get() &&
+            prefs.signalOpensFirst.get()
 
     private fun setupFilterTabs() {
         binding.filterAll.setOnClickListener {

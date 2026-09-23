@@ -291,6 +291,15 @@ class Preferences @Inject constructor(
     val signalWeave = rxPrefs.getBoolean("signalWeave", true)
 
     /**
+     * With the lists kept apart, whether the app opens on the Signal one. Only read while
+     * [signalWeave] is off: woven, there is one list and nothing to choose between.
+     */
+    val signalOpensFirst = rxPrefs.getBoolean("signalOpensFirst", false)
+
+    /** The Signal list's own tab, 0 all or 1 groups. Kept apart from the SMS list's. */
+    val signalConversationFilter = rxPrefs.getInteger("signalConversationFilter", 0)
+
+    /**
      * Whether the offer to fetch the account's contact list has been made.
      *
      * Asked once and never again, whatever the answer. A linked device's first impression is

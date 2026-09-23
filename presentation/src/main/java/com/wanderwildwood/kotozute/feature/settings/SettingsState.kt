@@ -63,6 +63,7 @@ data class SettingsState(
     val signalStatusSummary: String = "",
     val signalKeepConnected: Boolean = false,
     val signalWeave: Boolean = true,
+    val signalOpensFirst: Boolean = false,
     val signalReadReceipts: Boolean = false,
     /**
      * What the update row currently says, and what a tap on it would do.

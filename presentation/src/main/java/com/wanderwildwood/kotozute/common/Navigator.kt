@@ -124,8 +124,24 @@ class Navigator @Inject constructor(
         startActivity(intent)
     }
 
-    fun showSignalConversations() {
-        startActivity(Intent(context, SignalConversationsActivity::class.java))
+    /** [asHome]: the Signal list is the first screen, with nothing under it to go up to. */
+    fun showSignalConversations(asHome: Boolean = false) {
+        startActivity(
+            Intent(context, SignalConversationsActivity::class.java)
+                .putExtra(SignalConversationsActivity.EXTRA_AS_HOME, asHome)
+        )
+    }
+
+    /**
+     * The crossing from the Signal list back to the SMS one. Brings back the SMS list already
+     * underneath rather than stacking another on top; each crossing used to add one, so Back
+     * walked through every list ever crossed to.
+     */
+    fun crossToSmsList() {
+        startActivity(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        )
     }
 
     /**

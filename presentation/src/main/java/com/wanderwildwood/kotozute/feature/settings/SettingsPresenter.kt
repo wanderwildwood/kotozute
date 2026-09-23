@@ -95,6 +95,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.signalWeave.asObservable()
                 .subscribe { on -> newState { copy(signalWeave = on) } }
 
+        disposables += prefs.signalOpensFirst.asObservable()
+                .subscribe { on -> newState { copy(signalOpensFirst = on) } }
+
         disposables += signalRepo.connectionState()
                 .subscribe { conn ->
                     newState {
@@ -305,6 +308,9 @@ class SettingsPresenter @Inject constructor(
                         }
 
                         R.id.signalWeave -> prefs.signalWeave.set(!prefs.signalWeave.get())
+
+                        R.id.signalOpensFirst ->
+                            prefs.signalOpensFirst.set(!prefs.signalOpensFirst.get())
 
                         // Read over the network, so off the main thread, and shown even
                         // when it fails: a blank dialog would not say why it was blank.

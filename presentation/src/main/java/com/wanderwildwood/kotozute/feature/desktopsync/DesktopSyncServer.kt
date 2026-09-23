@@ -352,7 +352,7 @@ class DesktopSyncServer(
             return handlePairCode(session)
         }
 
-        val authed = session.headers["authorization"] == "Bearer $token" ||
+        val authed = bearerMatches(session.headers["authorization"], token) ||
                 tokenMatches(session.parameters["token"]?.firstOrNull())
         if (!authed) {
             return jsonResponse(Response.Status.UNAUTHORIZED, JSONObject().put("error", "bad token"))

@@ -13,6 +13,7 @@ import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -97,6 +98,10 @@ class SignalThreadActivity : QkThemedActivity() {
 
     /** The picked file, already a data URI. Held until the message is actually sent. */
     private var pendingAttachment: String? = null
+        set(value) {
+            field = value
+            showSendOrRecord()
+        }
     private var pendingName: String? = null
 
     private val picker = registerForActivityResult(
@@ -137,6 +142,10 @@ class SignalThreadActivity : QkThemedActivity() {
      * only whether *this* screen started it. Asking the recorder would answer for both.
      */
     private var recording = false
+        set(value) {
+            field = value
+            showSendOrRecord()
+        }
 
     /** When the microphone opened, for the length shown and for [MIN_RECORDING_MS]. */
     private var recordingStartedAt = 0L
@@ -286,6 +295,13 @@ class SignalThreadActivity : QkThemedActivity() {
             if (recording) stopRecording() else askForMicThenRecord()
         }
         binding.pending.setOnClickListener { clearAttachment() }
+
+        binding.message.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) = showSendOrRecord()
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+        })
+        showSendOrRecord()
     }
 
     private fun markRead(data: List<SignalMessage>) {
@@ -636,6 +652,18 @@ class SignalThreadActivity : QkThemedActivity() {
     private fun spokenLength(millis: Long): String {
         val seconds = (millis / 1000).coerceAtLeast(0)
         return String.format(java.util.Locale.getDefault(), "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    /**
+     * Send and the microphone share one place, as in the SMS composer: Send once there is
+     * something to send, the microphone otherwise. While recording the microphone stays --
+     * it is the only way to stop -- even if something has been typed meanwhile.
+     */
+    private fun showSendOrRecord() {
+        val something = !binding.message.text.isNullOrBlank() || pendingAttachment != null
+        val showSend = something && !recording
+        binding.send.visibility = if (showSend) View.VISIBLE else View.INVISIBLE
+        binding.record.visibility = if (showSend) View.INVISIBLE else View.VISIBLE
     }
 
     private fun clearAttachment() {

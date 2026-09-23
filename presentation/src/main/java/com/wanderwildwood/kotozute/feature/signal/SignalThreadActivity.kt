@@ -44,6 +44,7 @@ import timber.log.Timber
 import kotlin.math.abs
 import java.util.concurrent.TimeUnit
 import com.wanderwildwood.kotozute.common.util.extensions.dpToPx
+import com.wanderwildwood.kotozute.common.util.extensions.showCursorWhenWriting
 import com.wanderwildwood.kotozute.feature.compose.BubbleUtils
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -296,6 +297,9 @@ class SignalThreadActivity : QkThemedActivity() {
         }
         binding.pending.setOnClickListener { clearAttachment() }
 
+        // ⚠ The layout hides the cursor and nothing here ever showed it again, so on this
+        // rail there was never a cursor at all.
+        binding.message.showCursorWhenWriting()
         binding.message.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) = showSendOrRecord()
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
@@ -411,7 +415,9 @@ class SignalThreadActivity : QkThemedActivity() {
                 val intent = Intent(Intent.ACTION_VIEW)
                     .setDataAndType(uri, attachment.type.ifBlank { "*/*" }.lowercase())
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                runCatching { startActivity(Intent.createChooser(intent, null)) }
+                // ⚠ No chooser: it asks on every picture and has no "Always". See
+                // Navigator.viewFile.
+                runCatching { startActivity(intent) }
                     .onFailure {
                         // A Kompakt has few apps on it, so "nothing can open this" is an
                         // ordinary outcome rather than a fault -- and saying so beats a
@@ -1441,7 +1447,7 @@ class SignalThreadActivity : QkThemedActivity() {
             (b.root as? android.widget.LinearLayout)?.let { root ->
                 // The timestamp stays centred whichever side the message is on, so only the
                 // children below it follow the sender.
-                listOf(b.sender, b.image, b.attachment, b.quote, b.body, b.reactions, b.status).forEach { child ->
+                listOf(b.sender, b.image, b.album, b.attachment, b.quote, b.body, b.reactions, b.status).forEach { child ->
                     (child.layoutParams as? android.widget.LinearLayout.LayoutParams)
                         ?.let { lp -> lp.gravity = side; child.layoutParams = lp }
                 }
@@ -1490,7 +1496,9 @@ class SignalThreadActivity : QkThemedActivity() {
             b.image.setOnLongClickListener(listener)
             b.attachment.setOnLongClickListener(listener)
 
-            bindAttachment(m)
+            bindAttachment(m) { tile ->
+                showMessageActions(m.body, messageId, mine, outgoing, sentAt, tile)
+            }
 
             // A tap opens it. The picture on screen is a thumbnail sized for a message list,
             // which is the "only very small" in the report -- the full copy is what gets
@@ -1574,16 +1582,27 @@ class SignalThreadActivity : QkThemedActivity() {
             b.reactions.setVisible(true)
         }
 
-        private fun bindAttachment(m: SignalMessage) {
+        /**
+         * @param menuFor opens the long-press menu for one picture of an album, so "Save a
+         *   copy…" saves the one that was pressed rather than always the first.
+         */
+        private fun bindAttachment(m: SignalMessage, menuFor: (SavedAttachment?) -> Unit) {
             b.image.setVisible(false)
             b.attachment.setVisible(false)
             b.image.setImageDrawable(null)
+            b.album.removeAllViews()
+            b.album.setVisible(false)
             if (m.attachments.isBlank()) return
 
-            val first = runCatching { JSONArray(m.attachments) }
-                .getOrNull()
-                ?.takeIf { it.length() > 0 }
-                ?.optJSONObject(0) ?: return
+            val all = runCatching { JSONArray(m.attachments) }.getOrNull() ?: return
+            // ⚠ Every attachment was always received and kept -- SignalReceiver and the
+            // history import both store the whole list. Only this drew nothing past the
+            // first, so an album of four arrived as one picture.
+            if (all.length() > 1) {
+                bindAlbum(all, menuFor)
+                return
+            }
+            val first = all.optJSONObject(0) ?: return
             val id = first.optString("id")
             // ⚠ `type`, not `contentType`. Every writer of this array uses `type` --
             // SignalReceiver for what arrives, outgoingAttachmentsJson for what is sent, and
@@ -1696,6 +1715,69 @@ class SignalThreadActivity : QkThemedActivity() {
                     } else {
                         adapter.notifyDataSetChanged()
                     }
+                }
+            }
+        }
+
+        /**
+         * Several attachments sent as one message, two across.
+         *
+         * Each tile is its own attachment: a tap opens that one, a long press offers that one.
+         * A tile with nothing to draw -- a video, a file, our own sent copy (no id) or one
+         * never fetched -- says what it is instead, as the single-attachment row does.
+         */
+        private fun bindAlbum(all: JSONArray, menuFor: (SavedAttachment?) -> Unit) {
+            val inflater = LayoutInflater.from(b.album.context)
+            for (i in 0 until all.length()) {
+                val entry = all.optJSONObject(i) ?: continue
+                val tile = inflater.inflate(R.layout.signal_album_tile, b.album, false)
+                val image = tile.findViewById<android.widget.ImageView>(R.id.image)
+                val label = tile.findViewById<android.widget.TextView>(R.id.label)
+                val id = entry.optString("id")
+                val type = entry.optString("type")
+                val onPhone = id.isNotBlank() && !entry.optBoolean("pending")
+                val saved = if (onPhone) {
+                    SavedAttachment(id, entry.optString("filename"), type)
+                } else null
+
+                label.text = when {
+                    !onPhone && id.isNotBlank() -> getString(R.string.signal_attachment_unavailable)
+                    type.startsWith("image/") -> getString(R.string.signal_attachment_image)
+                    else -> getString(
+                        R.string.signal_attachment_other,
+                        entry.optString("filename").ifBlank { type.ifBlank { getString(R.string.signal_attachment_image) } }
+                    )
+                }
+                if (saved != null && type.startsWith("image/")) {
+                    image.tag = id
+                    val cached = imageCache.get(id)
+                    if (cached != null) {
+                        image.setImageBitmap(cached)
+                        label.setVisible(false)
+                    } else {
+                        fetchThumbnail(id)
+                    }
+                }
+                saved?.let { s -> tile.setOnClickListener { openAttachment(s) } }
+                tile.setOnLongClickListener { menuFor(saved); true }
+                b.album.addView(tile)
+            }
+            b.album.setVisible(true)
+        }
+
+        /**
+         * Fetches one album picture into the cache, then redraws the list so whichever row
+         * now holds it picks it up. A tile is never written to directly: by the time the
+         * bytes arrive it may have been recycled onto another message.
+         */
+        private fun fetchThumbnail(id: String) {
+            if (!inFlight.add(id)) return
+            thread(isDaemon = true) {
+                val bmp = signalRepo.loadAttachment(id)?.let { SignalAttachment.decodeBounded(it) }
+                if (bmp != null) imageCache.put(id, bmp)
+                runOnUiThread {
+                    inFlight.remove(id)
+                    if (bmp != null) adapter.notifyDataSetChanged()
                 }
             }
         }

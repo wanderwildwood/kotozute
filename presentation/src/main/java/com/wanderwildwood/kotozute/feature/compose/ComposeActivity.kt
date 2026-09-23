@@ -76,6 +76,7 @@ import com.wanderwildwood.kotozute.common.util.extensions.setBackgroundTint
 import com.wanderwildwood.kotozute.common.util.extensions.setTint
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.common.util.extensions.showKeyboard
+import com.wanderwildwood.kotozute.common.util.extensions.showCursorWhenWriting
 import com.wanderwildwood.kotozute.common.widget.QkEditText
 import com.wanderwildwood.kotozute.extensions.mapNotNull
 import com.wanderwildwood.kotozute.feature.compose.editing.ChipsAdapter
@@ -248,11 +249,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
             binding.message.supportsInputContent = true
 
-            // Hide cursor initially, show only when user clicks on input field
-            binding.message.isCursorVisible = false
-            binding.message.setOnClickListener {
-                binding.message.isCursorVisible = true
-            }
+            binding.message.showCursorWhenWriting()
 
             binding.railBadge.setOnClickListener {
                 signalThreadKey?.let { key ->

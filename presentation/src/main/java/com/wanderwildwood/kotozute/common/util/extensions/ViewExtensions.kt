@@ -174,3 +174,30 @@ fun RecyclerView.scrapViews() {
     recycledViewPool.clear()
     adapter?.notifyDataSetChanged()
 }
+
+/**
+ * Keeps the cursor hidden until somebody is actually writing here.
+ *
+ * Hidden to begin with because a composer can hold focus while its thread is only being read,
+ * and a blinking cursor is a panel refresh twice a second on e-ink for nobody.
+ *
+ * ⚠ Shown on the touch, not the click. The first tap on an unfocused field is spent giving it
+ * focus and never reaches a click listener, so a cursor shown "on click" appeared only on the
+ * *second* tap -- and a person who tapped once and typed saw none at all. Typing shows it
+ * too, for a field that already had focus and was never touched.
+ */
+@android.annotation.SuppressLint("ClickableViewAccessibility")
+fun EditText.showCursorWhenWriting() {
+    isCursorVisible = false
+    setOnTouchListener { _, event ->
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) isCursorVisible = true
+        false
+    }
+    addTextChangedListener(object : android.text.TextWatcher {
+        override fun afterTextChanged(s: android.text.Editable?) {
+            if (hasFocus()) isCursorVisible = true
+        }
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+    })
+}

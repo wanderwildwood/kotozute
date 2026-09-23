@@ -313,11 +313,17 @@ class Navigator @Inject constructor(
         startActivityExternal(intent)
     }
 
+    /**
+     * Opens a file in whatever the phone views it with.
+     *
+     * ⚠ Not wrapped in a chooser. A chooser asks every time and offers no "Always", so a
+     * phone with two picture viewers asked which one on every single picture; the plain
+     * intent gets the system's own picker, which asks once and can remember the answer.
+     */
     fun viewFile(uri: Uri, mimeType: String) {
         val intent = Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, mimeType.lowercase())
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                .let { Intent.createChooser(it, null) }
 
         startActivityExternal(intent)
     }

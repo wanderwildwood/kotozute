@@ -598,23 +598,7 @@ class DesktopSyncServer(
         // not load at all.
         val scheme = if (prefs.desktopSyncTls.get()) "https" else "http"
         val url = "$scheme://$address:$listeningPort?token=$token"
-        // Prefers a Chromium browser in app mode, which gives a window with no tab strip or
-        // address bar and its own entry in the menu and the switcher. Falls back to xdg-open,
-        // so on a machine with neither Chrome nor Brave this still opens the right page in
-        // whatever browser that person actually uses.
-        val exec = "sh -c 'for b in brave-browser brave chromium chromium-browser " +
-            "google-chrome google-chrome-stable microsoft-edge vivaldi; do " +
-            "command -v \$b >/dev/null 2>&1 && exec \$b --app=\"$url\"; done; exec xdg-open \"$url\"'"
-        val entry = """
-            [Desktop Entry]
-            Type=Application
-            Name=Messaging
-            Comment=Text from this computer, through the phone
-            Exec=$exec
-            Icon=messaging
-            Categories=Network;InstantMessaging;
-            Terminal=false
-        """.trimIndent() + "\n"
+        val entry = desktopEntryFor(url)
         return newFixedLengthResponse(Response.Status.OK, "application/x-desktop", entry).apply {
             addHeader("Content-Disposition", "attachment; filename=\"messaging.desktop\"")
         }
@@ -2609,3 +2593,38 @@ internal fun sniffServedType(bytes: ByteArray): String = when {
         bytes.size > 6 && String(bytes, 0, 6, Charsets.US_ASCII) == "#!AMR\n" -> "audio/amr"
         else -> "application/octet-stream"
     }
+
+/**
+ * The desktop entry for [url], pulled out of the server so its exact text can be tested.
+ *
+ * Prefers a Chromium browser in app mode, which gives a window with no tab strip or address
+ * bar and its own entry in the menu and the switcher: installed normally, or as a Flatpak,
+ * which is how many Linux desktops carry Brave and Chrome. Falls back to xdg-open, so on a
+ * machine with none of them this still opens the right page in whatever browser that person
+ * actually uses.
+ *
+ * The quoting is the desktop-entry spec's, and it matters: desktop-file-validate rejected the
+ * old single-quoted script outright. The script is one double-quoted argument, in which a $
+ * must be written \$, and the file format doubles that backslash again, so the file holds
+ * \\$. Inside the script the address is single-quoted, because its ? would otherwise be a
+ * filename wildcard, and any % is doubled, because % begins the spec's field codes.
+ */
+internal fun desktopEntryFor(url: String): String {
+    val u = url.replace("%", "%%")
+    val script = "for b in brave-browser brave chromium chromium-browser " +
+        "google-chrome google-chrome-stable microsoft-edge vivaldi; do " +
+        "command -v \\\\\$b >/dev/null 2>&1 && exec \\\\\$b --app='$u'; done; " +
+        "for f in com.brave.Browser com.google.Chrome org.chromium.Chromium com.microsoft.Edge " +
+        "com.vivaldi.Vivaldi; do flatpak info \\\\\$f >/dev/null 2>&1 && " +
+        "exec flatpak run \\\\\$f --app='$u'; done; exec xdg-open '$u'"
+    return """
+        [Desktop Entry]
+        Type=Application
+        Name=Messaging
+        Comment=Text from this computer, through the phone
+        Exec=sh -c "$script"
+        Icon=messaging
+        Categories=Network;InstantMessaging;
+        Terminal=false
+    """.trimIndent() + "\n"
+}

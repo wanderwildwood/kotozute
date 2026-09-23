@@ -667,12 +667,18 @@ class SignalStore(private val context: Context) {
     /**
      * Sends something again for a recipient who could not read it. See [SignalSender.resend].
      */
-    fun resend(recipient: String, sentTimestamp: Long): Boolean {
-        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
-        return SignalSender(
+    fun resend(recipient: String, sentTimestamp: Long): SignalEvents.Resend {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
+            ?: return SignalEvents.Resend.GIVE_UP
+        val result = SignalSender(
             SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
             SignalDataStore(database, account), connection, contacts
-        ).resend(serviceId, sentTimestamp) is SignalSender.Result.Sent
+        ).resend(serviceId, sentTimestamp)
+        return when {
+            result is SignalSender.Result.Sent -> SignalEvents.Resend.SENT
+            result is SignalSender.Result.Failed && result.network -> SignalEvents.Resend.TRY_AGAIN
+            else -> SignalEvents.Resend.GIVE_UP
+        }
     }
 
     /**
@@ -694,6 +700,10 @@ class SignalStore(private val context: Context) {
      * Giving up is its own step and says so: a request nobody could be reached about in a day
      * is one to stop waking the radio for, which is that job's own lifespan.
      *
+     * ⚠ **Only a network failure stays owed.** A refusal is settled the first time it comes
+     * back -- `ResendMessageJob.onShouldRetry` is `e instanceof PushNetworkException` and
+     * nothing else -- so a rate limit is not answered with ninety-six more attempts.
+     *
      * @return how many went.
      */
     fun retryOwedResends(): Int {
@@ -705,13 +715,18 @@ class SignalStore(private val context: Context) {
         if (owed.isNotEmpty()) {
             connection.connect()
             owed.forEach { entry ->
-                val went = runCatching { resend(entry.recipient, entry.sentTimestamp) }
+                // A throw here is this app's own fault, not the server's answer, so it is kept
+                // owed rather than given up on.
+                val outcome = runCatching { resend(entry.recipient, entry.sentTimestamp) }
                     .onFailure { Timber.w(it, "signal retry: still could not send it again") }
-                    .getOrDefault(false)
-                if (went) {
-                    sent++
+                    .getOrDefault(SignalEvents.Resend.TRY_AGAIN)
+                if (outcome == SignalEvents.Resend.SENT) sent++
+                if (outcome == SignalEvents.Resend.GIVE_UP) {
+                    Timber.w("signal retry: the server refused a resend; not asking it again")
+                }
+                if (outcome != SignalEvents.Resend.TRY_AGAIN) {
                     runCatching { log.clearResendOwed(entry.recipient, entry.sentTimestamp) }
-                        .onFailure { Timber.w(it, "signal retry: could not clear a resend that went") }
+                        .onFailure { Timber.w(it, "signal retry: could not clear a resend that is settled") }
                 }
             }
             Timber.i("signal retry: %d of %d owed resend(s) went this time", sent, owed.size)
@@ -1750,7 +1765,7 @@ class SignalStore(private val context: Context) {
             this@SignalStore.sendRetryReceipt(to, error, groupId)
         }
 
-        override fun resend(to: String, sentTimestamp: Long): Boolean =
+        override fun resend(to: String, sentTimestamp: Long): SignalEvents.Resend =
             this@SignalStore.resend(to, sentTimestamp)
 
         override fun retryOwedResends(): Int = this@SignalStore.retryOwedResends()

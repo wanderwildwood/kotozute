@@ -649,7 +649,14 @@ internal class SignalSender(
              * @see SignalContactStore.markUnregistered — the service saying somebody is not on
              *   Signal is worth writing down, not just reporting.
              */
-            val notRegistered: Boolean = false
+            val notRegistered: Boolean = false,
+            /**
+             * Whether this failed on the way to the server rather than at it -- the one kind
+             * worth trying again unchanged. Upstream's `ResendMessageJob.onShouldRetry` is
+             * exactly `e instanceof PushNetworkException`; a rate limit, a proof request or a
+             * refusal ends the job.
+             */
+            val network: Boolean = false
         ) : Result
     }
 
@@ -990,7 +997,8 @@ internal class SignalSender(
         return Result.Failed(
             describe(result),
             safetyNumberChanged = result.identityFailure != null,
-            notRegistered = result.isUnregisteredFailure
+            notRegistered = result.isUnregisteredFailure,
+            network = result.isNetworkFailure
         )
     }
 
@@ -1038,7 +1046,7 @@ internal class SignalSender(
      */
     private fun failed(t: Throwable): Result.Failed {
         if (t !is org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserException) {
-            return Result.Failed(explain(t))
+            return Result.Failed(explain(t), network = isNetwork(t))
         }
         val serviceId = t.e164Number
         runCatching { contacts.markUnregistered(serviceId) }
@@ -1669,6 +1677,20 @@ internal class SignalSender(
 
             else -> SendFailure.Unexplained(t.message ?: t::class.java.simpleName)
         }
+
+        /**
+         * Whether a failure never reached the server: a [PushNetworkException] anywhere in its
+         * causes. Its own test, not a [SendFailure] arm, because [explain] words it as the
+         * exception's own message -- and the one thing a retry needs to know is this.
+         *
+         * Disjoint from the refusals by construction: `RateLimitException`,
+         * `ProofRequiredException` and `ServerRejectedException` all extend
+         * `NonSuccessfulResponseCodeException`, which is not a `PushNetworkException`.
+         */
+        internal fun isNetwork(t: Throwable): Boolean =
+            generateSequence(t) { it.cause }
+                .take(8)
+                .any { it is org.signal.network.exceptions.PushNetworkException }
 
         /** A body's length as the limit counts it: bytes of UTF-8, not characters. */
         internal fun utf8Size(body: String): Int = body.toByteArray(Charsets.UTF_8).size

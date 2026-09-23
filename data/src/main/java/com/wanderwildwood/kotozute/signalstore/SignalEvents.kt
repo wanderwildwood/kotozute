@@ -175,9 +175,24 @@ interface SignalEvents {
      * from one that landed, and only a thrown exception counted as failure. That is the
      * common case, not the rare one.
      *
-     * @return true if the message reached the server for them.
+     * ⚠ **And whether it is worth trying again.** A refusal -- a rate limit, a proof request,
+     * somebody who has left -- used to be kept owed and retried every quarter hour for a day,
+     * which is ninety-six more knocks on a door that has already answered. Upstream retries
+     * only what failed on the network (`ResendMessageJob.onShouldRetry`).
      */
-    fun resend(to: String, sentTimestamp: Long): Boolean = false
+    fun resend(to: String, sentTimestamp: Long): Resend = Resend.TRY_AGAIN
+
+    /** How a resend went, and so what the caller owes the person who asked for it. */
+    enum class Resend {
+        /** It reached the server for them. Nothing is owed. */
+        SENT,
+
+        /** It never reached the server. Still owed; the next pass tries again. */
+        TRY_AGAIN,
+
+        /** The server answered no, or the message is no longer held. Asking again changes nothing. */
+        GIVE_UP,
+    }
 
     /**
      * Try again for everybody still owed a message they asked for.

@@ -1873,10 +1873,15 @@ internal class SignalReceiver(
             // Refused counts as failed, not only thrown. No session, a server error, somebody
             // who has left -- those are the ordinary ways this does not happen, and none of
             // them raises anything.
-            val went = runCatching { events.resend(sender, error.timestamp) }
+            val outcome = runCatching { events.resend(sender, error.timestamp) }
                 .onFailure { Timber.w(it, "signal retry: sending it again threw") }
-                .getOrDefault(false)
-            if (!went) {
+                .getOrDefault(SignalEvents.Resend.TRY_AGAIN)
+            if (outcome == SignalEvents.Resend.GIVE_UP) {
+                // The server's answer, not the network's: a rate limit, a proof request,
+                // somebody who has left. Upstream's job ends on these rather than retrying.
+                Timber.w("signal retry: the server refused the resend; not keeping it owed")
+            }
+            if (outcome == SignalEvents.Resend.TRY_AGAIN) {
                 // Noted, not dropped. Upstream answers this with a job that keeps trying for a
                 // day (`ResendMessageJob`: lifespan one day, unlimited attempts), because what
                 // usually fails here is the network rather than the send -- and their client

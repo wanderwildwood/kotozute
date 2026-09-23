@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import com.wanderwildwood.kotozute.repository.SignalRepository.RegistrationFailure
 import org.signal.core.models.ServiceId
 import org.signal.libsignal.zkgroup.profiles.ProfileKey
 import org.whispersystems.signalservice.api.crypto.UnidentifiedAccess
@@ -112,7 +113,7 @@ class SignalRegistrar internal constructor(
         /** Registered. From here the account exists and the device is this phone. */
         data class Registered(val aci: String, val e164: String) : Step
 
-        data class Failed(val reason: String) : Step
+        data class Failed(val failure: RegistrationFailure) : Step
     }
 
     /** What the server names when it wants a captcha. */
@@ -129,7 +130,7 @@ class SignalRegistrar internal constructor(
         // Four checks, not one: see [E164Numbers]. The shape alone is what a plausible typo
         // passes, and a typo here texts a code to somebody else's phone.
         if (!E164Numbers.isValidForRegistration(phoneNumbers, e164)) {
-            return Step.Failed("that is not a phone number this can register")
+            return Step.Failed(RegistrationFailure.NotANumber)
         }
 
         val api = anonymousApi()
@@ -141,10 +142,10 @@ class SignalRegistrar internal constructor(
                     session.requestedInformation.contains(captchaRequested) ->
                         Step.NeedsCaptcha(session.id)
                     session.allowedToRequestCode -> requestCode(session.id, voice = false)
-                    else -> Step.Failed("the server will not send a code yet")
+                    else -> Step.Failed(RegistrationFailure.NoCodeYet)
                 }
             }
-            else -> Step.Failed("could not start registration: $result")
+            else -> Step.Failed(RegistrationFailure.CouldNotStart("$result"))
         }
     }
 
@@ -168,9 +169,9 @@ class SignalRegistrar internal constructor(
             is org.signal.libsignal.net.RequestResult.Success -> {
                 val session = result.result
                 if (session.allowedToRequestCode) requestCode(sessionId, voice = false)
-                else Step.Failed("the captcha was accepted but the server still will not send a code")
+                else Step.Failed(RegistrationFailure.CaptchaAcceptedNoCode)
             }
-            else -> Step.Failed("the captcha was not accepted: $result")
+            else -> Step.Failed(RegistrationFailure.CaptchaRefused("$result"))
         }
     }
 
@@ -202,7 +203,7 @@ class SignalRegistrar internal constructor(
                     nextCallSeconds = result.result.nextCall,
                     nextAttemptSeconds = result.result.nextVerificationAttempt
                 )
-            else -> Step.Failed("could not send a code: $result")
+            else -> Step.Failed(RegistrationFailure.CodeNotSent("$result"))
         }
     }
 
@@ -218,9 +219,9 @@ class SignalRegistrar internal constructor(
 
         val verified = when (val result = api.submitVerificationCode(sessionId, code)) {
             is org.signal.libsignal.net.RequestResult.Success -> result.result
-            else -> return Step.Failed("that code was not accepted: $result")
+            else -> return Step.Failed(RegistrationFailure.CodeRefused("$result"))
         }
-        if (!verified.verified) return Step.Failed("that code was not accepted")
+        if (!verified.verified) return Step.Failed(RegistrationFailure.CodeRefused(null))
 
         return register(sessionId, e164)
     }
@@ -240,7 +241,7 @@ class SignalRegistrar internal constructor(
         // to read its own stored state with -- recoverable only by registering the number
         // again. Failing before the request costs nothing; the number has not moved yet.
         val accountEntropyPool = generateAccountKeys()
-            ?: return Step.Failed("could not generate this account's key material")
+            ?: return Step.Failed(RegistrationFailure.NoKeyMaterial)
 
         val aciIdentity = IdentityKeyPair.generate()
         val pniIdentity = IdentityKeyPair.generate()
@@ -373,16 +374,12 @@ class SignalRegistrar internal constructor(
                 val error = result.error
                 if (error is org.signal.network.api.RegistrationApiV2.RegisterAccountError.RegistrationLock) {
                     val days = TimeUnit.MILLISECONDS.toDays(error.data.timeRemaining)
-                    Step.Failed(
-                        "This number has a registration lock. Its PIN is needed to register it " +
-                            "here, and this app cannot use one yet -- the lock has about $days " +
-                            "day(s) left to run. Link this phone to the account instead."
-                    )
+                    Step.Failed(RegistrationFailure.Locked(days))
                 } else {
-                    Step.Failed("registration refused: $result")
+                    Step.Failed(RegistrationFailure.Refused("$result"))
                 }
             }
-            else -> Step.Failed("registration refused: $result")
+            else -> Step.Failed(RegistrationFailure.Refused("$result"))
         }
     }
 

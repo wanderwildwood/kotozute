@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import com.wanderwildwood.kotozute.repository.SignalRepository.ProfileNameFailure
 import kotlinx.coroutines.runBlocking
 import org.signal.core.models.ServiceId
 import org.signal.libsignal.zkgroup.profiles.ProfileKey
@@ -236,20 +237,20 @@ internal class SignalProfiles(
      * Sending true would publish this account's phone number to everyone it messages, as a
      * side effect of setting a name.
      *
-     * @return null on success, or a reason to show.
+     * @return null on success, or why not, for the screen to word.
      */
-    fun setOwnName(given: String, family: String): String? {
+    fun setOwnName(given: String, family: String): ProfileNameFailure? {
         val credentials = runCatching { accounts.credentials() }.getOrNull()
-            ?: return "this phone has no account yet"
+            ?: return ProfileNameFailure.NoAccount
         val aci = ServiceId.ACI.parseOrNull(credentials.aci)
-            ?: return "this account has no service id yet"
+            ?: return ProfileNameFailure.NoServiceId
         val rawKey = accounts.profileKey()
-            ?: return "this account has no profile key"
+            ?: return ProfileNameFailure.NoProfileKey
         val profileKey = runCatching { ProfileKey(rawKey) }.getOrNull()
-            ?: return "this account's profile key will not load"
+            ?: return ProfileNameFailure.ProfileKeyUnreadable
 
         val serialized = ProfileNames.serialize(given, family)
-        if (serialized.isEmpty()) return "a profile needs a given name"
+        if (serialized.isEmpty()) return ProfileNameFailure.NoGivenName
 
         val result = connection.profiles.setVersionedProfile(
             aci,
@@ -277,7 +278,7 @@ internal class SignalProfiles(
             null
         } else {
             Timber.w("signal profile: could not set this account's name: %s", result)
-            "the server would not take the name: $result"
+            ProfileNameFailure.Refused("$result")
         }
     }
 

@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import com.wanderwildwood.kotozute.repository.SignalRepository.LinkFailure
 import org.signal.core.models.ServiceId
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.signal.libsignal.protocol.util.KeyHelper
@@ -67,8 +68,16 @@ class DeviceLinker internal constructor(
 
     sealed interface Result {
         data class Linked(val deviceId: Int, val e164: String?) : Result
-        data class Failed(val reason: String) : Result
+        data class Failed(val failure: LinkFailure) : Result
     }
+
+    /**
+     * Every code expired and nobody scanned one -- a kind of its own, because it is the one
+     * failure whose remedy is simply to ask for a new code, and [link] says so by name rather
+     * than passing the socket's error on.
+     */
+    private class NobodyScanned(cause: Throwable) :
+        IllegalStateException("nobody scanned the code in time -- ask for a new one", cause)
 
     /**
      * Runs the whole exchange.
@@ -92,8 +101,11 @@ class DeviceLinker internal constructor(
         val provision = try {
             awaitProvisionMessage(provisioningKeys, onUrl)
         } catch (t: Throwable) {
-            return Result.Failed(t.message ?: t::class.java.simpleName)
-        } ?: return Result.Failed("the provisioning message could not be decrypted")
+            return Result.Failed(
+                if (t is NobodyScanned) LinkFailure.NotScanned
+                else LinkFailure.Unexplained(t.message ?: t::class.java.simpleName)
+            )
+        } ?: return Result.Failed(LinkFailure.Undecryptable)
 
         return register(provision, password, deviceName)
     }
@@ -178,10 +190,7 @@ class DeviceLinker internal constructor(
                             Timber.w(t, "signal link: the last provisioning socket failed")
                             finish {
                                 continuation.resumeWithException(
-                                    IllegalStateException(
-                                        "nobody scanned the code in time -- ask for a new one",
-                                        t
-                                    )
+                                    NobodyScanned(t)
                                 )
                             }
                         } else {
@@ -307,7 +316,7 @@ class DeviceLinker internal constructor(
             // The code the primary device put in the provisioning message. Its absence is not
             // a recoverable state -- without it the server has no reason to believe this
             // device was invited -- so it fails here rather than being sent as empty.
-            provision.provisioningCode ?: return Result.Failed("no provisioning code in the message"),
+            provision.provisioningCode ?: return Result.Failed(LinkFailure.NoProvisioningCode),
             attributes,
             aciKeys,
             pniKeys,
@@ -383,7 +392,7 @@ class DeviceLinker internal constructor(
                 Timber.i("signal link: linked as device %d", deviceId)
                 Result.Linked(deviceId, provision.number)
             }
-            else -> Result.Failed("registration refused: $result")
+            else -> Result.Failed(LinkFailure.Refused("$result"))
         }
     }
 

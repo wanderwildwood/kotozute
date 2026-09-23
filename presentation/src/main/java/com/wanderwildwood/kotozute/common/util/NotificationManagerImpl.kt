@@ -245,7 +245,7 @@ class NotificationManagerImpl @Inject constructor(
             notification.setSound(ringtone)
 
     // Tell the notification if it's a group message
-        val messagingStyle = NotificationCompat.MessagingStyle("Me")
+        val messagingStyle = NotificationCompat.MessagingStyle(context.getString(R.string.notification_self_name))
         if (conversation.recipients.size >= 2) {
             messagingStyle.isGroupConversation = true
             messagingStyle.conversationTitle = conversation.getTitle()
@@ -523,7 +523,11 @@ class NotificationManagerImpl @Inject constructor(
 
         val channels: List<NotificationChannel> = when (threadId) {
             0L -> listOf(
-                NotificationChannel(DEFAULT_CHANNEL_ID, "Default", NotificationManager.IMPORTANCE_HIGH).apply {
+                NotificationChannel(
+                    DEFAULT_CHANNEL_ID,
+                    context.getString(R.string.notification_channel_default),
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
                     enableLights(true)
                     lightColor = Color.WHITE
                     enableVibration(true)

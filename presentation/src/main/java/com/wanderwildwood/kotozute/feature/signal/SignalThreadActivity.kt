@@ -748,7 +748,7 @@ class SignalThreadActivity : QkThemedActivity() {
                         } else {
                             Toast.makeText(
                                 this,
-                                getString(R.string.signal_send_failed, failure.message.orEmpty()),
+                                getString(R.string.signal_send_failed, sayFailure(failure).orEmpty()),
                                 Toast.LENGTH_LONG
                             ).show()
                         }
@@ -975,7 +975,7 @@ class SignalThreadActivity : QkThemedActivity() {
                         // "it failed" and "they have left Signal" need different responses.
                         Toast.makeText(
                             this,
-                            getString(R.string.signal_send_failed, it.message.orEmpty()),
+                            getString(R.string.signal_send_failed, sayFailure(it).orEmpty()),
                             Toast.LENGTH_LONG
                         ).show()
                     }

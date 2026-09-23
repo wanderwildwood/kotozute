@@ -34,6 +34,7 @@ import com.wanderwildwood.kotozute.repository.ConversationRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
 import com.wanderwildwood.kotozute.feature.conversations.InboxItem
 import com.wanderwildwood.kotozute.feature.signal.SignalAttachment
+import com.wanderwildwood.kotozute.feature.signal.sayFailure
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.model.SignalThread
 import com.wanderwildwood.kotozute.repository.SafetyNumberChanged
@@ -1200,7 +1201,7 @@ class DesktopSyncServer(
                         Response.Status.INTERNAL_ERROR,
                         JSONObject().put(
                             "error",
-                            failure.message ?: "that message could not be taken back"
+                            context.sayFailure(failure) ?: "that message could not be taken back"
                         )
                     )
                 }
@@ -1983,7 +1984,7 @@ class DesktopSyncServer(
                 Timber.w(t, "Desktop Sync: Signal send failed")
                 jsonResponse(
                     Response.Status.INTERNAL_ERROR,
-                    JSONObject().put("error", t.message ?: "the message could not be sent")
+                    JSONObject().put("error", context.sayFailure(t) ?: "the message could not be sent")
                 )
             }
         }

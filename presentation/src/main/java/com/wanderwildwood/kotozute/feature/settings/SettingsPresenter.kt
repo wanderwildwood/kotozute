@@ -46,6 +46,8 @@ import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 import com.wanderwildwood.kotozute.feature.signal.SignalStreamService
+import com.wanderwildwood.kotozute.feature.signal.SignalWording
+import com.wanderwildwood.kotozute.feature.signal.say
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import android.text.format.DateUtils
 import javax.inject.Inject
@@ -487,7 +489,9 @@ class SettingsPresenter @Inject constructor(
                     val failure = kotlinx.coroutines.runBlocking {
                         signalRepo.registerSetProfileName(given, family)
                     }
-                    view.showSignalProfileNameResult(failure)
+                    view.showSignalProfileNameResult(
+                        failure?.let { context.say(SignalWording.profileName(it)) }
+                    )
                 }.apply { isDaemon = true }.start()
             }
 
@@ -521,7 +525,7 @@ class SettingsPresenter @Inject constructor(
     private fun fetchContacts(view: SettingsView) {
         Thread {
             view.showSignalFetchResult(
-                runCatching { signalRepo.fetchContactsFromSignal() }
+                runCatching { context.say(SignalWording.contacts(signalRepo.fetchContactsFromSignal())) }
                     .getOrElse { failure ->
                         Timber.w(failure, "signal contacts: fetch failed")
                         context.getString(R.string.settings_signal_fetch_contacts_failed)
@@ -537,7 +541,7 @@ class SettingsPresenter @Inject constructor(
     private fun discoverContacts(view: SettingsView) {
         Thread {
             view.showSignalFetchResult(
-                runCatching { signalRepo.discoverContactsByNumber() }
+                runCatching { context.say(SignalWording.contacts(signalRepo.discoverContactsByNumber())) }
                     .getOrElse { failure ->
                         Timber.w(failure, "signal discovery: the lookup failed")
                         context.getString(R.string.settings_signal_discover_contacts_failed)
@@ -617,7 +621,9 @@ class SettingsPresenter @Inject constructor(
         // Contacts, on the direct rail only. Names come from profiles, and whether a profile
         // key has arrived is invisible from the outside -- this is the only way to tell
         // "nobody has shared one" apart from "the fetch is broken".
-        val who = conn.contactSummary.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+        val who = conn.contactCounts
+            ?.let { " · " + context.say(SignalWording.contactCounts(it)) }
+            .orEmpty()
 
         return when {
             // A refusal is the one status that is not going to fix itself, so it replaces the
@@ -644,16 +650,16 @@ class SettingsPresenter @Inject constructor(
         // "enabled" is the persisted intent; isRunning is whether a server is really
         // bound. They differ briefly during auto-restore, so report honestly.
         if (!DesktopSyncService.isRunning) {
-            return "Starting…"
+            return context.getString(R.string.settings_desktop_sync_summary_starting)
         }
         val tailscale = DesktopSyncService.findTailscaleAddress(context)
         if (prefs.desktopSyncTailscaleOnly.get() && tailscale == null) {
-            return "On, but Tailscale isn't connected"
+            return context.getString(R.string.settings_desktop_sync_summary_no_tailscale)
         }
         if (tailscale == null && DesktopSyncService.findLanAddress(context) == null) {
-            return "On, but this phone has no network yet"
+            return context.getString(R.string.settings_desktop_sync_summary_no_network)
         }
-        return "On"
+        return context.getString(R.string.settings_desktop_sync_summary_on)
     }
 
     /**

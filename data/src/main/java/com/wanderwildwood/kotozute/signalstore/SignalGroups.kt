@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import com.wanderwildwood.kotozute.repository.GroupNotMade
 import org.signal.core.models.ServiceId
 import org.signal.libsignal.zkgroup.groups.GroupMasterKey
 import org.signal.libsignal.zkgroup.groups.GroupSecretParams
@@ -226,14 +227,14 @@ internal class SignalGroups(
      *   this list.
      * @return the new group's master key, which is the only handle anything else needs -- a
      *   group message carries it and nothing more.
-     * @throws IllegalStateException with a sentence that can be shown, for every way this
-     *   can fail. There are four of them and they mean different things; a null return said
-     *   the same nothing for all four, and the reader was left at a dead end.
+     * @throws GroupNotMade saying which way it failed, for every way this can. They mean
+     *   different things; a null return said the same nothing for all of them, and the reader
+     *   was left at a dead end. The screen words the kind, in the reader's language.
      */
     fun create(title: String, memberAcis: List<String>): GroupMasterKey {
         val credentials = accounts.credentials()
         val selfAci = ServiceId.ACI.parseOrNull(credentials.aci)
-            ?: throw IllegalStateException("This phone is not linked to an account.")
+            ?: throw GroupNotMade(GroupNotMade.Why.NOT_LINKED)
 
         val self = candidateFor(selfAci)
         if (self == null || !self.hasValidProfileKeyCredential()) {
@@ -241,9 +242,7 @@ internal class SignalGroups(
             // does not write its own profile, so the honest answer is to say what is missing
             // rather than to send a request the server will refuse.
             Timber.w("signal groups: this account has no profile credential, so it cannot make a group")
-            throw IllegalStateException(
-                "This account has no profile on file, and a group cannot be made without one."
-            )
+            throw GroupNotMade(GroupNotMade.Why.NO_PROFILE)
         }
 
         val members = memberAcis
@@ -251,7 +250,7 @@ internal class SignalGroups(
             .filter { it != selfAci }
             .distinct()
         if (members.isEmpty()) {
-            throw IllegalStateException("A group needs somebody else in it.")
+            throw GroupNotMade(GroupNotMade.Why.NOBODY_ELSE)
         }
 
         // A member without a credential is still a candidate -- the server turns them into an
@@ -275,10 +274,10 @@ internal class SignalGroups(
                 0
             )
         }.onFailure { Timber.w(it, "signal groups: could not build the new group") }.getOrNull()
-            ?: throw IllegalStateException("The group could not be put together.")
+            ?: throw GroupNotMade(GroupNotMade.Why.NOT_PUT_TOGETHER)
 
         val auth = authorizationFor(secretParams, todaySeconds())
-            ?: throw IllegalStateException("The server would not authorize this account.")
+            ?: throw GroupNotMade(GroupNotMade.Why.NOT_AUTHORIZED)
 
         return runCatching {
             connection.groups.putNewGroup(newGroup, auth)
@@ -290,7 +289,7 @@ internal class SignalGroups(
             )
             masterKey
         }.onFailure { Timber.w(it, "signal groups: the server would not take the new group") }
-            .getOrElse { throw IllegalStateException("The server would not take the new group.") }
+            .getOrElse { throw GroupNotMade(GroupNotMade.Why.SERVER_REFUSED) }
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import com.wanderwildwood.kotozute.repository.SendFailure
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -43,9 +45,9 @@ class UnregisteredSendFailureTest {
     @Test
     fun `explain never puts the library's class name in front of a person`() {
         val e = UnregisteredUserException("aaaaaaaa-0000-4000-8000-000000000000", cause)
-        val shown = SignalSender.explain(e)
-        assertFalse("explain leaked a class name: $shown", shown.contains("org.whispersystems"))
-        assertTrue(shown, shown.contains("not on Signal any more"))
+        // Its own kind, not the quoted-message fallback that carried the class name. What that
+        // kind says is pinned in the presentation module's `SignalWordingTest`.
+        assertEquals(SendFailure.TheyLeft, SignalSender.explain(e))
     }
 
     /**

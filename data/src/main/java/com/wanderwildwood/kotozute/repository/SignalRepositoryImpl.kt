@@ -1000,8 +1000,8 @@ class SignalRepositoryImpl @Inject constructor(
         is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Registered ->
             SignalRepository.Registration.Registered(step.e164)
         is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Failed ->
-            SignalRepository.Registration.Failed(step.reason)
-        else -> SignalRepository.Registration.Failed("unexpected registration state")
+            SignalRepository.Registration.Failed(step.failure)
+        else -> SignalRepository.Registration.Failed(SignalRepository.RegistrationFailure.Unexpected)
     }
 
     private suspend fun registrationStep(
@@ -1026,7 +1026,9 @@ class SignalRepositoryImpl @Inject constructor(
         stepToRegistration(step)
     } catch (t: Throwable) {
         Timber.w(t, "signal: registration threw")
-        SignalRepository.Registration.Failed(t.message ?: t::class.java.simpleName)
+        SignalRepository.Registration.Failed(
+            SignalRepository.RegistrationFailure.Unexplained(t.message ?: t::class.java.simpleName)
+        )
     }
 
     override suspend fun registerBegin(e164: String) = registrationStep { it.begin(e164) }
@@ -1050,7 +1052,10 @@ class SignalRepositoryImpl @Inject constructor(
         // this phone may not own.
         .getOrDefault(false)
 
-    override suspend fun registerSetProfileName(given: String, family: String): String? =
+    override suspend fun registerSetProfileName(
+        given: String,
+        family: String
+    ): SignalRepository.ProfileNameFailure? =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 signalStore.setOwnProfileName(given, family)
@@ -1059,11 +1064,11 @@ class SignalRepositoryImpl @Inject constructor(
                 // silent failure here leaves a working account that is nameless to everybody
                 // it writes to -- the one outcome nothing else in the app would ever surface.
                 Timber.w(t, "signal profile: setting this account's name threw")
-                t.message ?: t::class.java.simpleName
+                SignalRepository.ProfileNameFailure.Unexplained(t.message ?: t::class.java.simpleName)
             }
         }
 
-    override fun linkDevice(deviceName: String, onUrl: (String) -> Unit): String? = try {
+    override fun linkDevice(deviceName: String, onUrl: (String) -> Unit): SignalRepository.Link? = try {
         val result = kotlinx.coroutines.runBlocking {
             signalStore.linker(
                 // The account's own setting, which the provisioning message carries. Without
@@ -1102,13 +1107,16 @@ class SignalRepositoryImpl @Inject constructor(
                 // And start receiving. Without this the first messages wait for the next
                 // launch, which reads as linking not having worked.
                 startStream()
-                "linked as device ${result.deviceId}"
+                SignalRepository.Link.Linked(result.deviceId)
             }
-            is com.wanderwildwood.kotozute.signalstore.DeviceLinker.Result.Failed -> result.reason
+            is com.wanderwildwood.kotozute.signalstore.DeviceLinker.Result.Failed ->
+                SignalRepository.Link.Failed(result.failure)
         }
     } catch (t: Throwable) {
         Timber.w(t, "signal: linking threw")
-        t.message ?: t::class.java.simpleName
+        SignalRepository.Link.Failed(
+            SignalRepository.LinkFailure.Unexplained(t.message ?: t::class.java.simpleName)
+        )
     }
 
     override fun refresh() = runOffThread {
@@ -1138,9 +1146,8 @@ class SignalRepositoryImpl @Inject constructor(
         // they went to; there is no Signal address in it to reply to. It joins the real
         // conversation as soon as one arrives that does.
         if (recipient.startsWith("+")) {
-            throw IllegalStateException(
-                "This conversation has only a phone number, not a Signal address. " +
-                    "Write to them from a new message instead."
+            throw com.wanderwildwood.kotozute.repository.SendRefused(
+                com.wanderwildwood.kotozute.repository.SendFailure.NumberOnly
             )
         }
         // The conversation's timer goes with it. Not sending one is not neutral: it reads as
@@ -1198,11 +1205,15 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private fun sendDirectToGroup(threadKey: String, body: String, attachments: List<String>): Long {
         if (attachments.isNotEmpty()) {
-            throw IllegalStateException("sending attachments to a group is not supported yet")
+            throw com.wanderwildwood.kotozute.repository.SendRefused(
+                com.wanderwildwood.kotozute.repository.SendFailure.AttachmentsToGroup
+            )
         }
         val masterKey = Realm.getDefaultInstance().use { realm ->
             groupMasterKeyFor(realm, threadKey)
-        } ?: throw IllegalStateException("no group key on this thread yet")
+        } ?: throw com.wanderwildwood.kotozute.repository.SendRefused(
+            com.wanderwildwood.kotozute.repository.SendFailure.NoGroupKey
+        )
 
         val (expiresIn, timerVersion) = timerFor(threadKey)
         val timestamp = signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion)
@@ -2827,11 +2838,11 @@ class SignalRepositoryImpl @Inject constructor(
      *
      * Deliberately a thing somebody does rather than a thing that happens: it fetches the
      * account's key material, and an account whose contacts arrive the ordinary way should
-     * never send it. Returns a sentence saying what happened, including when the answer has
-     * to arrive later.
+     * never send it. Returns what happened, including when the answer has to arrive later,
+     * for the screen to word.
      */
-    override fun fetchContactsFromSignal(): String = when {
-        !linkedDirectly() -> "This phone is not linked to Signal yet"
+    override fun fetchContactsFromSignal(): SignalRepository.ContactsReport = when {
+        !linkedDirectly() -> SignalRepository.ContactsReport.NotLinked
         // ⚠ Reads the records AND tops up what is missing. The pool is not the storage key:
         // a phone linked under an older build has the second and not the first, and this
         // branch used to return before ever asking -- so the one request that could fill it
@@ -2862,7 +2873,7 @@ class SignalRepositoryImpl @Inject constructor(
             Timber.i("signal keys: %s", asked)
             // The answer comes back through the socket, and reading the list follows it; see
             // the callback in SignalStore.
-            "Asked Signal for the contact list. It arrives in a moment, if your Signal answers"
+            SignalRepository.ContactsReport.Requested
         }
     }
 
@@ -2888,12 +2899,12 @@ class SignalRepositoryImpl @Inject constructor(
         emptySet()
     }
 
-    override fun discoverContactsByNumber(): String = when {
-        !linkedDirectly() -> "This phone is not linked to Signal yet"
+    override fun discoverContactsByNumber(): SignalRepository.ContactsReport = when {
+        !linkedDirectly() -> SignalRepository.ContactsReport.NotLinked
         else -> {
             val numbers = addressBookNumbers()
             if (numbers.isEmpty()) {
-                "There are no phone numbers in this phone's contacts to look up"
+                SignalRepository.ContactsReport.NoNumbers
             } else {
                 signalStore.discover(numbers).also { contactsChanged() }
             }
@@ -3452,7 +3463,9 @@ class SignalRepositoryImpl @Inject constructor(
         if (author.isBlank()) throw IllegalStateException("nothing says who wrote that message")
 
         if (threadKey.startsWith("group:")) {
-            val master = groupKey ?: throw IllegalStateException("no group key on this thread yet")
+            val master = groupKey ?: throw com.wanderwildwood.kotozute.repository.SendRefused(
+                com.wanderwildwood.kotozute.repository.SendFailure.NoGroupKey
+            )
             signalStore.sendReactionToGroup(master, emoji, remove, author, ts)
         } else {
             signalStore.sendReaction(threadKey.removePrefix("direct:"), emoji, remove, author, ts)
@@ -3506,7 +3519,9 @@ class SignalRepositoryImpl @Inject constructor(
         }
 
         if (threadKey.startsWith("group:")) {
-            val master = groupKey ?: throw IllegalStateException("no group key on this thread yet")
+            val master = groupKey ?: throw com.wanderwildwood.kotozute.repository.SendRefused(
+                com.wanderwildwood.kotozute.repository.SendFailure.NoGroupKey
+            )
             signalStore.sendRemoteDeleteToGroup(master, sentAt)
         } else {
             signalStore.sendRemoteDelete(threadKey.removePrefix("direct:"), sentAt)
@@ -3815,7 +3830,7 @@ class SignalRepositoryImpl @Inject constructor(
                 configured = isConfigured(),
                 linkedDirectly = linkedDirectly(),
                 undecryptable = undecryptableCount(),
-                contactSummary = runCatching { signalStore.contactSummary() }.getOrDefault(""),
+                contactCounts = runCatching { signalStore.contactCounts() }.getOrNull(),
                 undecryptableReasons =
                     runCatching { signalStore.undecryptableReasons() }.getOrDefault(emptyList()),
                 enabled = prefs.signalEnabled.get(),

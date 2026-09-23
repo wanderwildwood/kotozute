@@ -1,6 +1,10 @@
 package com.wanderwildwood.kotozute.signalstore
 
 import android.content.Context
+import com.wanderwildwood.kotozute.repository.SendFailure
+import com.wanderwildwood.kotozute.repository.SendRefused
+import com.wanderwildwood.kotozute.repository.SignalRepository
+import com.wanderwildwood.kotozute.repository.SignalRepository.ContactsReport
 import org.whispersystems.signalservice.api.SignalServiceDataStore
 import timber.log.Timber
 import org.whispersystems.signalservice.api.messages.multidevice.BlockedListMessage
@@ -315,7 +319,9 @@ class SignalStore(private val context: Context) {
         val groupId = ContentNormalizer.groupIdForCheck(bytes)
         if (groupId.isBlank()) {
             Timber.w("signal groups: made a group whose id would not derive")
-            throw IllegalStateException("The group was made but this phone cannot address it.")
+            throw com.wanderwildwood.kotozute.repository.GroupNotMade(
+                com.wanderwildwood.kotozute.repository.GroupNotMade.Why.UNADDRESSABLE
+            )
         }
         // Told to its members, which is upstream's last step in `GroupManagerV2.createGroup`
         // and not an optional one: a group nobody has been told about is a group only this
@@ -373,7 +379,7 @@ class SignalStore(private val context: Context) {
     /**
      * Sends to a group, fetching its membership first.
      *
-     * @throws IllegalStateException naming the reason if it could not be sent.
+     * @throws SendRefused naming the reason if it could not be sent.
      */
     fun sendToGroup(
         masterKey: ByteArray,
@@ -388,25 +394,16 @@ class SignalStore(private val context: Context) {
         // retrying something that will never work.
         val group = when (val outcome = SignalGroups(connection, account, contacts).fetchOutcome(masterKey)) {
             is SignalGroups.Outcome.Got -> outcome.group
-            SignalGroups.Outcome.NotAMember -> throw IllegalStateException(
-                "You are not in this group any more, so nothing was sent."
-            )
-            SignalGroups.Outcome.Gone -> throw IllegalStateException(
-                "This group has ended, so nothing was sent."
-            )
-            is SignalGroups.Outcome.Unknown -> throw IllegalStateException(
-                "This phone could not reach the group just now, so nothing was sent. " +
-                    "It will work when the connection is back."
-            )
+            SignalGroups.Outcome.NotAMember -> throw SendRefused(SendFailure.NotInGroup)
+            SignalGroups.Outcome.Gone -> throw SendRefused(SendFailure.GroupEnded)
+            is SignalGroups.Outcome.Unknown -> throw SendRefused(SendFailure.GroupUnreachable)
         }
         // An announcement group takes messages from its administrators only. Sending anyway
         // succeeds locally and is discarded by every recipient -- the message is lost behind a
         // tick, with nothing to tell the sender it did not arrive. Refused here instead, where
         // the refusal can be shown.
         if (group.announcementOnly && account.credentials().aci !in group.admins) {
-            throw IllegalStateException(
-                "Only this group's admins can post in it. Your message was not sent."
-            )
+            throw SendRefused(SendFailure.AdminsOnly)
         }
         val members = group.members
             .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
@@ -420,7 +417,7 @@ class SignalStore(private val context: Context) {
             ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion, group.revision)
         ) {
             is SignalSender.Result.Sent -> r.timestamp
-            is SignalSender.Result.Failed -> throw IllegalStateException(r.reason)
+            is SignalSender.Result.Failed -> throw SendRefused(r.failure)
         }
     }
 
@@ -449,7 +446,7 @@ class SignalStore(private val context: Context) {
             ).sendReaction(serviceId, emoji, remove, author, targetSentTimestamp)
         ) {
             is SignalSender.Result.Sent -> result.timestamp
-            is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
+            is SignalSender.Result.Failed -> throw SendRefused(result.failure)
         }
     }
 
@@ -472,7 +469,7 @@ class SignalStore(private val context: Context) {
             ).sendRemoteDelete(serviceId, targetSentTimestamp)
         ) {
             is SignalSender.Result.Sent -> result.timestamp
-            is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
+            is SignalSender.Result.Failed -> throw SendRefused(result.failure)
         }
     }
 
@@ -485,16 +482,9 @@ class SignalStore(private val context: Context) {
         // retrying something that will never work.
         val group = when (val outcome = SignalGroups(connection, account, contacts).fetchOutcome(masterKey)) {
             is SignalGroups.Outcome.Got -> outcome.group
-            SignalGroups.Outcome.NotAMember -> throw IllegalStateException(
-                "You are not in this group any more, so nothing was sent."
-            )
-            SignalGroups.Outcome.Gone -> throw IllegalStateException(
-                "This group has ended, so nothing was sent."
-            )
-            is SignalGroups.Outcome.Unknown -> throw IllegalStateException(
-                "This phone could not reach the group just now, so nothing was sent. " +
-                    "It will work when the connection is back."
-            )
+            SignalGroups.Outcome.NotAMember -> throw SendRefused(SendFailure.NotInGroup)
+            SignalGroups.Outcome.Gone -> throw SendRefused(SendFailure.GroupEnded)
+            is SignalGroups.Outcome.Unknown -> throw SendRefused(SendFailure.GroupUnreachable)
         }
         val members = group.members
             .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
@@ -506,7 +496,7 @@ class SignalStore(private val context: Context) {
             ).sendRemoteDeleteToGroup(masterKey, members, targetSentTimestamp, group.revision)
         ) {
             is SignalSender.Result.Sent -> result.timestamp
-            is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
+            is SignalSender.Result.Failed -> throw SendRefused(result.failure)
         }
     }
 
@@ -527,16 +517,9 @@ class SignalStore(private val context: Context) {
         // retrying something that will never work.
         val group = when (val outcome = SignalGroups(connection, account, contacts).fetchOutcome(masterKey)) {
             is SignalGroups.Outcome.Got -> outcome.group
-            SignalGroups.Outcome.NotAMember -> throw IllegalStateException(
-                "You are not in this group any more, so nothing was sent."
-            )
-            SignalGroups.Outcome.Gone -> throw IllegalStateException(
-                "This group has ended, so nothing was sent."
-            )
-            is SignalGroups.Outcome.Unknown -> throw IllegalStateException(
-                "This phone could not reach the group just now, so nothing was sent. " +
-                    "It will work when the connection is back."
-            )
+            SignalGroups.Outcome.NotAMember -> throw SendRefused(SendFailure.NotInGroup)
+            SignalGroups.Outcome.Gone -> throw SendRefused(SendFailure.GroupEnded)
+            is SignalGroups.Outcome.Unknown -> throw SendRefused(SendFailure.GroupUnreachable)
         }
         val members = group.members
             .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
@@ -548,7 +531,7 @@ class SignalStore(private val context: Context) {
             ).sendReactionToGroup(masterKey, members, emoji, remove, author, targetSentTimestamp, group.revision)
         ) {
             is SignalSender.Result.Sent -> result.timestamp
-            is SignalSender.Result.Failed -> throw IllegalStateException(result.reason)
+            is SignalSender.Result.Failed -> throw SendRefused(result.failure)
         }
     }
 
@@ -1038,9 +1021,9 @@ class SignalStore(private val context: Context) {
 
     /**
      * Reads the account's contact list out of the storage service, where modern Signal keeps
-     * it. Returns what it did, in a sentence, for a status line and a log.
+     * it. Returns what it did, as counts, for a status line to word and a log to carry.
      */
-    fun readStorage(): String {
+    fun readStorage(): ContactsReport {
         // Who this account is, so a record describing it can be refused rather than filed as
         // one of its own contacts. Read once per storage read, not per record.
         val credentials = runCatching { account.credentials() }.getOrNull()
@@ -1137,27 +1120,21 @@ class SignalStore(private val context: Context) {
                 Timber.i("signal blocked: the account's records name %d blocked", people.size)
             }
         ).read()
-        if (result.reason != null) return result.reason
-        val line = "${result.contacts} contact(s) from ${result.records} record(s)"
-        // A record this could not use is said out loud. The whole of this bug was a fetch
-        // that dropped two records in three and reported only the one it kept, so "71 from
-        // 201" read as a complete answer rather than as the alarm it was.
-        // Kept, but worth saying: a person known only by their phone-number identity can be
-        // written to, and their reply still arrives under their account id, so the two halves
-        // only become one conversation once the account tells this phone they are the same.
-        val byPni = result.pniOnly.takeIf { it > 0 }?.let { " · $it by phone number" }.orEmpty()
-        val dropped = listOfNotNull(
-            // Said first, because it means the rest of the numbers are not the whole story.
-            result.unreadable.takeIf { it > 0 }?.let { "$it the service would not hand over" },
-            result.unopened.takeIf { it > 0 }?.let { "$it would not open" },
-            result.notContacts.takeIf { it > 0 }?.let { "$it not a contact" },
-            result.anonymous.takeIf { it > 0 }?.let { anon ->
-                val num = result.anonymousWithNumber.takeIf { it > 0 }?.let { ", $it with a number" }
-                "$anon with no address at all${num.orEmpty()}"
-            }
+        result.reason?.let { return ContactsReport.ReadRefused(it) }
+        // A record this could not use is carried whole, for the screen to say out loud. The
+        // whole of this bug was a fetch that dropped two records in three and reported only
+        // the one it kept, so "71 from 201" read as a complete answer rather than as the alarm
+        // it was.
+        return ContactsReport.Read(
+            contacts = result.contacts,
+            records = result.records,
+            pniOnly = result.pniOnly,
+            unreadable = result.unreadable,
+            unopened = result.unopened,
+            notContacts = result.notContacts,
+            anonymous = result.anonymous,
+            anonymousWithNumber = result.anonymousWithNumber
         )
-        return if (dropped.isEmpty()) "$line$byPni"
-        else "$line$byPni · skipped ${dropped.joinToString(", ")}"
     }
 
     /**
@@ -1167,20 +1144,17 @@ class SignalStore(private val context: Context) {
      * This is the only way somebody in the phone's own address book who has never written
      * first can become writable-to.
      *
-     * Says what it did in a sentence, the same as the rest of this class.
+     * Says what it did as counts, the same as [readStorage], for the screen to word.
      */
-    fun discover(numbers: Set<String>): String {
+    fun discover(numbers: Set<String>): ContactsReport {
         val result = SignalDiscovery(connection, contacts, discovery).read(numbers)
-        if (result.reason != null) return result.reason
-        if (result.asked == 0) return "Every number has been looked up already"
-        val parts = listOfNotNull(
-            "${result.found} on Signal, from ${result.asked} number(s)",
-            // Nearly all of them, for a linked device: CDSI hands back an account id only
-            // where the asker already holds a matching ACI/UAK pair. Said out loud because
-            // "found by phone number" is a different, weaker thing to know about somebody.
-            result.withoutAci.takeIf { it > 0 }?.let { "$it known by phone number only" }
-        )
-        return parts.joinToString(" · ")
+        result.reason?.let { return ContactsReport.LookupRefused(it, result.minutes) }
+        if (result.asked == 0) return ContactsReport.AllLookedUp
+        // [withoutAci] is nearly all of them, for a linked device: CDSI hands back an account
+        // id only where the asker already holds a matching ACI/UAK pair. Carried so it can be
+        // said out loud, because "found by phone number" is a different, weaker thing to know
+        // about somebody.
+        return ContactsReport.Discovered(result.found, result.asked, result.withoutAci)
     }
 
     /** Whether the storage service key is here yet. */
@@ -1251,7 +1225,7 @@ class SignalStore(private val context: Context) {
             ).requestKeys()
         ) {
             is SignalSender.Result.Sent -> "requested"
-            is SignalSender.Result.Failed -> r.reason
+            is SignalSender.Result.Failed -> r.failure.toString()
         }
     }
 
@@ -1265,7 +1239,7 @@ class SignalStore(private val context: Context) {
             ).requestBlockedList()
         ) {
             is SignalSender.Result.Sent -> "requested"
-            is SignalSender.Result.Failed -> r.reason
+            is SignalSender.Result.Failed -> r.failure.toString()
         }
     }
 
@@ -1273,7 +1247,7 @@ class SignalStore(private val context: Context) {
      * Sends one message, on this device's own authority. The primary is not in the path.
      *
      * @return the send timestamp, which is also the message's identity.
-     * @throws IllegalStateException with the reason if the send did not happen.
+     * @throws SendRefused with the reason if the send did not happen.
      *
      * A value rather than a sentence. This used to return a human-readable string that the
      * caller pulled the timestamp back out of with a regular expression -- so a change to the
@@ -1309,7 +1283,7 @@ class SignalStore(private val context: Context) {
                             ?.takeIf { it.isNotBlank() }
                     )
                 } else {
-                    throw IllegalStateException(result.reason)
+                    throw SendRefused(result.failure)
                 }
             }
         } finally {
@@ -1459,17 +1433,20 @@ class SignalStore(private val context: Context) {
         accepted
     }.getOrDefault(false)
 
-    /** "known/with-key/named", for the Connection screen. Names come from profiles. */
-    fun contactSummary(): String = runCatching {
+    /**
+     * Known, with a key, named, for the status line to word. Names come from profiles. Null
+     * where the store will not answer, and the line then says nothing about contacts at all.
+     */
+    fun contactCounts(): SignalRepository.ContactCounts? = runCatching {
         val c = contacts.counts()
-        buildString {
-            append("${c.known} contact(s), ${c.withProfileKey} with a profile key, ${c.named} named")
-            // Only when there are any. A count of nought is a line of noise in a status
-            // string somebody reads on a small screen.
-            if (c.withUsername > 0) append(", ${c.withUsername} by username")
-            if (c.nameless > 0) append(", ${c.nameless} with nothing to show but an id")
-        }
-    }.getOrDefault("")
+        SignalRepository.ContactCounts(
+            known = c.known,
+            withProfileKey = c.withProfileKey,
+            named = c.named,
+            withUsername = c.withUsername,
+            nameless = c.nameless
+        )
+    }.getOrNull()
 
     /**
      * Marks one person's row as differing from the account's copy. See
@@ -1516,7 +1493,7 @@ class SignalStore(private val context: Context) {
             ).requestConfiguration()
         ) {
             is SignalSender.Result.Sent -> "requested"
-            is SignalSender.Result.Failed -> r.reason
+            is SignalSender.Result.Failed -> r.failure.toString()
         }
     }
 
@@ -1529,7 +1506,7 @@ class SignalStore(private val context: Context) {
                 SignalDataStore(database, account), connection, contacts
             ).requestContactsSync()) {
                 is SignalSender.Result.Sent -> "requested"
-                is SignalSender.Result.Failed -> r.reason
+                is SignalSender.Result.Failed -> r.failure.toString()
             }
         } finally {
             // The socket is shared and long-lived, so it is not disconnected here; closing is
@@ -1641,9 +1618,12 @@ class SignalStore(private val context: Context) {
      * at the end of registration and holding a profiles instance would keep a connection alive
      * for it.
      *
-     * @return null on success, or a reason to show.
+     * @return null on success, or why not, for the screen to word.
      */
-    fun setOwnProfileName(given: String, family: String): String? =
+    fun setOwnProfileName(
+        given: String,
+        family: String
+    ): com.wanderwildwood.kotozute.repository.SignalRepository.ProfileNameFailure? =
         SignalProfiles(connection, contacts, account).setOwnName(given, family)
 
     /**

@@ -165,7 +165,7 @@ class SignalNewGroupActivity : QkThemedActivity() {
                     // Its own words where it has them. Every way this can fail means
                     // something different, and one message for all of them would leave the
                     // reader with nowhere to go.
-                    say(error.message ?: getString(R.string.signal_group_not_made))
+                    say(sayFailure(error) ?: getString(R.string.signal_group_not_made))
                 }
             }
         }.also { it.isDaemon = true }.start()

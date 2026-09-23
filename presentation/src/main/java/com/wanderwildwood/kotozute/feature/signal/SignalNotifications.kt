@@ -74,7 +74,11 @@ class SignalNotifications @Inject constructor(
         // A channel's settings are frozen once created, so a change of behaviour needs a
         // new id rather than an edit to this one.
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Signal", NotificationManager.IMPORTANCE_HIGH)
+            NotificationChannel(
+                CHANNEL_ID,
+                context.getString(R.string.signal_title),
+                NotificationManager.IMPORTANCE_HIGH
+            )
         )
     }
 

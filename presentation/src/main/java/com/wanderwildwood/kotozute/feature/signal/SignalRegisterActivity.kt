@@ -146,7 +146,10 @@ class SignalRegisterActivity : QkThemedActivity() {
                     binding.nameStep.setVisible(false)
                     binding.status.setText(R.string.signal_register_named)
                 } else {
-                    binding.status.text = getString(R.string.signal_register_name_failed, failure)
+                    binding.status.text = getString(
+                        R.string.signal_register_name_failed,
+                        say(SignalWording.profileName(failure))
+                    )
                 }
             }
         }
@@ -222,7 +225,10 @@ class SignalRegisterActivity : QkThemedActivity() {
             binding.warning.setVisible(true)
             binding.numberStep.setVisible(true)
             binding.scroll.post { binding.scroll.scrollTo(0, 0) }
-            binding.status.text = getString(R.string.signal_register_failed, result.reason)
+            binding.status.text = getString(
+                R.string.signal_register_failed,
+                say(SignalWording.registration(result.failure))
+            )
         }
     }
 

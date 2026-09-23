@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import com.wanderwildwood.kotozute.repository.SignalRepository.LookupRefusal
 import org.signal.network.api.CdsApi
 import timber.log.Timber
 import java.util.Optional
@@ -41,7 +42,10 @@ internal class SignalDiscovery(
         val found: Int,
         val withoutAci: Int,
         val asked: Int,
-        val reason: String? = null
+        /** Why the lookup did not happen, or null when it did. The screen words it. */
+        val reason: LookupRefusal? = null,
+        /** For [LookupRefusal.BLOCKED]: how many more minutes, rounded up. */
+        val minutes: Long = 0
     )
 
     /**
@@ -65,14 +69,14 @@ internal class SignalDiscovery(
                 false
             }
         }
-        if (valid.isEmpty()) return Result(0, 0, 0, "There are no numbers to look up")
+        if (valid.isEmpty()) return Result(0, 0, 0, LookupRefusal.NO_VALID_NUMBERS)
 
         // Nothing to ask while the service has said it will not answer. The refusal carried
         // the only number that says how long; see [SignalDiscoveryStore.blockUntil].
         val blockedFor = runCatching { state.blockedFor() }.getOrDefault(0L)
         if (blockedFor > 0) {
             val minutes = (blockedFor / 60_000L) + 1
-            return Result(0, 0, 0, "Signal will not answer more lookups for about $minutes more minute(s)")
+            return Result(0, 0, 0, LookupRefusal.BLOCKED, minutes)
         }
 
         // ⚠ Read as empty, this asks about every number as though it had never asked. The
@@ -127,7 +131,7 @@ internal class SignalDiscovery(
                 "signal discovery: %d new numbers is past the limit of %d; refusing to ask",
                 fresh.size, CDS_HARD_LIMIT
             )
-            return Result(0, 0, 0, "too many new numbers to look up at once")
+            return Result(0, 0, 0, LookupRefusal.TOO_MANY)
         }
 
         // ⚠⚠ **Read before asking, and refuse to ask without them.** These pairs are what let
@@ -146,7 +150,7 @@ internal class SignalDiscovery(
         // at all, so a failure there fails the job and it runs again later; this is that.
         val profileKeyPairs = runCatching { contacts.serviceIdProfileKeyPairs() }.getOrElse {
             Timber.w(it, "signal discovery: could not read the profile keys to ask with; not asking")
-            return Result(0, 0, 0, "could not read this phone's own records to ask with")
+            return Result(0, 0, 0, LookupRefusal.OWN_RECORDS_UNREADABLE)
         }
 
         // Set when the service hands back a token, which it does only once it has counted the
@@ -272,18 +276,18 @@ internal class SignalDiscovery(
         }
     }
 
-    /** Said in words somebody can act on, rather than as the exception's own text. */
-    private fun reasonFor(failure: Throwable?): String {
+    /**
+     * Which failure it was, by the kinds somebody can act on, rather than the exception's own
+     * text. The screen words it.
+     */
+    private fun reasonFor(failure: Throwable?): LookupRefusal {
         val names = generateSequence(failure) { it.cause }.take(CAUSE_DEPTH)
             .joinToString(" ") { it::class.java.simpleName }
         return when {
-            names.contains("ResourceExhausted", true) ->
-                "Signal will not answer more lookups for now. That is a limit on the account, " +
-                    "not on this phone, and it lifts on its own."
-            names.contains("InvalidToken", true) ->
-                "The record of what was looked up before is out of step. Try once more."
-            names.contains("InvalidArgument", true) -> "Signal refused the list of numbers"
-            else -> "The lookup did not finish"
+            names.contains("ResourceExhausted", true) -> LookupRefusal.EXHAUSTED
+            names.contains("InvalidToken", true) -> LookupRefusal.TOKEN_OUT_OF_STEP
+            names.contains("InvalidArgument", true) -> LookupRefusal.NUMBERS_REFUSED
+            else -> LookupRefusal.UNFINISHED
         }
     }
 

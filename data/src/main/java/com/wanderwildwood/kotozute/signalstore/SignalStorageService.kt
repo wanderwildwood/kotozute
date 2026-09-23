@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import com.wanderwildwood.kotozute.repository.SignalRepository.StorageRefusal
 import org.signal.network.NetworkResult
 import org.signal.core.models.ServiceId
 import org.signal.core.models.storageservice.StorageKey
@@ -121,7 +122,8 @@ internal class SignalStorageService(
     data class Result(
         val contacts: Int,
         val records: Int,
-        val reason: String? = null,
+        /** Why nothing was read, or null when the read happened. The screen words it. */
+        val reason: StorageRefusal? = null,
         /** Would not decrypt, or would not decode once decrypted. */
         val unopened: Int = 0,
         /** Opened, but held something other than a contact. */
@@ -169,13 +171,13 @@ internal class SignalStorageService(
         onWritable: ((Long, List<ManifestRecord.Identifier>, org.whispersystems.signalservice.api.storage.RecordIkm?) -> Unit)? = null
     ): Result {
         val storageKey = keys.storageKey()
-            ?: return Result(0, 0, "the storage key is not here yet")
+            ?: return Result(0, 0, StorageRefusal.NO_KEY)
 
         connection.connect()
         val api = StorageServiceApi(connection.authenticated, connection.push)
 
         val auth = api.getAuth().successOrNull()
-            ?: return Result(0, 0, "the service would not give an auth token")
+            ?: return Result(0, 0, StorageRefusal.NO_AUTH)
 
         // ⚠ **A 404 here is not a failure.** The vendored API documents it as "No storage
         // manifest was found", and that is the ordinary state of an account nobody has ever
@@ -191,9 +193,9 @@ internal class SignalStorageService(
             0,
             0,
             if (manifestResult is NetworkResult.StatusCodeError && manifestResult.code == 404) {
-                "this account has no stored records yet"
+                StorageRefusal.NOTHING_STORED
             } else {
-                "the manifest could not be read"
+                StorageRefusal.MANIFEST_UNREADABLE
             }
         )
 
@@ -207,7 +209,7 @@ internal class SignalStorageService(
             // The likeliest cause by far is the wrong key, which means the pool this device
             // was given is not this account's. Said plainly rather than as a crypto error.
             Timber.w(it, "signal storage: the manifest would not open")
-            return Result(0, 0, "the manifest would not open with this key")
+            return Result(0, 0, StorageRefusal.WRONG_KEY)
         }
 
         // Newer accounts derive each record's key from a value carried by the manifest rather

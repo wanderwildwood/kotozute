@@ -1,4 +1,4 @@
-package com.wanderwildwood.kotozute.signalstore
+package com.wanderwildwood.kotozute.feature.signal
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -10,10 +10,13 @@ import java.util.concurrent.TimeUnit
  * A rate-limited send used to say only "rate limited", which is a wall. The server usually
  * says how long — upstream backs off by exactly that value — and reporting it is the
  * difference between a wall and a queue.
+ *
+ * Here rather than beside the sender since the words moved to the screen: the sender passes on
+ * the milliseconds, and [SignalWording] rounds them and says them.
  */
 class SendWaitWordingTest {
 
-    private fun wait(millis: Long) = SignalSender.describeWait(millis)
+    private fun wait(millis: Long) = English.of(SignalWording.waitFor(millis))
 
     @Test
     fun `a short wait is counted in seconds`() {

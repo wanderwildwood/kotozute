@@ -54,10 +54,11 @@ class SignalLinkActivity : QkThemedActivity() {
                 onUrl = { url -> CoroutineScope(Dispatchers.Main).launch { show(url) } }
             )
             withContext(Dispatchers.Main) {
-                binding.status.text = when {
-                    result == null -> getString(R.string.signal_link_expired)
-                    result.startsWith("linked") -> getString(R.string.signal_link_success)
-                    else -> getString(R.string.signal_link_failed, result)
+                binding.status.text = when (result) {
+                    null -> getString(R.string.signal_link_expired)
+                    is SignalRepository.Link.Linked -> getString(R.string.signal_link_success)
+                    is SignalRepository.Link.Failed ->
+                        getString(R.string.signal_link_failed, say(SignalWording.link(result.failure)))
                 }
             }
         }

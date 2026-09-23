@@ -874,4 +874,137 @@
     <string name="notification_update_text">Open settings to install it</string>
 
     <string name="settings_update_not_a_release">This build did not come from a release, so there is nothing to compare it against</string>
+
+    <!-- Why a Signal message did not send, shown after "Not sent: ". The lower-case ones
+         continue that line; the capitalised ones are whole sentences of their own. A name
+         is the person's name as this phone holds it, or signal_send_them where it holds only
+         an id. -->
+    <string name="signal_send_proof_required">Signal has asked this account to prove it is a person before it will take more messages. That has to be answered in Signal on your other phone. Nothing was sent.%1$s</string>
+    <string name="signal_send_rate_limited">Signal is limiting how fast this account can send. Nothing was sent.%1$s</string>
+    <string name="signal_send_unlinked">This phone is no longer linked to Signal. Link it again to send.</string>
+    <string name="signal_send_version_refused">Signal will not accept this version any more. The app needs updating.</string>
+    <string name="signal_send_server_rejected">Signal refused this message, and sending it again will not help.</string>
+    <string name="signal_send_they_left">They are not on Signal any more.</string>
+    <string name="signal_send_safety_number_changed">the safety number changed for %1$s</string>
+    <string name="signal_send_not_on_signal">%1$s is not on Signal any more</string>
+    <string name="signal_send_unreachable">the phone could not reach Signal</string>
+    <string name="signal_send_key_unusable">%1$s has a key this phone cannot use; they may need to reinstall</string>
+    <string name="signal_send_too_fast_wait">sending too fast; try again in %1$s</string>
+    <string name="signal_send_too_fast">sending too fast; try again shortly</string>
+    <string name="signal_send_proof_needed">Signal wants this phone to prove it is a person, which it cannot do yet</string>
+    <string name="signal_send_server_silent">it did not send, and the server did not say why</string>
+    <string name="signal_send_them">they</string>
+    <string name="signal_send_no_longer_held">that message is no longer held</string>
+    <string name="signal_send_no_reachable_members">the group has no members this device can reach</string>
+    <string name="signal_send_nobody_reached">could not reach any of the %1$s group members</string>
+    <string name="signal_send_primary_refused">the primary refused the contacts request</string>
+    <string name="signal_send_too_long">That message is too long to send. Signal takes about 2,000 characters in one message; sending it in two will work.</string>
+    <string name="signal_send_attachment_unprepared">could not prepare the attachment: %1$s</string>
+    <string name="signal_send_keys_stale">This phone\'s sending keys are out of date and it could not replace them just now, so nothing was sent. It will keep trying.</string>
+    <string name="signal_send_no_certificate">This phone has no sealed sending certificate at the moment, so nothing was sent. It will try again on its own.</string>
+    <string name="signal_send_not_in_group">You are not in this group any more, so nothing was sent.</string>
+    <string name="signal_send_group_ended">This group has ended, so nothing was sent.</string>
+    <string name="signal_send_group_unreachable">This phone could not reach the group just now, so nothing was sent. It will work when the connection is back.</string>
+    <string name="signal_send_admins_only">Only this group\'s admins can post in it. Your message was not sent.</string>
+    <string name="signal_send_number_only">This conversation has only a phone number, not a Signal address. Write to them from a new message instead.</string>
+    <string name="signal_send_attachments_to_group">sending attachments to a group is not supported yet</string>
+    <string name="signal_send_no_group_key">no group key on this thread yet</string>
+
+    <!-- How long Signal said to wait. The retry sentences follow straight on from
+         "Nothing was sent." and so begin with a space of their own, which is why they are
+         quoted. Rounded up, never to the second. -->
+    <string name="signal_send_retry_minute">" Try again in a minute."</string>
+    <string name="signal_send_retry_minutes">" Try again in about %1$s minutes."</string>
+    <string name="signal_send_retry_hour">" Try again in about an hour."</string>
+    <string name="signal_send_retry_hours">" Try again in about %1$s hours."</string>
+    <string name="signal_send_wait_seconds">%1$s seconds</string>
+    <string name="signal_send_wait_minutes">%1$s minutes</string>
+    <string name="signal_send_wait_hours">%1$s hours</string>
+
+    <!-- Why a new group was not made. Each means something different to the person making
+         it, so each is said on its own. -->
+    <string name="signal_group_not_linked">This phone is not linked to an account.</string>
+    <string name="signal_group_no_profile">This account has no profile on file, and a group cannot be made without one.</string>
+    <string name="signal_group_not_put_together">The group could not be put together.</string>
+    <string name="signal_group_not_authorized">The server would not authorize this account.</string>
+    <string name="signal_group_server_refused">The server would not take the new group.</string>
+    <string name="signal_group_unaddressable">The group was made but this phone cannot address it.</string>
+
+    <!-- Why a registration step failed, shown on its own line. Where a request was refused,
+         %1$s is the server's answer as it gave it. -->
+    <string name="signal_register_not_a_number">that is not a phone number this can register</string>
+    <string name="signal_register_no_code_yet">the server will not send a code yet</string>
+    <string name="signal_register_could_not_start">could not start registration: %1$s</string>
+    <string name="signal_register_captcha_no_code">the captcha was accepted but the server still will not send a code</string>
+    <string name="signal_register_captcha_refused">the captcha was not accepted: %1$s</string>
+    <string name="signal_register_code_not_sent">could not send a code: %1$s</string>
+    <string name="signal_register_code_refused_because">that code was not accepted: %1$s</string>
+    <string name="signal_register_code_refused">that code was not accepted</string>
+    <string name="signal_register_no_key_material">could not generate this account\'s key material</string>
+    <string name="signal_register_locked">This number has a registration lock. Its PIN is needed to register it here, and this app cannot use one yet -- the lock has about %1$s day(s) left to run. Link this phone to the account instead.</string>
+    <string name="signal_register_refused">registration refused: %1$s</string>
+    <string name="signal_register_unexpected">unexpected registration state</string>
+
+    <!-- Why linking failed, shown after "Could not link: ". A refusal from the server
+         reuses signal_register_refused: linking registers this phone as a device. -->
+    <string name="signal_link_not_scanned">nobody scanned the code in time -- ask for a new one</string>
+    <string name="signal_link_undecryptable">the provisioning message could not be decrypted</string>
+    <string name="signal_link_no_code">no provisioning code in the message</string>
+
+    <!-- Why this account's name did not save, shown after "The name would not save: " -->
+    <string name="signal_profile_no_account">this phone has no account yet</string>
+    <string name="signal_profile_no_service_id">this account has no service id yet</string>
+    <string name="signal_profile_no_key">this account has no profile key</string>
+    <string name="signal_profile_key_unreadable">this account\'s profile key will not load</string>
+    <string name="signal_profile_no_given_name">a profile needs a given name</string>
+    <string name="signal_profile_refused">the server would not take the name: %1$s</string>
+
+    <!-- What fetching contacts from Signal, or looking numbers up on it, did. The pieces of
+         a result are joined with " · ", and the skipped kinds with ", ". Every count is
+         said, because a fetch that understood a third of the account must not read like
+         one that understood all of it. -->
+    <string name="settings_signal_contacts_not_linked">This phone is not linked to Signal yet</string>
+    <string name="settings_signal_contacts_requested">Asked Signal for the contact list. It arrives in a moment, if your Signal answers</string>
+    <string name="settings_signal_contacts_no_numbers">There are no phone numbers in this phone\'s contacts to look up</string>
+    <string name="settings_signal_contacts_read">%1$s contact(s) from %2$s record(s)</string>
+    <string name="settings_signal_contacts_by_pni">%1$s by phone number</string>
+    <string name="settings_signal_contacts_skipped">skipped %1$s</string>
+    <string name="settings_signal_contacts_unreadable">%1$s the service would not hand over</string>
+    <string name="settings_signal_contacts_unopened">%1$s would not open</string>
+    <string name="settings_signal_contacts_not_contacts">%1$s not a contact</string>
+    <string name="settings_signal_contacts_anonymous">%1$s with no address at all</string>
+    <string name="settings_signal_contacts_anonymous_numbered">%1$s with no address at all, %2$s with a number</string>
+    <string name="settings_signal_contacts_no_key">the storage key is not here yet</string>
+    <string name="settings_signal_contacts_no_auth">the service would not give an auth token</string>
+    <string name="settings_signal_contacts_nothing_stored">this account has no stored records yet</string>
+    <string name="settings_signal_contacts_manifest_unreadable">the manifest could not be read</string>
+    <string name="settings_signal_contacts_wrong_key">the manifest would not open with this key</string>
+    <string name="settings_signal_lookup_all_done">Every number has been looked up already</string>
+    <string name="settings_signal_lookup_found">%1$s on Signal, from %2$s number(s)</string>
+    <string name="settings_signal_lookup_without_aci">%1$s known by phone number only</string>
+    <string name="settings_signal_lookup_no_numbers">There are no numbers to look up</string>
+    <string name="settings_signal_lookup_blocked">Signal will not answer more lookups for about %1$s more minute(s)</string>
+    <string name="settings_signal_lookup_too_many">too many new numbers to look up at once</string>
+    <string name="settings_signal_lookup_own_records">could not read this phone\'s own records to ask with</string>
+    <string name="settings_signal_lookup_exhausted">Signal will not answer more lookups for now. That is a limit on the account, not on this phone, and it lifts on its own.</string>
+    <string name="settings_signal_lookup_token">The record of what was looked up before is out of step. Try once more.</string>
+    <string name="settings_signal_lookup_refused">Signal refused the list of numbers</string>
+    <string name="settings_signal_lookup_unfinished">The lookup did not finish</string>
+
+    <!-- The contact store in numbers, on the Connection line. The last two are added only
+         when there are any, joined with ", ". -->
+    <string name="settings_signal_status_contacts">%1$s contact(s), %2$s with a profile key, %3$s named</string>
+    <string name="settings_signal_status_contacts_username">%1$s by username</string>
+    <string name="settings_signal_status_contacts_nameless">%1$s with nothing to show but an id</string>
+
+    <!-- Desktop Sync's row while it is on. "On" alone means a computer can reach it. -->
+    <string name="settings_desktop_sync_summary_starting">Starting…</string>
+    <string name="settings_desktop_sync_summary_no_tailscale">On, but Tailscale isn\'t connected</string>
+    <string name="settings_desktop_sync_summary_no_network">On, but this phone has no network yet</string>
+    <string name="settings_desktop_sync_summary_on">On</string>
+
+    <!-- The reader's own name on a message they sent, in a text notification, and the name of
+         the ordinary text notification channel in Android's settings. -->
+    <string name="notification_self_name">Me</string>
+    <string name="notification_channel_default">Default</string>
 </resources>

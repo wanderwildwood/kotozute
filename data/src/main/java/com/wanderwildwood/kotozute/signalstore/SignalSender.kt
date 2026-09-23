@@ -17,6 +17,8 @@ import org.whispersystems.signalservice.api.message.MessageApi
 import org.whispersystems.signalservice.api.util.CredentialsProvider
 import org.whispersystems.signalservice.internal.push.PushServiceSocket
 import org.whispersystems.signalservice.api.keys.PreKeyRepository
+import com.wanderwildwood.kotozute.repository.SendFailure
+import com.wanderwildwood.kotozute.repository.SendRefused
 import timber.log.Timber
 import java.util.Optional
 import java.util.concurrent.Executors
@@ -182,7 +184,7 @@ internal class SignalSender(
     fun resend(recipient: ServiceId, sentTimestamp: Long): Result {
         val entry = runCatching { messageLog.recall(recipient.toString(), sentTimestamp) }
             .getOrNull()
-            ?: return Result.Failed("that message is no longer held")
+            ?: return Result.Failed(SendFailure.NoLongerHeld)
         fun attempt() = sender.resendContent(
             SignalServiceAddress(recipient),
             sealedSender.accessFor(recipient.toString()),
@@ -272,16 +274,10 @@ internal class SignalSender(
         // (`PushSendJob.onSend`): rotate now, and refuse rather than sign another session with
         // a key that stopped being fresh two weeks ago.
         if (!keysFreshEnoughToSend()) {
-            throw IllegalStateException(
-                "This phone's sending keys are out of date and it could not replace them just " +
-                    "now, so nothing was sent. It will keep trying."
-            )
+            throw SendRefused(SendFailure.KeysStale)
         }
         if (!sealedSender.available()) {
-            throw IllegalStateException(
-                "This phone has no sealed sending certificate at the moment, so nothing was " +
-                    "sent. It will try again on its own."
-            )
+            throw SendRefused(SendFailure.NoCertificate)
         }
         val socket = PushServiceSocket(configuration, credentials, userAgent, true)
         val aci = credentials.aci ?: error("not linked")
@@ -344,7 +340,7 @@ internal class SignalSender(
         expireTimerVersion: Int = 0,
         revision: Int = 0
     ): Result {
-        if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
+        if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
         refuseIfTooLong(body)?.let { return it }
         val timestamp = System.currentTimeMillis()
 
@@ -417,11 +413,11 @@ internal class SignalSender(
                     Timber.w(
                         "signal send: reached %d of %d group members ts=%d; missed %s",
                         results.size - failed.size, results.size, timestamp,
-                        failed.joinToString { describe(it) }
+                        failed.joinToString { describe(it).toString() }
                     )
                     Result.Sent(timestamp)
                 }
-                else -> Result.Failed("could not reach any of the ${results.size} group members")
+                else -> Result.Failed(SendFailure.NobodyReached(results.size))
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal send: group send threw")
@@ -508,10 +504,7 @@ internal class SignalSender(
     private fun refuseIfTooLong(body: String): Result.Failed? =
         if (isBodyTooLong(body)) {
             Timber.w("signal send: a message body of %d bytes is over the limit; refusing", utf8Size(body))
-            Result.Failed(
-                "That message is too long to send. Signal takes about 2,000 characters in one " +
-                    "message; sending it in two will work."
-            )
+            Result.Failed(SendFailure.TooLong)
         } else {
             null
         }
@@ -543,7 +536,7 @@ internal class SignalSender(
         revision: Int,
         expiresInSeconds: Int = 0
     ): Result {
-        if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
+        if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
         val timestamp = System.currentTimeMillis()
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
@@ -588,11 +581,11 @@ internal class SignalSender(
                     Timber.w(
                         "signal groups: told %d of %d member(s); missed %s",
                         results.size - failed.size, results.size,
-                        failed.joinToString { describe(it) }
+                        failed.joinToString { describe(it).toString() }
                     )
                     Result.Sent(timestamp)
                 }
-                else -> Result.Failed("could not reach any of the ${results.size} group members")
+                else -> Result.Failed(SendFailure.NobodyReached(results.size))
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal groups: telling the members threw")
@@ -624,7 +617,7 @@ internal class SignalSender(
                 Timber.i("signal contacts: requested a sync from the primary")
                 Result.Sent(System.currentTimeMillis())
             } else {
-                Result.Failed("the primary refused the contacts request")
+                Result.Failed(SendFailure.PrimaryRefusedRequest)
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal contacts: request threw")
@@ -641,14 +634,16 @@ internal class SignalSender(
         data class Sent(val timestamp: Long) : Result
 
         /**
+         * @param failure what went wrong, as a kind rather than a sentence: the words are the
+         *   screen's to choose, in the reader's language. See [SendFailure].
          * @param safetyNumberChanged whether the send was refused because the recipient's
-         *   safety number changed. Carried as a flag rather than left in the [reason] text so
+         *   safety number changed. Carried as a flag rather than left to [failure] alone so
          *   a caller can *offer* the decision instead of reprinting a sentence — Signal puts
          *   "Send anyway" and "Verify safety number" in front of exactly this failure, and a
          *   string nobody can match on is a string nobody can act on.
          */
         data class Failed(
-            val reason: String,
+            val failure: SendFailure,
             val safetyNumberChanged: Boolean = false,
             /**
              * @see SignalContactStore.markUnregistered — the service saying somebody is not on
@@ -951,7 +946,11 @@ internal class SignalSender(
     }
 
     /**
-     * Why a send did not happen, in words the person who tried can act on.
+     * Why a send did not happen, as the kind the screen words for the person who tried.
+     *
+     * The words are in `SignalWording`, in the presentation module, where there is a `Context`
+     * to read them in the reader's language. What stays here is the part only this layer can
+     * decide: which failure it was, and who it was about.
      *
      * ⚠ The identity case is the only one here the reader can *do* something about, and it was
      * the least usable: "identity changed for 4f3a...-a UUID" told them a machine fact about
@@ -963,30 +962,23 @@ internal class SignalSender(
      * as Signal does, is a UI change and is in the round-two queue; this at least names the
      * person and says where the decision lives.
      */
-    private fun describe(result: SendMessageResult): String = when {
-        result.identityFailure != null ->
-            "the safety number changed for ${whoIs(result)}"
-        result.isUnregisteredFailure -> "${whoIs(result)} is not on Signal any more"
-        result.isNetworkFailure -> "the phone could not reach Signal"
+    private fun describe(result: SendMessageResult): SendFailure = when {
+        result.identityFailure != null -> SendFailure.SafetyNumberChanged(whoIs(result))
+        result.isUnregisteredFailure -> SendFailure.NotOnSignal(whoIs(result))
+        result.isNetworkFailure -> SendFailure.Unreachable
         // Their bundle will not open. Signal does not retry this either -- asking again gets
         // the same bundle -- so it says what it is rather than suggesting another go.
-        result.isInvalidPreKeyFailure ->
-            "${whoIs(result)} has a key this phone cannot use; they may need to reinstall"
-        result.rateLimitFailure != null -> {
-            // The server usually says how long. Reporting the wait is the difference between
-            // a wall and a queue; upstream backs off by exactly this value.
-            val wait = result.rateLimitFailure?.retryAfterMilliseconds?.orElse(null)
-            if (wait != null && wait > 0) {
-                "sending too fast; try again in ${describeWait(wait)}"
-            } else {
-                "sending too fast; try again shortly"
-            }
-        }
+        result.isInvalidPreKeyFailure -> SendFailure.KeyUnusable(whoIs(result))
+        // The server usually says how long. Reporting the wait is the difference between a
+        // wall and a queue; upstream backs off by exactly this value. A wait of nothing is
+        // passed on as no wait, so the screen says "shortly" rather than "in 0 seconds".
+        result.rateLimitFailure != null -> SendFailure.TooFast(
+            result.rateLimitFailure?.retryAfterMilliseconds?.orElse(null)?.takeIf { it > 0 }
+        )
         // 428. The server wants the app to prove it is a person, and this build has no way to
         // answer -- upstream opens a captcha. Said as the wall it is, rather than as jargon.
-        result.proofRequiredFailure != null ->
-            "Signal wants this phone to prove it is a person, which it cannot do yet"
-        else -> "it did not send, and the server did not say why"
+        result.proofRequiredFailure != null -> SendFailure.ProofNeeded
+        else -> SendFailure.ServerSilent
     }
 
     /**
@@ -1052,7 +1044,7 @@ internal class SignalSender(
         runCatching { contacts.markUnregistered(serviceId) }
             .onFailure { Timber.w(it, "signal send: could not note that they have left Signal") }
         return Result.Failed(
-            "${whoIs(serviceId)} is not on Signal any more",
+            SendFailure.NotOnSignal(whoIs(serviceId)),
             notRegistered = true
         )
     }
@@ -1075,15 +1067,17 @@ internal class SignalSender(
             .onFailure { Timber.w(it, "signal send: could not note that they have left Signal") }
     }
 
-    /** What to call the recipient of a failed send, or "they" where only an id is held. */
-    private fun whoIs(result: SendMessageResult): String =
+    /**
+     * What to call the recipient of a failed send, or null where only an id is held -- the
+     * screen says "they" then.
+     */
+    private fun whoIs(result: SendMessageResult): String? =
         whoIs(result.address.serviceId.toString())
 
-    private fun whoIs(serviceId: String): String =
+    private fun whoIs(serviceId: String): String? =
         runCatching { contacts.nameFor(serviceId) }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
-            ?: "they"
 
 
 
@@ -1171,7 +1165,7 @@ internal class SignalSender(
         /** The group's current revision; see the note in the body. */
         revision: Int
     ): Result {
-        if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
+        if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
         val timestamp = System.currentTimeMillis()
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
@@ -1235,11 +1229,11 @@ internal class SignalSender(
                     Timber.w(
                         "signal send: reached %d of %d group members ts=%d; missed %s",
                         results.size - failed.size, results.size, timestamp,
-                        failed.joinToString { describe(it) }
+                        failed.joinToString { describe(it).toString() }
                     )
                     Result.Sent(timestamp)
                 }
-                else -> Result.Failed("could not reach any of the ${results.size} group members")
+                else -> Result.Failed(SendFailure.NobodyReached(results.size))
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal reaction: group send threw")
@@ -1308,7 +1302,7 @@ internal class SignalSender(
         /** The group's current revision; see the note in the body. */
         revision: Int
     ): Result {
-        if (members.isEmpty()) return Result.Failed("the group has no members this device can reach")
+        if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
         val timestamp = System.currentTimeMillis()
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
@@ -1361,11 +1355,11 @@ internal class SignalSender(
                     Timber.w(
                         "signal send: reached %d of %d group members ts=%d; missed %s",
                         results.size - failed.size, results.size, timestamp,
-                        failed.joinToString { describe(it) }
+                        failed.joinToString { describe(it).toString() }
                     )
                     Result.Sent(timestamp)
                 }
-                else -> Result.Failed("could not reach any of the ${results.size} group members")
+                else -> Result.Failed(SendFailure.NobodyReached(results.size))
             }
         } catch (t: Throwable) {
             Timber.w(t, "signal delete: the group withdrawal threw")
@@ -1397,7 +1391,7 @@ internal class SignalSender(
             // picture someone attached is worse than one that does not go out at all: the
             // sender believes the picture was delivered.
             Timber.w(t, "signal send: could not prepare an attachment")
-            return Result.Failed("could not prepare the attachment: ${t.message}")
+            return Result.Failed(SendFailure.AttachmentUnprepared("${t.message}"))
         }
         val message = SignalServiceDataMessage.newBuilder()
             .withBody(body)
@@ -1598,22 +1592,6 @@ internal class SignalSender(
                 }
                 .getOrDefault(false)
 
-        /**
-         * A wait in the words somebody would use for it, rather than milliseconds.
-         *
-         * Rounded **up**, always: telling somebody to wait two minutes when it is really two
-         * minutes and fifty seconds earns a second failure, and the second one reads as the
-         * app being wrong rather than the server being busy.
-         */
-        internal fun describeWait(millis: Long): String {
-            val seconds = millis / 1000
-            return when {
-                seconds < 90 -> "$seconds seconds"
-                seconds < 5400 -> "${(seconds + 59) / 60} minutes"
-                else -> "${(seconds + 3599) / 3600} hours"
-            }
-        }
-
         /** Signal's primary device, which always has a session if any do. */
         private const val DEFAULT_DEVICE_ID = 1
 
@@ -1640,7 +1618,7 @@ internal class SignalSender(
             org.whispersystems.signalservice.api.messages.SignalServiceMessageLimits.MAX_INLINE_BODY_SIZE_BYTES
 
         /**
-         * What to tell somebody when a send failed.
+         * What a thrown failure means for somebody whose send it was.
          *
          * ⚠ **Every catch here said `t.message ?: t::class.java.simpleName`**, so the service's
          * four most consequential refusals reached the screen as the word
@@ -1653,32 +1631,33 @@ internal class SignalSender(
          * answered from here: upstream's `ProofRequiredExceptionHandler` either solves a push
          * challenge over FCM, which this phone has no part in, or raises a captcha, which is a
          * whole screen this app does not have. So what is ported is the sentence, not the
-         * handler -- and it names where the challenge *can* be answered rather than pretending
-         * this phone can do it.
+         * handler -- and its wording names where the challenge *can* be answered rather than
+         * pretending this phone can do it.
          *
-         * The unlinked and deprecated wordings deliberately match
+         * A kind, not a sentence: `SignalWording` in the presentation module words it, in the
+         * reader's language. The unlinked and deprecated wordings deliberately match
          * [SignalSocketHealthMonitor]'s, because the socket already says these two and hearing
          * the same thing in two different ways about one situation is worse than hearing it
          * twice.
          */
-        internal fun explain(t: Throwable): String = when (t) {
+        internal fun explain(t: Throwable): SendFailure = when (t) {
+            // Already decided, by the gate in front of the sender; see [sender].
+            is SendRefused -> t.failure
+
             is org.whispersystems.signalservice.api.push.exceptions.ProofRequiredException ->
-                "Signal has asked this account to prove it is a person before it will take " +
-                    "more messages. That has to be answered in Signal on your other phone. " +
-                    "Nothing was sent." + afterWards(t.retryAfterSeconds)
+                SendFailure.ProofRequired(t.retryAfterSeconds)
 
             is org.whispersystems.signalservice.api.push.exceptions.RateLimitException ->
-                "Signal is limiting how fast this account can send. Nothing was sent." +
-                    afterWards(t.retryAfterMilliseconds.orElse(0L) / 1000)
+                SendFailure.RateLimited(t.retryAfterMilliseconds.orElse(0L) / 1000)
 
             is org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException ->
-                "This phone is no longer linked to Signal. Link it again to send."
+                SendFailure.Unlinked
 
             is org.whispersystems.signalservice.api.push.exceptions.DeprecatedVersionException ->
-                "Signal will not accept this version any more. The app needs updating."
+                SendFailure.VersionRefused
 
             is org.whispersystems.signalservice.api.push.exceptions.ServerRejectedException ->
-                "Signal refused this message, and sending it again will not help."
+                SendFailure.ServerRejected
 
             // ⚠ Unnamed here, because this is the companion and has no contact store to ask.
             // [failed] handles it first and says who; this arm exists so that a catch added
@@ -1686,23 +1665,9 @@ internal class SignalSender(
             // put `NotFoundException` in front of a person. `UnregisteredUserException` is
             // `super(cause)`, so its own `message` is the cause's `toString()`.
             is org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserException ->
-                "They are not on Signal any more."
+                SendFailure.TheyLeft
 
-            else -> t.message ?: t::class.java.simpleName
-        }
-
-        /**
-         * " Try again in about ten minutes." -- or nothing, when the server did not say.
-         *
-         * Rounded, and never to the second: a countdown accurate to the second invites somebody
-         * to sit and watch it, and the server's number is a floor rather than a promise.
-         */
-        internal fun afterWards(seconds: Long): String = when {
-            seconds <= 0 -> ""
-            seconds < 90 -> " Try again in a minute."
-            seconds < 3600 -> " Try again in about ${(seconds + 59) / 60} minutes."
-            seconds < 7200 -> " Try again in about an hour."
-            else -> " Try again in about ${(seconds + 3599) / 3600} hours."
+            else -> SendFailure.Unexplained(t.message ?: t::class.java.simpleName)
         }
 
         /** A body's length as the limit counts it: bytes of UTF-8, not characters. */

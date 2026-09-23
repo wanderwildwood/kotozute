@@ -34,7 +34,7 @@ interface SignalRepository {
         /** Why they would not decrypt, distinct, newest first. Empty when there are none. */
         val undecryptableReasons: List<String> = emptyList(),
         /** Contacts known, how many carry a profile key, how many are named. Diagnostic. */
-        val contactSummary: String = "",
+        val contactCounts: ContactCounts? = null,
         val enabled: Boolean,
         /** This phone's own connection to Signal is up. */
         val signalConnected: Boolean,
@@ -62,6 +62,19 @@ interface SignalRepository {
         val canSend: Boolean get() = enabled && signalConnected
     }
 
+    /**
+     * The contact store in numbers, for the status line. Names come from profiles, so these
+     * are the only way to tell "nobody has shared a profile key" from "the fetch is broken".
+     */
+    data class ContactCounts(
+        val known: Int,
+        val withProfileKey: Int,
+        val named: Int,
+        val withUsername: Int,
+        /** Neither a name, a number, nor a username: nothing to show but a fragment of an id. */
+        val nameless: Int
+    )
+
     fun isConfigured(): Boolean
 
     fun unpair()
@@ -75,10 +88,33 @@ interface SignalRepository {
      * [onUrl] is called once, as soon as there is something to show -- the wait after that is
      * a person picking up their other phone, so showing the code late wastes the window.
      *
-     * @return a description of what happened, beginning "linked" on success, or null if
-     *   nothing came back before the code expired.
+     * @return what happened, or null if nothing came back before the code expired.
      */
-    fun linkDevice(deviceName: String, onUrl: (String) -> Unit): String?
+    fun linkDevice(deviceName: String, onUrl: (String) -> Unit): Link?
+
+    /** How linking ended. */
+    sealed interface Link {
+        data class Linked(val deviceId: Int) : Link
+        data class Failed(val failure: LinkFailure) : Link
+    }
+
+    /** Why linking failed, as a kind the screen words in the reader's language. */
+    sealed interface LinkFailure {
+        /** Every code expired with nobody having scanned one. */
+        data object NotScanned : LinkFailure
+
+        /** Something came back, and it would not decrypt. */
+        data object Undecryptable : LinkFailure
+
+        /** The message named no provisioning code, so the server has no reason to trust it. */
+        data object NoProvisioningCode : LinkFailure
+
+        /** The server refused the device; [detail] is its answer, as it gave it. */
+        data class Refused(val detail: String) : LinkFailure
+
+        /** The exchange threw; [detail] is its own text, or its type where it had none. */
+        data class Unexplained(val detail: String) : LinkFailure
+    }
 
     /**
      * Where a registration has got to.
@@ -90,7 +126,47 @@ interface SignalRepository {
         data class NeedsCaptcha(val sessionId: String) : Registration
         data class CodeSent(val sessionId: String) : Registration
         data class Registered(val e164: String) : Registration
-        data class Failed(val reason: String) : Registration
+        data class Failed(val failure: RegistrationFailure) : Registration
+    }
+
+    /**
+     * Why a registration step failed, as a kind the screen words in the reader's language.
+     *
+     * A `detail` is what the server or the library said, passed on as it is: the step names
+     * which request it was, and the detail is the only record of why.
+     */
+    sealed interface RegistrationFailure {
+        /** Not a number this can register; see `E164Numbers`. */
+        data object NotANumber : RegistrationFailure
+
+        /** The session opened, and the server will not send a code yet. */
+        data object NoCodeYet : RegistrationFailure
+
+        data class CouldNotStart(val detail: String) : RegistrationFailure
+
+        /** The captcha was taken, and the server still will not send a code. */
+        data object CaptchaAcceptedNoCode : RegistrationFailure
+
+        data class CaptchaRefused(val detail: String) : RegistrationFailure
+
+        data class CodeNotSent(val detail: String) : RegistrationFailure
+
+        /** The code was refused: with the server's answer, or null where it said "not verified". */
+        data class CodeRefused(val detail: String?) : RegistrationFailure
+
+        /** The account's root key could not be made, so nothing was sent. */
+        data object NoKeyMaterial : RegistrationFailure
+
+        /** The number has a registration lock with about [days] left to run. */
+        data class Locked(val days: Long) : RegistrationFailure
+
+        data class Refused(val detail: String) : RegistrationFailure
+
+        /** A step came back as something this app does not know. */
+        data object Unexpected : RegistrationFailure
+
+        /** A step threw; [detail] is its own text, or its type where it had none. */
+        data class Unexplained(val detail: String) : RegistrationFailure
     }
 
     /**
@@ -122,9 +198,33 @@ interface SignalRepository {
      * that can be retried on its own -- the account already exists by then, so a failure here
      * is worth offering again rather than starting over.
      *
-     * @return null on success, or a reason to show.
+     * @return null on success, or why not, for the screen to word.
      */
-    suspend fun registerSetProfileName(given: String, family: String): String?
+    suspend fun registerSetProfileName(given: String, family: String): ProfileNameFailure?
+
+    /** Why this account's name did not save. */
+    sealed interface ProfileNameFailure {
+        /** There is no account on this phone yet. */
+        data object NoAccount : ProfileNameFailure
+
+        /** The account has no service id yet. */
+        data object NoServiceId : ProfileNameFailure
+
+        /** The account holds no profile key. */
+        data object NoProfileKey : ProfileNameFailure
+
+        /** The account's profile key is there and will not load. */
+        data object ProfileKeyUnreadable : ProfileNameFailure
+
+        /** No given name, which Signal takes to mean no name at all. */
+        data object NoGivenName : ProfileNameFailure
+
+        /** The server would not take it; [detail] is its answer, as it gave it. */
+        data class Refused(val detail: String) : ProfileNameFailure
+
+        /** The write threw; [detail] is its own text, or its type where it had none. */
+        data class Unexplained(val detail: String) : ProfileNameFailure
+    }
 
     /**
      * Whether this phone is the account's **primary** device rather than a linked one.
@@ -303,14 +403,14 @@ interface SignalRepository {
     fun importHistory(folder: String, key: String = "", onProgress: (Int) -> Unit = {}): ImportStats
 
     /**
-     * Asks Signal for the account's contact list. Blocking; returns what happened, in a
-     * sentence somebody can read.
+     * Asks Signal for the account's contact list. Blocking; returns what happened, for the
+     * screen to say.
      */
-    fun fetchContactsFromSignal(): String
+    fun fetchContactsFromSignal(): ContactsReport
 
     /**
      * Asks Signal which numbers in this phone's address book are on it. Blocking; returns
-     * what happened, in a sentence somebody can read.
+     * what happened, for the screen to say.
      *
      * Different question from [fetchContactsFromSignal], which reads the people the account
      * already has a record for. This finds the ones it does not -- anybody in the address
@@ -320,7 +420,104 @@ interface SignalRepository {
      * account is charged a quota for numbers it has not asked about before. Runs only when
      * somebody asks.
      */
-    fun discoverContactsByNumber(): String
+    fun discoverContactsByNumber(): ContactsReport
+
+    /**
+     * What a contact fetch or a number lookup did, as counts and kinds rather than a sentence.
+     *
+     * ⚠ The counts are the point, not decoration: a fetch that understood a third of the
+     * account used to report the same shape of success as one that understood all of it. So
+     * everything a reader needs to notice that is carried here whole, and the screen decides
+     * only how to say it.
+     */
+    sealed interface ContactsReport {
+        /** This phone is not on an account yet. */
+        data object NotLinked : ContactsReport
+
+        /** The primary was asked for the account's keys, and the list follows them. */
+        data object Requested : ContactsReport
+
+        /** The address book holds no number to look up. */
+        data object NoNumbers : ContactsReport
+
+        /**
+         * The account's records were read. [contacts] were kept out of [records]; [pniOnly]
+         * of those are known by phone-number identity alone. The rest were skipped:
+         * [unreadable] the service would not hand over, [unopened] would not open,
+         * [notContacts] held something else, and [anonymous] named no address at all, of
+         * which [anonymousWithNumber] still carried a number.
+         */
+        data class Read(
+            val contacts: Int,
+            val records: Int,
+            val pniOnly: Int = 0,
+            val unreadable: Int = 0,
+            val unopened: Int = 0,
+            val notContacts: Int = 0,
+            val anonymous: Int = 0,
+            val anonymousWithNumber: Int = 0
+        ) : ContactsReport
+
+        /** The records could not be read at all. */
+        data class ReadRefused(val why: StorageRefusal) : ContactsReport
+
+        /** [found] of [asked] numbers are on Signal; [withoutAci] by phone number only. */
+        data class Discovered(val found: Int, val asked: Int, val withoutAci: Int) : ContactsReport
+
+        /** Nothing was asked, because every number has been asked about before. */
+        data object AllLookedUp : ContactsReport
+
+        /**
+         * The lookup did not happen. [minutes] is how long the service has said to wait,
+         * for [LookupRefusal.BLOCKED] only.
+         */
+        data class LookupRefused(val why: LookupRefusal, val minutes: Long = 0) : ContactsReport
+    }
+
+    /** Why the account's records could not be read. */
+    enum class StorageRefusal {
+        /** The storage key has not arrived from the primary. */
+        NO_KEY,
+
+        /** The service would not issue an auth token. */
+        NO_AUTH,
+
+        /** A 404 on the manifest: an account nobody has written records for, not a fault. */
+        NOTHING_STORED,
+
+        /** The manifest could not be fetched. */
+        MANIFEST_UNREADABLE,
+
+        /** The manifest arrived and would not open -- most likely the wrong key. */
+        WRONG_KEY
+    }
+
+    /** Why a number lookup did not happen. */
+    enum class LookupRefusal {
+        /** No number in the set was one the service would take. */
+        NO_VALID_NUMBERS,
+
+        /** The service said not to ask again yet, and that time has not passed. */
+        BLOCKED,
+
+        /** More new numbers than Signal's own ceiling for one ask. */
+        TOO_MANY,
+
+        /** The pairs the ask has to carry could not be read. */
+        OWN_RECORDS_UNREADABLE,
+
+        /** The account's lookup quota is spent for now. */
+        EXHAUSTED,
+
+        /** The token for earlier lookups and the record of them disagree. */
+        TOKEN_OUT_OF_STEP,
+
+        /** The service refused the list itself. */
+        NUMBERS_REFUSED,
+
+        /** Anything else that stopped the lookup part way. */
+        UNFINISHED
+    }
 
     /**
      * Tops up and rotates this account's own keys if either is owed.
@@ -433,9 +630,9 @@ interface SignalRepository {
      * clients learn of it from the first message, which carries the group's key and
      * revision the way every group message does.
      *
-     * Throws with a sentence that can be shown when it cannot be done: an account with no
+     * Throws [GroupNotMade] when it cannot be done, saying which way: an account with no
      * profile on file cannot make a group at all, and that is worth saying plainly rather
-     * than failing quietly.
+     * than failing quietly. The screen words it.
      */
     fun createGroup(title: String, memberThreadKeys: List<String>): String
 

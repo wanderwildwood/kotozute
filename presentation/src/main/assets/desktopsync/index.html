@@ -411,6 +411,15 @@
   .msg .bubble img.attach:not(:first-child),
   .msg .bubble .attachLink:not(:first-child) { margin-top: 8px; }
   .msg .bubble .attachLink { display: inline-block; color: var(--ink); }
+  /* An album: square tiles, two across, the width of about one picture. */
+  .msg .bubble .album {
+    display: grid; grid-template-columns: repeat(2, 160px); gap: 4px;
+  }
+  .msg .bubble .album:not(:first-child) { margin-top: 8px; }
+  .msg .bubble .album img.attach {
+    width: 160px; height: 160px; max-height: none; object-fit: cover; margin-top: 0;
+  }
+  .msg .bubble .album .attachLink { margin-top: 0; }
   .msg.me { justify-content: flex-end; }
   .msg.me .bubble { border-width: 3px; }
   /* Said in the reader's own voice rather than the sender's: this is the app explaining

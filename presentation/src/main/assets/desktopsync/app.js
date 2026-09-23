@@ -2329,6 +2329,16 @@ async function loadMessages() {
     // bubble. Each row says where to fetch itself, because MMS parts and Signal
     // attachments live in different places and answer on different routes; the drawing
     // below does not need to know which is which.
+    // Several pictures on one message are an album: two across as square tiles, as the
+    // phone draws them, rather than a column of full-size pictures. A click still opens
+    // each one in the lightbox. Anything that is not a picture stays in the bubble.
+    const pictures = (m.attachments || []).filter(att => att.url && att.isImage).length;
+    let album = null;
+    if (pictures > 1) {
+      album = document.createElement('div');
+      album.className = 'album';
+      bubble.append(album);
+    }
     (m.attachments || []).forEach(att => {
         // Our own sent Signal attachments carry no id: Signal assigns one on upload and
         // never reports it back, so there is nothing to fetch. Say the message carried
@@ -2359,7 +2369,7 @@ async function loadMessages() {
             a.textContent = '📎 ' + (att.label || 'Picture');
             img.replaceWith(a);
           });
-          bubble.append(img);
+          (album || bubble).append(img);
         } else if (att.isVideo) {
           // Played here rather than handed over as a link. The phone serves parts with
           // a length and answers range requests now, which is what a video element needs

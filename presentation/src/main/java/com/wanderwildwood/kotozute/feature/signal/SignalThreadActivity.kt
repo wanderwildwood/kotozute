@@ -118,7 +118,22 @@ class SignalThreadActivity : QkThemedActivity() {
     private var pendingSave: SavedAttachment? = null
 
     /** An attachment on its way out of the app: what to fetch, and what to call it. */
-    private data class SavedAttachment(val id: String, val filename: String, val type: String)
+    private data class SavedAttachment(
+        val id: String,
+        val filename: String,
+        val type: String,
+        /** Plays in place when tapped rather than being handed to another app. */
+        val gif: Boolean = false
+    )
+
+    /**
+     * Whether an attachment is a GIF: the flag its sender set, or a real `image/gif`.
+     *
+     * The flag is the one that matters. What Signal's GIF keyboard sends is an MP4 with the
+     * flag set, and without the flag it is an ordinary video.
+     */
+    private fun isGif(entry: org.json.JSONObject, type: String): Boolean =
+        entry.optBoolean("gif") || type == "image/gif"
 
     /**
      * Where to put a saved attachment, asked of the system rather than decided here.
@@ -366,10 +381,12 @@ class SignalThreadActivity : QkThemedActivity() {
             ?.takeIf { it.length() > 0 }?.optJSONObject(0) ?: return null
         val id = entry.optString("id")
         if (id.isBlank() || entry.optBoolean("pending")) return null
+        val type = entry.optString("type")
         return SavedAttachment(
             id = id,
             filename = entry.optString("filename"),
-            type = entry.optString("type")
+            type = type,
+            gif = isGif(entry, type)
         )
     }
 
@@ -647,6 +664,190 @@ class SignalThreadActivity : QkThemedActivity() {
         runCatching { QkMediaPlayer.reset() }
         playingFile?.delete()
         playingFile = null
+    }
+
+    /**
+     * The GIF playing, the row it plays in, and whichever of the two players is playing it.
+     * One at a time, like voice notes.
+     *
+     * ⚠ The row is remembered because a GIF plays *in* it, on its own views: a row recycled
+     * onto another message mid-play would otherwise go on playing somebody else's GIF.
+     * [MessageHolder.bindAttachment] stops it when that happens.
+     */
+    private var gifId: String? = null
+    private var gifRow: SignalMessageListItemBinding? = null
+    private var gifPlayer: android.media.MediaPlayer? = null
+    private var gifSurface: android.view.Surface? = null
+    private var gifDrawable: android.graphics.drawable.Drawable? = null
+
+    /**
+     * Plays a GIF once, in place, or stops it if it is the one playing.
+     *
+     * Once, not on a loop: on e-ink every frame is a panel redraw, and a GIF that loops
+     * redraws the screen for as long as the conversation is open. So it sits as its first
+     * frame until somebody asks, plays through, and goes back to the first frame.
+     *
+     * Signal's keyboard sends an MP4, which plays on [SignalMessageListItemBinding.gifPlayer]
+     * with the sound off, as Signal plays them. A real `image/gif` plays as an animated
+     * drawable in the picture's own place.
+     */
+    private fun toggleGif(attachment: SavedAttachment, row: SignalMessageListItemBinding) {
+        if (gifId == attachment.id && gifRow === row) {
+            stopGif()
+            return
+        }
+        stopGif()
+        val animatedImage = attachment.type == "image/gif"
+        // An animated drawable needs Android 9, and a video plays over its still at the
+        // still's size -- with no still drawn there is nowhere for it to go. Either way the
+        // phone gets what it had before: the file, opened in another app.
+        val noStill = row.image.visibility != android.view.View.VISIBLE || row.image.width == 0
+        if ((animatedImage && android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) ||
+            (!animatedImage && noStill)
+        ) {
+            openAttachment(attachment)
+            return
+        }
+        gifId = attachment.id
+        gifRow = row
+        row.attachment.setText(R.string.signal_gif_playing)
+        row.attachment.setVisible(true)
+
+        thread(isDaemon = true) {
+            val bytes = runCatching { signalRepo.loadAttachment(attachment.id) }.getOrNull()
+                ?.takeIf { it.isNotEmpty() }
+            val animatable = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P
+            val drawable = if (bytes != null && animatedImage && animatable) decodeAnimated(bytes) else null
+            runOnUiThread {
+                // Stopped, or replaced by another tap, while the bytes were loading.
+                if (gifId != attachment.id || gifRow !== row) return@runOnUiThread
+                val started = when {
+                    bytes == null -> false
+                    animatedImage -> animatable && drawable != null && playDrawable(drawable, row)
+                    else -> playVideo(bytes, row)
+                }
+                if (!started) gifFailed()
+            }
+        }
+    }
+
+    private fun gifFailed() {
+        stopGif()
+        Toast.makeText(this, R.string.signal_gif_failed, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Decoded no larger than it is drawn, for the same reason as the thumbnails. */
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.P)
+    private fun decodeAnimated(bytes: ByteArray): android.graphics.drawable.AnimatedImageDrawable? =
+        runCatching {
+            android.graphics.ImageDecoder.decodeDrawable(
+                android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes))
+            ) { decoder, info, _ ->
+                decoder.setTargetSampleSize(
+                    SignalAttachment.sampleSizeFor(
+                        info.size.width, info.size.height, SignalAttachment.THUMBNAIL_EDGE
+                    )
+                )
+            } as? android.graphics.drawable.AnimatedImageDrawable
+        }.onFailure { Timber.w(it, "signal gif: would not decode") }.getOrNull()
+
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.P)
+    private fun playDrawable(
+        drawable: android.graphics.drawable.AnimatedImageDrawable,
+        row: SignalMessageListItemBinding
+    ): Boolean {
+        // Zero repeats: it plays through once. The default is whatever the file asks for,
+        // which for nearly every GIF ever made is for ever.
+        drawable.repeatCount = 0
+        drawable.registerAnimationCallback(object : android.graphics.drawable.Animatable2.AnimationCallback() {
+            override fun onAnimationEnd(d: android.graphics.drawable.Drawable?) {
+                if (gifDrawable === drawable) stopGif()
+            }
+        })
+        gifDrawable = drawable
+        row.image.setImageDrawable(drawable)
+        drawable.start()
+        return true
+    }
+
+    private fun playVideo(bytes: ByteArray, row: SignalMessageListItemBinding): Boolean {
+        val view = row.gifPlayer
+        fun start(texture: android.graphics.SurfaceTexture): Boolean = runCatching {
+            val surface = android.view.Surface(texture)
+            gifSurface = surface
+            gifPlayer = android.media.MediaPlayer().apply {
+                setDataSource(SignalAttachment.BytesSource(bytes))
+                setSurface(surface)
+                // Signal plays GIFs silent, and most have no sound to play.
+                setVolume(0f, 0f)
+                isLooping = false
+                setOnPreparedListener { it.start() }
+                setOnCompletionListener { if (gifPlayer === it) stopGif() }
+                setOnErrorListener { mp, _, _ ->
+                    if (gifPlayer === mp) gifFailed()
+                    true
+                }
+                prepareAsync()
+            }
+        }.onFailure { Timber.w(it, "signal gif: would not play") }.isSuccess
+
+        view.surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(texture: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                if (gifRow === row && gifPlayer == null && !start(texture)) gifFailed()
+            }
+
+            override fun onSurfaceTextureSizeChanged(texture: android.graphics.SurfaceTexture, w: Int, h: Int) = Unit
+
+            override fun onSurfaceTextureDestroyed(texture: android.graphics.SurfaceTexture): Boolean {
+                // The row left the screen while playing.
+                if (gifRow === row) stopGif()
+                return true
+            }
+
+            override fun onSurfaceTextureUpdated(texture: android.graphics.SurfaceTexture) = Unit
+        }
+        // Over the still, which stays drawn underneath until the first frame covers it, and
+        // exactly its size. ⚠ Left to match_parent inside a wrap_content frame, the surface
+        // measured itself to the whole width on offer and widened the frame -- and the video,
+        // stretched to fit it -- well past the picture.
+        view.layoutParams = view.layoutParams.apply {
+            width = row.image.width
+            height = row.image.height
+        }
+        view.setVisible(true)
+        val texture = view.surfaceTexture
+        return if (view.isAvailable && texture != null) start(texture) else true
+    }
+
+    private fun stopGif() {
+        val row = gifRow
+        val id = gifId
+        gifId = null
+        gifRow = null
+        gifPlayer?.let { player ->
+            gifPlayer = null
+            // stop() throws if it never got as far as starting; release() never does.
+            runCatching { player.stop() }
+            player.release()
+        }
+        gifSurface?.release()
+        gifSurface = null
+        gifDrawable?.let { drawable ->
+            gifDrawable = null
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P &&
+                drawable is android.graphics.drawable.AnimatedImageDrawable
+            ) {
+                drawable.clearAnimationCallbacks()
+                drawable.stop()
+            }
+        }
+        if (row == null || id == null) return
+        row.gifPlayer.setVisible(false)
+        // Back to the first frame, if the row still shows this GIF.
+        if (row.image.tag == id) {
+            row.attachment.setText(R.string.signal_gif_play)
+            imageCache.get(id)?.let { row.image.setImageBitmap(it) } ?: adapter.notifyDataSetChanged()
+        }
     }
 
     /**
@@ -1259,6 +1460,7 @@ class SignalThreadActivity : QkThemedActivity() {
         // draft belongs.
         if (recording) stopRecording()
         stopPlayback()
+        stopGif()
         super.onPause()
     }
 
@@ -1292,6 +1494,7 @@ class SignalThreadActivity : QkThemedActivity() {
         messages?.removeAllChangeListeners()
         disposables.clear()
         stopPlayback()
+        stopGif()
         super.onDestroy()
     }
 
@@ -1447,7 +1650,7 @@ class SignalThreadActivity : QkThemedActivity() {
             (b.root as? android.widget.LinearLayout)?.let { root ->
                 // The timestamp stays centred whichever side the message is on, so only the
                 // children below it follow the sender.
-                listOf(b.sender, b.image, b.album, b.attachment, b.quote, b.body, b.reactions, b.status).forEach { child ->
+                listOf(b.sender, b.imageFrame, b.album, b.attachment, b.quote, b.body, b.reactions, b.status).forEach { child ->
                     (child.layoutParams as? android.widget.LinearLayout.LayoutParams)
                         ?.let { lp -> lp.gravity = side; child.layoutParams = lp }
                 }
@@ -1504,7 +1707,14 @@ class SignalThreadActivity : QkThemedActivity() {
             // which is the "only very small" in the report -- the full copy is what gets
             // handed to a viewer here. A voice note keeps its own tap, which plays it.
             val downloadable = downloadableAttachment(m)
-            if (downloadable != null) {
+            if (downloadable != null && downloadable.gif && m.attachments.let {
+                    runCatching { JSONArray(it).length() == 1 }.getOrDefault(false)
+                }) {
+                // A GIF plays where it is, once, rather than opening somewhere else.
+                val play = android.view.View.OnClickListener { toggleGif(downloadable, b) }
+                b.image.setOnClickListener(play)
+                b.attachment.setOnClickListener(play)
+            } else if (downloadable != null) {
                 b.image.setOnClickListener { openAttachment(downloadable) }
                 if (!b.attachment.hasOnClickListeners()) {
                     b.attachment.setOnClickListener { openAttachment(downloadable) }
@@ -1587,6 +1797,21 @@ class SignalThreadActivity : QkThemedActivity() {
          *   copy…" saves the one that was pressed rather than always the first.
          */
         private fun bindAttachment(m: SignalMessage, menuFor: (SavedAttachment?) -> Unit) {
+            // A GIF playing in this row is left to play while the row still shows it -- the
+            // Realm listener rebinds on every change, and a rebind would otherwise cut it
+            // off. A row recycled onto another message stops it.
+            if (gifRow === b) {
+                val showing = runCatching { JSONArray(m.attachments).optJSONObject(0)?.optString("id") }
+                    .getOrNull()
+                if (showing != null && showing == gifId) return
+                stopGif()
+            }
+            b.gifPlayer.setVisible(false)
+            // ⚠ Cleared here because only some rows set it. A voice note's or a GIF's tap
+            // stayed on the view when the row was recycled onto an ordinary attachment, and
+            // `bind` only sets one when there is none.
+            b.attachment.setOnClickListener(null)
+            b.image.tag = null
             b.image.setVisible(false)
             b.attachment.setVisible(false)
             b.image.setImageDrawable(null)
@@ -1652,7 +1877,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 return
             }
 
-            if (!type.startsWith("image/")) {
+            if (!SignalAttachment.hasStill(type)) {
                 b.attachment.text = getString(
                     R.string.signal_attachment_other,
                     first.optString("filename").ifBlank { type.ifBlank { id } }
@@ -1661,16 +1886,33 @@ class SignalThreadActivity : QkThemedActivity() {
                 return
             }
 
-            imageCache.get(id)?.let {
-                b.image.setImageBitmap(it)
-                b.image.setVisible(true)
-                return
+            // A GIF keeps its label under the picture, so it says it will play: its first
+            // frame on its own looks exactly like a photo.
+            val gif = isGif(first, type)
+            fun labelUnderStill() {
+                if (gif) {
+                    b.attachment.setText(R.string.signal_gif_play)
+                    b.attachment.setVisible(true)
+                } else {
+                    b.attachment.setVisible(false)
+                }
             }
 
             // Tagged so a recycled holder that has moved on does not get someone
-            // else's picture when this comes back.
+            // else's picture when this comes back, and so a GIF finishing knows whether
+            // this row is still its own.
             b.image.tag = id
-            b.attachment.text = getString(R.string.signal_attachment_image)
+
+            imageCache.get(id)?.let {
+                b.image.setImageBitmap(it)
+                b.image.setVisible(true)
+                labelUnderStill()
+                return
+            }
+
+            b.attachment.text = getString(
+                if (gif) R.string.signal_gif_play else R.string.signal_attachment_image
+            )
             b.attachment.setVisible(true)
 
             // One fetch per picture, however many times it is bound.
@@ -1695,7 +1937,8 @@ class SignalThreadActivity : QkThemedActivity() {
                 // bitmap would come back short of that and be upscaled. THUMBNAIL_EDGE is
                 // 480px, above the ~420px that 320dp comes to on this panel, so it covers
                 // either orientation. Raising the layout's cap past that means raising this.
-                val bmp = bytes?.let { SignalAttachment.decodeBounded(it) }
+                // A video -- which is what a GIF from Signal usually is -- by its first frame.
+                val bmp = bytes?.let { SignalAttachment.decodeStill(it, type) }
                 if (bmp != null) imageCache.put(id, bmp)
                 runOnUiThread {
                     inFlight.remove(id)
@@ -1711,7 +1954,7 @@ class SignalThreadActivity : QkThemedActivity() {
                     if (b.image.tag == id) {
                         b.image.setImageBitmap(bmp)
                         b.image.setVisible(true)
-                        b.attachment.setVisible(false)
+                        labelUnderStill()
                     } else {
                         adapter.notifyDataSetChanged()
                     }
@@ -1748,14 +1991,14 @@ class SignalThreadActivity : QkThemedActivity() {
                         entry.optString("filename").ifBlank { type.ifBlank { getString(R.string.signal_attachment_image) } }
                     )
                 }
-                if (saved != null && type.startsWith("image/")) {
+                if (saved != null && SignalAttachment.hasStill(type)) {
                     image.tag = id
                     val cached = imageCache.get(id)
                     if (cached != null) {
                         image.setImageBitmap(cached)
                         label.setVisible(false)
                     } else {
-                        fetchThumbnail(id)
+                        fetchThumbnail(id, type)
                     }
                 }
                 saved?.let { s -> tile.setOnClickListener { openAttachment(s) } }
@@ -1770,10 +2013,10 @@ class SignalThreadActivity : QkThemedActivity() {
          * now holds it picks it up. A tile is never written to directly: by the time the
          * bytes arrive it may have been recycled onto another message.
          */
-        private fun fetchThumbnail(id: String) {
+        private fun fetchThumbnail(id: String, type: String) {
             if (!inFlight.add(id)) return
             thread(isDaemon = true) {
-                val bmp = signalRepo.loadAttachment(id)?.let { SignalAttachment.decodeBounded(it) }
+                val bmp = signalRepo.loadAttachment(id)?.let { SignalAttachment.decodeStill(it, type) }
                 if (bmp != null) imageCache.put(id, bmp)
                 runOnUiThread {
                     inFlight.remove(id)

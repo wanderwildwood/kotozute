@@ -357,6 +357,9 @@
     <string name="signal_voice_message_playing">■ Voice message</string>
     <string name="signal_voice_message_unavailable">Voice message — not downloaded</string>
     <string name="signal_voice_message_failed">That voice message would not play</string>
+    <string name="signal_gif_play">▶ GIF</string>
+    <string name="signal_gif_playing">■ GIF</string>
+    <string name="signal_gif_failed">That GIF would not play</string>
     <string name="signal_register_done">Registered. Signal on this phone is yours now.</string>
     <string name="signal_register_staging">Use Signal\'s staging servers (test only — the app restarts)</string>
     <string name="signal_register_staging_on">Staging is on. Close and reopen the app, then register.</string>

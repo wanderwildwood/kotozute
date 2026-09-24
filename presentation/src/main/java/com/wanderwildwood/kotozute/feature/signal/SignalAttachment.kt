@@ -78,6 +78,60 @@ object SignalAttachment {
     }
 
     /**
+     * Whether a thumbnail can be drawn for this type: a picture, or the first frame of a
+     * video. A GIF from Signal's keyboard is usually a short MP4, and drawn as a file name it
+     * gave nobody any idea what it was.
+     */
+    fun hasStill(type: String): Boolean =
+        type.startsWith("image/") || type.startsWith("video/")
+
+    /**
+     * A picture as [decodeBounded] draws it, or a video's first frame at the same bound.
+     *
+     * Only the first frame: nothing on this screen plays until it is tapped.
+     */
+    fun decodeStill(bytes: ByteArray, type: String, maxEdge: Int = THUMBNAIL_EDGE): Bitmap? {
+        if (!type.startsWith("video/")) return decodeBounded(bytes, maxEdge)
+        val retriever = android.media.MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(BytesSource(bytes))
+            val option = android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+                retriever.getScaledFrameAtTime(0L, option, maxEdge, maxEdge)
+            } else {
+                retriever.getFrameAtTime(0L, option)?.let { frame ->
+                    val sample = sampleSizeFor(frame.width, frame.height, maxEdge)
+                    if (sample == 1) frame
+                    else Bitmap.createScaledBitmap(frame, frame.width / sample, frame.height / sample, true)
+                }
+            }
+        } catch (e: Exception) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    /**
+     * Bytes already in memory, for the two media classes that will not take a byte array.
+     *
+     * Attachments are held decrypted only in memory on the way to the screen; writing one to
+     * a file just so `MediaPlayer` can read it back would put it on disk for no reason.
+     */
+    class BytesSource(private val bytes: ByteArray) : android.media.MediaDataSource() {
+        override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+            if (position >= bytes.size) return -1
+            val n = minOf(size.toLong(), bytes.size - position).toInt()
+            System.arraycopy(bytes, position.toInt(), buffer, offset, n)
+            return n
+        }
+
+        override fun getSize(): Long = bytes.size.toLong()
+
+        override fun close() = Unit
+    }
+
+    /**
      * What a decoded picture costs to keep, so a cache can be bounded by memory rather than
      * by how many things are in it.
      *

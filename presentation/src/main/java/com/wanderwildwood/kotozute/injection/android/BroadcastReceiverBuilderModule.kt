@@ -58,6 +58,10 @@ abstract class BroadcastReceiverBuilderModule {
 
     @ActivityScope
     @ContributesAndroidInjector
+    abstract fun bindSignalNotificationActionReceiver(): com.wanderwildwood.kotozute.feature.signal.SignalNotificationActionReceiver
+
+    @ActivityScope
+    @ContributesAndroidInjector
     abstract fun bindDesktopSyncBootReceiver(): com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncBootReceiver
 
     @ActivityScope

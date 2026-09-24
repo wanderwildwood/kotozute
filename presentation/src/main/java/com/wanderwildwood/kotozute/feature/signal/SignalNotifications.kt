@@ -112,8 +112,13 @@ class SignalNotifications @Inject constructor(
                     }
             }
         }.onFailure { Timber.w(it, "signal notify: could not read what is unread") }.getOrNull() ?: return
-        pending.forEach { notify(it, silent = true) }
-        if (pending.isNotEmpty()) Timber.i("signal notify: put back %d notification(s)", pending.size)
+        // ⚠ Not what the reader swiped away. Upstream's restore brings back only what was never
+        // dismissed -- `DeleteNotificationReceiver` marks a swiped conversation notified -- and
+        // re-posting everything unread turned a restart into the return of every notification
+        // somebody had already chosen to be rid of.
+        pending.filter { it.date > dismissedUpTo(context, it.threadKey) }
+            .also { shown -> shown.forEach { notify(it, silent = true) } }
+            .let { if (it.isNotEmpty()) Timber.i("signal notify: put back %d notification(s)", it.size) }
     }
 
     private fun notify(message: SignalMessage, silent: Boolean = false) {
@@ -151,6 +156,20 @@ class SignalNotifications @Inject constructor(
             .setCategory(Notification.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pending)
+            .addAction(readAction(message.threadKey))
+            .addAction(replyAction(message.threadKey))
+            // Swiping it away is a decision about this message and the ones before it; see
+            // [restore] and [SignalNotificationDismissedReceiver].
+            .setDeleteIntent(
+                PendingIntent.getBroadcast(
+                    context,
+                    message.threadKey.hashCode(),
+                    Intent(context, SignalNotificationDismissedReceiver::class.java)
+                        .putExtra(SignalNotificationDismissedReceiver.EXTRA_THREAD, message.threadKey)
+                        .putExtra(SignalNotificationDismissedReceiver.EXTRA_UP_TO, message.date),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
             .setSilent(silent)
             .build()
 
@@ -176,10 +195,81 @@ class SignalNotifications @Inject constructor(
 
     fun cancel(threadKey: String) = manager.cancel(idFor(threadKey))
 
+    private fun actionIntent(threadKey: String, action: String, mutable: Boolean) =
+        android.app.PendingIntent.getBroadcast(
+            context,
+            (action + threadKey).hashCode(),
+            Intent(context, SignalNotificationActionReceiver::class.java)
+                .setAction(action)
+                .putExtra(SignalNotificationActionReceiver.EXTRA_THREAD, threadKey),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                // A reply's intent is filled in with what was typed, so it has to be mutable.
+                if (mutable) android.app.PendingIntent.FLAG_MUTABLE else android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+    private fun actionLabel(index: Int) =
+        context.resources.getStringArray(R.array.notification_actions)[index]
+
+    private fun readAction(threadKey: String) = NotificationCompat.Action.Builder(
+        R.drawable.ic_check_white_24dp,
+        actionLabel(Preferences.NOTIFICATION_ACTION_READ),
+        actionIntent(threadKey, SignalNotificationActionReceiver.ACTION_READ, mutable = false)
+    ).setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ).build()
+
+    private fun replyAction(threadKey: String): NotificationCompat.Action {
+        val label = actionLabel(Preferences.NOTIFICATION_ACTION_REPLY)
+        return NotificationCompat.Action.Builder(
+            R.drawable.ic_reply_white_24dp,
+            label,
+            actionIntent(threadKey, SignalNotificationActionReceiver.ACTION_REPLY, mutable = true)
+        )
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .addRemoteInput(
+                androidx.core.app.RemoteInput.Builder(SignalNotificationActionReceiver.KEY_REPLY)
+                    .setLabel(label)
+                    .build()
+            )
+            .build()
+    }
+
+    /** Replaces the notification with one saying the reply from it did not go. */
+    fun replyFailed(threadKey: String) {
+        val title = titleFor(threadKey).ifBlank { context.getString(R.string.signal_title) }
+        val intent = SignalConversationsActivity.intentFor(context, threadKey, title)
+        manager.notify(
+            idFor(threadKey),
+            NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(title)
+                .setContentText(context.getString(R.string.signal_notification_reply_failed))
+                .setContentIntent(
+                    android.app.PendingIntent.getActivity(
+                        context, threadKey.hashCode(), intent,
+                        android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                    )
+                )
+                .setAutoCancel(true)
+                .setSilent(true)
+                .build()
+        )
+    }
+
     private fun idFor(threadKey: String) = NOTIFICATION_ID_BASE + threadKey.hashCode()
 
     companion object {
         const val CHANNEL_ID = "notifications_signal"
         private const val NOTIFICATION_ID_BASE = 0x5167 // keeps clear of the SMS ids
     }
+
+}
+
+/** How far each conversation's notifications were swiped away: the newest message dismissed. */
+private const val DISMISSED_PREFS = "signal-notifications-dismissed"
+
+internal fun dismissedUpTo(context: Context, threadKey: String): Long =
+    context.getSharedPreferences(DISMISSED_PREFS, Context.MODE_PRIVATE).getLong(threadKey, 0L)
+
+internal fun recordDismissed(context: Context, threadKey: String, upTo: Long) {
+    val prefs = context.getSharedPreferences(DISMISSED_PREFS, Context.MODE_PRIVATE)
+    if (upTo > prefs.getLong(threadKey, 0L)) prefs.edit().putLong(threadKey, upTo).apply()
 }

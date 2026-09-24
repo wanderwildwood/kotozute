@@ -134,6 +134,22 @@
 
     </FrameLayout>
 
+    <!-- The message a reply will quote, shaped like the attachment line below it: what it
+         is, and a tap takes it away. Two lines at most; the quote itself goes whole. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/replying"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/pending"
         android:layout_width="match_parent"

@@ -621,6 +621,8 @@
     <string name="signal_quote_you">You</string>
     <string name="signal_quote_missing">\u21b3 Replying to a message from before this thread synced</string>
     <string name="signal_quote_no_text">(a picture)</string>
+    <string name="signal_reply">Reply</string>
+    <string name="signal_replying">Replying to %1$s: %2$s — tap to cancel</string>
     <string name="signal_reaction_remove_mine">Remove my %1$s</string>
     <string name="signal_scheduled">Scheduled</string>
     <string name="signal_schedule_needs_text">Write something first</string>

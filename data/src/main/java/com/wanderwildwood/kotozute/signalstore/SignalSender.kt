@@ -338,7 +338,8 @@ internal class SignalSender(
         body: String,
         expiresInSeconds: Int = 0,
         expireTimerVersion: Int = 0,
-        revision: Int = 0
+        revision: Int = 0,
+        quote: SignalQuote? = null
     ): Result {
         if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
         refuseIfTooLong(body)?.let { return it }
@@ -362,6 +363,7 @@ internal class SignalSender(
             // gated, which is where the leak actually was.
             .withProfileKey(selfProfileKey)
             .asGroupMessage(group)
+            .withQuote(quote?.toQuote())
             // The group's own timer. Sent with every message, as Signal does: a message with
             // no timer is not "unspecified", it is a timer of zero, and a group that had
             // agreed its messages disappear would quietly stop expiring ours.
@@ -1388,7 +1390,8 @@ internal class SignalSender(
         body: String,
         attachments: List<String> = emptyList(),
         expiresInSeconds: Int = 0,
-        expireTimerVersion: Int = 0
+        expireTimerVersion: Int = 0,
+        quote: SignalQuote? = null
     ): Result {
         refuseIfTooLong(body)?.let { return it }
         val timestamp = System.currentTimeMillis()
@@ -1415,6 +1418,7 @@ internal class SignalSender(
             // [SignalContactStore.isWhitelisted].
             .withProfileKey(selfProfileKey?.takeIf { sharesProfileWith(recipient) })
             .apply { if (streams.isNotEmpty()) withAttachments(streams) }
+            .withQuote(quote?.toQuote())
             // The conversation's timer, re-asserted on every message the way Signal does.
             // Omitting it does not leave the timer alone: a data message with no expireTimer
             // reads as zero, so every reply this phone sent was telling the other person's

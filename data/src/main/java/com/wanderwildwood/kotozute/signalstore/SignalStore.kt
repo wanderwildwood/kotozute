@@ -1036,12 +1036,6 @@ class SignalStore(private val context: Context) {
     }
 
     /**
-     * Whether a storage read also writes this device's changes back. Asked at every read, so
-     * turning it off takes effect at once.
-     */
-    internal var storageWriteEnabled: () -> Boolean = { false }
-
-    /**
      * One storage read at a time. Two at once would each compute a write against the same
      * manifest; the second would be refused as a conflict and read again, which is safe but
      * is two round trips to say one thing.
@@ -1053,22 +1047,21 @@ class SignalStore(private val context: Context) {
 
     /**
      * Reads the account's contact list out of the storage service, where modern Signal keeps
-     * it, and -- when [storageWriteEnabled] -- writes this device's archive and mute changes
-     * back in the same pass. Returns what the read did, as counts, for a status line to word
+     * it, and writes this device's archive and mute changes back in the same pass, as Signal's
+     * own `StorageSyncJob` does -- there is no setting for it in Signal and none here. Returns what the read did, as counts, for a status line to word
      * and a log to carry.
      *
      * A write refused because somebody else wrote first (409) is read again and tried once
      * more, as upstream's `StorageSyncJob` does. A second refusal waits for the next read.
      */
     fun readStorage(): ContactsReport { synchronized(storageLock) {
-        val write = runCatching { storageWriteEnabled() }.getOrDefault(false)
         var retried = false
         while (true) {
             var outcome: SignalStorageWriter.Outcome? = null
             val report = readStorageOnce(
-                if (write) { version, identifiers, ikm ->
+                { version, identifiers, ikm ->
                     outcome = pushStorage(version, identifiers, ikm, isRetry = retried)
-                } else null
+                }
             )
             if (outcome is SignalStorageWriter.Outcome.Conflict && !retried) {
                 retried = true

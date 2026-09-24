@@ -243,19 +243,6 @@ class Preferences @Inject constructor(
     val signalPreKeysOwed = rxPrefs.getBoolean("signalPreKeysOwed", false)
 
     /**
-     * Whether archiving or muting a Signal conversation here is written to the account's
-     * storage service, so the account's other devices do the same ("Archive and mute
-     * everywhere" in Signal settings).
-     *
-     * Off by default for now. First exercised 2026-09-24 against a live account (signal-cli
-     * primary + this phone): an old mark that already matched was cleared without a write,
-     * then an archive and an unarchive each went up (manifest 1229 -> 1230 -> 1231) and read
-     * back whole -- six of six records, nothing marked afterwards, no second write. See
-     * `docs/DECISION-storage-write.md`.
-     */
-    val signalStorageWrite = rxPrefs.getBoolean("signalStorageWrite", false)
-
-    /**
      * Whether Desktop Sync serves over TLS with a certificate this phone made for itself.
      *
      * ⚠ **Off by default, and that is not timidity.** Turning it on changes the scheme, so a

@@ -13,8 +13,8 @@ It continues [QKSMS](https://github.com/moezbhatti/qksms) by way of [QUIK](https
 
 | | |
 |---|---|
-| ![The conversation list](screenshots/1-conversations.png) | ![A conversation, with a reply half written](screenshots/2-conversation.png) |
-| ![A Signal conversation, with a reaction on the last message](screenshots/5-signal.png) | ![Settings](screenshots/4-settings.png) |
+| ![The conversation list, Signal and texts together](screenshots/1-conversations.png) | ![A Signal conversation: a GIF, a voice message and a quoted reply](screenshots/2-conversation.png) |
+| ![Holding a message: reply, react, open, save](screenshots/4-message-menu.png) | ![Replying to a message, with the reply half written](screenshots/5-reply.png) |
 
 Desktop Sync, which is the page the phone serves to a browser on your own computer:
 

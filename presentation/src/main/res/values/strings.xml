@@ -726,7 +726,7 @@
 
     <string name="about_name" translatable="false">Messaging %s</string>
     <string name="about_llama">Feed the llamas</string>
-    <string name="about_source" translatable="false">github.com/wanderwildwood/kotozute</string>
+    <string name="about_source" translatable="false">wanderthe.dev</string>
     <string name="about_license" translatable="false">GNU General Public License v3</string>
     <string name="about_collects">Your messages stay on this phone. Desktop Sync, once you switch it on, serves a page from the phone straight to your own computer — no cloud service and no relay in between.</string>
     <string name="about_fork">Continues QKSMS by Moez Bhatti, by way of octoshrimpy\'s QUIK; the e-ink work began in lamdanAmiti\'s InkMessage. All under the same licence.</string>

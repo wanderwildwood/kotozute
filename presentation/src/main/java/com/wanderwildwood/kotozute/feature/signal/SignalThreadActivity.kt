@@ -1727,6 +1727,14 @@ class SignalThreadActivity : QkThemedActivity() {
                 root.gravity = Gravity.START
             }
             b.body.textAlignment = android.view.View.TEXT_ALIGNMENT_VIEW_START
+            // ⚠ The quote sits outside the bubble, on its side -- but a quote long enough to
+            // wrap fills the width, and start-aligned text then hugged the left edge above a
+            // reply of ours on the right, reading as though it belonged to the other person.
+            b.quote.textAlignment = if (m.outgoing) {
+                android.view.View.TEXT_ALIGNMENT_VIEW_END
+            } else {
+                android.view.View.TEXT_ALIGNMENT_VIEW_START
+            }
 
             // The outlined bubble, and the same first/middle/last/only shapes the SMS thread
             // uses, so a run of messages draws as one form rather than a stack of pills.

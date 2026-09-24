@@ -1036,10 +1036,120 @@ class SignalStore(private val context: Context) {
     }
 
     /**
-     * Reads the account's contact list out of the storage service, where modern Signal keeps
-     * it. Returns what it did, as counts, for a status line to word and a log to carry.
+     * Whether a storage read also writes this device's changes back. Asked at every read, so
+     * turning it off takes effect at once.
      */
-    fun readStorage(): ContactsReport {
+    internal var storageWriteEnabled: () -> Boolean = { false }
+
+    /**
+     * One storage read at a time. Two at once would each compute a write against the same
+     * manifest; the second would be refused as a conflict and read again, which is safe but
+     * is two round trips to say one thing.
+     */
+    private val storageLock = Any()
+
+    /** What this device wants a marked row to say, or null to leave the row alone. */
+    internal var storageDesired: (SignalContactStore.Pending) -> SignalStorageWriter.Desired? = { null }
+
+    /**
+     * Reads the account's contact list out of the storage service, where modern Signal keeps
+     * it, and -- when [storageWriteEnabled] -- writes this device's archive and mute changes
+     * back in the same pass. Returns what the read did, as counts, for a status line to word
+     * and a log to carry.
+     *
+     * A write refused because somebody else wrote first (409) is read again and tried once
+     * more, as upstream's `StorageSyncJob` does. A second refusal waits for the next read.
+     */
+    fun readStorage(): ContactsReport { synchronized(storageLock) {
+        val write = runCatching { storageWriteEnabled() }.getOrDefault(false)
+        var retried = false
+        while (true) {
+            var outcome: SignalStorageWriter.Outcome? = null
+            val report = readStorageOnce(
+                if (write) { version, identifiers, ikm ->
+                    outcome = pushStorage(version, identifiers, ikm, isRetry = retried)
+                } else null
+            )
+            if (outcome is SignalStorageWriter.Outcome.Conflict && !retried) {
+                retried = true
+                Timber.i("signal storage write: another device wrote first; reading again")
+                continue
+            }
+            return report
+        }
+    } }
+
+    /**
+     * Writes whatever is marked, against the manifest the read just held, and records what
+     * went up.
+     */
+    private fun pushStorage(
+        version: Long,
+        identifiers: List<org.whispersystems.signalservice.internal.storage.protos.ManifestRecord.Identifier>,
+        ikm: org.whispersystems.signalservice.api.storage.RecordIkm?,
+        isRetry: Boolean
+    ): SignalStorageWriter.Outcome {
+        val guard = StorageWriteLoopGuard(StoredLoopGuardState(context))
+        val now = System.currentTimeMillis()
+        val outcome = runCatching {
+            SignalStorageWriter(connection, contacts, keys).write(
+                manifestVersion = version,
+                manifestIdentifiers = identifiers,
+                recordIkm = ikm,
+                desiredFor = storageDesired,
+                send = true,
+                mayWrite = { records ->
+                    when (val d = guard.onWriteAttempt(
+                        StorageWriteLoopGuard.fingerprintOf(records), true, isRetry, now
+                    )) {
+                        StorageWriteLoopGuard.Decision.Allowed -> true
+                        is StorageWriteLoopGuard.Decision.Denied -> {
+                            // Upstream reports this at high priority; here it is the loudest
+                            // line the log has. Something keeps undoing what this phone writes.
+                            Timber.e("signal storage write: held back -- another device may be undoing it (%s, level %d)", d.cause, d.level)
+                            false
+                        }
+                    }
+                }
+            )
+        }.getOrElse {
+            Timber.w(it, "signal storage write: threw")
+            SignalStorageWriter.Outcome.Refused("${it.message}")
+        }
+
+        when (outcome) {
+            is SignalStorageWriter.Outcome.Written -> {
+                outcome.pushed.forEach { runCatching { contacts.markPushed(it.storageId, it.record) } }
+                Timber.i(
+                    "signal storage write: wrote %d record(s), replaced %d, now at version %d",
+                    outcome.inserts, outcome.deletes, outcome.version
+                )
+                // As upstream does after every write, so the other devices read it now.
+                connection.connect()
+                SignalSender(
+                    SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
+                    SignalDataStore(database, account), connection, contacts
+                ).sendFetchLatestStorage()
+            }
+            is SignalStorageWriter.Outcome.AlreadyThere -> {
+                runCatching { contacts.clearMarks(outcome.storageIds) }
+                guard.onConverged()
+                Timber.i("signal storage write: %d marked row(s) already match the account", outcome.storageIds.size)
+            }
+            SignalStorageWriter.Outcome.NothingToDo -> guard.onConverged()
+            SignalStorageWriter.Outcome.Conflict -> guard.onWriteFailed(now)
+            is SignalStorageWriter.Outcome.Refused -> {
+                guard.onWriteFailed(now)
+                Timber.w("signal storage write: not written -- %s", outcome.why)
+            }
+            is SignalStorageWriter.Outcome.WouldWrite -> Unit
+        }
+        return outcome
+    }
+
+    private fun readStorageOnce(
+        onWritable: ((Long, List<org.whispersystems.signalservice.internal.storage.protos.ManifestRecord.Identifier>, org.whispersystems.signalservice.api.storage.RecordIkm?) -> Unit)?
+    ): ContactsReport {
         // Who this account is, so a record describing it can be refused rather than filed as
         // one of its own contacts. Read once per storage read, not per record.
         val credentials = runCatching { account.credentials() }.getOrNull()
@@ -1135,7 +1245,7 @@ class SignalStore(private val context: Context) {
                 blockStore.store(people, groups)
                 Timber.i("signal blocked: the account's records name %d blocked", people.size)
             }
-        ).read()
+        ).read(onWritable)
         result.reason?.let { return ContactsReport.ReadRefused(it) }
         // A record this could not use is carried whole, for the screen to say out loud. The
         // whole of this bug was a fetch that dropped two records in three and reported only

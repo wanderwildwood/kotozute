@@ -59,19 +59,42 @@ internal class SignalStorageWriter(
      * protocol store, mute and archive in Realm -- and none of them belong to this class.
      */
     data class Desired(
-        val blocked: Boolean,
-        val mutedUntil: Long,
-        val archived: Boolean
+        /** Whether it is muted at all. See [mutedUntilFor] for what goes on the wire. */
+        val muted: Boolean,
+        val archived: Boolean,
+        /**
+         * Null keeps what the account's record says, which is what every caller passes today.
+         * A read replaces the phone's block list with the account's before any write can run,
+         * and a block made here already reaches the primary as its own sync message -- writing
+         * it through storage as well would be two mechanisms deciding one thing.
+         */
+        val blocked: Boolean? = null
     )
+
+    /** One row that went up: the id it went up under, and the record it went up as. */
+    class Pushed(val storageId: String, val record: ByteArray)
 
     sealed interface Outcome {
         /** Nothing was marked. The ordinary case, and not a failure. */
         data object NothingToDo : Outcome
 
+        /**
+         * Marked rows whose record already says what this device wants -- the account caught
+         * up another way, or a later read brought the same value back. Nothing to send; the
+         * caller clears their marks so they stop coming round.
+         */
+        data class AlreadyThere(val storageIds: List<String>) : Outcome
+
         /** What would have gone up. Returned when [write] is asked not to send. */
         data class WouldWrite(val inserts: Int, val deletes: Int) : Outcome
 
-        data class Written(val inserts: Int, val deletes: Int, val version: Long) : Outcome
+        data class Written(
+            val inserts: Int,
+            val deletes: Int,
+            val version: Long,
+            /** What went up, so the caller can record it as what the account now holds. */
+            val pushed: List<Pushed>
+        ) : Outcome
 
         /**
          * The account moved under us. The caller re-reads and tries once more; it is not an
@@ -94,7 +117,12 @@ internal class SignalStorageWriter(
         manifestIdentifiers: List<ManifestRecord.Identifier>,
         recordIkm: RecordIkm?,
         desiredFor: (SignalContactStore.Pending) -> Desired?,
-        send: Boolean
+        send: Boolean,
+        /**
+         * Asked with the plaintext records just before the request, and a no stops it. Where
+         * the loop guard sits: it fingerprints what would go up, which is only known here.
+         */
+        mayWrite: (List<ByteArray>) -> Boolean = { true }
     ): Outcome {
         val storageKey = keys.storageKey()
             ?: return Outcome.Refused("this account's storage key is not here")
@@ -111,6 +139,8 @@ internal class SignalStorageWriter(
         // delete that fails to match leaves the stale record on the account to be re-applied.
         val deleteIds = mutableListOf<okio.ByteString>()
         val insertIdentifiers = mutableListOf<ManifestRecord.Identifier>()
+        val pushed = mutableListOf<Pushed>()
+        val alreadyThere = mutableListOf<String>()
 
         pending.forEach { row ->
             val newId = row.storageId ?: return@forEach
@@ -136,9 +166,19 @@ internal class SignalStorageWriter(
             }
 
             val desired = desiredFor(row) ?: return@forEach
-            val amended = runCatching { amend(raw, desired) }
+            val amended = runCatching { amend(raw, desired, System.currentTimeMillis()) }
                 .onFailure { Timber.w(it, "signal storage write: a record would not re-encode") }
                 .getOrNull() ?: return@forEach
+            // The account already says this. Sending it again would be a write that changes
+            // nothing but the id -- the churn a loop is made of.
+            // Compared decoded, not as bytes: another client may encode the same record in a
+            // different field order, and that is not a change. Wire's equality includes the
+            // fields this build does not understand.
+            if (StorageRecord.ADAPTER.decode(amended) == StorageRecord.ADAPTER.decode(raw)) {
+                alreadyThere += newId
+                return@forEach
+            }
+            pushed += Pushed(newId, amended)
 
             val itemKey = recordIkm?.deriveStorageItemKey(newIdBytes)
                 ?: storageKey.deriveItemKey(newIdBytes)
@@ -161,7 +201,9 @@ internal class SignalStorageWriter(
                 ?.let { deleteIds += it.toByteString() }
         }
 
-        if (inserts.isEmpty()) return Outcome.NothingToDo
+        if (inserts.isEmpty()) {
+            return if (alreadyThere.isEmpty()) Outcome.NothingToDo else Outcome.AlreadyThere(alreadyThere)
+        }
 
         val deleteSet = deleteIds.toSet()
         val kept = manifestIdentifiers.filterNot { it.raw in deleteSet }
@@ -174,6 +216,7 @@ internal class SignalStorageWriter(
             ?.let { return Outcome.Refused(it) }
 
         if (!send) return Outcome.WouldWrite(inserts.size, deleteSet.size)
+        if (!mayWrite(pushed.map { it.record })) return Outcome.Refused("held back by the loop guard")
 
         val version = manifestVersion + 1
         val manifestRecord = ManifestRecord(
@@ -208,43 +251,13 @@ internal class SignalStorageWriter(
 
         return when {
             result is org.signal.network.NetworkResult.Success ->
-                Outcome.Written(inserts.size, deleteSet.size, version)
+                Outcome.Written(inserts.size, deleteSet.size, version, pushed)
             // 409 is the documented "your version is not remoteVersion + 1": somebody else
             // wrote while this was being built. Not an error.
             result is org.signal.network.NetworkResult.StatusCodeError && result.code == 409 ->
                 Outcome.Conflict
             else -> Outcome.Refused("the write was refused: $result")
         }
-    }
-
-    /**
-     * Puts this device's decisions into the record the account already holds.
-     *
-     * ⚠ Decode, set, re-encode -- never construct. Wire keeps fields it did not recognise on
-     * the decoded message, so re-encoding carries them back out untouched. Building a fresh
-     * record from the fields below would drop everything a newer client had written.
-     */
-    internal fun amend(raw: ByteArray, desired: Desired): ByteArray {
-        val record = StorageRecord.ADAPTER.decode(raw)
-        record.contact?.let { contact ->
-            return record.copy(
-                contact = contact.copy(
-                    blocked = desired.blocked,
-                    mutedUntilTimestamp = desired.mutedUntil,
-                    archived = desired.archived
-                )
-            ).encode()
-        }
-        record.groupV2?.let { group ->
-            return record.copy(
-                groupV2 = group.copy(
-                    blocked = desired.blocked,
-                    mutedUntilTimestamp = desired.mutedUntil,
-                    archived = desired.archived
-                )
-            ).encode()
-        }
-        throw IllegalArgumentException("that record is neither a contact nor a group")
     }
 
     /**
@@ -256,6 +269,22 @@ internal class SignalStorageWriter(
     internal companion object {
         /** Signal's ids are sixteen bytes; `StorageSyncHelper.KEY_GENERATOR` makes them. */
         const val STORAGE_ID_BYTES = 16
+
+        /**
+         * What "muted until" to write, given what the account holds.
+         *
+         * ⚠ This app knows muted or not, and the account knows *until when*. A mute Signal set
+         * for eight hours is still muted here, and writing it back as "for ever" -- or a mute
+         * that has run out as "off", which it already is -- would be this phone rewriting a
+         * decision it never saw. So the account's own value stands whenever it already agrees,
+         * and only a real change is written: `Long.MAX_VALUE` for muted, which is how Signal
+         * spells "for ever" (`SoundsAndNotificationsSettingsScreen`), and 0 for not.
+         */
+        internal fun mutedUntilFor(current: Long, muted: Boolean, now: Long): Long = when {
+            (current > now) == muted -> current
+            muted -> Long.MAX_VALUE
+            else -> 0L
+        }
 
         /**
          * The checks that must pass before anything is sent.
@@ -295,13 +324,13 @@ internal class SignalStorageWriter(
          * on the decoded message, so re-encoding carries them back out untouched. Building a
          * fresh record from the fields below would drop everything a newer client wrote.
          */
-        internal fun amend(raw: ByteArray, desired: Desired): ByteArray {
+        internal fun amend(raw: ByteArray, desired: Desired, now: Long): ByteArray {
             val record = StorageRecord.ADAPTER.decode(raw)
             record.contact?.let { contact ->
                 return record.copy(
                     contact = contact.copy(
-                        blocked = desired.blocked,
-                        mutedUntilTimestamp = desired.mutedUntil,
+                        blocked = desired.blocked ?: contact.blocked,
+                        mutedUntilTimestamp = mutedUntilFor(contact.mutedUntilTimestamp, desired.muted, now),
                         archived = desired.archived
                     )
                 ).encode()
@@ -309,8 +338,8 @@ internal class SignalStorageWriter(
             record.groupV2?.let { group ->
                 return record.copy(
                     groupV2 = group.copy(
-                        blocked = desired.blocked,
-                        mutedUntilTimestamp = desired.mutedUntil,
+                        blocked = desired.blocked ?: group.blocked,
+                        mutedUntilTimestamp = mutedUntilFor(group.mutedUntilTimestamp, desired.muted, now),
                         archived = desired.archived
                     )
                 ).encode()

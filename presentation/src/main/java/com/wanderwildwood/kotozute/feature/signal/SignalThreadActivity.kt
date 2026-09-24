@@ -311,6 +311,7 @@ class SignalThreadActivity : QkThemedActivity() {
             if (recording) stopRecording() else askForMicThenRecord()
         }
         binding.pending.setOnClickListener { clearAttachment() }
+        binding.replying.setOnClickListener { clearReply() }
 
         // ⚠ The layout hides the cursor and nothing here ever showed it again, so on this
         // rail there was never a cursor at all.
@@ -587,6 +588,66 @@ class SignalThreadActivity : QkThemedActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Who wrote a quoted message and a line of what it said, for the quote above a reply and
+     * the "Replying to" line over the composer -- one function so the two never disagree.
+     */
+    private fun quoteParts(original: SignalMessage): Pair<String, String> {
+        // senderNames is only filled for groups -- in a one-to-one thread the name is
+        // already at the top of the screen. Without this fallback the quote line named the
+        // other person by a slice of their uuid.
+        val who = when {
+            original.outgoing -> getString(R.string.signal_quote_you)
+            else -> senderNames[original.senderUuid]
+                ?: binding.toolbarTitle.text?.toString()?.takeIf { it.isNotBlank() }
+                ?: original.senderNumber.ifBlank { original.senderUuid.take(8) }
+        }
+        val snippet = original.body.replace("\n", " ").trim().ifEmpty {
+            getString(R.string.signal_quote_no_text)
+        }
+        return who to snippet
+    }
+
+    /**
+     * Brings a message to the top of the screen, for a tap on a quote of it.
+     *
+     * A filtered list may not hold it, so the filter is left first -- a tap that did nothing
+     * because the answer was hidden by a search would read as a broken link.
+     */
+    private fun jumpTo(date: Long) {
+        var position = adapter.positionOf(date)
+        if (position < 0 && binding.searchBar.visibility == View.VISIBLE) {
+            closeSearch()
+            position = adapter.positionOf(date)
+        }
+        if (position < 0) return
+        (binding.recyclerView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager)
+            ?.scrollToPositionWithOffset(position, 0)
+            ?: binding.recyclerView.scrollToPosition(position)
+    }
+
+    /**
+     * The sent timestamp of the message the next send replies to, or 0.
+     *
+     * Kept until a send succeeds, not cleared as it starts, so a send refused over a changed
+     * safety number and then resent still goes as the reply it was written as.
+     */
+    private var replyingTo = 0L
+
+    private fun startReply(sentAt: Long) {
+        val original = messages?.firstOrNull { it.date == sentAt } ?: return
+        val (who, snippet) = quoteParts(original)
+        replyingTo = sentAt
+        binding.replying.text = getString(R.string.signal_replying, who, snippet)
+        binding.replying.setVisible(true)
+        binding.message.requestFocus()
+    }
+
+    private fun clearReply() {
+        replyingTo = 0L
+        binding.replying.setVisible(false)
     }
 
     /**
@@ -953,9 +1014,10 @@ class SignalThreadActivity : QkThemedActivity() {
         val attachment = pendingAttachment
         if (body.isEmpty() && attachment == null) return
         binding.send.isEnabled = false
+        val quoteTs = replyingTo
         thread(isDaemon = true) {
             val result = runCatching {
-                signalRepo.send(threadKey, body, listOfNotNull(attachment))
+                signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs)
             }
             runOnUiThread {
                 binding.send.isEnabled = true
@@ -963,6 +1025,7 @@ class SignalThreadActivity : QkThemedActivity() {
                     .onSuccess {
                         binding.message.setText("")
                         clearAttachment()
+                        clearReply()
                     }
                     .onFailure { failure ->
                         // The message stays in the box either way, so nothing typed is lost.
@@ -975,6 +1038,7 @@ class SignalThreadActivity : QkThemedActivity() {
                             // for the same reason a successful send clears it.
                             binding.message.setText("")
                             clearAttachment()
+                            clearReply()
                             Toast.makeText(
                                 this,
                                 getString(R.string.signal_sent_but_not_filed),
@@ -1190,8 +1254,9 @@ class SignalThreadActivity : QkThemedActivity() {
         binding.send.isEnabled = false
         thread(isDaemon = true) {
             val accepted = runCatching { signalRepo.acceptIdentity(threadKey) }.getOrDefault(false)
+            val quoteTs = replyingTo
             val result = if (accepted) {
-                runCatching { signalRepo.send(threadKey, body, listOfNotNull(attachment)) }
+                runCatching { signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs) }
             } else {
                 Result.failure(IllegalStateException(getString(R.string.signal_safety_accept_failed)))
             }
@@ -1202,6 +1267,7 @@ class SignalThreadActivity : QkThemedActivity() {
                     .onSuccess {
                         binding.message.setText("")
                         clearAttachment()
+                        clearReply()
                     }
                     .onFailure {
                         // ⚠ The composer is deliberately **not** cleared here -- clearing is
@@ -1235,6 +1301,7 @@ class SignalThreadActivity : QkThemedActivity() {
         armed: Boolean = false
     ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
+        actions += getString(R.string.signal_reply) to { startReply(sentAt) }
         actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
         // Only where there is something to act on; see [downloadableAttachment].
         attachment?.let { saved ->
@@ -1548,6 +1615,9 @@ class SignalThreadActivity : QkThemedActivity() {
 
         fun matchCount(): Int = if (filter.isEmpty()) 0 else items.size
 
+        /** Where the message sent at [date] is on screen, or -1 when it is not. */
+        fun positionOf(date: Long): Int = items.indexOfFirst { it.date == date }
+
         private fun applyFilter() {
             items = if (filter.isEmpty()) all
             else all.filter { it.body.contains(filter, ignoreCase = true) }
@@ -1743,22 +1813,12 @@ class SignalThreadActivity : QkThemedActivity() {
             val original = messages?.firstOrNull { it.date == m.quoteTs }
             b.quote.text = when {
                 original == null -> getString(R.string.signal_quote_missing)
-                else -> {
-                    // senderNames is only filled for groups -- in a one-to-one thread the
-                    // name is already at the top of the screen. Without this fallback the
-                    // quote line named the other person by a slice of their uuid.
-                    val who = when {
-                        original.outgoing -> getString(R.string.signal_quote_you)
-                        else -> senderNames[original.senderUuid]
-                            ?: binding.toolbarTitle.text?.toString()?.takeIf { it.isNotBlank() }
-                            ?: original.senderNumber.ifBlank { original.senderUuid.take(8) }
-                    }
-                    val snippet = original.body.replace("\n", " ").trim().ifEmpty {
-                        getString(R.string.signal_quote_no_text)
-                    }
+                else -> quoteParts(original).let { (who, snippet) ->
                     getString(R.string.signal_quote, who, snippet)
                 }
             }
+            // A tap goes to what it answers, as in Signal. Only when that is here to go to.
+            b.quote.setOnClickListener(original?.let { o -> View.OnClickListener { jumpTo(o.date) } })
             b.quote.setVisible(true)
         }
 

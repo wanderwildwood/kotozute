@@ -299,8 +299,19 @@ interface SignalRepository {
     fun startStream()
     fun stopStream()
 
-    /** [attachments] are RFC 2397 data URIs. Returns the Signal timestamp. */
-    fun send(threadKey: String, body: String, attachments: List<String> = emptyList()): Long
+    /**
+     * [attachments] are RFC 2397 data URIs. Returns the Signal timestamp.
+     *
+     * [quoteTs] is the sent timestamp of a message in this thread being replied to, or 0.
+     * Signal names a quoted message by that timestamp and its author; the author, text and
+     * attachment are looked up here, so a caller only has to say which message.
+     */
+    fun send(
+        threadKey: String,
+        body: String,
+        attachments: List<String> = emptyList(),
+        quoteTs: Long = 0L
+    ): Long
 
     fun markRead(threadKey: String, upToTs: Long)
 

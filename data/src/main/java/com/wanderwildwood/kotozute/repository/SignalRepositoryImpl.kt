@@ -1146,8 +1146,13 @@ class SignalRepositoryImpl @Inject constructor(
      * produce this row. The bridge this replaced got away without it, because it stored the
      * message on its own side and the phone read it back on the next sync.
      */
-    private fun sendDirect(threadKey: String, body: String, attachments: List<String>): Long {
-        if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments)
+    private fun sendDirect(
+        threadKey: String,
+        body: String,
+        attachments: List<String>,
+        quote: com.wanderwildwood.kotozute.signalstore.SignalQuote? = null
+    ): Long {
+        if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments, quote)
         if (!threadKey.startsWith("direct:")) {
             throw IllegalStateException("cannot send to $threadKey")
         }
@@ -1164,7 +1169,7 @@ class SignalRepositoryImpl @Inject constructor(
         // The conversation's timer goes with it. Not sending one is not neutral: it reads as
         // a timer of zero and switches the other person's disappearing conversation off.
         val (expiresIn, timerVersion) = timerFor(threadKey)
-        val timestamp = signalStore.send(recipient, body, attachments, expiresIn, timerVersion)
+        val timestamp = signalStore.send(recipient, body, attachments, expiresIn, timerVersion, quote)
 
         val selfAci = signalStore.selfAciOrNull().orEmpty()
         val row =
@@ -1180,7 +1185,7 @@ class SignalRepositoryImpl @Inject constructor(
                 outgoing = true,
                 body = body,
                 groupId = "",
-                quoteTs = 0,
+                quoteTs = quote?.sentAt ?: 0L,
                 read = true,
                 source = "live",
                 // What we sent, so the row can draw it. Marked not pending: unlike a
@@ -1214,7 +1219,12 @@ class SignalRepositoryImpl @Inject constructor(
      * about the group with, so a thread that has neither cannot be sent to -- which is
      * reported rather than guessed around.
      */
-    private fun sendDirectToGroup(threadKey: String, body: String, attachments: List<String>): Long {
+    private fun sendDirectToGroup(
+        threadKey: String,
+        body: String,
+        attachments: List<String>,
+        quote: com.wanderwildwood.kotozute.signalstore.SignalQuote? = null
+    ): Long {
         if (attachments.isNotEmpty()) {
             throw com.wanderwildwood.kotozute.repository.SendRefused(
                 com.wanderwildwood.kotozute.repository.SendFailure.AttachmentsToGroup
@@ -1227,7 +1237,7 @@ class SignalRepositoryImpl @Inject constructor(
         )
 
         val (expiresIn, timerVersion) = timerFor(threadKey)
-        val timestamp = signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion)
+        val timestamp = signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion, quote)
         val selfAci = signalStore.selfAciOrNull().orEmpty()
         val row =
             com.wanderwildwood.kotozute.signal.BridgeMessage(
@@ -1239,7 +1249,7 @@ class SignalRepositoryImpl @Inject constructor(
                 outgoing = true,
                 body = body,
                 groupId = threadKey.removePrefix("group:"),
-                quoteTs = 0,
+                quoteTs = quote?.sentAt ?: 0L,
                 read = true,
                 source = "live",
                 attachmentsJson = "",
@@ -2007,8 +2017,38 @@ class SignalRepositoryImpl @Inject constructor(
         msgs.filter { !it.outgoing }.forEach { incoming.onNext(detached(it)) }
     }
 
-    override fun send(threadKey: String, body: String, attachments: List<String>): Long =
-        sendDirect(threadKey, body, attachments)
+    override fun send(threadKey: String, body: String, attachments: List<String>, quoteTs: Long): Long =
+        sendDirect(threadKey, body, attachments, quoteFor(threadKey, quoteTs))
+
+    /**
+     * The message being replied to, read off this thread.
+     *
+     * Null when there is nothing to quote, or when the message is not here or its author is
+     * not known -- the reply then goes as an ordinary message, as upstream's `getQuoteFor`
+     * does when it cannot name an author.
+     */
+    private fun quoteFor(threadKey: String, quoteTs: Long): com.wanderwildwood.kotozute.signalstore.SignalQuote? {
+        if (quoteTs == 0L) return null
+        val selfAci = signalStore.selfAciOrNull().orEmpty()
+        return Realm.getDefaultInstance().use { realm ->
+            val original = realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .equalTo("date", quoteTs)
+                .findFirst()
+                ?: return@use null
+            val author = if (original.outgoing) selfAci else original.senderUuid
+            if (author.isBlank()) return@use null
+            // One attachment at most, as upstream quotes one.
+            val first = runCatching { org.json.JSONArray(original.attachments).optJSONObject(0) }.getOrNull()
+            com.wanderwildwood.kotozute.signalstore.SignalQuote(
+                sentAt = original.date,
+                author = author,
+                text = original.body,
+                attachmentType = first?.optString("type"),
+                attachmentName = first?.optString("filename")
+            )
+        }
+    }
 
     /**
      * Takes the account's own settings from its primary.

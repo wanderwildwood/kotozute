@@ -385,7 +385,8 @@ class SignalStore(private val context: Context) {
         masterKey: ByteArray,
         body: String,
         expiresInSeconds: Int = 0,
-        expireTimerVersion: Int = 0
+        expireTimerVersion: Int = 0,
+        quote: SignalQuote? = null
     ): Long {
         connection.connect()
         // ⚠ Which kind of "no" matters. Being removed from a group is permanent and there is
@@ -414,7 +415,7 @@ class SignalStore(private val context: Context) {
             val r = SignalSender(
                 SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
-            ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion, group.revision)
+            ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion, group.revision, quote)
         ) {
             is SignalSender.Result.Sent -> r.timestamp
             is SignalSender.Result.Failed -> throw SendRefused(r.failure)
@@ -1274,7 +1275,8 @@ class SignalStore(private val context: Context) {
         body: String,
         attachments: List<String> = emptyList(),
         expiresInSeconds: Int = 0,
-        expireTimerVersion: Int = 0
+        expireTimerVersion: Int = 0,
+        quote: SignalQuote? = null
     ): Long {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
             ?: throw IllegalStateException("not a service id: $recipient")
@@ -1282,7 +1284,7 @@ class SignalStore(private val context: Context) {
         return try {
             when (val result = SignalSender(
                 SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection, contacts
-            ).send(serviceId, body, attachments, expiresInSeconds, expireTimerVersion)) {
+            ).send(serviceId, body, attachments, expiresInSeconds, expireTimerVersion, quote)) {
                 is SignalSender.Result.Sent -> result.timestamp
                 // Typed, so the screen can offer "Send anyway" rather than reprint the
                 // reason. See [SafetyNumberChanged].

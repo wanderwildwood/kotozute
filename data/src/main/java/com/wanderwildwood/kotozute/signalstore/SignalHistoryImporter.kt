@@ -284,6 +284,7 @@ internal class SignalHistoryImporter(
                                 // `Backup.proto:803-804` has `FilePointer pointer = 1` and
                                 // `Flag flag = 2` as siblings.
                                 .put("voice", isVoiceMessageFlag(entry.opt("flag")))
+                                .put("gif", isGifFlag(entry.opt("flag")))
                                 .put("pending", id == null)
                         )
                         if (id == null) lost++ else kept++
@@ -404,6 +405,22 @@ internal class SignalHistoryImporter(
 
         /** `Backup.proto` `MessageAttachment.Flag.VOICE_MESSAGE`. See [isVoiceMessageFlag]. */
         internal const val BACKUP_FLAG_VOICE_MESSAGE = 1
+
+        /**
+         * Whether an exported attachment's `flag` says it is a GIF.
+         *
+         * ⛔ **3**, not the wire's 8 -- the same trap as [isVoiceMessageFlag], and the same
+         * equality test for the same reason.
+         */
+        internal fun isGifFlag(flag: Any?): Boolean = when (flag) {
+            null, JSONObject.NULL -> false
+            is Number -> flag.toInt() == BACKUP_FLAG_GIF
+            is String -> flag == "GIF" || flag.toIntOrNull() == BACKUP_FLAG_GIF
+            else -> false
+        }
+
+        /** `Backup.proto` `MessageAttachment.Flag.GIF`. See [isGifFlag]. */
+        internal const val BACKUP_FLAG_GIF = 3
 
         /** Rows per transaction: enough to be worth a write, small enough to report progress. */
         private const val BATCH = 200

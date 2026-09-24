@@ -2385,6 +2385,7 @@ internal class SignalReceiver(
                 // message, and a voice note that is one of them and not the other would play
                 // or not depending on which path filed it.
                 .put("voice", ContentNormalizer.isVoiceNote(pointer.flags))
+                .put("gif", ContentNormalizer.isGif(pointer.flags))
                 .put("pending", id == null)
             // ⚠ **The pointer is kept when the download failed, and only then.** Three
             // immediate attempts cover a dropped socket; they do not cover a phone with no

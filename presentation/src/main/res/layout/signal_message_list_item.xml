@@ -50,19 +50,37 @@
         the cap past that would need the decode bound raised with it.
 
         Tapping still opens the full picture; this is only what it looks like in the thread.
+
+        A GIF is drawn here too, as its first frame, and plays once in place when tapped,
+        never on its own and never in a loop. One sent from Signal's keyboard is a short
+        MP4, which needs a surface to play on: `gifPlayer`, laid over the still and the same
+        size, shown only while it plays. Its first frame arrives over a still that is
+        already there, so there is no blank moment between the two.
     -->
-    <ImageView
-        android:id="@+id/image"
+    <FrameLayout
+        android:id="@+id/imageFrame"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="2dp"
-        android:adjustViewBounds="true"
-        android:contentDescription="@string/signal_attachment_image"
-        android:visibility="gone"
-        android:minWidth="150dp"
-        android:minHeight="100dp"
-        android:maxWidth="240dp"
-        android:maxHeight="320dp" />
+        android:layout_marginBottom="2dp">
+
+        <ImageView
+            android:id="@+id/image"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:adjustViewBounds="true"
+            android:contentDescription="@string/signal_attachment_image"
+            android:visibility="gone"
+            android:minWidth="150dp"
+            android:minHeight="100dp"
+            android:maxWidth="240dp"
+            android:maxHeight="320dp" />
+
+        <TextureView
+            android:id="@+id/gifPlayer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <!-- Several attachments on one message: an album. Only the first used to be drawn, so a
          message of four photos showed one. Two across, filled in code from

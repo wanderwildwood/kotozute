@@ -250,8 +250,11 @@ internal class SignalHistoryExporter(
                  * importer draws it as one that was not downloaded -- which is true and
                  * useful, where "attachment, not downloaded" loses what it was.
                  */
-                val flag: String? =
-                    if (entry.optBoolean("voice")) BACKUP_FLAG_VOICE_MESSAGE else null
+                val flag: String? = when {
+                    entry.optBoolean("voice") -> BACKUP_FLAG_VOICE_MESSAGE
+                    entry.optBoolean("gif") -> BACKUP_FLAG_GIF
+                    else -> null
+                }
                 fun attachmentEntry() = JSONObject()
                     .put("pointer", pointer)
                     .also { if (flag != null) it.put("flag", flag) }
@@ -337,6 +340,9 @@ internal class SignalHistoryExporter(
          * of a number being read against the wrong table.
          */
         internal const val BACKUP_FLAG_VOICE_MESSAGE = "VOICE_MESSAGE"
+
+        /** `Backup.proto` `MessageAttachment.Flag.GIF`, by name for the same reason. */
+        internal const val BACKUP_FLAG_GIF = "GIF"
 
         private const val SELF_ID = "1"
         private const val PROGRESS_EVERY = 200

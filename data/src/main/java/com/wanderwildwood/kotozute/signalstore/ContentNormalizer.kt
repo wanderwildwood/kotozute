@@ -41,6 +41,9 @@ internal object ContentNormalizer {
      */
     private const val VOICE_MESSAGE_FLAG = 1
 
+    /** `AttachmentPointer.Flags.GIF`. See [isGif]. */
+    private const val GIF_FLAG = 8
+
     /**
      * Exposed for the self-check. The derivation is the part worth pinning: it is a pure
      * function of the master key, and getting it wrong produces a stable, plausible, wrong
@@ -631,6 +634,17 @@ internal object ContentNormalizer {
         ((flags ?: 0) and VOICE_MESSAGE_FLAG) != 0
 
     /**
+     * Whether the sender marked this attachment as a GIF.
+     *
+     * ⚠ Signal's GIFs are rarely `image/gif`. What its keyboard sends is a short silent
+     * **MP4** with this flag set, which upstream plays looping in the bubble; without the
+     * flag it is indistinguishable from a video. Masked, as upstream does at
+     * `AttachmentPointerUtil:42`.
+     */
+    internal fun isGif(flags: Int?): Boolean =
+        ((flags ?: 0) and GIF_FLAG) != 0
+
+    /**
      * Attachment *metadata* only, and only as a floor.
      *
      * ⚠ Not the last word on an attachment. `SignalReceiver.withAttachments` runs after this
@@ -661,6 +675,7 @@ internal object ContentNormalizer {
                     // `AttachmentPointerUtil:40`. Reading it as `flags == 1` would drop the
                     // flag on any client that also set another one.
                     .put("voice", isVoiceNote(pointer.flags))
+                    .put("gif", isGif(pointer.flags))
                     // Not fetched. The UI can draw a row that says so rather than pretending.
                     .put("pending", true)
             )

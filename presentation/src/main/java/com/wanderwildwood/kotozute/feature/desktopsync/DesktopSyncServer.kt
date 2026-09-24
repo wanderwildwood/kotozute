@@ -1936,7 +1936,9 @@ class DesktopSyncServer(
                 encoded += uri
             }
             return try {
-                signalRepository.send(thread.threadKey, body, encoded)
+                // The phone resolves the quote from its own copy of the thread, as it does for
+                // a reply written on the phone -- the browser only says which message.
+                signalRepository.send(thread.threadKey, body, encoded, submission.quoteTs)
                 notifyChanged()
                 jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
             } catch (changed: SafetyNumberChanged) {
@@ -2003,7 +2005,9 @@ class DesktopSyncServer(
         /** The SIM the browser picked, or NO_SUB_ID to let the phone work it out. */
         val subId: Int = NO_SUB_ID,
         /** When to send it, or 0 for now. Epoch milliseconds, the phone's own clock. */
-        val at: Long = 0
+        val at: Long = 0,
+        /** The sent timestamp of the Signal message this replies to, or 0. */
+        val quoteTs: Long = 0
     )
 
     /**
@@ -2070,7 +2074,8 @@ class DesktopSyncServer(
                 json.optString("body"), json.optString("to"), emptyList(),
                 // A string either way, so the JSON and multipart bodies carry it identically.
                 subId = json.optString("subId").toIntOrNull() ?: NO_SUB_ID,
-                at = json.optString("at").toLongOrNull() ?: 0
+                at = json.optString("at").toLongOrNull() ?: 0,
+                quoteTs = json.optString("quoteTs").toLongOrNull() ?: 0
             )
         }
 
@@ -2089,7 +2094,8 @@ class DesktopSyncServer(
             attachments = uploads.filterNotNull(),
             rejected = uploads.count { it == null },
             subId = multipartText(session, "subId").toIntOrNull() ?: NO_SUB_ID,
-            at = multipartText(session, "at").toLongOrNull() ?: 0
+            at = multipartText(session, "at").toLongOrNull() ?: 0,
+            quoteTs = multipartText(session, "quoteTs").toLongOrNull() ?: 0
         )
     }
 

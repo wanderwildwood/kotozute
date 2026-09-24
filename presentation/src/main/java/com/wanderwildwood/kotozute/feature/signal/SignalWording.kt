@@ -183,8 +183,13 @@ object SignalWording {
             ?: Words.Res(R.string.signal_register_code_refused)
         SignalRepository.RegistrationFailure.NoKeyMaterial ->
             Words.Res(R.string.signal_register_no_key_material)
-        is SignalRepository.RegistrationFailure.Locked ->
-            Words.Res(R.string.signal_register_locked, listOf("${failure.days}"))
+        // Singular and plural as their own sentences, as the retry wording does, rather
+        // than "day(s)".
+        is SignalRepository.RegistrationFailure.Locked -> when {
+            failure.days <= 0 -> Words.Res(R.string.signal_register_locked)
+            failure.days == 1L -> Words.Res(R.string.signal_register_locked_day)
+            else -> Words.Res(R.string.signal_register_locked_days, listOf("${failure.days}"))
+        }
         is SignalRepository.RegistrationFailure.Refused ->
             Words.Res(R.string.signal_register_refused, listOf(failure.detail))
         SignalRepository.RegistrationFailure.Unexpected -> Words.Res(R.string.signal_register_unexpected)

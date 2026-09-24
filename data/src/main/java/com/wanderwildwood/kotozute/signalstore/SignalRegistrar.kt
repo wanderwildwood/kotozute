@@ -373,7 +373,10 @@ class SignalRegistrar internal constructor(
             is org.signal.libsignal.net.RequestResult.NonSuccess -> {
                 val error = result.error
                 if (error is org.signal.network.api.RegistrationApiV2.RegisterAccountError.RegistrationLock) {
-                    val days = TimeUnit.MILLISECONDS.toDays(error.data.timeRemaining)
+                    // Rounded up: truncated, six days and twenty hours read as "6", and a
+                    // lock with hours left read as "0 days".
+                    val day = TimeUnit.DAYS.toMillis(1)
+                    val days = (error.data.timeRemaining + day - 1) / day
                     Step.Failed(RegistrationFailure.Locked(days))
                 } else {
                     Step.Failed(RegistrationFailure.Refused("$result"))

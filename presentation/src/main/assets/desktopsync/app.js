@@ -2729,11 +2729,10 @@ async function refreshSignalSetup() {
   }
 }
 
-
-signalPayloadEl.addEventListener('keydown', e => {
-  if (e.key === 'Enter') signalPairBtnEl.click();
-});
-
+// ⚠ A listener for the bridge's pairing field sat here after the field itself went with
+// the bridge (db2bad263). The name no longer existed, so the script threw at this line on
+// every load -- and everything after it never ran, which included asking a browser with no
+// token for the pairing code. Desktop Sync could only be opened by its full link.
 refreshSignalSetup();
 
 /*

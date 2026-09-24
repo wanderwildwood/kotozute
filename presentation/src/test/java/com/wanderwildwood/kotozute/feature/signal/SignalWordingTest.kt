@@ -240,10 +240,21 @@ class SignalWordingTest {
             say(RegistrationFailure.NoKeyMaterial)
         )
         assertEquals(
-            "This number has a registration lock. Its PIN is needed to register it here, and " +
-                "this app cannot use one yet -- the lock has about 6 day(s) left to run. Link " +
-                "this phone to the account instead.",
+            "This number has a registration lock, with about 6 days left to run. Its PIN is " +
+                "needed to register it here, and this app cannot use one yet. Link this phone " +
+                "to the account instead.",
             say(RegistrationFailure.Locked(6))
+        )
+        assertEquals(
+            "This number has a registration lock, with about a day left to run. Its PIN is " +
+                "needed to register it here, and this app cannot use one yet. Link this phone " +
+                "to the account instead.",
+            say(RegistrationFailure.Locked(1))
+        )
+        assertEquals(
+            "This number has a registration lock. Its PIN is needed to register it here, and " +
+                "this app cannot use one yet. Link this phone to the account instead.",
+            say(RegistrationFailure.Locked(0))
         )
         assertEquals("registration refused: E", say(RegistrationFailure.Refused("E")))
         assertEquals("unexpected registration state", say(RegistrationFailure.Unexpected))
@@ -253,7 +264,7 @@ class SignalWordingTest {
     @Test
     fun `every way linking fails`() {
         fun say(failure: LinkFailure) = English.of(SignalWording.link(failure))
-        assertEquals("nobody scanned the code in time -- ask for a new one", say(LinkFailure.NotScanned))
+        assertEquals("nobody scanned the code in time; ask for a new one", say(LinkFailure.NotScanned))
         assertEquals("the provisioning message could not be decrypted", say(LinkFailure.Undecryptable))
         assertEquals("no provisioning code in the message", say(LinkFailure.NoProvisioningCode))
         assertEquals("registration refused: E", say(LinkFailure.Refused("E")))

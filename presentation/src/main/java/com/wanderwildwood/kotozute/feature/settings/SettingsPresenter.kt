@@ -89,6 +89,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.signalReadReceipts.asObservable()
                 .subscribe { on -> newState { copy(signalReadReceipts = on) } }
 
+        disposables += prefs.signalStorageWrite.asObservable()
+                .subscribe { on -> newState { copy(signalShareState = on) } }
+
         disposables += prefs.signalKeepConnected.asObservable()
                 .subscribe { on -> newState { copy(signalKeepConnected = on) } }
 
@@ -301,6 +304,9 @@ class SettingsPresenter @Inject constructor(
                         // The service is started and stopped from here rather than by
                         // watching the preference, so the thing that flips the switch is the
                         // thing that acts on it and there is no second source of truth.
+                        R.id.signalShareState ->
+                            prefs.signalStorageWrite.set(!prefs.signalStorageWrite.get())
+
                         R.id.signalKeepConnected -> {
                             val on = !prefs.signalKeepConnected.get()
                             prefs.signalKeepConnected.set(on)

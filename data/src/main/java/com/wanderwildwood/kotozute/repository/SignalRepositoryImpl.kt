@@ -156,6 +156,8 @@ class SignalRepositoryImpl @Inject constructor(
         signalStore.onPrimaryIdle = ::notePrimaryIdle
         signalStore.onConnecting = ::noteConnecting
         signalStore.onConversationState = ::applyConversationState
+        signalStore.storageWriteEnabled = { prefs.signalStorageWrite.get() }
+        signalStore.storageDesired = ::desiredStorageState
     }
 
     /**
@@ -3661,6 +3663,37 @@ class SignalRepositoryImpl @Inject constructor(
     override fun setMuted(threadKey: String, muted: Boolean) = runOffThread {
         editThread(threadKey) { it.muted = muted }
         markNeedsSync(threadKey)
+        pushStorageNow()
+    }
+
+    /**
+     * What a marked conversation should say in the account's records: this phone's archive
+     * and mute. Null, and the row is left alone, when the conversation is not on this phone.
+     */
+    private fun desiredStorageState(
+        row: com.wanderwildwood.kotozute.signalstore.SignalContactStore.Pending
+    ): com.wanderwildwood.kotozute.signalstore.SignalStorageWriter.Desired? {
+        val threadKey = row.groupId?.let { "group:$it" } ?: row.serviceId?.let { "direct:$it" } ?: return null
+        return Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java).equalTo("threadKey", threadKey).findFirst()?.let {
+                com.wanderwildwood.kotozute.signalstore.SignalStorageWriter.Desired(
+                    muted = it.muted,
+                    archived = it.archived
+                )
+            }
+        }
+    }
+
+    /**
+     * Sends a change made here to the account straight away, as upstream schedules a
+     * `StorageSyncJob` on every archive and mute. Only when sharing is on; otherwise the mark
+     * waits, and goes up with the first read after it is turned on.
+     */
+    private fun pushStorageNow() {
+        if (!prefs.signalStorageWrite.get()) return
+        if (!runCatching { signalStore.storageKeyKnown() }.getOrDefault(false)) return
+        runCatching { signalStore.readStorage() }
+            .onFailure { Timber.w(it, "signal storage: could not send a change; the next read sends it") }
     }
 
     override fun markUnread(threadKey: String) = runOffThread {
@@ -3806,6 +3839,7 @@ class SignalRepositoryImpl @Inject constructor(
                     }
             }
         }
+        pushStorageNow()
     }
 
     override fun getThreadsSnapshot(archived: Boolean): List<SignalThread> =

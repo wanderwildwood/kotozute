@@ -344,6 +344,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalOpensFirst.checkbox.isChecked = state.signalOpensFirst
         binding.signalReceipts.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalReceipts.checkbox.isChecked = state.signalReadReceipts
+        binding.signalShareState.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalShareState.checkbox.isChecked = state.signalShareState
         binding.signalStatus.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalStatus.summary = state.signalStatusSummary
 

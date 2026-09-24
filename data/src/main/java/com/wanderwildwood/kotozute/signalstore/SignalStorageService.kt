@@ -293,6 +293,15 @@ internal class SignalStorageService(
                 record.groupV2?.let { group ->
                     groupsSeen++
                     groupIdOf(group.masterKey?.toByteArray())?.let { groupId ->
+                        // Kept whole, as a contact's is, so a write can amend it. See
+                        // [SignalContactStore.storeGroupRecord].
+                        runCatching {
+                            contacts.storeGroupRecord(
+                                android.util.Base64.encodeToString(groupId, android.util.Base64.NO_WRAP),
+                                record.encode(),
+                                android.util.Base64.encodeToString(id, android.util.Base64.NO_WRAP)
+                            )
+                        }.onFailure { Timber.w(it, "signal storage: a group record would not keep; the next read offers it again") }
                         if (group.blocked) blockedGroups += groupId
                         conversations += ConversationState(
                             threadKey = "group:" + android.util.Base64.encodeToString(

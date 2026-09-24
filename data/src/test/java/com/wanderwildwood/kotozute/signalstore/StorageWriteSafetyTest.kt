@@ -57,7 +57,8 @@ class StorageWriteSafetyTest {
 
         val amended = SignalStorageWriter.amend(
             withUnknown,
-            SignalStorageWriter.Desired(blocked = true, mutedUntil = 0L, archived = false)
+            SignalStorageWriter.Desired(muted = false, archived = false, blocked = true),
+            now = 1_000L
         )
 
         // The decision was applied...
@@ -112,5 +113,45 @@ class StorageWriteSafetyTest {
         val inserted = listOf(id(9))
         val after = listOf(id(9), id(9))
         assertNotNull(SignalStorageWriter.validate(before, after, inserted, setOf(key(id(1)))))
+    }
+
+    // --- what a write carries for mute and block ----------------------------------------------
+
+    private val now = 1_000_000L
+
+    @Test
+    fun `a timed mute the account holds survives when this phone still calls it muted`() {
+        val eightHours = now + 8 * 3_600_000L
+        assertEquals(eightHours, SignalStorageWriter.mutedUntilFor(eightHours, muted = true, now = now))
+    }
+
+    @Test
+    fun `muting here writes for ever, and unmuting writes zero`() {
+        assertEquals(Long.MAX_VALUE, SignalStorageWriter.mutedUntilFor(0L, muted = true, now = now))
+        assertEquals(0L, SignalStorageWriter.mutedUntilFor(Long.MAX_VALUE, muted = false, now = now))
+    }
+
+    @Test
+    fun `a mute that has run out is left as it is when this phone says not muted`() {
+        val expired = now - 1
+        assertEquals(expired, SignalStorageWriter.mutedUntilFor(expired, muted = false, now = now))
+    }
+
+    @Test
+    fun `an unset block keeps the account's, and archive is what this phone says`() {
+        val raw = StorageRecord(contact = ContactRecord(e164 = "+15555550100", blocked = true)).encode()
+        val out = StorageRecord.ADAPTER.decode(
+            SignalStorageWriter.amend(raw, SignalStorageWriter.Desired(muted = false, archived = true), now)
+        ).contact!!
+        assertTrue("the account's block was overwritten", out.blocked)
+        assertTrue(out.archived)
+    }
+
+    /** The control for the one above: the same record, nothing changed, decodes equal. */
+    @Test
+    fun `asking for what the account already holds changes nothing`() {
+        val raw = StorageRecord(contact = ContactRecord(e164 = "+15555550100", archived = true)).encode()
+        val amended = SignalStorageWriter.amend(raw, SignalStorageWriter.Desired(muted = false, archived = true), now)
+        assertEquals(StorageRecord.ADAPTER.decode(raw), StorageRecord.ADAPTER.decode(amended))
     }
 }

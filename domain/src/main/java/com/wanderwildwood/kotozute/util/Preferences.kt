@@ -243,18 +243,15 @@ class Preferences @Inject constructor(
     val signalPreKeysOwed = rxPrefs.getBoolean("signalPreKeysOwed", false)
 
     /**
-     * Whether this device may **write** to the account's storage service.
+     * Whether archiving or muting a Signal conversation here is written to the account's
+     * storage service, so the account's other devices do the same ("Archive and mute
+     * everywhere" in Signal settings).
      *
-     * ⛔ **Off, and it must stay off until somebody turns it on deliberately against an
-     * account they are watching.** `docs/DECISION-storage-write.md` asks for exactly this, and
-     * the reason is not caution for its own sake: a manifest is applied by *every* device on
-     * the account, so a write that is wrong damages other clients' data rather than this
-     * phone's.
-     *
-     * ⚠ It cannot be exercised on the only account available to test with. A freshly
-     * registered primary has no manifest, no records and one device, so it can show neither a
-     * diff, nor a conflict, nor two devices disagreeing. Until it has been run somewhere that
-     * can show those, this flag being false is the feature working as intended.
+     * Off by default for now. First exercised 2026-09-24 against a live account (signal-cli
+     * primary + this phone): an old mark that already matched was cleared without a write,
+     * then an archive and an unarchive each went up (manifest 1229 -> 1230 -> 1231) and read
+     * back whole -- six of six records, nothing marked afterwards, no second write. See
+     * `docs/DECISION-storage-write.md`.
      */
     val signalStorageWrite = rxPrefs.getBoolean("signalStorageWrite", false)
 

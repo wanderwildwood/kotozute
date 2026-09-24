@@ -1110,6 +1110,54 @@ internal class SignalContactStore(
     }
 
     /**
+     * Records that a marked row went up: the id it went up under is now the account's, the
+     * record it went up as is what the account holds, and the mark is cleared.
+     *
+     * ⚠ Matched on the id that was sent, not on the person. A row changed again while the
+     * write was in flight has been rotated to a newer id, so this matches nothing and the row
+     * stays marked for the next pass -- which is right: that change has not gone up yet.
+     */
+    fun markPushed(storageId: String, record: ByteArray) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            """
+            UPDATE recipient SET remote_storage_id = storage_id, storage_record = ?, storage_id = NULL
+            WHERE storage_id = ?
+            """.trimIndent(),
+            arrayOf<Any?>(record, storageId)
+        )
+    }
+
+    /** Clears marks whose change the account already holds; see [markPushed] for the match. */
+    fun clearMarks(storageIds: List<String>) = withStoreLock(db) {
+        storageIds.forEach { id ->
+            db.writableDatabase.execSQL(
+                "UPDATE recipient SET storage_id = NULL WHERE storage_id = ?",
+                arrayOf<Any?>(id)
+            )
+        }
+    }
+
+    /**
+     * Keeps a group's record as the account holds it, and the id it is filed under.
+     *
+     * The contact half has done this since schema v34/v35; groups never did, so a write had
+     * no record to amend for a muted or archived group and skipped it. The row is created if
+     * this is the first thing known about the group, and its own mark is left alone.
+     */
+    fun storeGroupRecord(groupId: String, record: ByteArray, remoteStorageId: String) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            """
+            INSERT INTO recipient (group_id, storage_record, remote_storage_id, updated_timestamp)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(group_id) DO UPDATE SET
+              storage_record = excluded.storage_record,
+              remote_storage_id = excluded.remote_storage_id
+            """.trimIndent(),
+            arrayOf<Any?>(groupId, record, remoteStorageId, System.currentTimeMillis())
+        )
+    }
+
+    /**
      * Records whether the account shares its profile with somebody.
      *
      * ContactRecord's `whitelisted`, and the thing Signal's `PushSendJob.getProfileKey` tests

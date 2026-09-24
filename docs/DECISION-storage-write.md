@@ -255,3 +255,43 @@ and an order-sensitive hash would make the same payload look new every time, def
 content bucket entirely while appearing to work.
 ⚠ Drain is integer division on whole intervals, and a clock that goes backwards drains nothing
 rather than crediting a negative age.
+
+## Connected, and run against a live account (2026-09-24)
+
+The writer now runs inside every storage read (`SignalStore.readStorage`) when "Archive and
+mute everywhere" is on, which is `prefs.signalStorageWrite`. Archive and mute also push
+straight away, as upstream schedules a `StorageSyncJob` on each. After a write the other
+devices are sent `FetchLatest(STORAGE_MANIFEST)`, as `MultiDeviceStorageSyncRequestJob` does.
+A 409 is read again and tried once more. The loop guard is connected, and its counters are
+kept between runs (`StoredLoopGuardState`).
+
+Three things changed in the writer on the way in:
+
+- **Mute keeps the account's own timestamp** unless on/off actually differs. This app only
+  knows muted or not; writing "for ever" over a mute Signal set for eight hours would be
+  rewriting a decision it never saw. `Long.MAX_VALUE` is Signal's "for ever".
+- **Block is not written** (`Desired.blocked = null` keeps the record's). A read replaces the
+  block list with the account's before any write can run, and a block made here already goes
+  to the primary as its own sync message.
+- **A mark whose record already says the same thing is cleared, not written**, compared
+  decoded rather than as bytes, because another client's field order is not a change.
+
+Groups now keep their record and manifest id (`storeGroupRecord`), so muting or archiving a
+group can be written too. Until now every group was skipped as "no record to amend".
+
+### What the first run showed
+
+On David's account, where signal-cli on the Lenovo is the primary and this phone is device 4:
+
+1. The one old mark already matched the account: `1 marked row(s) already match the
+   account`. It was cleared and nothing was sent.
+2. Archiving Lydia's conversation: `wrote 1 record(s), replaced 1, now at version 1230`.
+   A fresh read got all six records back, all opened, and nothing marked.
+3. Unarchiving it: version 1231, the same clean read-back.
+
+⚠ **signal-cli did not pick the change up**, and that is about signal-cli, not the write. Run
+as `daemon --receive-mode on-connection` without `-a`, it received nothing at all while a
+client held the socket and was subscribed. Not the "fetch latest" notice, and not the quote
+test sent earlier the same morning either. Its cached manifest stayed at 1229. It will read
+the new manifest at its own next storage sync. The proof here is the server's own read-back,
+not a second client.

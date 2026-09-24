@@ -689,6 +689,23 @@ internal class SignalSender(
     }
 
     /**
+     * Tells this account's other devices that its storage records have changed.
+     *
+     * What upstream sends after every write (`MultiDeviceStorageSyncRequestJob`):
+     * without it the others find out at their next sync of their own, which on a primary with
+     * nothing else to do can be a long time.
+     */
+    fun sendFetchLatestStorage(): Result = try {
+        val result = sender.sendSyncMessage(
+            SignalServiceSyncMessage.forFetchLatest(SignalServiceSyncMessage.FetchType.STORAGE_MANIFEST)
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else failed(result)
+    } catch (t: Throwable) {
+        Timber.w(t, "signal storage: telling the other devices threw")
+        failed(t)
+    }
+
+    /**
      * Tells somebody their messages have been read.
      *
      * Only ever called where the reader has asked for receipts to be sent: this is the one

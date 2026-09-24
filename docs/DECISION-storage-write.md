@@ -258,8 +258,10 @@ rather than crediting a negative age.
 
 ## Connected, and run against a live account (2026-09-24)
 
-The writer now runs inside every storage read (`SignalStore.readStorage`) when "Archive and
-mute everywhere" is on, which is `prefs.signalStorageWrite`. Archive and mute also push
+The writer now runs inside every storage read (`SignalStore.readStorage`), always. It first
+shipped behind a switch in Signal settings; after the live run below, David's call was "do it
+like Signal", which has no setting for this, so the switch and `prefs.signalStorageWrite` are
+gone. Archive and mute also push
 straight away, as upstream schedules a `StorageSyncJob` on each. After a write the other
 devices are sent `FetchLatest(STORAGE_MANIFEST)`, as `MultiDeviceStorageSyncRequestJob` does.
 A 409 is read again and tried once more. The loop guard is connected, and its counters are

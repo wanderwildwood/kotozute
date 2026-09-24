@@ -156,7 +156,6 @@ class SignalRepositoryImpl @Inject constructor(
         signalStore.onPrimaryIdle = ::notePrimaryIdle
         signalStore.onConnecting = ::noteConnecting
         signalStore.onConversationState = ::applyConversationState
-        signalStore.storageWriteEnabled = { prefs.signalStorageWrite.get() }
         signalStore.storageDesired = ::desiredStorageState
     }
 
@@ -3686,11 +3685,9 @@ class SignalRepositoryImpl @Inject constructor(
 
     /**
      * Sends a change made here to the account straight away, as upstream schedules a
-     * `StorageSyncJob` on every archive and mute. Only when sharing is on; otherwise the mark
-     * waits, and goes up with the first read after it is turned on.
+     * `StorageSyncJob` on every archive and mute.
      */
     private fun pushStorageNow() {
-        if (!prefs.signalStorageWrite.get()) return
         if (!runCatching { signalStore.storageKeyKnown() }.getOrDefault(false)) return
         runCatching { signalStore.readStorage() }
             .onFailure { Timber.w(it, "signal storage: could not send a change; the next read sends it") }

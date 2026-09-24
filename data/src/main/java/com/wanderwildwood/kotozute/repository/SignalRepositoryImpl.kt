@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.concurrent.thread
+import com.wanderwildwood.kotozute.signalstore.AppliedStorageState
 import com.wanderwildwood.kotozute.signalstore.SignalKeyTransparency
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
@@ -164,29 +165,39 @@ class SignalRepositoryImpl @Inject constructor(
      * written to is not a conversation yet, and creating an empty archived thread for every
      * contact on the account would fill the inbox with rows nobody has said anything in.
      *
-     * Not the other way round: nothing here writes back to the account's records, so the
-     * account's answer is the only shared one and it wins.
+     * ⚠ **Only from records that changed since the last read** -- see [AppliedStorageState].
+     * A conversation unarchived here stays unarchived until the account says something new
+     * about it. It does not reach the account: nothing here writes back to its records
+     * (`docs/DECISION-storage-write.md`), so other devices keep their own answer.
      */
     private fun applyConversationState(
         states: List<com.wanderwildwood.kotozute.signalstore.SignalStorageService.ConversationState>
     ) = runOffThread {
         if (states.isEmpty()) return@runOffThread
         var changed = 0
+        var skipped = 0
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
-                states.forEach { state ->
-                    val thread = r.where(SignalThread::class.java)
-                        .equalTo("threadKey", state.threadKey)
-                        .findFirst()
-                        ?: return@forEach
+                fun threadFor(key: String) = r.where(SignalThread::class.java)
+                    .equalTo("threadKey", key)
+                    .findFirst()
+                val plan = AppliedStorageState.plan(
+                    states,
+                    prefs.signalAppliedStateRecords.get()
+                ) { threadFor(it) != null }
+                plan.apply.forEach { state ->
+                    val thread = threadFor(state.threadKey) ?: return@forEach
                     if (thread.muted != state.muted || thread.archived != state.archived) {
                         thread.muted = state.muted
                         thread.archived = state.archived
                         changed++
                     }
                 }
+                skipped = plan.applied.size - plan.apply.size
+                prefs.signalAppliedStateRecords.set(plan.applied)
             }
         }
+        Timber.i("signal storage: %d record(s) unchanged since the last read, left as the phone has them", skipped)
         if (changed > 0) {
             Timber.i("signal storage: %d conversation(s) muted or archived to match the account", changed)
             contactsChanged()

@@ -211,6 +211,18 @@ class Preferences @Inject constructor(
     val signalPniRotationOwed = rxPrefs.getBoolean("signalPniRotationOwed", false)
 
     /**
+     * The storage record ids whose muted and archived this phone has already applied.
+     *
+     * Signal applies a storage record only when its id is new to it
+     * (`StorageSyncJob` reads just `idDifference.remoteOnlyIds`), and an id changes whenever
+     * the record's content does. Re-applying every record on every read instead is what made
+     * an unarchive on the phone come undone at the next launch: the account still said
+     * archived, unchanged, and it was said again. Lost or empty, every record is applied once,
+     * which is how it behaved before this existed.
+     */
+    val signalAppliedStateRecords = rxPrefs.getStringSet("signalAppliedStateRecords", emptySet())
+
+    /**
      * Whether this device still owes the server its first full set of pre keys.
      *
      * The registration and linking requests carry only a **signed** key and a **last-resort**

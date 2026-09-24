@@ -120,6 +120,72 @@ class SignalRepositoryImpl @Inject constructor(
     private val streamWanted = AtomicBoolean(false)
 
     /**
+     * Whether Android says there is a usable network, and a lock the listen loop waits on.
+     *
+     * Upstream's `IncomingMessageObserver` holds a `NetworkConnectionListener`: it disconnects
+     * when the network goes, waits for it, and reconnects the moment Android reports one
+     * available. This loop had no listener at all, so it went on trying every half minute with
+     * nothing to reach, and after the network came back could sit out the rest of a backoff --
+     * up to ~37s -- before noticing. On a phone with no push, that wait is a message late.
+     */
+    @Volatile private var networkAvailable = true
+    private val networkWake = Object()
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+
+    private fun watchNetwork() {
+        val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+            as? android.net.ConnectivityManager ?: return
+        networkAvailable = cm.activeNetwork != null
+        val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                networkAvailable = true
+                synchronized(networkWake) { networkWake.notifyAll() }
+            }
+
+            override fun onLost(network: android.net.Network) {
+                networkAvailable = cm.activeNetwork != null
+            }
+
+            override fun onBlockedStatusChanged(network: android.net.Network, blocked: Boolean) {
+                networkAvailable = !blocked
+                if (!blocked) synchronized(networkWake) { networkWake.notifyAll() }
+            }
+        }
+        runCatching { cm.registerDefaultNetworkCallback(callback) }
+            .onSuccess { networkCallback = callback }
+            .onFailure { Timber.w(it, "signal: could not watch the network; reconnecting on the backoff alone") }
+    }
+
+    private fun unwatchNetwork() {
+        val callback = networkCallback ?: return
+        networkCallback = null
+        runCatching {
+            (context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager)
+                .unregisterNetworkCallback(callback)
+        }
+        networkAvailable = true
+        synchronized(networkWake) { networkWake.notifyAll() }
+    }
+
+    /**
+     * Waits before a reconnect: [backoff] while there is a network, cut short the moment a
+     * network appears; while there is none, until one does. Bounded either way, so a callback
+     * that never comes cannot strand the loop -- [NO_NETWORK_RECHECK_MS] without a network.
+     */
+    private fun waitToReconnect(backoff: Long) {
+        synchronized(networkWake) {
+            if (!networkAvailable) {
+                Timber.i("signal: no network; waiting for one rather than retrying")
+                networkWake.wait(NO_NETWORK_RECHECK_MS)
+            } else if (backoff > 0) {
+                networkWake.wait(backoff)
+            }
+        }
+    }
+
+    private val NO_NETWORK_RECHECK_MS = 5 * 60_000L
+
+    /**
      * Which stream loop is the current one.
      *
      * A single shared "wanted" flag was not enough to say that, because a loop told to stop
@@ -1492,6 +1558,7 @@ class SignalRepositoryImpl @Inject constructor(
         // one is live, and neither can start while the other is running.
         if (!streamWanted.compareAndSet(false, true)) return
         val generation = streamGeneration.incrementAndGet()
+        watchNetwork()
 
         run {
             Timber.i("signal: holding our own socket")
@@ -1690,6 +1757,7 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun stopStream() {
         streamWanted.set(false)
+        unwatchNetwork()
         // Retires the running loop as well as clearing the flag, so a loop still alive in a
         // backoff sleep cannot come back round and reconnect.
         streamGeneration.incrementAndGet()
@@ -1776,9 +1844,12 @@ class SignalRepositoryImpl @Inject constructor(
                     if (attempts > 1) {
                         val wait = reconnectBackoff(attempts)
                         Timber.w(t, "signal: listen failed %d time(s); retrying in %d ms", attempts, wait)
-                        Thread.sleep(wait)
+                        waitToReconnect(wait)
                     } else {
                         Timber.w(t, "signal: listen failed; reconnecting")
+                        // No backoff on the first failure, as upstream -- but not into a
+                        // network that is not there.
+                        if (!networkAvailable) waitToReconnect(0)
                     }
                 }
             }

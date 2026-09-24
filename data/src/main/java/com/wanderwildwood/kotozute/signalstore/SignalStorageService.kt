@@ -106,7 +106,13 @@ internal class SignalStorageService(
     data class ConversationState(
         val threadKey: String,
         val muted: Boolean,
-        val archived: Boolean
+        val archived: Boolean,
+        /**
+         * The manifest id this state arrived under, base64. The id changes whenever the
+         * record's content does, so an id seen before is a record that has not changed since
+         * -- see `SignalRepositoryImpl.applyConversationState` for why that matters.
+         */
+        val recordId: String
     )
 
     /**
@@ -293,7 +299,8 @@ internal class SignalStorageService(
                                 groupId, android.util.Base64.NO_WRAP
                             ),
                             muted = group.mutedUntilTimestamp > now,
-                            archived = group.archived
+                            archived = group.archived,
+                            recordId = android.util.Base64.encodeToString(id, android.util.Base64.NO_WRAP)
                         )
                     }
                     return@mapNotNull null
@@ -409,7 +416,8 @@ internal class SignalStorageService(
                 conversations += ConversationState(
                     threadKey = "direct:$id",
                     muted = record.mutedUntilTimestamp > now,
-                    archived = record.archived
+                    archived = record.archived,
+                    recordId = remoteStorageId
                 )
                 if (record.blocked) {
                     blockedPeople += SignalBlockStore.Blocked(

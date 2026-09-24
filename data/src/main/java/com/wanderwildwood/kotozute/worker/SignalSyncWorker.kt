@@ -80,6 +80,23 @@ class SignalSyncWorker(appContext: Context, params: WorkerParameters) : Worker(a
          * the foreground service runs — the worker checks and returns — so that turning the
          * switch back off does not need the schedule rebuilding.
          */
+        /**
+         * One catch-up now, not at the next period. Upstream's `BootReceiver` enqueues a
+         * `MessageFetchJob` at boot for the same reason: a periodic schedule after a restart
+         * can leave everything that arrived overnight waiting up to a period longer.
+         */
+        fun now(context: Context) {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "$WORKER_TAG-now",
+                androidx.work.ExistingWorkPolicy.KEEP,
+                androidx.work.OneTimeWorkRequest.Builder(SignalSyncWorker::class.java)
+                    .setConstraints(
+                        Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+                    )
+                    .build()
+            )
+        }
+
         fun sync(context: Context, signalEnabled: Boolean) {
             val wm = WorkManager.getInstance(context)
             if (!signalEnabled) {

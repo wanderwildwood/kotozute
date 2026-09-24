@@ -181,6 +181,7 @@ const laterConfirmEl = document.getElementById('laterConfirm');
 const laterCancelEl = document.getElementById('laterCancel');
 const fileFieldEl = document.getElementById('fileField');
 const attachmentsEl = document.getElementById('attachments');
+const replyingEl = document.getElementById('replying');
 const emojiBtnEl = document.getElementById('emojiBtn');
 const emojiPanelEl = document.getElementById('emojiPanel');
 const emojiTabsEl = document.getElementById('emojiTabs');
@@ -1196,6 +1197,35 @@ function openThreadMenu(t, x, y) {
  */
 const REACTIONS = ['\u2764\ufe0f', '\uD83D\uDC4D', '\uD83D\uDC4E', '\uD83D\uDE02', '\uD83D\uDE2E', '\uD83D\uDE22'];
 
+/*
+ * A reply to one Signal message. Held against the thread it was started in, so switching
+ * conversations cannot send it as a quote into the wrong one; kept until the send goes, so a
+ * send refused over a changed safety number and retried still goes as a reply.
+ */
+let replyTo = null;
+
+function startReply(m) {
+  const who = m.isMe ? 'You' : (m.from || paneTitleEl.textContent || '');
+  const what = (m.body || '').replace(/\s+/g, ' ').trim() || '(a picture)';
+  replyTo = { threadId: activeThreadId, date: m.date };
+  replyingEl.textContent = 'Replying to ' + who + ': ' + what + ' \u2014 click to cancel';
+  replyingEl.hidden = false;
+  bodyEl.focus();
+}
+
+function clearReply() {
+  replyTo = null;
+  replyingEl.hidden = true;
+  replyingEl.textContent = '';
+}
+
+replyingEl.addEventListener('click', clearReply);
+
+/** The quote field for a send from [threadId], or nothing when it is not a reply there. */
+function replyFields(threadId) {
+  return replyTo && replyTo.threadId === threadId ? { quoteTs: String(replyTo.date) } : {};
+}
+
 function openMessageMenu(m, x, y) {
   const text = (m.body || '').trim();
   const items = [];
@@ -1205,6 +1235,7 @@ function openMessageMenu(m, x, y) {
   // the phone cannot turn it back into a row.
   const canReact = activeThreadRail === 'signal' && m.signalId;
   const mine = ((m.reactions || []).find(r => r.mine) || {}).emoji || '';
+  if (canReact) items.push(['Reply', () => startReply(m)]);
   if (text) items.push(['Copy text', () => copyText(text)]);
   if (text) items.push(['Forward\u2026', () => forwardText(text)]);
   // The thread's rail, not the message's: an SMS message carries no rail field at all, so
@@ -1933,6 +1964,7 @@ markAllBtn.addEventListener('click', async () => {
 
 async function selectThread(id, title, find, pairWith) {
   stashDraft(); // capture unsent text for the thread we're leaving, before it changes
+  clearReply();
   exitComposeMode();
   lastMessagesSig = ''; // force a fresh render for the newly opened thread
   // Opened from a search hit: the match may be a long way back, and the usual page is the
@@ -2586,9 +2618,10 @@ composerEl.addEventListener('submit', async e => {
   // actually sent, not whatever is on screen when the response lands.
   const sentThreadId = activeThreadId;
   sendEl.disabled = true;
+  const fields = Object.assign({ body: text }, replyFields(sentThreadId));
   const res = await api('/api/threads/' + sentThreadId + '/send', Object.assign(
     { method: 'POST' },
-    sendRequestBody({ body: text })
+    sendRequestBody(fields)
   ));
   updateSendEnabled();
   let result = res;
@@ -2600,7 +2633,7 @@ composerEl.addEventListener('submit', async e => {
     sendEl.disabled = true;
     result = await api('/api/threads/' + sentThreadId + '/send', Object.assign(
       { method: 'POST' },
-      sendRequestBody({ body: text })
+      sendRequestBody(fields)
     ));
     updateSendEnabled();
   }
@@ -2611,6 +2644,7 @@ composerEl.addEventListener('submit', async e => {
   if (result.ok) {
     clearSendFailure();
     clearDraft(sentThreadId);
+    if (replyTo && replyTo.threadId === sentThreadId) clearReply();
     // Only blank the box if they're still looking at the thread they sent from
     if (activeThreadId === sentThreadId) bodyEl.value = '';
     // The queue is not per-thread, so it clears either way -- leaving a picture

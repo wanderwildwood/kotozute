@@ -82,7 +82,41 @@ class SignalNotifications @Inject constructor(
         )
     }
 
-    private fun notify(message: SignalMessage) {
+    /**
+     * Puts back what the system took away.
+     *
+     * Android drops an app's posted notifications when the app is updated and when the phone
+     * restarts, and nothing else puts them back, so a message still unread after either had
+     * no notification at all. Upstream re-posts them from `RestoreNotificationsReceiver` on
+     * exactly those two broadcasts (`RestoreNotificationsJob`). The same here: the newest
+     * unread message of each unmuted conversation, **silently** -- these were announced once
+     * already.
+     */
+    fun restore() {
+        if (!prefs.signalEnabled.get()) return
+        createChannel()
+        val pending = runCatching {
+            Realm.getDefaultInstance().use { realm ->
+                realm.where(SignalThread::class.java)
+                    .greaterThan("unread", 0)
+                    .equalTo("muted", false)
+                    .findAll()
+                    .mapNotNull { thread ->
+                        realm.where(SignalMessage::class.java)
+                            .equalTo("threadKey", thread.threadKey)
+                            .equalTo("outgoing", false)
+                            .equalTo("read", false)
+                            .sort("date", io.realm.Sort.DESCENDING)
+                            .findFirst()
+                            ?.let { realm.copyFromRealm(it) }
+                    }
+            }
+        }.onFailure { Timber.w(it, "signal notify: could not read what is unread") }.getOrNull() ?: return
+        pending.forEach { notify(it, silent = true) }
+        if (pending.isNotEmpty()) Timber.i("signal notify: put back %d notification(s)", pending.size)
+    }
+
+    private fun notify(message: SignalMessage, silent: Boolean = false) {
         if (!prefs.signalEnabled.get()) return
 
         // Nothing to announce about a conversation the user is already reading.
@@ -117,6 +151,7 @@ class SignalNotifications @Inject constructor(
             .setCategory(Notification.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pending)
+            .setSilent(silent)
             .build()
 
         manager.notify(idFor(message.threadKey), notification)

@@ -144,6 +144,16 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <!-- Upstream's RestoreNotificationsReceiver: Android drops posted notifications on a
+             restart and on an update, and nothing else puts them back. -->
+        <receiver
+            android:name=".feature.signal.SignalRestoreNotificationsReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <receiver
             android:name=".feature.desktopsync.DesktopSyncBootReceiver"
             android:exported="true">

@@ -125,9 +125,12 @@ code instead" option for when the text does not come.
 to anything but its own clients, so how quickly a message arrives is decided by **Keep Signal
 connected**. On, a foreground service holds the connection open and messages arrive as they are
 sent, at the cost of a permanent notification. Off, which is the default, Signal catches up
-every so often and when you open the app. Measured on the phone in forced deep idle, with the
-app backgrounded: with the switch on the message arrives, with it off nothing arrives until
-the next catch-up.
+about every 15 minutes (less often while the phone sleeps) and when you open the app. Measured
+on the phone in forced deep idle, with the app backgrounded: with the switch on the message
+arrives, with it off nothing arrives until the next catch-up.
+
+On a Kompakt, allow Messaging in **DuraSpeed** as well. DuraSpeed closes background apps a few
+minutes after the screen goes off, and that stops both the connection and the catch-ups.
 
 **Threads start empty.** Signal's servers do not hold history and a newly linked device is not
 sent any, so conversations fill from the day you pair. Importing a Signal Desktop export is how

@@ -35,7 +35,8 @@ class UnfiledMessageTest {
         reactionEmoji = "👍",
         reactionTarget = "aci-2:1789",
         reactionRemove = true,
-        groupMasterKey = ByteArray(32) { it.toByte() }
+        groupMasterKey = ByteArray(32) { it.toByte() },
+        revisionTs = 1_790_000_000_555L
     )
 
     @Test

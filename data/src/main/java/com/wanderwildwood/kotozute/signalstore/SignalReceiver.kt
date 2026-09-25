@@ -1428,12 +1428,15 @@ internal class SignalReceiver(
                 }
 
                 val normalized = ContentNormalizer.normalize(
-                    result.content, result.metadata, credentials.aci, credentials.e164
-                ) { aci ->
-                    // Whatever this device knows them as. Nothing is fetched here: a mention
-                    // must not turn one message into a round trip per name.
-                    runCatching { contacts.nameFor(aci) }.getOrNull()
-                }
+                    result.content, result.metadata, credentials.aci, credentials.e164,
+                    nameFor = { aci ->
+                        // Whatever this device knows them as. Nothing is fetched here: a mention
+                        // must not turn one message into a round trip per name.
+                        runCatching { contacts.nameFor(aci) }.getOrNull()
+                    },
+                    // A second edit names the first edit, not the original.
+                    originalOf = { author, at -> runCatching { events.originalSentAt(author, at) }.getOrNull() }
+                )
                 // Downloaded now, while the CDN still has them. See SignalAttachments: a
                 // pointer is only good for a window, so fetching lazily when a bubble is drawn
                 // fails for exactly the attachments worth keeping.

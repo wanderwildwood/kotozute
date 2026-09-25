@@ -45,6 +45,9 @@ data class BridgeMessage(
      * group by a key, and everything readable about it lives on the server. Empty on the
      * bridge rail, which resolved names on the other side.
      */
-    val groupMasterKey: ByteArray? = null
+    val groupMasterKey: ByteArray? = null,
+
+    /** On an edit, the edit's own sent timestamp; the row keeps the original's. 0 otherwise. */
+    val revisionTs: Long = 0
 )
 

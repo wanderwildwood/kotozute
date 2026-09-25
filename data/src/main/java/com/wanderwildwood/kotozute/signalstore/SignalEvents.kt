@@ -90,6 +90,12 @@ interface SignalEvents {
     fun numberChanged(aci: String, from: String, to: String) {}
 
     /**
+     * The original sent time of [author]'s message whose latest edit went out at [revisionSentAt],
+     * or null when there is none. See `SignalMessage.revisionTs`.
+     */
+    fun originalSentAt(author: String, revisionSentAt: Long): Long? = null
+
+    /**
      * A Signal call this phone could not answer has settled. [at] is when it rang; [callId]
      * identifies it, so a later report about the same call replaces the line rather than
      * adding a second one.

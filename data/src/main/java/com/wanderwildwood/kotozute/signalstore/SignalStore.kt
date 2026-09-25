@@ -621,6 +621,69 @@ class SignalStore(private val context: Context) {
      *
      * @param read whoever wrote each message, and the timestamp they sent it with.
      */
+    /** Sends an edit of one of this account's messages to one person. See [SignalSender.sendEdit]. */
+    fun sendEdit(recipient: String, targetSentAt: Long, body: String, expiresInSeconds: Int, timerVersion: Int, timestamp: Long): Long {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
+            ?: throw IllegalStateException("not a service id: $recipient")
+        connection.connect()
+        return when (val r = SignalSender(
+            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalDataStore(database, account), connection, contacts
+        ).sendEdit(serviceId, targetSentAt, body, expiresInSeconds, timerVersion, timestamp)) {
+            is SignalSender.Result.Sent -> r.timestamp
+            is SignalSender.Result.Failed -> throw SendRefused(r.failure)
+        }
+    }
+
+    /** The same, to a group, refused where the group itself refuses a message. */
+    fun sendEditToGroup(masterKey: ByteArray, targetSentAt: Long, body: String, expiresInSeconds: Int, timerVersion: Int, timestamp: Long): Long {
+        connection.connect()
+        val group = when (val outcome = SignalGroups(connection, account, contacts).fetchOutcome(masterKey)) {
+            is SignalGroups.Outcome.Got -> outcome.group
+            SignalGroups.Outcome.NotAMember -> throw SendRefused(SendFailure.NotInGroup)
+            SignalGroups.Outcome.Gone -> throw SendRefused(SendFailure.GroupEnded)
+            is SignalGroups.Outcome.Unknown -> throw SendRefused(SendFailure.GroupUnreachable)
+        }
+        if (group.announcementOnly && account.credentials().aci !in group.admins) {
+            throw SendRefused(SendFailure.AdminsOnly)
+        }
+        val members = group.members
+            .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+            .filter { it.toString() != account.credentials().aci }
+        return when (val r = SignalSender(
+            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalDataStore(database, account), connection, contacts
+        ).sendEditToGroup(masterKey, members, group.revision, targetSentAt, body, expiresInSeconds, timerVersion, timestamp)) {
+            is SignalSender.Result.Sent -> r.timestamp
+            is SignalSender.Result.Failed -> throw SendRefused(r.failure)
+        }
+    }
+
+    /**
+     * Tells this account's other devices that messages in one conversation were deleted here.
+     * [peer] names a one-to-one conversation, [groupId] a group's; exactly one of them.
+     */
+    fun sendDeleteForMe(peer: String?, groupId: ByteArray?, messages: List<Pair<String, Long>>): Boolean {
+        val conversation = when {
+            groupId != null -> org.whispersystems.signalservice.internal.push.ConversationIdentifier(
+                threadGroupId = okio.ByteString.of(*groupId)
+            )
+            peer != null -> org.signal.core.models.ServiceId.parseOrNull(peer)?.let {
+                org.whispersystems.signalservice.internal.push.ConversationIdentifier(threadServiceIdBinary = it.toByteString())
+            }
+            else -> null
+        } ?: return false
+        val named = messages.mapNotNull { (author, at) ->
+            org.signal.core.models.ServiceId.ACI.parseOrNull(author)?.let { it to at }
+        }
+        if (named.isEmpty()) return true
+        connection.connect()
+        return SignalSender(
+            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
+            SignalDataStore(database, account), connection, contacts
+        ).sendDeleteForMe(conversation, named) is SignalSender.Result.Sent
+    }
+
     fun sendReadSync(read: List<Pair<String, Long>>): Boolean {
         val named = read.mapNotNull { (author, at) ->
             org.signal.core.models.ServiceId.ACI.parseOrNull(author)?.let { it to at }

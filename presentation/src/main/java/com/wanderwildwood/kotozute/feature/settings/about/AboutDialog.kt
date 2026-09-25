@@ -50,11 +50,13 @@ class AboutDialog(context: Activity, onVersionLongClick: () -> Unit) : AlertDial
             true
         }
         // The Kompakt may have nothing registered for a web address at all, so this is
-        // allowed to fail quietly rather than take the dialog down with it.
+        // allowed to fail quietly rather than take the dialog down with it. Straight to the
+        // checkout, by the short square.link form the site itself links to, so a regenerated
+        // checkout follows it and a published app does not break.
         layout.llama.setOnClickListener {
             runCatching {
                 context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://hotspringsllamas.org/donate/")),
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://square.link/u/AGu8oT10")),
                 )
             }
         }

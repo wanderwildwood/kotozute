@@ -192,11 +192,7 @@ class SyncRepositoryImpl @Inject constructor(
                                     blockReason = persistedConversation.blockReason
                                     sendAsGroup = persistedConversation.sendAsGroup
                                 }
-                                lastMessage = realm.where(Message::class.java)
-                                    .sort("date", Sort.DESCENDING)
-                                    .equalTo("threadId", id)
-                                    .equalTo("isEmojiReaction", false)
-                                    .findFirst()
+                                lastMessage = lastShownMessage(realm, id)
                             }
                             realm.insertOrUpdate(conversation)
                         }

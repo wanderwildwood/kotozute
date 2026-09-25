@@ -298,17 +298,13 @@ class EmojiReactionRepositoryImpl @Inject constructor(
         }
 
         // A full sync picks each conversation's last message before this runs, when no
-        // message is marked as a reaction yet -- so a thread whose latest text was a
-        // reaction ("Laughed at “…”") would keep it as its preview. Re-pick those.
+        // message is marked as a reaction yet -- so a thread whose latest text was our own
+        // reaction, or a removal, would keep it as its preview. Re-pick those.
         realm.where(Conversation::class.java)
             .equalTo("lastMessage.isEmojiReaction", true)
             .findAll()
             .forEach { conversation ->
-                conversation.lastMessage = realm.where(Message::class.java)
-                    .equalTo("threadId", conversation.id)
-                    .equalTo("isEmojiReaction", false)
-                    .sort("date", Sort.DESCENDING)
-                    .findFirst()
+                conversation.lastMessage = lastShownMessage(realm, conversation.id)
             }
 
         val endTime = System.currentTimeMillis()

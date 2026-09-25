@@ -388,7 +388,12 @@ class SignalStore(private val context: Context) {
         expireTimerVersion: Int = 0,
         quote: SignalQuote? = null,
         timestamp: Long = System.currentTimeMillis(),
-        mentions: List<OutgoingMentions.Mention> = emptyList()
+        /**
+         * Names for turning "@Name" into mentions, on top of every member's own. Those who
+         * have written in the group, as the thread shows them, so what the picker offered
+         * still matches. See [OutgoingMentions].
+         */
+        mentionNames: Map<String, String> = emptyMap()
     ): Long {
         connection.connect()
         // ⚠ Which kind of "no" matters. Being removed from a group is permanent and there is
@@ -413,11 +418,14 @@ class SignalStore(private val context: Context) {
             // Not ourselves: our own devices get the message as a sync, and encrypting to
             // our own address as though we were a peer is not the same thing.
             .filter { it.toString() != account.credentials().aci }
+        // Every member can be mentioned, including one who has never written here: the group
+        // has just said who is in it.
+        val encoded = OutgoingMentions.encode(body, memberNames(members.map { it.toString() }) + mentionNames)
         return when (
             val r = SignalSender(
                 SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
-            ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion, group.revision, quote, timestamp, mentions)
+            ).sendToGroup(masterKey, members, encoded.body, expiresInSeconds, expireTimerVersion, group.revision, quote, timestamp, encoded.mentions)
         ) {
             is SignalSender.Result.Sent -> r.timestamp
             is SignalSender.Result.Failed -> throw SendRefused(r.failure)
@@ -622,6 +630,19 @@ class SignalStore(private val context: Context) {
      *
      * @param read whoever wrote each message, and the timestamp they sent it with.
      */
+    /** What this device calls each member, for those it has a name for. */
+    private fun memberNames(acis: List<String>): Map<String, String> =
+        acis.mapNotNull { aci -> runCatching { contacts.nameFor(aci) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { aci to it } }
+            .toMap()
+
+    /** A group's members and their names, from the server's own list. Blocking; throws offline. */
+    fun groupMemberNames(masterKey: ByteArray): Map<String, String> {
+        connection.connect()
+        val group = (SignalGroups(connection, account, contacts).fetchOutcome(masterKey) as? SignalGroups.Outcome.Got)?.group
+            ?: return emptyMap()
+        return memberNames(group.members.filter { it != account.credentials().aci })
+    }
+
     /** Sends an edit of one of this account's messages to one person. See [SignalSender.sendEdit]. */
     fun sendEdit(recipient: String, targetSentAt: Long, body: String, expiresInSeconds: Int, timerVersion: Int, timestamp: Long): Long {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)

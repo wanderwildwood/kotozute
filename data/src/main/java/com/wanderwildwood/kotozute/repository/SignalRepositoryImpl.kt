@@ -1581,6 +1581,20 @@ class SignalRepositoryImpl @Inject constructor(
     override fun discardUnsent(messageId: String) = runOffThread { dropUnsent(messageId) }
 
     /**
+     * Who can be mentioned in a group: its members from the server, or -- offline -- those who
+     * have written in it. Blocking.
+     */
+    override fun mentionableNames(threadKey: String): Map<String, String> {
+        val written = runCatching { senderNamesFor(threadKey) }.getOrDefault(emptyMap())
+        val masterKey = Realm.getDefaultInstance().use { realm -> groupMasterKeyFor(realm, threadKey) }
+            ?: return written
+        val members = runCatching { signalStore.groupMemberNames(masterKey) }
+            .onFailure { Timber.w(it, "signal mentions: could not ask the group who is in it") }
+            .getOrDefault(emptyMap())
+        return members + written
+    }
+
+    /**
      * Sends a new text for one of this account's messages and puts it in place here.
      *
      * The rule is Signal's (`MessageConstraintsUtil.isValidEditMessageSend`); see
@@ -1765,13 +1779,12 @@ class SignalRepositoryImpl @Inject constructor(
                 groupMasterKey = masterKey
             )
         // The same order as the one-to-one send; see [sendThroughOutbox].
-        // "@Name" goes as a real mention; this phone's own copy keeps the name, which is how
-        // a received mention is shown too.
-        val encoded = com.wanderwildwood.kotozute.signalstore.OutgoingMentions.encode(
-            body, runCatching { senderNamesFor(threadKey) }.getOrDefault(emptyMap())
-        )
+        // "@Name" goes as a real mention, worked out against the group's members once the send
+        // has fetched them; this phone's own copy keeps the name, which is how a received
+        // mention is shown too.
+        val names = runCatching { senderNamesFor(threadKey) }.getOrDefault(emptyMap())
         return sendThroughOutbox(row, emptyList(), resending > 0) {
-            signalStore.sendToGroup(masterKey, encoded.body, expiresIn, timerVersion, quote, timestamp, encoded.mentions)
+            signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion, quote, timestamp, names)
         }
     }
 

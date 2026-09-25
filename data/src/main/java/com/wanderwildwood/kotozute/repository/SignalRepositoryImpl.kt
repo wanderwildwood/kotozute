@@ -763,6 +763,60 @@ class SignalRepositoryImpl @Inject constructor(
     )
 
     /**
+     * Writes a call into the conversation, as Signal does: "Missed voice call", or a call
+     * answered, declined or placed on another device.
+     *
+     * One row per call, keyed on the call's id, so a call first settled as missed and then
+     * reported answered elsewhere is corrected in place rather than listed twice. A missed call
+     * is unread and so announced like a message, which is the whole point of it: somebody
+     * tried to reach the person carrying this phone. The others are history, read on arrival.
+     */
+    private fun noteCall(
+        peer: String,
+        callId: Long,
+        at: Long,
+        video: Boolean,
+        outcome: com.wanderwildwood.kotozute.signalstore.CallOutcome
+    ) {
+        val body = context.getString(
+            when (outcome) {
+                com.wanderwildwood.kotozute.signalstore.CallOutcome.MISSED ->
+                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_missed_video
+                    else com.wanderwildwood.kotozute.data.R.string.signal_call_missed_voice
+                com.wanderwildwood.kotozute.signalstore.CallOutcome.ANSWERED_ELSEWHERE ->
+                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_answered_video
+                    else com.wanderwildwood.kotozute.data.R.string.signal_call_answered_voice
+                com.wanderwildwood.kotozute.signalstore.CallOutcome.DECLINED_ELSEWHERE ->
+                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_declined_video
+                    else com.wanderwildwood.kotozute.data.R.string.signal_call_declined_voice
+                com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING ->
+                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_outgoing_video
+                    else com.wanderwildwood.kotozute.data.R.string.signal_call_outgoing_voice
+            }
+        )
+        val outgoing = outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING
+        val selfAci = signalStore.selfAciOrNull().orEmpty()
+        ingest(
+            listOf(
+                com.wanderwildwood.kotozute.signal.BridgeMessage(
+                    id = "call:$callId",
+                    threadKey = "direct:$peer",
+                    ts = at,
+                    senderUuid = if (outgoing) selfAci else peer,
+                    senderNumber = "",
+                    outgoing = outgoing,
+                    body = body,
+                    groupId = "",
+                    quoteTs = 0,
+                    read = outcome != com.wanderwildwood.kotozute.signalstore.CallOutcome.MISSED,
+                    source = "live",
+                    attachmentsJson = ""
+                )
+            )
+        )
+    }
+
+    /**
      * Writes a line into somebody's conversation about something this phone noticed.
      *
      * One function for both notes, because two copies of "file a local row" is how the two
@@ -2700,6 +2754,14 @@ class SignalRepositoryImpl @Inject constructor(
 
         override fun profileNameChanged(aci: String, from: String, to: String) =
             noteNameChange(aci, from, to)
+
+        override fun call(
+            peer: String,
+            callId: Long,
+            at: Long,
+            video: Boolean,
+            outcome: com.wanderwildwood.kotozute.signalstore.CallOutcome
+        ) = noteCall(peer, callId, at, video, outcome)
 
         override fun undecryptableGaveUp(
             sender: String,

@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 37
+    const val VERSION = 38
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -295,6 +295,19 @@ internal object ProtocolStoreSchema {
         ) STRICT;
     """
 
+    /**
+     * Signal calls ringing now, by call id. See [SignalCallStore]: kept on disk so that a call
+     * still ringing when the process dies is settled as missed afterwards rather than forgotten.
+     */
+    const val CALL_OFFER = """
+        CREATE TABLE call_offer (
+          call_id INTEGER PRIMARY KEY,
+          peer TEXT NOT NULL,
+          video INTEGER NOT NULL,
+          offered_at INTEGER NOT NULL
+        ) STRICT;
+    """
+
     /** Order matters only in that account_identity is seeded after account exists. */
     val ALL = listOf(
         ACCOUNT,
@@ -322,7 +335,8 @@ internal object ProtocolStoreSchema {
         MESSAGE_LOG,
         MESSAGE_LOG_INDEX,
         RECEIPT_OWED,
-        UNFILED
+        UNFILED,
+        CALL_OFFER
     )
 
     /**
@@ -957,6 +971,9 @@ internal object ProtocolStoreSchema {
          * Starts empty. The first fetch after this fills it without a note, the same as any
          * first name learned -- so upgrading does not write one into every conversation.
          */
+        /** Calls ringing now. See [CALL_OFFER]. */
+        38 to listOf(CALL_OFFER),
+
         /** Decrypted messages survive until filed. See [UNFILED]. */
         37 to listOf(UNFILED),
 

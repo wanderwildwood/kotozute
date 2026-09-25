@@ -171,8 +171,23 @@ class SignalThreadActivity : QkThemedActivity() {
     ) { granted ->
         // Asked for because a tap asked for it, so act on the answer rather than making
         // somebody tap again for the same thing.
-        if (granted) startRecording()
-        else Toast.makeText(this, R.string.signal_record_needs_permission, Toast.LENGTH_LONG).show()
+        if (granted) {
+            startRecording()
+        } else if (!shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) {
+            // ⚠ Android has stopped asking: denied twice, or turned off in settings. Every
+            // tap after this was the same toast and no dialog, with nothing on screen saying
+            // where the switch is. Signal answers this case with a dialog that opens the
+            // app's settings (`withPermanentDenialDialog`); so does this.
+            AlertDialog.Builder(this)
+                .setMessage(R.string.signal_record_permission_off)
+                .setPositiveButton(R.string.signal_record_permission_settings) { _, _ ->
+                    navigator.showPermissions()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        } else {
+            Toast.makeText(this, R.string.signal_record_needs_permission, Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

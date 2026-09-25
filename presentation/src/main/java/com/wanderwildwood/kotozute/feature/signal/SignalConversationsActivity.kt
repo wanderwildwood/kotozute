@@ -40,6 +40,7 @@ class SignalConversationsActivity : QkThemedActivity() {
 
     @Inject lateinit var navigator: com.wanderwildwood.kotozute.common.Navigator
     @Inject lateinit var signalRepo: SignalRepository
+    @Inject lateinit var permissionManager: com.wanderwildwood.kotozute.manager.PermissionManager
     @Inject lateinit var dateFormatter: DateFormatter
 
     private lateinit var binding: SignalConversationsActivityBinding
@@ -101,18 +102,15 @@ class SignalConversationsActivity : QkThemedActivity() {
 
         disposables += signalRepo.connectionState()
             .subscribe { conn ->
-                // Three states, not two: connected, on its way, and not going to happen.
-                // The middle one used to read as the last one.
-                val msg = when {
-                    conn.signalConnected -> null
-                    conn.connecting -> getString(R.string.signal_connecting_signal)
-                    else -> getString(R.string.signal_cannot_send_signal)
-                }
                 runOnUiThread {
-                    binding.status.text = msg.orEmpty()
-                    binding.status.setVisible(msg != null)
+                    lastConnection = conn
+                    showStatus()
                 }
             }
+        // Only does anything while it is the text-message warning that is showing.
+        binding.status.setOnClickListener {
+            if (smsTaken) navigator.showDefaultSmsDialog(this)
+        }
 
         // Writing to somebody there is no conversation with yet. The address book this
         // opens is the Signal one; reaching it used to mean crossing to the SMS inbox,
@@ -195,6 +193,54 @@ class SignalConversationsActivity : QkThemedActivity() {
         super.onResume()
         // The same one-time ask as the text list, for a phone that opens here instead.
         BackgroundRunning.askOnce(this, prefs)
+        Thread {
+            val taken = smsTakenByAnotherApp()
+            runOnUiThread {
+                smsTaken = taken
+                showStatus()
+            }
+        }.also { it.isDaemon = true }.start()
+    }
+
+    private var lastConnection: SignalRepository.ConnectionState? = null
+    private var smsTaken = false
+
+    /**
+     * Another app has become the phone's text-message app, on a phone that used this one for
+     * them.
+     *
+     * ⚠ The text list says so in its own banner, and a phone that opens on Signal never shows
+     * the text list. Texts then go to the other app without a word here. "Used this one" is
+     * text conversations on file, which only a phone that once held the role can have: one
+     * that uses this app for Signal alone was never the text app, and is not told off for it.
+     */
+    private fun smsTakenByAnotherApp(): Boolean = runCatching {
+        !permissionManager.isDefaultSms() &&
+            io.realm.Realm.getDefaultInstance().use {
+                it.where(com.wanderwildwood.kotozute.model.Conversation::class.java).count() > 0
+            }
+    }.getOrDefault(false)
+
+    /**
+     * One line, the most pressing thing first. What stops messages outright comes before what
+     * warns, and the connection comes last because it recovers by itself.
+     */
+    private fun showStatus() {
+        val conn = lastConnection
+        val msg = when {
+            smsTaken -> getString(R.string.signal_sms_taken)
+            conn == null -> null
+            !conn.rejected.isNullOrBlank() -> conn.rejected
+            conn.primaryIdle -> getString(R.string.settings_signal_status_primary_idle)
+            // Three states, not two: connected, on its way, and not going to happen.
+            // The middle one used to read as the last one.
+            conn.signalConnected -> null
+            conn.serviceOutage -> getString(R.string.settings_signal_status_outage)
+            conn.connecting -> getString(R.string.signal_connecting_signal)
+            else -> getString(R.string.signal_cannot_send_signal)
+        }
+        binding.status.text = msg.orEmpty()
+        binding.status.setVisible(msg != null)
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {

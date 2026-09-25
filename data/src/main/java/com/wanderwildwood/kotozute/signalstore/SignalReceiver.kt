@@ -120,7 +120,13 @@ internal class SignalReceiver(
         }
 
         // Only now, with everything acked and safely on disk.
-        val messages = mutableListOf<com.wanderwildwood.kotozute.signal.BridgeMessage>()
+        // Whatever an earlier drain decrypted and never filed goes first, in the same
+        // transaction as this batch. Filing is idempotent on the message id, so one that had
+        // in fact reached the message database before the process died is not filed twice.
+        val messages = unfiledStore.all().toMutableList()
+        if (messages.isNotEmpty()) {
+            Timber.w("signal receive: filing %d message(s) decrypted before and never filed", messages.size)
+        }
         pending().forEach { (id, envelope, serverDeliveredTimestamp, alreadyAsked) ->
             // Left where it is, to be read by the next batch on the new connection. Signal
             // breaks the batch at exactly this point and lets the server redeliver the rest;
@@ -204,8 +210,17 @@ internal class SignalReceiver(
                 else -> {
                     decrypted++
                     senders += result.first
-                    result.second?.let { messages += it }
-                    delete(id)
+                    val message = result.second
+                    if (message == null) {
+                        delete(id)
+                    } else {
+                        // ⚠ Not a plain delete. The envelope is the last copy of this message
+                        // that can survive the process, and it cannot be decrypted a second
+                        // time, so its place is taken by the decrypted message in the same
+                        // transaction. See [ProtocolStoreSchema.UNFILED].
+                        messages += message
+                        unfiledStore.swap(id, message)
+                    }
                 }
             }
         }
@@ -213,6 +228,8 @@ internal class SignalReceiver(
         // announces what it stored, and a notification per message would be a notification
         // per message on a device catching up after a day offline.
         val stored = if (messages.isEmpty()) 0 else events.store(messages)
+        // Only once the message database has them. A store that threw leaves them waiting.
+        if (messages.isNotEmpty()) unfiledStore.filed(messages.map { it.id })
 
         // Before the sweeps, because it is the only one that reaches the network and the only
         // one somebody is waiting on: until these are back the server hands every new
@@ -642,6 +659,9 @@ internal class SignalReceiver(
     private fun delete(id: Long) = withStoreLock(db) {
         db.writableDatabase.execSQL("DELETE FROM envelope WHERE _id = ?", arrayOf<Any?>(id))
     }
+
+
+    private val unfiledStore = UnfiledStore(db)
 
     /** Set by [decrypt] when it fails, so the caller can record it against the row. */
     private var lastFailure: String? = null

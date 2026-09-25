@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 36
+    const val VERSION = 37
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -275,6 +275,26 @@ internal object ProtocolStoreSchema {
         ) STRICT;
     """
 
+    /**
+     * Messages decrypted and not yet filed.
+     *
+     * ⚠ The gap this closes: an envelope's row was deleted the moment it decrypted, and its
+     * message was held in memory until the whole batch was filed into the message database.
+     * A process killed in between, or a message database that could not be written, lost the
+     * message for good -- acknowledged to the server, gone from the queue, and impossible to
+     * decrypt again because the ratchet had moved on. Upstream decrypts and inserts in one
+     * transaction (`IncomingMessageObserver`); with the messages in Realm and the keys here
+     * that is not available, so the decrypted message is written here instead, in the same
+     * transaction that deletes its envelope, and removed only once it has been filed.
+     */
+    const val UNFILED = """
+        CREATE TABLE unfiled (
+          id TEXT PRIMARY KEY,
+          message TEXT NOT NULL,
+          stored_timestamp INTEGER NOT NULL
+        ) STRICT;
+    """
+
     /** Order matters only in that account_identity is seeded after account exists. */
     val ALL = listOf(
         ACCOUNT,
@@ -301,7 +321,8 @@ internal object ProtocolStoreSchema {
         RECIPIENT_GROUP_ID_INDEX,
         MESSAGE_LOG,
         MESSAGE_LOG_INDEX,
-        RECEIPT_OWED
+        RECEIPT_OWED,
+        UNFILED
     )
 
     /**
@@ -936,6 +957,9 @@ internal object ProtocolStoreSchema {
          * Starts empty. The first fetch after this fills it without a note, the same as any
          * first name learned -- so upgrading does not write one into every conversation.
          */
+        /** Decrypted messages survive until filed. See [UNFILED]. */
+        37 to listOf(UNFILED),
+
         36 to listOf(
             "ALTER TABLE recipient ADD COLUMN profile_name TEXT;"
         ),

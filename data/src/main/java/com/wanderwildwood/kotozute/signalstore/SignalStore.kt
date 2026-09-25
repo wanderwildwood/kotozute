@@ -1771,8 +1771,40 @@ class SignalStore(private val context: Context) {
             } else {
                 Timber.w("signal register: the generated pool would not derive")
             }
+        },
+        // Pre-registration restores never touch the socket -- their authorisation came with
+        // the locked response -- so the lazily-built authenticated socket is only a
+        // constructor argument here.
+        svr2 = { enclave ->
+            org.whispersystems.signalservice.api.svr.SecureValueRecoveryV2(
+                SignalNetworkConfig.configuration(), enclave, connection.authenticated
+            )
+        },
+        onMasterKey = { masterKey ->
+            if (!keys.storeMasterKey(masterKey)) {
+                Timber.w("signal register: the recovered key would not keep")
+            }
         }
     )
+
+    /**
+     * Writes back the PIN that lifted a registration lock, to reset its guess count.
+     *
+     * Upstream's `ResetSvrGuessCountJob` after a restore: SVR2 counts a successful restore as a
+     * guess, and when guesses run out it deletes the data -- so an account moved a few times
+     * without this would end with a PIN nothing can check. Same PIN, same master key, same
+     * enclave; the account is registered by now, so the socket authenticates as it.
+     */
+    fun resetPinGuesses(reset: SignalRegistrar.PinReset): Boolean {
+        connection.connect()
+        val response = org.whispersystems.signalservice.api.svr.SecureValueRecoveryV2(
+            SignalNetworkConfig.configuration(), reset.enclave, connection.authenticated
+        ).setPin(reset.pin, reset.masterKey).execute()
+        val ok = response is org.whispersystems.signalservice.api.svr.SecureValueRecovery.BackupResponse.Success
+        if (ok) Timber.i("signal register: the PIN's guess count is reset")
+        else Timber.w("signal register: could not reset the PIN's guess count: %s", response)
+        return ok
+    }
 
     /**
      * The configuration is passed in rather than reached for. `SignalNetworkConfig` still

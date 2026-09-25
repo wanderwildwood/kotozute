@@ -80,6 +80,14 @@ class SignalRegisterActivity : QkThemedActivity() {
             step(R.string.signal_register_working) { signalRepo.registerVerify(id, code, number) }
         }
 
+        binding.unlock.setOnClickListener {
+            val id = sessionId ?: return@setOnClickListener
+            val pin = binding.pin.text.toString().trim()
+            if (pin.isEmpty()) return@setOnClickListener
+            // Emptied as it is sent, so a refused PIN is never left sitting in the field.
+            binding.pin.setText("")
+            step(R.string.signal_register_working) { signalRepo.registerPin(id, pin, number) }
+        }
         binding.callInstead.setOnClickListener {
             askedForACall = true
             val id = sessionId ?: return@setOnClickListener
@@ -178,6 +186,7 @@ class SignalRegisterActivity : QkThemedActivity() {
         binding.send.isEnabled = enabled
         binding.verify.isEnabled = enabled
         binding.callInstead.isEnabled = enabled
+        binding.unlock.isEnabled = enabled
     }
 
     private fun render(result: SignalRepository.Registration) = when (result) {
@@ -201,7 +210,25 @@ class SignalRegisterActivity : QkThemedActivity() {
             )
         }
 
+        is SignalRepository.Registration.NeedsPin -> {
+            sessionId = result.sessionId
+            binding.captcha.setVisible(false)
+            binding.numberStep.setVisible(false)
+            binding.codeStep.setVisible(false)
+            binding.pinStep.setVisible(true)
+            binding.scroll.post { binding.scroll.scrollTo(0, 0) }
+            // Every refusal says how many tries are left: running out is not a wait, it is the
+            // PIN's data deleted.
+            val tries = result.triesRemaining
+            binding.status.text = when {
+                tries == null -> getString(R.string.signal_register_pin_needed)
+                tries == 1 -> getString(R.string.signal_register_pin_wrong_one)
+                else -> getString(R.string.signal_register_pin_wrong, "$tries")
+            }
+        }
+
         is SignalRepository.Registration.Registered -> {
+            binding.pinStep.setVisible(false)
             binding.captcha.setVisible(false)
             // The warning is about taking a number over, which has now happened. Leaving it
             // above the name step would push that step down the same way the captcha was.
@@ -218,6 +245,7 @@ class SignalRegisterActivity : QkThemedActivity() {
         }
 
         is SignalRepository.Registration.Failed -> {
+            binding.pinStep.setVisible(false)
             // ⚠ Puts the number step back. [showCaptcha] hides it, so without this a refused
             // captcha or a rejected number left the screen with a message and no way to try
             // again -- the dead end that hiding it would otherwise create.

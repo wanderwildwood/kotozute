@@ -153,6 +153,39 @@
             no profile name reaches everyone it writes to as a bare service id. A linked device
             never sees this step: it inherits a profile the primary already wrote.
         -->
+        <!-- A registration lock, lifted with the number's Signal PIN. Guesses are limited and
+             running out deletes the PIN's data, so the status line always says how many are left. -->
+        <LinearLayout
+            android:id="@+id/pinStep"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="gone">
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="4dp"
+                android:text="@string/signal_register_pin_hint" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkEditText
+                android:id="@+id/pin"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:importantForAutofill="no"
+                android:inputType="textPassword"
+                android:maxLines="1" />
+
+            <Button
+                android:id="@+id/unlock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/signal_register_unlock" />
+        </LinearLayout>
+
         <LinearLayout
             android:id="@+id/nameStep"
             android:layout_width="match_parent"

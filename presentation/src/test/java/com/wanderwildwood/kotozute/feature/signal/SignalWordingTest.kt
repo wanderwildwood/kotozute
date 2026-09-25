@@ -240,22 +240,26 @@ class SignalWordingTest {
             say(RegistrationFailure.NoKeyMaterial)
         )
         assertEquals(
-            "This number has a registration lock, with about 6 days left to run. Its PIN is " +
-                "needed to register it here, and this app cannot use one yet. Link this phone " +
-                "to the account instead.",
+            "Signal kept this number locked even though its PIN was right, with about 6 days left " +
+                "to run. Link this phone to the account instead.",
             say(RegistrationFailure.Locked(6))
         )
         assertEquals(
-            "This number has a registration lock, with about a day left to run. Its PIN is " +
-                "needed to register it here, and this app cannot use one yet. Link this phone " +
-                "to the account instead.",
+            "Signal kept this number locked even though its PIN was right, with about a day left " +
+                "to run. Link this phone to the account instead.",
             say(RegistrationFailure.Locked(1))
         )
         assertEquals(
-            "This number has a registration lock. Its PIN is needed to register it here, and " +
-                "this app cannot use one yet. Link this phone to the account instead.",
+            "Signal kept this number locked even though its PIN was right. Link this phone to the " +
+                "account instead.",
             say(RegistrationFailure.Locked(0))
         )
+        assertEquals(
+            "Signal has no PIN for this number, so the registration lock has to run out first. " +
+                "Link this phone to the account instead.",
+            say(RegistrationFailure.PinDataMissing(6))
+        )
+        assertEquals("the PIN could not be checked: E", say(RegistrationFailure.PinCheckFailed("E")))
         assertEquals("registration refused: E", say(RegistrationFailure.Refused("E")))
         assertEquals("unexpected registration state", say(RegistrationFailure.Unexpected))
         assertEquals("IOException", say(RegistrationFailure.Unexplained("IOException")))

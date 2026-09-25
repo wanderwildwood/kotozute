@@ -69,7 +69,12 @@ class SignalRegistrar internal constructor(
      * Keeps the pool. The same callback the link path uses, so both arrive at the storage key
      * through one derivation.
      */
-    private val onAccountKeys: (String) -> Unit
+    private val onAccountKeys: (String) -> Unit,
+    /** An SVR2 client for one enclave; see [SignalNetworkConfig.svr2Enclaves]. */
+    private val svr2: (String) -> org.whispersystems.signalservice.api.svr.SecureValueRecovery =
+        { error("no SVR2 client") },
+    /** Keeps a master key recovered with the PIN, in place of a fresh pool. */
+    private val onMasterKey: (org.signal.core.models.MasterKey) -> Unit = {}
 ) {
 
     /**
@@ -110,10 +115,102 @@ class SignalRegistrar internal constructor(
             val nextAttemptSeconds: Long?
         ) : Step
 
-        /** Registered. From here the account exists and the device is this phone. */
-        data class Registered(val aci: String, val e164: String) : Step
+        /**
+         * Registered. From here the account exists and the device is this phone.
+         *
+         * [pinReset] is set when a PIN lifted a registration lock: the caller writes the same
+         * PIN back to reset its guess count, as upstream's `ResetSvrGuessCountJob` does -- a
+         * restore spends a guess even when it is right, and spent guesses are how SVR2 comes to
+         * delete the data.
+         */
+        data class Registered(val aci: String, val e164: String, val pinReset: PinReset? = null) : Step
+
+        /**
+         * The number has a registration lock, and the response carried what SVR2 needs to check
+         * its PIN. [triesRemaining] is null until one has been refused.
+         */
+        data class NeedsPin(
+            val sessionId: String,
+            val days: Long,
+            val svrUsername: String,
+            val svrPassword: String,
+            val triesRemaining: Int? = null
+        ) : Step
 
         data class Failed(val failure: RegistrationFailure) : Step
+    }
+
+    /** A PIN that lifted a lock, to be written back once the account exists. Memory only. */
+    class PinReset(val pin: String, val masterKey: org.signal.core.models.MasterKey, val enclave: String)
+
+    /**
+     * Checks [pin] against SVR2 and, if it is right, registers with the lock lifted.
+     *
+     * Upstream's `restoreMasterKeyPreRegistration`: the current enclave, then the legacy one,
+     * moving on **only** when an enclave holds no data. A wrong PIN stops at once and says how
+     * many tries are left -- a guess is never retried by this code, because guesses are
+     * limited and running out deletes the data.
+     */
+    suspend fun submitPin(
+        sessionId: String,
+        e164: String,
+        pin: String,
+        days: Long,
+        svrUsername: String,
+        svrPassword: String
+    ): Step {
+        val credentials = org.whispersystems.signalservice.internal.push.AuthCredentials.create(svrUsername, svrPassword)
+        val walked = PinWalk.walkEnclaves(SignalNetworkConfig.svr2Enclaves()) { enclave ->
+            svr2(enclave).restoreDataPreRegistration(credentials, null, pin)
+        }
+        return when (val r = walked.response) {
+            is org.whispersystems.signalservice.api.svr.SecureValueRecovery.RestoreResponse.Success -> {
+                Timber.i("signal register: the PIN lifted the lock")
+                val step = register(sessionId, e164, r.masterKey)
+                if (step is Step.Registered) step.copy(pinReset = PinReset(pin, r.masterKey, walked.enclave!!)) else step
+            }
+            is org.whispersystems.signalservice.api.svr.SecureValueRecovery.RestoreResponse.PinMismatch -> {
+                Timber.i("signal register: wrong PIN, %d tries left", r.triesRemaining)
+                Step.NeedsPin(sessionId, days, svrUsername, svrPassword, r.triesRemaining)
+            }
+            is org.whispersystems.signalservice.api.svr.SecureValueRecovery.RestoreResponse.NetworkError ->
+                Step.Failed(RegistrationFailure.PinCheckFailed("${r.exception.message}"))
+            is org.whispersystems.signalservice.api.svr.SecureValueRecovery.RestoreResponse.ApplicationError ->
+                Step.Failed(RegistrationFailure.PinCheckFailed("${r.exception.message}"))
+            null -> Step.Failed(RegistrationFailure.PinDataMissing(days))
+            else -> Step.Failed(RegistrationFailure.PinDataMissing(days))
+        }
+    }
+
+    /** What walking the enclaves came to, and which enclave said it. */
+    internal class Walked(
+        val response: org.whispersystems.signalservice.api.svr.SecureValueRecovery.RestoreResponse?,
+        val enclave: String?
+    )
+
+    internal object PinWalk {
+        /**
+         * Asks each enclave in turn, moving on **only** when one holds no data (Missing or
+         * EnclaveNotFound). Anything else -- right PIN, wrong PIN, a fault -- is the answer, and
+         * no later enclave is asked. A wrong PIN is never tried twice: guesses are limited.
+         * Null when every enclave had nothing.
+         */
+        fun walkEnclaves(
+            enclaves: List<String>,
+            restore: (String) -> org.whispersystems.signalservice.api.svr.SecureValueRecovery.RestoreResponse
+        ): Walked {
+            for (enclave in enclaves) {
+                val response = runCatching { restore(enclave) }.getOrElse {
+                    org.whispersystems.signalservice.api.svr.SecureValueRecovery.RestoreResponse.ApplicationError(it)
+                }
+                when (response) {
+                    org.whispersystems.signalservice.api.svr.SecureValueRecovery.RestoreResponse.Missing,
+                    org.whispersystems.signalservice.api.svr.SecureValueRecovery.RestoreResponse.EnclaveNotFound -> continue
+                    else -> return Walked(response, enclave)
+                }
+            }
+            return Walked(null, null)
+        }
     }
 
     /** What the server names when it wants a captcha. */
@@ -226,7 +323,11 @@ class SignalRegistrar internal constructor(
         return register(sessionId, e164)
     }
 
-    private suspend fun register(sessionId: String, e164: String): Step {
+    private suspend fun register(
+        sessionId: String,
+        e164: String,
+        recovered: org.signal.core.models.MasterKey? = null
+    ): Step {
         // Invented here and never sent anywhere but the registration request. It is half the
         // account credential from now on: lose it and the account is not recoverable from this
         // phone, only re-registerable.
@@ -240,8 +341,12 @@ class SignalRegistrar internal constructor(
         // already exists on the server, with this phone as its only device and no key material
         // to read its own stored state with -- recoverable only by registering the number
         // again. Failing before the request costs nothing; the number has not moved yet.
-        val accountEntropyPool = generateAccountKeys()
-            ?: return Step.Failed(RegistrationFailure.NoKeyMaterial)
+        //
+        // ⚠ Except when a PIN recovered the account's own master key: its storage records are
+        // encrypted under that key, and a fresh pool would leave them unreadable.
+        val accountEntropyPool = if (recovered != null) null else (
+            generateAccountKeys() ?: return Step.Failed(RegistrationFailure.NoKeyMaterial)
+        )
 
         val aciIdentity = IdentityKeyPair.generate()
         val pniIdentity = IdentityKeyPair.generate()
@@ -260,7 +365,10 @@ class SignalRegistrar internal constructor(
             video = false,
             // No push, so this device collects its own messages. Same as the linked case.
             fetchesMessages = true,
-            registrationLock = null,
+            // The lock stays on after a PIN lifted it, as upstream's does
+            // (`masterKey?.deriveRegistrationLock()`): turning somebody's registration lock off
+            // as a side effect of moving their account would be a quiet loss of protection.
+            registrationLock = recovered?.deriveRegistrationLock(),
             unidentifiedAccessKey = UnidentifiedAccess.deriveAccessKeyFrom(ProfileKey(profileKey)),
             unrestrictedUnidentifiedAccess = false,
             // Being findable by phone number is the default Signal ships, and changing it
@@ -347,7 +455,9 @@ class SignalRegistrar internal constructor(
                 // that failed to persist here can simply be generated again later, with
                 // nothing lost. That would not be true for a linked device, which must keep
                 // the exact pool the primary sent it.
-                runCatching { onAccountKeys(accountEntropyPool) }
+                runCatching {
+                    if (recovered != null) onMasterKey(recovered) else onAccountKeys(accountEntropyPool!!)
+                }
                     .onFailure {
                         Timber.e(
                             it,
@@ -377,7 +487,18 @@ class SignalRegistrar internal constructor(
                     // lock with hours left read as "0 days".
                     val day = TimeUnit.DAYS.toMillis(1)
                     val days = (error.data.timeRemaining + day - 1) / day
-                    Step.Failed(RegistrationFailure.Locked(days))
+                    // Only when the PIN was not already given: a second lock after a PIN that
+                    // SVR2 accepted means the token was refused, which a PIN cannot fix.
+                    if (recovered == null) {
+                        Step.NeedsPin(
+                            sessionId,
+                            days,
+                            error.data.svr2Credentials.username,
+                            error.data.svr2Credentials.password
+                        )
+                    } else {
+                        Step.Failed(RegistrationFailure.Locked(days))
+                    }
                 } else {
                     Step.Failed(RegistrationFailure.Refused("$result"))
                 }

@@ -68,7 +68,8 @@ fun RecyclerView.turnsAPageOnSwipe() {
 }
 
 /**
- * One screen on, or one back, landing on a row's edge.
+ * One screen on, landing on a row's edge. Back is [turnPageBack], which cannot use the same
+ * pull.
  *
  * By pixels rather than by item, which is what makes this safe on a thread: a bubble taller
  * than the screen simply takes two pages, and a picture that has not finished decoding cannot
@@ -77,7 +78,11 @@ fun RecyclerView.turnsAPageOnSwipe() {
 private fun RecyclerView.turnPage(forward: Boolean) {
     val page = height - paddingTop - paddingBottom
     if (page <= 0) return
-    scrollBy(0, if (forward) page else -page)
+    if (!forward) {
+        turnPageBack(page)
+        return
+    }
+    scrollBy(0, page)
 
     // Two places the row-edge rule has to give way, both of them because the pull that buys the
     // edge costs a row, and here the list cannot afford one.
@@ -105,3 +110,41 @@ private fun RecyclerView.turnPage(forward: Boolean) {
     // through, and the row belongs at the edge itself.
     scrollBy(0, first.top - if (clipToPadding) paddingTop else 0)
 }
+
+/**
+ * One screen back, losing nothing.
+ *
+ * ⚠ Not the forward turn run backwards, which is what this was, and which lost messages. The
+ * forward turn pulls a part-cut top row into view by scrolling back a little -- over rows
+ * already read. Backwards, the same pull scrolls *further up*, and what it pushes off the
+ * bottom is the one row this page exists to show: the row just above the page before. Paging
+ * up through a thread skipped a message every page or two, and they were there again on the
+ * way down (forum: "some messages get lost in the scroll").
+ *
+ * So backwards the overlap is anchored at the bottom: the row that opened the page before
+ * lands whole at the bottom of this one, the line to read back from. The top row is pulled
+ * into view only when that costs no more than the overlap row itself -- something already
+ * read. Otherwise the page opens mid-row, and the next page back shows that row whole.
+ */
+private fun RecyclerView.turnPageBack(page: Int) {
+    val topEdge = if (clipToPadding) paddingTop else 0
+    val bottomEdge = height - paddingBottom
+
+    // The row this page opened on: the first one showing below the top edge.
+    val opener = (0 until childCount).map { getChildAt(it) }.firstOrNull { it.bottom > topEdge }
+    if (opener == null || opener.height > page) {
+        scrollBy(0, -page)
+        return
+    }
+    val overlap = opener.height
+    // Its bottom to the bottom edge: everything above it on the new page is new.
+    scrollBy(0, opener.bottom - bottomEdge)
+
+    // At the start of the list there is nothing above to make room for.
+    if (!canScrollVertically(-1)) return
+
+    val first = getChildAt(0) ?: return
+    val cut = topEdge - first.top
+    if (cut in 1..overlap && first.height <= page) scrollBy(0, -cut)
+}
+

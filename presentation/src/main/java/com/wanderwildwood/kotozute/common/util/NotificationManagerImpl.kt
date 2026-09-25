@@ -153,7 +153,7 @@ class NotificationManagerImpl @Inject constructor(
     /**
      * Updates the notification for a particular conversation
      */
-    override fun update(threadId: Long) {
+    override fun update(threadId: Long, silent: Boolean) {
         // If notifications are disabled, don't do anything
         if (!prefs.notifications(threadId).get()) {
             return
@@ -408,7 +408,11 @@ class NotificationManagerImpl @Inject constructor(
                 }
                 .forEach { notification.addAction(it) }
 
-        if (prefs.qkreply.get()) {
+        // Put back after a restart or an update: announced once already, so no sound, no buzz,
+        // no light -- and no quick-reply window popping up over whatever the phone is doing.
+        if (silent) notification.setSilent(true)
+
+        if (prefs.qkreply.get() && !silent) {
             notification.priority = NotificationCompat.PRIORITY_DEFAULT
 
             val intent = Intent(context, QkReplyActivity::class.java)

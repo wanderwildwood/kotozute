@@ -25,7 +25,11 @@ interface NotificationManager {
 
     fun getForegroundNotificationForWorkersOnOlderAndroids(): Notification
 
-    fun update(threadId: Long)
+    /**
+     * @param silent re-shows what is already known without sound, vibration, light or the
+     *   quick-reply window -- for putting notifications back after a restart or an update.
+     */
+    fun update(threadId: Long, silent: Boolean = false)
 
     fun notifyFailed(threadId: Long)
 

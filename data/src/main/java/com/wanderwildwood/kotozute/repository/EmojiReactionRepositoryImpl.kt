@@ -22,6 +22,7 @@ import android.content.Context
 import com.squareup.moshi.Moshi
 import com.wanderwildwood.kotozute.extensions.insertOrUpdate
 import com.wanderwildwood.kotozute.manager.KeyManager
+import com.wanderwildwood.kotozute.model.Conversation
 import com.wanderwildwood.kotozute.model.EmojiReaction
 import com.wanderwildwood.kotozute.model.Message
 import com.wanderwildwood.kotozute.util.EmojiPatternStrings
@@ -295,6 +296,20 @@ class EmojiReactionRepositoryImpl @Inject constructor(
                 )
             }
         }
+
+        // A full sync picks each conversation's last message before this runs, when no
+        // message is marked as a reaction yet -- so a thread whose latest text was a
+        // reaction ("Laughed at “…”") would keep it as its preview. Re-pick those.
+        realm.where(Conversation::class.java)
+            .equalTo("lastMessage.isEmojiReaction", true)
+            .findAll()
+            .forEach { conversation ->
+                conversation.lastMessage = realm.where(Message::class.java)
+                    .equalTo("threadId", conversation.id)
+                    .equalTo("isEmojiReaction", false)
+                    .sort("date", Sort.DESCENDING)
+                    .findFirst()
+            }
 
         val endTime = System.currentTimeMillis()
         Timber.d("Deleted and reparsed all emoji reactions in ${endTime - startTime}ms")

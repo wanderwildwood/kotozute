@@ -404,8 +404,11 @@ class ConversationRepositoryImpl @Inject constructor(
                 ?.map { conversation ->
                     Pair(
                         conversation,
+                        // A reaction is drawn under the message it reacts to, not as a
+                        // message of its own, so it is not what the conversation last said.
                         realm.where(Message::class.java)
                             .equalTo("threadId", conversation.id)
+                            .equalTo("isEmojiReaction", false)
                             .sort("date", Sort.DESCENDING)
                             .findFirst()
                     )
@@ -557,6 +560,7 @@ class ConversationRepositoryImpl @Inject constructor(
 
                             lastMessage = realm.where(Message::class.java)
                                 .equalTo("threadId", threadId)
+                                .equalTo("isEmojiReaction", false)
                                 .sort("date", Sort.DESCENDING)
                                 .findFirst()
                         }

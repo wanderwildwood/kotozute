@@ -508,13 +508,11 @@ class MessagesAdapter @Inject constructor(
                     .toList()
                     .sortedByDescending { it.second } // Sort by count, most reactions first
 
-                // For now, show just the first (most popular) reaction
-                val topReaction = reactionCounts.first()
-                val reactionText = if (topReaction.second == 1) {
-                    topReaction.first
-                } else {
-                    // Use a non-breaking space to keep the emoji and count together
-                    "${topReaction.first}\u00A0${topReaction.second}"
+                // Every emoji, most given first, as Desktop Sync and the Signal thread draw
+                // them. Showing only the top one hid a second person's reaction entirely.
+                // A non-breaking space keeps each emoji with its count.
+                val reactionText = reactionCounts.joinToString("  ") { (emoji, count) ->
+                    if (count == 1) emoji else "$emoji\u00A0$count"
                 }
 
                 holder.reactionText?.text = reactionText

@@ -195,6 +195,7 @@ class SyncRepositoryImpl @Inject constructor(
                                 lastMessage = realm.where(Message::class.java)
                                     .sort("date", Sort.DESCENDING)
                                     .equalTo("threadId", id)
+                                    .equalTo("isEmojiReaction", false)
                                     .findFirst()
                             }
                             realm.insertOrUpdate(conversation)

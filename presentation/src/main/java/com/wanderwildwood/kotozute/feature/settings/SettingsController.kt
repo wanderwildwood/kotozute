@@ -344,6 +344,17 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalOpensFirst.checkbox.isChecked = state.signalOpensFirst
         binding.signalReceipts.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalReceipts.checkbox.isChecked = state.signalReadReceipts
+        // Only while it is true. Switched off in Android's settings, not here, so the app is
+        // the one place that can say so.
+        binding.signalNotificationsOff.setVisible(
+            state.signalPaired && state.signalEnabled &&
+                com.wanderwildwood.kotozute.feature.signal.NotificationsOff.any(binding.root.context)
+        )
+        // Only while it is needed: once Android lets Messaging run, there is nothing to ask.
+        binding.signalBackground.setVisible(
+            state.signalPaired && state.signalEnabled &&
+                !com.wanderwildwood.kotozute.feature.signal.BackgroundRunning.isAllowed(binding.root.context)
+        )
         binding.signalStatus.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalStatus.summary = state.signalStatusSummary
 

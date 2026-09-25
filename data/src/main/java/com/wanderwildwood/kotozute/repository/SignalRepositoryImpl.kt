@@ -704,12 +704,19 @@ class SignalRepositoryImpl @Inject constructor(
     override fun purgeAbandonedAttachments(): Int {
         val known = mutableSetOf<String>()
         var unreadable = 0
+        val unsent = mutableSetOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.where(SignalMessage::class.java).findAll().forEach { message ->
                 val ids = attachmentIdsOf(message.attachments)
                 if (ids == null) unreadable++ else known += ids
+                if (message.outgoing && message.sendState != SignalMessage.SEND_SENT) unsent += message.id
             }
         }
+        // The outbox, whose folders a message only takes with it by being sent or discarded.
+        // Skipping anything this process is sending, whose row is being written right now.
+        runCatching { outbox.sweep(unsent + inFlight) }
+            .onSuccess { if (it > 0) Timber.i("signal: %d outbox folder(s) had no message left", it) }
+            .onFailure { Timber.w(it, "signal: could not sweep the outbox") }
         if (unreadable > 0) {
             Timber.w(
                 "signal: %d message(s) would not say what they had attached; not sweeping, " +

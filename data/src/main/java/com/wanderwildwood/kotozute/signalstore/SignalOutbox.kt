@@ -38,6 +38,23 @@ internal class SignalOutbox(private val root: File) {
         root.deleteRecursively()
     }
 
+    /**
+     * Removes every message's folder but those still on their way or not sent.
+     *
+     * A folder goes when its message is sent or discarded here; a message that leaves any
+     * other way -- its conversation deleted, its timer run out, withdrawn -- took nothing with
+     * it, and the attachment sat on disk for good. Same shape as the attachment sweep, and on
+     * the same pass.
+     *
+     * @return how many folders went.
+     */
+    fun sweep(unsentIds: Set<String>): Int {
+        val keep = unsentIds.map { dirFor(it).name }.toSet()
+        val gone = root.listFiles()?.filter { it.isDirectory && it.name !in keep }.orEmpty()
+        gone.forEach { it.deleteRecursively() }
+        return gone.size
+    }
+
     /** An id is `aci:timestamp`; a colon is not something to put in a path. */
     private fun dirFor(messageId: String) = File(root, messageId.replace(Regex("[^A-Za-z0-9._-]"), "_"))
 

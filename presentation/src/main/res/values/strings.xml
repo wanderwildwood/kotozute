@@ -500,6 +500,13 @@
     <string name="signal_unsent_delete">Delete</string>
     <string name="signal_delete_for_me">Delete for me</string>
     <string name="signal_edit">Edit</string>
+    <string name="signal_mention_pick">Mention</string>
+    <string name="signal_info">Info</string>
+    <string name="signal_info_sent">Sent %1$s</string>
+    <string name="signal_info_received">Received %1$s</string>
+    <string name="signal_info_delivered">Delivered %1$s</string>
+    <string name="signal_info_read">Read %1$s</string>
+    <string name="signal_info_edited">Edited %1$s</string>
     <string name="signal_editing">Editing your message · tap to cancel</string>
     <string name="signal_edit_failed">Not edited: %1$s</string>
     <string name="signal_delete_for_me_confirm">Delete this message from this phone and your other devices? The people in the conversation keep their copy.</string>

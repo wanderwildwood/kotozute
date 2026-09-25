@@ -341,7 +341,9 @@ internal class SignalSender(
         revision: Int = 0,
         quote: SignalQuote? = null,
         /** As [send]'s. */
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        /** Mentions in [body], already placeholders there. See [OutgoingMentions]. */
+        mentions: List<OutgoingMentions.Mention> = emptyList()
     ): Result {
         if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
         refuseIfTooLong(body)?.let { return it }
@@ -365,6 +367,13 @@ internal class SignalSender(
             .withProfileKey(selfProfileKey)
             .asGroupMessage(group)
             .withQuote(quote?.toQuote())
+            .withMentions(
+                mentions.mapNotNull { m ->
+                    ServiceId.ACI.parseOrNull(m.aci)?.let {
+                        SignalServiceDataMessage.Mention(it, m.start, m.length)
+                    }
+                }.takeIf { it.isNotEmpty() }
+            )
             // The group's own timer. Sent with every message, as Signal does: a message with
             // no timer is not "unspecified", it is a timer of zero, and a group that had
             // agreed its messages disappear would quietly stop expiring ours.

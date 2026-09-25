@@ -1765,8 +1765,13 @@ class SignalRepositoryImpl @Inject constructor(
                 groupMasterKey = masterKey
             )
         // The same order as the one-to-one send; see [sendThroughOutbox].
+        // "@Name" goes as a real mention; this phone's own copy keeps the name, which is how
+        // a received mention is shown too.
+        val encoded = com.wanderwildwood.kotozute.signalstore.OutgoingMentions.encode(
+            body, runCatching { senderNamesFor(threadKey) }.getOrDefault(emptyMap())
+        )
         return sendThroughOutbox(row, emptyList(), resending > 0) {
-            signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion, quote, timestamp)
+            signalStore.sendToGroup(masterKey, encoded.body, expiresIn, timerVersion, quote, timestamp, encoded.mentions)
         }
     }
 

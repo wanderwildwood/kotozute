@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 29
+        const val SCHEMA_VERSION: Long = 30
     }
 
     @SuppressLint("ApplySharedPref")
@@ -521,6 +521,15 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalThread")
                 ?.takeIf { !it.hasField("markedUnreadAt") }
                 ?.addField("markedUnreadAt", Long::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 29L) {
+            // The latest edit's timestamp. Nothing has been recorded as edited yet.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("revisionTs") }
+                ?.addField("revisionTs", Long::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

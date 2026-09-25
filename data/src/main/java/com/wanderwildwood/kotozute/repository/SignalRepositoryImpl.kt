@@ -1581,6 +1581,83 @@ class SignalRepositoryImpl @Inject constructor(
     override fun discardUnsent(messageId: String) = runOffThread { dropUnsent(messageId) }
 
     /**
+     * Sends a new text for one of this account's messages and puts it in place here.
+     *
+     * The rule is Signal's (`MessageConstraintsUtil.isValidEditMessageSend`); see
+     * [SignalRepository.canEdit]. The edit names the latest revision, as Signal's clients do,
+     * and the row keeps the original's place and identity, recording the new revision so the
+     * next edit -- from here or anywhere -- finds it.
+     */
+    override fun edit(messageId: String, body: String): Long {
+        val m = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
+                ?.let { realm.copyFromRealm(it) }
+        } ?: throw com.wanderwildwood.kotozute.repository.SendRefused(
+            com.wanderwildwood.kotozute.repository.SendFailure.Unexplained("that message is not here")
+        )
+        if (!SignalRepository.canEdit(m.outgoing, m.date, m.viewOnce, m.attachments.isNotBlank(), m.sendState)) {
+            throw com.wanderwildwood.kotozute.repository.SendRefused(
+                com.wanderwildwood.kotozute.repository.SendFailure.Unexplained("that message can no longer be edited")
+            )
+        }
+        val target = if (m.revisionTs > 0) m.revisionTs else m.date
+        val (expiresIn, timerVersion) = timerFor(m.threadKey)
+        val now = System.currentTimeMillis()
+        val sentAt = if (m.threadKey.startsWith("group:")) {
+            val masterKey = Realm.getDefaultInstance().use { realm -> groupMasterKeyFor(realm, m.threadKey) }
+                ?: throw com.wanderwildwood.kotozute.repository.SendRefused(
+                    com.wanderwildwood.kotozute.repository.SendFailure.NoGroupKey
+                )
+            signalStore.sendEditToGroup(masterKey, target, body, expiresIn, timerVersion, now)
+        } else {
+            signalStore.sendEdit(m.threadKey.removePrefix("direct:"), target, body, expiresIn, timerVersion, now)
+        }
+        // ⚠ Past this point it has gone, as with any send: failing to write it down here is not
+        // a failed edit. See [SentButNotFiled].
+        try {
+            Realm.getDefaultInstance().use { realm ->
+                realm.executeTransaction { r ->
+                    r.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()?.let {
+                        it.body = body
+                        it.revisionTs = sentAt
+                    }
+                    refreshThreadPreview(r, m.threadKey)
+                }
+            }
+        } catch (t: Throwable) {
+            throw com.wanderwildwood.kotozute.repository.SentButNotFiled(t)
+        }
+        return sentAt
+    }
+
+    /**
+     * Deletes one message on this phone and tells the account's other devices to do the same,
+     * as Signal's "Delete for me" does (`MultiDeviceDeleteSyncJob.enqueueMessageDeletes`).
+     *
+     * Nobody else is touched: the other person keeps their copy. A line this phone wrote for
+     * itself -- a call, a note -- is removed here only; no other device has one to delete.
+     */
+    override fun deleteForMe(messageId: String) = runOffThread {
+        val m = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
+                ?.let { realm.copyFromRealm(it) }
+        } ?: return@runOffThread
+        removeWithdrawn(messageId, "deleted for me") { true }
+        outbox.clear(messageId)
+        // Only a real message is addressable by (author, sent time) on another device.
+        val addressable = !messageId.startsWith("call:") && !messageId.startsWith("groupcall:") &&
+            !messageId.startsWith("local:")
+        if (!addressable) return@runOffThread
+        val author = if (m.outgoing) signalStore.selfAciOrNull().orEmpty() else m.senderUuid
+        val groupId = m.threadKey.takeIf { it.startsWith("group:") }
+            ?.let { runCatching { android.util.Base64.decode(it.removePrefix("group:"), android.util.Base64.NO_WRAP) }.getOrNull() }
+        val peer = m.threadKey.takeIf { it.startsWith("direct:") }?.removePrefix("direct:")
+        runCatching { signalStore.sendDeleteForMe(peer, groupId, listOf(author to m.date)) }
+            .onSuccess { if (!it) Timber.w("signal delete sync: the other devices were not told") }
+            .onFailure { Timber.w(it, "signal delete sync: could not tell the other devices") }
+    }
+
+    /**
      * Sends one of our own messages again, under its original timestamp.
      *
      * The same timestamp is what makes a second send safe: a recipient that already has the
@@ -2336,6 +2413,8 @@ class SignalRepositoryImpl @Inject constructor(
         row.expiresAt = if (countdownStarted > 0L) countdownStarted else m.expiresAt
         row.expiresInSeconds = m.expiresInSeconds
         row.viewOnce = m.viewOnce
+        // Only ever forward: an edit records itself, and anything else leaves it alone.
+        if (m.revisionTs > row.revisionTs) row.revisionTs = m.revisionTs
 
         val thread = realm.where(SignalThread::class.java)
             .equalTo("threadKey", m.threadKey).findFirst()
@@ -2766,6 +2845,14 @@ class SignalRepositoryImpl @Inject constructor(
 
         override fun profileNameChanged(aci: String, from: String, to: String) =
             noteNameChange(aci, from, to)
+
+        override fun originalSentAt(author: String, revisionSentAt: Long): Long? =
+            Realm.getDefaultInstance().use { realm ->
+                realm.where(SignalMessage::class.java)
+                    .equalTo("senderUuid", author)
+                    .equalTo("revisionTs", revisionSentAt)
+                    .findFirst()?.date
+            }
 
         override fun call(
             peer: String,

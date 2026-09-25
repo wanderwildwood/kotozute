@@ -690,6 +690,54 @@ internal class SignalSender(
     }
 
     /**
+     * Tells this account's other devices that messages were deleted here, for this account only.
+     *
+     * Upstream's `MultiDeviceDeleteSyncJob`: one conversation, named by the other person's
+     * service id or the group's id, and each message by its author and sent time -- the pair
+     * every device files a message under. Raw content, because the library has no builder for
+     * this sync, and padded as upstream pads it so its length says nothing.
+     */
+    fun sendDeleteForMe(
+        conversation: org.whispersystems.signalservice.internal.push.ConversationIdentifier,
+        messages: List<Pair<ServiceId.ACI, Long>>
+    ): Result {
+        if (messages.isEmpty()) return Result.Sent(System.currentTimeMillis())
+        val padding = ByteArray(1 + java.security.SecureRandom().nextInt(512)).also { java.security.SecureRandom().nextBytes(it) }
+        val sync = org.whispersystems.signalservice.internal.push.SyncMessage(
+            deleteForMe = org.whispersystems.signalservice.internal.push.SyncMessage.DeleteForMe(
+                messageDeletes = listOf(
+                    org.whispersystems.signalservice.internal.push.SyncMessage.DeleteForMe.MessageDeletes(
+                        conversation = conversation,
+                        messages = messages.map { (author, at) ->
+                            org.whispersystems.signalservice.internal.push.AddressableMessage(
+                                authorServiceIdBinary = author.toByteString(),
+                                sentTimestamp = at
+                            )
+                        }
+                    )
+                )
+            ),
+            padding = okio.ByteString.of(*padding)
+        )
+        return try {
+            val result = sender.sendSyncMessage(
+                org.whispersystems.signalservice.internal.push.Content(syncMessage = sync),
+                true,
+                java.util.Optional.empty()
+            )
+            if (result.isSuccess) {
+                Timber.i("signal delete sync: told our own devices about %d message(s)", messages.size)
+                Result.Sent(System.currentTimeMillis())
+            } else {
+                failed(result)
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal delete sync: send threw")
+            failed(t)
+        }
+    }
+
+    /**
      * Tells this account's other devices that its storage records have changed.
      *
      * What upstream sends after every write (`MultiDeviceStorageSyncRequestJob`):
@@ -1540,6 +1588,144 @@ internal class SignalSender(
      * outcome rather than a silent failure: the message is already stored here, and a
      * transcript exists only to tell other devices what this one did.
      */
+    /**
+     * Sends a new text for one of this account's messages, to one person.
+     *
+     * An edit is a whole data message under a new timestamp, naming the revision it replaces
+     * ([targetSentAt] -- the latest one, as Signal names it). The timer goes with it for the
+     * reason it goes with every message; see [send].
+     */
+    fun sendEdit(
+        recipient: ServiceId,
+        targetSentAt: Long,
+        body: String,
+        expiresInSeconds: Int,
+        expireTimerVersion: Int,
+        timestamp: Long = System.currentTimeMillis()
+    ): Result {
+        refuseIfTooLong(body)?.let { return it }
+        if (isSelf(recipient)) return sendEditToSelf(recipient, targetSentAt, body, expiresInSeconds, expireTimerVersion, timestamp)
+        val message = SignalServiceDataMessage.newBuilder()
+            .withBody(body)
+            .withTimestamp(timestamp)
+            .withProfileKey(selfProfileKey?.takeIf { sharesProfileWith(recipient) })
+            .withExpiration(expiresInSeconds)
+            .withExpireTimerVersion(expireTimerVersion)
+            .build()
+        return try {
+            val result = sender.sendEditMessage(
+                SignalServiceAddress(recipient),
+                sealedSender.accessFor(recipient.toString()),
+                ContentHint.RESENDABLE,
+                message,
+                SignalServiceMessageSender.IndividualSendEvents.EMPTY,
+                true,
+                targetSentAt
+            )
+            if (result.isSuccess) {
+                Timber.i("signal edit: delivered ts=%d for %d", timestamp, targetSentAt)
+                Result.Sent(timestamp)
+            } else {
+                failed(result)
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal edit: threw")
+            failed(t)
+        }
+    }
+
+    /** The same, to a group: every member, as the group send does. */
+    fun sendEditToGroup(
+        masterKey: ByteArray,
+        members: List<ServiceId>,
+        revision: Int,
+        targetSentAt: Long,
+        body: String,
+        expiresInSeconds: Int,
+        expireTimerVersion: Int,
+        timestamp: Long = System.currentTimeMillis()
+    ): Result {
+        if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
+        refuseIfTooLong(body)?.let { return it }
+        val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
+            .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+            .withRevision(revision)
+            .build()
+        val message = SignalServiceDataMessage.newBuilder()
+            .withBody(body)
+            .withTimestamp(timestamp)
+            .withProfileKey(selfProfileKey)
+            .asGroupMessage(group)
+            .withExpiration(expiresInSeconds)
+            .withExpireTimerVersion(expireTimerVersion)
+            .build()
+        return try {
+            val results = sender.sendEditMessage(
+                members.map { SignalServiceAddress(it) },
+                members.map { sealedSender.accessFor(it.toString()) },
+                false,
+                ContentHint.RESENDABLE,
+                message,
+                SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
+                null,
+                null,
+                true,
+                targetSentAt
+            )
+            val failedOnes = results.filterNot { it.isSuccess }
+            if (failedOnes.size < results.size) Result.Sent(timestamp)
+            else Result.Failed(SendFailure.NobodyReached(results.size))
+        } catch (t: Throwable) {
+            Timber.w(t, "signal edit: group edit threw")
+            failed(t)
+        }
+    }
+
+    /**
+     * An edit to a note to self: like the note itself, a sent transcript to this account's own
+     * devices rather than a message to anybody -- carrying the edit, so they replace the note
+     * rather than adding a second one. Built by hand because the library's note-to-self path
+     * only knows plain messages.
+     */
+    private fun sendEditToSelf(
+        self: ServiceId,
+        targetSentAt: Long,
+        body: String,
+        expiresInSeconds: Int,
+        expireTimerVersion: Int,
+        timestamp: Long
+    ): Result {
+        val data = org.whispersystems.signalservice.internal.push.DataMessage(
+            body = body,
+            timestamp = timestamp,
+            expireTimer = expiresInSeconds.takeIf { it > 0 },
+            expireTimerVersion = expireTimerVersion.takeIf { it > 0 }
+        )
+        val padding = ByteArray(1 + java.security.SecureRandom().nextInt(512)).also { java.security.SecureRandom().nextBytes(it) }
+        val sync = org.whispersystems.signalservice.internal.push.SyncMessage(
+            sent = org.whispersystems.signalservice.internal.push.SyncMessage.Sent(
+                destinationServiceIdBinary = self.toByteString(),
+                timestamp = timestamp,
+                editMessage = org.whispersystems.signalservice.internal.push.EditMessage(
+                    targetSentTimestamp = targetSentAt,
+                    dataMessage = data
+                )
+            ),
+            padding = okio.ByteString.of(*padding)
+        )
+        return try {
+            val result = sender.sendSyncMessage(
+                org.whispersystems.signalservice.internal.push.Content(syncMessage = sync),
+                true,
+                java.util.Optional.empty()
+            )
+            if (result.isSuccess) Result.Sent(timestamp) else failed(result)
+        } catch (t: Throwable) {
+            Timber.w(t, "signal edit: note to self threw")
+            failed(t)
+        }
+    }
+
     private fun sendToSelf(message: SignalServiceDataMessage, timestamp: Long): Result = try {
         val result = sender.sendSyncMessage(message)
         if (result.isSuccess) {

@@ -68,7 +68,13 @@ internal object ContentNormalizer {
          * What to call somebody a message mentions. See [withMentions] -- without it a mention
          * is a placeholder character and nothing else.
          */
-        nameFor: (String) -> String? = { null }
+        nameFor: (String) -> String? = { null },
+        /**
+         * The original sent timestamp of the message whose latest edit was sent at the given
+         * time, by the given author, or null when no message here has that edit. See
+         * `SignalMessage.revisionTs`.
+         */
+        originalOf: (author: String, revisionSentAt: Long) -> Long? = { _, _ -> null }
     ): BridgeMessage? {
         var authorUuid = metadata.sourceServiceId.toString()
         var authorNumber = metadata.sourceE164.orEmpty()
@@ -222,7 +228,9 @@ internal object ContentNormalizer {
 
         // The original's timestamp for an edit, its own for anything else. An edit naming no
         // target is not an edit of anything and there is nothing to apply it to.
-        val timestamp = editTarget ?: dataMessage.timestamp ?: 0L
+        // An edit may name the original or any later revision; the row is always the original.
+        val resolvedTarget = editTarget?.let { target -> originalOf(authorUuid, target) ?: target }
+        val timestamp = resolvedTarget ?: dataMessage.timestamp ?: 0L
         if (timestamp == 0L) return null
 
         // A dataMessage whose author is our own account is Note to Self -- our own group and
@@ -326,7 +334,8 @@ internal object ContentNormalizer {
                 "$target:${r.targetSentTimestamp ?: 0}"
             }.orEmpty(),
             reactionRemove = reaction?.remove == true,
-            groupMasterKey = dataMessage.groupV2?.masterKey?.toByteArray()
+            groupMasterKey = dataMessage.groupV2?.masterKey?.toByteArray(),
+            revisionTs = if (editTarget != null) dataMessage.timestamp ?: 0L else 0L
         )
     }
 

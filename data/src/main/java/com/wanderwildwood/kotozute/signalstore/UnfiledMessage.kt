@@ -32,6 +32,7 @@ internal object UnfiledMessage {
         .put("reactionEmoji", m.reactionEmoji)
         .put("reactionTarget", m.reactionTarget)
         .put("reactionRemove", m.reactionRemove)
+        .put("revisionTs", m.revisionTs)
         .apply {
             m.groupMasterKey?.let { put("groupMasterKey", Base64.getEncoder().encodeToString(it)) }
         }
@@ -59,7 +60,8 @@ internal object UnfiledMessage {
             reactionTarget = o.getString("reactionTarget"),
             reactionRemove = o.getBoolean("reactionRemove"),
             groupMasterKey = o.optString("groupMasterKey").takeIf { it.isNotEmpty() }
-                ?.let { Base64.getDecoder().decode(it) }
+                ?.let { Base64.getDecoder().decode(it) },
+            revisionTs = o.optLong("revisionTs", 0L)
         )
     }
 }

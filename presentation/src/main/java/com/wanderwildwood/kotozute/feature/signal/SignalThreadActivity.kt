@@ -663,6 +663,46 @@ class SignalThreadActivity : QkThemedActivity() {
     private fun clearReply() {
         replyingTo = 0L
         binding.replying.setVisible(false)
+        if (editing != null) {
+            editing = null
+            binding.message.setText("")
+        }
+    }
+
+    /** The id of the message the composer is editing, or null. Shares the reply's strip. */
+    private var editing: String? = null
+
+    private fun startEdit(messageId: String, body: String) {
+        clearReply()
+        editing = messageId
+        binding.replying.text = getString(R.string.signal_editing)
+        binding.replying.setVisible(true)
+        binding.message.setText(body)
+        binding.message.setSelection(body.length)
+        binding.message.requestFocus()
+    }
+
+    private fun sendEdit(messageId: String, body: String) {
+        binding.send.isEnabled = false
+        thread(isDaemon = true) {
+            val result = runCatching { signalRepo.edit(messageId, body) }
+            runOnUiThread {
+                binding.send.isEnabled = true
+                result
+                    .onSuccess { clearReply() }
+                    .onFailure { failure ->
+                        if (failure is com.wanderwildwood.kotozute.repository.SentButNotFiled) {
+                            clearReply()
+                        } else {
+                            Toast.makeText(
+                                this,
+                                getString(R.string.signal_edit_failed, sayFailure(failure).orEmpty()),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+            }
+        }
     }
 
     /**
@@ -1027,6 +1067,10 @@ class SignalThreadActivity : QkThemedActivity() {
     private fun send() {
         val body = binding.message.text?.toString().orEmpty().trim()
         val attachment = pendingAttachment
+        editing?.let { id ->
+            if (body.isNotEmpty()) sendEdit(id, body)
+            return
+        }
         if (body.isEmpty() && attachment == null) return
         binding.send.isEnabled = false
         val quoteTs = replyingTo
@@ -1319,6 +1363,18 @@ class SignalThreadActivity : QkThemedActivity() {
             .show()
     }
 
+    /**
+     * Asked first, as Signal asks: a deleted message does not come back, and it goes from the
+     * account's other devices too.
+     */
+    private fun confirmDeleteForMe(messageId: String) {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.signal_delete_for_me_confirm)
+            .setPositiveButton(R.string.signal_delete_for_me) { _, _ -> signalRepo.deleteForMe(messageId) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun sendAgain(messageId: String) {
         thread(isDaemon = true) {
             val result = runCatching { signalRepo.resend(messageId) }
@@ -1348,7 +1404,9 @@ class SignalThreadActivity : QkThemedActivity() {
         /** What this message carries, where it is on the phone. Null when there is nothing. */
         attachment: SavedAttachment? = null,
         /** Whether "take back" is already armed; see below. */
-        armed: Boolean = false
+        armed: Boolean = false,
+        /** Whether this is one of ours that can still be edited; see [SignalRepository.canEdit]. */
+        canEditHere: Boolean = false
     ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += getString(R.string.signal_reply) to { startReply(sentAt) }
@@ -1384,6 +1442,9 @@ class SignalThreadActivity : QkThemedActivity() {
             )
         }
 
+        if (canEditHere) actions += getString(R.string.signal_edit) to { startEdit(messageId, body) }
+        actions += getString(R.string.signal_delete_for_me) to { confirmDeleteForMe(messageId) }
+
         // Last, because it is the destructive one, and offered only on our own messages and
         // only while Signal would still accept it -- offering it on somebody else's message,
         // or on one too old to withdraw, is offering something that can only end in an
@@ -1397,7 +1458,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 getString(R.string.signal_withdraw_armed) to { withdraw(messageId) }
             } else {
                 getString(R.string.signal_withdraw) to {
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere)
                 }
             }
         }
@@ -1411,7 +1472,7 @@ class SignalThreadActivity : QkThemedActivity() {
             val disarm = Runnable {
                 if (!isFinishing && dialog.isShowing) {
                     dialog.dismiss()
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere)
                 }
             }
             decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
@@ -1777,13 +1838,15 @@ class SignalThreadActivity : QkThemedActivity() {
                     b.status.setOnClickListener { sendAgain(unsentId) }
                 }
                 else -> {
-                    b.status.setVisible(m.outgoing && (m.readAt > 0 || m.deliveredAt > 0))
-                    if (m.outgoing) {
-                        b.status.setText(
-                            if (m.readAt > 0) R.string.signal_message_read
-                            else R.string.signal_message_delivered
-                        )
-                    }
+                    // "Edited" as Signal marks it, on either side: somebody reading a changed
+                    // message should know it changed.
+                    val receipt = if (m.outgoing && (m.readAt > 0 || m.deliveredAt > 0)) {
+                        getString(if (m.readAt > 0) R.string.signal_message_read else R.string.signal_message_delivered)
+                    } else null
+                    val edited = if (m.revisionTs > 0) getString(R.string.signal_message_edited) else null
+                    val line = listOfNotNull(edited, receipt).joinToString(" · ")
+                    b.status.setVisible(line.isNotEmpty())
+                    b.status.text = line
                 }
             }
 
@@ -1839,15 +1902,18 @@ class SignalThreadActivity : QkThemedActivity() {
             val sentAt = m.date
             val saved = downloadableAttachment(m)
             val unsent = sendState != com.wanderwildwood.kotozute.model.SignalMessage.SEND_SENT
+            val editable = SignalRepository.canEdit(
+                m.outgoing, m.date, m.viewOnce, m.attachments.isNotBlank(), m.sendState
+            ) && m.body.isNotBlank()
             val body = m.body
             // A call is a line in the history, not a message: nobody sent it, so there is
             // nothing to reply to, react to or take back.
             val callLine = messageId.startsWith("call:") || messageId.startsWith("groupcall:")
             val listener = android.view.View.OnLongClickListener {
                 // Nothing to react to, reply to or take back: nobody has it.
-                if (callLine) Unit
+                if (callLine) confirmDeleteForMe(messageId)
                 else if (unsent) showUnsentActions(messageId, body)
-                else showMessageActions(body, messageId, mine, outgoing, sentAt, saved)
+                else showMessageActions(body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable)
                 true
             }
             b.body.setOnLongClickListener(listener)

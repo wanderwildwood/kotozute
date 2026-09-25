@@ -347,6 +347,12 @@ interface SignalRepository {
     /** Removes one of our own messages that did not go. Does nothing to one that did. */
     fun discardUnsent(messageId: String)
 
+    /** Deletes one message here and on the account's other devices, for this account only. */
+    fun deleteForMe(messageId: String)
+
+    /** Sends a new text for one of this account's messages. Blocking; throws as [send] does. */
+    fun edit(messageId: String, body: String): Long
+
     fun markRead(threadKey: String, upToTs: Long)
 
     /** Blocking. Returns null if Signal cannot be reached or has no such attachment. */
@@ -766,6 +772,24 @@ interface SignalRepository {
          */
         fun canWithdraw(outgoing: Boolean, sentAt: Long, now: Long = System.currentTimeMillis()) =
             outgoing && now - sentAt < WITHDRAW_WINDOW_MS
+
+        /**
+         * Whether one of this account's messages can still be edited.
+         *
+         * Signal's `isValidEditMessageSend`: whatever may be taken back, less what an edit
+         * cannot carry -- view-once, a voice note, a sticker, a contact card. This app edits text
+         * only, so a message with an attachment is left alone rather than sent without it; and
+         * one that never went has nobody to receive a new version of it.
+         */
+        fun canEdit(
+            outgoing: Boolean,
+            sentAt: Long,
+            viewOnce: Boolean,
+            hasAttachments: Boolean,
+            sendState: Int,
+            now: Long = System.currentTimeMillis()
+        ) = canWithdraw(outgoing, sentAt, now) && !viewOnce && !hasAttachments &&
+            sendState == com.wanderwildwood.kotozute.model.SignalMessage.SEND_SENT
     }
 
     /**

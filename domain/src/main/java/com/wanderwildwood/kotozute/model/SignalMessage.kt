@@ -103,6 +103,16 @@ open class SignalMessage : RealmObject() {
      */
     var sendState: Int = SEND_SENT
 
+    /**
+     * The sent timestamp of this message's latest edit, or 0 if it was never edited.
+     *
+     * An edit names the revision it replaces, and Signal's clients name the **latest** one
+     * (`IndividualSendJobV2` targets `originalEditedMessage.dateSent`, the revision on screen).
+     * The row here keeps the original's identity, so without this a second edit named a
+     * timestamp no row had and arrived as a new message.
+     */
+    var revisionTs: Long = 0
+
     companion object {
         const val SEND_SENT = 0
         const val SEND_SENDING = 1

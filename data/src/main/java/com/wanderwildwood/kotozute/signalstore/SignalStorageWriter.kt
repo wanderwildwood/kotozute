@@ -68,7 +68,9 @@ internal class SignalStorageWriter(
          * and a block made here already reaches the primary as its own sync message -- writing
          * it through storage as well would be two mechanisms deciding one thing.
          */
-        val blocked: Boolean? = null
+        val blocked: Boolean? = null,
+        /** Null keeps what the record says, for a caller with no view on it. */
+        val markedUnread: Boolean? = null
     )
 
     /** One row that went up: the id it went up under, and the record it went up as. */
@@ -331,7 +333,8 @@ internal class SignalStorageWriter(
                     contact = contact.copy(
                         blocked = desired.blocked ?: contact.blocked,
                         mutedUntilTimestamp = mutedUntilFor(contact.mutedUntilTimestamp, desired.muted, now),
-                        archived = desired.archived
+                        archived = desired.archived,
+                        markedUnread = desired.markedUnread ?: contact.markedUnread
                     )
                 ).encode()
             }
@@ -340,7 +343,8 @@ internal class SignalStorageWriter(
                     groupV2 = group.copy(
                         blocked = desired.blocked ?: group.blocked,
                         mutedUntilTimestamp = mutedUntilFor(group.mutedUntilTimestamp, desired.muted, now),
-                        archived = desired.archived
+                        archived = desired.archived,
+                        markedUnread = desired.markedUnread ?: group.markedUnread
                     )
                 ).encode()
             }

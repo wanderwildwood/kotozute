@@ -1012,7 +1012,7 @@ class DesktopSyncServer(
             "canWithdraw",
             // Nobody has a message that did not go, so there is nothing to take back.
             // A call line is history, not a message anybody has.
-            !m.id.startsWith("call:") &&
+            !m.id.startsWith("call:") && !m.id.startsWith("groupcall:") &&
             m.sendState == SignalMessage.SEND_SENT && SignalRepository.canWithdraw(m.outgoing, m.date)
         )
         // Real attachments, not a note saying one exists. The browser was told only

@@ -37,4 +37,15 @@ class GroupUpdateDescriptionTest {
     fun `a message with no group and nothing else recognisable is still left alone`() {
         assertNull(ContentNormalizer.describe(DataMessage()))
     }
+
+    @Test
+    fun `a group call is a group call, not a change to the group`() {
+        // Every group message carries the group's context; this one also says it is a call.
+        val call = update(revision = 3).copy(
+            groupCallUpdate = org.whispersystems.signalservice.internal.push.DataMessage.GroupCallUpdate(eraId = "era-1")
+        )
+        assertEquals("Group call", ContentNormalizer.describe(call))
+        assertEquals("groupcall:g:era-1", ContentNormalizer.groupCallIdFor("g", "era-1"))
+    }
 }
+

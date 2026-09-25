@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 28
+        const val SCHEMA_VERSION: Long = 29
     }
 
     @SuppressLint("ApplySharedPref")
@@ -512,6 +512,15 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.takeIf { !it.hasField("sendState") }
                 ?.addField("sendState", Int::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 28L) {
+            // Marked unread, as the account's records say. No conversation is marked yet.
+            realm.schema.get("SignalThread")
+                ?.takeIf { !it.hasField("markedUnreadAt") }
+                ?.addField("markedUnreadAt", Long::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

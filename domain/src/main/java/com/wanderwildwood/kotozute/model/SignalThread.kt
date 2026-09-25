@@ -68,4 +68,14 @@ open class SignalThread : RealmObject() {
      * message we send, or a modern peer treats ours as older than whatever it holds.
      */
     var expireTimerVersion: Int = 0
+
+    /**
+     * When somebody marked this conversation unread, on this phone or another, or 0.
+     *
+     * Signal's `markedUnread` on the account's records, which is what makes "mark unread"
+     * reach every device: set here, it is written to the account; set elsewhere, it arrives
+     * here. A time rather than a flag so that clearing it from another device can put back only
+     * what the mark covered -- a message that arrived after it is still unread.
+     */
+    var markedUnreadAt: Long = 0
 }

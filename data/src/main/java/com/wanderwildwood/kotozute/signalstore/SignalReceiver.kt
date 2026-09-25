@@ -1109,6 +1109,20 @@ internal class SignalReceiver(
                         }
                     }
 
+                // A view-once message opened on another device. Nothing of it is kept here, so the
+                // one thing left to change is that it has been seen: Signal marks it viewed
+                // (`SyncMessageProcessor.handleSynchronizeViewOnceOpenMessage`), and here that
+                // is the same as reading it elsewhere.
+                result.content.syncMessage?.viewOnceOpen?.let { open ->
+                    val sender = ServiceId.parseOrNull(open.senderAci, open.senderAciBinary)?.toString()
+                    val at = open.timestamp
+                    if (sender != null && at != null) {
+                        val readAt = envelope.serverTimestamp ?: envelope.clientTimestamp ?: System.currentTimeMillis()
+                        runCatching { events.readElsewhere(listOf(sender to at), readAt) }
+                            .onFailure { Timber.w(it, "signal view-once sync: could not apply") }
+                    }
+                }
+
                 // What the account has deleted on another device, for itself.
                 result.content.syncMessage?.deleteForMe?.let { deletes ->
                     val messages = deletes.messageDeletes

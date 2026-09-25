@@ -493,6 +493,10 @@
     <string name="signal_account_linked_note">Registering the number, changing it, the registration-lock PIN and transferring the account all belong to the primary device. If the primary is unregistered, every other device on the account stops working.</string>
     <string name="signal_message_delivered">Delivered</string>
     <string name="signal_message_read">Read</string>
+    <string name="signal_message_sending">Sending…</string>
+    <string name="signal_message_not_sent">Not sent · tap to send again</string>
+    <string name="signal_send_again">Send again</string>
+    <string name="signal_unsent_delete">Delete</string>
     <string name="signal_safety_number">Safety number</string>
     <string name="signal_safety_accept_title">Accept the new key</string>
     <string name="signal_safety_accept_summary">Only after you have checked the digits with them another way. Until you do, messages to them will not send.</string>

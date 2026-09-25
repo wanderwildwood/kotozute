@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 27
+        const val SCHEMA_VERSION: Long = 28
     }
 
     @SuppressLint("ApplySharedPref")
@@ -502,6 +502,16 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.removeIfPresent("seq")
             Timber.d("SignalMessage.seq: ${if (had == true) "removed" else "not present ($had)"}")
+
+            version++
+        }
+
+        if (version == 27L) {
+            // Where our own message is on its way out. Every existing row went out before it
+            // was written, so every existing row is sent: zero, the default.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("sendState") }
+                ?.addField("sendState", Int::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

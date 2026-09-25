@@ -339,11 +339,12 @@ internal class SignalSender(
         expiresInSeconds: Int = 0,
         expireTimerVersion: Int = 0,
         revision: Int = 0,
-        quote: SignalQuote? = null
+        quote: SignalQuote? = null,
+        /** As [send]'s. */
+        timestamp: Long = System.currentTimeMillis()
     ): Result {
         if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
         refuseIfTooLong(body)?.let { return it }
-        val timestamp = System.currentTimeMillis()
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
             .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
@@ -1408,10 +1409,13 @@ internal class SignalSender(
         attachments: List<String> = emptyList(),
         expiresInSeconds: Int = 0,
         expireTimerVersion: Int = 0,
-        quote: SignalQuote? = null
+        quote: SignalQuote? = null,
+        // Chosen by the caller when the message is written down before it is sent, so a resend
+        // after the process dies is the same message to everyone -- a recipient that already
+        // has it recognises the pair and drops the copy.
+        timestamp: Long = System.currentTimeMillis()
     ): Result {
         refuseIfTooLong(body)?.let { return it }
-        val timestamp = System.currentTimeMillis()
         val streams = try {
             attachments.mapNotNull { attachmentStream(it) }
         } catch (t: Throwable) {

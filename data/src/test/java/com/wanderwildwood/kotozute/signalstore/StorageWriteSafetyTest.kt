@@ -2,11 +2,13 @@ package com.wanderwildwood.kotozute.signalstore
 
 import okio.ByteString.Companion.toByteString
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.whispersystems.signalservice.internal.storage.protos.ContactRecord
+import org.whispersystems.signalservice.internal.storage.protos.GroupV2Record
 import org.whispersystems.signalservice.internal.storage.protos.ManifestRecord
 import org.whispersystems.signalservice.internal.storage.protos.StorageRecord
 
@@ -153,5 +155,27 @@ class StorageWriteSafetyTest {
         val raw = StorageRecord(contact = ContactRecord(e164 = "+15555550100", archived = true)).encode()
         val amended = SignalStorageWriter.amend(raw, SignalStorageWriter.Desired(muted = false, archived = true), now)
         assertEquals(StorageRecord.ADAPTER.decode(raw), StorageRecord.ADAPTER.decode(amended))
+    }
+
+    @Test
+    fun `an unread mark this phone has no view on is kept, and one it has is written`() {
+        val raw = StorageRecord(contact = ContactRecord(e164 = "+15555550100", markedUnread = true)).encode()
+        val kept = StorageRecord.ADAPTER.decode(
+            SignalStorageWriter.amend(raw, SignalStorageWriter.Desired(muted = false, archived = false), now)
+        ).contact!!
+        assertTrue("a mark made elsewhere was wiped by an unrelated write", kept.markedUnread)
+        val lifted = StorageRecord.ADAPTER.decode(
+            SignalStorageWriter.amend(raw, SignalStorageWriter.Desired(muted = false, archived = false, markedUnread = false), now)
+        ).contact!!
+        assertFalse(lifted.markedUnread)
+    }
+
+    @Test
+    fun `a group is marked unread the same way`() {
+        val raw = StorageRecord(groupV2 = GroupV2Record(masterKey = okio.ByteString.of(*ByteArray(32)))).encode()
+        val out = StorageRecord.ADAPTER.decode(
+            SignalStorageWriter.amend(raw, SignalStorageWriter.Desired(muted = false, archived = false, markedUnread = true), now)
+        ).groupV2!!
+        assertTrue(out.markedUnread)
     }
 }

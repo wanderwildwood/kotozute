@@ -329,6 +329,18 @@ class SignalRepositoryImpl @Inject constructor(
                         thread.archived = state.archived
                         changed++
                     }
+                    // Marked unread elsewhere, or no longer. Upstream's
+                    // `ThreadTable.applyStorageSyncUpdate`: a mark makes the conversation read
+                    // as unread; lifting it puts back only what the mark had made unread.
+                    val marked = thread.markedUnreadAt > 0
+                    if (state.markedUnread && !marked) {
+                        thread.markedUnreadAt = System.currentTimeMillis()
+                        if (thread.unread == 0) forceUnread(r, state.threadKey)
+                        changed++
+                    } else if (!state.markedUnread && marked) {
+                        liftUnreadMark(r, thread)
+                        changed++
+                    }
                 }
                 skipped = plan.applied.size - plan.apply.size
                 prefs.signalAppliedStateRecords.set(plan.applied)
@@ -3058,6 +3070,7 @@ class SignalRepositoryImpl @Inject constructor(
         // and what keying off the thread made impossible.
         val justRead = mutableListOf<Pair<String, Long>>()
         val now = System.currentTimeMillis()
+        var liftedMark = false
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val unread = r.where(SignalMessage::class.java)
@@ -3080,8 +3093,19 @@ class SignalRepositoryImpl @Inject constructor(
                     }
                 }
                 r.where(SignalThread::class.java).equalTo("threadKey", threadKey)
-                    .findFirst()?.unread = 0
+                    .findFirst()?.let { thread ->
+                        thread.unread = 0
+                        // Reading it lifts a mark, here and -- below -- on the account.
+                        if (thread.markedUnreadAt > 0) {
+                            thread.markedUnreadAt = 0
+                            liftedMark = true
+                        }
+                    }
             }
+        }
+        if (liftedMark) {
+            markNeedsSync(threadKey)
+            pushStorageNow()
         }
         // The receipt goes out on this device's own connection, and only where the reader
         // asked for receipts to be sent. A receipt names the messages by the timestamps they
@@ -4120,7 +4144,8 @@ class SignalRepositoryImpl @Inject constructor(
             realm.where(SignalThread::class.java).equalTo("threadKey", threadKey).findFirst()?.let {
                 com.wanderwildwood.kotozute.signalstore.SignalStorageWriter.Desired(
                     muted = it.muted,
-                    archived = it.archived
+                    archived = it.archived,
+                    markedUnread = it.markedUnreadAt > 0
                 )
             }
         }
@@ -4137,28 +4162,59 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     override fun markUnread(threadKey: String) = runOffThread {
-        // The newest incoming message, not the thread's counter. thread.unread is recomputed
-        // from message read-state every time a message lands, so a counter set by hand is
-        // wiped by the next arrival -- the feature would work until the moment it mattered.
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
-                val newest = r.where(SignalMessage::class.java)
-                    .equalTo("threadKey", threadKey)
-                    .equalTo("outgoing", false)
-                    .sort("date", Sort.DESCENDING)
-                    .findFirst()
-                if (newest != null) {
-                    newest.read = false
-                    r.where(SignalThread::class.java)
-                        .equalTo("threadKey", threadKey)
-                        .findFirst()?.unread = r.where(SignalMessage::class.java)
-                        .equalTo("threadKey", threadKey)
-                        .equalTo("outgoing", false)
-                        .equalTo("read", false)
-                        .count().toInt()
-                }
+                forceUnread(r, threadKey)
+                r.where(SignalThread::class.java).equalTo("threadKey", threadKey).findFirst()
+                    ?.markedUnreadAt = System.currentTimeMillis()
             }
         }
+        // To the account, as upstream's mark-unread schedules a storage sync, so the other
+        // devices show it unread too.
+        markNeedsSync(threadKey)
+        pushStorageNow()
+    }
+
+    /**
+     * Makes a conversation read as unread by its newest incoming message, not the thread's
+     * counter. thread.unread is recomputed from message read-state every time a message lands,
+     * so a counter set by hand is wiped by the next arrival -- the feature would work until the
+     * moment it mattered.
+     */
+    private fun forceUnread(r: Realm, threadKey: String) {
+        val newest = r.where(SignalMessage::class.java)
+            .equalTo("threadKey", threadKey)
+            .equalTo("outgoing", false)
+            .sort("date", Sort.DESCENDING)
+            .findFirst() ?: return
+        newest.read = false
+        recountUnread(r, threadKey)
+    }
+
+    private fun recountUnread(r: Realm, threadKey: String) {
+        r.where(SignalThread::class.java)
+            .equalTo("threadKey", threadKey)
+            .findFirst()?.unread = r.where(SignalMessage::class.java)
+            .equalTo("threadKey", threadKey)
+            .equalTo("outgoing", false)
+            .equalTo("read", false)
+            .count().toInt()
+    }
+
+    /**
+     * Another device lifted the mark. Only what was there when it was made goes back to read:
+     * a message that arrived since is unread on its own account.
+     */
+    private fun liftUnreadMark(r: Realm, thread: SignalThread) {
+        val markedAt = thread.markedUnreadAt
+        thread.markedUnreadAt = 0
+        r.where(SignalMessage::class.java)
+            .equalTo("threadKey", thread.threadKey)
+            .equalTo("outgoing", false)
+            .equalTo("read", false)
+            .lessThanOrEqualTo("date", markedAt)
+            .findAll().createSnapshot().forEach { it.read = true }
+        recountUnread(r, thread.threadKey)
     }
 
     override fun isMuted(threadKey: String): Boolean =

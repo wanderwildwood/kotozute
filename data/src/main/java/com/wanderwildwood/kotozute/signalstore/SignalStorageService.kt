@@ -107,6 +107,8 @@ internal class SignalStorageService(
         val threadKey: String,
         val muted: Boolean,
         val archived: Boolean,
+        /** Somebody marked the conversation unread, on whichever device. */
+        val markedUnread: Boolean = false,
         /**
          * The manifest id this state arrived under, base64. The id changes whenever the
          * record's content does, so an id seen before is a record that has not changed since
@@ -309,6 +311,7 @@ internal class SignalStorageService(
                             ),
                             muted = group.mutedUntilTimestamp > now,
                             archived = group.archived,
+                            markedUnread = group.markedUnread,
                             recordId = android.util.Base64.encodeToString(id, android.util.Base64.NO_WRAP)
                         )
                     }
@@ -426,6 +429,7 @@ internal class SignalStorageService(
                     threadKey = "direct:$id",
                     muted = record.mutedUntilTimestamp > now,
                     archived = record.archived,
+                    markedUnread = record.markedUnread,
                     recordId = remoteStorageId
                 )
                 if (record.blocked) {

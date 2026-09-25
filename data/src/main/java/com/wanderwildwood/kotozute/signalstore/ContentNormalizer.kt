@@ -260,8 +260,16 @@ internal object ContentNormalizer {
             describe(dataMessage)?.let { body = it }
         }
 
+        // A group call is one line per call, not one per person joining it: every member who
+        // joins sends the group an update, and each was its own unread "(a call)" bubble with a
+        // notification. Signal keeps one call row per era (`CallTable` keys group calls on the
+        // era id) and does not ring for the update itself, only for a ring.
+        val groupCallEra = dataMessage.groupCallUpdate?.eraId?.takeIf {
+            it.isNotBlank() && groupId.isNotBlank() && body == describe(dataMessage)
+        }
+
         return BridgeMessage(
-            id = messageIdFor(authorUuid, authorNumber, timestamp),
+            id = groupCallEra?.let { groupCallIdFor(groupId, it) } ?: messageIdFor(authorUuid, authorNumber, timestamp),
             threadKey = threadKey,
             ts = timestamp,
             senderUuid = authorUuid,
@@ -271,7 +279,7 @@ internal object ContentNormalizer {
             groupId = groupId,
             quoteTs = dataMessage.quote?.id ?: 0L,
             // Our own messages are not unread.
-            read = outgoing,
+            read = outgoing || groupCallEra != null,
             source = "live",
             attachmentsJson = attachmentsJson(dataMessage, viewOnce),
             // When this message's time runs out, or 0 for "the clock has not started".
@@ -465,6 +473,10 @@ internal object ContentNormalizer {
      * it has one.
      */
     internal fun describe(m: DataMessage): String? = when {
+        // ⚠ Before the group update below, which it would otherwise always lose to: every
+        // message sent to a group carries the group's context, a call update included, so a
+        // group call read as "Updated the group."
+        m.groupCallUpdate != null -> "Group call"
         // A group update: the group's context, a revision, and nothing a person typed. It is
         // how Signal says a group has been made or changed -- `PushGroupSendJob` sends exactly
         // this, and `GroupManagerV2.createGroup` sends it the moment a group exists, which is
@@ -479,7 +491,6 @@ internal object ContentNormalizer {
             m.pollCreate?.question?.takeIf { it.isNotBlank() }?.let { "(poll) $it" } ?: "(a poll)"
         m.pollTerminate != null -> "(a poll ended)"
         m.contact.isNotEmpty() -> "(a contact card)"
-        m.groupCallUpdate != null -> "(a call)"
         m.payment != null -> "(a payment)"
         m.giftBadge != null -> "(a gift)"
         m.adminDelete != null -> null
@@ -591,6 +602,9 @@ internal object ContentNormalizer {
      * Stable across the several notifications one message produces, and across a re-import --
      * which is what keeps a redelivered envelope from becoming a second copy in the thread.
      */
+    /** One row per group call, whoever's update arrives. */
+    internal fun groupCallIdFor(groupId: String, eraId: String): String = "groupcall:$groupId:$eraId"
+
     internal fun messageIdFor(authorUuid: String, authorNumber: String, timestamp: Long): String =
         "${authorUuid.ifBlank { authorNumber }}:$timestamp"
 

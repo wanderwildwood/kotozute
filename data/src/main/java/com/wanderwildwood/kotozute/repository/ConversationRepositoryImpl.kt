@@ -271,6 +271,9 @@ class ConversationRepositoryImpl @Inject constructor(
         }
 
 
+    // ⚠ Synchronous. This was `findAllAsync()` and then read at once: on a thread with a
+    // Looper an async result is not loaded yet, so the list came back empty, and on one without
+    // a Looper -- a receiver's worker thread -- the query threw. Both callers want the answer now.
     override fun getUnreadIds(archived: Boolean) =
         ArrayList<Long>().apply {
             Realm.getDefaultInstance()
@@ -283,7 +286,7 @@ class ConversationRepositoryImpl @Inject constructor(
                     arrayOf("lastMessage.date"),
                     arrayOf(Sort.DESCENDING)
                 )
-                .findAllAsync()
+                .findAll()
                 .forEach { conversation -> add(conversation.id) }
         }
 

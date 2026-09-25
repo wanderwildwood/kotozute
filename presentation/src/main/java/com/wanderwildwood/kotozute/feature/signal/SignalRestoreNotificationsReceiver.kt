@@ -15,6 +15,8 @@ class SignalRestoreNotificationsReceiver : BroadcastReceiver() {
 
     @Inject lateinit var notifications: SignalNotifications
     @Inject lateinit var prefs: com.wanderwildwood.kotozute.util.Preferences
+    @Inject lateinit var conversationRepo: com.wanderwildwood.kotozute.repository.ConversationRepository
+    @Inject lateinit var notificationManager: com.wanderwildwood.kotozute.manager.NotificationManager
 
     override fun onReceive(context: Context, intent: Intent?) {
         AndroidInjection.inject(this, context)
@@ -28,6 +30,12 @@ class SignalRestoreNotificationsReceiver : BroadcastReceiver() {
         thread(isDaemon = true) {
             try {
                 notifications.restore()
+                // The text rail loses its notifications the same way. `update` shows only what
+                // is unread and not yet seen, and swiping a text notification away already marks
+                // it seen, so what somebody dismissed stays dismissed here too.
+                runCatching {
+                    conversationRepo.getUnreadIds().forEach { notificationManager.update(it, silent = true) }
+                }.onFailure { timber.log.Timber.w(it, "notify: could not put the text notifications back") }
             } finally {
                 result.finish()
             }

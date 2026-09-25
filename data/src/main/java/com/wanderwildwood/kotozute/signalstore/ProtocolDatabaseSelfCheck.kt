@@ -42,12 +42,18 @@ object ProtocolDatabaseSelfCheck {
             val first = IdentityKeyPair.generate().publicKey
             val second = IdentityKeyPair.generate().publicKey
 
-            val trustedOnFirstSighting = store.isTrustedIdentity(peer, first, IdentityKeyStore.Direction.RECEIVING)
-            val changedKeyRefusedOnReceive = !store.isTrustedIdentity(peer, second, IdentityKeyStore.Direction.RECEIVING)
+            // ⚠ Signal's rules, which these once were not. They were written for a store that
+            // saved the key from inside the check and refused a changed key on receive; the
+            // store stopped doing both to match `SignalBaseIdentityKeyStore`, and five of these
+            // read false for months, which taught everyone to ignore the line. The check writes
+            // nothing, receiving is always allowed, and only `saveIdentity` stores a key.
+            val trustedOnFirstSighting = store.isTrustedIdentity(peer, first, IdentityKeyStore.Direction.SENDING)
+            store.saveIdentity(peer, first)
+            val readBack = store.getIdentity(peer) == first
+            val changedKeyReadOnReceive = store.isTrustedIdentity(peer, second, IdentityKeyStore.Direction.RECEIVING)
             val changedKeyBlockedOnSend = !store.isTrustedIdentity(peer, second, IdentityKeyStore.Direction.SENDING)
-            val readBack = store.getIdentity(peer) != null
             val changeReported =
-                store.saveIdentity(peer, first) == IdentityKeyStore.IdentityChange.REPLACED_EXISTING
+                store.saveIdentity(peer, second) == IdentityKeyStore.IdentityChange.REPLACED_EXISTING
 
 
             // Sessions. The behaviours checked are the ones that are wrong-but-plausible:
@@ -237,7 +243,15 @@ object ProtocolDatabaseSelfCheck {
             val safetyNumberStable = sn1 != null && sn1.safetyNumber == sn2?.safetyNumber
             val safetyNumberShape = sn1?.safetyNumber?.count { it.isDigit() } == 60
 
-            // Now change their key, as a reinstall would.
+            // Now change their key, as a reinstall would. An ordinary contact's change does not
+            // stop sending: upstream's DEFAULT stays DEFAULT, and most key changes are a
+            // reinstall.
+            idStore.saveIdentity(peerAddr, IdentityKeyPair.generate().publicKey)
+            val ordinaryStillSends =
+                idStore.isTrustedIdentity(peerAddr, idStore.getIdentity(peerAddr)!!, IdentityKeyStore.Direction.SENDING)
+            // A verified contact's change does: VERIFIED becomes UNVERIFIED upstream, and sends
+            // wait for a person to look.
+            idStore.setVerified(peerId.toString(), idStore.getIdentity(peerAddr)!!, true)
             idStore.saveIdentity(peerAddr, IdentityKeyPair.generate().publicKey)
             val blockedAfterChange =
                 !idStore.isTrustedIdentity(peerAddr, idStore.getIdentity(peerAddr)!!, IdentityKeyStore.Direction.SENDING)
@@ -287,7 +301,7 @@ object ProtocolDatabaseSelfCheck {
             val unfiledCleared = unfiledStore.all().isEmpty()
 
             db.close()
-            "${tables.size} tables, seeded=$identities | safety: stable=$safetyNumberStable shape=$safetyNumberShape blocked=$blockedAfterChange accepted=$accepted sendable=$sendableAfterAccept not-verified=$acceptedNotVerified | groups: derived=$groupIdIsDerived shape=$groupIdLooksRight | pair: aci=$aciResolves bare-pni=$barePniResolves stranger-rejected=$strangerRejected | facade: sharing-roundtrip=$sharingRoundTrips " +
+            "${tables.size} tables, seeded=$identities | safety: stable=$safetyNumberStable shape=$safetyNumberShape ordinary-still-sends=$ordinaryStillSends verified-blocked=$blockedAfterChange accepted=$accepted sendable=$sendableAfterAccept not-verified=$acceptedNotVerified | groups: derived=$groupIdIsDerived shape=$groupIdLooksRight | pair: aci=$aciResolves bare-pni=$barePniResolves stranger-rejected=$strangerRejected | facade: sharing-roundtrip=$sharingRoundTrips " +
                 "archive-clears-sharing=$archiveClearsSharing cleared-all=$clearedAll stale-swept=$staleSwept " +
                 "| account: empty-before-link=$beforeLink " +
                 "credentials=$credentialsRoundTrip identity=$identityRoundTrip regid=$registrationIdKept " +
@@ -300,7 +314,7 @@ object ProtocolDatabaseSelfCheck {
                 "missing-throws=$missingSessionThrows delete-all=$deletedAll " +
                 "self-not-written=$selfWasNotWritten " +
                 "e164-refused=$e164Refused | trust: first-sighting=$trustedOnFirstSighting " +
-                "changed-refused-on-receive=$changedKeyRefusedOnReceive " +
+                "changed-read-on-receive=$changedKeyReadOnReceive " +
                 "changed-blocked-on-send=$changedKeyBlockedOnSend " +
                 "readback=$readBack change-reported=$changeReported " +
                 "| unfiled: envelope-gone=$envelopeGone kept=$unfiledKept cleared=$unfiledCleared"

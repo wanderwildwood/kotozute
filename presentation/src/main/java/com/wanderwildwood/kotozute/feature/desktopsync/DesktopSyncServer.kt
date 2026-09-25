@@ -991,6 +991,14 @@ class DesktopSyncServer(
         put("isMe", m.outgoing)
         put("read", m.read)
         put("rail", "signal")
+        // The same field the text rail sends, which the browser already draws. A Signal
+        // message is written down before it goes now, so it has a sending and a not-sent too.
+        if (m.outgoing) {
+            when (m.sendState) {
+                SignalMessage.SEND_SENDING -> put("status", "sending")
+                SignalMessage.SEND_FAILED -> put("status", "failed")
+            }
+        }
         // ⚠ Answered here rather than worked out in the browser. Taking a message back is
         // ours-only and inside a window, and that rule is `SignalRepository.canWithdraw` --
         // Signal's own `isValidRemoteDeleteSend` reduced to what this app has. A second copy
@@ -1002,7 +1010,8 @@ class DesktopSyncServer(
         // refused, which is why the phone is also the one that enforces it.
         put(
             "canWithdraw",
-            SignalRepository.canWithdraw(m.outgoing, m.date)
+            // Nobody has a message that did not go, so there is nothing to take back.
+            m.sendState == SignalMessage.SEND_SENT && SignalRepository.canWithdraw(m.outgoing, m.date)
         )
         // Real attachments, not a note saying one exists. The browser was told only
         // "attachment" for every Signal picture, video and voice note, so a photo someone

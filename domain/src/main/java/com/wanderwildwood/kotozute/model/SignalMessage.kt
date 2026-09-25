@@ -91,4 +91,21 @@ open class SignalMessage : RealmObject() {
      * not a thing worth a join.
      */
     var reactions: String = ""
+
+    /**
+     * Where one of our own messages is on its way out: [SEND_SENT], [SEND_SENDING] or
+     * [SEND_FAILED].
+     *
+     * Signal writes an outgoing message before it sends it and resends whatever is still
+     * sending when the app next starts (`RetryPendingSendsJob`), so a send cut off by the
+     * process being killed is not lost. The row used to be written only after the server had
+     * the message, and a send cut off halfway simply vanished.
+     */
+    var sendState: Int = SEND_SENT
+
+    companion object {
+        const val SEND_SENT = 0
+        const val SEND_SENDING = 1
+        const val SEND_FAILED = 2
+    }
 }

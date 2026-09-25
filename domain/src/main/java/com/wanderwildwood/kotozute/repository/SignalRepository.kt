@@ -338,6 +338,15 @@ interface SignalRepository {
         quoteTs: Long = 0L
     ): Long
 
+    /**
+     * Sends one of our own messages again that did not go -- left on its way by a process
+     * that died, or marked not sent. Blocking; throws as [send] does.
+     */
+    fun resend(messageId: String): Long
+
+    /** Removes one of our own messages that did not go. Does nothing to one that did. */
+    fun discardUnsent(messageId: String)
+
     fun markRead(threadKey: String, upToTs: Long)
 
     /** Blocking. Returns null if Signal cannot be reached or has no such attachment. */

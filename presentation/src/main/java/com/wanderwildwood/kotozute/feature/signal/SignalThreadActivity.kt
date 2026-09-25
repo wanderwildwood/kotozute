@@ -1300,6 +1300,41 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     /**
+     * What can be done with one of our own messages that did not go: send it again, or let it
+     * go. Signal offers the same two on a failed message.
+     */
+    private fun showUnsentActions(messageId: String, body: String) {
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        actions += getString(R.string.signal_send_again) to { sendAgain(messageId) }
+        if (body.isNotBlank()) {
+            actions += getString(R.string.signal_message_copy) to {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Signal message", body))
+                Toast.makeText(this, R.string.signal_message_copied, Toast.LENGTH_SHORT).show()
+            }
+        }
+        actions += getString(R.string.signal_unsent_delete) to { signalRepo.discardUnsent(messageId) }
+        AlertDialog.Builder(this)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
+            .show()
+    }
+
+    private fun sendAgain(messageId: String) {
+        thread(isDaemon = true) {
+            val result = runCatching { signalRepo.resend(messageId) }
+            runOnUiThread {
+                result.onFailure { failure ->
+                    Toast.makeText(
+                        this,
+                        getString(R.string.signal_send_failed, sayFailure(failure).orEmpty()),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    /**
      * Copy or share one message. A dialog rather than a selection mode: selection earns its
      * complexity when you act on many messages at once, and here there is nothing yet that
      * takes more than one.
@@ -1723,12 +1758,33 @@ class SignalThreadActivity : QkThemedActivity() {
             // Delivery, on our own messages only: a receipt is something other people send
             // about ours. Nothing is shown until something is known -- an empty state would
             // otherwise read as "not delivered", which is a different and alarming claim.
-            b.status.setVisible(m.outgoing && (m.readAt > 0 || m.deliveredAt > 0))
-            if (m.outgoing) {
-                b.status.setText(
-                    if (m.readAt > 0) R.string.signal_message_read
-                    else R.string.signal_message_delivered
-                )
+            //
+            // A message still on its way, or one that did not go, says so instead -- and the
+            // one that did not go is where sending it again is offered, as Signal offers it on
+            // the failed message itself.
+            val sendState = if (m.outgoing) m.sendState else com.wanderwildwood.kotozute.model.SignalMessage.SEND_SENT
+            b.status.setOnClickListener(null)
+            b.status.isClickable = false
+            when (sendState) {
+                com.wanderwildwood.kotozute.model.SignalMessage.SEND_SENDING -> {
+                    b.status.setVisible(true)
+                    b.status.setText(R.string.signal_message_sending)
+                }
+                com.wanderwildwood.kotozute.model.SignalMessage.SEND_FAILED -> {
+                    b.status.setVisible(true)
+                    b.status.setText(R.string.signal_message_not_sent)
+                    val unsentId = m.id
+                    b.status.setOnClickListener { sendAgain(unsentId) }
+                }
+                else -> {
+                    b.status.setVisible(m.outgoing && (m.readAt > 0 || m.deliveredAt > 0))
+                    if (m.outgoing) {
+                        b.status.setText(
+                            if (m.readAt > 0) R.string.signal_message_read
+                            else R.string.signal_message_delivered
+                        )
+                    }
+                }
             }
 
             val side = if (m.outgoing) Gravity.END else Gravity.START
@@ -1782,8 +1838,12 @@ class SignalThreadActivity : QkThemedActivity() {
             val outgoing = m.outgoing
             val sentAt = m.date
             val saved = downloadableAttachment(m)
+            val unsent = sendState != com.wanderwildwood.kotozute.model.SignalMessage.SEND_SENT
+            val body = m.body
             val listener = android.view.View.OnLongClickListener {
-                showMessageActions(m.body, messageId, mine, outgoing, sentAt, saved)
+                // Nothing to react to, reply to or take back: nobody has it.
+                if (unsent) showUnsentActions(messageId, body)
+                else showMessageActions(body, messageId, mine, outgoing, sentAt, saved)
                 true
             }
             b.body.setOnLongClickListener(listener)
@@ -1793,7 +1853,8 @@ class SignalThreadActivity : QkThemedActivity() {
             b.attachment.setOnLongClickListener(listener)
 
             bindAttachment(m) { tile ->
-                showMessageActions(m.body, messageId, mine, outgoing, sentAt, tile)
+                if (unsent) showUnsentActions(messageId, body)
+                else showMessageActions(m.body, messageId, mine, outgoing, sentAt, tile)
             }
 
             // A tap opens it. The picture on screen is a thumbnail sized for a message list,

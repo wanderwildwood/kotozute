@@ -269,6 +269,16 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private val streamConnected = AtomicBoolean(false)
 
+    /** Our own messages being sent by this process right now, by id. See [resendOrphans]. */
+    private val inFlight: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /** [resendOrphans] runs once per process, as upstream's job does once per launch. */
+    private val orphansSwept = AtomicBoolean(false)
+
+    private val outbox by lazy {
+        com.wanderwildwood.kotozute.signalstore.SignalOutbox(java.io.File(context.filesDir, "signal-outbox"))
+    }
+
     /** Whether the socket is reaching for the server. See [noteConnecting]. */
     private val reaching = AtomicBoolean(false)
 
@@ -488,6 +498,9 @@ class SignalRepositoryImpl @Inject constructor(
         // that survives this is worth keeping anyway.
         runCatching { signalStore.forgetEverySentMessage() }
             .onFailure { Timber.w(it, "signal: could not clear the resend log") }
+        // And the attachments of anything that never went.
+        runCatching { outbox.clearAll() }
+            .onFailure { Timber.w(it, "signal: could not clear the outbox") }
         publishState(signalConnected = false, error = null)
     }
 
@@ -1344,9 +1357,11 @@ class SignalRepositoryImpl @Inject constructor(
         threadKey: String,
         body: String,
         attachments: List<String>,
-        quote: com.wanderwildwood.kotozute.signalstore.SignalQuote? = null
+        quote: com.wanderwildwood.kotozute.signalstore.SignalQuote? = null,
+        /** The timestamp of a message already written down and being sent again, or 0. */
+        resending: Long = 0L
     ): Long {
-        if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments, quote)
+        if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments, quote, resending)
         if (!threadKey.startsWith("direct:")) {
             throw IllegalStateException("cannot send to $threadKey")
         }
@@ -1363,7 +1378,7 @@ class SignalRepositoryImpl @Inject constructor(
         // The conversation's timer goes with it. Not sending one is not neutral: it reads as
         // a timer of zero and switches the other person's disappearing conversation off.
         val (expiresIn, timerVersion) = timerFor(threadKey)
-        val timestamp = signalStore.send(recipient, body, attachments, expiresIn, timerVersion, quote)
+        val timestamp = if (resending > 0) resending else System.currentTimeMillis()
 
         val selfAci = signalStore.selfAciOrNull().orEmpty()
         val row =
@@ -1393,16 +1408,169 @@ class SignalRepositoryImpl @Inject constructor(
                 expiresInSeconds = expiresIn.toLong(),
                 expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L
             )
-        // ⚠ Past this point the message has gone. A failure from here is **not** a failed send
-        // and must not be reported as one: the text is still sitting in the composer, every
-        // other failure path says "it did not send", and the obvious response is to press send
-        // again -- which sends it twice. See [SentButNotFiled].
-        try {
-            ingest(listOf(row))
-        } catch (t: Throwable) {
-            throw com.wanderwildwood.kotozute.repository.SentButNotFiled(t)
+        return sendThroughOutbox(row, attachments, resending > 0) {
+            signalStore.send(recipient, body, attachments, expiresIn, timerVersion, quote, timestamp)
         }
-        return timestamp
+    }
+
+    /**
+     * Writes an outgoing message down, sends it, and marks it sent -- in that order.
+     *
+     * ⚠ The order is the point. The row used to be written only once the server had the
+     * message, so a send cut off by the process dying -- a voice note or a photo uploading
+     * while Android reclaimed memory -- left nothing behind: not sent, not on screen, not
+     * anywhere. Signal inserts the message as sending first and `RetryPendingSendsJob` sends
+     * whatever is still pending when the app next starts. So does this; see [resendOrphans].
+     *
+     * A failure *in this process* removes the row again: the composer still holds the text,
+     * which is where this app has always put a failed send, and a row saying "not sent" beside
+     * it would be the same message twice. A failure while sending again marks it not sent,
+     * because then there is no composer holding it.
+     */
+    private fun sendThroughOutbox(
+        row: BridgeMessage,
+        attachments: List<String>,
+        resending: Boolean,
+        send: () -> Long
+    ): Long {
+        if (!inFlight.add(row.id)) {
+            throw com.wanderwildwood.kotozute.repository.SendRefused(
+                com.wanderwildwood.kotozute.repository.SendFailure.Unexplained("already sending")
+            )
+        }
+        try {
+            if (resending) {
+                setSendState(row.id, SignalMessage.SEND_SENDING)
+            } else {
+                // Written before anything reaches the network. A phone that cannot write this
+                // down has not sent anything yet, and says so like any other failed send.
+                try {
+                    outbox.save(row.id, attachments)
+                    fileOutgoing(row)
+                } catch (t: Throwable) {
+                    runCatching { outbox.clear(row.id) }
+                    throw t
+                }
+            }
+            val sentAt = try {
+                send()
+            } catch (t: Throwable) {
+                if (resending) {
+                    runCatching { setSendState(row.id, SignalMessage.SEND_FAILED) }
+                        .onFailure { Timber.w(it, "signal send: could not mark a message not sent") }
+                } else {
+                    runCatching { dropUnsent(row.id) }
+                        .onFailure { Timber.w(it, "signal send: could not remove a message that did not send") }
+                }
+                throw t
+            }
+            // ⚠ Past this point the message has gone. A failure from here is **not** a failed
+            // send and must not be reported as one: the text is still sitting in the composer,
+            // every other failure path says "it did not send", and the obvious response is to
+            // press send again -- which sends it twice. See [SentButNotFiled]. The row stays
+            // marked sending, so the worst case is a resend at next start with the same
+            // timestamp, which every recipient drops as a copy.
+            try {
+                setSendState(row.id, SignalMessage.SEND_SENT)
+            } catch (t: Throwable) {
+                throw com.wanderwildwood.kotozute.repository.SentButNotFiled(t)
+            }
+            runCatching { outbox.clear(row.id) }
+            return sentAt
+        } finally {
+            inFlight.remove(row.id)
+        }
+    }
+
+    /** Files one of our own messages as on its way, in one transaction with the row. */
+    private fun fileOutgoing(row: BridgeMessage) {
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                store(r, row)
+                r.where(SignalMessage::class.java).equalTo("id", row.id).findFirst()
+                    ?.sendState = SignalMessage.SEND_SENDING
+            }
+        }
+        // What [ingest] does after filing, for a first message to somebody new.
+        renameThreadsFromContacts()
+        runCatching { nameGroupThreads() }.onFailure { Timber.w(it, "signal groups: naming failed; the next pass renames") }
+    }
+
+    private fun setSendState(id: String, state: Int) {
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalMessage::class.java).equalTo("id", id).findFirst()?.sendState = state
+            }
+        }
+    }
+
+    /** Removes one of our own messages that never went. Never one that did. */
+    private fun dropUnsent(id: String) {
+        removeWithdrawn(id, "an unsent message removed") {
+            it.outgoing && it.sendState != SignalMessage.SEND_SENT
+        }
+        outbox.clear(id)
+    }
+
+    override fun discardUnsent(messageId: String) = runOffThread { dropUnsent(messageId) }
+
+    /**
+     * Sends one of our own messages again, under its original timestamp.
+     *
+     * The same timestamp is what makes a second send safe: a recipient that already has the
+     * message recognises the (author, timestamp) pair and drops the copy, which is what
+     * upstream's `RetryPendingSendSecondCheckJob` relies on too.
+     */
+    override fun resend(messageId: String): Long {
+        val m = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
+                ?.takeIf { it.outgoing && it.sendState != SignalMessage.SEND_SENT }
+                ?.let { realm.copyFromRealm(it) }
+        } ?: throw com.wanderwildwood.kotozute.repository.SendRefused(
+            com.wanderwildwood.kotozute.repository.SendFailure.Unexplained("nothing to send again")
+        )
+        val attachments = outbox.load(messageId, m.attachments.isNotBlank()) ?: run {
+            setSendState(messageId, SignalMessage.SEND_FAILED)
+            throw com.wanderwildwood.kotozute.repository.SendRefused(
+                com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared("it is no longer on this phone")
+            )
+        }
+        return sendDirect(m.threadKey, m.body, attachments, quoteFor(m.threadKey, m.quoteTs), resending = m.date)
+    }
+
+    /**
+     * Sends again whatever a previous process left on its way out.
+     *
+     * Upstream's `RetryPendingSendsJob`: once per launch, pending messages from the last day
+     * go again; older ones are left for a person, marked not sent. Run once the socket is up,
+     * because a resend attempted with no connection only turns into "not sent".
+     *
+     * ⚠ Skips anything this process is sending. A message written a moment ago is pending too,
+     * and sending it a second time from here would race its own send.
+     */
+    private fun resendOrphans() {
+        if (!orphansSwept.compareAndSet(false, true)) return
+        runOffThread {
+            val now = System.currentTimeMillis()
+            val pending = Realm.getDefaultInstance().use { realm ->
+                realm.where(SignalMessage::class.java)
+                    .equalTo("outgoing", true)
+                    .equalTo("sendState", SignalMessage.SEND_SENDING)
+                    .findAll()
+                    .map { it.id to it.date }
+            }.filter { (id, _) -> id !in inFlight }
+            if (pending.isEmpty()) return@runOffThread
+            Timber.w("signal send: %d message(s) were still on their way when the app last stopped", pending.size)
+            pending.forEach { (id, sentAt) ->
+                if (!com.wanderwildwood.kotozute.signalstore.SignalOutbox.worthResending(sentAt, now)) {
+                    runCatching { setSendState(id, SignalMessage.SEND_FAILED) }
+                    return@forEach
+                }
+                runCatching { resend(id) }
+                    .onSuccess { Timber.i("signal send: sent again after a restart") }
+                    .onFailure { Timber.w(it, "signal send: could not send again after a restart; marked not sent") }
+            }
+        }
     }
 
     /**
@@ -1417,7 +1585,8 @@ class SignalRepositoryImpl @Inject constructor(
         threadKey: String,
         body: String,
         attachments: List<String>,
-        quote: com.wanderwildwood.kotozute.signalstore.SignalQuote? = null
+        quote: com.wanderwildwood.kotozute.signalstore.SignalQuote? = null,
+        resending: Long = 0L
     ): Long {
         if (attachments.isNotEmpty()) {
             throw com.wanderwildwood.kotozute.repository.SendRefused(
@@ -1431,7 +1600,7 @@ class SignalRepositoryImpl @Inject constructor(
         )
 
         val (expiresIn, timerVersion) = timerFor(threadKey)
-        val timestamp = signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion, quote)
+        val timestamp = if (resending > 0) resending else System.currentTimeMillis()
         val selfAci = signalStore.selfAciOrNull().orEmpty()
         val row =
             com.wanderwildwood.kotozute.signal.BridgeMessage(
@@ -1452,14 +1621,10 @@ class SignalRepositoryImpl @Inject constructor(
                 expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
                 groupMasterKey = masterKey
             )
-        // ⚠ The same rule as the one-to-one send: past this point it has gone, and to a whole
-        // group. Reporting it as failed invites a second copy to everybody.
-        try {
-            ingest(listOf(row))
-        } catch (t: Throwable) {
-            throw com.wanderwildwood.kotozute.repository.SentButNotFiled(t)
+        // The same order as the one-to-one send; see [sendThroughOutbox].
+        return sendThroughOutbox(row, emptyList(), resending > 0) {
+            signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion, quote, timestamp)
         }
-        return timestamp
     }
 
     /**
@@ -1928,6 +2093,7 @@ class SignalRepositoryImpl @Inject constructor(
                         Timber.i("signal: the socket authenticated; the outage is over")
                         prefs.signalServiceOutage.set(false)
                     }
+                    resendOrphans()
                     publishState(signalConnected = true, error = null)
                     signalStore.listen(
                         keepGoing = { streamWanted.get() && streamGeneration.get() == generation },

@@ -347,6 +347,9 @@ interface SignalRepository {
     /** Removes one of our own messages that did not go. Does nothing to one that did. */
     fun discardUnsent(messageId: String)
 
+    /** A group's members by ACI, with the names to mention them by. Blocking. */
+    fun mentionableNames(threadKey: String): Map<String, String>
+
     /** Deletes one message here and on the account's other devices, for this account only. */
     fun deleteForMe(messageId: String)
 

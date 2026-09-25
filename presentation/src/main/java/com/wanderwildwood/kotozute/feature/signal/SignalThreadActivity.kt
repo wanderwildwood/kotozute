@@ -685,7 +685,7 @@ class SignalThreadActivity : QkThemedActivity() {
 
     private fun offerMention(at: Int) {
         thread(isDaemon = true) {
-            val names = runCatching { signalRepo.senderNamesFor(threadKey) }.getOrDefault(emptyMap())
+            val names = runCatching { signalRepo.mentionableNames(threadKey) }.getOrDefault(emptyMap())
                 .values.filter { it.isNotBlank() }.distinct().sorted()
             if (names.isEmpty()) return@thread
             runOnUiThread {

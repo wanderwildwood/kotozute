@@ -630,6 +630,32 @@ class ComposeViewModel @Inject constructor(
             .autoDisposable(view.scope())
             .subscribe { view.showClearCurrentMessageDialog() }
 
+        // React to the one selected message. An SMS reaction is a text of its own ("Loved
+        // “…”"), which the phone at the other end draws as a reaction.
+        view.optionsItemIntent
+            .filter { it == R.id.react }
+            .withLatestFrom(view.messagesSelectedIntent) { _, messages -> messages }
+            .filter { messages -> messages.isNotEmpty() }
+            .observeOn(Schedulers.io())
+            .map { messages -> messages.first().let { id -> id to messageRepo.myEmojiReaction(id) } }
+            .observeOn(AndroidSchedulers.mainThread())
+            .autoDisposable(view.scope())
+            .subscribe { (id, mine) ->
+                view.clearSelection()
+                view.showReactionPicker(id, mine)
+            }
+
+        view.reactionPickedIntent
+            .observeOn(Schedulers.io())
+            .map { (id, emoji, remove) ->
+                runCatching { messageRepo.sendEmojiReaction(id, emoji, remove) }
+                    .onFailure { Timber.w(it, "sms: reaction") }
+                    .getOrDefault(false)
+            }
+            .observeOn(AndroidSchedulers.mainThread())
+            .autoDisposable(view.scope())
+            .subscribe { sent -> if (!sent) view.showReactionFailed() }
+
         // Forward the message
         view.optionsItemIntent
             .filter { it == R.id.forward }

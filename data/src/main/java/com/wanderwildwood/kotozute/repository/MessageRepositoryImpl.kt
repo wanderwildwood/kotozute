@@ -917,6 +917,61 @@ open class MessageRepositoryImpl @Inject constructor(
         return retVal
     }
 
+    override fun sendEmojiReaction(targetId: Long, emoji: String, remove: Boolean): Boolean {
+        val (target, conversation) = Realm.getDefaultInstance().use { realm ->
+            val target = realm.where(Message::class.java).equalTo("id", targetId).findFirst()
+                ?.let(realm::copyFromRealm)
+                ?: return false
+            val conversation = realm.where(Conversation::class.java)
+                .equalTo("id", target.threadId).findFirst()
+                ?.let(realm::copyFromRealm)
+                ?: return false
+            target to conversation
+        }
+        val text = target.getText(false).trim()
+        val addresses = conversation.recipients.map { it.address }
+        if (text.isEmpty() || addresses.isEmpty()) return false
+        val group = addresses.size > 1 && conversation.sendAsGroup
+
+        // ⚠ No signature and no accent stripping. Both rewrite the text, and the text is the
+        // whole of the reaction: a signature after the closing quote, or straight quotes in
+        // place of curly ones, and the other phone shows a message reading "Loved ..." instead.
+        val messageUri = QkTransaction.createMessage(
+            context, target.subId, reactions.composeReaction(emoji, text, remove), "",
+            addresses.map(phoneNumberUtils::normalizeNumber).toTypedArray(),
+            mutableListOf(), group, prefs.longAsMms.get(), false,
+            prefs.delivery.get(), prefs.readReceipts.get()
+        )
+        if (messageUri == Uri.EMPTY) return false
+        val message = syncProviderMessage(messageUri, group) ?: return false
+
+        // Filed as a reaction now rather than at the next sync, so the thread shows the emoji
+        // under the message instead of a text reading "Loved ..." in the meantime.
+        Realm.getDefaultInstance().use { realm ->
+            val saved = realm.where(Message::class.java).equalTo("id", message.id).findFirst()
+            val parsed = reactions.parseEmojiReaction(message.getText(false))
+            if (saved != null && parsed != null) {
+                realm.executeTransaction {
+                    reactions.saveEmojiReaction(
+                        saved, parsed, reactions.findTargetMessage(saved.threadId, parsed.originalMessage, realm), realm
+                    )
+                }
+            }
+        }
+
+        sendMessage(message)
+        return true
+    }
+
+    override fun myEmojiReaction(messageId: Long): String =
+        Realm.getDefaultInstance().use { realm ->
+            realm.where(Message::class.java).equalTo("id", messageId).findFirst()
+                ?.emojiReactions
+                ?.firstOrNull { it.senderAddress == EmojiReactionRepository.ME }
+                ?.emoji
+                ?: ""
+        }
+
     override fun sendMessage(messageId: Long) =
         getMessage(messageId)
             ?.let { message -> sendMessage(message) }

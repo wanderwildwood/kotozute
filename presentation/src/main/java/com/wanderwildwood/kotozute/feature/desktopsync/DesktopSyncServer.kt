@@ -31,6 +31,7 @@ import com.wanderwildwood.kotozute.interactor.MarkRead
 import com.wanderwildwood.kotozute.interactor.SendNewMessage
 import com.wanderwildwood.kotozute.repository.ContactRepository
 import com.wanderwildwood.kotozute.repository.ConversationRepository
+import com.wanderwildwood.kotozute.repository.EmojiReactionRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
 import com.wanderwildwood.kotozute.feature.conversations.InboxItem
 import com.wanderwildwood.kotozute.feature.signal.SignalAttachment
@@ -390,6 +391,7 @@ class DesktopSyncServer(
             uri == "/api/scheduled" && session.method == Method.GET -> handleScheduled()
             uri == "/api/blocked" && session.method == Method.GET -> handleBlocked()
             uri == "/api/signal/react" && session.method == Method.POST -> handleSignalReact(session)
+            uri == "/api/react" && session.method == Method.POST -> handleSmsReact(session)
             uri == "/api/signal/accept-identity" && session.method == Method.POST ->
                 handleSignalAcceptIdentity(session)
             uri == "/api/signal/withdraw" && session.method == Method.POST ->
@@ -739,10 +741,9 @@ class DesktopSyncServer(
     /**
      * Put an emoji on a Signal message, or take this account's own back off.
      *
-     * The phone does the work; this only carries the request. It is deliberately not
-     * offered for SMS, which has no such thing -- a "reaction" there is a whole separate
-     * text message reading "Liked ...", and sending one of those from here would be a
-     * different feature wearing this one's clothes.
+     * The phone does the work; this only carries the request. SMS has its own route,
+     * [handleSmsReact], because an SMS reaction is a different act: a whole separate text
+     * message reading "Liked “…”", which the other phone turns back into a reaction.
      */
     private fun handleSignalReact(session: IHTTPSession): Response {
         if (!signalEnabled() || !signalRepository.isConfigured()) {
@@ -772,6 +773,36 @@ class DesktopSyncServer(
         }
     }
 
+
+    /**
+     * React to an SMS/MMS message, or take this phone's reaction back off.
+     *
+     * Sends a text of its own ("Loved “…”") into the message's conversation, the way an
+     * iPhone does; see [MessageRepository.sendEmojiReaction].
+     */
+    private fun handleSmsReact(session: IHTTPSession): Response {
+        val body = readSmallJson(session, 4096)
+            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "bad request body"))
+        val id = body.optLong("id", 0L)
+        val emoji = body.optString("emoji")
+        val remove = body.optBoolean("remove", false)
+        if (id == 0L || emoji.isBlank()) {
+            return jsonResponse(
+                Response.Status.BAD_REQUEST, JSONObject().put("error", "need a message and an emoji")
+            )
+        }
+        val sent = runCatching { messageRepository.sendEmojiReaction(id, emoji, remove) }
+            .onFailure { Timber.w(it, "Desktop Sync: SMS reaction") }
+            .getOrDefault(false)
+        return if (sent) {
+            jsonResponse(Response.Status.OK, JSONObject().put("ok", true))
+        } else {
+            jsonResponse(
+                Response.Status.INTERNAL_ERROR,
+                JSONObject().put("error", "the phone could not send that reaction")
+            )
+        }
+    }
 
     /**
      * One search at a time. Each one walks every conversation and copies the matching
@@ -2538,6 +2569,21 @@ class DesktopSyncServer(
                 })
             }
         if (attachments.length() > 0) put("attachments", attachments)
+        // Reactions on this message, counted per emoji, in the same shape the Signal rail
+        // sends. Without these the phone showed a reaction the browser did not.
+        if (message.emojiReactions.isNotEmpty()) {
+            val mine = message.emojiReactions
+                .firstOrNull { it.senderAddress == EmojiReactionRepository.ME }?.emoji
+            put("reactions", JSONArray().apply {
+                message.emojiReactions.groupingBy { it.emoji }.eachCount()
+                    .entries.sortedByDescending { it.value }
+                    .forEach { (emoji, n) ->
+                        put(JSONObject().put("emoji", emoji).put("count", n).apply {
+                            if (emoji == mine) put("mine", true)
+                        })
+                    }
+            })
+        }
     }
 
     private fun jsonResponse(status: Response.Status, body: Any): Response {

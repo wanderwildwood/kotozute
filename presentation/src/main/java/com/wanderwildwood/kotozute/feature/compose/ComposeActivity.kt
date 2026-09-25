@@ -18,6 +18,8 @@
  */
 package com.wanderwildwood.kotozute.feature.compose
 
+import com.wanderwildwood.kotozute.repository.EmojiReactionRepository
+import com.wanderwildwood.kotozute.common.widget.ReactionPicker
 import android.Manifest
 import android.app.Activity
 import android.app.DatePickerDialog
@@ -127,6 +129,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override val cancelDelayedIntent: Subject<Long> by lazy { messageAdapter.cancelSendingClicks }
     override val sendDelayedNowIntent: Subject<Long> by lazy { messageAdapter.sendNowClicks }
     override val resendIntent: Subject<Long> by lazy { messageAdapter.resendClicks }
+    override val reactionPickedIntent: Subject<Triple<Long, String, Boolean>> = PublishSubject.create()
     override val attachmentDeletedIntent: Subject<Attachment> by lazy { composeAttachmentAdapter.attachmentDeleted }
     override val textChangedIntent by lazy { binding.message.textChanges() }
     override val attachIntent: Observable<Unit> by lazy { Observable.merge(binding.attach.clicks(), binding.shadeBackground.clicks()) }
@@ -481,6 +484,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             !state.editingMode && state.selectedMessages > 0 && state.selectedMessagesHaveText
         binding.toolbar.menu.findItem(R.id.details)?.isVisible = !state.editingMode && state.selectedMessages == 1
         binding.toolbar.menu.findItem(R.id.delete)?.isVisible = !state.editingMode && ((state.selectedMessages > 0) || state.canSend)
+        binding.toolbar.menu.findItem(R.id.react)?.isVisible =
+            !state.editingMode && state.selectedMessages == 1 && state.selectedMessagesHaveText
         binding.toolbar.menu.findItem(R.id.forward)?.isVisible = !state.editingMode && state.selectedMessages == 1
         binding.toolbar.menu.findItem(R.id.show_status)?.isVisible = !state.editingMode && state.selectedMessages > 0
         binding.toolbar.menu.findItem(R.id.previous)?.isVisible = state.selectedMessages == 0 && state.query.isNotEmpty()
@@ -594,6 +599,14 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             .setCancelable(true)
             .show()
     }
+
+    override fun showReactionPicker(messageId: Long, mine: String) =
+        ReactionPicker.show(this, EmojiReactionRepository.SMS_CHOICES, mine) { emoji, remove ->
+            reactionPickedIntent.onNext(Triple(messageId, emoji, remove))
+        }
+
+    override fun showReactionFailed() =
+        Toast.makeText(this, R.string.signal_reaction_failed, Toast.LENGTH_SHORT).show()
 
     override fun showMessageLinkAskDialog(uri: Uri) {
         AlertDialog.Builder(this)

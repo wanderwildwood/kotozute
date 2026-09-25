@@ -101,6 +101,18 @@ interface MessageRepository {
 
     fun sendMessage(message: Message): Collection<Message>
 
+    /**
+     * React to an SMS/MMS message with [emoji], or take this phone's reaction back off.
+     *
+     * An SMS reaction is itself a text message (`Loved “…”`) sent to the same conversation;
+     * the phone at the other end turns it back into a reaction. Returns false when there is
+     * nothing to send it about -- a message with no text, or no conversation to send into.
+     */
+    fun sendEmojiReaction(targetId: Long, emoji: String, remove: Boolean): Boolean
+
+    /** The emoji this phone has put on a message, or "" for none. */
+    fun myEmojiReaction(messageId: Long): String
+
     fun sendMessage(messageId: Long): Collection<Message>
 
     fun cancelDelayedSmsAlarm(messageId: Long)

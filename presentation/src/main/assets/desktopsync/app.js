@@ -1198,6 +1198,13 @@ function openThreadMenu(t, x, y) {
 const REACTIONS = ['\u2764\ufe0f', '\uD83D\uDC4D', '\uD83D\uDC4E', '\uD83D\uDE02', '\uD83D\uDE2E', '\uD83D\uDE22'];
 
 /*
+ * The six an SMS reaction offers: the iPhone's own tapbacks, which have fixed phrases
+ * ("Loved", "Laughed at") that iPhones and Google Messages both read back as a reaction.
+ * The same list as EmojiReactionRepository.SMS_CHOICES on the phone.
+ */
+const SMS_REACTIONS = ['\u2764\ufe0f', '\uD83D\uDC4D', '\uD83D\uDC4E', '\uD83D\uDE02', '\u203c\ufe0f', '\u2753'];
+
+/*
  * A reply to one Signal message. Held against the thread it was started in, so switching
  * conversations cannot send it as a quote into the wrong one; kept until the send goes, so a
  * send refused over a changed safety number and retried still goes as a reply.
@@ -1229,13 +1236,14 @@ function replyFields(threadId) {
 function openMessageMenu(m, x, y) {
   const text = (m.body || '').trim();
   const items = [];
-  // Signal only. SMS has no reactions -- what looks like one there is a separate text
-  // message reading "Liked ...", which is a different thing and not this button's job.
-  // Signal's own id, not the numeric one the list keys on -- that one is a hash of it and
-  // the phone cannot turn it back into a row.
-  const canReact = activeThreadRail === 'signal' && m.signalId;
+  // On Signal, by Signal's own id, not the numeric one the list keys on -- that one is a
+  // hash of it and the phone cannot turn it back into a row. On SMS, by the row's id, and
+  // only a message with text: the reaction quotes it ("Loved “…”"), and a picture has
+  // nothing to quote.
+  const isSignal = activeThreadRail === 'signal';
+  const canReact = isSignal ? !!m.signalId : !!text;
   const mine = ((m.reactions || []).find(r => r.mine) || {}).emoji || '';
-  if (canReact) items.push(['Reply', () => startReply(m)]);
+  if (isSignal && canReact) items.push(['Reply', () => startReply(m)]);
   if (text) items.push(['Copy text', () => copyText(text)]);
   if (text) items.push(['Forward\u2026', () => forwardText(text)]);
   // The thread's rail, not the message's: an SMS message carries no rail field at all, so
@@ -1262,7 +1270,7 @@ function openMessageMenu(m, x, y) {
   if (canReact) {
     const row = document.createElement('div');
     row.className = 'reactRow';
-    REACTIONS.forEach(emoji => {
+    (isSignal ? REACTIONS : SMS_REACTIONS).forEach(emoji => {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = emoji;
@@ -1297,20 +1305,26 @@ function openMessageMenu(m, x, y) {
 }
 
 /**
- * Ask the phone to put an emoji on a Signal message, or take ours back off.
+ * Ask the phone to put an emoji on a message, or take ours back off. On SMS the phone sends
+ * a text of its own ("Loved “…”"), which the other phone reads as a reaction.
  *
- * Nothing is drawn optimistically. The reaction is only real once Signal has echoed it
- * back, and a chip that appeared instantly and then vanished would be worse than one that
- * took a second to arrive.
+ * Nothing is drawn optimistically. The reaction is only real once the phone has it -- on
+ * Signal, once Signal has echoed it back -- and a chip that appeared instantly and then
+ * vanished would be worse than one that took a second to arrive.
  */
 async function react(m, emoji, remove) {
   try {
     // api() resolves with the response whatever the status, so a refusal has to be read
     // off it rather than caught.
-    const res = await api('/api/signal/react', {
-      method: 'POST',
-      body: JSON.stringify({ id: m.signalId, emoji: emoji, remove: !!remove }),
-    });
+    const res = activeThreadRail === 'signal'
+      ? await api('/api/signal/react', {
+        method: 'POST',
+        body: JSON.stringify({ id: m.signalId, emoji: emoji, remove: !!remove }),
+      })
+      : await api('/api/react', {
+        method: 'POST',
+        body: JSON.stringify({ id: m.id, emoji: emoji, remove: !!remove }),
+      });
     if (!res.ok) { statusEl.textContent = 'could not react'; return; }
     statusEl.textContent = remove ? 'reaction removed' : 'reacted';
     lastMessagesSig = ''; // let the next poll redraw rather than waiting for a new message
@@ -2275,8 +2289,11 @@ async function loadMessages() {
   // The poll runs every few seconds. Rebuilding the DOM each time would throw away
   // the reader's scroll position (and any in-flight image loads), so bail out when
   // nothing has actually changed.
+  // Reactions are in it too: one arriving on an older message changes nothing else, and
+  // without them the page never drew it until a new message came.
   const sig = forThread + ':' + messageLimit + ':' + messages.length + ':' +
-    (messages.length ? messages[messages.length - 1].id + ':' + messages[messages.length - 1].date : '');
+    (messages.length ? messages[messages.length - 1].id + ':' + messages[messages.length - 1].date : '') + ':' +
+    messages.map(m => (m.reactions || []).map(r => r.emoji + r.count + (r.mine ? '*' : '')).join('')).join('|');
   if (sig === lastMessagesSig) return;
   const isNewThread = !lastMessagesSig.startsWith(forThread + ':');
   lastMessagesSig = sig;

@@ -300,6 +300,14 @@ object ProtocolDatabaseSelfCheck {
             unfiledStore.filed(listOf(waiting.id))
             val unfiledCleared = unfiledStore.all().isEmpty()
 
+            // Ringing calls: one noted, one taken by id, one past the window swept.
+            val calls = SignalCallStore(db)
+            calls.offer(SignalCallStore.Ringing(7L, "peer-a", false, 1_000L))
+            calls.offer(SignalCallStore.Ringing(8L, "peer-b", true, System.currentTimeMillis()))
+            val tookRinging = calls.take(8L)?.let { it.peer == "peer-b" && it.video } == true && calls.take(8L) == null
+            val sweptStale = calls.takeExpired(System.currentTimeMillis()).map { it.callId } == listOf(7L) &&
+                calls.takeExpired(System.currentTimeMillis()).isEmpty()
+
             db.close()
             "${tables.size} tables, seeded=$identities | safety: stable=$safetyNumberStable shape=$safetyNumberShape ordinary-still-sends=$ordinaryStillSends verified-blocked=$blockedAfterChange accepted=$accepted sendable=$sendableAfterAccept not-verified=$acceptedNotVerified | groups: derived=$groupIdIsDerived shape=$groupIdLooksRight | pair: aci=$aciResolves bare-pni=$barePniResolves stranger-rejected=$strangerRejected | facade: sharing-roundtrip=$sharingRoundTrips " +
                 "archive-clears-sharing=$archiveClearsSharing cleared-all=$clearedAll stale-swept=$staleSwept " +
@@ -317,7 +325,8 @@ object ProtocolDatabaseSelfCheck {
                 "changed-read-on-receive=$changedKeyReadOnReceive " +
                 "changed-blocked-on-send=$changedKeyBlockedOnSend " +
                 "readback=$readBack change-reported=$changeReported " +
-                "| unfiled: envelope-gone=$envelopeGone kept=$unfiledKept cleared=$unfiledCleared"
+                "| unfiled: envelope-gone=$envelopeGone kept=$unfiledKept cleared=$unfiledCleared " +
+                "| calls: took-ringing=$tookRinging swept-stale=$sweptStale"
         } finally {
             file.delete()
         }

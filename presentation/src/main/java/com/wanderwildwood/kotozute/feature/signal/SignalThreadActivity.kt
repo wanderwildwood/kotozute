@@ -1840,9 +1840,13 @@ class SignalThreadActivity : QkThemedActivity() {
             val saved = downloadableAttachment(m)
             val unsent = sendState != com.wanderwildwood.kotozute.model.SignalMessage.SEND_SENT
             val body = m.body
+            // A call is a line in the history, not a message: nobody sent it, so there is
+            // nothing to reply to, react to or take back.
+            val callLine = messageId.startsWith("call:")
             val listener = android.view.View.OnLongClickListener {
                 // Nothing to react to, reply to or take back: nobody has it.
-                if (unsent) showUnsentActions(messageId, body)
+                if (callLine) Unit
+                else if (unsent) showUnsentActions(messageId, body)
                 else showMessageActions(body, messageId, mine, outgoing, sentAt, saved)
                 true
             }

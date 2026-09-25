@@ -90,6 +90,13 @@ interface SignalEvents {
     fun numberChanged(aci: String, from: String, to: String) {}
 
     /**
+     * A Signal call this phone could not answer has settled. [at] is when it rang; [callId]
+     * identifies it, so a later report about the same call replaces the line rather than
+     * adding a second one.
+     */
+    fun call(peer: String, callId: Long, at: Long, video: Boolean, outcome: CallOutcome) {}
+
+    /**
      * Says in the conversation that somebody's name is now different from the one it held.
      *
      * Not the first name ever learned -- only a name that replaced another. A contact's

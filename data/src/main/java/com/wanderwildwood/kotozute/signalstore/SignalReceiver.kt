@@ -97,6 +97,10 @@ internal class SignalReceiver(
         var emptied = false
         val senders = mutableSetOf<String>()
 
+        // Before the read, which can wait a full minute on a quiet account: a call nobody hung
+        // up on is settled on the next pass rather than on the next message.
+        settleUnansweredCalls()
+
         for (round in 1..maxBatches) {
             val queueNotEmpty = connection.authenticated.readMessageBatch(timeout, BATCH_SIZE) { batch ->
                 batch.forEach { response ->
@@ -662,6 +666,60 @@ internal class SignalReceiver(
 
 
     private val unfiledStore = UnfiledStore(db)
+    private val callStore = SignalCallStore(db)
+
+    private fun handleCall(
+        call: org.whispersystems.signalservice.internal.push.CallMessage,
+        from: String,
+        envelope: Envelope
+    ) {
+        val now = System.currentTimeMillis()
+        call.offer?.let { offer ->
+            val id = offer.id ?: return@let
+            val video = offer.type == org.whispersystems.signalservice.internal.push.CallMessage.Offer.Type.OFFER_VIDEO_CALL
+            val at = envelope.serverTimestamp ?: envelope.clientTimestamp ?: now
+            // An offer that arrives already stale -- the phone was off while it rang -- was
+            // missed before anything here saw it. RingRTC's own rule.
+            if (SignalCalls.expired(at, now)) {
+                settleCall(from, id, at, video, CallOutcome.MISSED)
+            } else {
+                runCatching { callStore.offer(SignalCallStore.Ringing(id, from, video, at)) }
+                    .onFailure { Timber.w(it, "signal calls: could not note a ringing call") }
+            }
+        }
+        call.hangup?.let { hangup ->
+            val id = hangup.id ?: return@let
+            // Only a call this phone saw ring. A hangup for one it never heard of has nothing
+            // to settle, and the wrong peer cannot settle somebody else's call.
+            val ringing = runCatching { callStore.take(id) }.getOrNull() ?: return@let
+            if (ringing.peer != from) return@let
+            settleCall(from, id, ringing.offeredAt, ringing.video, SignalCalls.outcomeOfHangup(hangup.type))
+        }
+    }
+
+    private fun handleCallEvent(event: org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent) {
+        val outcome = SignalCalls.outcomeOfEvent(event.type, event.direction, event.event) ?: return
+        val peer = SignalCalls.aciOf(event.conversationId?.toByteArray()) ?: return
+        val id = event.callId ?: return
+        runCatching { callStore.take(id) }
+        settleCall(
+            peer, id, event.timestamp ?: System.currentTimeMillis(),
+            event.type == org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Type.VIDEO_CALL,
+            outcome
+        )
+    }
+
+    private fun settleCall(peer: String, id: Long, at: Long, video: Boolean, outcome: CallOutcome) {
+        Timber.i("signal calls: a %s call settled as %s", if (video) "video" else "voice", outcome)
+        runCatching { events.call(peer, id, at, video, outcome) }
+            .onFailure { Timber.w(it, "signal calls: could not record a call") }
+    }
+
+    /** Calls whose caller never said they had given up. Run on every pass of the loop. */
+    private fun settleUnansweredCalls() {
+        runCatching { callStore.takeExpired(System.currentTimeMillis()) }.getOrDefault(emptyList())
+            .forEach { settleCall(it.peer, it.callId, it.offeredAt, it.video, CallOutcome.MISSED) }
+    }
 
     /** Set by [decrypt] when it fails, so the caller can record it against the row. */
     private var lastFailure: String? = null
@@ -936,6 +994,18 @@ internal class SignalReceiver(
                     } else {
                         Timber.w("signal receive: a pni signature from something that is not an account id; ignoring it")
                     }
+                }
+
+                // A Signal call. Nothing here can answer one, so what is recorded is how it
+                // ended: missed, answered or declined on another device. Signal ignores calls
+                // from somebody blocked, and our own devices never call us.
+                result.content.callMessage?.let { call ->
+                    if (!fromSelf && !senderBlocked) handleCall(call, senderServiceId, envelope)
+                }
+                // Another of our devices telling us how a call went, which is what stops a call
+                // answered on the other phone reading as missed here.
+                result.content.syncMessage?.callEvent?.let { event ->
+                    if (fromSelf) handleCallEvent(event)
                 }
 
                 // A contacts sync is not a message and never becomes one -- it is the

@@ -260,6 +260,32 @@ object ProtocolDatabaseSelfCheck {
             // A GroupIdentifier is 32 bytes, so its base64 is 44 characters with padding.
             val groupIdLooksRight = derivedGroupId.length == 44
 
+            // Decrypted and not yet filed. The swap is the one write between a message being
+            // decrypted and it being safe, so it is exercised on the real encrypted database
+            // rather than trusted: an envelope in, swapped for its message, read back, filed.
+            db.writableDatabase.execSQL(
+                "INSERT INTO envelope (server_guid, serialized, server_delivered_timestamp, stored_timestamp) VALUES (?, ?, ?, ?)",
+                arrayOf<Any?>("selfcheck-guid", byteArrayOf(1, 2, 3), 1L, 1L)
+            )
+            val envelopeId = db.readableDatabase.rawQuery(
+                "SELECT _id FROM envelope WHERE server_guid = 'selfcheck-guid'", null
+            ).use { c -> if (c.moveToFirst()) c.getLong(0) else -1L }
+            val unfiledStore = UnfiledStore(db)
+            val waiting = com.wanderwildwood.kotozute.signal.BridgeMessage(
+                id = "selfcheck:1", threadKey = "direct:selfcheck", ts = 1L, senderUuid = "selfcheck",
+                senderNumber = "", outgoing = false, body = "unfiled 言伝", groupId = "", quoteTs = 0L,
+                read = false, source = "live", attachmentsJson = "", groupMasterKey = masterKey
+            )
+            unfiledStore.swap(envelopeId, waiting)
+            val envelopeGone = db.readableDatabase.rawQuery(
+                "SELECT count(*) FROM envelope WHERE _id = ?", arrayOf(envelopeId.toString())
+            ).use { c -> c.moveToFirst() && c.getInt(0) == 0 }
+            val readBackUnfiled = unfiledStore.all()
+            val unfiledKept = readBackUnfiled.size == 1 && readBackUnfiled[0].body == waiting.body &&
+                readBackUnfiled[0].groupMasterKey.contentEquals(masterKey)
+            unfiledStore.filed(listOf(waiting.id))
+            val unfiledCleared = unfiledStore.all().isEmpty()
+
             db.close()
             "${tables.size} tables, seeded=$identities | safety: stable=$safetyNumberStable shape=$safetyNumberShape blocked=$blockedAfterChange accepted=$accepted sendable=$sendableAfterAccept not-verified=$acceptedNotVerified | groups: derived=$groupIdIsDerived shape=$groupIdLooksRight | pair: aci=$aciResolves bare-pni=$barePniResolves stranger-rejected=$strangerRejected | facade: sharing-roundtrip=$sharingRoundTrips " +
                 "archive-clears-sharing=$archiveClearsSharing cleared-all=$clearedAll stale-swept=$staleSwept " +
@@ -276,7 +302,8 @@ object ProtocolDatabaseSelfCheck {
                 "e164-refused=$e164Refused | trust: first-sighting=$trustedOnFirstSighting " +
                 "changed-refused-on-receive=$changedKeyRefusedOnReceive " +
                 "changed-blocked-on-send=$changedKeyBlockedOnSend " +
-                "readback=$readBack change-reported=$changeReported"
+                "readback=$readBack change-reported=$changeReported " +
+                "| unfiled: envelope-gone=$envelopeGone kept=$unfiledKept cleared=$unfiledCleared"
         } finally {
             file.delete()
         }

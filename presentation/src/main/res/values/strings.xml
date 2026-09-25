@@ -345,6 +345,8 @@
     <string name="signal_recorded">Voice message, %s — send it or tap the bin</string>
     <string name="signal_record_failed">The microphone would not start</string>
     <string name="signal_record_needs_permission">Recording needs the microphone permission</string>
+    <string name="signal_record_permission_off">Recording needs the microphone permission, and Android won\'t ask for it again. Turn it on under Permissions in the app\'s settings.</string>
+    <string name="signal_record_permission_settings">Open settings</string>
     <string name="signal_record_too_short">That was too short to send</string>
     <string name="signal_attachment_open">Open</string>
     <string name="signal_attachment_save">Save a copy…</string>
@@ -421,6 +423,7 @@
     <string name="settings_signal_status_direct_offline">Not connected to Signal — reconnecting</string>
     <string name="settings_signal_status_direct_ok">Connected to Signal</string>
     <string name="settings_signal_status_outage">Signal is having technical problems — not this phone. Reconnecting</string>
+    <string name="signal_sms_taken">Another app is getting your text messages now. Tap to make this the text app again.</string>
     <string name="settings_signal_status_primary_idle">Open Signal on your other phone to keep this account active</string>
     <string name="settings_signal_status_stuck">%d message(s) could not be read</string>
     <string name="settings_signal_status_never">Not synced yet</string>

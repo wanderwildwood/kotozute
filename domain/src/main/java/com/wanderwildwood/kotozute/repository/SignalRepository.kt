@@ -56,7 +56,14 @@ interface SignalRepository {
          * owner acts, and is the only thing worth interrupting them about: everything else
          * recovers on its own.
          */
-        val rejected: String? = null
+        val rejected: String? = null,
+        /**
+         * The server says the account's primary has not been seen for a long time. Linked
+         * devices only. The warning that comes before this phone is unlinked for it.
+         */
+        val primaryIdle: Boolean = false,
+        /** Signal's status check says Signal itself is down, rather than this phone offline. */
+        val serviceOutage: Boolean = false,
     ) {
         /** Only then may the composer offer to send. */
         val canSend: Boolean get() = enabled && signalConnected

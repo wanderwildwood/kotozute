@@ -22,6 +22,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.concurrent.thread
 import com.wanderwildwood.kotozute.signalstore.AppliedStorageState
+import com.wanderwildwood.kotozute.signalstore.ServiceOutage
 import com.wanderwildwood.kotozute.signalstore.SignalKeyTransparency
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
@@ -343,7 +344,12 @@ class SignalRepositoryImpl @Inject constructor(
      * explanation with it.
      */
     private fun onServerRefusedThisDevice(reason: String) {
-        if (prefs.signalRejected.get() == reason && !streamConnected.get()) return
+        // ⚠ Whether the stream is still *wanted*, not whether it is connected. This was
+        // `!streamConnected`, which is exactly the state of a freshly started app: the reason
+        // is already on file from before the restart and nothing has connected yet. So every
+        // refusal after a restart returned here, the loop was never retired, and a phone the
+        // account had removed reconnected every thirty seconds for as long as it was on.
+        if (!refusalIsNews(prefs.signalRejected.get(), reason, streamWanted.get())) return
         Timber.w("signal: server refused this device: %s", reason)
         prefs.signalRejected.set(reason)
         runOffThread {
@@ -386,6 +392,40 @@ class SignalRepositoryImpl @Inject constructor(
         } else {
             Timber.i("signal account: the account's primary device is active again")
         }
+        // ⚠ Published, not only recorded. It was kept "where a screen can read it" and no
+        // screen did, so the one warning that comes before an unlink reached nobody.
+        publishState(
+            signalConnected = state.value?.signalConnected ?: false,
+            error = state.value?.error
+        )
+    }
+
+    /**
+     * Asks Signal whether Signal itself is down, after a send could not reach it.
+     *
+     * Upstream's `ServiceOutageDetectionJob`, run from the same place: a send that failed on
+     * the network (`PushSendJob.onRetry`). Without it "Signal is down" and "this phone is
+     * offline" look identical, and only one of them is something to go and fix.
+     */
+    private fun checkServiceOutage() = runOffThread {
+        val now = System.currentTimeMillis()
+        if (now - prefs.signalOutageCheckedAt.get() < ServiceOutage.CHECK_INTERVAL_MS) return@runOffThread
+        val status = ServiceOutage.check()
+        Timber.i("signal: service status check says %s", status)
+        // Unknown is a network too broken to ask, which says nothing about Signal. Upstream
+        // leaves the flag alone and retries; so does this, on the next failed send.
+        if (status == ServiceOutage.Status.UNKNOWN) return@runOffThread
+        prefs.signalOutageCheckedAt.set(now)
+        setServiceOutage(status == ServiceOutage.Status.DOWN)
+    }
+
+    private fun setServiceOutage(down: Boolean) {
+        if (prefs.signalServiceOutage.get() == down) return
+        prefs.signalServiceOutage.set(down)
+        publishState(
+            signalConnected = state.value?.signalConnected ?: false,
+            error = state.value?.error
+        )
     }
 
     /**
@@ -1880,6 +1920,14 @@ class SignalRepositoryImpl @Inject constructor(
                         Timber.i("signal: the socket authenticated; clearing the old refusal")
                         prefs.signalRejected.set("")
                     }
+                    // The same proof ends an outage: the server has just answered. Upstream
+                    // waits for the next failed send to look again, which on a phone that
+                    // sends little can leave the warning up for days after it stopped being
+                    // true.
+                    if (prefs.signalServiceOutage.get()) {
+                        Timber.i("signal: the socket authenticated; the outage is over")
+                        prefs.signalServiceOutage.set(false)
+                    }
                     publishState(signalConnected = true, error = null)
                     signalStore.listen(
                         keepGoing = { streamWanted.get() && streamGeneration.get() == generation },
@@ -2181,7 +2229,12 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     override fun send(threadKey: String, body: String, attachments: List<String>, quoteTs: Long): Long =
-        sendDirect(threadKey, body, attachments, quoteFor(threadKey, quoteTs))
+        try {
+            sendDirect(threadKey, body, attachments, quoteFor(threadKey, quoteTs))
+        } catch (t: Throwable) {
+            if (ServiceOutage.worthChecking(t)) checkServiceOutage()
+            throw t
+        }
 
     /**
      * The message being replied to, read off this thread.
@@ -4085,6 +4138,10 @@ class SignalRepositoryImpl @Inject constructor(
                 lastSyncedAt = prefs.signalLastSync.get(),
                 error = error,
                 rejected = prefs.signalRejected.get().takeIf { it.isNotBlank() },
+                // Only a linked device has a primary to be idle. Signal gates it the same way
+                // (`isLinkedDevice && hasInactivePrimaryDeviceAlert`).
+                primaryIdle = prefs.signalPrimaryIdle.get() && !isPrimaryDevice(),
+                serviceOutage = prefs.signalServiceOutage.get(),
             )
         )
     }
@@ -4149,6 +4206,14 @@ class SignalRepositoryImpl @Inject constructor(
          * is one sync on the other phone, and the cost of not asking is a device that knows
          * nobody until the clock catches up.
          */
+        /**
+         * Whether a refusal from the server still needs acting on: a reason not yet on file,
+         * or a stream still running that should have been retired by it. The same reason with
+         * the stream already stopped is the socket repeating itself.
+         */
+        internal fun refusalIsNews(stored: String, reason: String, streamWanted: Boolean): Boolean =
+            stored != reason || streamWanted
+
         internal fun contactRequestDue(askedAt: Long, now: Long): Boolean =
             askedAt <= 0 || askedAt > now || now - askedAt >= CONTACT_REQUEST_INTERVAL_MS
     }

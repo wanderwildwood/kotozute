@@ -60,4 +60,14 @@ class SignalOutboxTest {
         assertFalse("exactly a day is outside, as upstream's > is", SignalOutbox.worthResending(now - day, now))
         assertFalse("a clock that has gone backwards", SignalOutbox.worthResending(now + 60_000, now))
     }
+
+    @Test
+    fun `the sweep keeps what has not gone and removes what has no message`() {
+        outbox.save(id, listOf("data:unsent"))
+        outbox.save("0f2d-aci:1790000000009", listOf("data:orphan"))
+        assertEquals(1, outbox.sweep(setOf(id)))
+        assertEquals(listOf("data:unsent"), outbox.load(id, hadAttachments = true))
+        assertNull(outbox.load("0f2d-aci:1790000000009", hadAttachments = true))
+    }
 }
+

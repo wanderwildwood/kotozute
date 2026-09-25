@@ -1726,7 +1726,10 @@ internal class SignalSender(
             val result = sender.sendSyncMessage(
                 org.whispersystems.signalservice.internal.push.Content(syncMessage = sync),
                 true,
-                java.util.Optional.empty()
+                // ⚠ The edit's own time, not the library's clock. The envelope and the edited
+                // message must carry the same timestamp or every receiver drops it -- signal-cli
+                // logged "[EditMessage] Timestamps don't match" for the first one sent.
+                java.util.Optional.of(timestamp)
             )
             if (result.isSuccess) Result.Sent(timestamp) else failed(result)
         } catch (t: Throwable) {

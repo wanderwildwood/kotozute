@@ -140,6 +140,13 @@ class EmojiReactionRepositoryImpl @Inject constructor(
         return null
     }
 
+    override fun composeReaction(emoji: String, targetText: String, remove: Boolean): String =
+        composeTapback(emoji, targetText, remove)
+
+    /** Who a reaction is from: the other party's address, or [EmojiReactionRepository.ME]. */
+    private fun senderOf(reactionMessage: Message): String =
+        if (reactionMessage.isMe()) EmojiReactionRepository.ME else reactionMessage.address
+
     private fun parseRemoval(body: String): ParsedEmojiReaction? {
         for ((pattern, parser) in removalPatterns) {
             val match = pattern.find(body)
@@ -196,7 +203,7 @@ class EmojiReactionRepositoryImpl @Inject constructor(
         }
 
         val existingReaction = targetMessage.emojiReactions.find { candidate ->
-            candidate.senderAddress == reactionMessage.address && candidate.emoji == reaction.emoji
+            candidate.senderAddress == senderOf(reactionMessage) && candidate.emoji == reaction.emoji
         }
 
         if (existingReaction != null) {
@@ -224,7 +231,7 @@ class EmojiReactionRepositoryImpl @Inject constructor(
         val reaction = EmojiReaction().apply {
             id = keyManager.newId()
             reactionMessageId = reactionMessage.id
-            senderAddress = reactionMessage.address
+            senderAddress = senderOf(reactionMessage)
             emoji = parsedReaction.emoji
             originalMessageText = parsedReaction.originalMessage
             threadId = reactionMessage.threadId
@@ -293,4 +300,25 @@ class EmojiReactionRepositoryImpl @Inject constructor(
         Timber.d("Deleted and reparsed all emoji reactions in ${endTime - startTime}ms")
     }
 
+}
+
+/**
+ * The text of an SMS reaction, as an iPhone writes it.
+ *
+ * English whatever the phone's language, because this is a format and not a sentence: the
+ * other phone matches it against the phrases it knows, and English is the one every parser
+ * knows -- ours included (`assets/emojis/en.json`), so the sent message is recognised here
+ * too and drawn as a reaction rather than as a text.
+ */
+internal fun composeTapback(emoji: String, targetText: String, remove: Boolean): String {
+    val phrase = when (emoji) {
+        "❤️" -> if (remove) "Removed a heart from" else "Loved"
+        "👍" -> if (remove) "Removed a like from" else "Liked"
+        "👎" -> if (remove) "Removed a dislike from" else "Disliked"
+        "😂" -> if (remove) "Removed a laugh from" else "Laughed at"
+        "‼️" -> if (remove) "Removed an exclamation from" else "Emphasized"
+        "❓" -> if (remove) "Removed a question mark from" else "Questioned"
+        else -> if (remove) "Removed $emoji from" else "Reacted $emoji to"
+    }
+    return "$phrase “${targetText.trim()}”"
 }

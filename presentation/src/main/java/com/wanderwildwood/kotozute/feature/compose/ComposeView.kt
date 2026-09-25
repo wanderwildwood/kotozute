@@ -52,6 +52,8 @@ interface ComposeView : QkView<ComposeState> {
     val cancelDelayedIntent: Subject<Long>
     val sendDelayedNowIntent: Subject<Long>
     val resendIntent: Subject<Long>
+    /** A reaction picked for a message: its id, the emoji, and whether it takes ours back. */
+    val reactionPickedIntent: Subject<Triple<Long, String, Boolean>>
     val attachmentDeletedIntent: Subject<Attachment>
     val textChangedIntent: Observable<CharSequence>
     val attachIntent: Observable<Unit>
@@ -88,6 +90,8 @@ interface ComposeView : QkView<ComposeState> {
     fun toggleSelectAll()
     fun expandMessages(messageIds: List<Long>, expand: Boolean)
     fun showDetails(details: String)
+    fun showReactionPicker(messageId: Long, mine: String)
+    fun showReactionFailed()
     fun showMessageLinkAskDialog(uri: Uri)
     fun requestDefaultSms()
     fun requestStoragePermission()

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The rail badge's chip, drawn inside a view tall enough to hit.
+     The view is 48dp (Android's size for anything a finger has to find) and the chip is
+     inset to the size it reads at, so the badge looks as it did and answers a near miss. A
+     touch delegate cannot do this: the badge sits in a Toolbar, which takes every touch
+     itself and never asks a delegate. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/filter_tab_selected"
+    android:insetTop="11dp"
+    android:insetBottom="11dp" />

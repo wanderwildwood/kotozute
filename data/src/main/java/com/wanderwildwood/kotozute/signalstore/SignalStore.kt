@@ -1795,6 +1795,17 @@ class SignalStore(private val context: Context) {
      * without this would end with a PIN nothing can check. Same PIN, same master key, same
      * enclave; the account is registered by now, so the socket authenticates as it.
      */
+    /**
+     * Tells libsignal the network changed, so it drops connection attempts made on the old one
+     * and starts again -- upstream calls `libsignalNetwork.onNetworkChange()` on every network
+     * event. Without it an attempt begun with no network hung until its own timeout, and a
+     * reconnect waited out the rest of it after the network was back.
+     */
+    fun onNetworkChange() {
+        runCatching { connection.network.onNetworkChange() }
+            .onFailure { Timber.w(it, "signal: could not tell libsignal the network changed") }
+    }
+
     fun resetPinGuesses(reset: SignalRegistrar.PinReset): Boolean {
         connection.connect()
         val response = org.whispersystems.signalservice.api.svr.SecureValueRecoveryV2(

@@ -276,6 +276,13 @@ class Preferences @Inject constructor(
      */
     val signalRejected = rxPrefs.getString("signalRejected", "")
     /**
+     * Whether Signal's own status check last said Signal is down. Signal keeps the same fact
+     * as `TextSecurePreferences.getServiceOutage`, set by `ServiceOutageDetectionJob`.
+     */
+    val signalServiceOutage = rxPrefs.getBoolean("signalServiceOutage", false)
+    /** When that check last got an answer. Signal asks at most once a minute. */
+    val signalOutageCheckedAt = rxPrefs.getLong("signalOutageCheckedAt", 0L)
+    /**
      * Whether reading a Signal message tells the sender. Off by default: Signal has its
      * own read-receipt setting which cannot be read from here, and sending them when the
      * user has chosen not to would share something they declined to share.

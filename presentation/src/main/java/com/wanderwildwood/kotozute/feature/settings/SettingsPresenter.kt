@@ -637,16 +637,29 @@ class SettingsPresenter @Inject constructor(
             ?.let { " · " + context.say(SignalWording.contactCounts(it)) }
             .orEmpty()
 
+        // First, when it applies: it is the warning that comes before this phone is unlinked,
+        // and the only fix is on the other phone. Signal shows it as a banner every week;
+        // this line is where this app says how the account is.
+        val idle = if (conn.primaryIdle) {
+            context.getString(R.string.settings_signal_status_primary_idle) + " · "
+        } else {
+            ""
+        }
+
         return when {
             // A refusal is the one status that is not going to fix itself, so it replaces the
             // line rather than decorating it. Saying "offline" here would be true and useless:
             // the phone is offline because the account no longer has it, and only its owner
             // can change that.
             !conn.rejected.isNullOrBlank() -> conn.rejected.orEmpty()
+            // Before "offline", because it says whose fault the offline is. Only ever set by
+            // Signal's own status check, never guessed from a failure here.
+            !conn.signalConnected && conn.serviceOutage ->
+                idle + context.getString(R.string.settings_signal_status_outage) + received + stuck + who
             !conn.signalConnected ->
-                context.getString(R.string.settings_signal_status_direct_offline) + received + stuck + who
+                idle + context.getString(R.string.settings_signal_status_direct_offline) + received + stuck + who
             else ->
-                context.getString(R.string.settings_signal_status_direct_ok) + received + stuck + who
+                idle + context.getString(R.string.settings_signal_status_direct_ok) + received + stuck + who
         }
     }
 

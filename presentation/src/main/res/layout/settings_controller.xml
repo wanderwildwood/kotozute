@@ -429,6 +429,22 @@
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalNotificationsOff"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_notifications_off_summary"
+                app:title="@string/settings_signal_notifications_off_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalBackground"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_background_summary"
+                app:title="@string/settings_signal_background_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalFetchContacts"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

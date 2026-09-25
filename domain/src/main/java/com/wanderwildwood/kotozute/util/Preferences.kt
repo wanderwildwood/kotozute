@@ -210,6 +210,9 @@ class Preferences @Inject constructor(
      */
     val signalPniRotationOwed = rxPrefs.getBoolean("signalPniRotationOwed", false)
 
+    /** Whether the one-time battery-optimisation ask has been made; see `BackgroundRunning`. */
+    val signalAskedBackground = rxPrefs.getBoolean("signalAskedBackground", false)
+
     /**
      * The storage record ids whose muted and archived this phone has already applied.
      *

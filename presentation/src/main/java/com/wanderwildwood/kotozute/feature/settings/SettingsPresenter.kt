@@ -301,6 +301,12 @@ class SettingsPresenter @Inject constructor(
                         // The service is started and stopped from here rather than by
                         // watching the preference, so the thing that flips the switch is the
                         // thing that acts on it and there is no second source of truth.
+                        R.id.signalNotificationsOff ->
+                            com.wanderwildwood.kotozute.feature.signal.NotificationsOff.open(context)
+
+                        R.id.signalBackground ->
+                            com.wanderwildwood.kotozute.feature.signal.BackgroundRunning.ask(context)
+
                         R.id.signalKeepConnected -> {
                             val on = !prefs.signalKeepConnected.get()
                             prefs.signalKeepConnected.set(on)

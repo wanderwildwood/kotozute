@@ -191,6 +191,12 @@ class SignalConversationsActivity : QkThemedActivity() {
             }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // The same one-time ask as the text list, for a phone that opens here instead.
+        BackgroundRunning.askOnce(this, prefs)
+    }
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.signal_conversations, menu)
         return super.onCreateOptionsMenu(menu)

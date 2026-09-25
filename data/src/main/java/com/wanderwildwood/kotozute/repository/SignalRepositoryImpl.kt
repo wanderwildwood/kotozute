@@ -131,38 +131,97 @@ class SignalRepositoryImpl @Inject constructor(
     @Volatile private var networkAvailable = true
     private val networkWake = Object()
     private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+    private var physicalNetworkCallback: android.net.ConnectivityManager.NetworkCallback? = null
 
     private fun watchNetwork() {
         val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
             as? android.net.ConnectivityManager ?: return
         networkAvailable = cm.activeNetwork != null
+        // What the last event said, so a capability update that changes nothing that matters
+        // -- Android re-sends them every ~30s with new bandwidth estimates -- is not a network
+        // change. Upstream keys its own on the same three flags (`logCapabilitiesIfChanged`).
+        var lastSeen: String? = null
+        // The real (non-VPN) networks up right now; see the second callback below.
+        val physical = java.util.Collections.synchronizedSet(mutableSetOf<android.net.Network>())
+        fun changed(available: Boolean, why: String) {
+            networkAvailable = available
+            Timber.i("signal: network %s (%s)", if (available) "available" else "unavailable", why)
+            signalStore.onNetworkChange()
+            synchronized(networkWake) { networkWake.notifyAll() }
+        }
         val callback = object : android.net.ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: android.net.Network) {
-                networkAvailable = true
-                synchronized(networkWake) { networkWake.notifyAll() }
+                lastSeen = null
+                changed(physical.isNotEmpty(), "default network available")
             }
 
             override fun onLost(network: android.net.Network) {
-                networkAvailable = cm.activeNetwork != null
+                lastSeen = null
+                changed(false, "default network lost")
             }
 
             override fun onBlockedStatusChanged(network: android.net.Network, blocked: Boolean) {
-                networkAvailable = !blocked
-                if (!blocked) synchronized(networkWake) { networkWake.notifyAll() }
+                changed(!blocked, if (blocked) "blocked" else "unblocked")
+            }
+
+            // ⚠ The one that matters behind a VPN. With Tailscale (or any VPN) up, the default
+            // network IS the VPN, and it stays "available" through airplane mode -- no onLost,
+            // no onAvailable -- while its capabilities change as the network under it goes and
+            // comes back. Seen on David's phone: the stream sat 23s after Wi-Fi returned.
+            override fun onCapabilitiesChanged(
+                network: android.net.Network,
+                caps: android.net.NetworkCapabilities
+            ) {
+                val internet = caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                val validated = caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                val portal = caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL)
+                val key = "$network $internet $validated $portal"
+                if (key == lastSeen) return
+                lastSeen = key
+                // Upstream's rule: unavailable when the default network has no internet.
+                changed(internet && physical.isNotEmpty(), "internet=$internet validated=$validated")
             }
         }
+
+        // ⚠ **The default network is not enough behind a VPN.** Measured on David's phone with
+        // Tailscale up: airplane mode on and off produced NO default-network event at all --
+        // the default network is the VPN, and to an ordinary app it never changes. The real
+        // networks under it (Wi-Fi, mobile) do come and go, so they are watched directly: a
+        // request for internet that is NOT a VPN. No real network left means none, whatever
+        // the VPN says; one arriving is a network change, which resets libsignal's attempt.
+        val physicalCallback = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                physical += network
+                changed(true, "a real network is up")
+            }
+
+            override fun onLost(network: android.net.Network) {
+                physical -= network
+                changed(physical.isNotEmpty(), "a real network went away")
+            }
+        }
+        runCatching {
+            cm.registerNetworkCallback(
+                android.net.NetworkRequest.Builder()
+                    .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                    .build(),
+                physicalCallback
+            )
+        }.onSuccess { physicalNetworkCallback = physicalCallback }
+            .onFailure { Timber.w(it, "signal: could not watch the real networks") }
         runCatching { cm.registerDefaultNetworkCallback(callback) }
             .onSuccess { networkCallback = callback }
             .onFailure { Timber.w(it, "signal: could not watch the network; reconnecting on the backoff alone") }
     }
 
     private fun unwatchNetwork() {
-        val callback = networkCallback ?: return
-        networkCallback = null
-        runCatching {
-            (context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager)
-                .unregisterNetworkCallback(callback)
+        val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+        listOfNotNull(networkCallback, physicalNetworkCallback).forEach { callback ->
+            runCatching { cm?.unregisterNetworkCallback(callback) }
         }
+        networkCallback = null
+        physicalNetworkCallback = null
         networkAvailable = true
         synchronized(networkWake) { networkWake.notifyAll() }
     }
@@ -1854,6 +1913,10 @@ class SignalRepositoryImpl @Inject constructor(
                     if (wasStable) {
                         Timber.d(t, "signal: read ended after a stable connection; reconnecting")
                         attempts = 0
+                        // ⚠ Not straight back into no network. An attempt that hangs for its
+                        // whole timeout with nothing to reach also lands here, and without this
+                        // the loop went round every half minute through airplane mode.
+                        if (!networkAvailable) waitToReconnect(0)
                         continue
                     }
 

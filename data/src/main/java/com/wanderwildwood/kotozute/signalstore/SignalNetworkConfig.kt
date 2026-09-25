@@ -327,4 +327,24 @@ object SignalNetworkConfig {
 
     /** The captcha page for whatever [environment] says. */
     fun currentCaptchaUrl(): String = captchaUrl(environment)
+
+    /**
+     * The SVR2 enclaves a PIN's data may be held in, current first, then legacy -- the order
+     * upstream's `SvrRepository.restoreMasterKeyPreRegistration` tries them, moving on only when
+     * one has no data. Copied from upstream's `app/build.gradle.kts` (`SVR2_MRENCLAVE`,
+     * `SVR2_MRENCLAVE_LEGACY`) at 0d8f7d7f99, 2026-09-23.
+     *
+     * ⚠ These rotate. A stale value is not a wrong PIN: it is an enclave that refuses the
+     * attestation, which surfaces as an error. Re-copy them when upstream changes them.
+     */
+    fun svr2Enclaves(): List<String> = when (environment) {
+        Environment.PRODUCTION -> listOf(
+            "fdbbacdc0c043d0d53fe1440f62728de0386f45ab0a275bd8f99e03a02af355e",
+            "ced8217b26228e4b210c985786999d095c4958a94faf37b14acaf25c4cbb02a4"
+        )
+        Environment.STAGING -> listOf(
+            "0ff2d7d4efbe7cfc24ac069a16fba898928dbe6c40d500c8b6da55733c727d6e",
+            "3c699f4975aaa3d172c0aad042f94f031b2b03e10b9c19a45116a01693d83302"
+        )
+    }
 }

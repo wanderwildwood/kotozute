@@ -64,6 +64,37 @@ internal class SignalKeyStore(private val db: ProtocolDatabase) {
     }
 
     /**
+     * Keeps the storage key of a master key recovered with the account's PIN.
+     *
+     * Registering over a registration lock recovers the account's **existing** master key from
+     * SVR2, and its storage records are encrypted under that key -- so keeping it, rather than
+     * the fresh pool [generateForNewAccount] would make, is what lets somebody moving their
+     * account onto this phone keep their contacts and settings. The pool is not recoverable
+     * this way (SVR2 holds the master key, not the pool), so it is written empty: [poolKnown]
+     * answers false, which is the state an older build's row was already in.
+     */
+    fun storeMasterKey(masterKey: org.signal.core.models.MasterKey): Boolean {
+        val derived = runCatching { masterKey.deriveStorageServiceKey().key }
+            .onFailure { Timber.w(it, "signal keys: the recovered key would not derive") }
+            .getOrNull() ?: return false
+        withStoreLock(db) {
+            db.writableDatabase.execSQL(
+                """
+                INSERT INTO account_keys (_id, storage_key, entropy_pool, updated_timestamp)
+                VALUES (1, ?, NULL, ?)
+                ON CONFLICT(_id) DO UPDATE SET
+                  storage_key = excluded.storage_key,
+                  entropy_pool = NULL,
+                  updated_timestamp = excluded.updated_timestamp
+                """.trimIndent(),
+                arrayOf<Any?>(derived, System.currentTimeMillis())
+            )
+        }
+        Timber.i("signal keys: the account's recovered storage key is kept")
+        return true
+    }
+
+    /**
      * Makes this account's key material, for a phone registering an account of its own.
      *
      * [store] is the other way in and the common one: a linked device is *given* the pool by

@@ -1077,6 +1077,10 @@ class SignalRepositoryImpl @Inject constructor(
             SignalRepository.Registration.CodeSent(step.sessionId)
         is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Registered ->
             SignalRepository.Registration.Registered(step.e164)
+        is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.NeedsPin -> {
+            pinUnlocks[step.sessionId] = step
+            SignalRepository.Registration.NeedsPin(step.sessionId, step.days, step.triesRemaining)
+        }
         is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Failed ->
             SignalRepository.Registration.Failed(step.failure)
         else -> SignalRepository.Registration.Failed(SignalRepository.RegistrationFailure.Unexpected)
@@ -1089,6 +1093,14 @@ class SignalRepositoryImpl @Inject constructor(
         // Registering ends in the same place linking does -- an account this device can use --
         // so the same things have to follow it, for the same reasons documented on linkDevice.
         if (step is com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.Registered) {
+            pinUnlocks.clear()
+            step.pinReset?.let { reset ->
+                // After the account exists, and not allowed to fail the registration: the
+                // number has moved by now. A reset that did not happen is logged and costs one
+                // guess, not the account.
+                runCatching { signalStore.resetPinGuesses(reset) }
+                    .onFailure { Timber.w(it, "signal register: resetting the PIN's guess count threw") }
+            }
             publishFirstPreKeys("registering")
             prefs.signalEnabled.set(true)
             // ⚠ The same reason linking clears it: a refusal recorded earlier must not
@@ -1119,6 +1131,22 @@ class SignalRepositoryImpl @Inject constructor(
 
     override suspend fun registerVerify(sessionId: String, code: String, e164: String) =
         registrationStep { it.verifyAndRegister(sessionId, code, e164) }
+
+    /**
+     * What a locked registration handed over for checking the PIN, by session. Memory only,
+     * and dropped once registered: the SVR credentials in it are good for this attempt alone.
+     */
+    private val pinUnlocks =
+        java.util.concurrent.ConcurrentHashMap<String, com.wanderwildwood.kotozute.signalstore.SignalRegistrar.Step.NeedsPin>()
+
+    override suspend fun registerPin(sessionId: String, pin: String, e164: String): SignalRepository.Registration {
+        val lock = pinUnlocks[sessionId] ?: return SignalRepository.Registration.Failed(
+            SignalRepository.RegistrationFailure.Unexpected
+        )
+        return registrationStep {
+            it.submitPin(sessionId, e164, pin, lock.days, lock.svrUsername, lock.svrPassword)
+        }
+    }
 
     override fun isPrimaryDevice(): Boolean = runCatching {
         signalStore.isLinked() &&

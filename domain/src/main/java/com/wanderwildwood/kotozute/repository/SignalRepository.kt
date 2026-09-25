@@ -126,6 +126,12 @@ interface SignalRepository {
         data class NeedsCaptcha(val sessionId: String) : Registration
         data class CodeSent(val sessionId: String) : Registration
         data class Registered(val e164: String) : Registration
+
+        /**
+         * The number has a registration lock, and its Signal PIN can lift it. [triesRemaining]
+         * is null until a PIN has been tried and refused.
+         */
+        data class NeedsPin(val sessionId: String, val days: Long, val triesRemaining: Int?) : Registration
         data class Failed(val failure: RegistrationFailure) : Registration
     }
 
@@ -160,6 +166,15 @@ interface SignalRepository {
         /** The number has a registration lock with about [days] left to run. */
         data class Locked(val days: Long) : RegistrationFailure
 
+        /**
+         * Signal holds no PIN data for this number -- never set, or deleted after too many
+         * wrong guesses -- so only waiting out the lock is left.
+         */
+        data class PinDataMissing(val days: Long) : RegistrationFailure
+
+        /** The PIN could not be checked -- a network or service fault, not a wrong PIN. */
+        data class PinCheckFailed(val detail: String) : RegistrationFailure
+
         data class Refused(val detail: String) : RegistrationFailure
 
         /** A step came back as something this app does not know. */
@@ -186,6 +201,9 @@ interface SignalRepository {
 
     /** Submits the code and, if it is right, completes registration. */
     suspend fun registerVerify(sessionId: String, code: String, e164: String): Registration
+
+    /** Lifts a registration lock with the number's Signal [pin], then registers. */
+    suspend fun registerPin(sessionId: String, pin: String, e164: String): Registration
 
     /**
      * Gives the newly registered account its own profile name.

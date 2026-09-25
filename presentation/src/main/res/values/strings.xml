@@ -952,9 +952,16 @@
     <string name="signal_register_code_refused_because">that code was not accepted: %1$s</string>
     <string name="signal_register_code_refused">that code was not accepted</string>
     <string name="signal_register_no_key_material">could not generate this account\'s key material</string>
-    <string name="signal_register_locked">This number has a registration lock. Its PIN is needed to register it here, and this app cannot use one yet. Link this phone to the account instead.</string>
-    <string name="signal_register_locked_day">This number has a registration lock, with about a day left to run. Its PIN is needed to register it here, and this app cannot use one yet. Link this phone to the account instead.</string>
-    <string name="signal_register_locked_days">This number has a registration lock, with about %1$s days left to run. Its PIN is needed to register it here, and this app cannot use one yet. Link this phone to the account instead.</string>
+    <string name="signal_register_pin_hint">Your Signal PIN</string>
+    <string name="signal_register_unlock">Unlock</string>
+    <string name="signal_register_pin_needed">This number has a registration lock. Enter its Signal PIN to move it to this phone; your contacts and settings come with it.</string>
+    <string name="signal_register_pin_wrong">That PIN is not right. %1$s tries left. If they run out, Signal deletes the PIN\'s data and the number stays locked until the lock runs out.</string>
+    <string name="signal_register_pin_wrong_one">That PIN is not right. One try left. If it is wrong too, Signal deletes the PIN\'s data and the number stays locked until the lock runs out.</string>
+    <string name="signal_register_pin_missing">Signal has no PIN for this number, so the registration lock has to run out first. Link this phone to the account instead.</string>
+    <string name="signal_register_pin_check_failed">the PIN could not be checked: %1$s</string>
+    <string name="signal_register_locked">Signal kept this number locked even though its PIN was right. Link this phone to the account instead.</string>
+    <string name="signal_register_locked_day">Signal kept this number locked even though its PIN was right, with about a day left to run. Link this phone to the account instead.</string>
+    <string name="signal_register_locked_days">Signal kept this number locked even though its PIN was right, with about %1$s days left to run. Link this phone to the account instead.</string>
     <string name="signal_register_refused">registration refused: %1$s</string>
     <string name="signal_register_unexpected">unexpected registration state</string>
 

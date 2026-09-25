@@ -190,6 +190,10 @@ object SignalWording {
             failure.days == 1L -> Words.Res(R.string.signal_register_locked_day)
             else -> Words.Res(R.string.signal_register_locked_days, listOf("${failure.days}"))
         }
+        is SignalRepository.RegistrationFailure.PinDataMissing ->
+            Words.Res(R.string.signal_register_pin_missing)
+        is SignalRepository.RegistrationFailure.PinCheckFailed ->
+            Words.Res(R.string.signal_register_pin_check_failed, listOf(failure.detail))
         is SignalRepository.RegistrationFailure.Refused ->
             Words.Res(R.string.signal_register_refused, listOf(failure.detail))
         SignalRepository.RegistrationFailure.Unexpected -> Words.Res(R.string.signal_register_unexpected)

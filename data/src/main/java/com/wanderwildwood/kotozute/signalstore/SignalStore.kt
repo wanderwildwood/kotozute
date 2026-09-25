@@ -387,7 +387,8 @@ class SignalStore(private val context: Context) {
         expiresInSeconds: Int = 0,
         expireTimerVersion: Int = 0,
         quote: SignalQuote? = null,
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        mentions: List<OutgoingMentions.Mention> = emptyList()
     ): Long {
         connection.connect()
         // ⚠ Which kind of "no" matters. Being removed from a group is permanent and there is
@@ -416,7 +417,7 @@ class SignalStore(private val context: Context) {
             val r = SignalSender(
                 SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
-            ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion, group.revision, quote, timestamp)
+            ).sendToGroup(masterKey, members, body, expiresInSeconds, expireTimerVersion, group.revision, quote, timestamp, mentions)
         ) {
             is SignalSender.Result.Sent -> r.timestamp
             is SignalSender.Result.Failed -> throw SendRefused(r.failure)

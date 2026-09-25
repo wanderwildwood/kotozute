@@ -320,6 +320,20 @@ class SignalThreadActivity : QkThemedActivity() {
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
         })
 
+        // "@" at the start of a word in a group offers the members, as Signal's composer does.
+        // What is chosen is written as "@Name"; the send turns that into a real mention.
+        if (threadKey.startsWith("group:")) {
+            binding.message.addTextChangedListener(object : android.text.TextWatcher {
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    if (s == null || count != 1 || before != 0) return
+                    if (s[start] != '@' || (start > 0 && !s[start - 1].isWhitespace())) return
+                    offerMention(start + 1)
+                }
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                override fun afterTextChanged(s: android.text.Editable?) = Unit
+            })
+        }
+
         binding.attach.setOnClickListener { picker.launch("*/*") }
 
         binding.record.setOnClickListener {
@@ -666,6 +680,30 @@ class SignalThreadActivity : QkThemedActivity() {
         if (editing != null) {
             editing = null
             binding.message.setText("")
+        }
+    }
+
+    private fun offerMention(at: Int) {
+        thread(isDaemon = true) {
+            val names = runCatching { signalRepo.senderNamesFor(threadKey) }.getOrDefault(emptyMap())
+                .values.filter { it.isNotBlank() }.distinct().sorted()
+            if (names.isEmpty()) return@thread
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.signal_mention_pick)
+                    .setItems(names.toTypedArray()) { _, which ->
+                        val text = binding.message.text ?: return@setItems
+                        // Where the "@" was typed, if it is still there.
+                        if (at <= text.length && text.getOrNull(at - 1) == '@') {
+                            val name = names[which] + " "
+                            text.insert(at, name)
+                            binding.message.setSelection(at + name.length)
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
         }
     }
 
@@ -1406,7 +1444,9 @@ class SignalThreadActivity : QkThemedActivity() {
         /** Whether "take back" is already armed; see below. */
         armed: Boolean = false,
         /** Whether this is one of ours that can still be edited; see [SignalRepository.canEdit]. */
-        canEditHere: Boolean = false
+        canEditHere: Boolean = false,
+        /** Signal's message details, already worded. Empty for none. */
+        info: String = ""
     ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += getString(R.string.signal_reply) to { startReply(sentAt) }
@@ -1443,6 +1483,9 @@ class SignalThreadActivity : QkThemedActivity() {
         }
 
         if (canEditHere) actions += getString(R.string.signal_edit) to { startEdit(messageId, body) }
+        if (info.isNotEmpty()) actions += getString(R.string.signal_info) to {
+            AlertDialog.Builder(this).setMessage(info).setPositiveButton(android.R.string.ok, null).show()
+        }
         actions += getString(R.string.signal_delete_for_me) to { confirmDeleteForMe(messageId) }
 
         // Last, because it is the destructive one, and offered only on our own messages and
@@ -1458,7 +1501,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 getString(R.string.signal_withdraw_armed) to { withdraw(messageId) }
             } else {
                 getString(R.string.signal_withdraw) to {
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info)
                 }
             }
         }
@@ -1472,7 +1515,7 @@ class SignalThreadActivity : QkThemedActivity() {
             val disarm = Runnable {
                 if (!isFinishing && dialog.isShowing) {
                     dialog.dismiss()
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info)
                 }
             }
             decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
@@ -1905,6 +1948,20 @@ class SignalThreadActivity : QkThemedActivity() {
             val editable = SignalRepository.canEdit(
                 m.outgoing, m.date, m.viewOnce, m.attachments.isNotBlank(), m.sendState
             ) && m.body.isNotBlank()
+            // Upstream's Info: when it went, and for our own, when it arrived and was read.
+            val details = listOfNotNull(
+                getString(if (m.outgoing) R.string.signal_info_sent else R.string.signal_info_received,
+                    dateFormatter.getDetailedTimestamp(m.date)),
+                m.deliveredAt.takeIf { m.outgoing && it > 0 }?.let {
+                    getString(R.string.signal_info_delivered, dateFormatter.getDetailedTimestamp(it))
+                },
+                m.readAt.takeIf { m.outgoing && it > 0 }?.let {
+                    getString(R.string.signal_info_read, dateFormatter.getDetailedTimestamp(it))
+                },
+                m.revisionTs.takeIf { it > 0 }?.let {
+                    getString(R.string.signal_info_edited, dateFormatter.getDetailedTimestamp(it))
+                }
+            ).joinToString("\n")
             val body = m.body
             // A call is a line in the history, not a message: nobody sent it, so there is
             // nothing to reply to, react to or take back.
@@ -1913,7 +1970,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 // Nothing to react to, reply to or take back: nobody has it.
                 if (callLine) confirmDeleteForMe(messageId)
                 else if (unsent) showUnsentActions(messageId, body)
-                else showMessageActions(body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable)
+                else showMessageActions(body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable, info = details)
                 true
             }
             b.body.setOnLongClickListener(listener)

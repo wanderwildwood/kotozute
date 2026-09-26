@@ -312,6 +312,12 @@
         <meta-data
             android:name="preloaded_fonts"
             android:resource="@array/preloaded_fonts" />
+
+        <!-- The unread count for Glance's lock-screen panel; it answers Glance alone. -->
+        <provider
+            android:name=".glance.UnreadOnLockScreen"
+            android:authorities="${applicationId}.glance"
+            android:exported="true" />
     </application>
 
     <queries>

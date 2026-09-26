@@ -173,6 +173,13 @@ Worth saying plainly, so nobody goes looking:
   is not sent any, so threads start empty and fill from the day you pair. Importing an export is
   how you get the rest.
 
+## On the lock screen
+
+With [Glance](https://github.com/wanderwildwood/hitome) installed, how many messages are
+unread - texts and Signal together, counted as messages - shows on the Kompakt's lock screen.
+Only the number is handed over, and only to Glance; never a sender or a word of a message.
+Settings → General → Unread on the lock screen turns it off.
+
 ## Building
 
 Requires **JDK 17** — the project's Kotlin/kapt toolchain fails on JDK 21 with an `IllegalAccessError` about `com.sun.tools.javac`.

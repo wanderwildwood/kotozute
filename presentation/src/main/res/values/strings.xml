@@ -281,6 +281,13 @@
     <string name="settings_read_receipts_title">Read receipts</string>
     <string name="settings_read_receipts_summary">MMS only. Tell a sender when you have read their message, and ask the same of the people you send to</string>
     <string name="settings_unread_at_top_title">Unread at the top</string>
+    <!-- Settings: whether the unread count shows on the lock screen, through the Glance app -->
+    <string name="settings_lock_screen_title">Unread on the lock screen</string>
+    <!-- On the lock screen, through Glance -->
+    <plurals name="lock_screen_unread_messages">
+        <item quantity="one">%d message</item>
+        <item quantity="other">%d messages</item>
+    </plurals>
     <string name="settings_signature_title">Signature</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>
     <string name="settings_unicode_title">Strip accents from outgoing SMS</string>

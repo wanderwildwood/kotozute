@@ -156,6 +156,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.unreadAtTop.asObservable()
             .subscribe { enabled -> newState { copy(unreadAtTopEnabled = enabled) } }
 
+        disposables += prefs.lockScreen.asObservable()
+            .subscribe { enabled -> newState { copy(lockScreenEnabled = enabled) } }
+
         disposables += prefs.signature.asObservable()
                 .subscribe { signature -> newState { copy(signature = signature) } }
 
@@ -364,6 +367,11 @@ class SettingsPresenter @Inject constructor(
                         R.id.signalUnpair -> view.askSignalUnpair()
 
                         R.id.unreadAtTop -> prefs.unreadAtTop.set(!prefs.unreadAtTop.get())
+
+                        R.id.lockScreen -> {
+                            prefs.lockScreen.set(!prefs.lockScreen.get())
+                            com.wanderwildwood.kotozute.glance.GlanceProvider.changed(context)
+                        }
 
                         R.id.signature -> view.showSignatureDialog(prefs.signature.get())
 

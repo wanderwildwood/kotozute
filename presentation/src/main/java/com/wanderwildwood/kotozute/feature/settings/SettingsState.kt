@@ -30,6 +30,7 @@ data class SettingsState(
     val deliveryEnabled: Boolean = false,
     val readReceiptsEnabled: Boolean = false,
     val unreadAtTopEnabled: Boolean = false,
+    val lockScreenEnabled: Boolean = true,
     val signature: String = "",
     val textSizeSummary: String = "",
     val textSizeId: Int = Preferences.TEXT_SIZE_NORMAL,

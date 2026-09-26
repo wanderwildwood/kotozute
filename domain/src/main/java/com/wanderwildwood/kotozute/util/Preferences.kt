@@ -371,6 +371,8 @@ class Preferences @Inject constructor(
     val disableScreenshots = rxPrefs.getBoolean("disableScreenshots", false)
     val logging = rxPrefs.getBoolean("logging", false)
     val unreadAtTop = rxPrefs.getBoolean("unreadAtTop", false)
+    /** Whether the unread count is handed to Glance for the lock screen. */
+    val lockScreen = rxPrefs.getBoolean("lockScreen", true)
     val conversationFilter = rxPrefs.getInteger("conversationFilter", CONVERSATION_FILTER_ALL)
 
     init {

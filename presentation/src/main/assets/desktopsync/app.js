@@ -2291,9 +2291,12 @@ async function loadMessages() {
   // nothing has actually changed.
   // Reactions are in it too: one arriving on an older message changes nothing else, and
   // without them the page never drew it until a new message came.
+  // So is each message's status. A message going from sending to sent, or to not sent, keeps
+  // its id and its date, so without it the page went on saying "sending…" under a message
+  // that had gone, until the reader opened another conversation and came back (issue #4).
   const sig = forThread + ':' + messageLimit + ':' + messages.length + ':' +
     (messages.length ? messages[messages.length - 1].id + ':' + messages[messages.length - 1].date : '') + ':' +
-    messages.map(m => (m.reactions || []).map(r => r.emoji + r.count + (r.mine ? '*' : '')).join('')).join('|');
+    messages.map(m => (m.status || '') + (m.reactions || []).map(r => r.emoji + r.count + (r.mine ? '*' : '')).join('')).join('|');
   if (sig === lastMessagesSig) return;
   const isNewThread = !lastMessagesSig.startsWith(forThread + ':');
   lastMessagesSig = sig;

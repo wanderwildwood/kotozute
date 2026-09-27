@@ -289,8 +289,8 @@
         <item quantity="other">%d texts</item>
     </plurals>
     <plurals name="lock_screen_unread_signal">
-        <item quantity="one">%d on Signal</item>
-        <item quantity="other">%d on Signal</item>
+        <item quantity="one">%d Signal</item>
+        <item quantity="other">%d Signal</item>
     </plurals>
     <string name="settings_signature_title">Signature</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>

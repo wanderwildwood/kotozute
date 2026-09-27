@@ -305,7 +305,19 @@ internal class SignalProfiles(
      * device edits it. Anything that cannot be read stops the write rather than being guessed:
      * a guess would overwrite the account's own choice on every device.
      */
-    fun setOwnAbout(about: String, emoji: String): ProfileNameFailure? {
+    fun setOwnAbout(about: String, emoji: String): ProfileNameFailure? =
+        rewriteOwn(about = about, emoji = emoji, sharing = null, what = "About")
+
+    /**
+     * Whether this account's profile gives its number to whoever can read the profile:
+     * upstream's `phoneNumberSharing`, written by `ProfileUploadJob` from "who can see my
+     * number". Everything else the profile says is kept.
+     */
+    fun setOwnNumberSharing(share: Boolean): ProfileNameFailure? =
+        rewriteOwn(about = null, emoji = null, sharing = share, what = "number sharing")
+
+    /** The profile written back as it stands, with only what is non-null changed. */
+    private fun rewriteOwn(about: String?, emoji: String?, sharing: Boolean?, what: String): ProfileNameFailure? {
         val credentials = runCatching { accounts.credentials() }.getOrNull()
             ?: return ProfileNameFailure.NoAccount
         val aci = ServiceId.ACI.parseOrNull(credentials.aci)
@@ -326,22 +338,26 @@ internal class SignalProfiles(
                 org.whispersystems.signalservice.internal.push.PaymentAddress.ADAPTER.decode(cipher.decryptWithLength(encrypted))
             }.getOrNull() ?: return ProfileNameFailure.Refused("the payments address could not be read")
         }
-        val sharing = when (val field = profile.phoneNumberSharing) {
+        val sharingNow = sharing ?: when (val field = profile.phoneNumberSharing) {
             null -> false
             else -> runCatching { cipher.decryptBoolean(bytes(field)).orElse(null) }.getOrNull()
                 ?: return ProfileNameFailure.Refused("the number-sharing setting could not be read")
         }
+        // A field there but unreadable stops the write: writing it back empty would erase it.
+        fun text(field: String?): String? = if (field == null) "" else runCatching { cipher.decryptString(bytes(field)) }.getOrNull()
+        val aboutNow = about ?: text(profile.about) ?: return ProfileNameFailure.Refused("the About could not be read")
+        val emojiNow = emoji ?: text(profile.aboutEmoji) ?: return ProfileNameFailure.Refused("the About emoji could not be read")
         val badges = profile.badges.orEmpty().filter { it.visible }.map { it.id }
         val result = connection.profiles.setVersionedProfile(
-            aci, profileKey, name, about, emoji, payments,
+            aci, profileKey, name, aboutNow, emojiNow, payments,
             org.whispersystems.signalservice.api.profiles.AvatarUploadParams.unchanged(profile.avatar != null),
-            badges, sharing
+            badges, sharingNow
         )
         return if (result is NetworkResult.Success) {
-            Timber.i("signal profile: this account's About is set")
+            Timber.i("signal profile: this account's %s is set", what)
             null
         } else {
-            Timber.w("signal profile: could not set this account's About: %s", result)
+            Timber.w("signal profile: could not set this account's %s: %s", what, result)
             ProfileNameFailure.Refused("$result")
         }
     }

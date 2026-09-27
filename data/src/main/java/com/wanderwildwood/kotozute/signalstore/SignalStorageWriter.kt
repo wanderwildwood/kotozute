@@ -128,7 +128,9 @@ internal class SignalStorageWriter(
         /** The account's record and its id as last read, to amend the pinned list on. */
         account: Pair<ByteArray, ByteArray>? = null,
         /** The pinned list to write, or null to leave it as it is. */
-        pins: List<org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation>? = null
+        pins: List<org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation>? = null,
+        /** Any other change to the account's record -- a username, who sees the number -- or null. */
+        accountEdit: ((org.whispersystems.signalservice.internal.storage.protos.AccountRecord) -> org.whispersystems.signalservice.internal.storage.protos.AccountRecord)? = null
     ): Outcome {
         val storageKey = keys.storageKey()
             ?: return Outcome.Refused("this account's storage key is not here")
@@ -137,7 +139,7 @@ internal class SignalStorageWriter(
             .onFailure { Timber.w(it, "signal storage write: could not read what is marked") }
             .getOrNull()
             ?: return Outcome.Refused("could not read what is marked for a push")
-        if (pending.isEmpty() && (pins == null || account == null)) return Outcome.NothingToDo
+        if (pending.isEmpty() && ((pins == null && accountEdit == null) || account == null)) return Outcome.NothingToDo
 
         val inserts = mutableListOf<StorageItem>()
         // ⚠ ByteStrings, not base64 strings. Identity of a storage id is the sixteen bytes;
@@ -208,13 +210,17 @@ internal class SignalStorageWriter(
         }
 
         // The pinned list rides the account's own record, as upstream keeps it: amended there
-        // and nowhere else, the rest of the record re-encoded as it came, under a new id.
-        if (pins != null && account != null) {
+        // and nowhere else, the rest of the record re-encoded as it came, under a new id. So
+        // does anything else this phone changes about the account.
+        if ((pins != null || accountEdit != null) && account != null) {
             val (raw, oldId) = account
             val record = StorageRecord.ADAPTER.decode(raw)
             val current = record.account
-            if (current != null && current.pinnedConversations != pins) {
-                val amended = record.copy(account = current.copy(pinnedConversations = pins)).encode()
+            val wanted = current
+                ?.let { if (pins != null) it.copy(pinnedConversations = pins) else it }
+                ?.let { accountEdit?.invoke(it) ?: it }
+            if (current != null && wanted != current) {
+                val amended = record.copy(account = wanted).encode()
                 val newIdBytes = ByteArray(STORAGE_ID_BYTES).also { java.security.SecureRandom().nextBytes(it) }
                 val itemKey = recordIkm?.deriveStorageItemKey(newIdBytes) ?: storageKey.deriveItemKey(newIdBytes)
                 inserts += StorageItem(

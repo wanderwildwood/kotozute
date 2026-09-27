@@ -347,6 +347,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalReceipts.checkbox.isChecked = state.signalReadReceipts
         binding.signalTyping.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalAbout.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalUsername.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalNumberPrivacy.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalTyping.checkbox.isChecked = state.signalTypingIndicators
         // Only while it is true. Switched off in Android's settings, not here, so the app is
         // the one place that can say so.
@@ -444,6 +446,86 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 }
             }
         }.show()
+    }
+
+    /**
+     * This account's username: upstream's `UsernameEditFragment`, with the number left to
+     * Signal. Empty -- the dialog's Delete -- gives it up.
+     */
+    override fun showSignalUsernameDialog() {
+        val activity = activity ?: return
+        kotlin.concurrent.thread(isDaemon = true) {
+            val current = signalRepo.privacy()?.username
+            activity.runOnUiThread {
+                if (activity.isFinishing) return@runOnUiThread
+                TextInputDialog(activity, activity.getString(R.string.settings_signal_username_hint)) { text ->
+                    val wanted = text.trim()
+                    kotlin.concurrent.thread(isDaemon = true) {
+                        val message = if (wanted.isEmpty()) {
+                            if (signalRepo.deleteUsername()) activity.getString(R.string.settings_signal_username_removed)
+                            else activity.getString(R.string.settings_signal_username_failed, "")
+                        } else when (val r = signalRepo.setUsername(wanted)) {
+                            is com.wanderwildwood.kotozute.repository.SignalRepository.UsernameOutcome.Set -> activity.getString(R.string.settings_signal_username_set, r.username)
+                            com.wanderwildwood.kotozute.repository.SignalRepository.UsernameOutcome.Taken -> activity.getString(R.string.settings_signal_username_taken)
+                            com.wanderwildwood.kotozute.repository.SignalRepository.UsernameOutcome.Invalid -> activity.getString(R.string.settings_signal_username_invalid)
+                            is com.wanderwildwood.kotozute.repository.SignalRepository.UsernameOutcome.Failed -> activity.getString(R.string.settings_signal_username_failed, r.why)
+                        }
+                        activity.runOnUiThread { Toast.makeText(activity, message, Toast.LENGTH_LONG).show() }
+                    }
+                }.setText(current.orEmpty()).apply {
+                    setTitle(current?.let { activity.getString(R.string.settings_signal_username_current, it) }
+                        ?: activity.getString(R.string.settings_signal_username_title))
+                }.show()
+            }
+        }
+    }
+
+    /**
+     * Upstream's phone-number privacy screen, as one choice of three: its two questions,
+     * with "everybody sees it" meaning findable as upstream has it.
+     */
+    override fun showSignalNumberPrivacyDialog() {
+        val activity = activity ?: return
+        kotlin.concurrent.thread(isDaemon = true) {
+            val now = signalRepo.privacy()
+            activity.runOnUiThread {
+                if (activity.isFinishing) return@runOnUiThread
+                if (now == null) {
+                    Toast.makeText(activity, R.string.signal_account_unreachable, Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                val checked = when {
+                    now.everybodySeesNumber -> 0
+                    now.findableByNumber -> 1
+                    else -> 2
+                }
+                AlertDialog.Builder(activity)
+                    .setTitle(R.string.settings_signal_number_title)
+                    .setSingleChoiceItems(
+                        arrayOf(
+                            activity.getString(R.string.settings_signal_number_everybody),
+                            activity.getString(R.string.settings_signal_number_findable),
+                            activity.getString(R.string.settings_signal_number_hidden)
+                        ),
+                        checked
+                    ) { dialog, which ->
+                        dialog.dismiss()
+                        if (which == checked) return@setSingleChoiceItems
+                        kotlin.concurrent.thread(isDaemon = true) {
+                            val ok = signalRepo.setNumberPrivacy(everybodySees = which == 0, findable = which != 2)
+                            activity.runOnUiThread {
+                                Toast.makeText(
+                                    activity,
+                                    if (ok) R.string.settings_signal_number_saved else R.string.settings_signal_number_failed,
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    }
+                    .setNegativeButton(R.string.button_cancel, null)
+                    .show()
+            }
+        }
     }
 
     override fun showAutoDeleteDialog(days: Int) = autoDeleteDialog.setExpiry(days).show()
@@ -792,11 +874,24 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     append(account.number).append('\n')
                     if (account.selfUuid.isNotBlank()) append(account.selfUuid).append('\n')
                     append('\n')
-                    // No device list. The bridge used to ask signal-cli for one; this phone
-                    // can say which device it is on the account and no more, and a list it
-                    // cannot check is worse than saying so.
                     append(activity.getString(R.string.signal_account_this_device_is, account.thisDeviceId))
                         .append("\n\n")
+                    // Read-only: unlinking belongs to the primary, as in Signal itself.
+                    if (account.devices.isEmpty()) {
+                        append(activity.getString(R.string.signal_account_devices_unread)).append("\n\n")
+                    } else {
+                        append(activity.getString(R.string.signal_account_devices)).append('\n')
+                        account.devices.forEach { d ->
+                            val name = when {
+                                d.name.isNotBlank() -> d.name
+                                d.isPrimary -> activity.getString(R.string.signal_account_device_primary)
+                                else -> activity.getString(R.string.signal_account_device_unnamed)
+                            }
+                            val seen = android.text.format.DateFormat.getMediumDateFormat(activity).format(java.util.Date(d.lastSeen))
+                            append(activity.getString(R.string.signal_account_device_line, d.id, name, seen)).append('\n')
+                        }
+                        append(activity.getString(R.string.signal_account_unlink_note)).append("\n\n")
+                    }
                     append(activity.getString(R.string.signal_account_linked_note))
                 }
             }

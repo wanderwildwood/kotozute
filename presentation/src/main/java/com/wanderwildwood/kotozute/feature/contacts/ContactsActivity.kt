@@ -67,6 +67,7 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     @Inject lateinit var phoneNumberAdapter: PhoneNumberPickerAdapter
     @Inject lateinit var viewModelFactory: ViewModelFactory
     @Inject lateinit var navigator: Navigator
+    @Inject lateinit var signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
 
     override val queryChangedIntent: Observable<CharSequence> by lazy { binding.search.textChanges() }
     override val queryClearedIntent: Observable<*> by lazy { binding.cancel.clicks() }
@@ -200,6 +201,29 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
      * The group is made on its own screen and handed back the same way a person is, so the
      * composer behind this one still gets to stand aside.
      */
+    /** Signal's find-by-username, handed back like any other Signal person picked here. */
+    override fun showFindUsername() {
+        com.wanderwildwood.kotozute.common.widget.TextInputDialog(this, getString(R.string.signal_find_username_hint)) { text ->
+            if (text.isBlank()) return@TextInputDialog
+            Thread {
+                val found = signalRepo.findByUsername(text)
+                runOnUiThread {
+                    if (isFinishing) return@runOnUiThread
+                    val message = when (found) {
+                        is com.wanderwildwood.kotozute.repository.SignalRepository.FindOutcome.Found -> {
+                            finishWithSignalThread(found.threadKey, found.title)
+                            return@runOnUiThread
+                        }
+                        com.wanderwildwood.kotozute.repository.SignalRepository.FindOutcome.NotFound -> getString(R.string.signal_find_username_none)
+                        com.wanderwildwood.kotozute.repository.SignalRepository.FindOutcome.Invalid -> getString(R.string.signal_find_username_invalid)
+                        is com.wanderwildwood.kotozute.repository.SignalRepository.FindOutcome.Failed -> getString(R.string.signal_find_username_failed, found.why)
+                    }
+                    android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }.also { it.isDaemon = true }.start()
+        }.apply { setTitle(R.string.signal_find_username) }.show()
+    }
+
     override fun showNewGroup() {
         binding.search.hideKeyboard()
         newGroup.launch(SignalNewGroupActivity.intentFor(this))

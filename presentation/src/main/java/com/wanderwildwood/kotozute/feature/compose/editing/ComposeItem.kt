@@ -75,6 +75,14 @@ sealed class ComposeItem {
     }
 
     /**
+     * Finding somebody by their username. Second in the Signal address book, as
+     * `FindByUsername` is second in Signal's own new-chat list, and under the same condition.
+     */
+    object SignalFindUsername : ComposeItem() {
+        override fun getContacts(): List<Contact> = emptyList()
+    }
+
+    /**
      * Someone reachable on Signal. Not a contact: this composer sends SMS, and a Signal
      * person is not a recipient it can hold. Choosing one opens the conversation with them
      * on the other rail instead, which is why [getContacts] is empty rather than a Contact

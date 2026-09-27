@@ -55,6 +55,8 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showDelayDurationDialog()
     fun showSignatureDialog(signature: String)
     fun showSignalAboutDialog()
+    fun showSignalUsernameDialog()
+    fun showSignalNumberPrivacyDialog()
     fun showAutoDeleteDialog(days: Int)
     suspend fun showAutoDeleteWarningDialog(messages: Int): Boolean
     fun showMmsSizePicker()

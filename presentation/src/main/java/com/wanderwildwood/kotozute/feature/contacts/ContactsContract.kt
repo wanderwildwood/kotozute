@@ -59,5 +59,6 @@ interface ContactsContract : QkView<ContactsState> {
 
     /** Make a group rather than choose somebody. Comes back as a thread, or not at all. */
     fun showNewGroup()
+    fun showFindUsername()
 
 }

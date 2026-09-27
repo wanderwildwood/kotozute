@@ -119,6 +119,7 @@ class ContactsViewModel @Inject constructor(
 
     /** The row that makes a group rather than choosing somebody. */
     private val newGroupPicked: Subject<Unit> = PublishSubject.create()
+    private val findUsernamePicked: Subject<Unit> = PublishSubject.create()
 
     /**
      * Which address book is showing. Starts on the phone's, which is what this screen has
@@ -196,6 +197,7 @@ class ContactsViewModel @Inject constructor(
                         // condition (ContactSelectionListFragment) -- somebody searching for
                         // a name is not looking for this.
                         if (query.isBlank()) composeItems += ComposeItem.SignalNewGroup
+                        if (query.isBlank()) composeItems += ComposeItem.SignalFindUsername
                         val normalizedQuery = query.removeAccents()
                         composeItems += signalPeople.filter { person ->
                             query.isBlank() || matches(person, query.toString(), normalizedQuery)
@@ -290,10 +292,12 @@ class ContactsViewModel @Inject constructor(
                 .doOnNext { (composeItem, _) ->
                     (composeItem as? ComposeItem.SignalPerson)?.let(signalPersonPicked::onNext)
                     if (composeItem is ComposeItem.SignalNewGroup) newGroupPicked.onNext(Unit)
+                    if (composeItem is ComposeItem.SignalFindUsername) findUsernamePicked.onNext(Unit)
                 }
                 .filter { (composeItem, _) ->
                     composeItem !is ComposeItem.SignalPerson &&
-                            composeItem !is ComposeItem.SignalNewGroup
+                            composeItem !is ComposeItem.SignalNewGroup &&
+                            composeItem !is ComposeItem.SignalFindUsername
                 }
                 .observeOn(Schedulers.io())
                 .map { (composeItem, force) ->
@@ -332,6 +336,11 @@ class ContactsViewModel @Inject constructor(
                 .observeOn(AndroidSchedulers.mainThread())
                 .autoDisposable(view.scope())
                 .subscribe { view.showNewGroup() }
+
+        findUsernamePicked
+                .observeOn(AndroidSchedulers.mainThread())
+                .autoDisposable(view.scope())
+                .subscribe { view.showFindUsername() }
 
         // Chosen on Signal: leave for their Signal conversation, which exists whether or not
         // anything has been said in it yet.

@@ -123,7 +123,9 @@ class SignalThreadActivity : QkThemedActivity() {
         val filename: String,
         val type: String,
         /** Plays in place when tapped rather than being handed to another app. */
-        val gif: Boolean = false
+        val gif: Boolean = false,
+        /** Its sender marked it a voice note; a forward keeps it one. */
+        val voice: Boolean = false
     )
 
     /**
@@ -465,7 +467,8 @@ class SignalThreadActivity : QkThemedActivity() {
             id = id,
             filename = entry.optString("filename"),
             type = type,
-            gif = isGif(entry, type)
+            gif = isGif(entry, type),
+            voice = entry.optBoolean("voice")
         )
     }
 
@@ -1557,6 +1560,69 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     /**
+     * Forwarding, where a message can be forwarded: upstream's `MultiselectForwardFragment`
+     * rules. Not a view-once message, which is the point of view-once, and not one whose
+     * attachment is not on this phone -- forwarding its words without its picture would be
+     * forwarding something else. Its styles go with it; who wrote it and what it replied to
+     * do not, as in Signal.
+     */
+    private fun forwardFor(m: SignalMessage, saved: SavedAttachment?): (() -> Unit)? {
+        if (m.viewOnce) return null
+        if (m.attachments.isNotBlank() && saved == null) return null
+        if (m.body.isBlank() && saved == null) return null
+        val body = m.body
+        val styles = m.styles
+        return { pickForwardTarget(body, styles, saved) }
+    }
+
+    private fun pickForwardTarget(body: String, styles: String, saved: SavedAttachment?) {
+        thread(isDaemon = true) {
+            val threads = runCatching { signalRepo.getThreadsSnapshot(archived = false) }
+                .getOrDefault(emptyList())
+                .map { it.threadKey to it.title.ifBlank { getString(R.string.signal_title) } }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (threads.isEmpty()) {
+                    Toast.makeText(this, R.string.signal_forward_nowhere, Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.signal_forward_to)
+                    .setItems(threads.map { it.second }.toTypedArray()) { _, which ->
+                        forwardTo(threads[which].first, threads[which].second, body, styles, saved)
+                    }
+                    .show()
+            }
+        }
+    }
+
+    private fun forwardTo(target: String, title: String, body: String, styles: String, saved: SavedAttachment?) {
+        thread(isDaemon = true) {
+            val result = runCatching {
+                // The picture goes up again as ours, from the copy on this phone.
+                val attachment = saved?.let { a ->
+                    val bytes = signalRepo.loadAttachment(a.id)
+                        ?: throw IllegalStateException(getString(R.string.signal_forward_missing))
+                    val uri = "data:${a.type.ifBlank { "application/octet-stream" }};base64," +
+                        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                    if (a.voice) com.wanderwildwood.kotozute.signal.VoiceNotes.mark(uri) else uri
+                }
+                signalRepo.send(target, body, listOfNotNull(attachment), 0L, styles)
+            }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                result
+                    .onSuccess { Toast.makeText(this, getString(R.string.signal_forwarded, title), Toast.LENGTH_SHORT).show() }
+                    .onFailure { failure ->
+                        Toast.makeText(
+                            this, getString(R.string.signal_send_failed, sayFailure(failure).orEmpty()), Toast.LENGTH_LONG
+                        ).show()
+                    }
+            }
+        }
+    }
+
+    /**
      * Copy or share one message. A dialog rather than a selection mode: selection earns its
      * complexity when you act on many messages at once, and here there is nothing yet that
      * takes more than one.
@@ -1574,10 +1640,13 @@ class SignalThreadActivity : QkThemedActivity() {
         /** Whether this is one of ours that can still be edited; see [SignalRepository.canEdit]. */
         canEditHere: Boolean = false,
         /** Signal's message details, already worded. Empty for none. */
-        info: String = ""
+        info: String = "",
+        /** Sends this message on to another conversation; null where it cannot go. */
+        forward: (() -> Unit)? = null
     ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += getString(R.string.signal_reply) to { startReply(sentAt) }
+        forward?.let { actions += getString(R.string.signal_forward) to it }
         actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
         // Only where there is something to act on; see [downloadableAttachment].
         attachment?.let { saved ->
@@ -1629,7 +1698,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 getString(R.string.signal_withdraw_armed) to { withdraw(messageId) }
             } else {
                 getString(R.string.signal_withdraw) to {
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info, forward = forward)
                 }
             }
         }
@@ -1643,7 +1712,7 @@ class SignalThreadActivity : QkThemedActivity() {
             val disarm = Runnable {
                 if (!isFinishing && dialog.isShowing) {
                     dialog.dismiss()
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info, forward = forward)
                 }
             }
             decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
@@ -2089,7 +2158,10 @@ class SignalThreadActivity : QkThemedActivity() {
                 // Nothing to react to, reply to or take back: nobody has it.
                 if (callLine) confirmDeleteForMe(messageId)
                 else if (unsent) showUnsentActions(messageId, body)
-                else showMessageActions(body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable, info = details)
+                else showMessageActions(
+                    body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable, info = details,
+                    forward = forwardFor(m, saved)
+                )
                 true
             }
             b.body.setOnLongClickListener(listener)

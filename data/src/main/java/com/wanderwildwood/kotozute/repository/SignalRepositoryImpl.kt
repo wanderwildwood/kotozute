@@ -4169,9 +4169,15 @@ class SignalRepositoryImpl @Inject constructor(
             // anything less certain than that is not asserted.
             //
             // Detached: the caller is on another thread and outlives this Realm.
-            return threads
-                .firstOrNull { phoneNumberUtils.compare(it.counterpartNumber, number) }
-                ?.let { realm.copyFromRealm(it) }
+            // Our own number is Note to Self's, which keeps no number of its own.
+            val self = signalStore.selfNumberOrNull().orEmpty()
+            val selfKey = signalStore.selfAciOrNull()?.let { "direct:$it" }
+            return (
+                threads.firstOrNull { phoneNumberUtils.compare(it.counterpartNumber, number) }
+                    ?: threads.firstOrNull {
+                        self.isNotBlank() && it.threadKey == selfKey && phoneNumberUtils.compare(self, number)
+                    }
+                )?.let { realm.copyFromRealm(it) }
         }
     }
 

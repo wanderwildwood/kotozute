@@ -296,6 +296,12 @@ class Preferences @Inject constructor(
      */
     val signalTypingIndicators = rxPrefs.getBoolean("signalTypingIndicators", true)
 
+    /** A Signal pin or unpin made here that has not reached the account's records yet. */
+    val signalPinsDirty = rxPrefs.getBoolean("signalPinsDirty", false)
+
+    /** Whether this phone's pins have been merged with the account's once. */
+    val signalPinsMerged = rxPrefs.getBoolean("signalPinsMerged", false)
+
     /** Text conversations accepted as message requests, by thread id. See SmsRequests. */
     val smsAcceptedRequests = rxPrefs.getStringSet("smsAcceptedRequests", emptySet())
 

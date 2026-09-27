@@ -1366,6 +1366,18 @@ class SignalStore(private val context: Context) {
     /** What this device wants a marked row to say, or null to leave the row alone. */
     internal var storageDesired: (SignalContactStore.Pending) -> SignalStorageWriter.Desired? = { null }
 
+    /** The account's record as the last read took it, with its id. See [SignalStorageService]. */
+    @Volatile private var accountRecord: Pair<ByteArray, ByteArray>? = null
+
+    /** The pinned conversations the account's record names, as thread keys. Set by the repository. */
+    internal var onPinnedRead: (List<String>) -> Unit = {}
+
+    /** The pinned list this phone wants written, or null when it has nothing to change. */
+    internal var pinsToWrite: () -> List<org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation>? = { null }
+
+    /** Told once the pinned list is on the account. */
+    internal var onPinsWritten: () -> Unit = {}
+
     /**
      * Reads the account's contact list out of the storage service, where modern Signal keeps
      * it, and writes this device's archive and mute changes back in the same pass, as Signal's
@@ -1412,6 +1424,8 @@ class SignalStore(private val context: Context) {
                 recordIkm = ikm,
                 desiredFor = storageDesired,
                 send = true,
+                account = accountRecord,
+                pins = pinsToWrite(),
                 mayWrite = { records ->
                     when (val d = guard.onWriteAttempt(
                         StorageWriteLoopGuard.fingerprintOf(records), true, isRetry, now
@@ -1434,6 +1448,7 @@ class SignalStore(private val context: Context) {
         when (outcome) {
             is SignalStorageWriter.Outcome.Written -> {
                 outcome.pushed.forEach { runCatching { contacts.markPushed(it.storageId, it.record) } }
+                runCatching { onPinsWritten() }
                 Timber.i(
                     "signal storage write: wrote %d record(s), replaced %d, now at version %d",
                     outcome.inserts, outcome.deletes, outcome.version
@@ -1450,7 +1465,11 @@ class SignalStore(private val context: Context) {
                 guard.onConverged()
                 Timber.i("signal storage write: %d marked row(s) already match the account", outcome.storageIds.size)
             }
-            SignalStorageWriter.Outcome.NothingToDo -> guard.onConverged()
+            SignalStorageWriter.Outcome.NothingToDo -> {
+                guard.onConverged()
+                // Nothing to change means the account already says what this phone does.
+                runCatching { onPinsWritten() }
+            }
             SignalStorageWriter.Outcome.Conflict -> guard.onWriteFailed(now)
             is SignalStorageWriter.Outcome.Refused -> {
                 guard.onWriteFailed(now)
@@ -1518,6 +1537,10 @@ class SignalStore(private val context: Context) {
                 }
             },
             conversationState = { states -> onConversationState(states) },
+            accountRecord = { raw, id, pinned ->
+                accountRecord = raw to id
+                runCatching { onPinnedRead(pinned) }
+            },
             blocked = { people, groups ->
                 // Replaces the held list rather than adding to it: a storage read is the
                 // account's current answer, and somebody unblocked upstream has to become

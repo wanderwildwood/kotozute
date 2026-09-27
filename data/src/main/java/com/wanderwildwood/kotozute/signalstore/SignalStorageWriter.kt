@@ -124,7 +124,11 @@ internal class SignalStorageWriter(
          * Asked with the plaintext records just before the request, and a no stops it. Where
          * the loop guard sits: it fingerprints what would go up, which is only known here.
          */
-        mayWrite: (List<ByteArray>) -> Boolean = { true }
+        mayWrite: (List<ByteArray>) -> Boolean = { true },
+        /** The account's record and its id as last read, to amend the pinned list on. */
+        account: Pair<ByteArray, ByteArray>? = null,
+        /** The pinned list to write, or null to leave it as it is. */
+        pins: List<org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation>? = null
     ): Outcome {
         val storageKey = keys.storageKey()
             ?: return Outcome.Refused("this account's storage key is not here")
@@ -133,7 +137,7 @@ internal class SignalStorageWriter(
             .onFailure { Timber.w(it, "signal storage write: could not read what is marked") }
             .getOrNull()
             ?: return Outcome.Refused("could not read what is marked for a push")
-        if (pending.isEmpty()) return Outcome.NothingToDo
+        if (pending.isEmpty() && (pins == null || account == null)) return Outcome.NothingToDo
 
         val inserts = mutableListOf<StorageItem>()
         // ⚠ ByteStrings, not base64 strings. Identity of a storage id is the sixteen bytes;
@@ -201,6 +205,28 @@ internal class SignalStorageWriter(
                 ?.takeIf { it != newId }
                 ?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }.getOrNull() }
                 ?.let { deleteIds += it.toByteString() }
+        }
+
+        // The pinned list rides the account's own record, as upstream keeps it: amended there
+        // and nowhere else, the rest of the record re-encoded as it came, under a new id.
+        if (pins != null && account != null) {
+            val (raw, oldId) = account
+            val record = StorageRecord.ADAPTER.decode(raw)
+            val current = record.account
+            if (current != null && current.pinnedConversations != pins) {
+                val amended = record.copy(account = current.copy(pinnedConversations = pins)).encode()
+                val newIdBytes = ByteArray(STORAGE_ID_BYTES).also { java.security.SecureRandom().nextBytes(it) }
+                val itemKey = recordIkm?.deriveStorageItemKey(newIdBytes) ?: storageKey.deriveItemKey(newIdBytes)
+                inserts += StorageItem(
+                    key = newIdBytes.toByteString(),
+                    value_ = SignalStorageCipher.encrypt(itemKey, amended).toByteString()
+                )
+                insertIdentifiers += ManifestRecord.Identifier(
+                    raw = newIdBytes.toByteString(), type = ManifestRecord.Identifier.Type.ACCOUNT
+                )
+                deleteIds += oldId.toByteString()
+                pushed += Pushed(android.util.Base64.encodeToString(newIdBytes, android.util.Base64.NO_WRAP), amended)
+            }
         }
 
         if (inserts.isEmpty()) {

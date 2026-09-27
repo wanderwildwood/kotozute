@@ -121,9 +121,11 @@ class MentionBodyTest {
     fun `a poll says what it asked instead of nothing`() {
         val poll = DataMessage(
             timestamp = 1_000L,
-            pollCreate = DataMessage.PollCreate(question = "Pizza or curry?")
+            pollCreate = DataMessage.PollCreate(question = "Pizza or curry?", allowMultiple = false, options = listOf("Pizza", "Curry"))
         )
-        assertEquals("(poll) Pizza or curry?", normalized(poll)?.body)
+        val m = normalized(poll)
+        assertEquals("Pizza or curry?", m?.body)
+        assertEquals(listOf("Pizza", "Curry"), Polls.decode(m?.pollJson)?.options)
     }
 
     @Test

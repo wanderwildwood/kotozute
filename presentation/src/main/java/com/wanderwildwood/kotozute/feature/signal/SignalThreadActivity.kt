@@ -442,13 +442,15 @@ class SignalThreadActivity : QkThemedActivity() {
                     arrayOf(
                         getString(R.string.signal_attach_file),
                         getString(R.string.signal_attach_view_once),
-                        getString(R.string.signal_attach_contact)
+                        getString(R.string.signal_attach_contact),
+                        getString(R.string.signal_poll_new)
                     )
                 ) { _, which ->
                     when (which) {
                         0 -> picker.launch("*/*")
                         1 -> viewOncePicker.launch("image/*")
-                        else -> contactPicker.launch(null)
+                        2 -> contactPicker.launch(null)
+                        else -> askForPoll()
                     }
                 }
                 .show()
@@ -557,6 +559,126 @@ class SignalThreadActivity : QkThemedActivity() {
             }
         } + (dateFormatter.getDetailedTimestamp(if (m.revisionTs > 0) m.revisionTs else m.date) + "\n" + m.body)
         return lines.joinToString("\n\n")
+    }
+
+    /**
+     * A poll, drawn as text: upstream's `PollComponent` without the bars. The header says what
+     * kind it is -- or that it has ended -- then the question, then each option with how many
+     * chose it, marked where this account did. Plain ASCII marks: the panel's font has no
+     * glyph for the nicer ones. A tap on an option votes, until the poll ends.
+     */
+    private fun pollText(
+        messageId: String,
+        poll: com.wanderwildwood.kotozute.signalstore.Polls.Poll,
+        mine: List<Int>
+    ): CharSequence {
+        val out = android.text.SpannableStringBuilder()
+        out.append(
+            getString(
+                when {
+                    poll.ended -> R.string.signal_poll_final
+                    poll.multiple -> R.string.signal_poll_select_many
+                    else -> R.string.signal_poll_select_one
+                }
+            )
+        ).append("\n")
+        val qStart = out.length
+        out.append(poll.question)
+        out.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), qStart, out.length, 0)
+        val tally = poll.tally()
+        poll.options.forEachIndexed { i, option ->
+            out.append("\n")
+            val start = out.length
+            val mark = when {
+                poll.multiple -> if (i in mine) "[x] " else "[ ] "
+                else -> if (i in mine) "(x) " else "( ) "
+            }
+            out.append(mark).append(option).append("  ").append(
+                resources.getQuantityString(R.plurals.signal_poll_votes, tally[i], tally[i])
+            )
+            if (!poll.ended) {
+                out.setSpan(object : android.text.style.ClickableSpan() {
+                    override fun onClick(widget: View) = votePoll(messageId, i)
+                    override fun updateDrawState(ds: android.text.TextPaint) {}
+                }, start, out.length, 0)
+            }
+        }
+        return out
+    }
+
+    /** Upstream's "End poll?": nobody can vote once it has ended. */
+    private fun confirmEndPoll(messageId: String) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.signal_poll_end_title)
+            .setMessage(R.string.signal_poll_end_body)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.signal_poll_end) { _, _ ->
+                thread(isDaemon = true) {
+                    val result = runCatching { signalRepo.endPoll(messageId) }
+                    runOnUiThread {
+                        result.onFailure {
+                            Toast.makeText(this, getString(R.string.signal_send_failed, sayFailure(it).orEmpty()), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun votePoll(messageId: String, index: Int) {
+        thread(isDaemon = true) {
+            val result = runCatching { signalRepo.togglePollOption(messageId, index) }
+            runOnUiThread {
+                result.onFailure {
+                    Toast.makeText(this, getString(R.string.signal_send_failed, sayFailure(it).orEmpty()), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    /** Upstream's poll maker, in one dialog: a question, the options one to a line, and whether several may be chosen. */
+    private fun askForPoll() {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        // One line: a return goes on to the options rather than into the question.
+        val question = android.widget.EditText(this).apply {
+            setHint(R.string.signal_poll_question)
+            isSingleLine = true
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
+        }
+        val options = android.widget.EditText(this).apply {
+            setHint(R.string.signal_poll_options)
+            minLines = 3
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        }
+        val multiple = android.widget.CheckBox(this).apply { setText(R.string.signal_poll_multiple) }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+            addView(question); addView(options); addView(multiple)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.signal_poll_new)
+            .setView(box)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.signal_poll_send) { _, _ ->
+                val lines = options.text.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }
+                val poll = com.wanderwildwood.kotozute.signalstore.Polls.create(question.text.toString(), multiple.isChecked, lines)
+                if (poll == null) {
+                    Toast.makeText(this, R.string.signal_poll_invalid, Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                thread(isDaemon = true) {
+                    val result = runCatching {
+                        signalRepo.createPoll(threadKey, poll.question, poll.multiple, poll.options)
+                    }
+                    runOnUiThread {
+                        result.onFailure {
+                            Toast.makeText(this, getString(R.string.signal_send_failed, sayFailure(it).orEmpty()), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+            .show()
     }
 
     /** Which pinned message the banner showed last; a tap moves on to the next. */
@@ -1901,11 +2023,14 @@ class SignalThreadActivity : QkThemedActivity() {
         /** What the message said before it was edited, worded; empty for none. */
         history: String = "",
         /** Whether it is pinned now, and so offers Unpin; null where it cannot be pinned. */
-        pinned: Boolean? = null
+        pinned: Boolean? = null,
+        /** Ends the poll this message asks; null where it is not ours, or has ended. */
+        endPoll: (() -> Unit)? = null
     ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += getString(R.string.signal_reply) to { startReply(sentAt) }
         forward?.let { actions += getString(R.string.signal_forward) to it }
+        endPoll?.let { actions += getString(R.string.signal_poll_end) to it }
         when (pinned) {
             true -> actions += getString(R.string.signal_unpin) to { changePin(messageId, pin = false, seconds = 0) }
             false -> actions += getString(R.string.signal_pin) to { askPinDuration(messageId) }
@@ -1969,7 +2094,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 getString(R.string.signal_withdraw_armed) to { withdraw(messageId) }
             } else {
                 getString(R.string.signal_withdraw) to {
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info, forward = forward, history = history, pinned = pinned)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info, forward = forward, history = history, pinned = pinned, endPoll = endPoll)
                 }
             }
         }
@@ -1983,7 +2108,7 @@ class SignalThreadActivity : QkThemedActivity() {
             val disarm = Runnable {
                 if (!isFinishing && dialog.isShowing) {
                     dialog.dismiss()
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info, forward = forward, history = history, pinned = pinned)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info, forward = forward, history = history, pinned = pinned, endPoll = endPoll)
                 }
             }
             decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
@@ -2286,7 +2411,10 @@ class SignalThreadActivity : QkThemedActivity() {
             // carry a link worth following, and until now it was something to retype.
             // Bold, italic, strikethrough, monospace, and spoilers hidden until tapped. See
             // [MessageStyles]. Only on the message's own text, never on the view-once line.
-            val styled = if (!isViewOnceLine) {
+            val poll = if (isViewOnceLine) null else com.wanderwildwood.kotozute.signalstore.Polls.decode(m.poll)
+            val styled = if (poll != null) {
+                pollText(m.id, poll, signalRepo.pollChosenByMe(m.poll))
+            } else if (!isViewOnceLine) {
                 MessageStyles.apply(text, m.styles, b.body.currentTextColor, m.id in revealedSpoilers) {
                     revealedSpoilers += m.id
                     adapterPosition.takeIf { it != RecyclerView.NO_POSITION }
@@ -2298,7 +2426,7 @@ class SignalThreadActivity : QkThemedActivity() {
             b.body.text = MessageLinks.apply(b.body, styled, prefs, messageLinkClicks)
             // A spoiler is opened with a tap, which needs the text to take taps even when
             // links are switched off.
-            if (MessageStyles.hasSpoiler(m.styles) && m.id !in revealedSpoilers) {
+            if ((MessageStyles.hasSpoiler(m.styles) && m.id !in revealedSpoilers) || (poll != null && !poll.ended)) {
                 b.body.movementMethod = android.text.method.LinkMovementMethod.getInstance()
             }
             b.body.setVisible(text.isNotEmpty())
@@ -2450,7 +2578,10 @@ class SignalThreadActivity : QkThemedActivity() {
                 else showMessageActions(
                     body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable, info = details,
                     forward = forwardFor(m, saved), history = editHistory(m),
-                    pinned = if (m.viewOnce) null else m.pinnedUntil > System.currentTimeMillis()
+                    pinned = if (m.viewOnce) null else m.pinnedUntil > System.currentTimeMillis(),
+                    endPoll = com.wanderwildwood.kotozute.signalstore.Polls.decode(m.poll)
+                        ?.takeIf { m.outgoing && !it.ended }
+                        ?.let { { confirmEndPoll(m.id) } }
                 )
                 true
             }

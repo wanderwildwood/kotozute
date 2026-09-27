@@ -667,6 +667,21 @@ interface SignalRepository {
     /** Marks a person's safety number verified, or clears it. Blocking. False if it could not. */
     fun setVerified(threadKey: String, verified: Boolean): Boolean
 
+    /** Asks a poll: a question and 2 to 10 options. Blocking; throws as a send does. */
+    fun createPoll(threadKey: String, question: String, multiple: Boolean, options: List<String>): Long
+
+    /** Votes in a poll with this whole selection; empty takes the vote back. Blocking. */
+    fun votePoll(messageId: String, options: List<Int>)
+
+    /** Chooses or unchooses one option, as a tap on it does. Blocking. */
+    fun togglePollOption(messageId: String, index: Int)
+
+    /** The options this account has chosen in a poll, from the poll as stored. */
+    fun pollChosenByMe(pollJson: String): List<Int>
+
+    /** Ends a poll this account asked. Blocking. */
+    fun endPoll(messageId: String)
+
     /** Pins a message in its conversation for [seconds], or until unpinned when 0. Blocking; throws as a send does. */
     fun pinMessage(messageId: String, seconds: Int)
 

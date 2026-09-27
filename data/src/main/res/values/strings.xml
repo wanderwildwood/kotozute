@@ -86,6 +86,8 @@
     <string name="signal_update_you">You</string>
     <string name="signal_update_someone">Someone</string>
     <string name="signal_update_you_pinned">You pinned a message</string>
+    <string name="signal_update_you_ended_poll">You ended the poll: \"%1$s\"</string>
+    <string name="signal_update_ended_poll">%1$s ended the poll: \"%2$s\"</string>
     <string name="signal_update_pinned">%1$s pinned a message</string>
     <string name="signal_update_verified">You marked your safety number with %1$s verified.</string>
     <string name="signal_update_unverified">You marked your safety number with %1$s unverified.</string>

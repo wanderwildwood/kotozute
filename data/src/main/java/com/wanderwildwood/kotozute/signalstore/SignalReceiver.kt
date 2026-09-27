@@ -1485,6 +1485,14 @@ internal class SignalReceiver(
                     }
                 }
 
+                // A vote on a poll, or a poll ended: applied to the poll it names.
+                if (!senderBlocked) {
+                    ContentNormalizer.pollActionIn(result.content, result.metadata, credentials.aci, credentials.e164)?.let { action ->
+                        runCatching { events.pollAction(action) }
+                            .onFailure { Timber.w(it, "signal poll: could not apply") }
+                    }
+                }
+
                 // A timer change reaches the conversation even though it is not a message.
                 ContentNormalizer.timerUpdateIn(
                     result.content, result.metadata, credentials.aci, credentials.e164

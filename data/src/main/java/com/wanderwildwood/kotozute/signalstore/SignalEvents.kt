@@ -244,6 +244,9 @@ interface SignalEvents {
      */
     fun readElsewhere(read: List<Pair<String, Long>>, readAt: Long) {}
 
+    /** A vote cast on a poll, or a poll ended. */
+    fun pollAction(action: PollAction) {}
+
     /** A message was pinned or unpinned, here or on another of our devices. */
     fun pinChanged(change: PinChange) {}
 

@@ -471,6 +471,23 @@
     <string name="signal_safety_verify_summary">After comparing these numbers with theirs, in person or on a call</string>
     <string name="signal_safety_verify_failed">Could not change it</string>
     <string name="signal_edit_history">Edit history</string>
+    <!-- Polls: Signal's Poll__* and CreatePollFragment__* words. -->
+    <string name="signal_poll_new">Poll</string>
+    <string name="signal_poll_question">Question</string>
+    <string name="signal_poll_options">Options, one to a line (2 to 10)</string>
+    <string name="signal_poll_multiple">Allow more than one answer</string>
+    <string name="signal_poll_send">Send</string>
+    <string name="signal_poll_invalid">A poll needs a question and 2 to 10 options, each at most 100 characters.</string>
+    <string name="signal_poll_select_one">Poll · Select one</string>
+    <string name="signal_poll_select_many">Poll · Select one or more</string>
+    <string name="signal_poll_final">Poll · Final results</string>
+    <plurals name="signal_poll_votes">
+        <item quantity="one">%d vote</item>
+        <item quantity="other">%d votes</item>
+    </plurals>
+    <string name="signal_poll_end">End poll</string>
+    <string name="signal_poll_end_title">End poll?</string>
+    <string name="signal_poll_end_body">Members of this chat will no longer be able to vote in this poll.</string>
     <!-- Pinned messages: Signal's PinnedMessage__* and ConversationFragment__keep_pinned words. -->
     <string name="signal_pin">Pin</string>
     <string name="signal_unpin">Unpin</string>

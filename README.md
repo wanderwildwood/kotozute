@@ -160,8 +160,8 @@ there.
 
 Worth saying plainly, so nobody goes looking:
 
-- **No Signal calls.** The app registers itself as carrying neither voice nor video, and there
-  is no audio path in it.
+- **No video calls.** Voice calls work (see below); video never will. The Kompakt has no front
+  camera and e-ink cannot show it, so a video call rings here as a voice call.
 - **No PIN, registration lock, number change or account transfer.** Linked to a phone that
   already has Signal, those all belong to that phone. Registered here, they are simply not
   implemented — registration is done without a registration lock, and setting one afterwards
@@ -172,6 +172,19 @@ Worth saying plainly, so nobody goes looking:
 - **History does not arrive by itself.** Signal's servers do not hold it and a newly linked device
   is not sent any, so threads start empty and fill from the day you pair. Importing an export is
   how you get the rest.
+
+### Calls
+
+Signal voice calls, both ways, with Signal's own calling library (RingRTC) at the version
+Signal Android uses. A call comes up over the lock screen the way a phone call does, rings with
+the phone's ringtone as the ringer setting allows, and keeps going with the screen off. One-to-one
+conversations have a phone at the top to call out; groups do not, because group calls are not
+supported.
+
+Every call goes through Signal's relay servers rather than straight between the two phones, so
+nobody on a call learns this phone's IP address. Headsets and Bluetooth are not handled yet, and
+another of your devices is not yet told when a call was answered here. RingRTC adds about 13 MB to
+the download.
 
 ## On the lock screen
 
@@ -283,6 +296,11 @@ the details, and the details are where a hand-rolled version silently differs.
 
 - **libsignal** (`org.signal:libsignal-android`) — AGPL-3.0, unmodified, linked. The protocol
   primitives, published by Signal as a binary. Nothing here reimplements any of it.
+- **RingRTC** (`org.signal:ringrtc-android` 2.72.0) — AGPL-3.0, unmodified, linked. Signal's
+  calling library, WebRTC underneath it, published by Signal as a binary; its checksum is pinned
+  to the one Signal Android pins. The call handling around it (`SignalCallEngine`) is a trimmed
+  port of Signal Android's call manager, and the ringer and ringback are Signal's, sounds
+  included.
 - **Signal's service layer** — AGPL-3.0, **copied into this repository and compiled here**, under
   `signal-service/`. Six of Signal Android's own modules (`lib/libsignal-service`, `lib/network`,
   `core/network`, `core/util-jvm`, `core/models-jvm`, `core/serialization`) taken at commit

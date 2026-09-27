@@ -575,9 +575,18 @@ internal class SignalCallEngine(
         /** No video goes anywhere on a voice call; RingRTC still wants somewhere to send it. */
         val NoVideo = VideoSink { }
 
-        /** There is no camera on a voice call. */
+        /**
+         * A camera that is never opened.
+         *
+         * ⚠ It has to say it has a capturer. RingRTC adds a video track only when it does
+         * (`CallContext`), and a Signal offer always carries a video section, even for a voice
+         * call -- so an answer without one has its m-lines out of order and WebRTC rejects it
+         * ("The order of m-lines in answer doesn't match order in offer"), ending the call as
+         * an internal failure before it rings. The track is created disabled and nothing ever
+         * enables it or starts a capturer, so no camera is touched and no video is sent.
+         */
         val NoCamera = object : CameraControl {
-            override fun hasCapturer(): Boolean = false
+            override fun hasCapturer(): Boolean = true
             override fun initCapturer(observer: CapturerObserver) {}
             override fun setEnabled(enable: Boolean) {}
             override fun flip() {}

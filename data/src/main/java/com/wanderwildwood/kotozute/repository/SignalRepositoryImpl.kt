@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.repository
 
+import com.wanderwildwood.kotozute.data.R.string as UpdateStrings
 import com.wanderwildwood.kotozute.model.Contact
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.model.SignalThread
@@ -2892,8 +2893,15 @@ class SignalRepositoryImpl @Inject constructor(
         override fun groupChanged(masterKey: ByteArray, revision: Int) =
             noteGroupRevision(masterKey, revision)
 
-        override fun timerChanged(threadKey: String, seconds: Long, version: Int) =
-            applyTimerChange(threadKey, seconds, version)
+        override fun timerChanged(threadKey: String, seconds: Long, version: Int, setBy: String?, sentAt: Long) =
+            applyTimerChange(threadKey, seconds, version, setBy, sentAt)
+
+        override fun describeGroupChange(
+            lines: List<com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Line>
+        ): String {
+            val self = signalStore.selfAciOrNull().orEmpty()
+            return lines.joinToString("\n") { groupLine(it, self) }
+        }
 
         override fun refreshStoredRecords() = rereadStoredRecords()
 
@@ -3036,13 +3044,20 @@ class SignalRepositoryImpl @Inject constructor(
      * change carrying no version at all is from an older client and is taken as current,
      * because refusing it would leave the conversation on a timer nobody chose.
      */
-    private fun applyTimerChange(threadKey: String, seconds: Long, version: Int) = runOffThread {
+    private fun applyTimerChange(
+        threadKey: String,
+        seconds: Long,
+        version: Int,
+        setBy: String? = null,
+        sentAt: Long = 0L
+    ) = runOffThread {
         // ⚠ Reached from every message now, not only from the one that announces a change --
         // see [ContentNormalizer.timerUpdateIn] -- so it has to decide whether anything
         // actually differs before it writes or says anything. Upstream's
         // `handlePossibleExpirationUpdate` is the same shape: it acts only when the message's
         // timer disagrees with the thread's, or carries a newer version.
         var changed = false
+        var stale = false
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val thread = r.where(SignalThread::class.java)
@@ -3050,6 +3065,7 @@ class SignalRepositoryImpl @Inject constructor(
                     .findFirst() ?: return@executeTransaction
                 if (version != 0 && version < thread.expireTimerVersion) {
                     Timber.i("signal timer: ignored a timer change older than the one in force")
+                    stale = true
                     return@executeTransaction
                 }
                 val newer = version != 0 && version > thread.expireTimerVersion
@@ -3059,9 +3075,130 @@ class SignalRepositoryImpl @Inject constructor(
                 changed = true
             }
         }
+        // Said in the conversation when somebody set it, as upstream writes an expiration-update
+        // row -- but not for a stale copy, which changed nothing.
+        if (setBy != null && !stale) {
+            noteUpdateLine(threadKey, setBy, sentAt, timerLine(setBy, seconds.toInt()), masterKey = null)
+        }
         if (!changed) return@runOffThread
         Timber.i("signal timer: a conversation's disappearing-messages timer is now %d second(s)", seconds)
         contactsChanged()
+    }
+
+    /** One row in a conversation saying what changed. Read: it is history, not news. */
+    private fun noteUpdateLine(threadKey: String, author: String, sentAt: Long, body: String, masterKey: ByteArray?) {
+        val self = signalStore.selfAciOrNull().orEmpty()
+        val at = sentAt.takeIf { it > 0 } ?: System.currentTimeMillis()
+        ingest(
+            listOf(
+                com.wanderwildwood.kotozute.signal.BridgeMessage(
+                    id = "$author:$at",
+                    threadKey = threadKey,
+                    ts = at,
+                    senderUuid = author,
+                    senderNumber = "",
+                    outgoing = author == self,
+                    body = body,
+                    groupId = if (threadKey.startsWith("group:")) threadKey.removePrefix("group:") else "",
+                    quoteTs = 0,
+                    read = true,
+                    source = "live",
+                    attachmentsJson = "",
+                    groupMasterKey = masterKey
+                )
+            )
+        )
+    }
+
+    /** Who somebody is, in a line: "You" for this account, as upstream writes it. */
+    private fun whoIs(aci: String?, self: String): String = when {
+        aci == null -> context.getString(com.wanderwildwood.kotozute.data.R.string.signal_update_someone)
+        aci == self -> context.getString(com.wanderwildwood.kotozute.data.R.string.signal_update_you)
+        else -> nameForCounterpart(aci)
+            ?: context.getString(com.wanderwildwood.kotozute.data.R.string.signal_update_someone)
+    }
+
+    private fun timerLine(setBy: String?, seconds: Int): String {
+        val self = signalStore.selfAciOrNull().orEmpty()
+        return if (seconds == 0) {
+            if (setBy == self) context.getString(com.wanderwildwood.kotozute.data.R.string.signal_update_you_timer_off)
+            else context.getString(com.wanderwildwood.kotozute.data.R.string.signal_update_timer_off, whoIs(setBy, self))
+        } else {
+            val label = com.wanderwildwood.kotozute.signalstore.TimerLabel.of(context.resources, seconds)
+            if (setBy == self) context.getString(com.wanderwildwood.kotozute.data.R.string.signal_update_you_timer, label)
+            else context.getString(com.wanderwildwood.kotozute.data.R.string.signal_update_timer, whoIs(setBy, self), label)
+        }
+    }
+
+    /** Upstream's `GroupsV2UpdateMessageProducer` wording, for the lines [GroupChangeLines] finds. */
+    private fun groupLine(line: com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Line, self: String): String {
+        fun str(id: Int, vararg args: Any) = context.getString(id, *args)
+        fun by(editor: String?, you: Int, them: Int, vararg rest: Any) =
+            if (editor == self) str(you, *rest) else str(them, whoIs(editor, self), *rest)
+        return when (line) {
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Renamed ->
+                by(line.editor, UpdateStrings.signal_update_you_renamed, UpdateStrings.signal_update_renamed, line.title)
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.DescriptionChanged ->
+                by(line.editor, UpdateStrings.signal_update_you_description, UpdateStrings.signal_update_description)
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.AvatarChanged ->
+                by(line.editor, UpdateStrings.signal_update_you_avatar, UpdateStrings.signal_update_avatar)
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Timer ->
+                timerLine(line.editor, line.seconds)
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Added -> when {
+                line.member == self -> str(UpdateStrings.signal_update_added_you, whoIs(line.editor, self))
+                else -> by(line.editor, UpdateStrings.signal_update_you_added, UpdateStrings.signal_update_added, whoIs(line.member, self))
+            }
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.JoinedByLink ->
+                if (line.member == self) str(UpdateStrings.signal_update_you_joined)
+                else str(UpdateStrings.signal_update_joined_by_link, whoIs(line.member, self))
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Joined ->
+                if (line.member == self) str(UpdateStrings.signal_update_you_joined)
+                else str(UpdateStrings.signal_update_joined, whoIs(line.member, self))
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.AcceptedInvite ->
+                if (line.member == self) str(UpdateStrings.signal_update_you_accepted)
+                else str(UpdateStrings.signal_update_accepted, whoIs(line.member, self))
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Invited -> when {
+                line.member == self -> str(UpdateStrings.signal_update_invited_you, whoIs(line.editor, self))
+                line.editor == self -> context.resources.getQuantityString(
+                    com.wanderwildwood.kotozute.data.R.plurals.signal_update_you_invited, line.count, line.count)
+                else -> context.resources.getQuantityString(
+                    com.wanderwildwood.kotozute.data.R.plurals.signal_update_invited, line.count, whoIs(line.editor, self), line.count)
+            }
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Removed -> when {
+                line.member == self -> str(UpdateStrings.signal_update_removed_you, whoIs(line.editor, self))
+                else -> by(line.editor, UpdateStrings.signal_update_you_removed, UpdateStrings.signal_update_removed, whoIs(line.member, self))
+            }
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Left ->
+                if (line.member == self) str(UpdateStrings.signal_update_you_left)
+                else str(UpdateStrings.signal_update_left, whoIs(line.member, self))
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Admin -> when {
+                line.member == self && line.granted -> str(UpdateStrings.signal_update_made_you_admin, whoIs(line.editor, self))
+                line.member == self -> str(UpdateStrings.signal_update_revoked_your_admin, whoIs(line.editor, self))
+                line.granted -> by(line.editor, UpdateStrings.signal_update_you_made_admin, UpdateStrings.signal_update_made_admin, whoIs(line.member, self))
+                else -> by(line.editor, UpdateStrings.signal_update_you_revoked_admin, UpdateStrings.signal_update_revoked_admin, whoIs(line.member, self))
+            }
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.AdminsOnly ->
+                if (line.on) by(line.editor, UpdateStrings.signal_update_you_admins_only, UpdateStrings.signal_update_admins_only)
+                else by(line.editor, UpdateStrings.signal_update_you_all_send, UpdateStrings.signal_update_all_send)
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.WhoCanEdit ->
+                if (line.adminsOnly) by(line.editor, UpdateStrings.signal_update_you_edit_admins, UpdateStrings.signal_update_edit_admins)
+                else by(line.editor, UpdateStrings.signal_update_you_edit_all, UpdateStrings.signal_update_edit_all)
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.WhoCanAdd ->
+                if (line.adminsOnly) by(line.editor, UpdateStrings.signal_update_you_add_admins, UpdateStrings.signal_update_add_admins)
+                else by(line.editor, UpdateStrings.signal_update_you_add_all, UpdateStrings.signal_update_add_all)
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Link -> when {
+                !line.on -> by(line.editor, UpdateStrings.signal_update_you_link_off, UpdateStrings.signal_update_link_off)
+                line.approval -> by(line.editor, UpdateStrings.signal_update_you_link_approval, UpdateStrings.signal_update_link_approval)
+                else -> by(line.editor, UpdateStrings.signal_update_you_link_on, UpdateStrings.signal_update_link_on)
+            }
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.AskedToJoin ->
+                str(UpdateStrings.signal_update_asked_to_join, whoIs(line.member, self))
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Approved ->
+                by(line.editor, UpdateStrings.signal_update_you_approved, UpdateStrings.signal_update_approved, whoIs(line.member, self))
+            is com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Ended ->
+                by(line.editor, UpdateStrings.signal_update_you_ended, UpdateStrings.signal_update_ended)
+            com.wanderwildwood.kotozute.signalstore.GroupChangeLines.Updated -> str(UpdateStrings.signal_update_group_updated)
+        }
     }
 
     /**
@@ -3080,7 +3217,12 @@ class SignalRepositoryImpl @Inject constructor(
             val masterKey = Realm.getDefaultInstance().use { groupMasterKeyFor(it, threadKey) }
                 ?: return SignalRepository.TimerSet.FAILED
             return when (signalStore.setGroupTimer(masterKey, seconds)) {
-                is com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.Done,
+                is com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.Done -> {
+                    writeTimer(threadKey, seconds.toLong(), version = null)
+                    val self = signalStore.selfAciOrNull().orEmpty()
+                    noteUpdateLine(threadKey, self, 0L, timerLine(self, seconds), masterKey)
+                    SignalRepository.TimerSet.SET
+                }
                 com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.Unneeded -> {
                     writeTimer(threadKey, seconds.toLong(), version = null)
                     SignalRepository.TimerSet.SET
@@ -3096,11 +3238,13 @@ class SignalRepositoryImpl @Inject constructor(
         val recipient = threadKey.removePrefix("direct:")
         val version = timerFor(threadKey).second.let { if (it == Int.MAX_VALUE) it else it + 1 }
         return try {
-            signalStore.send(
+            val sentAt = signalStore.send(
                 recipient, "", expiresInSeconds = seconds, expireTimerVersion = version,
                 expirationUpdate = true
             )
             writeTimer(threadKey, seconds.toLong(), version)
+            val self = signalStore.selfAciOrNull().orEmpty()
+            noteUpdateLine(threadKey, self, sentAt, timerLine(self, seconds), masterKey = null)
             SignalRepository.TimerSet.SET
         } catch (t: Throwable) {
             Timber.w(t, "signal timer: could not set a conversation's timer")

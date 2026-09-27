@@ -119,6 +119,12 @@ open class SignalMessage : RealmObject() {
      */
     var revisionTs: Long = 0
 
+    /**
+     * What an edited message said before, oldest first, as `[{"at":ts,"body":"..."},...]`:
+     * upstream's edit history. Empty for a message never edited here.
+     */
+    var revisions: String = ""
+
     companion object {
         const val SEND_SENT = 0
         const val SEND_SENDING = 1

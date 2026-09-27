@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 32
+        const val SCHEMA_VERSION: Long = 33
     }
 
     @SuppressLint("ApplySharedPref")
@@ -550,6 +550,15 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalThread")
                 ?.takeIf { !it.hasField("request") }
                 ?.addField("request", Boolean::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 32L) {
+            // Earlier versions of an edited message. Nothing before this kept them.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("revisions") }
+                ?.addField("revisions", String::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

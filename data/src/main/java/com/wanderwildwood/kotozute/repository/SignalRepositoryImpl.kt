@@ -1692,6 +1692,7 @@ class SignalRepositoryImpl @Inject constructor(
             Realm.getDefaultInstance().use { realm ->
                 realm.executeTransaction { r ->
                     r.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()?.let {
+                        if (it.body != body) it.revisions = withRevision(it.revisions, it, it.body)
                         it.body = body
                         it.revisionTs = sentAt
                     }
@@ -2494,6 +2495,10 @@ class SignalRepositoryImpl @Inject constructor(
         }
 
         val row = existing ?: realm.createObject(SignalMessage::class.java, m.id)
+        // An edit keeps what it replaces, as upstream keeps every revision.
+        if (existing != null && m.revisionTs > existing.revisionTs && existing.body != m.body) {
+            existing.revisions = withRevision(existing.revisions, existing, existing.body)
+        }
         row.threadKey = m.threadKey
         row.date = m.ts
         row.senderUuid = m.senderUuid
@@ -3329,6 +3334,27 @@ class SignalRepositoryImpl @Inject constructor(
         contactsChanged()
     }
 
+    /** Voice notes already said to have been listened to, this run. */
+    private val listened: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /**
+     * A received voice note was played: upstream's `ViewedReceipt` and `MultiDeviceViewedUpdateJob`.
+     * Once per message; the receipt only where read receipts are on and the conversation is
+     * not a request, as a read receipt would be.
+     */
+    override fun markListened(messageId: String) {
+        if (!listened.add(messageId)) return
+        runOffThread {
+            val m = Realm.getDefaultInstance().use { realm ->
+                realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
+                    ?.takeIf { !it.outgoing }?.let { Triple(it.senderUuid, it.date, it.threadKey) }
+            } ?: return@runOffThread
+            val receipt = prefs.signalReadReceipts.get() && !isRequest(m.third)
+            signalStore.sendListened(m.first, m.second, receipt)
+            Timber.i("signal: a voice note was listened to")
+        }
+    }
+
     override fun isRequest(threadKey: String): Boolean = Realm.getDefaultInstance().use { realm ->
         realm.where(SignalThread::class.java).equalTo("threadKey", threadKey).findFirst()?.request == true
     }
@@ -3371,7 +3397,8 @@ class SignalRepositoryImpl @Inject constructor(
         } else {
             runCatching { signalStore.sendRequestResponse(threadKey.removePrefix("direct:"), null, "DELETE") }
         }
-        deleteThread(threadKey)
+        // Here only: the request response is the sync, as upstream's `syncThreadDelete = false`.
+        deleteThreadHere(threadKey)
         Timber.i("signal request: deleted")
     }
 
@@ -3384,6 +3411,13 @@ class SignalRepositoryImpl @Inject constructor(
         runCatching { signalStore.sendRequestResponse(threadKey.removePrefix("direct:"), null, "BLOCK") }
         setRequest(threadKey, false)
         Timber.i("signal request: blocked")
+    }
+
+    /** [revisions] with [body] added as the version [m] carried until now. */
+    private fun withRevision(revisions: String, m: SignalMessage, body: String): String {
+        val array = runCatching { JSONArray(revisions) }.getOrElse { JSONArray() }
+        array.put(JSONObject().put("at", if (m.revisionTs > 0) m.revisionTs else m.date).put("body", body))
+        return array.toString()
     }
 
     /** The timer to stamp on anything sent into [threadKey], and which version says so. */
@@ -4076,6 +4110,30 @@ class SignalRepositoryImpl @Inject constructor(
     }.onFailure { Timber.w(it, "signal: %s on a person failed", action) }.getOrDefault(false)
 
     override fun deleteThread(threadKey: String): Int {
+        // Told to our other devices, as upstream's `deleteConversations(syncThreadDelete =
+        // true)` does, by the newest few messages that name it -- before they go.
+        val self = signalStore.selfAciOrNull().orEmpty()
+        val recent = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java).equalTo("threadKey", threadKey)
+                .sort("date", io.realm.Sort.DESCENDING).findAll()
+                .asSequence()
+                .filter { !it.id.startsWith("call:") && !it.id.startsWith("groupcall:") && !it.id.startsWith("local:") }
+                .take(5)
+                .map { (if (it.outgoing) self else it.senderUuid) to it.date }
+                .toList()
+        }
+        val removed = deleteThreadHere(threadKey)
+        if (recent.isNotEmpty()) runOffThread {
+            val ok = signalStore.sendConversationDelete(
+                threadKey.takeIf { it.startsWith("direct:") }?.removePrefix("direct:"), groupIdOf(threadKey), recent
+            )
+            if (!ok) Timber.w("signal delete sync: the other devices were not told of a conversation delete")
+        }
+        return removed
+    }
+
+    /** Deletes a conversation on this phone only. */
+    private fun deleteThreadHere(threadKey: String): Int {
         var removed = 0
         // ⚠ Collected before the rows go, because afterwards nothing says which files belonged
         // to them. Deleting a conversation left every photo and voice note in it sitting in
@@ -4536,6 +4594,20 @@ class SignalRepositoryImpl @Inject constructor(
         devices = emptyList(),
         thisDeviceId = signalStore.deviceId()
     )
+
+    /** Marks [threadKey]'s safety number verified, or not, and says so in the conversation. */
+    override fun setVerified(threadKey: String, verified: Boolean): Boolean {
+        val aci = threadKey.removePrefix("direct:")
+        if (!signalStore.setVerified(aci, verified)) return false
+        val name = nameForCounterpart(aci) ?: context.getString(UpdateStrings.signal_update_someone)
+        val self = signalStore.selfAciOrNull().orEmpty()
+        noteUpdateLine(
+            threadKey, self, 0L,
+            context.getString(if (verified) UpdateStrings.signal_update_verified else UpdateStrings.signal_update_unverified, name),
+            masterKey = null
+        )
+        return true
+    }
 
     override fun identity(threadKey: String): SignalIdentity {
         run {

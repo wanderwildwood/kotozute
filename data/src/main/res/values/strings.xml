@@ -85,6 +85,8 @@
          (GroupsV2UpdateMessageProducer, MessageRecord_*). -->
     <string name="signal_update_you">You</string>
     <string name="signal_update_someone">Someone</string>
+    <string name="signal_update_verified">You marked your safety number with %1$s verified.</string>
+    <string name="signal_update_unverified">You marked your safety number with %1$s unverified.</string>
     <string name="signal_update_group_updated">Group updated.</string>
     <string name="signal_update_you_timer_off">You disabled disappearing messages.</string>
     <string name="signal_update_timer_off">%1$s disabled disappearing messages.</string>

@@ -171,6 +171,15 @@
                 app:summary="@string/signal_safety_accept_summary"
                 app:title="@string/signal_safety_accept_title" />
 
+            <!-- Mark verified, or clear it, once the numbers have been compared. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/safetyVerify"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/signal_safety_verify_summary"
+                app:title="@string/signal_safety_mark_verified" />
+
             <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/mediaHeading"
                 style="@style/TextSecondary"

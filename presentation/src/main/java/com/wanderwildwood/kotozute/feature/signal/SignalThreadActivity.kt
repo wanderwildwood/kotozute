@@ -498,6 +498,21 @@ class SignalThreadActivity : QkThemedActivity() {
     // business growing an epub reader; the device already has both, and an attachment is
     // useful exactly when it reaches them.
 
+    /**
+     * An edited message's versions, oldest first and the one showing last, each under the
+     * time it was written: upstream's edit history sheet, as text.
+     */
+    private fun editHistory(m: SignalMessage): String {
+        if (m.revisions.isBlank()) return ""
+        val earlier = runCatching { JSONArray(m.revisions) }.getOrNull() ?: return ""
+        val lines = (0 until earlier.length()).mapNotNull { i ->
+            earlier.optJSONObject(i)?.let { v ->
+                dateFormatter.getDetailedTimestamp(v.optLong("at")) + "\n" + v.optString("body")
+            }
+        } + (dateFormatter.getDetailedTimestamp(if (m.revisionTs > 0) m.revisionTs else m.date) + "\n" + m.body)
+        return lines.joinToString("\n\n")
+    }
+
     /** Whether a view-once message's picture is here to open: fetched, not spent. */
     private fun viewOnceReady(m: SignalMessage): Boolean {
         val entry = runCatching { JSONArray(m.attachments).optJSONObject(0) }.getOrNull() ?: return false
@@ -1770,7 +1785,9 @@ class SignalThreadActivity : QkThemedActivity() {
         /** Signal's message details, already worded. Empty for none. */
         info: String = "",
         /** Sends this message on to another conversation; null where it cannot go. */
-        forward: (() -> Unit)? = null
+        forward: (() -> Unit)? = null,
+        /** What the message said before it was edited, worded; empty for none. */
+        history: String = ""
     ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += getString(R.string.signal_reply) to { startReply(sentAt) }
@@ -1808,6 +1825,13 @@ class SignalThreadActivity : QkThemedActivity() {
         }
 
         if (canEditHere) actions += getString(R.string.signal_edit) to { startEdit(messageId, body) }
+        if (history.isNotEmpty()) actions += getString(R.string.signal_edit_history) to {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.signal_edit_history)
+                .setMessage(history)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
         if (info.isNotEmpty()) actions += getString(R.string.signal_info) to {
             AlertDialog.Builder(this).setMessage(info).setPositiveButton(android.R.string.ok, null).show()
         }
@@ -1826,7 +1850,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 getString(R.string.signal_withdraw_armed) to { withdraw(messageId) }
             } else {
                 getString(R.string.signal_withdraw) to {
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info, forward = forward)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info, forward = forward, history = history)
                 }
             }
         }
@@ -1840,7 +1864,7 @@ class SignalThreadActivity : QkThemedActivity() {
             val disarm = Runnable {
                 if (!isFinishing && dialog.isShowing) {
                     dialog.dismiss()
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info, forward = forward)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info, forward = forward, history = history)
                 }
             }
             decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
@@ -2303,7 +2327,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 else if (unsent) showUnsentActions(messageId, body)
                 else showMessageActions(
                     body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable, info = details,
-                    forward = forwardFor(m, saved)
+                    forward = forwardFor(m, saved), history = editHistory(m)
                 )
                 true
             }
@@ -2478,7 +2502,7 @@ class SignalThreadActivity : QkThemedActivity() {
             // branch above has already returned for those -- so this never offers a play
             // button for something that cannot be played.
             if (isVoiceNote(first, type)) {
-                bindVoiceNote(id, first.optBoolean("pending"))
+                bindVoiceNote(id, first.optBoolean("pending"), m.id.takeIf { !m.outgoing })
                 return
             }
 
@@ -2657,7 +2681,7 @@ class SignalThreadActivity : QkThemedActivity() {
          * holders are recycled: a holder that scrolled away while playing would otherwise
          * carry "playing" onto whatever message it was reused for.
          */
-        private fun bindVoiceNote(id: String, pending: Boolean) {
+        private fun bindVoiceNote(id: String, pending: Boolean, messageId: String? = null) {
             b.attachment.setVisible(true)
             if (pending) {
                 // Nothing to play: the bytes never arrived. Said plainly rather than offering
@@ -2679,6 +2703,8 @@ class SignalThreadActivity : QkThemedActivity() {
                 togglePlayback(id) { playing ->
                     // Only if this holder still shows the same message.
                     if (b.attachment.isAttachedToWindow) draw(playing)
+                    // Played is listened to: upstream's viewed receipt for a voice note.
+                    if (playing && messageId != null) signalRepo.markListened(messageId)
                 }
             }
         }

@@ -35,6 +35,8 @@
     <!-- Enabled for the Desktop Sync relay (embedded server, VPN-only by default) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.READ_SMS" />
@@ -123,6 +125,15 @@
         <activity android:name=".feature.signal.SignalConversationsActivity" />
         <activity android:name=".feature.signal.SignalNewGroupActivity" />
         <activity android:name=".feature.signal.SignalLinkActivity" />
+        <!-- Over the lock screen, like a phone call. Its own task, so answering from the lock
+             screen does not drag the conversations list up behind it. -->
+        <activity
+            android:name=".feature.signalcall.SignalCallActivity"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:taskAffinity=".signalcall"
+            android:turnScreenOn="true" />
         <activity android:name=".feature.signal.SignalRegisterActivity" />
         <activity android:name=".feature.signal.SignalThreadActivity" />
         <activity android:name=".feature.signal.SignalThreadInfoActivity" />
@@ -262,6 +273,10 @@
             android:name=".feature.signal.SignalStreamService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".feature.signalcall.SignalCallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
         <service
             android:name=".feature.widget.WidgetService"
             android:permission="android.permission.BIND_REMOTEVIEWS" />

@@ -102,6 +102,11 @@ dependencies {
     // stores' own types are libsignal's, so anything consuming them needs it on its classpath
     // too -- hiding it would only force the layer above to re-declare it.
     api 'org.signal:libsignal-android:0.102.0'
+    // Signal's calling library: WebRTC and the call state machine underneath Signal's own voice
+    // and video calls. The version is upstream's (`signal-ringrtc` in Signal-Android's
+    // libs.versions.toml), because the call code ported into SignalCallEngine was written
+    // against this API. Large -- about 34 MB of native code for arm64 alone.
+    implementation 'org.signal:ringrtc-android:2.72.0'
     // Signal's service layer, built here from Signal's own source rather than taken as a
     // prebuilt jar -- see signal-service/README.md for what that changes and what it cost.
     // This replaces `com.github.turasa:signal-network:2.15.3_unofficial_152`.

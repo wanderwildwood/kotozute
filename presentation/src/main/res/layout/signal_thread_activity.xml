@@ -108,6 +108,21 @@
 
     </LinearLayout>
 
+    <!-- The conversation's pinned messages: the newest, and how many there are. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/pinnedBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"

@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 33
+        const val SCHEMA_VERSION: Long = 34
     }
 
     @SuppressLint("ApplySharedPref")
@@ -559,6 +559,16 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.takeIf { !it.hasField("revisions") }
                 ?.addField("revisions", String::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 33L) {
+            // A message pinned in its conversation: when, and until when.
+            realm.schema.get("SignalMessage")?.let { m ->
+                if (!m.hasField("pinnedAt")) m.addField("pinnedAt", Long::class.java, FieldAttribute.REQUIRED)
+                if (!m.hasField("pinnedUntil")) m.addField("pinnedUntil", Long::class.java, FieldAttribute.REQUIRED)
+            }
 
             version++
         }

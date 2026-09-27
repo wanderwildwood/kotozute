@@ -2916,6 +2916,9 @@ class SignalRepositoryImpl @Inject constructor(
 
         override fun requestAccepted(threadKey: String) = setRequest(threadKey, false)
 
+        override fun pinChanged(change: com.wanderwildwood.kotozute.signalstore.PinChange) =
+            applyPin(change)
+
         override fun viewOnceOpenedElsewhere(sender: String, sentAt: Long) = spendViewOnce("$sender:$sentAt")
 
         override fun readElsewhere(read: List<Pair<String, Long>>, readAt: Long) =
@@ -3421,6 +3424,92 @@ class SignalRepositoryImpl @Inject constructor(
         val array = runCatching { JSONArray(revisions) }.getOrElse { JSONArray() }
         array.put(JSONObject().put("at", if (m.revisionTs > 0) m.revisionTs else m.date).put("body", body))
         return array.toString()
+    }
+
+    /**
+     * A pin or unpin, applied: upstream's `handlePinMessage` / `handleUnpinMessage`. A pin past
+     * the conversation's limit of three lets the oldest go (`enforcePinSizeLimit`), and says
+     * "X pinned a message" in the conversation; an unpin says nothing, as upstream's does.
+     */
+    private fun applyPin(change: com.wanderwildwood.kotozute.signalstore.PinChange) {
+        var masterKey: ByteArray? = null
+        var found = false
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val target = r.where(SignalMessage::class.java)
+                    .equalTo("id", "${change.targetAuthor}:${change.targetSentAt}").findFirst()
+                    ?.takeIf { it.threadKey == change.threadKey } ?: return@executeTransaction
+                found = true
+                masterKey = r.where(SignalThread::class.java).equalTo("threadKey", change.threadKey)
+                    .findFirst()?.groupMasterKey?.copyOf()
+                if (!change.pin) {
+                    target.pinnedAt = 0
+                    target.pinnedUntil = 0
+                    return@executeTransaction
+                }
+                target.pinnedAt = change.sentAt.takeIf { it > 0 } ?: System.currentTimeMillis()
+                target.pinnedUntil = change.until
+                val now = System.currentTimeMillis()
+                r.where(SignalMessage::class.java).equalTo("threadKey", change.threadKey)
+                    .greaterThan("pinnedUntil", now)
+                    .sort("pinnedAt", io.realm.Sort.DESCENDING).findAll()
+                    .drop(MAX_PINNED_MESSAGES)
+                    .forEach { it.pinnedAt = 0; it.pinnedUntil = 0 }
+            }
+        }
+        if (!found) {
+            Timber.i("signal pin: the pinned message is not on this phone")
+            return
+        }
+        if (change.pin) {
+            val self = signalStore.selfAciOrNull().orEmpty()
+            val words = if (change.by == self) context.getString(UpdateStrings.signal_update_you_pinned)
+            else context.getString(UpdateStrings.signal_update_pinned, whoIs(change.by, self))
+            noteUpdateLine(change.threadKey, change.by, change.sentAt, words, masterKey)
+        }
+        contactsChanged()
+    }
+
+    /**
+     * Pins [messageId] in its conversation for [seconds], or until unpinned when 0, and tells
+     * everybody in it: upstream's `PinSendUtil`.
+     */
+    override fun pinMessage(messageId: String, seconds: Int) = setPinnedMessage(messageId, true, seconds)
+
+    override fun unpinMessage(messageId: String) = setPinnedMessage(messageId, false, 0)
+
+    private fun setPinnedMessage(messageId: String, pin: Boolean, seconds: Int) {
+        val m = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()?.let { realm.copyFromRealm(it) }
+        } ?: throw IllegalStateException("no such message")
+        val self = signalStore.selfAciOrNull().orEmpty()
+        val author = if (m.outgoing) self else m.senderUuid
+        val authorId = org.signal.core.models.ServiceId.parseOrNull(author)
+            ?: throw IllegalStateException("the message has no author to name")
+        val masterKey = if (m.threadKey.startsWith("group:")) {
+            Realm.getDefaultInstance().use { groupMasterKeyFor(it, m.threadKey) }
+                ?: throw IllegalStateException("no group key")
+        } else null
+        val (expiresIn, _) = timerFor(m.threadKey)
+        val sentAt = signalStore.sendExtra(m.threadKey, masterKey, if (pin) "pin" else "unpin", expiresIn) {
+            if (pin) {
+                withPinnedMessage(
+                    org.whispersystems.signalservice.api.messages.SignalServiceDataMessage.PinnedMessage(
+                        authorId, m.date, seconds.takeIf { it > 0 }, if (seconds > 0) null else true
+                    )
+                )
+            } else {
+                withUnpinnedMessage(
+                    org.whispersystems.signalservice.api.messages.SignalServiceDataMessage.UnpinnedMessage(authorId, m.date)
+                )
+            }
+        }
+        applyPin(
+            com.wanderwildwood.kotozute.signalstore.PinChange(
+                m.threadKey, self, sentAt, author, m.date, pin,
+                if (!pin) 0L else if (seconds > 0) sentAt + seconds * 1000L else Long.MAX_VALUE
+            )
+        )
     }
 
     /** The timer to stamp on anything sent into [threadKey], and which version says so. */
@@ -4913,6 +5002,9 @@ class SignalRepositoryImpl @Inject constructor(
      * `StorageSyncJob` on every archive and mute.
      */
     private val MAX_PINNED = 4
+
+    /** Upstream's `RemoteConfig.pinLimit` default: three pinned messages a conversation. */
+    private val MAX_PINNED_MESSAGES = 3
 
     private fun pushStorageNow() {
         if (!runCatching { signalStore.storageKeyKnown() }.getOrDefault(false)) return

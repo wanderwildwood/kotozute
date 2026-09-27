@@ -244,6 +244,9 @@ interface SignalEvents {
      */
     fun readElsewhere(read: List<Pair<String, Long>>, readAt: Long) {}
 
+    /** A message was pinned or unpinned, here or on another of our devices. */
+    fun pinChanged(change: PinChange) {}
+
     /** A message request was accepted on another of our devices. */
     fun requestAccepted(threadKey: String) {}
 

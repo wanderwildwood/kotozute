@@ -1718,6 +1718,9 @@ internal class SignalSender(
             .withTimestamp(timestamp)
             .withRemoteDelete(SignalServiceDataMessage.RemoteDelete(targetSentTimestamp))
             .build()
+        // Note to Self: our own devices hear it as a sent transcript, as every other message
+        // there does. Sent to ourselves as a message, it was refused.
+        if (isSelf(recipient)) return sendToSelf(message, timestamp)
 
         return try {
             val owedProof = owesPniProof(recipient)

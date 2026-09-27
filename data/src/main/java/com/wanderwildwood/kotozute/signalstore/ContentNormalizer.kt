@@ -292,6 +292,11 @@ internal object ContentNormalizer {
             source = "live",
             attachmentsJson = attachmentsJson(dataMessage, viewOnce),
             stylesJson = BodyStyles.encode(styles),
+            // A poll's question is its body, as upstream files it; the options and votes ride
+            // beside. One that breaks upstream's limits is described, not drawn.
+            pollJson = dataMessage.pollCreate?.let { p ->
+                Polls.create(p.question.orEmpty(), p.allowMultiple == true, p.options)?.let(Polls::encode)
+            }.orEmpty(),
             // When this message's time runs out, or 0 for "the clock has not started".
             //
             // ⚠ An incoming message does not start counting until it is read. It used to start
@@ -342,6 +347,34 @@ internal object ContentNormalizer {
     }
 
     /** A conversation's disappearing-messages timer, as one message changed it. */
+    /** A vote on a poll, or a poll ended, in this content. See [PollAction]. */
+    fun pollActionIn(content: Content, metadata: EnvelopeMetadata, selfAci: String?, selfE164: String?): PollAction? {
+        val sent = content.syncMessage?.sent
+        val dataMessage = sent?.message ?: content.dataMessage ?: return null
+        val vote = dataMessage.pollVote
+        val end = dataMessage.pollTerminate
+        if (vote == null && end == null) return null
+        val outgoing = sent?.message != null
+        val by = if (outgoing) selfAci.orEmpty() else metadata.sourceServiceId.toString()
+        val threadKey = threadKeyFor(
+            outgoing = outgoing,
+            counterpartUuid = if (outgoing) destinationServiceIdOf(sent!!) else metadata.sourceServiceId.toString(),
+            counterpartNumber = if (outgoing) sent!!.destinationE164.orEmpty() else metadata.sourceE164.orEmpty(),
+            groupId = groupIdOf(dataMessage),
+            selfAci = selfAci,
+            selfE164 = selfE164
+        ) ?: return null
+        val sentAt = dataMessage.timestamp ?: 0L
+        return if (vote != null) {
+            val author = org.signal.core.models.ServiceId.parseOrNull(vote.targetAuthorAciBinary?.toByteArray())
+                ?.toString() ?: return null
+            PollAction(threadKey, by, sentAt, author, vote.targetSentTimestamp ?: return null, false, vote.voteCount ?: 0, vote.optionIndexes)
+        } else {
+            // Only the one who asked can end a poll, so the poll is theirs.
+            PollAction(threadKey, by, sentAt, by, end!!.targetSentTimestamp ?: return null, true, 0, emptyList())
+        }
+    }
+
     /** The pin or unpin in this content, if it carries one. */
     fun pinIn(content: Content, metadata: EnvelopeMetadata, selfAci: String?, selfE164: String?): PinChange? {
         val sent = content.syncMessage?.sent
@@ -508,7 +541,7 @@ internal object ContentNormalizer {
      * empty row -- a reader can act on neither, and only one of them looks like a fault.
      */
     private fun isNotAMessage(m: DataMessage): Boolean =
-        m.pollVote != null || m.pinMessage != null || m.unpinMessage != null
+        m.pollVote != null || m.pollTerminate != null || m.pinMessage != null || m.unpinMessage != null
 
     /**
      * What to call a message this build cannot render.
@@ -542,7 +575,7 @@ internal object ContentNormalizer {
         m.groupV2 != null ->
             if ((m.groupV2?.revision ?: 0) == 0) "Created the group." else "Updated the group."
         m.pollCreate != null ->
-            m.pollCreate?.question?.takeIf { it.isNotBlank() }?.let { "(poll) $it" } ?: "(a poll)"
+            m.pollCreate?.question?.takeIf { it.isNotBlank() } ?: "(a poll)"
         m.pollTerminate != null -> "(a poll ended)"
         // Who it is, rather than that it is a card: the card itself is kept beside the message
         // as a vCard to open. See [ContactCards].

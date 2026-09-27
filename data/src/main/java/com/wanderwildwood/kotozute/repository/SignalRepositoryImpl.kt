@@ -2517,6 +2517,8 @@ class SignalRepositoryImpl @Inject constructor(
         // a view-once row whose attachments are gone. See [openViewOnce].
         row.attachments = if (m.viewOnce && existing != null && existing.attachments.isBlank()) "" else m.attachmentsJson
         row.styles = m.stylesJson
+        // A poll's votes live on the row; a redelivery of the question must not wipe them.
+        if (m.pollJson.isNotEmpty() && row.poll.isEmpty()) row.poll = m.pollJson
         row.expiresAt = if (countdownStarted > 0L) countdownStarted else m.expiresAt
         row.expiresInSeconds = m.expiresInSeconds
         row.viewOnce = m.viewOnce
@@ -2918,6 +2920,9 @@ class SignalRepositoryImpl @Inject constructor(
 
         override fun pinChanged(change: com.wanderwildwood.kotozute.signalstore.PinChange) =
             applyPin(change)
+
+        override fun pollAction(action: com.wanderwildwood.kotozute.signalstore.PollAction) =
+            applyPollAction(action)
 
         override fun viewOnceOpenedElsewhere(sender: String, sentAt: Long) = spendViewOnce("$sender:$sentAt")
 
@@ -3468,6 +3473,136 @@ class SignalRepositoryImpl @Inject constructor(
             noteUpdateLine(change.threadKey, change.by, change.sentAt, words, masterKey)
         }
         contactsChanged()
+    }
+
+    /**
+     * A vote or an ending, applied to the poll it names, by upstream's rules (see [Polls]).
+     * An ending says so in the conversation, as upstream's poll-terminate row does.
+     */
+    private fun applyPollAction(action: com.wanderwildwood.kotozute.signalstore.PollAction) {
+        var question: String? = null
+        var masterKey: ByteArray? = null
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val row = r.where(SignalMessage::class.java)
+                    .equalTo("id", "${action.targetAuthor}:${action.targetSentAt}").findFirst()
+                    ?.takeIf { it.threadKey == action.threadKey } ?: return@executeTransaction
+                val poll = com.wanderwildwood.kotozute.signalstore.Polls.decode(row.poll) ?: return@executeTransaction
+                val next = if (action.end) {
+                    if (poll.ended) null else com.wanderwildwood.kotozute.signalstore.Polls.end(poll)
+                } else {
+                    com.wanderwildwood.kotozute.signalstore.Polls.vote(poll, action.by, action.voteCount, action.options)
+                } ?: return@executeTransaction
+                row.poll = com.wanderwildwood.kotozute.signalstore.Polls.encode(next)
+                if (action.end) {
+                    question = poll.question
+                    masterKey = r.where(SignalThread::class.java).equalTo("threadKey", action.threadKey)
+                        .findFirst()?.groupMasterKey?.copyOf()
+                }
+            }
+        }
+        question?.let { q ->
+            val self = signalStore.selfAciOrNull().orEmpty()
+            val words = if (action.by == self) context.getString(UpdateStrings.signal_update_you_ended_poll, q)
+            else context.getString(UpdateStrings.signal_update_ended_poll, whoIs(action.by, self), q)
+            noteUpdateLine(action.threadKey, action.by, action.sentAt, words, masterKey)
+        }
+    }
+
+    /** Asks a poll in [threadKey]: upstream's `CreatePollFragment` sending. Returns its timestamp. */
+    override fun createPoll(threadKey: String, question: String, multiple: Boolean, options: List<String>): Long {
+        val poll = com.wanderwildwood.kotozute.signalstore.Polls.create(question, multiple, options)
+            ?: throw IllegalArgumentException("a poll needs a question and 2 to 10 options")
+        val masterKey = if (threadKey.startsWith("group:")) {
+            Realm.getDefaultInstance().use { groupMasterKeyFor(it, threadKey) } ?: throw IllegalStateException("no group key")
+        } else null
+        val (expiresIn, _) = timerFor(threadKey)
+        val sentAt = signalStore.sendExtra(threadKey, masterKey, "poll", expiresIn) {
+            withPollCreate(
+                org.whispersystems.signalservice.api.messages.SignalServiceDataMessage.PollCreate(
+                    poll.question, poll.multiple, poll.options
+                )
+            )
+        }
+        val self = signalStore.selfAciOrNull().orEmpty()
+        ingest(
+            listOf(
+                BridgeMessage(
+                    id = "$self:$sentAt",
+                    threadKey = threadKey,
+                    ts = sentAt,
+                    senderUuid = self,
+                    senderNumber = "",
+                    outgoing = true,
+                    body = poll.question,
+                    groupId = if (masterKey != null) threadKey.removePrefix("group:") else "",
+                    quoteTs = 0,
+                    read = true,
+                    source = "live",
+                    attachmentsJson = "",
+                    pollJson = com.wanderwildwood.kotozute.signalstore.Polls.encode(poll),
+                    expiresInSeconds = expiresIn.toLong(),
+                    expiresAt = if (expiresIn > 0) sentAt + expiresIn * 1000L else 0L,
+                    groupMasterKey = masterKey
+                )
+            )
+        )
+        return sentAt
+    }
+
+    /** Votes in the poll [messageId] asks, with this whole selection; empty takes the vote back. */
+    override fun votePoll(messageId: String, options: List<Int>) = pollSend(messageId, end = false, options)
+
+    /**
+     * Chooses or unchooses one option, as a tap on it does: with one choice allowed, it
+     * replaces the last (or takes it back); with several, it is added or taken away.
+     */
+    override fun togglePollOption(messageId: String, index: Int) {
+        val poll = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()?.poll
+        }?.let { com.wanderwildwood.kotozute.signalstore.Polls.decode(it) } ?: return
+        val mine = poll.votes[signalStore.selfAciOrNull().orEmpty()]?.options.orEmpty()
+        val next = when {
+            index in mine -> mine - index
+            poll.multiple -> mine + index
+            else -> listOf(index)
+        }
+        votePoll(messageId, next.sorted())
+    }
+
+    /** Whether this account has chosen [index] in the poll [pollJson] describes. */
+    override fun pollChosenByMe(pollJson: String): List<Int> =
+        com.wanderwildwood.kotozute.signalstore.Polls.decode(pollJson)
+            ?.votes?.get(signalStore.selfAciOrNull().orEmpty())?.options.orEmpty()
+
+    /** Ends the poll [messageId] asks; only its author can. */
+    override fun endPoll(messageId: String) = pollSend(messageId, end = true, emptyList())
+
+    private fun pollSend(messageId: String, end: Boolean, options: List<Int>) {
+        val m = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()?.let { realm.copyFromRealm(it) }
+        } ?: throw IllegalStateException("no such poll")
+        val poll = com.wanderwildwood.kotozute.signalstore.Polls.decode(m.poll) ?: throw IllegalStateException("not a poll")
+        val self = signalStore.selfAciOrNull().orEmpty()
+        val author = if (m.outgoing) self else m.senderUuid
+        val authorId = org.signal.core.models.ServiceId.parseOrNull(author) ?: throw IllegalStateException("no author")
+        val count = (poll.votes[self]?.count ?: 0) + 1
+        val masterKey = if (m.threadKey.startsWith("group:")) {
+            Realm.getDefaultInstance().use { groupMasterKeyFor(it, m.threadKey) } ?: throw IllegalStateException("no group key")
+        } else null
+        val (expiresIn, _) = timerFor(m.threadKey)
+        val sentAt = signalStore.sendExtra(m.threadKey, masterKey, if (end) "poll end" else "poll vote", expiresIn) {
+            if (end) {
+                withPollTerminate(org.whispersystems.signalservice.api.messages.SignalServiceDataMessage.PollTerminate(m.date))
+            } else {
+                withPollVote(
+                    org.whispersystems.signalservice.api.messages.SignalServiceDataMessage.PollVote(authorId, m.date, options, count)
+                )
+            }
+        }
+        applyPollAction(
+            com.wanderwildwood.kotozute.signalstore.PollAction(m.threadKey, self, sentAt, author, m.date, end, count, options)
+        )
     }
 
     /**

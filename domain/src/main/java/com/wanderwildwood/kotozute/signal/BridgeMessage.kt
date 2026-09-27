@@ -24,6 +24,8 @@ data class BridgeMessage(
     val attachmentsJson: String,
     /** The text's styles -- bold, italic, spoiler and so on -- as [BodyStyles] stores them. */
     val stylesJson: String = "",
+    /** A poll this message asks, as the data layer's `Polls.encode` writes it; empty for none. */
+    val pollJson: String = "",
 
     /**
      * When this copy must be gone, in ms, or 0 for never. The bridge sends it; the phone

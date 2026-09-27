@@ -125,6 +125,9 @@ open class SignalMessage : RealmObject() {
      */
     var revisions: String = ""
 
+    /** The poll this message asks, with its votes, as `Polls.encode` writes it; empty for none. */
+    var poll: String = ""
+
     /** When this message was pinned in its conversation; 0 when it is not. */
     var pinnedAt: Long = 0
 

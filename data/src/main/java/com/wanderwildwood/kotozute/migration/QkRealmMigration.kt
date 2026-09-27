@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 34
+        const val SCHEMA_VERSION: Long = 35
     }
 
     @SuppressLint("ApplySharedPref")
@@ -569,6 +569,15 @@ class QkRealmMigration @Inject constructor(
                 if (!m.hasField("pinnedAt")) m.addField("pinnedAt", Long::class.java, FieldAttribute.REQUIRED)
                 if (!m.hasField("pinnedUntil")) m.addField("pinnedUntil", Long::class.java, FieldAttribute.REQUIRED)
             }
+
+            version++
+        }
+
+        if (version == 34L) {
+            // A poll and its votes, beside the message that asks it.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("poll") }
+                ?.addField("poll", String::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

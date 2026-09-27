@@ -111,7 +111,7 @@ class SignalThreadActivity : QkThemedActivity() {
      * album. The first is attached as one always was; the rest ride with it.
      */
     private val picker = registerForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
+        com.wanderwildwood.kotozute.common.util.FilePicker.Contract { prefs.filePicker.get() }
     ) { uris: List<Uri> ->
         if (uris.isEmpty()) return@registerForActivityResult
         val more = uris.drop(1).take(MAX_ALBUM - 1)
@@ -156,8 +156,8 @@ class SignalThreadActivity : QkThemedActivity() {
 
     /** A picture to be opened once by whoever it reaches. Upstream offers it for photos. */
     private val viewOncePicker = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> if (uri != null) attach(uri, viewOnce = true) }
+        com.wanderwildwood.kotozute.common.util.FilePicker.Contract { prefs.filePicker.get() }
+    ) { uris: List<Uri> -> uris.firstOrNull()?.let { attach(it, viewOnce = true) } }
 
     /** Whether the attachment in the composer goes as view-once. */
     private var pendingViewOnce = false
@@ -447,8 +447,8 @@ class SignalThreadActivity : QkThemedActivity() {
                     )
                 ) { _, which ->
                     when (which) {
-                        0 -> picker.launch("*/*")
-                        1 -> viewOncePicker.launch("image/*")
+                        0 -> picker.launch("*/*" to true)
+                        1 -> viewOncePicker.launch("image/*" to false)
                         2 -> contactPicker.launch(null)
                         else -> askForPoll()
                     }

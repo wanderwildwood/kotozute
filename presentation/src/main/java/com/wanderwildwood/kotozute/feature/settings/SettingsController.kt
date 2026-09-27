@@ -388,6 +388,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.longAsMms.checkbox.isChecked = state.longAsMms
 
         binding.mmsSize.summary = state.maxMmsSizeSummary
+        binding.filePicker.summary = filePickerLabel()
         mmsSizeDialog.adapter.selectedItem = state.maxMmsSizeId
 
         binding.messageLinkHandling.summary = state.messageLinkHandlingSummary
@@ -526,6 +527,38 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     .show()
             }
         }
+    }
+
+    @Inject lateinit var filePrefs: com.wanderwildwood.kotozute.util.Preferences
+
+    /** What the attach buttons ask for files: the chosen app's name, or Android's own. */
+    private fun filePickerLabel(): String {
+        val pkg = filePrefs.filePicker.get()
+        return com.wanderwildwood.kotozute.common.util.FilePicker.choices(context)
+            .firstOrNull { it.packageName == pkg }?.label
+            ?: context.getString(R.string.settings_file_picker_system)
+    }
+
+    /**
+     * Which app every attach button asks for files. Android offers no "always" for this --
+     * its own picker outranks the rest -- so it is chosen here. See `FilePicker`.
+     */
+    override fun showFilePickerDialog() {
+        val activity = activity ?: return
+        val choices = com.wanderwildwood.kotozute.common.util.FilePicker.choices(activity)
+            // Android's own is the empty choice; listed first under its plain name.
+            .filterNot { it.packageName == "com.android.documentsui" || it.packageName == "com.google.android.documentsui" }
+        val labels = listOf(activity.getString(R.string.settings_file_picker_system)) + choices.map { it.label }
+        val current = choices.indexOfFirst { it.packageName == filePrefs.filePicker.get() } + 1
+        AlertDialog.Builder(activity)
+            .setTitle(R.string.settings_file_picker_title)
+            .setSingleChoiceItems(labels.toTypedArray(), current) { dialog, which ->
+                filePrefs.filePicker.set(if (which == 0) "" else choices[which - 1].packageName)
+                binding.filePicker.summary = filePickerLabel()
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.button_cancel, null)
+            .show()
     }
 
     override fun showAutoDeleteDialog(days: Int) = autoDeleteDialog.setExpiry(days).show()

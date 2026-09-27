@@ -460,6 +460,11 @@
     <string name="signal_typing_direct">Typing…</string>
     <!-- The draft's selection menu. Signal's TextFormatting_* words. -->
     <string name="signal_format">Format</string>
+    <string name="signal_forward">Forward</string>
+    <string name="signal_forward_to">Forward to</string>
+    <string name="signal_forward_nowhere">No Signal conversations to forward to</string>
+    <string name="signal_forward_missing">the attachment is no longer on this phone</string>
+    <string name="signal_forwarded">Forwarded to %s</string>
     <string name="signal_format_bold">Bold</string>
     <string name="signal_format_italic">Italic</string>
     <string name="signal_format_strikethrough">Strikethrough</string>

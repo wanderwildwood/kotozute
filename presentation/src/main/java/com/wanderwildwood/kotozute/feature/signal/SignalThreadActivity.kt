@@ -106,9 +106,53 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     private var pendingName: String? = null
 
+    /**
+     * Pictures and files, several at once: upstream sends up to 32 in one message, drawn as an
+     * album. The first is attached as one always was; the rest ride with it.
+     */
     private val picker = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> if (uri != null) attach(uri) }
+        ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isEmpty()) return@registerForActivityResult
+        val more = uris.drop(1).take(MAX_ALBUM - 1)
+        pendingLoads += more.size
+        showSendOrRecord()
+        attach(uris.first())
+        more.forEach { attachMore(it) }
+    }
+
+    /** Album pictures after the first, as data URIs. */
+    private val pendingMore = mutableListOf<String>()
+
+    /**
+     * Pictures still being read in. Send waits for them: sent early, an album would go without
+     * the ones not yet read, and nothing would say so.
+     */
+    private var pendingLoads = 0
+
+    /** Adds one more picture to what is attached, and says how many there are. */
+    private fun attachMore(uri: Uri) {
+        thread(isDaemon = true) {
+            val result = runCatching { SignalAttachment.dataUri(this@SignalThreadActivity, uri) }
+            runOnUiThread {
+                pendingLoads = (pendingLoads - 1).coerceAtLeast(0)
+                showSendOrRecord()
+                result.onSuccess { dataUri ->
+                    pendingMore += dataUri
+                    binding.pending.text = resources.getQuantityString(
+                        R.plurals.signal_attached_many, pendingMore.size + 1, pendingMore.size + 1
+                    )
+                    binding.pending.setVisible(true)
+                }.onFailure {
+                    Toast.makeText(
+                        this,
+                        if (it is SignalAttachment.TooLarge) R.string.signal_attach_too_big else R.string.signal_attach_failed,
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
 
     /** A picture to be opened once by whoever it reaches. Upstream offers it for photos. */
     private val viewOncePicker = registerForActivityResult(
@@ -1151,13 +1195,14 @@ class SignalThreadActivity : QkThemedActivity() {
      */
     private fun showSendOrRecord() {
         val something = !binding.message.text.isNullOrBlank() || pendingAttachment != null
-        val showSend = something && !recording
+        val showSend = something && !recording && pendingLoads == 0
         binding.send.visibility = if (showSend) View.VISIBLE else View.INVISIBLE
         binding.record.visibility = if (showSend) View.INVISIBLE else View.VISIBLE
     }
 
     private fun clearAttachment() {
         pendingAttachment = null
+        pendingMore.clear()
         pendingViewOnce = false
         pendingName = null
         binding.pending.setVisible(false)
@@ -1176,7 +1221,7 @@ class SignalThreadActivity : QkThemedActivity() {
             Toast.makeText(this, R.string.signal_schedule_needs_text, Toast.LENGTH_SHORT).show()
             return
         }
-        if (pendingAttachment != null) {
+        if (pendingAttachment != null || pendingMore.isNotEmpty()) {
             Toast.makeText(this, R.string.signal_schedule_no_attachments, Toast.LENGTH_LONG).show()
             return
         }
@@ -1300,6 +1345,7 @@ class SignalThreadActivity : QkThemedActivity() {
         val styles = draftStyles(body)
         val attachment = pendingAttachment
         val viewOnce = pendingViewOnce && attachment != null
+        val album = pendingMore.toList()
         editing?.let { id ->
             if (body.isNotEmpty()) sendEdit(id, body)
             return
@@ -1318,7 +1364,7 @@ class SignalThreadActivity : QkThemedActivity() {
                     if (body.isNotEmpty()) signalRepo.send(threadKey, body, emptyList(), quoteTs, styles)
                     signalRepo.send(threadKey, "", listOfNotNull(attachment), 0L, "", viewOnce = true)
                 } else {
-                    signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs, styles)
+                    signalRepo.send(threadKey, body, listOfNotNull(attachment) + album, quoteTs, styles)
                 }
             }
             runOnUiThread {
@@ -2037,6 +2083,9 @@ class SignalThreadActivity : QkThemedActivity() {
     companion object {
         /** Plain ASCII on purpose: the Kompakt's font has no glyph for the nicer arrows. */
         private const val RAIL_SWITCH_ARROW = ">"
+
+        /** Upstream's most attachments in one message (`RemoteConfig.maxAttachmentCount`). */
+        private const val MAX_ALBUM = 32
 
         /** The draft's Format menu item. Any id does; this stays clear of the platform's. */
         private const val FORMAT_MENU = 0x5f01

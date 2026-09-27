@@ -82,6 +82,7 @@ class MainActivity : QkThemedActivity(), MainView {
     @Inject lateinit var searchAdapter: SearchAdapter
     @Inject lateinit var itemTouchCallback: ConversationItemTouchCallback
     @Inject lateinit var viewModelFactory: ViewModelProvider.Factory
+    @Inject lateinit var setupSignalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
 
     override val onNewIntentIntent: Subject<Intent> = PublishSubject.create()
     override val activityResumedIntent: Subject<Boolean> = PublishSubject.create()
@@ -118,6 +119,11 @@ class MainActivity : QkThemedActivity(), MainView {
         setContentView(binding.root)
         viewModel.bindView(this)
         onNewIntentIntent.onNext(intent)
+
+        // The setup guide, once: see SetupGuide.
+        if (savedInstanceState == null) {
+            com.wanderwildwood.kotozute.feature.setup.SetupGuide.offer(this, prefs, setupSignalRepo)
+        }
 
         (binding.snackbar as? ViewStub)?.setOnInflateListener { _, _ ->
             findViewById<QkTextView?>(R.id.snackbarButton).clicks()

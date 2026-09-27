@@ -329,6 +329,9 @@ class Preferences @Inject constructor(
      */
     val filePicker = rxPrefs.getString("filePicker", "")
 
+    /** The setup guide has been through, or skipped; it is not offered again unasked. */
+    val setupSeen = rxPrefs.getBoolean("setupSeen", false)
+
     /** The Signal list's own tab, 0 all or 1 groups. Kept apart from the SMS list's. */
     val signalConversationFilter = rxPrefs.getInteger("signalConversationFilter", 0)
 

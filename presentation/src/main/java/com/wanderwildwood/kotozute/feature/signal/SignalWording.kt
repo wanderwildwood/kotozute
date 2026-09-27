@@ -110,7 +110,6 @@ object SignalWording {
         SendFailure.GroupUnreachable -> Words.Res(R.string.signal_send_group_unreachable)
         SendFailure.AdminsOnly -> Words.Res(R.string.signal_send_admins_only)
         SendFailure.NumberOnly -> Words.Res(R.string.signal_send_number_only)
-        SendFailure.AttachmentsToGroup -> Words.Res(R.string.signal_send_attachments_to_group)
         SendFailure.NoGroupKey -> Words.Res(R.string.signal_send_no_group_key)
     }
 

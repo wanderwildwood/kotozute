@@ -970,7 +970,6 @@
     <string name="signal_send_group_unreachable">This phone could not reach the group just now, so nothing was sent. It will work when the connection is back.</string>
     <string name="signal_send_admins_only">Only this group\'s admins can post in it. Your message was not sent.</string>
     <string name="signal_send_number_only">This conversation has only a phone number, not a Signal address. Write to them from a new message instead.</string>
-    <string name="signal_send_attachments_to_group">sending attachments to a group is not supported yet</string>
     <string name="signal_send_no_group_key">no group key on this thread yet</string>
 
     <!-- How long Signal said to wait. The retry sentences follow straight on from

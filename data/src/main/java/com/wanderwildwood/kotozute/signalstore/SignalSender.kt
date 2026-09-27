@@ -345,10 +345,22 @@ internal class SignalSender(
         /** Mentions in [body], already placeholders there. See [OutgoingMentions]. */
         mentions: List<OutgoingMentions.Mention> = emptyList(),
         /** Styles over [body] as sent, placeholders and all. */
-        styles: List<BodyStyles.Range> = emptyList()
+        styles: List<BodyStyles.Range> = emptyList(),
+        /** As [send]'s: data URIs, uploaded once and pointed to by every member's copy. */
+        attachments: List<String> = emptyList()
     ): Result {
-        if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
+        // A group of only ourselves is not refused: the library still sends our other
+        // devices their copy, which is upstream's `onlyTargetIsSelfWithLinkedDevice` in
+        // `GroupSendUtil`. Refusing it made such a group a place nothing could be written.
         refuseIfTooLong(body)?.let { return it }
+        // Prepared before anything goes, as a one-to-one send's are: a group told about a
+        // picture that then failed to upload would have a caption and nothing to caption.
+        val streams = try {
+            attachments.mapNotNull { attachmentStream(it) }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal send: could not prepare an attachment for a group")
+            return Result.Failed(SendFailure.AttachmentUnprepared("${t.message}"))
+        }
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
             .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
@@ -382,6 +394,9 @@ internal class SignalSender(
             .withExpiration(expiresInSeconds)
             .withExpireTimerVersion(expireTimerVersion)
             .withBodyRanges(styleRanges(styles))
+            // One upload for the whole group: the library builds the message once and
+            // encrypts that same content to each member, pointers and all.
+            .apply { if (streams.isNotEmpty()) withAttachments(streams) }
             .build()
 
         return try {

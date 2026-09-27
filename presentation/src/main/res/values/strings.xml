@@ -284,9 +284,13 @@
     <!-- Settings: whether the unread count shows on the lock screen, through the Glance app -->
     <string name="settings_lock_screen_title">Unread on the lock screen</string>
     <!-- On the lock screen, through Glance -->
-    <plurals name="lock_screen_unread_messages">
-        <item quantity="one">%d message</item>
-        <item quantity="other">%d messages</item>
+    <plurals name="lock_screen_unread_texts">
+        <item quantity="one">%d text</item>
+        <item quantity="other">%d texts</item>
+    </plurals>
+    <plurals name="lock_screen_unread_signal">
+        <item quantity="one">%d on Signal</item>
+        <item quantity="other">%d on Signal</item>
     </plurals>
     <string name="settings_signature_title">Signature</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>

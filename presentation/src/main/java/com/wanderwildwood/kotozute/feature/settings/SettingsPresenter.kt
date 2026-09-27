@@ -88,6 +88,8 @@ class SettingsPresenter @Inject constructor(
 
         disposables += prefs.signalReadReceipts.asObservable()
                 .subscribe { on -> newState { copy(signalReadReceipts = on) } }
+        disposables += prefs.signalTypingIndicators.asObservable()
+                .subscribe { on -> newState { copy(signalTypingIndicators = on) } }
 
         disposables += prefs.signalKeepConnected.asObservable()
                 .subscribe { on -> newState { copy(signalKeepConnected = on) } }
@@ -300,6 +302,10 @@ class SettingsPresenter @Inject constructor(
                         // knowing and is the only true thing this row ever had to offer.
                         R.id.signalReceipts ->
                             context.makeToast(R.string.settings_signal_receipts_readonly)
+
+                        // The same kind of setting as read receipts, held by the account.
+                        R.id.signalTyping ->
+                            context.makeToast(R.string.settings_signal_typing_readonly)
 
                         // The service is started and stopped from here rather than by
                         // watching the preference, so the thing that flips the switch is the

@@ -114,6 +114,9 @@ interface SignalEvents {
         serverDeliveredAt: Long
     ) {}
 
+    /** Somebody started or stopped typing in [threadKey]. Not a message; nothing is kept. */
+    fun typing(threadKey: String, sender: String, started: Boolean) {}
+
     /**
      * Says in the conversation that somebody's name is now different from the one it held.
      *
@@ -250,7 +253,7 @@ interface SignalEvents {
     fun deletedElsewhere(messages: List<Pair<String, Long>>, threads: List<String>) {}
 
     /** The account's own settings, as its primary holds them. */
-    fun configuration(readReceipts: Boolean?) {}
+    fun configuration(readReceipts: Boolean?, typingIndicators: Boolean? = null) {}
 
     /**
      * The account says its stored records have changed, and this device should re-read them.

@@ -290,6 +290,13 @@ class Preferences @Inject constructor(
     val signalReadReceipts = rxPrefs.getBoolean("signalReadReceipts", false)
 
     /**
+     * Whether typing is shown and sent on Signal. The account's setting, like read receipts:
+     * it arrives in the configuration sync and is not changed from here. On until the account
+     * says otherwise, which is Signal's own default.
+     */
+    val signalTypingIndicators = rxPrefs.getBoolean("signalTypingIndicators", true)
+
+    /**
      * Whether Signal threads sit in the one conversation list alongside SMS. On by default:
      * a conversation is a conversation, and which rail it arrived on is the badge's job to
      * say. Off keeps two lists, crossed by the badge in each list's toolbar, for anyone who

@@ -138,6 +138,22 @@
 
     <!-- The message a reply will quote, shaped like the attachment line below it: what it
          is, and a tap takes it away. Two lines at most; the quote itself goes whole. -->
+    <!-- Who is typing. A line of its own rather than a bubble in the list: on e-ink a
+         bubble that comes and goes would redraw the conversation each time. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/typing"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:textSize="12sp"
+        android:textStyle="italic"
+        android:visibility="gone" />
+
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/replying"
         android:layout_width="match_parent"

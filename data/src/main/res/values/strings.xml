@@ -7,6 +7,7 @@
       created, which is in this module. Signal's own clients use the same words.
     -->
     <string name="signal_note_to_self">Note to Self</string>
+    <string name="signal_typing_someone">Someone</string>
 
     <!--
       The first line of a group this phone just made.

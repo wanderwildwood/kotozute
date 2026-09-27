@@ -9,6 +9,9 @@ import org.whispersystems.signalservice.api.SignalServiceDataStore
 import timber.log.Timber
 import org.whispersystems.signalservice.api.messages.multidevice.BlockedListMessage
 
+/** How long a group's members are trusted for typing messages. See [SignalStore.sendTyping]. */
+private const val TYPING_MEMBERS_FOR_MS = 5 * 60_000L
+
 /**
  * The protocol store, assembled.
  *
@@ -739,6 +742,43 @@ class SignalStore(private val context: Context) {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(peer) ?: return
         connection.connect()
         callSender().sendCallEvent(serviceId, callId, outgoing, video, accepted)
+    }
+
+    /** A group's members for typing messages, by master key, and when they were read. */
+    private val typingMembers = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<org.signal.core.models.ServiceId>>>()
+
+    /**
+     * Tells [recipient], or the group with [masterKey], that we started or stopped typing.
+     * See [SignalSender.sendTyping].
+     *
+     * A group's members are read once and kept for a few minutes: a typing message goes every
+     * ten seconds while somebody writes, and asking the server who is in the group each time
+     * would cost more than the message.
+     */
+    internal fun sendTyping(recipient: String?, masterKey: ByteArray?, started: Boolean) {
+        connection.connect()
+        if (masterKey == null) {
+            val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient ?: return) ?: return
+            callSender().sendTyping(listOf(serviceId), started, null)
+            return
+        }
+        val key = android.util.Base64.encodeToString(masterKey, android.util.Base64.NO_WRAP)
+        val now = System.currentTimeMillis()
+        val members = typingMembers[key]?.takeIf { now - it.first < TYPING_MEMBERS_FOR_MS }?.second ?: run {
+            val group = (SignalGroups(connection, account, contacts).fetchOutcome(masterKey)
+                as? SignalGroups.Outcome.Got)?.group ?: return
+            val self = account.credentials().aci
+            group.members
+                .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+                .filter { it.toString() != self }
+                .also { typingMembers[key] = now to it }
+        }
+        val groupId = runCatching {
+            org.signal.libsignal.zkgroup.groups.GroupSecretParams
+                .deriveFromMasterKey(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+                .publicParams.groupIdentifier.serialize()
+        }.getOrNull() ?: return
+        callSender().sendTyping(members, started, groupId)
     }
 
     /** The relay servers for a call. See [SignalSender.turnServers]. */

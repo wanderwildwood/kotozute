@@ -236,6 +236,9 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             binding.messageList.setItemViewCacheSize(20)
             (binding.messageList.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)?.supportsChangeAnimations = false
             binding.messageList.adapter = messageAdapter
+            // Which message is chosen, for Pin and Unpin. Subscribed before the view model is
+            // bound, so it has heard of a selection by the time the screen redraws for it.
+            messageAdapter.selectionChanges.autoDisposable(scope()).subscribe { currentSelection = it }
             // The thread turns a page the way the conversation list does. See the extension:
             // it moves by pixels, so a bubble taller than the screen takes two pages and a
             // picture still decoding cannot throw it off.
@@ -526,6 +529,12 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         binding.toolbar.menu.findItem(R.id.share)?.isVisible =
             !state.editingMode && state.selectedMessages > 0 && state.selectedMessagesHaveText
         binding.toolbar.menu.findItem(R.id.details)?.isVisible = !state.editingMode && state.selectedMessages == 1
+        // Pin or unpin the one message chosen. See SmsPins.
+        val chosen = if (!state.editingMode && state.selectedMessages == 1) selectedMessage() else null
+        val chosenPinned = chosen != null && SmsPins.isPinned(prefs, state.threadId, SmsPins.keyOf(chosen))
+        binding.toolbar.menu.findItem(R.id.pinMessage)?.isVisible = chosen != null && !chosenPinned
+        binding.toolbar.menu.findItem(R.id.unpinMessage)?.isVisible = chosen != null && chosenPinned
+        showPinned(state.threadId)
         binding.toolbar.menu.findItem(R.id.delete)?.isVisible = !state.editingMode && ((state.selectedMessages > 0) || state.canSend)
         binding.toolbar.menu.findItem(R.id.react)?.isVisible =
             !state.editingMode && state.selectedMessages == 1 && state.selectedMessagesHaveText
@@ -856,7 +865,58 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         return super.onCreateOptionsMenu(menu)
     }
 
+    /** The one message selected, when one is. */
+    private fun selectedMessage(): com.wanderwildwood.kotozute.model.Message? {
+        val id = currentSelection.singleOrNull() ?: return null
+        return messageAdapter.data?.second?.firstOrNull { it.isValid && it.id == id }
+    }
+
+    /** What the adapter has selected, as it last said. */
+    private var currentSelection: List<Long> = emptyList()
+
+    /**
+     * The pinned banner, as the Signal thread draws it: the newest pin and how many; a tap
+     * goes to it and on to the next, a long press unpins it.
+     */
+    private var pinnedIndex = 0
+
+    private fun showPinned(threadId: Long) {
+        val messages = messageAdapter.data?.second
+        val keys = if (threadId == 0L) emptyList() else SmsPins.pinned(prefs, threadId)
+        val pinned = keys.mapNotNull { k -> messages?.firstOrNull { it.isValid && SmsPins.keyOf(it) == k } }
+        binding.pinnedBar.setVisible(pinned.isNotEmpty())
+        if (pinned.isEmpty()) return
+        if (pinnedIndex >= pinned.size) pinnedIndex = 0
+        val m = pinned[pinnedIndex]
+        val preview = m.getText().ifBlank { getString(R.string.signal_pinned_attachment) }.replace('\n', ' ')
+        binding.pinnedBar.text = if (pinned.size == 1) getString(R.string.signal_pinned_one, preview)
+        else getString(R.string.signal_pinned_many, pinnedIndex + 1, pinned.size, preview)
+        val id = m.id
+        val key = SmsPins.keyOf(m)
+        binding.pinnedBar.setOnClickListener {
+            scrollToMessage(id)
+            pinnedIndex = (pinnedIndex + 1) % pinned.size
+            showPinned(threadId)
+        }
+        binding.pinnedBar.setOnLongClickListener {
+            SmsPins.unpin(prefs, threadId, key)
+            showPinned(threadId)
+            true
+        }
+    }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        // Pins are this screen's own, kept beside the messages; nothing else needs to hear of them.
+        if (item.itemId == R.id.pinMessage || item.itemId == R.id.unpinMessage) {
+            val m = selectedMessage() ?: return true
+            val threadId = m.threadId
+            if (item.itemId == R.id.pinMessage) SmsPins.pin(prefs, threadId, SmsPins.keyOf(m))
+            else SmsPins.unpin(prefs, threadId, SmsPins.keyOf(m))
+            pinnedIndex = 0
+            messageAdapter.clearSelection()
+            showPinned(threadId)
+            return true
+        }
         optionsItemIntent.onNext(item.itemId)
         return true
     }

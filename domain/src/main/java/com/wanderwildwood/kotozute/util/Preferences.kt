@@ -305,6 +305,9 @@ class Preferences @Inject constructor(
     /** Text conversations accepted as message requests, by thread id. See SmsRequests. */
     val smsAcceptedRequests = rxPrefs.getStringSet("smsAcceptedRequests", emptySet())
 
+    /** Text messages pinned in their conversations, by thread id. See SmsPins. */
+    val smsPinnedMessages = rxPrefs.getString("smsPinnedMessages", "{}")
+
     /**
      * Whether Signal threads sit in the one conversation list alongside SMS. On by default:
      * a conversation is a conversation, and which rail it arrived on is the badge's job to

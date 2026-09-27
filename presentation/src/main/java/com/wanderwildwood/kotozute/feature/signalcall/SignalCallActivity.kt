@@ -36,6 +36,12 @@ class SignalCallActivity : QkThemedActivity() {
     private var shown: SignalCallState = SignalCallState.Idle
     private var answerAsked = false
 
+    /** Whether this screen has seen a call yet. */
+    private var seenCall = false
+
+    /** Whether the call on screen was placed from here, for how its ending is worded. */
+    private var placing = false
+
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) answer() else {
             // Nothing can be said without the microphone. Declining says so to the caller,
@@ -107,25 +113,40 @@ class SignalCallActivity : QkThemedActivity() {
     }
 
     private fun render(state: SignalCallState) {
+        // The call being cleared away just after it ended: let "Call ended" stay up for its
+        // moment rather than closing on it.
+        if (state is SignalCallState.Idle && shown is SignalCallState.Ended) return
         shown = state
         handler.removeCallbacksAndMessages(null)
         when (state) {
             is SignalCallState.Ringing -> {
+                placing = false
                 binding.name.text = SignalCallService.nameOf(this, state.peer)
                 binding.status.setText(R.string.signal_call_incoming)
                 binding.ringing.visibility = View.VISIBLE
                 binding.inCall.visibility = View.GONE
+            }
+            is SignalCallState.Calling -> {
+                placing = true
+                binding.name.text = SignalCallService.nameOf(this, state.peer)
+                binding.status.setText(if (state.ringing) R.string.signal_call_remote_ringing else R.string.signal_call_calling)
+                binding.ringing.visibility = View.GONE
+                binding.inCall.visibility = View.VISIBLE
+                // Nothing to mute or move until somebody answers.
+                binding.inCallControls.visibility = View.GONE
             }
             is SignalCallState.Connecting -> {
                 binding.name.text = SignalCallService.nameOf(this, state.peer)
                 binding.status.setText(R.string.signal_call_connecting)
                 binding.ringing.visibility = View.GONE
                 binding.inCall.visibility = View.VISIBLE
+                binding.inCallControls.visibility = View.GONE
             }
             is SignalCallState.Connected -> {
                 binding.name.text = SignalCallService.nameOf(this, state.peer)
                 binding.ringing.visibility = View.GONE
                 binding.inCall.visibility = View.VISIBLE
+                binding.inCallControls.visibility = View.VISIBLE
                 binding.mute.setText(if (state.muted) R.string.signal_call_unmute else R.string.signal_call_mute)
                 binding.speaker.setText(if (state.speaker) R.string.signal_call_earpiece else R.string.signal_call_speaker)
                 tick(state)
@@ -137,8 +158,15 @@ class SignalCallActivity : QkThemedActivity() {
                 binding.status.setText(endedText(state.why))
                 handler.postDelayed({ finishAndRemoveTask() }, ENDED_SHOWN_MS)
             }
-            SignalCallState.Idle -> if (!isFinishing) finishAndRemoveTask()
+            SignalCallState.Idle -> when {
+                isFinishing -> {}
+                // Opened for a call being placed a moment before the engine says so. Wait for it,
+                // briefly, rather than closing on the caller.
+                !seenCall -> handler.postDelayed({ if (!seenCall) finishAndRemoveTask() }, WAIT_FOR_CALL_MS)
+                else -> finishAndRemoveTask()
+            }
         }
+        if (state !is SignalCallState.Idle) seenCall = true
     }
 
     /** The call's length, or that the connection is being found again. */
@@ -158,12 +186,14 @@ class SignalCallActivity : QkThemedActivity() {
         EndReason.DECLINED_ELSEWHERE -> R.string.signal_call_ended_declined_elsewhere
         EndReason.BUSY -> R.string.signal_call_ended_busy
         EndReason.FAILED -> R.string.signal_call_ended_failed
-        EndReason.TIMED_OUT, EndReason.THEY_HUNG_UP, EndReason.HUNG_UP -> R.string.signal_call_ended
+        EndReason.TIMED_OUT -> if (placing) R.string.signal_call_ended_no_answer else R.string.signal_call_ended
+        EndReason.THEY_HUNG_UP, EndReason.HUNG_UP -> R.string.signal_call_ended
     }
 
     companion object {
         const val ACTION_ANSWER = "com.wanderwildwood.kotozute.signalcall.ANSWER"
         private const val ENDED_SHOWN_MS = 2000L
+        private const val WAIT_FOR_CALL_MS = 3000L
 
         fun intent(context: Context): Intent =
             Intent(context, SignalCallActivity::class.java)

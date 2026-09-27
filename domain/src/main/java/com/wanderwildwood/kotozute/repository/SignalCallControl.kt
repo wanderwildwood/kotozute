@@ -15,6 +15,12 @@ sealed class SignalCallState {
     /** Somebody is calling, and the phone is ringing. [peer] is their ACI. */
     data class Ringing(val peer: String, val video: Boolean) : SignalCallState()
 
+    /**
+     * Calling somebody from here. [ringing] once their phone has said it is ringing; before
+     * that the call is still being set up.
+     */
+    data class Calling(val peer: String, val ringing: Boolean) : SignalCallState()
+
     /** Accepted here, and the two ends are still finding each other. */
     data class Connecting(val peer: String) : SignalCallState()
 
@@ -37,6 +43,11 @@ sealed class SignalCallState {
 interface SignalCallControl {
     fun state(): Observable<SignalCallState>
     fun current(): SignalCallState
+    /** Whether somebody can be called: a person with an account id, and not this account itself. */
+    fun canCall(peer: String): Boolean
+
+    /** Calls somebody, by ACI. Does nothing while another call is up. */
+    fun call(peer: String)
     fun accept()
     fun decline()
     fun hangUp()

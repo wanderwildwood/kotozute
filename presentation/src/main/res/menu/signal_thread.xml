@@ -2,6 +2,14 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- A Signal voice call. Shown for one-to-one conversations only: not groups, not Note to
+         Self. The same phone as the text conversations' call, which places a phone call. -->
+    <item
+        android:id="@+id/signalCall"
+        android:icon="@drawable/ic_call_black_24dp"
+        android:title="@string/signal_call_start"
+        android:visible="false"
+        app:showAsAction="always" />
     <item
         android:id="@+id/signalInfo"
         android:title="@string/menu_info"

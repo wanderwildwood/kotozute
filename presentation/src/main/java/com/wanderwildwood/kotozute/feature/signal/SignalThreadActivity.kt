@@ -166,6 +166,29 @@ class SignalThreadActivity : QkThemedActivity() {
     /** When the microphone opened, for the length shown and for [MIN_RECORDING_MS]. */
     private var recordingStartedAt = 0L
 
+    /** The microphone, asked for by the call button. A call cannot start without it. */
+    private val callMicPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) startCall() }
+
+    /** The other person in a one-to-one conversation, as Signal knows them. */
+    private val callPeer: String? get() =
+        threadKey.takeIf { it.startsWith("direct:") }?.removePrefix("direct:")
+            ?.takeIf { signalRepo.calls().canCall(it) }
+
+    /**
+     * Calls them. The call service is started here, while this screen is in front, because that
+     * is when Android lets it have the microphone for the rest of the call.
+     */
+    private fun startCall() {
+        val peer = callPeer ?: return
+        signalRepo.calls().call(peer)
+        com.wanderwildwood.kotozute.feature.signalcall.SignalCallService.start(
+            this, com.wanderwildwood.kotozute.feature.signalcall.SignalCallService.ACTION_MICROPHONE
+        )
+        startActivity(com.wanderwildwood.kotozute.feature.signalcall.SignalCallActivity.intent(this))
+    }
+
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -1153,12 +1176,15 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     }
 
+    override fun getColoredMenuItems(): List<Int> = super.getColoredMenuItems() + R.id.signalCall
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.signal_thread, menu)
         return true
     }
 
     override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
+        menu?.findItem(R.id.signalCall)?.isVisible = callPeer != null
         menu?.findItem(R.id.archiveSignal)?.setTitle(
             if (isArchived) R.string.signal_unarchive else R.string.signal_archive
         )
@@ -1172,6 +1198,14 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.signalCall -> {
+            val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.RECORD_AUDIO
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (granted) startCall() else callMicPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+            true
+        }
+
         R.id.signalInfo -> {
             startActivity(SignalThreadInfoActivity.intentFor(this, threadKey))
             true

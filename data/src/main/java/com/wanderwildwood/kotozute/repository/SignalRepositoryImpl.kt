@@ -831,9 +831,15 @@ class SignalRepositoryImpl @Inject constructor(
                 com.wanderwildwood.kotozute.signalstore.CallOutcome.DECLINED ->
                     if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_declined_here_video
                     else com.wanderwildwood.kotozute.data.R.string.signal_call_declined_here_voice
+                com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED ->
+                    com.wanderwildwood.kotozute.data.R.string.signal_call_placed
+                com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED_UNANSWERED ->
+                    com.wanderwildwood.kotozute.data.R.string.signal_call_placed_unanswered
             }
         )
-        val outgoing = outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING
+        val outgoing = outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING ||
+            outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED ||
+            outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED_UNANSWERED
         val selfAci = signalStore.selfAciOrNull().orEmpty()
         ingest(
             listOf(

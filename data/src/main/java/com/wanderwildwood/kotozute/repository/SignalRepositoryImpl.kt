@@ -1106,6 +1106,9 @@ class SignalRepositoryImpl @Inject constructor(
      * still said none, and the reader concludes the thing they just pressed did nothing.
      */
     private fun contactsChanged() {
+        // What the account now knows about who has which number pairs their conversations.
+        runCatching { fillThreadNumbers() }
+            .onFailure { Timber.w(it, "signal threads: could not fill in numbers") }
         publishState(
             signalConnected = state.value?.signalConnected ?: false,
             error = state.value?.error
@@ -2024,6 +2027,41 @@ class SignalRepositoryImpl @Inject constructor(
     override fun syncNow(): Int = syncDirect()
 
     /**
+     * Gives each one-to-one conversation the number the account knows for its person.
+     *
+     * The rails pair by that number (see [findThreadForNumber]), and it was only ever taken
+     * from a message -- which, under sealed sender and with numbers hidden by default, rarely
+     * carries one. So somebody in the address book, whose number the account's own contact
+     * list holds, stayed unpaired from their texts. Filled only where blank; a number a
+     * message did carry is never replaced. Note to Self takes this account's own.
+     */
+    private fun fillThreadNumbers(): Int {
+        val self = signalStore.selfAciOrNull()
+        val selfNumber = signalStore.selfNumberOrNull()
+        val blank = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java).equalTo("kind", "direct").findAll()
+                .filter { it.counterpartNumber.isNullOrBlank() }
+                .map { it.threadKey }
+        }
+        val found = blank.mapNotNull { key ->
+            val id = key.removePrefix("direct:")
+            val number = if (id == self) selfNumber else signalStore.contactNumber(id)
+            number?.takeIf { it.startsWith("+") }?.let { key to it }
+        }
+        if (found.isEmpty()) return 0
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                found.forEach { (key, number) ->
+                    r.where(SignalThread::class.java).equalTo("threadKey", key).findFirst()
+                        ?.takeIf { it.counterpartNumber.isNullOrBlank() }
+                        ?.counterpartNumber = number
+                }
+            }
+        }
+        return found.size
+    }
+
+    /**
      * Tops up and rotates this account's keys if either is owed.
      *
      * Deliberately not part of [syncDirect]: that returns early whenever the listen loop owns
@@ -2057,6 +2095,11 @@ class SignalRepositoryImpl @Inject constructor(
             .onFailure { Timber.w(it, "signal contacts: the duplicate-number check did not run") }
         runCatching { signalStore.reportMalformedNumbers() }
             .onFailure { Timber.w(it, "signal contacts: the number-shape check did not run") }
+
+        // The number each conversation is paired with its texts by. See [fillThreadNumbers].
+        runCatching { fillThreadNumbers() }
+            .onSuccess { if (it > 0) Timber.i("signal threads: %d paired by the number the account knows", it) }
+            .onFailure { Timber.w(it, "signal threads: could not fill in numbers") }
 
         // The phone-number identity still running on keys the primary made for it. Upstream's
         // `PreKeysSyncJob` reads the same flag and clears it once it has rotated; this round is
@@ -4907,6 +4950,29 @@ class SignalRepositoryImpl @Inject constructor(
         devices = runCatching { signalStore.devices() }.getOrNull().orEmpty(),
         thisDeviceId = signalStore.deviceId()
     )
+
+    override fun signalThreadKeyForNumber(number: String): String? {
+        if (number.isBlank()) return null
+        findThreadForNumber(number)?.let { return it.threadKey }
+        // Not written to on Signal yet, but the account's contact list -- a contacts fetch,
+        // or "Find contacts on Signal" -- says who the number belongs to. Same number, one
+        // person: the rule [findThreadForNumber] keeps, from the other store.
+        val e164 = phoneNumberUtils.toE164(number) ?: return null
+        val aci = signalStore.contactAciForNumber(e164)?.takeIf { !it.startsWith("PNI:") } ?: return null
+        return if (aci == signalStore.selfAciOrNull()) null else "direct:$aci"
+    }
+
+    override fun smsNumberFor(threadKey: String): String? {
+        if (!threadKey.startsWith("direct:")) return null
+        val stored = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java).equalTo("threadKey", threadKey).findFirst()?.counterpartNumber
+        }
+        if (!stored.isNullOrBlank()) return stored
+        val id = threadKey.removePrefix("direct:")
+        // Note to Self is this account's own number.
+        if (id == signalStore.selfAciOrNull()) return signalStore.selfNumberOrNull()
+        return signalStore.contactNumber(id)?.takeIf { it.startsWith("+") }
+    }
 
     override fun privacy(): SignalPrivacy? = runCatching { signalStore.privacy() }.getOrNull()
 

@@ -264,7 +264,7 @@ class ComposeViewModel @Inject constructor(
                 // here too, or the pair is joined in one place and separate in the other.
                 val key = signalRepo.linkedThreadKeyFor(conversationId)
                     ?: address.takeIf { it.isNotBlank() }
-                        ?.let { signalRepo.findThreadForNumber(it)?.threadKey }
+                        ?.let { signalRepo.signalThreadKeyForNumber(it) }
                 newState { copy(signalThreadKey = key) }
             }
             .subscribe()
@@ -287,7 +287,7 @@ class ComposeViewModel @Inject constructor(
             .observeOn(Schedulers.io())
             .map { address ->
                 address.takeIf { it.isNotBlank() }
-                    ?.let { signalRepo.findThreadForNumber(it)?.threadKey }
+                    ?.let { signalRepo.signalThreadKeyForNumber(it) }
                     .orEmpty()
             }
             .distinctUntilChanged()

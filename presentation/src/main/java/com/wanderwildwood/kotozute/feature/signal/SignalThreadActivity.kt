@@ -2193,24 +2193,9 @@ class SignalThreadActivity : QkThemedActivity() {
                 return@thread
             }
 
-            // Otherwise the number, which lives on the thread row -- read it rather than
-            // guess it from the key.
-            val n = runCatching {
-                io.realm.Realm.getDefaultInstance().use { realm ->
-                    realm.where(com.wanderwildwood.kotozute.model.SignalThread::class.java)
-                        .equalTo("threadKey", threadKey)
-                        .findFirst()?.counterpartNumber.orEmpty()
-                }
-            }.getOrDefault("")
-                // Note to Self keeps no number of its own; it is this account's, and the
-                // texts to that number are its other half.
-                .ifBlank {
-                    runCatching {
-                        signalRepo.selfNumber().takeIf { own ->
-                            own.isNotBlank() && signalRepo.findThreadForNumber(own)?.threadKey == threadKey
-                        }
-                    }.getOrNull().orEmpty()
-                }
+            // Otherwise the number: the thread's own, else the one the account's contact list
+            // knows for this person, else -- for Note to Self -- this account's.
+            val n = runCatching { signalRepo.smsNumberFor(threadKey) }.getOrNull().orEmpty()
             if (n.isBlank()) return@thread
             // This number, and only this number.
             //

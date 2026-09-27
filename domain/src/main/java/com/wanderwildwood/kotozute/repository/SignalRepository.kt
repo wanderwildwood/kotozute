@@ -664,6 +664,16 @@ interface SignalRepository {
      */
     fun setOwnAbout(about: String, emoji: String): ProfileNameFailure?
 
+    /**
+     * The Signal conversation texts to [number] cross to: an existing one, or -- where the
+     * account knows that number is on Signal but nobody has written yet -- the one it would
+     * be. Null when the number is not known on Signal. Blocking.
+     */
+    fun signalThreadKeyForNumber(number: String): String?
+
+    /** The number a Signal conversation's texts are under, or null when none is known. Blocking. */
+    fun smsNumberFor(threadKey: String): String?
+
     /** This account's username and number privacy, as its record says; null if unread. Blocking. */
     fun privacy(): SignalPrivacy?
 

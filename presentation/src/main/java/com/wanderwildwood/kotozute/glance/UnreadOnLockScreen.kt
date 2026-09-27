@@ -9,9 +9,11 @@ import com.wanderwildwood.kotozute.model.SignalThread
 import io.realm.Realm
 
 /**
- * How many messages are unread, for the lock screen: texts in the inbox (not archived, not
- * blocked) and Signal messages in threads that are not archived, counted as messages rather
- * than conversations so "3 messages" means three. Nothing when there are none.
+ * How many messages are unread, for the lock screen, texts and Signal each on their own: texts
+ * in the inbox (not archived, not blocked) and Signal messages in threads that are not
+ * archived, counted as messages rather than conversations so "3 texts" means three. Glance puts
+ * the two on one line, "3 texts · 2 on Signal"; either is left out when it is nothing, and so is
+ * the whole line when both are.
  */
 class UnreadOnLockScreen : GlanceProvider() {
 
@@ -20,7 +22,7 @@ class UnreadOnLockScreen : GlanceProvider() {
         PreferenceManager.getDefaultSharedPreferences(context).getBoolean(KEY, true)
 
     override fun lines(context: Context): List<Line> {
-        val count = Realm.getDefaultInstance().use { realm ->
+        val (texts, signal) = Realm.getDefaultInstance().use { realm ->
             realm.refresh()
             val threads = realm.where(Conversation::class.java)
                 .equalTo("archived", false)
@@ -36,10 +38,13 @@ class UnreadOnLockScreen : GlanceProvider() {
                 .equalTo("archived", false)
                 .sum("unread")
                 .toLong()
-            texts + signal
-        }.toInt()
-        if (count <= 0) return emptyList()
-        return listOf(Line(context.resources.getQuantityString(R.plurals.lock_screen_unread_messages, count, count)))
+            texts.toInt() to signal.toInt()
+        }
+        val res = context.resources
+        return listOfNotNull(
+            texts.takeIf { it > 0 }?.let { Line(res.getQuantityString(R.plurals.lock_screen_unread_texts, it, it)) },
+            signal.takeIf { it > 0 }?.let { Line(res.getQuantityString(R.plurals.lock_screen_unread_signal, it, it)) }
+        )
     }
 
     companion object {

@@ -119,7 +119,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                 if (isFinishing) return@runOnUiThread
                 blocked = alreadyBlocked
                 binding.block.title = getString(blockRowTitle())
-                binding.block.setVisible(canBlock)
+                binding.block.setVisible(canBlock && threadKey.startsWith("direct:"))
             }
         }
 

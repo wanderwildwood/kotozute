@@ -1,7 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
 import android.content.Context
-import android.media.AudioManager
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.NoiseSuppressor
 import com.wanderwildwood.kotozute.repository.SignalCallControl
@@ -86,7 +85,6 @@ internal class SignalCallEngine(
         var accepted = false
         var connectedAt = 0L
         var muted = false
-        var speaker = false
         var reconnecting = false
         var ended = false
     }
@@ -236,7 +234,7 @@ internal class SignalCallEngine(
         call.accepted = true
         active = call
         publish(SignalCallState.Calling(peer, ringing = false))
-        audio.startCall()
+        audio.start()
         ringback.start(Ringback.Tone.RINGING)
         try {
             m.call(remote, CallManager.CallMediaType.AUDIO_CALL, store.deviceId())
@@ -250,7 +248,7 @@ internal class SignalCallEngine(
         if (call.accepted || call.ended) return@execute
         call.accepted = true
         publish(SignalCallState.Connecting(call.peer.aci))
-        audio.startCall()
+        audio.start()
         try {
             manager?.acceptCall(call.callId)
         } catch (e: CallException) {
@@ -286,16 +284,17 @@ internal class SignalCallEngine(
         publishConnected(call)
     }
 
-    override fun setSpeaker(on: Boolean) = worker.execute {
-        val call = active ?: return@execute
-        call.speaker = on
-        audio.setSpeaker(on)
-        publishConnected(call)
+    override fun selectOutput(output: com.wanderwildwood.kotozute.repository.AudioOutput) {
+        audio.select(output)
     }
 
     private fun publishConnected(call: Active) {
         if (call.connectedAt > 0 && !call.ended) {
-            publish(SignalCallState.Connected(call.peer.aci, call.connectedAt, call.muted, call.speaker, call.reconnecting))
+            publish(
+                SignalCallState.Connected(
+                    call.peer.aci, call.connectedAt, call.muted, audio.output, audio.outputs, call.reconnecting
+                )
+            )
         }
     }
 
@@ -433,7 +432,7 @@ internal class SignalCallEngine(
             val call = active ?: return@execute
             if (remote !is Peer || !call.peer.recipientEquals(remote)) return@execute
             active = null
-            audio.stopCall()
+            audio.stop()
             eglBase?.release()
             eglBase = null
             publish(SignalCallState.Idle)
@@ -521,7 +520,7 @@ internal class SignalCallEngine(
         if (call.ended) return
         call.ended = true
         ringback.stop()
-        audio.stopCall()
+        audio.stop()
         publish(SignalCallState.Ended(call.peer.aci, why))
     }
 
@@ -537,45 +536,11 @@ internal class SignalCallEngine(
 
     // --- Audio --------------------------------------------------------------------------------
 
-    /**
-     * The phone's audio in call mode while a call is up, back to normal after.
-     *
-     * The minimum a voice call needs. Upstream's `SignalAudioManager` also routes to Bluetooth
-     * and wired headsets and handles the proximity sensor; that is a later step.
-     */
     private val ringback = Ringback(context)
 
-    private val audio = object {
-        private val am get() = context.getSystemService(AudioManager::class.java)
-        private var on = false
-
-        fun startCall() {
-            if (on) return
-            on = true
-            runCatching {
-                am.mode = AudioManager.MODE_IN_COMMUNICATION
-                am.isSpeakerphoneOn = false
-            }.onFailure { Timber.w(it, "signal calls: could not put the audio into call mode") }
-        }
-
-        fun setSpeaker(on: Boolean) {
-            runCatching {
-                val wanted = am.availableCommunicationDevices.firstOrNull {
-                    it.type == if (on) android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
-                    else android.media.AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
-                }
-                if (wanted != null) am.setCommunicationDevice(wanted) else am.isSpeakerphoneOn = on
-            }.onFailure { Timber.w(it, "signal calls: could not switch the speaker") }
-        }
-
-        fun stopCall() {
-            if (!on) return
-            on = false
-            runCatching {
-                am.clearCommunicationDevice()
-                am.mode = AudioManager.MODE_NORMAL
-            }.onFailure { Timber.w(it, "signal calls: could not put the audio back") }
-        }
+    /** Where the call is heard. See [CallAudio]. A change of output redraws the call. */
+    private val audio = CallAudio(context) {
+        worker.execute { active?.let { publishConnected(it) } }
     }
 
     /**

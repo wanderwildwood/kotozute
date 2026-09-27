@@ -471,6 +471,19 @@
     <string name="signal_safety_verify_summary">After comparing these numbers with theirs, in person or on a call</string>
     <string name="signal_safety_verify_failed">Could not change it</string>
     <string name="signal_edit_history">Edit history</string>
+    <!-- Pinned messages: Signal's PinnedMessage__* and ConversationFragment__keep_pinned words. -->
+    <string name="signal_pin">Pin</string>
+    <string name="signal_unpin">Unpin</string>
+    <string name="signal_pin_keep_for">Keep pinned for…</string>
+    <string name="signal_pin_24_hours">24 hours</string>
+    <string name="signal_pin_7_days">7 days</string>
+    <string name="signal_pin_30_days">30 days</string>
+    <string name="signal_pin_forever">Forever</string>
+    <string name="signal_pinned_one">Pinned: %s</string>
+    <string name="signal_pinned_many">Pinned %1$d of %2$d: %3$s</string>
+    <string name="signal_pinned_attachment">Attachment</string>
+    <string name="signal_pin_failed">Couldn\'t pin message: %s</string>
+    <string name="signal_unpin_failed">Couldn\'t unpin message: %s</string>
     <!-- Message requests: Signal's MessageRequestBottomView wording. -->
     <string name="signal_request_direct">%s wants to message you. Accept to reply. They won\'t know you\'ve seen their messages until you do.</string>
     <string name="signal_request_group">You were added to %s. Accept to take part. Members won\'t know you\'ve seen their messages until you do.</string>

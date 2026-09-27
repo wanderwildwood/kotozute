@@ -342,6 +342,39 @@ internal object ContentNormalizer {
     }
 
     /** A conversation's disappearing-messages timer, as one message changed it. */
+    /** The pin or unpin in this content, if it carries one. */
+    fun pinIn(content: Content, metadata: EnvelopeMetadata, selfAci: String?, selfE164: String?): PinChange? {
+        val sent = content.syncMessage?.sent
+        val dataMessage = sent?.message ?: content.dataMessage ?: return null
+        val pin = dataMessage.pinMessage
+        val unpin = dataMessage.unpinMessage
+        if (pin == null && unpin == null) return null
+        val targetAuthor = org.signal.core.models.ServiceId.parseOrNull(
+            (pin?.targetAuthorAciBinary ?: unpin?.targetAuthorAciBinary)?.toByteArray()
+        )?.toString() ?: return null
+        val targetSentAt = pin?.targetSentTimestamp ?: unpin?.targetSentTimestamp ?: return null
+        val outgoing = sent?.message != null
+        val threadKey = threadKeyFor(
+            outgoing = outgoing,
+            counterpartUuid = if (outgoing) destinationServiceIdOf(sent!!) else metadata.sourceServiceId.toString(),
+            counterpartNumber = if (outgoing) sent!!.destinationE164.orEmpty() else metadata.sourceE164.orEmpty(),
+            groupId = groupIdOf(dataMessage),
+            selfAci = selfAci,
+            selfE164 = selfE164
+        ) ?: return null
+        val sentAt = dataMessage.timestamp ?: 0L
+        val until = when {
+            pin == null -> 0L
+            pin.pinDurationForever == true -> Long.MAX_VALUE
+            (pin.pinDurationSeconds ?: 0) > 0 -> sentAt + pin.pinDurationSeconds!! * 1000L
+            else -> return null
+        }
+        return PinChange(
+            threadKey, if (outgoing) selfAci.orEmpty() else metadata.sourceServiceId.toString(),
+            sentAt, targetAuthor, targetSentAt, pin != null, until
+        )
+    }
+
     data class TimerUpdate(
         val threadKey: String,
         val seconds: Long,

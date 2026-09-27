@@ -1522,6 +1522,96 @@ internal class SignalSender(
         }
     }
 
+    /**
+     * A message that carries no words, only what [extra] puts on it -- a pin, a poll, a vote --
+     * sent as a reaction is, and to ourselves as a note to self is. [what] names it in the log.
+     */
+    fun sendExtra(
+        recipient: ServiceId,
+        what: String,
+        expiresInSeconds: Int = 0,
+        extra: SignalServiceDataMessage.Builder.() -> Unit
+    ): Result {
+        val timestamp = System.currentTimeMillis()
+        val message = SignalServiceDataMessage.newBuilder()
+            .withTimestamp(timestamp)
+            .withExpiration(expiresInSeconds)
+            .apply(extra)
+            .build()
+        if (isSelf(recipient)) return sendToSelf(message, timestamp)
+        return try {
+            val owedProof = owesPniProof(recipient)
+            val result = sender.sendDataMessage(
+                SignalServiceAddress(recipient),
+                sealedSender.accessFor(recipient.toString()),
+                ContentHint.RESENDABLE,
+                message,
+                SignalServiceMessageSender.IndividualSendEvents.EMPTY,
+                true,
+                owedProof
+            )
+            clearPniProofIfSent(recipient, owedProof, result.isSuccess)
+            if (result.isSuccess) {
+                rememberSend(result, timestamp, null, ContentHint.RESENDABLE)
+                Timber.i("signal %s: delivered ts=%d", what, timestamp)
+                Result.Sent(timestamp)
+            } else {
+                failed(result)
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal %s: send threw", what)
+            failed(t)
+        }
+    }
+
+    /** The same, to a group of [members] at [revision]. A group of only ourselves still syncs. */
+    fun sendExtraToGroup(
+        masterKey: ByteArray,
+        members: List<ServiceId>,
+        revision: Int,
+        what: String,
+        expiresInSeconds: Int = 0,
+        extra: SignalServiceDataMessage.Builder.() -> Unit
+    ): Result {
+        val timestamp = System.currentTimeMillis()
+        val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
+            .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+            .withRevision(revision)
+            .build()
+        val message = SignalServiceDataMessage.newBuilder()
+            .withTimestamp(timestamp)
+            .asGroupMessage(group)
+            .withExpiration(expiresInSeconds)
+            .apply(extra)
+            .build()
+        return try {
+            val results = sender.sendDataMessage(
+                members.map { SignalServiceAddress(it) },
+                members.map { sealedSender.accessFor(it.toString()) },
+                false,
+                ContentHint.RESENDABLE,
+                message,
+                SignalServiceMessageSender.LegacyGroupEvents.EMPTY,
+                null,
+                null,
+                true
+            )
+            val groupIdentifier = groupIdentifierOf(masterKey)
+            results.forEach { rememberSend(it, timestamp, groupIdentifier, ContentHint.RESENDABLE) }
+            results.forEach { noteIfNotRegistered(it) }
+            val failed = results.filterNot { it.isSuccess }
+            if (failed.isNotEmpty() && failed.size == results.size) {
+                Result.Failed(SendFailure.NobodyReached(results.size))
+            } else {
+                Timber.i("signal %s: reached %d of %d group members", what, results.size - failed.size, results.size)
+                Result.Sent(timestamp)
+            }
+        } catch (t: Throwable) {
+            Timber.w(t, "signal %s: group send threw", what)
+            failed(t)
+        }
+    }
+
     /** The same, to a group: every member hears it, as they do a message. */
     fun sendReactionToGroup(
         masterKey: ByteArray,

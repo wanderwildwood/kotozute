@@ -125,6 +125,12 @@ open class SignalMessage : RealmObject() {
      */
     var revisions: String = ""
 
+    /** When this message was pinned in its conversation; 0 when it is not. */
+    var pinnedAt: Long = 0
+
+    /** When the pin lapses, [Long.MAX_VALUE] for one kept until unpinned; 0 when not pinned. */
+    var pinnedUntil: Long = 0
+
     companion object {
         const val SEND_SENT = 0
         const val SEND_SENDING = 1

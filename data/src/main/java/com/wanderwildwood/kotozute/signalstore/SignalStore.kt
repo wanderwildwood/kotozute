@@ -468,6 +468,41 @@ class SignalStore(private val context: Context) {
     }
 
     /**
+     * Sends a wordless message -- a pin, a poll, a vote -- into [threadKey], a person's or a
+     * group's. See [SignalSender.sendExtra]. Returns its timestamp; throws as a send does.
+     */
+    fun sendExtra(
+        threadKey: String,
+        masterKey: ByteArray?,
+        what: String,
+        expiresInSeconds: Int = 0,
+        extra: org.whispersystems.signalservice.api.messages.SignalServiceDataMessage.Builder.() -> Unit
+    ): Long {
+        connection.connect()
+        val result = if (masterKey != null) {
+            val group = when (val outcome = SignalGroups(connection, account, contacts).fetchOutcome(masterKey)) {
+                is SignalGroups.Outcome.Got -> outcome.group
+                SignalGroups.Outcome.NotAMember -> throw SendRefused(SendFailure.NotInGroup)
+                SignalGroups.Outcome.Gone -> throw SendRefused(SendFailure.GroupEnded)
+                is SignalGroups.Outcome.Unknown -> throw SendRefused(SendFailure.GroupUnreachable)
+            }
+            val self = account.credentials().aci
+            val members = group.members
+                .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+                .filter { it.toString() != self }
+            callSender().sendExtraToGroup(masterKey, members, group.revision, what, expiresInSeconds, extra)
+        } else {
+            val serviceId = org.signal.core.models.ServiceId.parseOrNull(threadKey.removePrefix("direct:"))
+                ?: throw IllegalStateException("not a service id")
+            callSender().sendExtra(serviceId, what, expiresInSeconds, extra)
+        }
+        return when (result) {
+            is SignalSender.Result.Sent -> result.timestamp
+            is SignalSender.Result.Failed -> throw SendRefused(result.failure)
+        }
+    }
+
+    /**
      * Takes one of this account's own messages back, for everyone it was sent to.
      *
      * [targetSentTimestamp] is the timestamp the message went out with, which is how Signal

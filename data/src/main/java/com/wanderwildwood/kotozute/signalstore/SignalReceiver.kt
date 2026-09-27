@@ -1476,6 +1476,15 @@ internal class SignalReceiver(
                     }
                 }
 
+                // A pin or unpin: not a message of its own, but it changes one and, for a pin,
+                // says so in the conversation. Not from somebody blocked.
+                if (!senderBlocked) {
+                    ContentNormalizer.pinIn(result.content, result.metadata, credentials.aci, credentials.e164)?.let { change ->
+                        runCatching { events.pinChanged(change) }
+                            .onFailure { Timber.w(it, "signal pin: could not apply") }
+                    }
+                }
+
                 // A timer change reaches the conversation even though it is not a message.
                 ContentNormalizer.timerUpdateIn(
                     result.content, result.metadata, credentials.aci, credentials.e164

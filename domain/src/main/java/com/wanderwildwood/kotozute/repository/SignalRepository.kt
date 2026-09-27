@@ -667,6 +667,12 @@ interface SignalRepository {
     /** Marks a person's safety number verified, or clears it. Blocking. False if it could not. */
     fun setVerified(threadKey: String, verified: Boolean): Boolean
 
+    /** Pins a message in its conversation for [seconds], or until unpinned when 0. Blocking; throws as a send does. */
+    fun pinMessage(messageId: String, seconds: Int)
+
+    /** Unpins a message, for everybody in its conversation. Blocking; throws as a send does. */
+    fun unpinMessage(messageId: String)
+
     /** A received voice note was played. Tells the sender, as Signal does, and our devices. */
     fun markListened(messageId: String)
 

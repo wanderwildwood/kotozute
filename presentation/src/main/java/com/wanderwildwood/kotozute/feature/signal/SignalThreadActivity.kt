@@ -321,11 +321,13 @@ class SignalThreadActivity : QkThemedActivity() {
         messages = results
         results.addChangeListener { data, _ ->
             adapter.submit(data)
+            showPinned(data)
             binding.empty.setVisible(data.isEmpty())
             if (data.isNotEmpty()) binding.recyclerView.scrollToPosition(data.size - 1)
             markRead(data)
         }
         adapter.submit(results)
+        showPinned(results)
         binding.empty.setVisible(results.isEmpty())
         markRead(results)
 
@@ -555,6 +557,70 @@ class SignalThreadActivity : QkThemedActivity() {
             }
         } + (dateFormatter.getDetailedTimestamp(if (m.revisionTs > 0) m.revisionTs else m.date) + "\n" + m.body)
         return lines.joinToString("\n\n")
+    }
+
+    /** Which pinned message the banner showed last; a tap moves on to the next. */
+    private var pinnedIndex = 0
+
+    /**
+     * The pinned banner, as upstream's `PinnedMessagesComponent`: the newest pin and how many
+     * there are. A tap goes to the message it names and moves on to the next; a long press
+     * unpins it.
+     */
+    private fun showPinned(data: List<SignalMessage>) {
+        val now = System.currentTimeMillis()
+        val pinned = data.filter { it.pinnedUntil > now }.sortedByDescending { it.pinnedAt }
+        binding.pinnedBar.setVisible(pinned.isNotEmpty())
+        if (pinned.isEmpty()) return
+        if (pinnedIndex >= pinned.size) pinnedIndex = 0
+        val m = pinned[pinnedIndex]
+        val preview = m.body.ifBlank { getString(R.string.signal_pinned_attachment) }.replace('\n', ' ')
+        binding.pinnedBar.text = if (pinned.size == 1) getString(R.string.signal_pinned_one, preview)
+        else getString(R.string.signal_pinned_many, pinnedIndex + 1, pinned.size, preview)
+        val id = m.id
+        val date = m.date
+        binding.pinnedBar.setOnClickListener {
+            adapter.positionOf(date).takeIf { it >= 0 }?.let { binding.recyclerView.scrollToPosition(it) }
+            pinnedIndex = (pinnedIndex + 1) % pinned.size
+            showPinned(data)
+        }
+        binding.pinnedBar.setOnLongClickListener {
+            changePin(id, pin = false, seconds = 0)
+            true
+        }
+    }
+
+    /** Upstream's "Keep pinned for…": 24 hours, 7 days, 30 days, or until unpinned. */
+    private fun askPinDuration(messageId: String) {
+        val choices = listOf(
+            R.string.signal_pin_24_hours to 86_400,
+            R.string.signal_pin_7_days to 604_800,
+            R.string.signal_pin_30_days to 2_592_000,
+            R.string.signal_pin_forever to 0
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.signal_pin_keep_for)
+            .setItems(choices.map { getString(it.first) }.toTypedArray()) { _, which ->
+                changePin(messageId, pin = true, seconds = choices[which].second)
+            }
+            .show()
+    }
+
+    private fun changePin(messageId: String, pin: Boolean, seconds: Int) {
+        thread(isDaemon = true) {
+            val result = runCatching {
+                if (pin) signalRepo.pinMessage(messageId, seconds) else signalRepo.unpinMessage(messageId)
+            }
+            runOnUiThread {
+                result.onFailure {
+                    Toast.makeText(
+                        this,
+                        getString(if (pin) R.string.signal_pin_failed else R.string.signal_unpin_failed, sayFailure(it).orEmpty()),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
     }
 
     /** Whether a view-once message's picture is here to open: fetched, not spent. */
@@ -1833,11 +1899,18 @@ class SignalThreadActivity : QkThemedActivity() {
         /** Sends this message on to another conversation; null where it cannot go. */
         forward: (() -> Unit)? = null,
         /** What the message said before it was edited, worded; empty for none. */
-        history: String = ""
+        history: String = "",
+        /** Whether it is pinned now, and so offers Unpin; null where it cannot be pinned. */
+        pinned: Boolean? = null
     ) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += getString(R.string.signal_reply) to { startReply(sentAt) }
         forward?.let { actions += getString(R.string.signal_forward) to it }
+        when (pinned) {
+            true -> actions += getString(R.string.signal_unpin) to { changePin(messageId, pin = false, seconds = 0) }
+            false -> actions += getString(R.string.signal_pin) to { askPinDuration(messageId) }
+            null -> Unit
+        }
         actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
         // Only where there is something to act on; see [downloadableAttachment].
         attachment?.let { saved ->
@@ -1896,7 +1969,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 getString(R.string.signal_withdraw_armed) to { withdraw(messageId) }
             } else {
                 getString(R.string.signal_withdraw) to {
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info, forward = forward, history = history)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info, forward = forward, history = history, pinned = pinned)
                 }
             }
         }
@@ -1910,7 +1983,7 @@ class SignalThreadActivity : QkThemedActivity() {
             val disarm = Runnable {
                 if (!isFinishing && dialog.isShowing) {
                     dialog.dismiss()
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info, forward = forward, history = history)
+                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info, forward = forward, history = history, pinned = pinned)
                 }
             }
             decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
@@ -2376,7 +2449,8 @@ class SignalThreadActivity : QkThemedActivity() {
                 else if (unsent) showUnsentActions(messageId, body)
                 else showMessageActions(
                     body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable, info = details,
-                    forward = forwardFor(m, saved), history = editHistory(m)
+                    forward = forwardFor(m, saved), history = editHistory(m),
+                    pinned = if (m.viewOnce) null else m.pinnedUntil > System.currentTimeMillis()
                 )
                 true
             }

@@ -110,6 +110,14 @@ class SignalThreadActivity : QkThemedActivity() {
         ActivityResultContracts.GetContent()
     ) { uri: Uri? -> if (uri != null) attach(uri) }
 
+    /** A picture to be opened once by whoever it reaches. Upstream offers it for photos. */
+    private val viewOncePicker = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> if (uri != null) attach(uri, viewOnce = true) }
+
+    /** Whether the attachment in the composer goes as view-once. */
+    private var pendingViewOnce = false
+
     /**
      * A contact, attached as its vCard -- the same one the SMS side attaches -- which the
      * sender turns into the card Signal sends. See `ContactCards` in the data module.
@@ -384,8 +392,18 @@ class SignalThreadActivity : QkThemedActivity() {
         // offers that this rail can send.
         binding.attach.setOnClickListener {
             AlertDialog.Builder(this)
-                .setItems(arrayOf(getString(R.string.signal_attach_file), getString(R.string.signal_attach_contact))) { _, which ->
-                    if (which == 0) picker.launch("*/*") else contactPicker.launch(null)
+                .setItems(
+                    arrayOf(
+                        getString(R.string.signal_attach_file),
+                        getString(R.string.signal_attach_view_once),
+                        getString(R.string.signal_attach_contact)
+                    )
+                ) { _, which ->
+                    when (which) {
+                        0 -> picker.launch("*/*")
+                        1 -> viewOncePicker.launch("image/*")
+                        else -> contactPicker.launch(null)
+                    }
                 }
                 .show()
         }
@@ -439,15 +457,18 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     /** Reads the picked file into a data URI; see [SignalAttachment] for why it resizes. */
-    private fun attach(uri: Uri) {
+    private fun attach(uri: Uri, viewOnce: Boolean = false) {
         thread(isDaemon = true) {
             val type = contentResolver.getType(uri) ?: "application/octet-stream"
             val result = runCatching { SignalAttachment.dataUri(this@SignalThreadActivity, uri) }
             runOnUiThread {
                 result.onSuccess { dataUri ->
                     pendingAttachment = dataUri
+                    pendingViewOnce = viewOnce
                     pendingName = SignalAttachment.displayName(this@SignalThreadActivity, uri) ?: type
-                    binding.pending.text = getString(R.string.signal_attached, pendingName)
+                    binding.pending.text = getString(
+                        if (viewOnce) R.string.signal_attached_view_once else R.string.signal_attached, pendingName
+                    )
                     binding.pending.setVisible(true)
                 }.onFailure {
                     // ⚠ Told, not swallowed, and told differently for the one cause somebody
@@ -477,6 +498,16 @@ class SignalThreadActivity : QkThemedActivity() {
     // business growing an epub reader; the device already has both, and an attachment is
     // useful exactly when it reaches them.
 
+    /** Whether a view-once message's picture is here to open: fetched, not spent. */
+    private fun viewOnceReady(m: SignalMessage): Boolean {
+        val entry = runCatching { JSONArray(m.attachments).optJSONObject(0) }.getOrNull() ?: return false
+        return entry.optString("id").isNotBlank() && !entry.optBoolean("pending")
+    }
+
+    private fun openViewOnce(messageId: String) {
+        startActivity(ViewOnceActivity.intentFor(this, messageId))
+    }
+
     /**
      * The first attachment on this message that is actually on the phone, or null.
      *
@@ -486,7 +517,9 @@ class SignalThreadActivity : QkThemedActivity() {
      * would be offering to write a file that does not exist.
      */
     private fun downloadableAttachment(m: SignalMessage): SavedAttachment? {
-        if (m.attachments.isBlank()) return null
+        // Never a view-once picture: open, save, share and forward all start here, and a
+        // view-once picture is for the viewer, once. See [openViewOnce].
+        if (m.viewOnce || m.attachments.isBlank()) return null
         val entry = runCatching { JSONArray(m.attachments) }.getOrNull()
             ?.takeIf { it.length() > 0 }?.optJSONObject(0) ?: return null
         val id = entry.optString("id")
@@ -1110,6 +1143,7 @@ class SignalThreadActivity : QkThemedActivity() {
 
     private fun clearAttachment() {
         pendingAttachment = null
+        pendingViewOnce = false
         pendingName = null
         binding.pending.setVisible(false)
     }
@@ -1250,6 +1284,7 @@ class SignalThreadActivity : QkThemedActivity() {
         val body = binding.message.text?.toString().orEmpty().trim()
         val styles = draftStyles(body)
         val attachment = pendingAttachment
+        val viewOnce = pendingViewOnce && attachment != null
         editing?.let { id ->
             if (body.isNotEmpty()) sendEdit(id, body)
             return
@@ -1261,7 +1296,15 @@ class SignalThreadActivity : QkThemedActivity() {
         signalRepo.stoppedComposing(threadKey, sent = true)
         thread(isDaemon = true) {
             val result = runCatching {
-                signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs, styles)
+                if (viewOnce) {
+                    // A view-once picture has no caption -- upstream's media sender turns
+                    // captions off with view-once on -- so words typed with it go first, as
+                    // a message of their own.
+                    if (body.isNotEmpty()) signalRepo.send(threadKey, body, emptyList(), quoteTs, styles)
+                    signalRepo.send(threadKey, "", listOfNotNull(attachment), 0L, "", viewOnce = true)
+                } else {
+                    signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs, styles)
+                }
             }
             runOnUiThread {
                 binding.send.isEnabled = true
@@ -2019,8 +2062,23 @@ class SignalThreadActivity : QkThemedActivity() {
             // ⚠ Decided once, as a flag. This compared `text === m.body`, and a live Realm row
             // hands back a new String on every read, so the comparison was never true and no
             // message was ever styled -- the spoilers it was there to hide were shown.
-            val isViewOnceLine = m.body.isEmpty() && m.viewOnce
-            val text = if (isViewOnceLine) getString(R.string.signal_view_once_received) else m.body
+            // A view-once message is a line saying where it stands, never its picture: sent,
+            // still to open, on its way, or already seen. Upstream's `RevealableMessageView`.
+            val isViewOnceLine = m.viewOnce
+            val viewOnceOpenable = isViewOnceLine && !m.outgoing && viewOnceReady(m)
+            val text = when {
+                !isViewOnceLine -> m.body
+                m.outgoing -> getString(R.string.signal_view_once_sent)
+                viewOnceOpenable -> getString(R.string.signal_view_once_open)
+                m.attachments.isNotBlank() -> getString(R.string.signal_view_once_downloading)
+                else -> getString(R.string.signal_view_once_received)
+            }
+            if (viewOnceOpenable) {
+                b.body.setOnClickListener { openViewOnce(m.id) }
+            } else {
+                b.body.setOnClickListener(null)
+                b.body.isClickable = false
+            }
             // Links, on the same terms as the SMS thread: blocked, asked about, or opened,
             // whichever the one preference says. A Signal message is likelier than a text to
             // carry a link worth following, and until now it was something to retype.
@@ -2308,7 +2366,7 @@ class SignalThreadActivity : QkThemedActivity() {
             b.image.setImageDrawable(null)
             b.album.removeAllViews()
             b.album.setVisible(false)
-            if (m.attachments.isBlank()) return
+            if (m.attachments.isBlank() || m.viewOnce) return
 
             val all = runCatching { JSONArray(m.attachments) }.getOrNull() ?: return
             // ⚠ Every attachment was always received and kept -- SignalReceiver and the

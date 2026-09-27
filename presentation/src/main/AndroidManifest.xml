@@ -137,6 +137,7 @@
         <activity android:name=".feature.signal.SignalRegisterActivity" />
         <activity android:name=".feature.signal.SignalThreadActivity" />
         <activity android:name=".feature.signal.SignalThreadInfoActivity" />
+        <activity android:name=".feature.signal.ViewOnceActivity" android:theme="@style/AppLaunchTheme" />
         <activity
             android:name=".feature.qkreply.QkReplyActivity"
             android:excludeFromRecents="true"

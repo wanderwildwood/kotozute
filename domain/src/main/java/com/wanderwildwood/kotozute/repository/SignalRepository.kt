@@ -337,7 +337,9 @@ interface SignalRepository {
         attachments: List<String> = emptyList(),
         quoteTs: Long = 0L,
         /** Bold, italic, spoilers and the rest, as the data layer's `BodyStyles.encode` writes them. */
-        stylesJson: String = ""
+        stylesJson: String = "",
+        /** The picture may be opened once by each person it reaches. */
+        viewOnce: Boolean = false
     ): Long
 
     /**
@@ -362,6 +364,15 @@ interface SignalRepository {
 
     /** Blocking. Returns null if Signal cannot be reached or has no such attachment. */
     fun loadAttachment(id: String): ByteArray?
+
+    /** A view-once picture and its type, for the viewer. */
+    class ViewOnceMedia(val bytes: ByteArray, val type: String)
+
+    /**
+     * A received view-once message's picture, once: spent in the same call, so null for one
+     * already opened here or elsewhere, and for our own. Blocks; not the main thread.
+     */
+    fun openViewOnce(messageId: String): ViewOnceMedia?
 
     /**
      * The Signal thread for a phone number, if this account has one. Matching is by

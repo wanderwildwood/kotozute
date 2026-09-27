@@ -13,6 +13,23 @@
     android:orientation="vertical"
     android:padding="24dp">
 
+    <!-- Never shown. The screens' base class looks the shared toolbar up to tint it, and a screen
+         without one crashes as it opens, which for this screen ended the call. -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        style="@style/Toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone">
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/toolbarTitle"
+            style="@style/ToolbarText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+    </androidx.appcompat.widget.Toolbar>
+
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/name"
         style="@style/TextPrimary"

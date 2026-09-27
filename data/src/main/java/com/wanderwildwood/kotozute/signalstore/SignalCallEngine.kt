@@ -341,6 +341,18 @@ internal class SignalCallEngine(
                     if (call.connectedAt == 0L) {
                         call.connectedAt = System.currentTimeMillis()
                         settle(call, CallOutcome.ANSWERED)
+                        // ⚠ RingRTC creates the outgoing audio track disabled, and nothing is
+                        // sent until the app enables it -- upstream does it here, in
+                        // `CallSetupActionProcessorDelegate.handleCallConnected`. Without it the
+                        // microphone records and the other end hears silence. Video is set off
+                        // in the same breath, as upstream does, and never turned on.
+                        try {
+                            manager?.setAudioEnable(!call.muted)
+                            manager?.setVideoEnable(false, false)
+                        } catch (e: CallException) {
+                            fail("could not turn the audio on", e)
+                            return@execute
+                        }
                     }
                     call.reconnecting = false
                     publishConnected(call)

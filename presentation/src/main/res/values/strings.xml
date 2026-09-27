@@ -1076,8 +1076,12 @@
     <string name="signal_call_reconnecting">Finding the connection again…</string>
     <string name="signal_call_mute">Mute</string>
     <string name="signal_call_unmute">Unmute</string>
-    <string name="signal_call_speaker">Speaker</string>
-    <string name="signal_call_earpiece">Earpiece</string>
+    <!-- The audio button: where the call is heard now; a tap moves to the next. -->
+    <string name="signal_call_audio">Audio: %1$s</string>
+    <string name="signal_call_output_bluetooth">Bluetooth</string>
+    <string name="signal_call_output_headset">Headset</string>
+    <string name="signal_call_output_earpiece">Earpiece</string>
+    <string name="signal_call_output_speaker">Speaker</string>
     <string name="signal_call_needs_microphone">Answering needs the microphone.</string>
     <string name="signal_call_ended">Call ended</string>
     <string name="signal_call_ended_declined">Declined</string>

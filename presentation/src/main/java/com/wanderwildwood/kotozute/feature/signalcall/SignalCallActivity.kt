@@ -66,8 +66,14 @@ class SignalCallActivity : QkThemedActivity() {
         binding.mute.setOnClickListener {
             (shown as? SignalCallState.Connected)?.let { signalRepo.calls().setMuted(!it.muted) }
         }
+        // One button for where the call is heard: each tap moves to the next output there is,
+        // so earpiece and speaker toggle as before, and a headset or Bluetooth joins the round.
         binding.speaker.setOnClickListener {
-            (shown as? SignalCallState.Connected)?.let { signalRepo.calls().setSpeaker(!it.speaker) }
+            (shown as? SignalCallState.Connected)?.let { call ->
+                if (call.outputs.size < 2) return@let
+                val next = call.outputs[(call.outputs.indexOf(call.output) + 1) % call.outputs.size]
+                signalRepo.calls().selectOutput(next)
+            }
         }
         handleAction(intent)
     }
@@ -148,7 +154,8 @@ class SignalCallActivity : QkThemedActivity() {
                 binding.inCall.visibility = View.VISIBLE
                 binding.inCallControls.visibility = View.VISIBLE
                 binding.mute.setText(if (state.muted) R.string.signal_call_unmute else R.string.signal_call_mute)
-                binding.speaker.setText(if (state.speaker) R.string.signal_call_earpiece else R.string.signal_call_speaker)
+                binding.speaker.text = getString(R.string.signal_call_audio, getString(outputName(state.output)))
+                binding.speaker.isEnabled = state.outputs.size > 1
                 tick(state)
             }
             is SignalCallState.Ended -> {
@@ -178,6 +185,13 @@ class SignalCallActivity : QkThemedActivity() {
         val seconds = (System.currentTimeMillis() - state.since) / 1000
         binding.status.text = String.format("%d:%02d", seconds / 60, seconds % 60)
         handler.postDelayed({ tick(state) }, 1000)
+    }
+
+    private fun outputName(output: com.wanderwildwood.kotozute.repository.AudioOutput): Int = when (output) {
+        com.wanderwildwood.kotozute.repository.AudioOutput.BLUETOOTH -> R.string.signal_call_output_bluetooth
+        com.wanderwildwood.kotozute.repository.AudioOutput.WIRED -> R.string.signal_call_output_headset
+        com.wanderwildwood.kotozute.repository.AudioOutput.EARPIECE -> R.string.signal_call_output_earpiece
+        com.wanderwildwood.kotozute.repository.AudioOutput.SPEAKER -> R.string.signal_call_output_speaker
     }
 
     private fun endedText(why: EndReason): Int = when (why) {

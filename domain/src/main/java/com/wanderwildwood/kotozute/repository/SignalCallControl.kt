@@ -29,7 +29,10 @@ sealed class SignalCallState {
         val peer: String,
         val since: Long,
         val muted: Boolean,
-        val speaker: Boolean,
+        /** Where the call is heard. */
+        val output: AudioOutput,
+        /** Every output there is to choose from right now, in the order they are offered. */
+        val outputs: List<AudioOutput>,
         val reconnecting: Boolean
     ) : SignalCallState()
 
@@ -38,6 +41,12 @@ sealed class SignalCallState {
 
     enum class EndReason { HUNG_UP, THEY_HUNG_UP, DECLINED, ANSWERED_ELSEWHERE, DECLINED_ELSEWHERE, BUSY, FAILED, TIMED_OUT }
 }
+
+/**
+ * Where a call is heard. Upstream's `SignalAudioManager.AudioDevice`, less its NONE: a Bluetooth
+ * headset or hearing aid, a headset on the jack or USB, the earpiece, or the loudspeaker.
+ */
+enum class AudioOutput { BLUETOOTH, WIRED, EARPIECE, SPEAKER }
 
 /** What the screens may do about the call. See [SignalCallState]. */
 interface SignalCallControl {
@@ -52,5 +61,6 @@ interface SignalCallControl {
     fun decline()
     fun hangUp()
     fun setMuted(muted: Boolean)
-    fun setSpeaker(on: Boolean)
+    /** Hear the call on [output], for as long as it is there. */
+    fun selectOutput(output: AudioOutput)
 }

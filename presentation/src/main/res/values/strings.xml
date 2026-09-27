@@ -483,6 +483,10 @@
     <string name="signal_request_failed">Could not do that: %s</string>
     <string name="signal_attach_file">Picture or file</string>
     <string name="signal_attach_contact">Contact</string>
+    <plurals name="signal_attached_many">
+        <item quantity="one">Attached: %d picture. Tap to remove</item>
+        <item quantity="other">Attached: %d pictures. Tap to remove</item>
+    </plurals>
     <string name="signal_forward_to">Forward to</string>
     <string name="signal_forward_nowhere">No Signal conversations to forward to</string>
     <string name="signal_forward_missing">the attachment is no longer on this phone</string>

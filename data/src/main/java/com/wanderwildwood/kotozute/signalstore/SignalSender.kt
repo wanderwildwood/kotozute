@@ -546,7 +546,13 @@ internal class SignalSender(
         masterKey: ByteArray,
         members: List<ServiceId>,
         revision: Int,
-        expiresInSeconds: Int = 0
+        expiresInSeconds: Int = 0,
+        /**
+         * The change the server signed, for a change to a group that already exists. With it
+         * a member applies the change straight from the message; without it, they fetch the
+         * group -- which works, and is a round trip for every member.
+         */
+        signedChange: ByteArray? = null
     ): Result {
         if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
         val timestamp = System.currentTimeMillis()
@@ -554,6 +560,7 @@ internal class SignalSender(
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2
             .newBuilder(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
             .withRevision(revision)
+            .apply { signedChange?.let { withSignedGroupChange(it) } }
             .build()
 
         val message = SignalServiceDataMessage.newBuilder()
@@ -1591,7 +1598,12 @@ internal class SignalSender(
         // Chosen by the caller when the message is written down before it is sent, so a resend
         // after the process dies is the same message to everyone -- a recipient that already
         // has it recognises the pair and drops the copy.
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        /**
+         * The message says only that the conversation's timer is now [expiresInSeconds], at
+         * [expireTimerVersion]: upstream's `OutgoingMessage.expirationUpdateMessage`. No body.
+         */
+        expirationUpdate: Boolean = false
     ): Result {
         refuseIfTooLong(body)?.let { return it }
         val streams = try {
@@ -1628,6 +1640,7 @@ internal class SignalSender(
             // peer holds and is ignored.
             .withExpiration(expiresInSeconds)
             .withExpireTimerVersion(expireTimerVersion)
+            .apply { if (expirationUpdate) asExpirationUpdate() }
             .build()
 
         // ⛔ **A note to self is not a message to a recipient, it is a sync transcript.**

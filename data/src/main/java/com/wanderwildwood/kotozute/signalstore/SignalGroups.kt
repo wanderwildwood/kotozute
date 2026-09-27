@@ -161,6 +161,71 @@ internal class SignalGroups(
         }
     }
 
+    /** How a change to a group went. See [change]. */
+    sealed interface Changed {
+        /** Made. [revision] is the group's new one; [signedChange] is the server's copy. */
+        class Done(val revision: Int, val members: List<String>, val signedChange: ByteArray) : Changed
+
+        /** The group already says so; there was nothing to change. */
+        object Unneeded : Changed
+
+        /** The group lets only its administrators do this, and this account is not one. */
+        object NotAllowed : Changed
+
+        /** This account is no longer in the group. */
+        object NotAMember : Changed
+
+        /** Anything else. Worth trying again. */
+        data class Failed(val why: String) : Changed
+    }
+
+    /**
+     * Makes one change to a group on the server: upstream's `GroupManagerV2.commitChange`.
+     *
+     * [build] is handed the group as it stands and returns the change, or null when there is
+     * nothing to do. The change is stamped with the next revision, and if somebody else's
+     * change got there first the server refuses it as a conflict -- then the group is read
+     * again and the change rebuilt against it, as upstream's conflict resolution does.
+     */
+    fun change(
+        masterKeyBytes: ByteArray,
+        build: (Group, org.whispersystems.signalservice.api.groupsv2.GroupsV2Operations.GroupOperations) ->
+            org.signal.storageservice.storage.protos.groups.GroupChange.Actions.Builder?
+    ): Changed {
+        val secretParams = GroupSecretParams.deriveFromMasterKey(GroupMasterKey(masterKeyBytes))
+        repeat(CHANGE_ATTEMPTS) {
+            val group = when (val got = fetchOutcome(masterKeyBytes)) {
+                is Outcome.Got -> got.group
+                Outcome.NotAMember, Outcome.Gone -> return Changed.NotAMember
+                is Outcome.Unknown -> return Changed.Failed(got.why)
+            }
+            val actions = build(group, connection.groupOperations.forGroup(secretParams))
+                ?: return Changed.Unneeded
+            val next = group.revision + 1
+            val auth = authorizationFor(secretParams, todaySeconds())
+                ?: return Changed.Failed("no group authorization")
+            try {
+                val response = connection.groups.patchGroup(
+                    actions.version(next).build(), auth, java.util.Optional.empty()
+                )
+                val signed = response.group_change ?: return Changed.Failed("the server sent no change back")
+                Timber.i("signal groups: changed a group, now at revision %d", next)
+                return Changed.Done(next, group.members, signed.encode())
+            } catch (e: org.whispersystems.signalservice.api.push.exceptions.ConflictException) {
+                Timber.i("signal groups: somebody else changed the group first; trying again")
+            } catch (e: org.whispersystems.signalservice.internal.push.exceptions.NotInGroupException) {
+                return Changed.NotAMember
+            } catch (e: org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException) {
+                Timber.i("signal groups: not allowed to make that change")
+                return Changed.NotAllowed
+            } catch (t: Throwable) {
+                Timber.w(t, "signal groups: could not change the group")
+                return Changed.Failed(t.message ?: t::class.java.simpleName)
+            }
+        }
+        return Changed.Failed("kept conflicting with other changes")
+    }
+
     /**
      * Keeps what the group knows about the people in it.
      *
@@ -372,6 +437,9 @@ internal class SignalGroups(
         TimeUnit.DAYS.toSeconds(TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()))
 
     companion object {
+        /** How many times a change is rebuilt after losing a race: upstream's five. */
+        private const val CHANGE_ATTEMPTS = 5
+
         /**
          * The group credentials this process holds, by UTC day.
          *

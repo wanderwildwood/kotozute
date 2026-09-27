@@ -198,6 +198,14 @@
                 android:layout_marginTop="16dp"
                 android:background="@android:color/black" />
 
+            <!-- How long messages here last. Tells the other side, or changes the group. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/timer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/info_timer"
+                xmlns:app="http://schemas.android.com/apk/res-auto" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/archive"
                 android:layout_width="match_parent"

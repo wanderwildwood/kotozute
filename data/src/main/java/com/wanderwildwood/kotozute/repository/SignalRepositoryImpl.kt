@@ -3064,6 +3064,63 @@ class SignalRepositoryImpl @Inject constructor(
         contactsChanged()
     }
 
+    /**
+     * Sets how long messages in [threadKey] last: upstream's `ExpireTimerSettingsRepository`.
+     *
+     * One-to-one, the timer is the conversation's own and goes as a message that says only
+     * that, at the next version, so a late copy of an older change cannot undo it. A group's
+     * timer is part of the group, and is changed on the server like its name.
+     *
+     * Written here only once it has gone. A timer this phone showed as set while nobody else
+     * had heard of it would disappear the reader's own messages on a rule the others do not
+     * know about.
+     */
+    override fun setDisappearingTimer(threadKey: String, seconds: Int): SignalRepository.TimerSet {
+        if (threadKey.startsWith("group:")) {
+            val masterKey = Realm.getDefaultInstance().use { groupMasterKeyFor(it, threadKey) }
+                ?: return SignalRepository.TimerSet.FAILED
+            return when (signalStore.setGroupTimer(masterKey, seconds)) {
+                is com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.Done,
+                com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.Unneeded -> {
+                    writeTimer(threadKey, seconds.toLong(), version = null)
+                    SignalRepository.TimerSet.SET
+                }
+                com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.NotAllowed ->
+                    SignalRepository.TimerSet.NOT_ALLOWED
+                com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.NotAMember ->
+                    SignalRepository.TimerSet.NOT_A_MEMBER
+                is com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.Failed ->
+                    SignalRepository.TimerSet.FAILED
+            }
+        }
+        val recipient = threadKey.removePrefix("direct:")
+        val version = timerFor(threadKey).second.let { if (it == Int.MAX_VALUE) it else it + 1 }
+        return try {
+            signalStore.send(
+                recipient, "", expiresInSeconds = seconds, expireTimerVersion = version,
+                expirationUpdate = true
+            )
+            writeTimer(threadKey, seconds.toLong(), version)
+            SignalRepository.TimerSet.SET
+        } catch (t: Throwable) {
+            Timber.w(t, "signal timer: could not set a conversation's timer")
+            SignalRepository.TimerSet.FAILED
+        }
+    }
+
+    private fun writeTimer(threadKey: String, seconds: Long, version: Int?) {
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalThread::class.java).equalTo("threadKey", threadKey).findFirst()?.let {
+                    it.expiresInSeconds = seconds
+                    if (version != null) it.expireTimerVersion = version
+                }
+            }
+        }
+        Timber.i("signal timer: set a conversation's timer to %d second(s)", seconds)
+        contactsChanged()
+    }
+
     /** The timer to stamp on anything sent into [threadKey], and which version says so. */
     private fun timerFor(threadKey: String): Pair<Int, Int> =
         Realm.getDefaultInstance().use { realm ->

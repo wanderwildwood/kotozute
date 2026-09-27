@@ -461,6 +461,8 @@
     <!-- The draft's selection menu. Signal's TextFormatting_* words. -->
     <string name="signal_format">Format</string>
     <string name="signal_forward">Forward</string>
+    <string name="signal_attach_file">Picture or file</string>
+    <string name="signal_attach_contact">Contact</string>
     <string name="signal_forward_to">Forward to</string>
     <string name="signal_forward_nowhere">No Signal conversations to forward to</string>
     <string name="signal_forward_missing">the attachment is no longer on this phone</string>

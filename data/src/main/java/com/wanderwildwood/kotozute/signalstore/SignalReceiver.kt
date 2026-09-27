@@ -2515,7 +2515,11 @@ internal class SignalReceiver(
             ?: content.syncMessage?.sent?.editMessage?.dataMessage
             ?: content.editMessage?.dataMessage
             ?: return message
-        if (dataMessage.attachments.isEmpty() || message.viewOnce) return message
+        if (message.viewOnce) return message
+        val cards = contactCards(message, dataMessage)
+        if (dataMessage.attachments.isEmpty()) {
+            return if (cards.length() == 0) message else message.copy(attachmentsJson = cards.toString())
+        }
 
         // ⚠ Bounded, which it was not. Every pointer in the message was downloaded, and each
         // download is allowed up to the receive ceiling -- so one message claiming five
@@ -2573,7 +2577,39 @@ internal class SignalReceiver(
             }
             array.put(entry)
         }
+        for (i in 0 until cards.length()) array.put(cards.get(i))
         return message.copy(attachmentsJson = array.toString())
+    }
+
+    /**
+     * A shared contact, kept as a vCard beside the message so that opening it hands it to the
+     * phone's contacts app. Named after the person, so the row says who it is. See
+     * [ContactCards]; upstream shows the same card with an "Add to contacts" button.
+     */
+    private fun contactCards(
+        message: com.wanderwildwood.kotozute.signal.BridgeMessage,
+        dataMessage: org.whispersystems.signalservice.internal.push.DataMessage
+    ): org.json.JSONArray {
+        val out = org.json.JSONArray()
+        dataMessage.contact.take(MAX_ATTACHMENT_COUNT).forEachIndexed { i, contact ->
+            val vcard = runCatching { ContactCards.toVCard(contact) }.getOrNull() ?: return@forEachIndexed
+            val bytes = vcard.toByteArray()
+            val id = java.security.MessageDigest.getInstance("SHA-256")
+                .digest("contact:${message.id}:$i".toByteArray())
+                .joinToString("") { "%02x".format(it) }
+                .take(32)
+            if (!attachments.keep(id) { java.io.ByteArrayInputStream(bytes) }) return@forEachIndexed
+            val name = ContactCards.nameOf(contact).ifBlank { "contact" }
+            out.put(
+                org.json.JSONObject()
+                    .put("id", id)
+                    .put("type", "text/x-vcard")
+                    .put("filename", "$name.vcf")
+                    .put("size", bytes.size)
+                    .put("contact", true)
+            )
+        }
+        return out
     }
 
     companion object {

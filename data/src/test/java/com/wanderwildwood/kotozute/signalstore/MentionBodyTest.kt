@@ -136,6 +136,17 @@ class MentionBodyTest {
     }
 
     @Test
+    fun `a contact card says who it is`() {
+        val card = DataMessage(
+            timestamp = 1_000L,
+            contact = listOf(
+                DataMessage.Contact(name = DataMessage.Contact.Name(givenName = "Ada", familyName = "Lovelace"))
+            )
+        )
+        assertEquals("(contact) Ada Lovelace", normalized(card)?.body)
+    }
+
+    @Test
     fun `a message needing a newer app says so`() {
         val future = DataMessage(timestamp = 1_000L, requiredProtocolVersion = 9_999)
         assertEquals("(a message this version of the app cannot show)", normalized(future)?.body)

@@ -734,6 +734,13 @@ class SignalStore(private val context: Context) {
         return callSender().sendCallMessage(serviceId, message)
     }
 
+    /** How a call went here, for our other devices. See [SignalSender.sendCallEvent]. */
+    internal fun sendCallEvent(peer: String, callId: Long, outgoing: Boolean, video: Boolean, accepted: Boolean) {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(peer) ?: return
+        connection.connect()
+        callSender().sendCallEvent(serviceId, callId, outgoing, video, accepted)
+    }
+
     /** The relay servers for a call. See [SignalSender.turnServers]. */
     internal fun turnServers(): List<org.whispersystems.signalservice.api.messages.calls.TurnServerInfo>? {
         connection.connect()

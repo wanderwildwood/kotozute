@@ -261,6 +261,7 @@ internal class SignalCallEngine(
         val call = active ?: return@execute
         if (call.accepted || call.ended) return@execute
         settle(call, CallOutcome.DECLINED)
+        tellOwnDevices(call, accepted = false)
         try {
             manager?.hangup()
         } catch (e: CallException) {
@@ -365,6 +366,7 @@ internal class SignalCallEngine(
                         call.connectedAt = System.currentTimeMillis()
                         ringback.stop()
                         settle(call, if (call.outgoing) CallOutcome.PLACED else CallOutcome.ANSWERED)
+                        tellOwnDevices(call, accepted = true)
                         // ⚠ RingRTC creates the outgoing audio track disabled, and nothing is
                         // sent until the app enables it -- upstream does it here, in
                         // `CallSetupActionProcessorDelegate.handleCallConnected`. Without it the
@@ -416,7 +418,11 @@ internal class SignalCallEngine(
                 EndReason.ANSWERED_ELSEWHERE -> settle(call, CallOutcome.ANSWERED_ELSEWHERE)
                 EndReason.DECLINED_ELSEWHERE -> settle(call, CallOutcome.DECLINED_ELSEWHERE)
                 else -> when {
-                    call.outgoing -> settle(call, if (call.connectedAt > 0) CallOutcome.PLACED else CallOutcome.PLACED_UNANSWERED)
+                    call.outgoing -> {
+                        settle(call, if (call.connectedAt > 0) CallOutcome.PLACED else CallOutcome.PLACED_UNANSWERED)
+                        // Upstream's `markNotAccepted`: an outgoing call that ended unanswered.
+                        if (call.connectedAt == 0L) tellOwnDevices(call, accepted = false)
+                    }
                     !call.accepted -> settle(call, CallOutcome.MISSED)
                 }
             }
@@ -514,6 +520,19 @@ internal class SignalCallEngine(
         store.forgetRingingCall(id)
         runCatching { record(call.peer.aci, id, call.offeredAt, call.video, outcome) }
             .onFailure { Timber.w(it, "signal calls: could not record the call") }
+    }
+
+    /**
+     * Our other devices, told how this call went here -- upstream sends the same two events,
+     * accepted when a call connects and not accepted when it is declined here or an outgoing
+     * one ends unanswered. Missed calls are not sent: every device saw those ring for itself.
+     */
+    private fun tellOwnDevices(call: Active, accepted: Boolean) {
+        val id = call.callId.longValue()
+        io.execute {
+            runCatching { store.sendCallEvent(call.peer.aci, id, call.outgoing, call.video, accepted) }
+                .onFailure { Timber.w(it, "signal calls: call event sync failed") }
+        }
     }
 
     private fun end(call: Active, why: EndReason) {

@@ -1069,6 +1069,43 @@ internal class SignalSender(
         }
     }
 
+    /**
+     * Tells this account's other devices how a call went here: accepted, or not. Upstream's
+     * `SignalCallManager.sendAcceptedCallEventSyncMessage` and `sendNotAcceptedCallEventSyncMessage`,
+     * built as `CallEventSyncMessageUtil.createCallEvent` builds them for a one-to-one call. It is
+     * what lets the other devices' call history say "answered on another device" rather than
+     * "missed". Best effort, as upstream's is: a failure is logged and nothing else waits on it.
+     */
+    fun sendCallEvent(peer: ServiceId, callId: Long, outgoing: Boolean, video: Boolean, accepted: Boolean): Result {
+        val event = org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent(
+            conversationId = peer.toByteString(),
+            callId = callId,
+            timestamp = System.currentTimeMillis(),
+            type = if (video) {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Type.VIDEO_CALL
+            } else {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Type.AUDIO_CALL
+            },
+            direction = if (outgoing) {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Direction.OUTGOING
+            } else {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Direction.INCOMING
+            },
+            event = if (accepted) {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Event.ACCEPTED
+            } else {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Event.NOT_ACCEPTED
+            },
+        )
+        return try {
+            val result = sender.sendSyncMessage(SignalServiceSyncMessage.forCallEvent(event))
+            if (result.isSuccess) Result.Sent(event.timestamp!!) else failed(result)
+        } catch (t: Throwable) {
+            Timber.w(t, "signal calls: could not tell our own devices how a call went")
+            failed(t)
+        }
+    }
+
     /** Asks the primary for the blocked list, which arrives later through the socket. */
     fun requestBlockedList(): Result = try {
         val result = sender.sendSyncMessage(

@@ -3509,6 +3509,86 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun groupInfo(threadKey: String): SignalRepository.GroupInfo? {
+        val masterKey = Realm.getDefaultInstance().use { groupMasterKeyFor(it, threadKey) } ?: return null
+        val g = runCatching { signalStore.groupDetails(masterKey) }.getOrNull() ?: return null
+        val self = signalStore.selfAciOrNull().orEmpty()
+        fun person(aci: String) = SignalRepository.GroupMember(
+            aci, if (aci == self) context.getString(UpdateStrings.signal_update_you) else whoIs(aci, self),
+            admin = aci in g.admins, self = aci == self
+        )
+        return SignalRepository.GroupInfo(
+            title = g.title,
+            description = g.description,
+            members = g.members.map(::person).sortedWith(compareByDescending<SignalRepository.GroupMember> { it.self }.thenBy { it.name }),
+            pending = g.pending.map(::person),
+            requesting = g.requesting.map(::person),
+            selfAdmin = self in g.admins,
+            selfInvited = self in g.pending,
+            editInfoAdminsOnly = g.editInfoAdminsOnly,
+            addMembersAdminsOnly = g.addMembersAdminsOnly,
+            sendAdminsOnly = g.announcementOnly,
+            link = g.link.name,
+            linkUrl = if (g.link != com.wanderwildwood.kotozute.signalstore.SignalGroups.Group.Link.OFF && g.linkPassword.isNotEmpty())
+                signalStore.groupLink(masterKey, g.linkPassword) else null
+        )
+    }
+
+    /**
+     * One change to a group, made and told, and said in the conversation as any member's
+     * change would be. See `SignalStore.editGroup`.
+     */
+    private fun editGroup(threadKey: String, edit: com.wanderwildwood.kotozute.signalstore.GroupEdit): SignalRepository.GroupEditResult {
+        val masterKey = Realm.getDefaultInstance().use { groupMasterKeyFor(it, threadKey) }
+            ?: return SignalRepository.GroupEditResult.FAILED
+        val (outcome, lines) = runCatching { signalStore.editGroup(masterKey, edit) }
+            .getOrElse {
+                Timber.w(it, "signal groups: a change threw")
+                return SignalRepository.GroupEditResult.FAILED
+            }
+        return when (outcome) {
+            is com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.Done -> {
+                val self = signalStore.selfAciOrNull().orEmpty()
+                if (lines.isNotEmpty()) {
+                    noteUpdateLine(threadKey, self, 0L, lines.joinToString("\n") { groupLine(it, self) }, masterKey)
+                }
+                noteGroupRevision(masterKey, outcome.revision)
+                SignalRepository.GroupEditResult.DONE
+            }
+            com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.Unneeded -> SignalRepository.GroupEditResult.UNNEEDED
+            com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.NotAllowed -> SignalRepository.GroupEditResult.NOT_ALLOWED
+            com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.NotAMember -> SignalRepository.GroupEditResult.NOT_A_MEMBER
+            is com.wanderwildwood.kotozute.signalstore.SignalGroups.Changed.Failed -> SignalRepository.GroupEditResult.FAILED
+        }
+    }
+
+    override fun renameGroup(threadKey: String, title: String) = editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.Rename(title))
+    override fun describeGroup(threadKey: String, text: String) = editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.Describe(text))
+    override fun addToGroup(threadKey: String, acis: List<String>) = editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.Add(acis))
+    override fun removeFromGroup(threadKey: String, aci: String) = editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.Remove(aci))
+    override fun setGroupAdmin(threadKey: String, aci: String, admin: Boolean) = editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.Admin(aci, admin))
+    override fun setEditInfoAdminsOnly(threadKey: String, on: Boolean) = editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.EditInfoAdminsOnly(on))
+    override fun setAddMembersAdminsOnly(threadKey: String, on: Boolean) = editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.AddMembersAdminsOnly(on))
+    override fun setSendAdminsOnly(threadKey: String, on: Boolean) = editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.SendAdminsOnly(on))
+    override fun setGroupLink(threadKey: String, state: String) = editGroup(
+        threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.SetLink(
+            com.wanderwildwood.kotozute.signalstore.SignalGroups.Group.Link.valueOf(state)
+        )
+    )
+    override fun resetGroupLink(threadKey: String) = editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.ResetLink)
+    override fun answerJoinRequest(threadKey: String, aci: String, approve: Boolean) = editGroup(
+        threadKey,
+        if (approve) com.wanderwildwood.kotozute.signalstore.GroupEdit.Approve(aci)
+        else com.wanderwildwood.kotozute.signalstore.GroupEdit.Deny(aci)
+    )
+    override fun answerGroupInvite(threadKey: String, accept: Boolean) = editGroup(
+        threadKey,
+        if (accept) com.wanderwildwood.kotozute.signalstore.GroupEdit.AcceptInvite
+        else com.wanderwildwood.kotozute.signalstore.GroupEdit.DeclineInvite
+    )
+    override fun leaveGroup(threadKey: String, newAdmin: String?) =
+        editGroup(threadKey, com.wanderwildwood.kotozute.signalstore.GroupEdit.Leave(newAdmin))
+
     /** Asks a poll in [threadKey]: upstream's `CreatePollFragment` sending. Returns its timestamp. */
     override fun createPoll(threadKey: String, question: String, multiple: Boolean, options: List<String>): Long {
         val poll = com.wanderwildwood.kotozute.signalstore.Polls.create(question, multiple, options)

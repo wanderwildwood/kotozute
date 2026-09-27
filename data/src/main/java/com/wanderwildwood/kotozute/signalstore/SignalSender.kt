@@ -577,7 +577,7 @@ internal class SignalSender(
          */
         signedChange: ByteArray? = null
     ): Result {
-        if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
+        // A group of only ourselves still tells our other devices, as a message to it does.
         val timestamp = System.currentTimeMillis()
 
         val group = org.whispersystems.signalservice.api.messages.SignalServiceGroupV2

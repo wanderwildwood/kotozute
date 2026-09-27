@@ -2,6 +2,7 @@ package com.wanderwildwood.kotozute.feature.signal
 
 import android.content.Context
 import android.content.Intent
+import android.view.View
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
@@ -177,6 +178,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         // Realm and the network both off the main thread; this screen opens over a
         // conversation and a stutter there is the one place it would be noticed.
         thread(isDaemon = true) { load() }
+        if (threadKey.startsWith("group:")) thread(isDaemon = true) { loadGroup() }
         thread(isDaemon = true) { loadIdentity() }
     }
 
@@ -582,6 +584,223 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         (Runtime.getRuntime().maxMemory() / 8).coerceIn(2L * 1024 * 1024, 32L * 1024 * 1024).toInt()
     ) {
         override fun sizeOf(key: String, value: Bitmap): Int = SignalAttachment.bitmapBytes(value)
+    }
+
+    // --- a group: its name, people, permissions and link -----------------------------------
+
+    private fun loadGroup() {
+        val info = runCatching { signalRepo.groupInfo(threadKey) }.getOrNull()
+        runOnUiThread { if (!isFinishing && info != null) showGroup(info) }
+    }
+
+    /** One row of the group section, as the screen's other rows are drawn. */
+    private fun row(title: String, summary: String? = null, onClick: (() -> Unit)?): View =
+        com.wanderwildwood.kotozute.common.widget.PreferenceView(this).apply {
+            this.title = title
+            this.summary = summary
+            if (onClick != null) setOnClickListener { onClick() } else isEnabled = false
+        }
+
+    private fun heading(text: String): View = com.wanderwildwood.kotozute.common.widget.QkTextView(this).apply {
+        this.text = text
+        setTypeface(typeface, android.graphics.Typeface.BOLD)
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        setPadding(pad, pad / 2, pad, 0)
+    }
+
+    /**
+     * The group section: upstream's `ConversationSettingsFragment` for a group, as rows. Who
+     * may change what follows the group's own permissions -- a row somebody cannot use is shown
+     * without a way in rather than offered and refused.
+     */
+    private fun showGroup(g: SignalRepository.GroupInfo) {
+        binding.membersHeading.setVisible(false)
+        binding.members.setVisible(false)
+        val box = binding.groupSection
+        box.removeAllViews()
+        box.setVisible(true)
+        val canEditInfo = !g.editInfoAdminsOnly || g.selfAdmin
+        val canAdd = !g.addMembersAdminsOnly || g.selfAdmin
+
+        if (g.selfInvited) {
+            box.addView(heading(getString(R.string.group_invited)))
+            box.addView(row(getString(R.string.group_accept_invite), null) { groupEdit { signalRepo.answerGroupInvite(threadKey, true) } })
+            box.addView(row(getString(R.string.group_decline_invite), null) { groupEdit(close = true) { signalRepo.answerGroupInvite(threadKey, false) } })
+            return
+        }
+
+        box.addView(row(getString(R.string.group_name), g.title, if (canEditInfo) ({ askText(R.string.group_name, g.title) { t -> groupEdit { signalRepo.renameGroup(threadKey, t) } } }) else null))
+        box.addView(row(getString(R.string.group_description), g.description.ifBlank { getString(R.string.group_description_none) },
+            if (canEditInfo) ({ askText(R.string.group_description, g.description) { t -> groupEdit { signalRepo.describeGroup(threadKey, t) } } }) else null))
+
+        box.addView(heading(resources.getQuantityString(R.plurals.group_members, g.members.size, g.members.size)))
+        if (canAdd) box.addView(row(getString(R.string.group_add_members), null) { pickPeopleToAdd(g) })
+        g.members.forEach { m ->
+            val summary = listOfNotNull(
+                getString(R.string.group_admin).takeIf { m.admin }
+            ).joinToString().ifBlank { null }
+            box.addView(row(m.name, summary, if (g.selfAdmin && !m.self) ({ memberActions(m) }) else null))
+        }
+        if (g.requesting.isNotEmpty() && g.selfAdmin) {
+            box.addView(heading(getString(R.string.group_requests)))
+            g.requesting.forEach { m -> box.addView(row(m.name, getString(R.string.group_request_summary)) { answerRequest(m) }) }
+        }
+        if (g.pending.isNotEmpty()) {
+            box.addView(heading(resources.getQuantityString(R.plurals.group_invited_count, g.pending.size, g.pending.size)))
+            g.pending.forEach { m -> box.addView(row(m.name, null, null)) }
+        }
+
+        if (g.selfAdmin) {
+            box.addView(heading(getString(R.string.group_permissions)))
+            box.addView(row(getString(R.string.group_who_edits_info), whoWords(g.editInfoAdminsOnly)) {
+                groupEdit { signalRepo.setEditInfoAdminsOnly(threadKey, !g.editInfoAdminsOnly) }
+            })
+            box.addView(row(getString(R.string.group_who_adds_members), whoWords(g.addMembersAdminsOnly)) {
+                groupEdit { signalRepo.setAddMembersAdminsOnly(threadKey, !g.addMembersAdminsOnly) }
+            })
+            box.addView(row(getString(R.string.group_who_sends), whoWords(g.sendAdminsOnly)) {
+                groupEdit { signalRepo.setSendAdminsOnly(threadKey, !g.sendAdminsOnly) }
+            })
+            box.addView(row(getString(R.string.group_link), linkWords(g.link)) { linkActions(g) })
+        }
+
+        // Down with Block and Delete: the rows that end something go last.
+        binding.groupLeave.setVisible(true)
+        binding.groupLeave.setOnClickListener { confirmLeave(g) }
+    }
+
+    private fun whoWords(adminsOnly: Boolean) = getString(if (adminsOnly) R.string.group_only_admins else R.string.group_all_members)
+
+    private fun linkWords(state: String) = getString(
+        when (state) {
+            "ON" -> R.string.group_link_on
+            "APPROVAL" -> R.string.group_link_approval
+            else -> R.string.group_link_off
+        }
+    )
+
+    /** A group change, off the main thread, then the section read again or the screen left. */
+    private fun groupEdit(close: Boolean = false, change: () -> SignalRepository.GroupEditResult) {
+        thread(isDaemon = true) {
+            val result = runCatching(change).getOrDefault(SignalRepository.GroupEditResult.FAILED)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                val words = when (result) {
+                    SignalRepository.GroupEditResult.DONE, SignalRepository.GroupEditResult.UNNEEDED -> null
+                    SignalRepository.GroupEditResult.NOT_ALLOWED -> R.string.group_not_allowed
+                    SignalRepository.GroupEditResult.NOT_A_MEMBER -> R.string.info_timer_not_member
+                    SignalRepository.GroupEditResult.FAILED -> R.string.group_failed
+                }
+                words?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+                if (close && words == null) finish() else thread(isDaemon = true) { loadGroup() }
+            }
+        }
+    }
+
+    private fun askText(@androidx.annotation.StringRes title: Int, current: String, onDone: (String) -> Unit) {
+        val field = android.widget.EditText(this).apply { setText(current); setSelection(current.length) }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(field)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ -> onDone(field.text.toString()) }
+            .show()
+    }
+
+    /** Signal people this phone knows, not already in the group, to add. */
+    private fun pickPeopleToAdd(g: SignalRepository.GroupInfo) {
+        thread(isDaemon = true) {
+            val inGroup = (g.members + g.pending).map { it.aci }.toSet()
+            val people = runCatching { signalRepo.getThreadsSnapshot(archived = false) }.getOrDefault(emptyList())
+                .filter { it.kind == "direct" && it.counterpartUuid.isNotBlank() && it.counterpartUuid !in inGroup && !it.counterpartUuid.startsWith("+") }
+                .map { it.counterpartUuid to it.title.ifBlank { it.counterpartUuid.take(8) } }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (people.isEmpty()) {
+                    Toast.makeText(this, R.string.group_nobody_to_add, Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                val chosen = BooleanArray(people.size)
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.group_add_members)
+                    .setMultiChoiceItems(people.map { it.second }.toTypedArray(), chosen) { _, i, on -> chosen[i] = on }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(R.string.group_add) { _, _ ->
+                        val acis = people.filterIndexed { i, _ -> chosen[i] }.map { it.first }
+                        if (acis.isNotEmpty()) groupEdit { signalRepo.addToGroup(threadKey, acis) }
+                    }
+                    .show()
+            }
+        }
+    }
+
+    private fun memberActions(m: SignalRepository.GroupMember) {
+        val actions = listOf(
+            getString(if (m.admin) R.string.group_remove_admin else R.string.group_make_admin) to {
+                groupEdit { signalRepo.setGroupAdmin(threadKey, m.aci, !m.admin) }
+            },
+            getString(R.string.group_remove_member) to {
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setMessage(getString(R.string.group_remove_confirm, m.name))
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(R.string.group_remove_member) { _, _ -> groupEdit { signalRepo.removeFromGroup(threadKey, m.aci) } }
+                    .show()
+            }
+        )
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(m.name)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, i -> actions[i].second() }
+            .show()
+    }
+
+    private fun answerRequest(m: SignalRepository.GroupMember) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(m.name)
+            .setMessage(R.string.group_request_question)
+            .setNegativeButton(R.string.group_deny) { _, _ -> groupEdit { signalRepo.answerJoinRequest(threadKey, m.aci, false) } }
+            .setPositiveButton(R.string.group_approve) { _, _ -> groupEdit { signalRepo.answerJoinRequest(threadKey, m.aci, true) } }
+            .show()
+    }
+
+    /** The group link: off, on, on with approval; share it; make a new one. */
+    private fun linkActions(g: SignalRepository.GroupInfo) {
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        listOf("OFF" to R.string.group_link_off, "ON" to R.string.group_link_on, "APPROVAL" to R.string.group_link_approval)
+            .filter { it.first != g.link }
+            .forEach { (state, words) -> actions += getString(words) to { groupEdit { signalRepo.setGroupLink(threadKey, state) } } }
+        g.linkUrl?.let { url ->
+            actions += getString(R.string.group_link_share) to {
+                startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url), null))
+            }
+            actions += getString(R.string.group_link_reset) to { groupEdit { signalRepo.resetGroupLink(threadKey) } }
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.group_link)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, i -> actions[i].second() }
+            .show()
+    }
+
+    /**
+     * Leaving, as upstream asks it: the last admin chooses who takes over first, since a group
+     * with members and no admin can never change again.
+     */
+    private fun confirmLeave(g: SignalRepository.GroupInfo) {
+        val others = g.members.filter { !it.self }
+        val lastAdmin = g.selfAdmin && g.members.none { it.admin && !it.self } && others.isNotEmpty()
+        if (lastAdmin) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.group_choose_admin)
+                .setItems(others.map { it.name }.toTypedArray()) { _, i ->
+                    groupEdit(close = true) { signalRepo.leaveGroup(threadKey, others[i].aci) }
+                }
+                .show()
+            return
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setMessage(R.string.group_leave_confirm)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.group_leave) { _, _ -> groupEdit(close = true) { signalRepo.leaveGroup(threadKey, null) } }
+            .show()
     }
 
     companion object {

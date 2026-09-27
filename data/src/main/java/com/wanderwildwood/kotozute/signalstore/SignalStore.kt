@@ -1304,6 +1304,62 @@ class SignalStore(private val context: Context) {
         return callSender().sendMessageRequestResponse(message) is SignalSender.Result.Sent
     }
 
+    /** A group as the server has it now, or null when it could not be read. */
+    internal fun groupDetails(masterKey: ByteArray): SignalGroups.Group? {
+        connection.connect()
+        return SignalGroups(connection, account, contacts).fetch(masterKey)
+    }
+
+    /**
+     * Makes [edit] to a group and tells everybody it concerns, with the server's signature:
+     * the members as they were, and anybody the change adds, removes, lets in or turns away.
+     * Returns the outcome; for a change made, what it did, for the conversation to say.
+     */
+    internal fun editGroup(masterKey: ByteArray, edit: GroupEdit): Pair<SignalGroups.Changed, List<GroupChangeLines.Line>> {
+        connection.connect()
+        val outcome = SignalGroups(connection, account, contacts).edit(masterKey, edit)
+        if (outcome !is SignalGroups.Changed.Done) return outcome to emptyList()
+        val self = account.credentials().aci.orEmpty()
+        val concerned = when (edit) {
+            is GroupEdit.Add -> edit.acis
+            is GroupEdit.Remove -> listOf(edit.aci)
+            is GroupEdit.Approve -> listOf(edit.aci)
+            is GroupEdit.Deny -> listOf(edit.aci)
+            else -> emptyList()
+        }
+        val recipients = (outcome.members + concerned).distinct()
+            .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+            .filter { it.toString() != self }
+        runCatching { callSender().sendGroupUpdate(masterKey, recipients, outcome.revision, 0, outcome.signedChange) }
+            .onFailure { Timber.w(it, "signal groups: could not tell the members of a change") }
+        val lines = runCatching {
+            val params = org.signal.libsignal.zkgroup.groups.GroupSecretParams
+                .deriveFromMasterKey(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+            connection.groupOperations.forGroup(params).decryptChange(
+                org.signal.storageservice.storage.protos.groups.GroupChange.ADAPTER.decode(outcome.signedChange),
+                org.whispersystems.signalservice.api.groupsv2.DecryptChangeVerificationMode.alreadyTrusted
+            ).orElse(null)?.let { GroupChangeLines.describe(it, self) }
+        }.getOrNull().orEmpty()
+        return outcome to lines
+    }
+
+    /**
+     * A group's invitation link: upstream's `GroupInviteLinkUrl`, the master key and the link's
+     * password in a `GroupInviteLink`, URL-safe base64 after `https://signal.group/#`.
+     */
+    fun groupLink(masterKey: ByteArray, password: ByteArray): String {
+        val link = org.signal.storageservice.storage.protos.groups.GroupInviteLink(
+            contentsV1 = org.signal.storageservice.storage.protos.groups.GroupInviteLink.GroupInviteLinkContentsV1(
+                groupMasterKey = okio.ByteString.of(*masterKey),
+                inviteLinkPassword = okio.ByteString.of(*password)
+            )
+        )
+        val encoded = android.util.Base64.encodeToString(
+            link.encode(), android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
+        )
+        return "https://signal.group/#$encoded"
+    }
+
     /** Leaves a group, as a request's Delete does: upstream's `leaveGroupFromBlockOrMessageRequest`. */
     internal fun leaveGroup(masterKey: ByteArray): SignalGroups.Changed {
         connection.connect()

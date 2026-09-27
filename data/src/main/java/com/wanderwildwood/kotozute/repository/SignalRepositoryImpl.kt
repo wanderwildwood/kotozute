@@ -1478,9 +1478,11 @@ class SignalRepositoryImpl @Inject constructor(
         attachments: List<String>,
         quote: com.wanderwildwood.kotozute.signalstore.SignalQuote? = null,
         /** The timestamp of a message already written down and being sent again, or 0. */
-        resending: Long = 0L
+        resending: Long = 0L,
+        /** Its styles, as [com.wanderwildwood.kotozute.signalstore.BodyStyles.encode] keeps them. */
+        stylesJson: String = ""
     ): Long {
-        if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments, quote, resending)
+        if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments, quote, resending, stylesJson)
         if (!threadKey.startsWith("direct:")) {
             throw IllegalStateException("cannot send to $threadKey")
         }
@@ -1525,10 +1527,12 @@ class SignalRepositoryImpl @Inject constructor(
                 // moment we sent it, which is what Signal stamps as the start for an
                 // outgoing message.
                 expiresInSeconds = expiresIn.toLong(),
-                expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L
+                expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
+                stylesJson = stylesJson
             )
+        val styles = com.wanderwildwood.kotozute.signalstore.BodyStyles.decode(stylesJson)
         return sendThroughOutbox(row, attachments, resending > 0) {
-            signalStore.send(recipient, body, attachments, expiresIn, timerVersion, quote, timestamp)
+            signalStore.send(recipient, body, attachments, expiresIn, timerVersion, quote, timestamp, styles = styles)
         }
     }
 
@@ -1745,7 +1749,7 @@ class SignalRepositoryImpl @Inject constructor(
                 com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared("it is no longer on this phone")
             )
         }
-        return sendDirect(m.threadKey, m.body, attachments, quoteFor(m.threadKey, m.quoteTs), resending = m.date)
+        return sendDirect(m.threadKey, m.body, attachments, quoteFor(m.threadKey, m.quoteTs), resending = m.date, stylesJson = m.styles)
     }
 
     /**
@@ -1796,7 +1800,8 @@ class SignalRepositoryImpl @Inject constructor(
         body: String,
         attachments: List<String>,
         quote: com.wanderwildwood.kotozute.signalstore.SignalQuote? = null,
-        resending: Long = 0L
+        resending: Long = 0L,
+        stylesJson: String = ""
     ): Long {
         if (attachments.isNotEmpty()) {
             throw com.wanderwildwood.kotozute.repository.SendRefused(
@@ -1829,7 +1834,8 @@ class SignalRepositoryImpl @Inject constructor(
                 // Our own copy of a group send expires on the group's timer too.
                 expiresInSeconds = expiresIn.toLong(),
                 expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
-                groupMasterKey = masterKey
+                groupMasterKey = masterKey,
+                stylesJson = stylesJson
             )
         // The same order as the one-to-one send; see [sendThroughOutbox].
         // "@Name" goes as a real mention, worked out against the group's members once the send
@@ -1837,7 +1843,10 @@ class SignalRepositoryImpl @Inject constructor(
         // mention is shown too.
         val names = runCatching { senderNamesFor(threadKey) }.getOrDefault(emptyMap())
         return sendThroughOutbox(row, emptyList(), resending > 0) {
-            signalStore.sendToGroup(masterKey, body, expiresIn, timerVersion, quote, timestamp, names)
+            signalStore.sendToGroup(
+                masterKey, body, expiresIn, timerVersion, quote, timestamp, names,
+                com.wanderwildwood.kotozute.signalstore.BodyStyles.decode(stylesJson)
+            )
         }
     }
 
@@ -2622,9 +2631,9 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun send(threadKey: String, body: String, attachments: List<String>, quoteTs: Long): Long =
+    override fun send(threadKey: String, body: String, attachments: List<String>, quoteTs: Long, stylesJson: String): Long =
         try {
-            sendDirect(threadKey, body, attachments, quoteFor(threadKey, quoteTs))
+            sendDirect(threadKey, body, attachments, quoteFor(threadKey, quoteTs), stylesJson = stylesJson)
         } catch (t: Throwable) {
             if (ServiceOutage.worthChecking(t)) checkServiceOutage()
             throw t

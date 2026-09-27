@@ -343,7 +343,9 @@ internal class SignalSender(
         /** As [send]'s. */
         timestamp: Long = System.currentTimeMillis(),
         /** Mentions in [body], already placeholders there. See [OutgoingMentions]. */
-        mentions: List<OutgoingMentions.Mention> = emptyList()
+        mentions: List<OutgoingMentions.Mention> = emptyList(),
+        /** Styles over [body] as sent, placeholders and all. */
+        styles: List<BodyStyles.Range> = emptyList()
     ): Result {
         if (members.isEmpty()) return Result.Failed(SendFailure.NoReachableMembers)
         refuseIfTooLong(body)?.let { return it }
@@ -379,6 +381,7 @@ internal class SignalSender(
             // agreed its messages disappear would quietly stop expiring ours.
             .withExpiration(expiresInSeconds)
             .withExpireTimerVersion(expireTimerVersion)
+            .withBodyRanges(styleRanges(styles))
             .build()
 
         return try {
@@ -874,6 +877,21 @@ internal class SignalSender(
         Timber.w(t, "signal calls: a call message did not go")
         CallSend.NETWORK
     }
+
+    /** Styles as the body ranges Signal sends: upstream's `MessageStyler.getStyling`. */
+    private fun styleRanges(styles: List<BodyStyles.Range>) = styles.map { r ->
+        org.whispersystems.signalservice.internal.push.BodyRange(
+            start = r.start,
+            length = r.length,
+            style = when (r.style) {
+                BodyStyles.Style.BOLD -> org.whispersystems.signalservice.internal.push.BodyRange.Style.BOLD
+                BodyStyles.Style.ITALIC -> org.whispersystems.signalservice.internal.push.BodyRange.Style.ITALIC
+                BodyStyles.Style.SPOILER -> org.whispersystems.signalservice.internal.push.BodyRange.Style.SPOILER
+                BodyStyles.Style.STRIKETHROUGH -> org.whispersystems.signalservice.internal.push.BodyRange.Style.STRIKETHROUGH
+                BodyStyles.Style.MONOSPACE -> org.whispersystems.signalservice.internal.push.BodyRange.Style.MONOSPACE
+            }
+        )
+    }.takeIf { it.isNotEmpty() }
 
     /**
      * Says we started or stopped typing, to one person or to a group's members.
@@ -1603,7 +1621,9 @@ internal class SignalSender(
          * The message says only that the conversation's timer is now [expiresInSeconds], at
          * [expireTimerVersion]: upstream's `OutgoingMessage.expirationUpdateMessage`. No body.
          */
-        expirationUpdate: Boolean = false
+        expirationUpdate: Boolean = false,
+        /** Bold, italic, spoilers and the rest, over [body]. */
+        styles: List<BodyStyles.Range> = emptyList()
     ): Result {
         refuseIfTooLong(body)?.let { return it }
         val streams = try {
@@ -1641,6 +1661,7 @@ internal class SignalSender(
             .withExpiration(expiresInSeconds)
             .withExpireTimerVersion(expireTimerVersion)
             .apply { if (expirationUpdate) asExpirationUpdate() }
+            .withBodyRanges(styleRanges(styles))
             .build()
 
         // ⛔ **A note to self is not a message to a recipient, it is a sync transcript.**

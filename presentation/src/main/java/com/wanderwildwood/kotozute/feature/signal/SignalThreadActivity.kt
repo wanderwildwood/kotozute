@@ -368,6 +368,7 @@ class SignalThreadActivity : QkThemedActivity() {
         // ⚠ The layout hides the cursor and nothing here ever showed it again, so on this
         // rail there was never a cursor at all.
         binding.message.showCursorWhenWriting()
+        offerFormatting()
         binding.message.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) {
                 showSendOrRecord()
@@ -1150,8 +1151,62 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     }
 
+    /** The draft's styles over [body], the draft as trimmed for sending. See [ComposeStyles]. */
+    private fun draftStyles(body: String): String {
+        val text = binding.message.text ?: return ""
+        val lead = text.length - text.trimStart().length
+        return com.wanderwildwood.kotozute.signalstore.BodyStyles.encode(ComposeStyles.of(text, lead, body))
+    }
+
+    /**
+     * Signal's formatting items on the draft's selection menu, after its own copy, cut and
+     * paste, as `ComposeText` puts them; "Clear formatting" only where there is some.
+     */
+    private fun offerFormatting() {
+        val items = listOf(
+            FORMAT_BOLD to (R.string.signal_format_bold to com.wanderwildwood.kotozute.signalstore.BodyStyles.Style.BOLD),
+            FORMAT_ITALIC to (R.string.signal_format_italic to com.wanderwildwood.kotozute.signalstore.BodyStyles.Style.ITALIC),
+            FORMAT_STRIKE to (R.string.signal_format_strikethrough to com.wanderwildwood.kotozute.signalstore.BodyStyles.Style.STRIKETHROUGH),
+            FORMAT_MONO to (R.string.signal_format_monospace to com.wanderwildwood.kotozute.signalstore.BodyStyles.Style.MONOSPACE),
+            FORMAT_SPOILER to (R.string.signal_format_spoiler to com.wanderwildwood.kotozute.signalstore.BodyStyles.Style.SPOILER)
+        )
+        binding.message.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
+            override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                val order = listOf(android.R.id.copy, android.R.id.cut, android.R.id.paste)
+                    .maxOf { menu.findItem(it)?.order ?: 0 }
+                items.forEach { (id, item) -> menu.add(0, id, order, item.first) }
+                val text = binding.message.text
+                if (text != null && ComposeStyles.hasStyling(text, binding.message.selectionStart, binding.message.selectionEnd)) {
+                    menu.add(0, FORMAT_CLEAR, order, R.string.signal_format_clear)
+                }
+                return true
+            }
+
+            override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
+
+            override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
+                val text = binding.message.text ?: return false
+                val start = binding.message.selectionStart
+                val end = binding.message.selectionEnd
+                val style = items.firstOrNull { it.first == item.itemId }?.second?.second
+                when {
+                    style != null -> ComposeStyles.toggle(text, start, end, style, SPOILER_SHADE)
+                    item.itemId == FORMAT_CLEAR -> ComposeStyles.clear(text, start, end)
+                    else -> return false
+                }
+                // Upstream leaves the cursor at the end of what was styled.
+                android.text.Selection.setSelection(text, end)
+                mode.finish()
+                return true
+            }
+
+            override fun onDestroyActionMode(mode: android.view.ActionMode) = Unit
+        }
+    }
+
     private fun send() {
         val body = binding.message.text?.toString().orEmpty().trim()
+        val styles = draftStyles(body)
         val attachment = pendingAttachment
         editing?.let { id ->
             if (body.isNotEmpty()) sendEdit(id, body)
@@ -1164,7 +1219,7 @@ class SignalThreadActivity : QkThemedActivity() {
         signalRepo.stoppedComposing(threadKey, sent = true)
         thread(isDaemon = true) {
             val result = runCatching {
-                signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs)
+                signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs, styles)
             }
             runOnUiThread {
                 binding.send.isEnabled = true
@@ -1410,11 +1465,13 @@ class SignalThreadActivity : QkThemedActivity() {
      */
     private fun acceptAndResend(body: String, attachment: String?) {
         binding.send.isEnabled = false
+        // Still in the composer: a refused send leaves the draft where it was.
+        val styles = draftStyles(body)
         thread(isDaemon = true) {
             val accepted = runCatching { signalRepo.acceptIdentity(threadKey) }.getOrDefault(false)
             val quoteTs = replyingTo
             val result = if (accepted) {
-                runCatching { signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs) }
+                runCatching { signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs, styles) }
             } else {
                 Result.failure(IllegalStateException(getString(R.string.signal_safety_accept_failed)))
             }
@@ -1749,6 +1806,17 @@ class SignalThreadActivity : QkThemedActivity() {
     companion object {
         /** Plain ASCII on purpose: the Kompakt's font has no glyph for the nicer arrows. */
         private const val RAIL_SWITCH_ARROW = ">"
+
+        // The draft's formatting menu items. Any ids do; these stay clear of the platform's.
+        private const val FORMAT_BOLD = 0x5f01
+        private const val FORMAT_ITALIC = 0x5f02
+        private const val FORMAT_STRIKE = 0x5f03
+        private const val FORMAT_MONO = 0x5f04
+        private const val FORMAT_SPOILER = 0x5f05
+        private const val FORMAT_CLEAR = 0x5f06
+
+        /** A spoiler in the draft: shown, on a light grey, so the writer can see what it hides. */
+        private const val SPOILER_SHADE = 0xFFD0D0D0.toInt()
 
         /** How long an armed destructive row stays armed, as everywhere else in the app. */
         private const val ARM_TIMEOUT_MS = 4000L

@@ -396,7 +396,8 @@ class SignalStore(private val context: Context) {
          * have written in the group, as the thread shows them, so what the picker offered
          * still matches. See [OutgoingMentions].
          */
-        mentionNames: Map<String, String> = emptyMap()
+        mentionNames: Map<String, String> = emptyMap(),
+        styles: List<BodyStyles.Range> = emptyList()
     ): Long {
         connection.connect()
         // ⚠ Which kind of "no" matters. Being removed from a group is permanent and there is
@@ -423,12 +424,12 @@ class SignalStore(private val context: Context) {
             .filter { it.toString() != account.credentials().aci }
         // Every member can be mentioned, including one who has never written here: the group
         // has just said who is in it.
-        val encoded = OutgoingMentions.encode(body, memberNames(members.map { it.toString() }) + mentionNames)
+        val encoded = OutgoingMentions.encode(body, memberNames(members.map { it.toString() }) + mentionNames, styles)
         return when (
             val r = SignalSender(
                 SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
-            ).sendToGroup(masterKey, members, encoded.body, expiresInSeconds, expireTimerVersion, group.revision, quote, timestamp, encoded.mentions)
+            ).sendToGroup(masterKey, members, encoded.body, expiresInSeconds, expireTimerVersion, group.revision, quote, timestamp, encoded.mentions, encoded.styles)
         ) {
             is SignalSender.Result.Sent -> r.timestamp
             is SignalSender.Result.Failed -> throw SendRefused(r.failure)
@@ -1585,7 +1586,8 @@ class SignalStore(private val context: Context) {
         quote: SignalQuote? = null,
         timestamp: Long = System.currentTimeMillis(),
         /** See [SignalSender.send]. */
-        expirationUpdate: Boolean = false
+        expirationUpdate: Boolean = false,
+        styles: List<BodyStyles.Range> = emptyList()
     ): Long {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
             ?: throw IllegalStateException("not a service id: $recipient")
@@ -1593,7 +1595,7 @@ class SignalStore(private val context: Context) {
         return try {
             when (val result = SignalSender(
                 SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection, contacts
-            ).send(serviceId, body, attachments, expiresInSeconds, expireTimerVersion, quote, timestamp, expirationUpdate)) {
+            ).send(serviceId, body, attachments, expiresInSeconds, expireTimerVersion, quote, timestamp, expirationUpdate, styles)) {
                 is SignalSender.Result.Sent -> result.timestamp
                 // Typed, so the screen can offer "Send anyway" rather than reprint the
                 // reason. See [SafetyNumberChanged].

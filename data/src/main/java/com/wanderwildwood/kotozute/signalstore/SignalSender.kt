@@ -736,6 +736,46 @@ internal class SignalSender(
      * every device files a message under. Raw content, because the library has no builder for
      * this sync, and padded as upstream pads it so its length says nothing.
      */
+    /**
+     * Tells our other devices a whole conversation was deleted here: upstream's
+     * `MultiDeviceDeleteSyncJob` for a thread. [recent] is its newest messages, which is how
+     * the other devices find the conversation and know what "everything" meant.
+     */
+    fun sendConversationDelete(
+        conversation: org.whispersystems.signalservice.internal.push.ConversationIdentifier,
+        recent: List<Pair<ServiceId.ACI, Long>>
+    ): Result {
+        val padding = ByteArray(1 + java.security.SecureRandom().nextInt(512)).also { java.security.SecureRandom().nextBytes(it) }
+        val named = recent.map { (author, at) ->
+            org.whispersystems.signalservice.internal.push.AddressableMessage(
+                authorServiceIdBinary = author.toByteString(), sentTimestamp = at
+            )
+        }
+        val sync = org.whispersystems.signalservice.internal.push.SyncMessage(
+            deleteForMe = org.whispersystems.signalservice.internal.push.SyncMessage.DeleteForMe(
+                conversationDeletes = listOf(
+                    org.whispersystems.signalservice.internal.push.SyncMessage.DeleteForMe.ConversationDelete(
+                        conversation = conversation,
+                        mostRecentMessages = named,
+                        isFullDelete = true
+                    )
+                )
+            ),
+            padding = okio.ByteString.of(*padding)
+        )
+        return try {
+            val result = sender.sendSyncMessage(
+                org.whispersystems.signalservice.internal.push.Content(syncMessage = sync),
+                true,
+                java.util.Optional.empty()
+            )
+            if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else failed(result)
+        } catch (t: Throwable) {
+            Timber.w(t, "signal delete sync: conversation delete threw")
+            failed(t)
+        }
+    }
+
     fun sendDeleteForMe(
         conversation: org.whispersystems.signalservice.internal.push.ConversationIdentifier,
         messages: List<Pair<ServiceId.ACI, Long>>
@@ -800,6 +840,23 @@ internal class SignalSender(
      * message here that exists to tell another person something about the reader rather than
      * to carry anything they wrote.
      */
+    /** A voice note was listened to: upstream's viewed receipt. */
+    fun sendViewedReceipt(recipient: ServiceId, timestamps: List<Long>): Result =
+        sendReceipt(recipient, timestamps, SignalServiceReceiptMessage.Type.VIEWED, "a viewed receipt")
+
+    /** And our other devices told, so it reads as listened to there. */
+    fun sendViewedSync(author: ServiceId, sentAt: Long): Result = try {
+        val result = sender.sendSyncMessage(
+            SignalServiceSyncMessage.forViewed(
+                listOf(org.whispersystems.signalservice.api.messages.multidevice.ViewedMessage(author, sentAt))
+            )
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else failed(result)
+    } catch (t: Throwable) {
+        Timber.w(t, "signal viewed sync: send threw")
+        failed(t)
+    }
+
     fun sendReadReceipt(recipient: ServiceId, timestamps: List<Long>): Result =
         sendReceipt(recipient, timestamps, SignalServiceReceiptMessage.Type.READ, "a read receipt")
 
@@ -1152,6 +1209,15 @@ internal class SignalSender(
         if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else failed(result)
     } catch (t: Throwable) {
         Timber.w(t, "signal request sync: send threw")
+        failed(t)
+    }
+
+    /** See [SignalStore.setVerified]. */
+    fun sendVerifiedSync(message: org.whispersystems.signalservice.api.messages.multidevice.VerifiedMessage): Result = try {
+        val result = sender.sendSyncMessage(SignalServiceSyncMessage.forVerified(message))
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else failed(result)
+    } catch (t: Throwable) {
+        Timber.w(t, "signal identity: verified sync threw")
         failed(t)
     }
 

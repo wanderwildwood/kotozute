@@ -1162,14 +1162,19 @@ internal class SignalReceiver(
                             author to at
                         }
 
-                    // Direct conversations only. A group's thread key here is derived from
-                    // the group's master key, and the id this names is not that -- guessing
-                    // at the derivation would either match nothing or, far worse, match the
-                    // wrong conversation and empty it. Group deletes are left alone until
-                    // the two can be shown to agree.
+                    // Groups too, now that the two are shown to agree: upstream reads
+                    // `threadGroupId` with `GroupId.push`, and a group's V2 id is the identifier
+                    // derived from its master key (`GroupId.v2`) -- which is exactly what a group
+                    // thread here is keyed on. Anything not 32 bytes is not a V2 group and is
+                    // left alone.
                     val threads = deletes.conversationDeletes.mapNotNull { conversation ->
                         conversation.conversation?.let { id ->
-                            if (id.threadGroupId != null && id.threadGroupId!!.size > 0) return@mapNotNull null
+                            val group = id.threadGroupId
+                            if (group != null && group.size > 0) {
+                                return@mapNotNull if (group.size == 32) {
+                                    "group:" + android.util.Base64.encodeToString(group.toByteArray(), android.util.Base64.NO_WRAP)
+                                } else null
+                            }
                             ServiceId.parseOrNull(id.threadServiceId, id.threadServiceIdBinary)
                                 ?.toString()?.let { "direct:$it" }
                         }

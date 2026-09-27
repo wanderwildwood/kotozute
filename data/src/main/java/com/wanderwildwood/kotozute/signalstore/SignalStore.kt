@@ -607,6 +607,18 @@ class SignalStore(private val context: Context) {
      * The timestamps Signal names a message by are the ones it was sent with, so the rows
      * being marked supply them; a receipt for a timestamp nobody sent means nothing.
      */
+    /**
+     * A voice note from [author] sent at [sentAt] was listened to here: our other devices are
+     * told, and [author] is too when [receipt] -- the account's read-receipt setting.
+     */
+    fun sendListened(author: String, sentAt: Long, receipt: Boolean) {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(author) ?: return
+        connection.connect()
+        val sender = callSender()
+        sender.sendViewedSync(serviceId, sentAt)
+        if (receipt) sender.sendViewedReceipt(serviceId, listOf(sentAt))
+    }
+
     fun sendReadReceipt(recipient: String, timestamps: List<Long>): Boolean {
         if (timestamps.isEmpty()) return true
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
@@ -691,6 +703,25 @@ class SignalStore(private val context: Context) {
      * Tells this account's other devices that messages in one conversation were deleted here.
      * [peer] names a one-to-one conversation, [groupId] a group's; exactly one of them.
      */
+    /** See [SignalSender.sendConversationDelete]. */
+    fun sendConversationDelete(peer: String?, groupId: ByteArray?, recent: List<Pair<String, Long>>): Boolean {
+        val conversation = when {
+            groupId != null -> org.whispersystems.signalservice.internal.push.ConversationIdentifier(
+                threadGroupId = okio.ByteString.of(*groupId)
+            )
+            peer != null -> org.signal.core.models.ServiceId.parseOrNull(peer)?.let {
+                org.whispersystems.signalservice.internal.push.ConversationIdentifier(threadServiceIdBinary = it.toByteString())
+            }
+            else -> null
+        } ?: return false
+        val named = recent.mapNotNull { (author, at) ->
+            org.signal.core.models.ServiceId.ACI.parseOrNull(author)?.let { it to at }
+        }
+        if (named.isEmpty()) return true
+        connection.connect()
+        return callSender().sendConversationDelete(conversation, named) is SignalSender.Result.Sent
+    }
+
     fun sendDeleteForMe(peer: String?, groupId: ByteArray?, messages: List<Pair<String, Long>>): Boolean {
         val conversation = when {
             groupId != null -> org.whispersystems.signalservice.internal.push.ConversationIdentifier(
@@ -828,6 +859,31 @@ class SignalStore(private val context: Context) {
      * Null when there is none -- and a call from somebody whose key is not on record is not
      * answered, which is upstream's rule too.
      */
+    /**
+     * Marks somebody's safety number verified, or clears it, and tells our other devices:
+     * upstream's `IdentityUtil.markIdentityVerified` and `MultiDeviceVerifiedUpdateJob`.
+     * The key recorded is the one held now, which is the one the person compared.
+     */
+    fun setVerified(aci: String, verified: Boolean): Boolean {
+        val key = runCatching {
+            protocol.aci().getIdentity(org.signal.libsignal.protocol.SignalProtocolAddress(aci, 1))
+        }.getOrNull() ?: return false
+        if (!(protocol as SignalDataStore).aciStore().setVerified(aci, key, verified)) return false
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(aci) ?: return true
+        runCatching {
+            connection.connect()
+            callSender().sendVerifiedSync(
+                org.whispersystems.signalservice.api.messages.multidevice.VerifiedMessage(
+                    org.whispersystems.signalservice.api.push.SignalServiceAddress(serviceId), key,
+                    if (verified) org.whispersystems.signalservice.api.messages.multidevice.VerifiedMessage.VerifiedState.VERIFIED
+                    else org.whispersystems.signalservice.api.messages.multidevice.VerifiedMessage.VerifiedState.DEFAULT,
+                    System.currentTimeMillis()
+                )
+            )
+        }.onFailure { Timber.w(it, "signal identity: could not tell our other devices") }
+        return true
+    }
+
     internal fun identityKeyOf(aci: String): ByteArray? = runCatching {
         protocol.aci().getIdentity(org.signal.libsignal.protocol.SignalProtocolAddress(aci, 1))?.serialize()
     }.getOrNull()

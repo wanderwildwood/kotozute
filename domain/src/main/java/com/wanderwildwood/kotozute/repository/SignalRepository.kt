@@ -655,6 +655,12 @@ interface SignalRepository {
     /** Whether this person is on the account's blocked list, as this device last heard it. */
     fun isBlocked(threadKey: String): Boolean
 
+    /** Marks a person's safety number verified, or clears it. Blocking. False if it could not. */
+    fun setVerified(threadKey: String, verified: Boolean): Boolean
+
+    /** A received voice note was played. Tells the sender, as Signal does, and our devices. */
+    fun markListened(messageId: String)
+
     /** Whether [threadKey] is a message request not yet answered. */
     fun isRequest(threadKey: String): Boolean
 

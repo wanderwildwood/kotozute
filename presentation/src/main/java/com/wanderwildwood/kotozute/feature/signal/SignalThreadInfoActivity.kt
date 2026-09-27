@@ -434,6 +434,21 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             // Only when it has changed. Offering it the rest of the time would make accepting
             // a habit rather than a decision, and the decision is the whole mechanism.
             binding.safetyAccept.setVisible(identity.changed)
+            // Marking verified is for a number that stands: a changed one is accepted first.
+            binding.safetyVerify.setVisible(!identity.changed)
+            binding.safetyVerify.title = getString(
+                if (identity.verified) R.string.signal_safety_clear_verified else R.string.signal_safety_mark_verified
+            )
+            binding.safetyVerify.setOnClickListener {
+                val verify = !identity.verified
+                thread(isDaemon = true) {
+                    val ok = runCatching { signalRepo.setVerified(threadKey, verify) }.getOrDefault(false)
+                    runOnUiThread {
+                        if (!ok) Toast.makeText(this, R.string.signal_safety_verify_failed, Toast.LENGTH_SHORT).show()
+                        thread(isDaemon = true) { loadIdentity() }
+                    }
+                }
+            }
             // Disarmed whenever the screen re-reads itself, so a row left armed cannot come
             // back armed after a refresh. The four-second timer would catch it anyway; this
             // makes it true rather than merely likely, which is the point of the timeout.

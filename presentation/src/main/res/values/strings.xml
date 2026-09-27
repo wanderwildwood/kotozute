@@ -407,10 +407,10 @@
          whose contacts arrive the ordinary way should never send it. -->
     <string name="settings_signal_fetch_contacts_title">Fetch contacts from Signal</string>
     <string name="settings_signal_fetch_contacts_failed">Signal would not answer. Nothing was changed.</string>
-    <string name="info_delete_summary">Removes this phone\'s copy. Signal gives a linked device no history, so there is no other copy to get it back from</string>
+    <string name="info_delete_summary">Removes it here and from your other Signal devices. Nothing can bring it back</string>
     <string name="info_delete_armed_summary">This phone holds the only copy. Write a copy out first if you want to keep it</string>
     <string name="info_delete_both">Their texts go too, since the two are one conversation here</string>
-    <string name="info_deleted_toast">Deleted %1$d message(s) from this phone</string>
+    <string name="info_deleted_toast">Deleted %1$d message(s)</string>
     <string name="info_delete_failed">Nothing was deleted</string>
     <string name="signal_action_failed">That did not work</string>
     <string name="info_block_both">Stops their texts as well, since the two are one conversation here</string>
@@ -461,6 +461,11 @@
     <!-- The draft's selection menu. Signal's TextFormatting_* words. -->
     <string name="signal_format">Format</string>
     <string name="signal_forward">Forward</string>
+    <string name="signal_safety_mark_verified">Mark as verified</string>
+    <string name="signal_safety_clear_verified">Clear verification</string>
+    <string name="signal_safety_verify_summary">After comparing these numbers with theirs, in person or on a call</string>
+    <string name="signal_safety_verify_failed">Could not change it</string>
+    <string name="signal_edit_history">Edit history</string>
     <!-- Message requests: Signal's MessageRequestBottomView wording. -->
     <string name="signal_request_direct">%s wants to message you. Accept to reply. They won\'t know you\'ve seen their messages until you do.</string>
     <string name="signal_request_group">You were added to %s. Accept to take part. Members won\'t know you\'ve seen their messages until you do.</string>

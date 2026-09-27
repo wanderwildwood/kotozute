@@ -123,6 +123,25 @@ class SignalRepositoryImpl @Inject constructor(
 
     private val incoming = io.reactivex.subjects.PublishSubject.create<SignalMessage>()
 
+    /** Who is typing where, and our own typing going out. See [SignalTyping]. */
+    private val typingIndicators by lazy {
+        SignalTyping(
+            enabled = { prefs.signalTypingIndicators.get() },
+            send = { threadKey, started ->
+                if (threadKey.startsWith("group:")) {
+                    val masterKey = Realm.getDefaultInstance().use { groupMasterKeyFor(it, threadKey) }
+                    if (masterKey != null) signalStore.sendTyping(null, masterKey, started)
+                } else {
+                    signalStore.sendTyping(threadKey.removePrefix("direct:"), null, started)
+                }
+            },
+            mayTell = { threadKey ->
+                val self = signalStore.selfAciOrNull()
+                streamWanted.get() && threadKey != "direct:$self" && !isBlocked(threadKey)
+            }
+        )
+    }
+
     /** Threads whose messages have gone; see [messagesRemoved]. */
     private val removed = io.reactivex.subjects.PublishSubject.create<String>()
 
@@ -2596,7 +2615,10 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     private fun announce(msgs: List<BridgeMessage>) {
-        msgs.filter { !it.outgoing }.forEach { incoming.onNext(detached(it)) }
+        msgs.filter { !it.outgoing }.forEach {
+            typingIndicators.messageFrom(it.threadKey, it.senderUuid)
+            incoming.onNext(detached(it))
+        }
     }
 
     override fun send(threadKey: String, body: String, attachments: List<String>, quoteTs: Long): Long =
@@ -2649,11 +2671,16 @@ class SignalRepositoryImpl @Inject constructor(
      * has and the reason the setting's own description had to change: it is no longer a
      * separate thing this device decides.
      */
-    private fun applyConfiguration(readReceipts: Boolean?) {
-        val wanted = readReceipts ?: return
-        if (prefs.signalReadReceipts.get() == wanted) return
-        prefs.signalReadReceipts.set(wanted)
-        Timber.i("signal configuration: the account says read receipts are %b", wanted)
+    private fun applyConfiguration(readReceipts: Boolean?, typingIndicators: Boolean?) {
+        readReceipts?.takeIf { it != prefs.signalReadReceipts.get() }?.let { wanted ->
+            prefs.signalReadReceipts.set(wanted)
+            Timber.i("signal configuration: the account says read receipts are %b", wanted)
+        }
+        // The same kind of setting, and it arrives in the same message.
+        typingIndicators?.takeIf { it != prefs.signalTypingIndicators.get() }?.let { wanted ->
+            prefs.signalTypingIndicators.set(wanted)
+            Timber.i("signal configuration: the account says typing indicators are %b", wanted)
+        }
     }
 
     /**
@@ -2856,7 +2883,11 @@ class SignalRepositoryImpl @Inject constructor(
             threads: List<String>
         ) = applyDeletedElsewhere(messages, threads)
 
-        override fun configuration(readReceipts: Boolean?) = applyConfiguration(readReceipts)
+        override fun configuration(readReceipts: Boolean?, typingIndicators: Boolean?) =
+            applyConfiguration(readReceipts, typingIndicators)
+
+        override fun typing(threadKey: String, sender: String, started: Boolean) =
+            typingIndicators.received(threadKey, sender, started)
 
         override fun groupChanged(masterKey: ByteArray, revision: Int) =
             noteGroupRevision(masterKey, revision)
@@ -4550,6 +4581,16 @@ class SignalRepositoryImpl @Inject constructor(
     override fun lastSyncCaughtUp(): Boolean = syncCaughtUp
 
     override fun connectionState(): Observable<SignalRepository.ConnectionState> = state
+
+    override fun typing(threadKey: String): Observable<List<String>> =
+        typingIndicators.typing(threadKey).map { ids ->
+            ids.map { nameForCounterpart(it) ?: context.getString(com.wanderwildwood.kotozute.data.R.string.signal_typing_someone) }
+        }
+
+    override fun composing(threadKey: String) = typingIndicators.composing(threadKey)
+
+    override fun stoppedComposing(threadKey: String, sent: Boolean) =
+        typingIndicators.stopped(threadKey, notify = !sent)
 
     override fun newIncoming(): Observable<SignalMessage> = incoming
 

@@ -836,6 +836,15 @@ interface SignalRepository {
 
     fun connectionState(): Observable<ConnectionState>
 
+    /** Names of whoever is typing in [threadKey] now, and again whenever that changes. */
+    fun typing(threadKey: String): Observable<List<String>>
+
+    /** The reader changed the draft in [threadKey]. Main thread. Sends "typing" as Signal does. */
+    fun composing(threadKey: String)
+
+    /** The reader stopped writing in [threadKey]: cleared the draft, left, or [sent] it. */
+    fun stoppedComposing(threadKey: String, sent: Boolean = false)
+
     /** Signal voice calls on this phone. */
     fun calls(): SignalCallControl
 

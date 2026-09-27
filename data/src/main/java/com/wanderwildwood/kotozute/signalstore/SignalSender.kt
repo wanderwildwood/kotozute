@@ -869,6 +869,31 @@ internal class SignalSender(
     }
 
     /**
+     * Says we started or stopped typing, to one person or to a group's members.
+     *
+     * Upstream's `TypingSendJob`: one-to-one fanout, sealed where it can be, best effort and
+     * never retried -- a typing message that arrives late is worse than one that does not.
+     * [groupId] is the group's identifier, which the recipient files the typing under.
+     */
+    fun sendTyping(recipients: List<ServiceId>, started: Boolean, groupId: ByteArray?) {
+        if (recipients.isEmpty()) return
+        val message = org.whispersystems.signalservice.api.messages.SignalServiceTypingMessage(
+            if (started) org.whispersystems.signalservice.api.messages.SignalServiceTypingMessage.Action.STARTED
+            else org.whispersystems.signalservice.api.messages.SignalServiceTypingMessage.Action.STOPPED,
+            System.currentTimeMillis(),
+            java.util.Optional.ofNullable(groupId)
+        )
+        runCatching {
+            sender.sendTyping(
+                recipients.map { SignalServiceAddress(it) },
+                recipients.map { sealedSender.accessFor(it.toString()) },
+                message,
+                null
+            )
+        }.onFailure { Timber.i(it, "signal typing: not sent") }
+    }
+
+    /**
      * The relay servers a call may route through, and how long they may be used for.
      *
      * `GET /v2/calling/relays` on the authenticated socket, as upstream's

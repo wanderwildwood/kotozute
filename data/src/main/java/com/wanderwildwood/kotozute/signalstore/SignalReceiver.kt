@@ -1011,6 +1011,21 @@ internal class SignalReceiver(
                         }.onFailure { Timber.w(it, "signal calls: could not hand over a call message") }
                     }
                 }
+                // Somebody typing. Shown in the conversation while it lasts and never stored:
+                // upstream's `MessageContentProcessor.handleTypingMessage`, which also ignores
+                // our own devices and anybody blocked. A group's typing message names the group
+                // by its identifier, which is what a group's thread key is made from.
+                result.content.typingMessage?.let { typing ->
+                    if (!fromSelf && !senderBlocked) {
+                        val group = typing.groupId?.toByteArray()
+                            ?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
+                        val threadKey = if (group != null) "group:$group" else "direct:$senderServiceId"
+                        val started = typing.action ==
+                            org.whispersystems.signalservice.internal.push.TypingMessage.Action.STARTED
+                        runCatching { events.typing(threadKey, senderServiceId, started) }
+                            .onFailure { Timber.w(it, "signal typing: could not pass on") }
+                    }
+                }
                 // Another of our devices telling us how a call went, which is what stops a call
                 // answered on the other phone reading as missed here.
                 result.content.syncMessage?.callEvent?.let { event ->
@@ -1282,7 +1297,7 @@ internal class SignalReceiver(
                 // The account's settings. Sent when they change and on request, so this is
                 // how a device that was asleep catches up with a choice made elsewhere.
                 result.content.syncMessage?.configuration?.let { settings ->
-                    runCatching { events.configuration(settings.readReceipts) }
+                    runCatching { events.configuration(settings.readReceipts, settings.typingIndicators) }
                         .onFailure { Timber.w(it, "signal configuration: could not apply") }
                 }
 

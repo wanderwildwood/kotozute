@@ -451,6 +451,13 @@
     <string name="settings_signal_background_title">Let Messaging run in the background</string>
     <string name="settings_signal_background_summary">Android can pause Messaging to save battery, which delays Signal messages. Tap to let it keep running.</string>
     <string name="settings_signal_receipts_readonly">Read receipts are one setting for the whole Signal account. Change it in Signal on your other phone and this follows.</string>
+    <string name="settings_signal_typing_title">Typing indicators</string>
+    <string name="settings_signal_typing_summary">Show when people are typing, and let them see when you are. One setting for the whole account, changed in Signal on your other phone</string>
+    <string name="settings_signal_typing_readonly">Typing indicators are one setting for the whole Signal account. Change it in Signal on your other phone and this follows.</string>
+    <string name="signal_typing_one">%s is typing…</string>
+    <string name="signal_typing_two">%1$s and %2$s are typing…</string>
+    <string name="signal_typing_many">Several people are typing…</string>
+    <string name="signal_typing_direct">Typing…</string>
     <string name="settings_signal_open_title">Signal conversations</string>
     <string name="settings_signal_open_summary">Read and reply on the Signal rail</string>
 

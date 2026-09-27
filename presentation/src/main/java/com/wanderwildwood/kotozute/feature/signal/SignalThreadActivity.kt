@@ -369,11 +369,36 @@ class SignalThreadActivity : QkThemedActivity() {
         // rail there was never a cursor at all.
         binding.message.showCursorWhenWriting()
         binding.message.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) = showSendOrRecord()
+            override fun afterTextChanged(s: android.text.Editable?) {
+                showSendOrRecord()
+                // Only what the reader types: a draft put back, or cleared after a send, is
+                // not somebody typing.
+                if (!binding.message.isFocused) return
+                if (s.isNullOrEmpty()) signalRepo.stoppedComposing(threadKey)
+                else signalRepo.composing(threadKey)
+            }
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
         })
         showSendOrRecord()
+
+        disposables.add(
+            signalRepo.typing(threadKey)
+                .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
+                .subscribe { names -> showTyping(names) }
+        )
+    }
+
+    /** Who is typing, on the line above the composer; gone when nobody is. */
+    private fun showTyping(names: List<String>) {
+        binding.typing.text = when {
+            names.isEmpty() -> ""
+            !isGroup -> getString(R.string.signal_typing_direct)
+            names.size == 1 -> getString(R.string.signal_typing_one, names[0])
+            names.size == 2 -> getString(R.string.signal_typing_two, names[0], names[1])
+            else -> getString(R.string.signal_typing_many)
+        }
+        binding.typing.setVisible(names.isNotEmpty())
     }
 
     private fun markRead(data: List<SignalMessage>) {
@@ -1135,6 +1160,8 @@ class SignalThreadActivity : QkThemedActivity() {
         if (body.isEmpty() && attachment == null) return
         binding.send.isEnabled = false
         val quoteTs = replyingTo
+        // The message itself tells them the typing is over.
+        signalRepo.stoppedComposing(threadKey, sent = true)
         thread(isDaemon = true) {
             val result = runCatching {
                 signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs)
@@ -1673,6 +1700,7 @@ class SignalThreadActivity : QkThemedActivity() {
 
     override fun onPause() {
         if (visibleThreadKey == threadKey) visibleThreadKey = null
+        signalRepo.stoppedComposing(threadKey)
         // ⚠ The microphone does not close itself. The recorder is a process-wide singleton,
         // so a screen left while recording would hold the mic open behind whatever comes
         // next -- including the MMS composer, which would then find it already in use. The

@@ -344,6 +344,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalOpensFirst.checkbox.isChecked = state.signalOpensFirst
         binding.signalReceipts.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalReceipts.checkbox.isChecked = state.signalReadReceipts
+        binding.signalTyping.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalTyping.checkbox.isChecked = state.signalTypingIndicators
         // Only while it is true. Switched off in Android's settings, not here, so the app is
         // the one place that can say so.
         binding.signalNotificationsOff.setVisible(

@@ -335,7 +335,9 @@ interface SignalRepository {
         threadKey: String,
         body: String,
         attachments: List<String> = emptyList(),
-        quoteTs: Long = 0L
+        quoteTs: Long = 0L,
+        /** Bold, italic, spoilers and the rest, as the data layer's `BodyStyles.encode` writes them. */
+        stylesJson: String = ""
     ): Long
 
     /**

@@ -458,6 +458,13 @@
     <string name="signal_typing_two">%1$s and %2$s are typing…</string>
     <string name="signal_typing_many">Several people are typing…</string>
     <string name="signal_typing_direct">Typing…</string>
+    <!-- The draft's selection menu. Signal's TextFormatting_* words. -->
+    <string name="signal_format_bold">Bold</string>
+    <string name="signal_format_italic">Italic</string>
+    <string name="signal_format_strikethrough">Strikethrough</string>
+    <string name="signal_format_monospace">Monospace</string>
+    <string name="signal_format_spoiler">Spoiler</string>
+    <string name="signal_format_clear">Clear formatting</string>
     <string name="settings_signal_open_title">Signal conversations</string>
     <string name="settings_signal_open_summary">Read and reply on the Signal rail</string>
 

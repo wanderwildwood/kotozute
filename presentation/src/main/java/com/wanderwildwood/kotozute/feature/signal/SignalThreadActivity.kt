@@ -50,6 +50,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.appcompat.app.AlertDialog
+import com.wanderwildwood.kotozute.extensions.contactToVCard
 import com.wanderwildwood.kotozute.common.util.TextViewStyler
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.feature.extensions.isEmojiOnly
@@ -108,6 +109,26 @@ class SignalThreadActivity : QkThemedActivity() {
     private val picker = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? -> if (uri != null) attach(uri) }
+
+    /**
+     * A contact, attached as its vCard -- the same one the SMS side attaches -- which the
+     * sender turns into the card Signal sends. See `ContactCards` in the data module.
+     */
+    private val contactPicker = registerForActivityResult(
+        ActivityResultContracts.PickContact()
+    ) { uri: Uri? ->
+        if (uri == null) return@registerForActivityResult
+        thread(isDaemon = true) {
+            val vcard = runCatching { uri.contactToVCard(this) }.getOrNull()
+            runOnUiThread {
+                if (vcard == null || vcard == Uri.EMPTY) {
+                    Toast.makeText(this, R.string.signal_attach_failed, Toast.LENGTH_LONG).show()
+                } else {
+                    attach(vcard)
+                }
+            }
+        }
+    }
 
     /**
      * The attachment a "Save…" is waiting on, while the system asks where to put it.
@@ -359,7 +380,15 @@ class SignalThreadActivity : QkThemedActivity() {
             })
         }
 
-        binding.attach.setOnClickListener { picker.launch("*/*") }
+        // A picture or file, or a contact card -- the two things Signal's own attach sheet
+        // offers that this rail can send.
+        binding.attach.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setItems(arrayOf(getString(R.string.signal_attach_file), getString(R.string.signal_attach_contact))) { _, which ->
+                    if (which == 0) picker.launch("*/*") else contactPicker.launch(null)
+                }
+                .show()
+        }
 
         binding.record.setOnClickListener {
             if (recording) stopRecording() else askForMicThenRecord()

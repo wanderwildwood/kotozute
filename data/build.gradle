@@ -45,6 +45,14 @@ android {
 }
 
 dependencies {
+    // Contact cards: a received Signal card is kept as a vCard, and a picked contact's vCard
+    // is read into the card Signal sends. The same library, and exclusions, as presentation.
+    implementation('com.googlecode.ez-vcard:ez-vcard:0.10.4', {
+        exclude group: "org.jsoup", module: "jsoup"
+        exclude group: "org.freemarker", module: "freemarker"
+        exclude group: "com.fasterxml.jackson.core", module: "jackson-core"
+    })
+
 
     // androidx
     implementation "androidx.appcompat:appcompat:$androidx_appcompat_version"

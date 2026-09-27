@@ -511,7 +511,10 @@ internal object ContentNormalizer {
         m.pollCreate != null ->
             m.pollCreate?.question?.takeIf { it.isNotBlank() }?.let { "(poll) $it" } ?: "(a poll)"
         m.pollTerminate != null -> "(a poll ended)"
-        m.contact.isNotEmpty() -> "(a contact card)"
+        // Who it is, rather than that it is a card: the card itself is kept beside the message
+        // as a vCard to open. See [ContactCards].
+        m.contact.isNotEmpty() -> ContactCards.nameOf(m.contact.first())
+            .takeIf { it.isNotBlank() }?.let { "(contact) $it" } ?: "(a contact card)"
         m.payment != null -> "(a payment)"
         m.giftBadge != null -> "(a gift)"
         m.adminDelete != null -> null

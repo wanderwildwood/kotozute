@@ -355,8 +355,10 @@ internal class SignalSender(
         refuseIfTooLong(body)?.let { return it }
         // Prepared before anything goes, as a one-to-one send's are: a group told about a
         // picture that then failed to upload would have a caption and nothing to caption.
+        val (cardUris, files) = attachments.partition(ContactCards::isVCard)
+        val cards = sharedContacts(cardUris)
         val streams = try {
-            attachments.mapNotNull { attachmentStream(it) }
+            files.mapNotNull { attachmentStream(it) }
         } catch (t: Throwable) {
             Timber.w(t, "signal send: could not prepare an attachment for a group")
             return Result.Failed(SendFailure.AttachmentUnprepared("${t.message}"))
@@ -397,6 +399,7 @@ internal class SignalSender(
             // One upload for the whole group: the library builds the message once and
             // encrypts that same content to each member, pointers and all.
             .apply { if (streams.isNotEmpty()) withAttachments(streams) }
+            .apply { if (cards.isNotEmpty()) withSharedContacts(cards) }
             .build()
 
         return try {
@@ -891,6 +894,19 @@ internal class SignalSender(
     } catch (t: Throwable) {
         Timber.w(t, "signal calls: a call message did not go")
         CallSend.NETWORK
+    }
+
+    /**
+     * Picked contacts, as the cards Signal sends rather than as .vcf files: a file is
+     * something to download, a card is somebody to add. See [ContactCards].
+     */
+    private fun sharedContacts(dataUris: List<String>) = dataUris.mapNotNull { uri ->
+        val comma = uri.indexOf(',')
+        if (comma < 0) return@mapNotNull null
+        val text = runCatching {
+            String(android.util.Base64.decode(uri.substring(comma + 1), android.util.Base64.DEFAULT))
+        }.getOrNull() ?: return@mapNotNull null
+        ContactCards.toShared(text)
     }
 
     /** Styles as the body ranges Signal sends: upstream's `MessageStyler.getStyling`. */
@@ -1641,8 +1657,10 @@ internal class SignalSender(
         styles: List<BodyStyles.Range> = emptyList()
     ): Result {
         refuseIfTooLong(body)?.let { return it }
+        val (cardUris, files) = attachments.partition(ContactCards::isVCard)
+        val cards = sharedContacts(cardUris)
         val streams = try {
-            attachments.mapNotNull { attachmentStream(it) }
+            files.mapNotNull { attachmentStream(it) }
         } catch (t: Throwable) {
             // Before the message is sent, not after. A message that goes out without the
             // picture someone attached is worse than one that does not go out at all: the
@@ -1664,6 +1682,7 @@ internal class SignalSender(
             // [SignalContactStore.isWhitelisted].
             .withProfileKey(selfProfileKey?.takeIf { sharesProfileWith(recipient) })
             .apply { if (streams.isNotEmpty()) withAttachments(streams) }
+            .apply { if (cards.isNotEmpty()) withSharedContacts(cards) }
             .withQuote(quote?.toQuote())
             // The conversation's timer, re-asserted on every message the way Signal does.
             // Omitting it does not leave the timer alone: a data message with no expireTimer

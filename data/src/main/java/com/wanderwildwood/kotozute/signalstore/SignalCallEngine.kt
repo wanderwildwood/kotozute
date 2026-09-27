@@ -640,11 +640,16 @@ internal class SignalCallEngine(
         }
     }
 
-    /** RingRTC's own log, into ours. */
+    /**
+     * RingRTC's warnings and errors, into our log. Not its information lines: it writes several
+     * hundred a call -- every ICE candidate, every state change -- and on a phone that pushed
+     * everything else out of the log within a minute, including the lines that would explain
+     * what went wrong. Our own "signal calls:" lines say where a call got to.
+     */
     private object RingRtcLogger : org.signal.ringrtc.Log.Logger {
         override fun v(tag: String?, message: String?, t: Throwable?) {}
         override fun d(tag: String?, message: String?, t: Throwable?) {}
-        override fun i(tag: String?, message: String?, t: Throwable?) { Timber.tag("RingRTC").i(t, message) }
+        override fun i(tag: String?, message: String?, t: Throwable?) {}
         override fun w(tag: String?, message: String?, t: Throwable?) { Timber.tag("RingRTC").w(t, message) }
         override fun e(tag: String?, message: String?, t: Throwable?) { Timber.tag("RingRTC").e(t, message) }
     }

@@ -325,6 +325,9 @@ class SignalRepositoryImpl @Inject constructor(
         signalStore.onConnecting = ::noteConnecting
         signalStore.onConversationState = ::applyConversationState
         signalStore.storageDesired = ::desiredStorageState
+        signalStore.onPinnedRead = ::applyPinnedRead
+        signalStore.pinsToWrite = ::desiredPins
+        signalStore.onPinsWritten = { prefs.signalPinsDirty.set(false) }
     }
 
     /**
@@ -4800,6 +4803,84 @@ class SignalRepositoryImpl @Inject constructor(
      */
     override fun setPinned(threadKey: String, pinned: Boolean) = runOffThread {
         editThread(threadKey) { it.pinned = pinned }
+        // The pinned list is the account's, so the other devices pin it too; and until it has
+        // gone up, the next read of the account must not undo it.
+        prefs.signalPinsDirty.set(true)
+        pushStorageNow()
+    }
+
+    /** The account's pinned list as last read, in its order. */
+    @Volatile private var accountPins: List<String> = emptyList()
+
+    /**
+     * The account's pinned list, applied to this phone: pinned where it says, unpinned where
+     * it does not. Not while a pin made here is still on its way up, which the read would
+     * otherwise undo before it arrived.
+     */
+    private fun applyPinnedRead(keys: List<String>) {
+        accountPins = keys
+        // ⚠ The first time, a merge rather than an overwrite. Pins made here before this synced
+        // were never on the account, and taking the account's list as the truth would quietly
+        // unpin every one of them. So the account's pins are added here and ours are sent up.
+        if (!prefs.signalPinsMerged.get()) {
+            Realm.getDefaultInstance().use { realm ->
+                realm.executeTransaction { r ->
+                    r.where(SignalThread::class.java).`in`("threadKey", keys.toTypedArray()).findAll()
+                        .forEach { it.pinned = true }
+                }
+            }
+            prefs.signalPinsMerged.set(true)
+            prefs.signalPinsDirty.set(true)
+            contactsChanged()
+            return
+        }
+        if (prefs.signalPinsDirty.get()) return
+        var changed = false
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalThread::class.java).findAll().forEach { thread ->
+                    val pinned = thread.threadKey in keys
+                    if (thread.pinned != pinned) { thread.pinned = pinned; changed = true }
+                }
+            }
+        }
+        if (changed) {
+            Timber.i("signal storage: pinned conversations now match the account")
+            contactsChanged()
+        }
+    }
+
+    /**
+     * This phone's pinned conversations as the account's list, when there is a change to send:
+     * the account's own order kept for those still pinned, new ones after, at most Signal's
+     * four (`PinnedConversationPreference`/`MAX_PINNED`).
+     */
+    private fun desiredPins(): List<org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation>? {
+        if (!prefs.signalPinsDirty.get()) return null
+        val local = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalThread::class.java).equalTo("pinned", true).findAll()
+                .map { it.threadKey to it.groupMasterKey?.copyOf() }
+        }
+        val keys = local.map { it.first }
+        val ordered = accountPins.filter { it in keys } + keys.filterNot { it in accountPins }
+        return ordered.take(MAX_PINNED).mapNotNull { key ->
+            when {
+                key.startsWith("direct:") ->
+                    org.signal.core.models.ServiceId.parseOrNull(key.removePrefix("direct:"))?.let { id ->
+                        org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation(
+                            contact = org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation.Contact(
+                                serviceId = id.toString(), serviceIdBinary = id.toByteString()
+                            )
+                        )
+                    }
+                key.startsWith("group:") -> local.firstOrNull { it.first == key }?.second?.let { master ->
+                    org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation(
+                        groupMasterKey = okio.ByteString.of(*master)
+                    )
+                }
+                else -> null
+            }
+        }
     }
 
     override fun setMuted(threadKey: String, muted: Boolean) = runOffThread {
@@ -4831,6 +4912,8 @@ class SignalRepositoryImpl @Inject constructor(
      * Sends a change made here to the account straight away, as upstream schedules a
      * `StorageSyncJob` on every archive and mute.
      */
+    private val MAX_PINNED = 4
+
     private fun pushStorageNow() {
         if (!runCatching { signalStore.storageKeyKnown() }.getOrDefault(false)) return
         runCatching { signalStore.readStorage() }

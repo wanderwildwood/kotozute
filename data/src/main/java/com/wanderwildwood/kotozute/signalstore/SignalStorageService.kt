@@ -99,7 +99,13 @@ internal class SignalStorageService(
      * conversation in Signal left it ringing on this phone, and archiving one left it in the
      * inbox -- with nothing to say the account had been told otherwise.
      */
-    private val conversationState: (List<ConversationState>) -> Unit = { _ -> }
+    private val conversationState: (List<ConversationState>) -> Unit = { _ -> },
+    /**
+     * The account's own record, whole, with its manifest id: what a write of the pinned list
+     * must start from, so that everything else on it -- settings this build has never heard
+     * of among them -- survives. And the conversations it says are pinned, as thread keys.
+     */
+    private val accountRecord: (raw: ByteArray, id: ByteArray, pinned: List<String>) -> Unit = { _, _, _ -> }
 ) {
 
     /** What the account says about a conversation, beyond who is in it. */
@@ -323,6 +329,8 @@ internal class SignalStorageService(
                 // right type, and it is the only record that is legitimately about us.
                 record.account?.let { account ->
                     accountsSeen++
+                    runCatching { accountRecord(record.encode(), id, pinnedKeys(account.pinnedConversations)) }
+                        .onFailure { Timber.w(it, "signal storage: could not take the account's record") }
                     account.profileKey?.takeIf { it.size > 0 }?.let { key ->
                         runCatching { onProfileKey(key.toByteArray()) }
                             .onFailure {
@@ -677,4 +685,16 @@ internal class SignalStorageService(
         private fun joined(given: String?, family: String?): String? =
             ProfileNames.joined(given, family)
     }
+
+    /** The pinned list as thread keys, in its order. A legacy group or release notes is skipped. */
+    private fun pinnedKeys(
+        pins: List<org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation>
+    ): List<String> = pins.mapNotNull { pin ->
+        pin.contact?.let { c ->
+            org.signal.core.models.ServiceId.parseOrNull(c.serviceId, c.serviceIdBinary)?.let { "direct:$it" }
+        } ?: pin.groupMasterKey?.takeIf { it.size > 0 }?.let { key ->
+            groupIdOf(key.toByteArray())?.let { "group:" + android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
+        }
+    }
+
 }

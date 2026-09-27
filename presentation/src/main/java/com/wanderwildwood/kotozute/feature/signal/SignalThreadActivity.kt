@@ -2202,6 +2202,15 @@ class SignalThreadActivity : QkThemedActivity() {
                         .findFirst()?.counterpartNumber.orEmpty()
                 }
             }.getOrDefault("")
+                // Note to Self keeps no number of its own; it is this account's, and the
+                // texts to that number are its other half.
+                .ifBlank {
+                    runCatching {
+                        signalRepo.selfNumber().takeIf { own ->
+                            own.isNotBlank() && signalRepo.findThreadForNumber(own)?.threadKey == threadKey
+                        }
+                    }.getOrNull().orEmpty()
+                }
             if (n.isBlank()) return@thread
             // This number, and only this number.
             //

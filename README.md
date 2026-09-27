@@ -190,7 +190,7 @@ the download.
 
 With [Glance](https://github.com/wanderwildwood/hitome) installed, how many messages are
 unread shows on the Kompakt's lock screen, texts and Signal each on their own, counted as
-messages: "3 texts · 2 on Signal".
+messages: "3 texts · 2 Signal".
 Only the numbers are handed over, and only to Glance; never a sender or a word of a message.
 Settings → General → Unread on the lock screen turns it off.
 

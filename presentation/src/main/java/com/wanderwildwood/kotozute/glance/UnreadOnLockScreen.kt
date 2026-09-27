@@ -12,7 +12,7 @@ import io.realm.Realm
  * How many messages are unread, for the lock screen, texts and Signal each on their own: texts
  * in the inbox (not archived, not blocked) and Signal messages in threads that are not
  * archived, counted as messages rather than conversations so "3 texts" means three. Glance puts
- * the two on one line, "3 texts · 2 on Signal"; either is left out when it is nothing, and so is
+ * the two on one line, "3 texts · 2 Signal"; either is left out when it is nothing, and so is
  * the whole line when both are.
  */
 class UnreadOnLockScreen : GlanceProvider() {

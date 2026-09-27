@@ -361,7 +361,10 @@ class SignalRegistrar internal constructor(
         val attributes = RegistrationApiV2.AccountAttributes(
             signalingKey = null,
             registrationId = aciRegistrationId,
-            voice = false,
+            // Voice calls, since 1.29.0. Never video: there is no front camera and an e-ink panel
+            // cannot show it, and a video call rings here as a voice call. Upstream says true for
+            // both (`AccountAttributes`' secondary constructor).
+            voice = true,
             video = false,
             // No push, so this device collects its own messages. Same as the linked case.
             fetchesMessages = true,

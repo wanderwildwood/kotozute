@@ -1144,6 +1144,17 @@ internal class SignalSender(
         failed(t)
     }
 
+    /** See [SignalStore.sendRequestResponse]. */
+    fun sendMessageRequestResponse(
+        message: org.whispersystems.signalservice.api.messages.multidevice.MessageRequestResponseMessage
+    ): Result = try {
+        val result = sender.sendSyncMessage(SignalServiceSyncMessage.forMessageRequestResponse(message))
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else failed(result)
+    } catch (t: Throwable) {
+        Timber.w(t, "signal request sync: send threw")
+        failed(t)
+    }
+
     fun sendReadSync(read: List<Pair<ServiceId.ACI, Long>>): Result {
         if (read.isEmpty()) return Result.Sent(System.currentTimeMillis())
         val timestamp = System.currentTimeMillis()

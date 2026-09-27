@@ -46,6 +46,13 @@ open class SignalThread : RealmObject() {
     /** Kept at the top of the list, as a pinned SMS conversation is. */
     var pinned: Boolean = false
 
+    /**
+     * A message request: somebody this account has not accepted started it, and nothing can
+     * be sent into it until it is accepted. Upstream's `isMessageRequestAccepted` turned
+     * around; see `SignalRepository.acceptRequest`.
+     */
+    var request: Boolean = false
+
     /** No notification for this thread. Messages still arrive and still count as unread. */
     var muted: Boolean = false
 

@@ -138,7 +138,7 @@ class SignalRepositoryImpl @Inject constructor(
             },
             mayTell = { threadKey ->
                 val self = signalStore.selfAciOrNull()
-                streamWanted.get() && threadKey != "direct:$self" && !isBlocked(threadKey)
+                streamWanted.get() && threadKey != "direct:$self" && !isBlocked(threadKey) && !isRequest(threadKey)
             }
         )
     }
@@ -2528,7 +2528,13 @@ class SignalRepositoryImpl @Inject constructor(
                     // for a person whose client has never shared a profile key.
                     else -> nameForCounterpart(counterpartUuid).orEmpty()
                 }
+                // A conversation somebody not yet accepted starts is a message request.
+                // Only a new conversation, and only one arriving now: a backup being read in,
+                // or anything we sent, is not somebody asking.
+                request = !m.outgoing && m.source == "live" && !acceptedAlready(m)
             }
+        // Anything we send into a conversation answers it, as it does upstream.
+        if (m.outgoing && thread.request) thread.request = false
         // Only the newest message speaks for the thread. Messages can arrive out of
         // order -- a reconnect replays by cursor, and an imported backup arrives
         // backwards -- so this is guarded on the timestamp rather than on arrival.
@@ -2885,6 +2891,8 @@ class SignalRepositoryImpl @Inject constructor(
             // browser rail and to nobody here.
             applyReceipts(sender, timestamps, read)
         }
+
+        override fun requestAccepted(threadKey: String) = setRequest(threadKey, false)
 
         override fun viewOnceOpenedElsewhere(sender: String, sentAt: Long) = spendViewOnce("$sender:$sentAt")
 
@@ -3280,6 +3288,90 @@ class SignalRepositoryImpl @Inject constructor(
         contactsChanged()
     }
 
+    /**
+     * Whether a new conversation's first message comes from somebody already accepted:
+     * upstream's `RecipientUtil.isMessageRequestAccepted`. A person is, where the account's
+     * own records say this account shares its profile with them, or where they are in the
+     * reader's address book; a group, where the account's record of it says so. Ourselves
+     * always.
+     */
+    private fun acceptedAlready(m: BridgeMessage): Boolean {
+        if (m.threadKey.startsWith("group:")) {
+            return signalStore.groupAcceptedOnAccount(m.threadKey.removePrefix("group:")) == true
+        }
+        val who = m.threadKey.removePrefix("direct:")
+        if (who.startsWith("+")) return addressBookName(who) != null
+        if (who == signalStore.selfAciOrNull()) return true
+        if (signalStore.acceptedOnAccount(who) == true) return true
+        return signalStore.contactNumber(who)?.let { addressBookName(it) } != null
+    }
+
+    private fun setRequest(threadKey: String, request: Boolean) {
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalThread::class.java).equalTo("threadKey", threadKey).findFirst()?.request = request
+            }
+        }
+        contactsChanged()
+    }
+
+    override fun isRequest(threadKey: String): Boolean = Realm.getDefaultInstance().use { realm ->
+        realm.where(SignalThread::class.java).equalTo("threadKey", threadKey).findFirst()?.request == true
+    }
+
+    /** The group identifier a group thread is keyed on, as bytes. */
+    private fun groupIdOf(threadKey: String): ByteArray? =
+        threadKey.takeIf { it.startsWith("group:") }
+            ?.let { runCatching { android.util.Base64.decode(it.removePrefix("group:"), android.util.Base64.NO_WRAP) }.getOrNull() }
+
+    /**
+     * Accepts a message request: upstream's `MessageRequestRepository.acceptMessageRequest`.
+     * The account shares its profile with them from now on, and our other devices are told.
+     */
+    override fun acceptRequest(threadKey: String) {
+        setRequest(threadKey, false)
+        if (threadKey.startsWith("direct:")) {
+            val aci = threadKey.removePrefix("direct:")
+            runCatching { signalStore.contacts.setWhitelisted(aci, true) }
+            runCatching { signalStore.sendRequestResponse(aci, null, "ACCEPT") }
+                .onFailure { Timber.w(it, "signal request: could not tell our other devices") }
+        } else {
+            runCatching { signalStore.sendRequestResponse(null, groupIdOf(threadKey), "ACCEPT") }
+                .onFailure { Timber.w(it, "signal request: could not tell our other devices") }
+        }
+        Timber.i("signal request: accepted")
+    }
+
+    /**
+     * Deletes a message request, leaving the group if it is one: upstream's
+     * `deleteMessageRequest`. Our other devices are told, and the conversation goes.
+     */
+    override fun deleteRequest(threadKey: String) {
+        if (threadKey.startsWith("group:")) {
+            val masterKey = Realm.getDefaultInstance().use { groupMasterKeyFor(it, threadKey) }
+            if (masterKey != null) {
+                runCatching { signalStore.leaveGroup(masterKey) }
+                    .onFailure { Timber.w(it, "signal request: could not leave the group") }
+            }
+            runCatching { signalStore.sendRequestResponse(null, groupIdOf(threadKey), "DELETE") }
+        } else {
+            runCatching { signalStore.sendRequestResponse(threadKey.removePrefix("direct:"), null, "DELETE") }
+        }
+        deleteThread(threadKey)
+        Timber.i("signal request: deleted")
+    }
+
+    /**
+     * Blocks the person asking, as upstream's request Block does, and keeps the conversation
+     * with its request answered. A person only: see [setBlocked]. Throws as that does.
+     */
+    override fun blockRequest(threadKey: String) {
+        setBlocked(threadKey, true)
+        runCatching { signalStore.sendRequestResponse(threadKey.removePrefix("direct:"), null, "BLOCK") }
+        setRequest(threadKey, false)
+        Timber.i("signal request: blocked")
+    }
+
     /** The timer to stamp on anything sent into [threadKey], and which version says so. */
     private fun timerFor(threadKey: String): Pair<Int, Int> =
         Realm.getDefaultInstance().use { realm ->
@@ -3569,6 +3661,9 @@ class SignalRepositoryImpl @Inject constructor(
         }
 
         if (!prefs.signalReadReceipts.get()) return@runOffThread
+        // Somebody not accepted is not told their message was read: upstream sends read
+        // receipts only once a request is accepted.
+        if (isRequest(threadKey)) return@runOffThread
 
         // ⚠ One receipt per author, not one per conversation. This used to return early for
         // anything that was not a `direct:` thread, so reading a group told nobody -- with

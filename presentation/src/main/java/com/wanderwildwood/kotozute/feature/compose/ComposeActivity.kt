@@ -110,6 +110,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     @Inject lateinit var dateFormatter: DateFormatter
     @Inject lateinit var messageAdapter: MessagesAdapter
     @Inject lateinit var navigator: Navigator
+    @Inject lateinit var blockingDialog: com.wanderwildwood.kotozute.feature.blocking.BlockingDialog
+    @Inject lateinit var deleteConversations: com.wanderwildwood.kotozute.interactor.DeleteConversations
 
     /** The Signal thread this conversation's contact also has, if any; drives the badge. */
     private var signalThreadKey: String? = null
@@ -431,6 +433,46 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
 
+    /**
+     * A message request's bar over the composer, until it is answered. See [SmsRequests]:
+     * nobody in the address book, and nothing ever sent here.
+     */
+    private fun showRequest(state: ComposeState) {
+        val conversation = state.messages?.first
+        val request = conversation != null && state.threadId != 0L && !state.editingMode &&
+            SmsRequests.isRequest(prefs, conversation)
+        binding.requestBar.setVisible(request)
+        // The bar stands taller than the composer it covers; the list makes room for the
+        // difference, or the newest message -- the one being asked about -- sits under it.
+        binding.requestBar.post {
+            val covered = if (binding.requestBar.isShown) {
+                binding.messageList.bottom - binding.requestBar.top
+            } else 0
+            binding.messageList.setPadding(
+                binding.messageList.paddingLeft, binding.messageList.paddingTop,
+                binding.messageList.paddingRight, covered.coerceAtLeast(0)
+            )
+            binding.messageList.clipToPadding = covered <= 0
+        }
+        if (!request) return
+        val threadId = state.threadId
+        binding.requestAccept.setOnClickListener {
+            SmsRequests.accept(prefs, threadId)
+            binding.requestBar.setVisible(false)
+        }
+        binding.requestBlock.setOnClickListener { blockingDialog.show(this, listOf(threadId), true) }
+        binding.requestDelete.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setMessage(R.string.signal_request_delete_confirm)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.signal_request_delete) { _, _ ->
+                    deleteConversations.execute(listOf(threadId))
+                    finish()
+                }
+                .show()
+        }
+    }
+
     override fun render(state: ComposeState) {
         if (state.hasError) {
             finish()
@@ -438,6 +480,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         }
 
         threadId.onNext(state.threadId)
+        showRequest(state)
 
         title = when {
             state.selectedMessages > 0 -> getString(R.string.compose_title_selected, state.selectedMessages)

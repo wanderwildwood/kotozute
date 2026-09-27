@@ -1179,6 +1179,58 @@ class SignalStore(private val context: Context) {
      * send on one bad read, which is the app breaking rather than the app being careful. What
      * is not acceptable is doing it quietly.
      */
+    /**
+     * Whether the account's own records say it has accepted [serviceId] -- a contact record's
+     * `whitelisted`, which is profile sharing -- or null when they say nothing about them.
+     * Only a record that exists counts: the column's default is not an answer.
+     */
+    fun acceptedOnAccount(serviceId: String): Boolean? = runCatching {
+        contacts.storageRecordFor(serviceId)?.let {
+            org.whispersystems.signalservice.internal.storage.protos.StorageRecord.ADAPTER.decode(it).contact?.whitelisted
+        }
+    }.getOrNull()
+
+    /** The same for a group, by its identifier in base64. */
+    fun groupAcceptedOnAccount(groupId: String): Boolean? = runCatching {
+        contacts.storageRecordForGroup(groupId)?.let {
+            org.whispersystems.signalservice.internal.storage.protos.StorageRecord.ADAPTER.decode(it).groupV2?.whitelisted
+        }
+    }.getOrNull()
+
+    /**
+     * Tells our other devices how a message request was answered here: upstream's
+     * `MultiDeviceMessageRequestResponseJob`. [aci] for a person, [groupId] for a group.
+     */
+    fun sendRequestResponse(aci: String?, groupId: ByteArray?, type: String): Boolean {
+        val kind = org.whispersystems.signalservice.api.messages.multidevice.MessageRequestResponseMessage.Type.valueOf(type)
+        val message = when {
+            groupId != null -> org.whispersystems.signalservice.api.messages.multidevice.MessageRequestResponseMessage.forGroup(groupId, kind)
+            else -> org.whispersystems.signalservice.api.messages.multidevice.MessageRequestResponseMessage.forIndividual(
+                org.signal.core.models.ServiceId.parseOrNull(aci ?: return false) ?: return false, kind
+            )
+        }
+        connection.connect()
+        return callSender().sendMessageRequestResponse(message) is SignalSender.Result.Sent
+    }
+
+    /** Leaves a group, as a request's Delete does: upstream's `leaveGroupFromBlockOrMessageRequest`. */
+    internal fun leaveGroup(masterKey: ByteArray): SignalGroups.Changed {
+        connection.connect()
+        val self = org.signal.core.models.ServiceId.ACI.parseOrNull(account.credentials().aci)
+            ?: return SignalGroups.Changed.Failed("no account id")
+        val outcome = SignalGroups(connection, account, contacts).change(masterKey) { group, ops ->
+            if (self.toString() !in group.members) null
+            else ops.createLeaveAndPromoteMembersToAdmin(self, emptyList())
+        }
+        if (outcome is SignalGroups.Changed.Done) {
+            val members = outcome.members
+                .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+                .filter { it != self }
+            callSender().sendGroupUpdate(masterKey, members, outcome.revision, 0, outcome.signedChange)
+        }
+        return outcome
+    }
+
     fun isBlocked(aci: String): Boolean = runCatching {
         blocks.isBlocked(aci, contacts.numberFor(aci))
     }.onFailure {

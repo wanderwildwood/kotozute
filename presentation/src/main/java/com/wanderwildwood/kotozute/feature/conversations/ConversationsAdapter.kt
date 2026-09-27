@@ -65,7 +65,8 @@ class ConversationsAdapter @Inject constructor(
     private val scheduledMessageRepo: ScheduledMessageRepository,
     private val navigator: Navigator,
     private val phoneNumberUtils: PhoneNumberUtils,
-    private val signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
+    private val signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository,
+    private val prefs: com.wanderwildwood.kotozute.util.Preferences
 ) : RecyclerView.Adapter<QkBindingViewHolder<ConversationListItemBinding>>() {
     override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
         super.onAttachedToRecyclerView(recyclerView)
@@ -123,8 +124,14 @@ class ConversationsAdapter @Inject constructor(
                     is InboxItem.Signal -> it.thread.kind == "group"
                 }
             }
+            // Message requests, both rails: a Signal conversation somebody not accepted
+            // started, and a text one from somebody not in the address book that has never
+            // been answered. See SmsRequests and SignalThread.request.
             2 -> source.filter {
-                it is InboxItem.Sms && it.conversation.recipients.all { r -> r.contact == null }
+                when (it) {
+                    is InboxItem.Sms -> com.wanderwildwood.kotozute.feature.compose.SmsRequests.isRequest(prefs, it.conversation)
+                    is InboxItem.Signal -> it.thread.request
+                }
             }
             else -> source
         }

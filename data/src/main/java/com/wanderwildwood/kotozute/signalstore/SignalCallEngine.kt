@@ -79,7 +79,9 @@ internal class SignalCallEngine(
         var callId: CallId,
         val remoteDevice: Int,
         val video: Boolean,
-        val offeredAt: Long
+        val offeredAt: Long,
+        /** Placed from here rather than answered here. */
+        val outgoing: Boolean = false
     ) {
         var accepted = false
         var connectedAt = 0L
@@ -217,6 +219,32 @@ internal class SignalCallEngine(
      * Upstream's `handleAcceptCall` then `handleAudioReadyForAccept`: the audio is put into
      * call mode first, so the first words are not lost to a device still set up for media.
      */
+    /**
+     * Upstream's `handleOutgoingCall` and `OutgoingCallActionProcessor.handleStartOutgoingCall`:
+     * the audio goes into call mode and the ringback starts at once, and RingRTC is asked to
+     * start the call. It answers with [onStartCall], which fetches the relays and proceeds; the
+     * offer itself leaves through [onSendOffer].
+     */
+    override fun canCall(peer: String): Boolean =
+        runCatching { UUID.fromString(peer) }.isSuccess && peer != store.selfAciOrNull()
+
+    override fun call(peer: String) = worker.execute {
+        if (active != null) return@execute
+        val m = managerOrNull() ?: return@execute
+        val remote = Peer(peer)
+        val call = Active(remote, CallId(0), 0, false, System.currentTimeMillis(), outgoing = true)
+        call.accepted = true
+        active = call
+        publish(SignalCallState.Calling(peer, ringing = false))
+        audio.startCall()
+        ringback.start(Ringback.Tone.RINGING)
+        try {
+            m.call(remote, CallManager.CallMediaType.AUDIO_CALL, store.deviceId())
+        } catch (e: CallException) {
+            fail("could not start the call", e)
+        }
+    }
+
     override fun accept() = worker.execute {
         val call = active ?: return@execute
         if (call.accepted || call.ended) return@execute
@@ -283,11 +311,6 @@ internal class SignalCallEngine(
                 return@execute
             }
             call.callId = callId
-            if (isOutgoing) {
-                // Placing calls is a later step; nothing starts one yet.
-                runCatching { manager?.drop(callId) }
-                return@execute
-            }
             fetchRelaysThenProceed(call)
         }
     }
@@ -337,10 +360,12 @@ internal class SignalCallEngine(
             Timber.i("signal calls: event %s", event)
             when (event) {
                 CallManager.CallEvent.LOCAL_RINGING -> publish(SignalCallState.Ringing(call.peer.aci, call.video))
+                CallManager.CallEvent.REMOTE_RINGING -> publish(SignalCallState.Calling(call.peer.aci, ringing = true))
                 CallManager.CallEvent.LOCAL_CONNECTED, CallManager.CallEvent.REMOTE_CONNECTED -> {
                     if (call.connectedAt == 0L) {
                         call.connectedAt = System.currentTimeMillis()
-                        settle(call, CallOutcome.ANSWERED)
+                        ringback.stop()
+                        settle(call, if (call.outgoing) CallOutcome.PLACED else CallOutcome.ANSWERED)
                         // ⚠ RingRTC creates the outgoing audio track disabled, and nothing is
                         // sent until the app enables it -- upstream does it here, in
                         // `CallSetupActionProcessorDelegate.handleCallConnected`. Without it the
@@ -391,9 +416,15 @@ internal class SignalCallEngine(
             when (why) {
                 EndReason.ANSWERED_ELSEWHERE -> settle(call, CallOutcome.ANSWERED_ELSEWHERE)
                 EndReason.DECLINED_ELSEWHERE -> settle(call, CallOutcome.DECLINED_ELSEWHERE)
-                else -> if (!call.accepted) settle(call, CallOutcome.MISSED)
+                else -> when {
+                    call.outgoing -> settle(call, if (call.connectedAt > 0) CallOutcome.PLACED else CallOutcome.PLACED_UNANSWERED)
+                    !call.accepted -> settle(call, CallOutcome.MISSED)
+                }
             }
             end(call, why)
+            // Upstream plays the busy tone when the other end is on another call. After [end],
+            // which stops the ringback.
+            if (why == EndReason.BUSY && call.outgoing) ringback.busy()
         }
     }
 
@@ -489,6 +520,7 @@ internal class SignalCallEngine(
     private fun end(call: Active, why: EndReason) {
         if (call.ended) return
         call.ended = true
+        ringback.stop()
         audio.stopCall()
         publish(SignalCallState.Ended(call.peer.aci, why))
     }
@@ -511,6 +543,8 @@ internal class SignalCallEngine(
      * The minimum a voice call needs. Upstream's `SignalAudioManager` also routes to Bluetooth
      * and wired headsets and handles the proximity sensor; that is a later step.
      */
+    private val ringback = Ringback(context)
+
     private val audio = object {
         private val am get() = context.getSystemService(AudioManager::class.java)
         private var on = false

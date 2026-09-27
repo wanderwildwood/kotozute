@@ -78,6 +78,7 @@ class SignalCallService : Service() {
                 }
                 holdScreenAwake()
             }
+            is SignalCallState.Calling -> foreground(ongoingNotification(state.peer))
             is SignalCallState.Connecting -> {
                 stopRinging()
                 foreground(ongoingNotification(state.peer))
@@ -88,10 +89,25 @@ class SignalCallService : Service() {
             }
             is SignalCallState.Ended, SignalCallState.Idle -> {
                 stopRinging()
-                finish()
+                if (!seenCall && withMicrophone) {
+                    // Started for a call being placed, and the call has not said so yet: the
+                    // screen starts this service a moment before the engine publishes it. It has
+                    // to be in the foreground within seconds of starting all the same, so it
+                    // waits there -- and gives up if no call appears.
+                    foreground(ongoingNotification(""))
+                    waiter.postDelayed({ if (!seenCall) finish() }, WAIT_FOR_CALL_MS)
+                } else {
+                    finish()
+                }
             }
         }
+        if (state !is SignalCallState.Idle && state !is SignalCallState.Ended) seenCall = true
     }
+
+    private val waiter = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** Whether this service has seen the call it was started for. */
+    private var seenCall = false
 
     private fun foreground(notification: Notification) {
         try {
@@ -182,6 +198,8 @@ class SignalCallService : Service() {
     }
 
     private fun finish() {
+        waiter.removeCallbacksAndMessages(null)
+        seenCall = false
         watching?.dispose()
         watching = null
         if (inForeground) stopForeground(STOP_FOREGROUND_REMOVE)
@@ -201,6 +219,7 @@ class SignalCallService : Service() {
         private const val CHANNEL_ID = "signal_calls"
         private const val NOTIFICATION_ID = 7201
         private const val RING_WAKE_MS = 2 * 60 * 1000L
+        private const val WAIT_FOR_CALL_MS = 10_000L
 
         const val ACTION_DECLINE = "com.wanderwildwood.kotozute.signalcall.DECLINE"
         const val ACTION_HANG_UP = "com.wanderwildwood.kotozute.signalcall.HANG_UP"

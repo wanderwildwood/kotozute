@@ -1081,4 +1081,8 @@
     <string name="signal_call_ended_declined_elsewhere">Declined on another device</string>
     <string name="signal_call_ended_busy">Busy</string>
     <string name="signal_call_ended_failed">The call could not connect</string>
+    <string name="signal_call_calling">Calling…</string>
+    <string name="signal_call_remote_ringing">Ringing…</string>
+    <string name="signal_call_ended_no_answer">No answer</string>
+    <string name="signal_call_start">Call</string>
 </resources>

@@ -609,9 +609,6 @@
     <string name="setup_connected_body">Kept connected, Signal messages arrive as they are sent, and a notification stays in the shade to say so. Otherwise Signal catches up about every 15 minutes and whenever you open the app, which uses less battery.</string>
     <string name="setup_connected_keep">Keep Signal connected</string>
     <string name="setup_connected_catch_up">Catch up now and then</string>
-    <string name="setup_files_heading">Attaching files</string>
-    <string name="setup_files_body">Which app the attach buttons open to choose a picture or a file.</string>
-    <string name="setup_files_system">Android\'s own picker</string>
     <string name="setup_desktop_heading">Desktop Sync</string>
     <string name="setup_desktop_body">Read and send your messages from a computer\'s web browser, over the same network or a VPN. The address to open on the computer is in Settings, under Desktop Sync.</string>
     <string name="setup_desktop_on">Turn it on</string>

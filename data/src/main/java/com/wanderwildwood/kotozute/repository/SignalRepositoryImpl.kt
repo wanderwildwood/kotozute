@@ -3333,18 +3333,47 @@ class SignalRepositoryImpl @Inject constructor(
         // error and queued per group. The cooldown is what stands in for that queue: it stops
         // a batch of group messages becoming a fetch each, without pretending the fetch
         // happened.
-        val now = System.currentTimeMillis()
-        if (now < (groupFetchNotBefore[id] ?: 0L)) return
-        groupFetchNotBefore[id] = now + GROUP_FETCH_RETRY_MS
+        //
+        // ⚠ And only after a *failure*. It was set before every fetch, so a group renamed and
+        // then given a timer inside the same minute -- one person tidying a group's settings --
+        // fetched for the rename and then ignored the timer, and the name too if the fetch
+        // had raced the change: the thread kept the old name and said "Off" for a group whose
+        // messages were disappearing. A fetch already under way is not repeated; it notes the
+        // newest revision asked for and goes again if what it read is older.
+        groupWanted.merge(id, revision, ::maxOf)
+        if (System.currentTimeMillis() < (groupFetchNotBefore[id] ?: 0L)) return
+        if (!groupFetching.add(id)) return
 
         runOffThread {
-            val group = runCatching { signalStore.groupFor(masterKey) }.getOrNull()
-            if (group == null) {
-                Timber.w("signal group: could not read the group's state; will come back to it")
-                return@runOffThread
+            try {
+                while (true) {
+                    val wanted = groupWanted[id] ?: revision
+                    val group = runCatching { signalStore.groupFor(masterKey) }.getOrNull()
+                    if (group == null) {
+                        groupFetchNotBefore[id] = System.currentTimeMillis() + GROUP_FETCH_RETRY_MS
+                        Timber.w("signal group: could not read the group's state; will come back to it")
+                        return@runOffThread
+                    }
+                    applyGroupState(masterKey, group)
+                    // The revision actually read, which may be newer than the one asked for.
+                    groupRevisions[id] = maxOf(group.revision, wanted)
+                    if ((groupWanted[id] ?: 0) <= groupRevisions[id]!!) return@runOffThread
+                }
+            } finally {
+                groupFetching.remove(id)
             }
-            // Only now, with the state actually in hand.
-            groupRevisions[id] = revision
+        }
+    }
+
+    /** Group fetches under way, by master key. See [noteGroupRevision]. */
+    private val groupFetching: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /** The newest revision any message has named, by master key. */
+    private val groupWanted = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /** Writes a group's name and timer, as the server has them, into its thread. */
+    private fun applyGroupState(masterKey: ByteArray, group: com.wanderwildwood.kotozute.signalstore.SignalGroups.Group) {
+        run {
             val title = group.title.takeIf { it.isNotBlank() } ?: ""
             // The thread this group is, derived rather than searched for. This used to walk
             // every group thread's messages looking for one carrying the master key -- the

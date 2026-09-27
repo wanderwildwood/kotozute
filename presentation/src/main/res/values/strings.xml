@@ -459,6 +459,7 @@
     <string name="signal_typing_many">Several people are typing…</string>
     <string name="signal_typing_direct">Typing…</string>
     <!-- The draft's selection menu. Signal's TextFormatting_* words. -->
+    <string name="signal_format">Format</string>
     <string name="signal_format_bold">Bold</string>
     <string name="signal_format_italic">Italic</string>
     <string name="signal_format_strikethrough">Strikethrough</string>

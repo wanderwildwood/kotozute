@@ -1144,6 +1144,9 @@ internal class SignalReceiver(
                         val readAt = envelope.serverTimestamp ?: envelope.clientTimestamp ?: System.currentTimeMillis()
                         runCatching { events.readElsewhere(listOf(sender to at), readAt) }
                             .onFailure { Timber.w(it, "signal view-once sync: could not apply") }
+                        // And its picture goes, as it would have gone here.
+                        runCatching { events.viewOnceOpenedElsewhere(sender, at) }
+                            .onFailure { Timber.w(it, "signal view-once sync: could not apply") }
                     }
                 }
 
@@ -2515,7 +2518,9 @@ internal class SignalReceiver(
             ?: content.syncMessage?.sent?.editMessage?.dataMessage
             ?: content.editMessage?.dataMessage
             ?: return message
-        if (message.viewOnce) return message
+        // A view-once picture is fetched like any other: it has to be here to be opened once.
+        // What keeps the promise is that it can only be read by the viewer, and is gone the
+        // moment it has been -- see `SignalRepository.openViewOnce`.
         val cards = contactCards(message, dataMessage)
         if (dataMessage.attachments.isEmpty()) {
             return if (cards.length() == 0) message else message.copy(attachmentsJson = cards.toString())

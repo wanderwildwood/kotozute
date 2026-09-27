@@ -1480,9 +1480,11 @@ class SignalRepositoryImpl @Inject constructor(
         /** The timestamp of a message already written down and being sent again, or 0. */
         resending: Long = 0L,
         /** Its styles, as [com.wanderwildwood.kotozute.signalstore.BodyStyles.encode] keeps them. */
-        stylesJson: String = ""
+        stylesJson: String = "",
+        /** Its picture may be opened once by each person it reaches. */
+        viewOnce: Boolean = false
     ): Long {
-        if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments, quote, resending, stylesJson)
+        if (threadKey.startsWith("group:")) return sendDirectToGroup(threadKey, body, attachments, quote, resending, stylesJson, viewOnce)
         if (!threadKey.startsWith("direct:")) {
             throw IllegalStateException("cannot send to $threadKey")
         }
@@ -1528,11 +1530,12 @@ class SignalRepositoryImpl @Inject constructor(
                 // outgoing message.
                 expiresInSeconds = expiresIn.toLong(),
                 expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
-                stylesJson = stylesJson
+                stylesJson = stylesJson,
+                viewOnce = viewOnce
             )
         val styles = com.wanderwildwood.kotozute.signalstore.BodyStyles.decode(stylesJson)
         return sendThroughOutbox(row, attachments, resending > 0) {
-            signalStore.send(recipient, body, attachments, expiresIn, timerVersion, quote, timestamp, styles = styles)
+            signalStore.send(recipient, body, attachments, expiresIn, timerVersion, quote, timestamp, styles = styles, viewOnce = viewOnce)
         }
     }
 
@@ -1749,7 +1752,7 @@ class SignalRepositoryImpl @Inject constructor(
                 com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared("it is no longer on this phone")
             )
         }
-        return sendDirect(m.threadKey, m.body, attachments, quoteFor(m.threadKey, m.quoteTs), resending = m.date, stylesJson = m.styles)
+        return sendDirect(m.threadKey, m.body, attachments, quoteFor(m.threadKey, m.quoteTs), resending = m.date, stylesJson = m.styles, viewOnce = m.viewOnce)
     }
 
     /**
@@ -1801,7 +1804,8 @@ class SignalRepositoryImpl @Inject constructor(
         attachments: List<String>,
         quote: com.wanderwildwood.kotozute.signalstore.SignalQuote? = null,
         resending: Long = 0L,
-        stylesJson: String = ""
+        stylesJson: String = "",
+        viewOnce: Boolean = false
     ): Long {
         val masterKey = Realm.getDefaultInstance().use { realm ->
             groupMasterKeyFor(realm, threadKey)
@@ -1832,7 +1836,8 @@ class SignalRepositoryImpl @Inject constructor(
                 expiresInSeconds = expiresIn.toLong(),
                 expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
                 groupMasterKey = masterKey,
-                stylesJson = stylesJson
+                stylesJson = stylesJson,
+                viewOnce = viewOnce
             )
         // The same order as the one-to-one send; see [sendThroughOutbox].
         // "@Name" goes as a real mention, worked out against the group's members once the send
@@ -1843,7 +1848,8 @@ class SignalRepositoryImpl @Inject constructor(
             signalStore.sendToGroup(
                 masterKey, body, expiresIn, timerVersion, quote, timestamp, names,
                 com.wanderwildwood.kotozute.signalstore.BodyStyles.decode(stylesJson),
-                attachments
+                attachments,
+                viewOnce
             )
         }
     }
@@ -2484,10 +2490,10 @@ class SignalRepositoryImpl @Inject constructor(
         row.quoteTs = m.quoteTs
         row.read = m.read || wasRead
         row.source = m.source
-        // A view-once attachment is never stored. Signal's promise is that it can be opened
-        // once; a copy in Realm is a copy that can be opened for ever. The row stays so the
-        // thread does not have a silent hole where a message was.
-        row.attachments = if (m.viewOnce) "" else m.attachmentsJson
+        // A view-once attachment is kept until it has been opened once, and never after: a
+        // message delivered again once it is spent must not bring the picture back. Spent is
+        // a view-once row whose attachments are gone. See [openViewOnce].
+        row.attachments = if (m.viewOnce && existing != null && existing.attachments.isBlank()) "" else m.attachmentsJson
         row.styles = m.stylesJson
         row.expiresAt = if (countdownStarted > 0L) countdownStarted else m.expiresAt
         row.expiresInSeconds = m.expiresInSeconds
@@ -2629,9 +2635,9 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun send(threadKey: String, body: String, attachments: List<String>, quoteTs: Long, stylesJson: String): Long =
+    override fun send(threadKey: String, body: String, attachments: List<String>, quoteTs: Long, stylesJson: String, viewOnce: Boolean): Long =
         try {
-            sendDirect(threadKey, body, attachments, quoteFor(threadKey, quoteTs), stylesJson = stylesJson)
+            sendDirect(threadKey, body, attachments, quoteFor(threadKey, quoteTs), stylesJson = stylesJson, viewOnce = viewOnce)
         } catch (t: Throwable) {
             if (ServiceOutage.worthChecking(t)) checkServiceOutage()
             throw t
@@ -2879,6 +2885,8 @@ class SignalRepositoryImpl @Inject constructor(
             // browser rail and to nobody here.
             applyReceipts(sender, timestamps, read)
         }
+
+        override fun viewOnceOpenedElsewhere(sender: String, sentAt: Long) = spendViewOnce("$sender:$sentAt")
 
         override fun readElsewhere(read: List<Pair<String, Long>>, readAt: Long) =
             applyReadElsewhere(read, readAt)
@@ -3600,7 +3608,64 @@ class SignalRepositoryImpl @Inject constructor(
      * attachment that was never downloaded is gone: its pointer was good for a window on
      * Signal's CDN and that window has closed.
      */
-    override fun loadAttachment(id: String): ByteArray? = signalStore.readAttachment(id)
+    /**
+     * An attachment's bytes -- never a view-once one's. Everything that hands a file on reads
+     * through here: open, save, share, forward, Desktop Sync. Refusing here keeps Signal's
+     * promise in one place rather than at each of them; [openViewOnce] is the one way in.
+     */
+    override fun loadAttachment(id: String): ByteArray? {
+        if (id.isBlank()) return null
+        val viewOnce = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java)
+                .equalTo("viewOnce", true)
+                .contains("attachments", id)
+                .count() > 0
+        }
+        if (viewOnce) {
+            Timber.w("signal: refused to hand on a view-once attachment")
+            return null
+        }
+        return signalStore.readAttachment(id)
+    }
+
+    /**
+     * A view-once message's picture, for the viewer, once: upstream's
+     * `ViewOnceMessageRepository` with `markAsRevealed`. It is spent in the same call -- the
+     * file deleted, the row left saying it was viewed, our other devices told -- so there is
+     * no second opening, not even after a crash half way through looking at it.
+     */
+    override fun openViewOnce(messageId: String): SignalRepository.ViewOnceMedia? {
+        val found = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
+                ?.takeIf { it.viewOnce && !it.outgoing && it.attachments.isNotBlank() }
+                ?.let { Triple(it.attachments, it.senderUuid, it.date) }
+        } ?: return null
+        val entry = runCatching { JSONArray(found.first).optJSONObject(0) }.getOrNull() ?: return null
+        val id = entry.optString("id")
+        if (id.isBlank()) return null
+        val bytes = signalStore.readAttachment(id) ?: return null
+        spendViewOnce(messageId)
+        runOffThread { signalStore.sendViewOnceOpened(found.second, found.third) }
+        return SignalRepository.ViewOnceMedia(bytes, entry.optString("type"))
+    }
+
+    /** Deletes a view-once message's picture and leaves the row saying it was viewed. */
+    private fun spendViewOnce(messageId: String) {
+        val ids = mutableListOf<String>()
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val row = r.where(SignalMessage::class.java).equalTo("id", messageId).findFirst()
+                    ?: return@executeTransaction
+                runCatching { JSONArray(row.attachments) }.getOrNull()?.let { a ->
+                    for (i in 0 until a.length()) a.optJSONObject(i)?.optString("id")?.takeIf { it.isNotBlank() }?.let(ids::add)
+                }
+                row.attachments = ""
+                row.read = true
+            }
+        }
+        signalStore.forgetAttachments(ids)
+        Timber.i("signal: a view-once message was opened and its picture removed")
+    }
 
     /**
      * Links the user has made by hand between a Signal thread and an SMS conversation.

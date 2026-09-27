@@ -244,6 +244,9 @@ interface SignalEvents {
      */
     fun readElsewhere(read: List<Pair<String, Long>>, readAt: Long) {}
 
+    /** A view-once message was opened on another of our devices; its picture goes here too. */
+    fun viewOnceOpenedElsewhere(sender: String, sentAt: Long) {}
+
     /**
      * A message its sender has withdrawn, for everyone.
      *

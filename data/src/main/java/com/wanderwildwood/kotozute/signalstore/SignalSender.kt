@@ -347,7 +347,8 @@ internal class SignalSender(
         /** Styles over [body] as sent, placeholders and all. */
         styles: List<BodyStyles.Range> = emptyList(),
         /** As [send]'s: data URIs, uploaded once and pointed to by every member's copy. */
-        attachments: List<String> = emptyList()
+        attachments: List<String> = emptyList(),
+        viewOnce: Boolean = false
     ): Result {
         // A group of only ourselves is not refused: the library still sends our other
         // devices their copy, which is upstream's `onlyTargetIsSelfWithLinkedDevice` in
@@ -400,6 +401,7 @@ internal class SignalSender(
             // encrypts that same content to each member, pointers and all.
             .apply { if (streams.isNotEmpty()) withAttachments(streams) }
             .apply { if (cards.isNotEmpty()) withSharedContacts(cards) }
+            .withViewOnce(viewOnce)
             .build()
 
         return try {
@@ -1125,6 +1127,23 @@ internal class SignalSender(
      * Each entry names the message the way Signal names one everywhere: whoever wrote it, and
      * the timestamp they sent it with.
      */
+    /**
+     * Tells our other devices a view-once message was opened here, so it is spent there too:
+     * upstream's `MultiDeviceViewOnceOpenJob`. Named as Signal names a message, by its author
+     * and the time they sent it.
+     */
+    fun sendViewOnceOpenSync(author: ServiceId, sentAt: Long): Result = try {
+        val result = sender.sendSyncMessage(
+            SignalServiceSyncMessage.forViewOnceOpen(
+                org.whispersystems.signalservice.api.messages.multidevice.ViewOnceOpenMessage(author, sentAt)
+            )
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else failed(result)
+    } catch (t: Throwable) {
+        Timber.w(t, "signal view-once sync: send threw")
+        failed(t)
+    }
+
     fun sendReadSync(read: List<Pair<ServiceId.ACI, Long>>): Result {
         if (read.isEmpty()) return Result.Sent(System.currentTimeMillis())
         val timestamp = System.currentTimeMillis()
@@ -1654,7 +1673,9 @@ internal class SignalSender(
          */
         expirationUpdate: Boolean = false,
         /** Bold, italic, spoilers and the rest, over [body]. */
-        styles: List<BodyStyles.Range> = emptyList()
+        styles: List<BodyStyles.Range> = emptyList(),
+        /** The picture may be opened once, by each person it reaches. */
+        viewOnce: Boolean = false
     ): Result {
         refuseIfTooLong(body)?.let { return it }
         val (cardUris, files) = attachments.partition(ContactCards::isVCard)
@@ -1683,6 +1704,7 @@ internal class SignalSender(
             .withProfileKey(selfProfileKey?.takeIf { sharesProfileWith(recipient) })
             .apply { if (streams.isNotEmpty()) withAttachments(streams) }
             .apply { if (cards.isNotEmpty()) withSharedContacts(cards) }
+            .withViewOnce(viewOnce)
             .withQuote(quote?.toQuote())
             // The conversation's timer, re-asserted on every message the way Signal does.
             // Omitting it does not leave the timer alone: a data message with no expireTimer

@@ -702,11 +702,11 @@ internal object ContentNormalizer {
      * (This comment used to say nothing downloaded attachments at all, which stopped being
      * true and then misled a reading of this file.)
      *
-     * A view-once attachment is not recorded at all. Signal's promise is that it can be opened
-     * once, and writing its id into a column anything can read is not that.
+     * A view-once attachment is recorded like any other, because it has to be fetched to be
+     * opened at all; what keeps Signal's promise is that only the viewer can read it, once.
      */
     private fun attachmentsJson(dataMessage: DataMessage, viewOnce: Boolean): String {
-        if (viewOnce || dataMessage.attachments.isEmpty()) return ""
+        if (dataMessage.attachments.isEmpty()) return ""
         val array = JSONArray()
         dataMessage.attachments.forEach { pointer ->
             array.put(

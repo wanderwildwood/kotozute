@@ -836,6 +836,12 @@ interface SignalRepository {
 
     fun connectionState(): Observable<ConnectionState>
 
+    /** How setting a conversation's disappearing-messages timer went. */
+    enum class TimerSet { SET, NOT_ALLOWED, NOT_A_MEMBER, FAILED }
+
+    /** Sets how long messages in [threadKey] last, 0 for ever. Blocks; not the main thread. */
+    fun setDisappearingTimer(threadKey: String, seconds: Int): TimerSet
+
     /** Names of whoever is typing in [threadKey] now, and again whenever that changes. */
     fun typing(threadKey: String): Observable<List<String>>
 

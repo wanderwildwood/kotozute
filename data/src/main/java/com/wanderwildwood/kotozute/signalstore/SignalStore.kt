@@ -781,6 +781,32 @@ class SignalStore(private val context: Context) {
         callSender().sendTyping(members, started, groupId)
     }
 
+    /**
+     * Sets a group's disappearing-messages timer: upstream's `GroupManagerV2.updateGroupTimer`.
+     *
+     * A group's timer is part of the group's state on the server, not something a message
+     * asserts, so this is a change to the group -- signed by the server, then told to the
+     * members with the signature so they can apply it without asking.
+     */
+    internal fun setGroupTimer(masterKey: ByteArray, seconds: Int): SignalGroups.Changed {
+        connection.connect()
+        val groups = SignalGroups(connection, account, contacts)
+        val outcome = groups.change(masterKey) { group, ops ->
+            if (group.expiresInSeconds == seconds.toLong()) null
+            else ops.createModifyGroupTimerChange(seconds)
+        }
+        if (outcome is SignalGroups.Changed.Done) {
+            val self = account.credentials().aci
+            val members = outcome.members
+                .mapNotNull { org.signal.core.models.ServiceId.parseOrNull(it) }
+                .filter { it.toString() != self }
+            // Told, but not a condition of the change: it is made once the server has it,
+            // and a member who missed the message learns it from the group's next revision.
+            callSender().sendGroupUpdate(masterKey, members, outcome.revision, seconds, outcome.signedChange)
+        }
+        return outcome
+    }
+
     /** The relay servers for a call. See [SignalSender.turnServers]. */
     internal fun turnServers(): List<org.whispersystems.signalservice.api.messages.calls.TurnServerInfo>? {
         connection.connect()
@@ -1557,7 +1583,9 @@ class SignalStore(private val context: Context) {
         expiresInSeconds: Int = 0,
         expireTimerVersion: Int = 0,
         quote: SignalQuote? = null,
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        /** See [SignalSender.send]. */
+        expirationUpdate: Boolean = false
     ): Long {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
             ?: throw IllegalStateException("not a service id: $recipient")
@@ -1565,7 +1593,7 @@ class SignalStore(private val context: Context) {
         return try {
             when (val result = SignalSender(
                 SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database, SignalDataStore(database, account), connection, contacts
-            ).send(serviceId, body, attachments, expiresInSeconds, expireTimerVersion, quote, timestamp)) {
+            ).send(serviceId, body, attachments, expiresInSeconds, expireTimerVersion, quote, timestamp, expirationUpdate)) {
                 is SignalSender.Result.Sent -> result.timestamp
                 // Typed, so the screen can offer "Send anyway" rather than reprint the
                 // reason. See [SafetyNumberChanged].

@@ -1100,4 +1100,19 @@
     <string name="signal_call_remote_ringing">Ringing…</string>
     <string name="signal_call_ended_no_answer">No answer</string>
     <string name="signal_call_start">Call</string>
+    <!-- Disappearing messages, on a Signal conversation's info screen. Upstream's choices. -->
+    <string name="info_timer">Disappearing messages</string>
+    <string name="info_timer_off">Off</string>
+    <string name="info_timer_4_weeks">4 weeks</string>
+    <string name="info_timer_1_week">1 week</string>
+    <string name="info_timer_1_day">1 day</string>
+    <string name="info_timer_8_hours">8 hours</string>
+    <string name="info_timer_1_hour">1 hour</string>
+    <string name="info_timer_5_minutes">5 minutes</string>
+    <string name="info_timer_30_seconds">30 seconds</string>
+    <string name="info_timer_other">%d seconds</string>
+    <string name="info_timer_setting">Setting…</string>
+    <string name="info_timer_not_allowed">Only the group\'s admins can change this</string>
+    <string name="info_timer_not_member">You are no longer in this group</string>
+    <string name="info_timer_failed">Could not change it. Try again when connected.</string>
 </resources>

@@ -94,6 +94,8 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         bindDelete()
         refreshLinkRow()
 
+        binding.timer.setOnClickListener { pickTimer() }
+
         binding.archive.setOnClickListener {
             isArchived = !isArchived
             signalRepo.setArchived(threadKey, isArchived)
@@ -350,6 +352,52 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                 binding.media.turnsAPageOnSwipe()
             }
             renderArchive()
+            timerSeconds = thread.expiresInSeconds.toInt()
+            renderTimer()
+        }
+    }
+
+    /** The conversation's disappearing-messages timer, as last read or set. */
+    private var timerSeconds = 0
+
+    private fun renderTimer() {
+        val known = TIMER_CHOICES.indexOfFirst { it.first == timerSeconds }
+        binding.timer.summary = if (known >= 0) getString(TIMER_CHOICES[known].second)
+        else getString(R.string.info_timer_other, timerSeconds)
+    }
+
+    /** Upstream's list of timers, the one in force ticked. */
+    private fun pickTimer() {
+        val checked = TIMER_CHOICES.indexOfFirst { it.first == timerSeconds }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.info_timer)
+            .setSingleChoiceItems(TIMER_CHOICES.map { getString(it.second) }.toTypedArray(), checked) { dialog, which ->
+                dialog.dismiss()
+                val seconds = TIMER_CHOICES[which].first
+                if (seconds != timerSeconds) setTimer(seconds)
+            }
+            .show()
+    }
+
+    private fun setTimer(seconds: Int) {
+        binding.timer.isEnabled = false
+        binding.timer.summary = getString(R.string.info_timer_setting)
+        thread(isDaemon = true) {
+            val outcome = runCatching { signalRepo.setDisappearingTimer(threadKey, seconds) }
+                .getOrDefault(SignalRepository.TimerSet.FAILED)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                binding.timer.isEnabled = true
+                if (outcome == SignalRepository.TimerSet.SET) timerSeconds = seconds
+                renderTimer()
+                val why = when (outcome) {
+                    SignalRepository.TimerSet.SET -> null
+                    SignalRepository.TimerSet.NOT_ALLOWED -> R.string.info_timer_not_allowed
+                    SignalRepository.TimerSet.NOT_A_MEMBER -> R.string.info_timer_not_member
+                    SignalRepository.TimerSet.FAILED -> R.string.info_timer_failed
+                }
+                why?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+            }
         }
     }
 
@@ -522,6 +570,18 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         private const val ARM_TIMEOUT_MS = 4000L
         private const val EXTRA_KEY = "threadKey"
         private const val MEDIA_COLUMNS = 3
+
+        /** Upstream's `ExpireTimerSettingsFragment__values`, in its order. */
+        private val TIMER_CHOICES = listOf(
+            0 to R.string.info_timer_off,
+            2_419_200 to R.string.info_timer_4_weeks,
+            604_800 to R.string.info_timer_1_week,
+            86_400 to R.string.info_timer_1_day,
+            28_800 to R.string.info_timer_8_hours,
+            3_600 to R.string.info_timer_1_hour,
+            300 to R.string.info_timer_5_minutes,
+            30 to R.string.info_timer_30_seconds
+        )
 
         /**
          * A conversation's whole history is not needed to describe it, and reading every

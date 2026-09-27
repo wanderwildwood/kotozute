@@ -397,7 +397,8 @@ class SignalStore(private val context: Context) {
          * still matches. See [OutgoingMentions].
          */
         mentionNames: Map<String, String> = emptyMap(),
-        styles: List<BodyStyles.Range> = emptyList()
+        styles: List<BodyStyles.Range> = emptyList(),
+        attachments: List<String> = emptyList()
     ): Long {
         connection.connect()
         // ⚠ Which kind of "no" matters. Being removed from a group is permanent and there is
@@ -429,7 +430,7 @@ class SignalStore(private val context: Context) {
             val r = SignalSender(
                 SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
                 SignalDataStore(database, account), connection, contacts
-            ).sendToGroup(masterKey, members, encoded.body, expiresInSeconds, expireTimerVersion, group.revision, quote, timestamp, encoded.mentions, encoded.styles)
+            ).sendToGroup(masterKey, members, encoded.body, expiresInSeconds, expireTimerVersion, group.revision, quote, timestamp, encoded.mentions, encoded.styles, attachments)
         ) {
             is SignalSender.Result.Sent -> r.timestamp
             is SignalSender.Result.Failed -> throw SendRefused(r.failure)

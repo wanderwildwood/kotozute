@@ -1803,11 +1803,6 @@ class SignalRepositoryImpl @Inject constructor(
         resending: Long = 0L,
         stylesJson: String = ""
     ): Long {
-        if (attachments.isNotEmpty()) {
-            throw com.wanderwildwood.kotozute.repository.SendRefused(
-                com.wanderwildwood.kotozute.repository.SendFailure.AttachmentsToGroup
-            )
-        }
         val masterKey = Realm.getDefaultInstance().use { realm ->
             groupMasterKeyFor(realm, threadKey)
         } ?: throw com.wanderwildwood.kotozute.repository.SendRefused(
@@ -1830,7 +1825,9 @@ class SignalRepositoryImpl @Inject constructor(
                 quoteTs = quote?.sentAt ?: 0L,
                 read = true,
                 source = "live",
-                attachmentsJson = "",
+                // As a one-to-one send's: the row draws what went, and the outbox keeps the
+                // bytes so a send cut off can go again.
+                attachmentsJson = outgoingAttachmentsJson(attachments),
                 // Our own copy of a group send expires on the group's timer too.
                 expiresInSeconds = expiresIn.toLong(),
                 expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
@@ -1842,10 +1839,11 @@ class SignalRepositoryImpl @Inject constructor(
         // has fetched them; this phone's own copy keeps the name, which is how a received
         // mention is shown too.
         val names = runCatching { senderNamesFor(threadKey) }.getOrDefault(emptyMap())
-        return sendThroughOutbox(row, emptyList(), resending > 0) {
+        return sendThroughOutbox(row, attachments, resending > 0) {
             signalStore.sendToGroup(
                 masterKey, body, expiresIn, timerVersion, quote, timestamp, names,
-                com.wanderwildwood.kotozute.signalstore.BodyStyles.decode(stylesJson)
+                com.wanderwildwood.kotozute.signalstore.BodyStyles.decode(stylesJson),
+                attachments
             )
         }
     }

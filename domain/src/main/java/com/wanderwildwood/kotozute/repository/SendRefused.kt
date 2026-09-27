@@ -102,9 +102,6 @@ sealed interface SendFailure {
     /** A conversation keyed by a phone number, which has no Signal address to reply to. */
     data object NumberOnly : SendFailure
 
-    /** An attachment offered to a group send, which this app cannot do yet. */
-    data object AttachmentsToGroup : SendFailure
-
     /** A group conversation that has no master key on it yet. */
     data object NoGroupKey : SendFailure
 }

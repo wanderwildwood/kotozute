@@ -179,10 +179,6 @@ class SignalWordingTest {
                 "Write to them from a new message instead.",
             send(SendFailure.NumberOnly)
         )
-        assertEquals(
-            "sending attachments to a group is not supported yet",
-            send(SendFailure.AttachmentsToGroup)
-        )
         assertEquals("no group key on this thread yet", send(SendFailure.NoGroupKey))
     }
 

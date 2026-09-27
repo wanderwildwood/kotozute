@@ -342,7 +342,14 @@ internal object ContentNormalizer {
     }
 
     /** A conversation's disappearing-messages timer, as one message changed it. */
-    data class TimerUpdate(val threadKey: String, val seconds: Long, val version: Int)
+    data class TimerUpdate(
+        val threadKey: String,
+        val seconds: Long,
+        val version: Int,
+        /** Who set it, when the message said only that: a change to announce, not just obey. */
+        val setBy: String? = null,
+        val sentAt: Long = 0L
+    )
 
     /**
      * The timer change in this content, if it is one.
@@ -395,7 +402,10 @@ internal object ContentNormalizer {
         return TimerUpdate(
             threadKey = threadKey,
             seconds = (dataMessage.expireTimer ?: 0).toLong(),
-            version = dataMessage.expireTimerVersion ?: 0
+            version = dataMessage.expireTimerVersion ?: 0,
+            setBy = if (!isExpirationUpdate(dataMessage)) null
+                else if (outgoing) selfAci else metadata.sourceServiceId.toString(),
+            sentAt = dataMessage.timestamp ?: 0L
         )
     }
 

@@ -80,4 +80,91 @@
       ciphertext is in a version it does not speak. Saying whose fault it is would be a guess.
     -->
     <string name="signal_message_unreadable_form">A message was sent here that this app could not read. Asking for it again would not help.</string>
+
+    <!-- Lines written into a Signal conversation when it changes. Signal Android's wording
+         (GroupsV2UpdateMessageProducer, MessageRecord_*). -->
+    <string name="signal_update_you">You</string>
+    <string name="signal_update_someone">Someone</string>
+    <string name="signal_update_group_updated">Group updated.</string>
+    <string name="signal_update_you_timer_off">You disabled disappearing messages.</string>
+    <string name="signal_update_timer_off">%1$s disabled disappearing messages.</string>
+    <string name="signal_update_you_timer">You set the disappearing message timer to %1$s.</string>
+    <string name="signal_update_timer">%1$s set the disappearing message timer to %2$s.</string>
+    <string name="signal_update_you_renamed">You changed the group name to \"%1$s\".</string>
+    <string name="signal_update_renamed">%1$s changed the group name to \"%2$s\".</string>
+    <string name="signal_update_you_description">You changed the group description.</string>
+    <string name="signal_update_description">%1$s changed the group description.</string>
+    <string name="signal_update_you_avatar">You changed the group avatar.</string>
+    <string name="signal_update_avatar">%1$s changed the group avatar.</string>
+    <string name="signal_update_you_added">You added %1$s.</string>
+    <string name="signal_update_added">%1$s added %2$s.</string>
+    <string name="signal_update_added_you">%1$s added you to the group.</string>
+    <string name="signal_update_you_joined">You joined the group.</string>
+    <string name="signal_update_joined">%1$s joined the group.</string>
+    <string name="signal_update_joined_by_link">%1$s joined the group via the group link.</string>
+    <string name="signal_update_you_accepted">You accepted the invitation to the group.</string>
+    <string name="signal_update_accepted">%1$s accepted an invitation to the group.</string>
+    <string name="signal_update_invited_you">%1$s invited you to the group.</string>
+    <plurals name="signal_update_you_invited">
+        <item quantity="one">You invited %1$d person to the group.</item>
+        <item quantity="other">You invited %1$d people to the group.</item>
+    </plurals>
+    <plurals name="signal_update_invited">
+        <item quantity="one">%1$s invited %2$d person to the group.</item>
+        <item quantity="other">%1$s invited %2$d people to the group.</item>
+    </plurals>
+    <string name="signal_update_you_removed">You removed %1$s.</string>
+    <string name="signal_update_removed">%1$s removed %2$s.</string>
+    <string name="signal_update_removed_you">%1$s removed you from the group.</string>
+    <string name="signal_update_you_left">You left the group.</string>
+    <string name="signal_update_left">%1$s left the group.</string>
+    <string name="signal_update_you_made_admin">You made %1$s an admin.</string>
+    <string name="signal_update_made_admin">%1$s made %2$s an admin.</string>
+    <string name="signal_update_made_you_admin">%1$s made you an admin.</string>
+    <string name="signal_update_you_revoked_admin">You revoked admin privileges from %1$s.</string>
+    <string name="signal_update_revoked_admin">%1$s revoked admin privileges from %2$s.</string>
+    <string name="signal_update_revoked_your_admin">%1$s revoked your admin privileges.</string>
+    <string name="signal_update_you_admins_only">You changed the group settings to only allow admins to send messages.</string>
+    <string name="signal_update_admins_only">%1$s changed the group settings to only allow admins to send messages.</string>
+    <string name="signal_update_you_all_send">You changed the group settings to allow all members to send messages.</string>
+    <string name="signal_update_all_send">%1$s changed the group settings to allow all members to send messages.</string>
+    <string name="signal_update_you_edit_admins">You changed who can edit group info to \"Only admins\".</string>
+    <string name="signal_update_edit_admins">%1$s changed who can edit group info to \"Only admins\".</string>
+    <string name="signal_update_you_edit_all">You changed who can edit group info to \"All members\".</string>
+    <string name="signal_update_edit_all">%1$s changed who can edit group info to \"All members\".</string>
+    <string name="signal_update_you_add_admins">You changed who can edit group membership to \"Only admins\".</string>
+    <string name="signal_update_add_admins">%1$s changed who can edit group membership to \"Only admins\".</string>
+    <string name="signal_update_you_add_all">You changed who can edit group membership to \"All members\".</string>
+    <string name="signal_update_add_all">%1$s changed who can edit group membership to \"All members\".</string>
+    <string name="signal_update_you_link_on">You turned on the group link with admin approval off.</string>
+    <string name="signal_update_link_on">%1$s turned on the group link with admin approval off.</string>
+    <string name="signal_update_you_link_approval">You turned on the group link with admin approval on.</string>
+    <string name="signal_update_link_approval">%1$s turned on the group link with admin approval on.</string>
+    <string name="signal_update_you_link_off">You turned off the group link.</string>
+    <string name="signal_update_link_off">%1$s turned off the group link.</string>
+    <string name="signal_update_asked_to_join">%1$s requested to join via the group link.</string>
+    <string name="signal_update_you_approved">You approved a request to join the group from %1$s.</string>
+    <string name="signal_update_approved">%1$s approved a request to join the group from %2$s.</string>
+    <string name="signal_update_you_ended">You ended the group.</string>
+    <string name="signal_update_ended">%1$s ended the group.</string>
+    <plurals name="signal_timer_seconds">
+        <item quantity="one">%d second</item>
+        <item quantity="other">%d seconds</item>
+    </plurals>
+    <plurals name="signal_timer_minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <plurals name="signal_timer_hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <plurals name="signal_timer_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="signal_timer_weeks">
+        <item quantity="one">%d week</item>
+        <item quantity="other">%d weeks</item>
+    </plurals>
 </resources>

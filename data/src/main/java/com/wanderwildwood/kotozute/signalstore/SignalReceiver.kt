@@ -1326,6 +1326,9 @@ internal class SignalReceiver(
                     }
                 }
 
+                // What a group change said, in words, for the row the normalizer makes of it.
+                var groupChangeWords: String? = null
+
                 // What revision of a group this message came from. Noted before normalizing,
                 // because the normalizer keeps the master key and drops this.
                 (result.content.dataMessage?.groupV2 ?: result.content.syncMessage?.sent?.message?.groupV2)
@@ -1335,6 +1338,15 @@ internal class SignalReceiver(
                         if (master != null && master.isNotEmpty() && revision != null) {
                             runCatching { events.groupChanged(master, revision) }
                                 .onFailure { Timber.w(it, "signal group: could not note a revision") }
+                        }
+                        // What the change was, when the message carries the server's signed
+                        // copy of it -- which every change made by a current client does. Read
+                        // as upstream reads it (`GroupManagerV2.decryptChange`): the signature
+                        // checked against the server and the group's id, since a member could
+                        // otherwise put any words they liked in everybody's conversation.
+                        val signed = group.groupChange?.takeIf { it.size > 0 }
+                        if (master != null && master.isNotEmpty() && signed != null) {
+                            groupChangeWords = describeGroupChange(master, signed.toByteArray(), credentials.aci.orEmpty())
                         }
                     }
 
@@ -1447,7 +1459,7 @@ internal class SignalReceiver(
                 ContentNormalizer.timerUpdateIn(
                     result.content, result.metadata, credentials.aci, credentials.e164
                 )?.let { update ->
-                    runCatching { events.timerChanged(update.threadKey, update.seconds, update.version) }
+                    runCatching { events.timerChanged(update.threadKey, update.seconds, update.version, update.setBy, update.sentAt) }
                         .onFailure { Timber.w(it, "signal timer: could not record a timer change") }
                 }
 
@@ -1461,10 +1473,18 @@ internal class SignalReceiver(
                     // A second edit names the first edit, not the original.
                     originalOf = { author, at -> runCatching { events.originalSentAt(author, at) }.getOrNull() }
                 )
+                // A group change is a row of its own, "Updated the group." until now: given what
+                // it actually did, and read, as upstream's update rows are -- history, not news.
+                val carrier = result.content.dataMessage ?: result.content.syncMessage?.sent?.message
+                val described = normalized?.let { m ->
+                    if (groupChangeWords != null && carrier?.body.isNullOrEmpty() && carrier?.attachments.isNullOrEmpty()) {
+                        m.copy(body = groupChangeWords!!, read = true)
+                    } else m
+                }
                 // Downloaded now, while the CDN still has them. See SignalAttachments: a
                 // pointer is only good for a window, so fetching lazily when a bubble is drawn
                 // fails for exactly the attachments worth keeping.
-                val message = normalized?.let { withAttachments(it, result.content) }
+                val message = described?.let { withAttachments(it, result.content) }
                 // Without the sender and without the thread key. Both identify a person, the
                 // thread key because it is derived from exactly that -- and this is a release
                 // build with a logging tree planted, so anything here is written down. Who is
@@ -1602,6 +1622,19 @@ internal class SignalReceiver(
      * The same derivation the thread key uses -- the master key is not the id, and comparing
      * the wrong one would mean a blocked group that never matches.
      */
+    /** Decrypts a group change carried on a message, and says what it did. See [GroupChangeLines]. */
+    private fun describeGroupChange(masterKey: ByteArray, signedChange: ByteArray, self: String): String? =
+        runCatching {
+            val params = org.signal.libsignal.zkgroup.groups.GroupSecretParams
+                .deriveFromMasterKey(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))
+            val change = connection.groupOperations.forGroup(params).decryptChange(
+                org.signal.storageservice.storage.protos.groups.GroupChange.ADAPTER.decode(signedChange),
+                org.whispersystems.signalservice.api.groupsv2.DecryptChangeVerificationMode
+                    .verify(params.publicParams.groupIdentifier)
+            ).orElse(null) ?: return@runCatching null
+            events.describeGroupChange(GroupChangeLines.describe(change, self))
+        }.onFailure { Timber.w(it, "signal group: could not read what a group change was") }.getOrNull()
+
     private fun groupIdFrom(masterKey: ByteArray): ByteArray? = runCatching {
         org.signal.libsignal.zkgroup.groups.GroupSecretParams
             .deriveFromMasterKey(org.signal.libsignal.zkgroup.groups.GroupMasterKey(masterKey))

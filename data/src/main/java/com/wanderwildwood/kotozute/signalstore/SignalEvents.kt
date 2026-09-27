@@ -114,6 +114,9 @@ interface SignalEvents {
         serverDeliveredAt: Long
     ) {}
 
+    /** A group change's lines in words, one to a line; null to leave the row as it was. */
+    fun describeGroupChange(lines: List<GroupChangeLines.Line>): String? = null
+
     /** Somebody started or stopped typing in [threadKey]. Not a message; nothing is kept. */
     fun typing(threadKey: String, sender: String, started: Boolean) {}
 
@@ -285,7 +288,14 @@ interface SignalEvents {
      * thrown away, so this phone's own replies carried no timer -- which does not merely fail
      * to disappear, it tells the other person's client the conversation has been switched off.
      */
-    fun timerChanged(threadKey: String, seconds: Long, version: Int) {}
+    fun timerChanged(
+        threadKey: String,
+        seconds: Long,
+        version: Int,
+        /** Who set it, when the message was a change of timer rather than any message. */
+        setBy: String? = null,
+        sentAt: Long = 0L
+    ) {}
 }
 
 /**

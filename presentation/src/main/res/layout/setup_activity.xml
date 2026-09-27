@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The setup guide: one question to a page. Where it is, what it is about, what it does, and
+  the choices, with Skip always in the same place at the foot. Nothing moves; a page is
+  redrawn whole when the answer is given.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        style="@style/Toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/toolbarTitle"
+            style="@style/ToolbarText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/setup_title"
+            android:textSize="16sp" />
+
+    </androidx.appcompat.widget.Toolbar>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/where"
+                style="@style/TextTertiary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                tools:text="2 of 6" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/heading"
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                tools:text="Signal" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/body"
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                tools:text="Signal can sit alongside your texts." />
+
+            <!-- What the last choice did, when it takes a moment or says something back. -->
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/status"
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="45 on Signal"
+                tools:visibility="visible" />
+
+            <LinearLayout
+                android:id="@+id/choices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:orientation="vertical" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:background="@android:color/black" />
+
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/skip"
+        style="@style/TextPrimary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:gravity="center"
+        android:padding="16dp"
+        android:text="@string/setup_skip"
+        android:textStyle="bold" />
+
+</LinearLayout>

@@ -105,6 +105,9 @@ abstract class ActivityBuilderModule {
     @ContributesAndroidInjector
     abstract fun bindSignalLinkActivity(): SignalLinkActivity
 
+    @ContributesAndroidInjector
+    abstract fun bindSetupActivity(): com.wanderwildwood.kotozute.feature.setup.SetupActivity
+
     @ActivityScope
     @ContributesAndroidInjector(modules = [])
     abstract fun bindSignalCallActivity(): com.wanderwildwood.kotozute.feature.signalcall.SignalCallActivity

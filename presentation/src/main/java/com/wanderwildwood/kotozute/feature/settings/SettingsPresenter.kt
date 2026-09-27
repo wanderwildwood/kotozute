@@ -401,6 +401,11 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.filePicker -> view.showFilePickerDialog()
 
+                        R.id.setupGuide -> context.startActivity(
+                            com.wanderwildwood.kotozute.feature.setup.SetupActivity.intent(context)
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+
                         R.id.messageLinkHandling -> view.showMessageLinkHandlingDialogPicker()
 
                         R.id.disableScreenshots -> prefs.disableScreenshots.set(!prefs.disableScreenshots.get())

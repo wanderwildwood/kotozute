@@ -125,6 +125,7 @@
         <activity android:name=".feature.signal.SignalConversationsActivity" />
         <activity android:name=".feature.signal.SignalNewGroupActivity" />
         <activity android:name=".feature.signal.SignalLinkActivity" />
+        <activity android:name=".feature.setup.SetupActivity" />
         <!-- Over the lock screen, like a phone call. Its own task, so answering from the lock
              screen does not drag the conversations list up behind it. -->
         <activity

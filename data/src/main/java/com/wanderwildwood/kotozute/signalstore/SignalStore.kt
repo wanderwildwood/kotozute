@@ -1,5 +1,7 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import com.wanderwildwood.kotozute.repository.SignalRepository.FindOutcome
+import com.wanderwildwood.kotozute.repository.SignalRepository.UsernameOutcome
 import android.content.Context
 import com.wanderwildwood.kotozute.repository.SendFailure
 import com.wanderwildwood.kotozute.repository.SendRefused
@@ -1470,6 +1472,30 @@ class SignalStore(private val context: Context) {
     internal var onPinsWritten: () -> Unit = {}
 
     /**
+     * A change to the account's own record still to be written -- a username, who sees the
+     * number -- composed in order, and cleared once the account says it.
+     */
+    @Volatile private var accountEdit: ((org.whispersystems.signalservice.internal.storage.protos.AccountRecord) -> org.whispersystems.signalservice.internal.storage.protos.AccountRecord)? = null
+
+    /** Queues [edit] on the account's record and writes it now, as upstream's `scheduleSyncForDataChange`. */
+    private fun amendAccount(edit: (org.whispersystems.signalservice.internal.storage.protos.AccountRecord) -> org.whispersystems.signalservice.internal.storage.protos.AccountRecord) {
+        synchronized(storageLock) {
+            val before = accountEdit
+            accountEdit = if (before == null) edit else { r -> edit(before(r)) }
+        }
+        runCatching { readStorage() }.onFailure { Timber.w(it, "signal storage: the account change waits for the next read") }
+    }
+
+    /** The account's record as the last read took it, reading once if there has been none. */
+    private fun ownAccountRecord(): org.whispersystems.signalservice.internal.storage.protos.AccountRecord? {
+        if (accountRecord == null) runCatching { readStorage() }
+        val raw = accountRecord?.first ?: return null
+        return runCatching {
+            org.whispersystems.signalservice.internal.storage.protos.StorageRecord.ADAPTER.decode(raw).account
+        }.getOrNull()
+    }
+
+    /**
      * Reads the account's contact list out of the storage service, where modern Signal keeps
      * it, and writes this device's archive and mute changes back in the same pass, as Signal's
      * own `StorageSyncJob` does -- there is no setting for it in Signal and none here. Returns what the read did, as counts, for a status line to word
@@ -1508,6 +1534,7 @@ class SignalStore(private val context: Context) {
     ): SignalStorageWriter.Outcome {
         val guard = StorageWriteLoopGuard(StoredLoopGuardState(context))
         val now = System.currentTimeMillis()
+        val edit = accountEdit
         val outcome = runCatching {
             SignalStorageWriter(connection, contacts, keys).write(
                 manifestVersion = version,
@@ -1517,6 +1544,7 @@ class SignalStore(private val context: Context) {
                 send = true,
                 account = accountRecord,
                 pins = pinsToWrite(),
+                accountEdit = edit,
                 mayWrite = { records ->
                     when (val d = guard.onWriteAttempt(
                         StorageWriteLoopGuard.fingerprintOf(records), true, isRetry, now
@@ -1568,6 +1596,12 @@ class SignalStore(private val context: Context) {
             }
             is SignalStorageWriter.Outcome.WouldWrite -> Unit
         }
+        // Written, or already what the account says: either way it is done. Only the edit this
+        // write carried -- one queued meanwhile is a new object and waits for the next.
+        val settled = outcome is SignalStorageWriter.Outcome.Written ||
+            outcome is SignalStorageWriter.Outcome.AlreadyThere ||
+            (outcome == SignalStorageWriter.Outcome.NothingToDo && accountRecord != null)
+        if (settled && edit != null) synchronized(storageLock) { if (accountEdit === edit) accountEdit = null }
         return outcome
     }
 
@@ -2198,6 +2232,159 @@ class SignalStore(private val context: Context) {
     /** A person's About as their profile last said it. */
     fun aboutFor(aci: String): String? = runCatching { contacts.aboutFor(aci) }.getOrNull()
 
+    /** This account's username and number privacy, from its own storage record. */
+    fun privacy(): com.wanderwildwood.kotozute.repository.SignalPrivacy? {
+        val record = ownAccountRecord() ?: return null
+        return com.wanderwildwood.kotozute.repository.SignalPrivacy(
+            username = record.username.takeIf { it.isNotBlank() },
+            // Unset reads as nobody, as upstream's `PhoneNumberPrivacyValues` has it.
+            everybodySeesNumber = record.phoneNumberSharingMode ==
+                org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PhoneNumberSharingMode.EVERYBODY,
+            findableByNumber = !record.unlistedPhoneNumber
+        )
+    }
+
+    /**
+     * Upstream's `UsernameRepository.reserveUsername` then `confirmUsernameAndCreateNewLink`:
+     * candidates from the nickname with numbers Signal's library picks, the first one free
+     * reserved, confirmed with a fresh link, and the result written to the account's record
+     * so the other devices show it.
+     */
+    fun setUsername(nickname: String): UsernameOutcome {
+        // "name.42" asks for that number, as upstream's discriminator field does; a bare name
+        // leaves the number to the library.
+        val typed = nickname.trim().removePrefix("@")
+        val candidates = runCatching {
+            if ('.' in typed) {
+                listOf(org.signal.libsignal.usernames.Username.fromParts(
+                    typed.substringBeforeLast('.'), typed.substringAfterLast('.'), USERNAME_MIN, USERNAME_MAX
+                ))
+            } else {
+                org.signal.libsignal.usernames.Username.candidatesFrom(typed, USERNAME_MIN, USERNAME_MAX)
+            }
+        }.getOrElse { return UsernameOutcome.Invalid }
+        if (candidates.isEmpty()) return UsernameOutcome.Invalid
+        connection.connect()
+        val reserved = connection.account.reserveUsername(candidates.map { it.hash })
+        val hash = when (reserved) {
+            is org.signal.libsignal.net.RequestResult.Success -> reserved.result
+            is org.signal.libsignal.net.RequestResult.NonSuccess -> return UsernameOutcome.Taken
+            else -> return UsernameOutcome.Failed("$reserved")
+        }
+        val username = candidates.firstOrNull { it.hash.contentEquals(hash) }
+            ?: return UsernameOutcome.Failed("the service reserved a name that was not asked for")
+        val link = runCatching { username.generateLink() }.getOrElse { return UsernameOutcome.Failed("${it.message}") }
+        val confirmed = connection.account.confirmUsername(username, link)
+        val handle = (confirmed as? org.signal.network.NetworkResult.Success)?.result
+            ?: return UsernameOutcome.Failed("$confirmed")
+        val serverId = java.nio.ByteBuffer.allocate(16)
+            .putLong(handle.mostSignificantBits).putLong(handle.leastSignificantBits).array()
+        amendAccount { r ->
+            r.copy(
+                username = username.username,
+                usernameLink = org.whispersystems.signalservice.internal.storage.protos.AccountRecord.UsernameLink(
+                    entropy = okio.ByteString.Companion.run { link.entropy.toByteString() },
+                    serverId = okio.ByteString.Companion.run { serverId.toByteString() },
+                    color = r.usernameLink?.color
+                        ?: org.whispersystems.signalservice.internal.storage.protos.AccountRecord.UsernameLink.Color.UNKNOWN
+                )
+            )
+        }
+        Timber.i("signal username: set")
+        return UsernameOutcome.Set(username.username)
+    }
+
+    /** Upstream's `UsernameRepository.deleteUsernameAndLink`. */
+    fun deleteUsername(): Boolean {
+        connection.connect()
+        val result = connection.account.deleteUsernameHash()
+        if (result !is org.signal.libsignal.net.RequestResult.Success) {
+            Timber.w("signal username: could not delete: %s", result)
+            return false
+        }
+        amendAccount { it.copy(username = "", usernameLink = null) }
+        return true
+    }
+
+    /**
+     * Upstream's phone-number privacy screen: the server told whether the number finds this
+     * account, the profile told whether it gives the number out, and the account's record
+     * told both so the other devices agree. Everybody seeing it means findable by it.
+     */
+    fun setNumberPrivacy(everybodySees: Boolean, findable: Boolean): Boolean {
+        val listed = everybodySees || findable
+        connection.connect()
+        val discoverable = connection.account.setPhoneNumberDiscoverability(listed)
+        if (discoverable !is org.signal.libsignal.net.RequestResult.Success) {
+            Timber.w("signal privacy: discoverability refused: %s", discoverable)
+            return false
+        }
+        SignalProfiles(connection, contacts, account).setOwnNumberSharing(everybodySees)?.let {
+            Timber.w("signal privacy: the profile would not take it: %s", it)
+            return false
+        }
+        amendAccount { r ->
+            r.copy(
+                phoneNumberSharingMode = if (everybodySees) {
+                    org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PhoneNumberSharingMode.EVERYBODY
+                } else {
+                    org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PhoneNumberSharingMode.NOBODY
+                },
+                unlistedPhoneNumber = !listed
+            )
+        }
+        runCatching { callSender().sendFetchLatestProfile() }
+        return true
+    }
+
+    /**
+     * Who a username belongs to: upstream's `UsernameRepository.fetchAciForUsername`, over the
+     * unauthenticated socket so the lookup is not tied to this account. The username is kept
+     * on their row, so the conversation has something to be called before a profile arrives.
+     */
+    fun findByUsername(text: String): FindOutcome {
+        val username = runCatching { org.signal.libsignal.usernames.Username(text.trim().removePrefix("@")) }
+            .getOrElse { return FindOutcome.Invalid }
+        val result = kotlinx.coroutines.runBlocking {
+            connection.unauthenticated.runCatchingWithChatConnection {
+                org.signal.libsignal.net.UnauthUsernamesService(it).lookUpUsernameHash(username.hash)
+            }
+        }
+        val aci = when (result) {
+            is org.signal.libsignal.net.RequestResult.Success -> result.result ?: return FindOutcome.NotFound
+            else -> return FindOutcome.Failed("$result")
+        }
+        val id = aci.rawUUID.toString()
+        runCatching { contacts.store(listOf(SignalContactStore.Contact(serviceId = id, username = username.username))) }
+        val title = contacts.nameFor(id) ?: username.username
+        return FindOutcome.Found("direct:$id", title)
+    }
+
+    /**
+     * The devices on this account, their names opened with the account's identity key:
+     * upstream's `LinkDeviceRepository.loadDevices`. When each was linked is sealed a
+     * different way and is left out; when each was last seen is enough to know one.
+     */
+    fun devices(): List<com.wanderwildwood.kotozute.repository.SignalDevice>? {
+        connection.connect()
+        val result = kotlinx.coroutines.runBlocking {
+            connection.authenticated.runCatchingWithChatConnection {
+                org.signal.libsignal.net.AuthDevicesService(it).getDevices()
+            }
+        }
+        val list = (result as? org.signal.libsignal.net.RequestResult.Success)?.result
+            ?: return null.also { Timber.w("signal devices: could not list: %s", result) }
+        val identity = (protocol as SignalDataStore).aciStore().identityKeyPair
+        return list.map { d ->
+            val name = runCatching {
+                org.signal.core.util.crypto.DeviceNameCipher.decryptDeviceName(
+                    org.signal.core.util.crypto.DeviceName.ADAPTER.decode(d.encryptedName), identity
+                )?.let { String(it) }
+            }.getOrNull()
+            com.wanderwildwood.kotozute.repository.SignalDevice(d.id, name.orEmpty(), 0L, d.lastSeen.toEpochMilli())
+        }.sortedBy { it.id }
+    }
+
     fun setOwnProfileName(
         given: String,
         family: String
@@ -2378,3 +2565,7 @@ class SignalStore(private val context: Context) {
     }
 
 }
+
+// Upstream's `UsernameState` limits on the nickname part.
+private const val USERNAME_MIN = 3
+private const val USERNAME_MAX = 32

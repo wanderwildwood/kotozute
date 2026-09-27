@@ -664,6 +664,41 @@ interface SignalRepository {
      */
     fun setOwnAbout(about: String, emoji: String): ProfileNameFailure?
 
+    /** This account's username and number privacy, as its record says; null if unread. Blocking. */
+    fun privacy(): SignalPrivacy?
+
+    /**
+     * Claims a username from [nickname], with a number Signal picks, as upstream does when
+     * none is typed. Replaces any username the account had. Blocking.
+     */
+    fun setUsername(nickname: String): UsernameOutcome
+
+    /** Gives up this account's username. Blocking; false if it could not. */
+    fun deleteUsername(): Boolean
+
+    /**
+     * Who sees this account's number, and whether it can be found by it. Everybody seeing it
+     * means it can be found, as upstream has it. Blocking; false if it could not.
+     */
+    fun setNumberPrivacy(everybodySees: Boolean, findable: Boolean): Boolean
+
+    /** The person behind a username, as a conversation to open. Blocking. */
+    fun findByUsername(username: String): FindOutcome
+
+    sealed interface UsernameOutcome {
+        data class Set(val username: String) : UsernameOutcome
+        data object Taken : UsernameOutcome
+        data object Invalid : UsernameOutcome
+        data class Failed(val why: String) : UsernameOutcome
+    }
+
+    sealed interface FindOutcome {
+        data class Found(val threadKey: String, val title: String) : FindOutcome
+        data object NotFound : FindOutcome
+        data object Invalid : FindOutcome
+        data class Failed(val why: String) : FindOutcome
+    }
+
     /** Marks a person's safety number verified, or clears it. Blocking. False if it could not. */
     fun setVerified(threadKey: String, verified: Boolean): Boolean
 
@@ -994,7 +1029,10 @@ interface SignalRepository {
 data class SignalSearchHit(val thread: SignalThread, val messages: Int, val snippet: String)
 
 /** One device on the Signal account. Id 1 is the primary; the rest are linked. */
-data class SignalDevice(val id: Int, val name: String, val created: Long) {
+/** This account's username, and who sees its number and can find it by it. */
+data class SignalPrivacy(val username: String?, val everybodySeesNumber: Boolean, val findableByNumber: Boolean)
+
+data class SignalDevice(val id: Int, val name: String, val created: Long, val lastSeen: Long = 0L) {
     val isPrimary: Boolean get() = id == 1
 }
 

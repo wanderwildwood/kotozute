@@ -574,7 +574,34 @@
     <string name="settings_signal_account_title">Signal account</string>
     <string name="settings_signal_account_summary">The number, and the devices on it</string>
     <string name="signal_account_unreachable">The account could not be read.</string>
-    <string name="signal_account_this_device_is">This phone is device %d on the account. The other devices on it are not listed here: that is a question only Signal can answer, and this phone cannot ask it.</string>
+    <string name="signal_account_this_device_is">This phone is device %d on the account.</string>
+    <string name="signal_account_devices">Devices</string>
+    <string name="signal_account_device_line">%1$d · %2$s · last seen %3$s</string>
+    <string name="signal_account_device_primary">primary</string>
+    <string name="signal_account_device_unnamed">no name</string>
+    <string name="signal_account_devices_unread">The device list could not be read.</string>
+    <string name="signal_account_unlink_note">Devices are unlinked from the primary.</string>
+    <string name="settings_signal_username_title">Username</string>
+    <string name="settings_signal_username_summary">A name people can find you by without your number</string>
+    <string name="settings_signal_username_hint">Name, or name.42 for a number</string>
+    <string name="settings_signal_username_current">Now %s</string>
+    <string name="settings_signal_username_set">Your username is %s</string>
+    <string name="settings_signal_username_taken">That name is taken. Try another</string>
+    <string name="settings_signal_username_invalid">Use 3 to 32 letters, numbers or _, not starting with a number</string>
+    <string name="settings_signal_username_removed">Username removed</string>
+    <string name="settings_signal_username_failed">Not saved: %s</string>
+    <string name="settings_signal_number_title">Phone number</string>
+    <string name="settings_signal_number_summary">Who sees your number, and who can find you by it</string>
+    <string name="settings_signal_number_everybody">Everybody sees my number</string>
+    <string name="settings_signal_number_findable">Nobody sees it; people who have it can find me</string>
+    <string name="settings_signal_number_hidden">Nobody sees it, and it does not find me</string>
+    <string name="settings_signal_number_saved">Saved</string>
+    <string name="settings_signal_number_failed">Not saved</string>
+    <string name="signal_find_username">Find by username</string>
+    <string name="signal_find_username_hint">Username, with its number</string>
+    <string name="signal_find_username_none">Nobody has that username</string>
+    <string name="signal_find_username_invalid">A username is a name, a dot and a number, like sam.42</string>
+    <string name="signal_find_username_failed">Could not look it up: %s</string>
     <!-- Said plainly, because it is the reason several settings people look for are not
          here, and the reason losing the primary would take this device with it. -->
     <string name="signal_account_linked_note">Registering the number, changing it, the registration-lock PIN and transferring the account all belong to the primary device. If the primary is unregistered, every other device on the account stops working.</string>

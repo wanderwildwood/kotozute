@@ -101,6 +101,7 @@ class ComposeItemAdapter @Inject constructor(
             is ComposeItem.SignalPerson -> bindSignalPerson(holder, item, prevItem)
             is ComposeItem.SignalHeader -> bindSignalHeader(holder)
             is ComposeItem.SignalNewGroup -> bindSignalNewGroup(holder)
+            is ComposeItem.SignalFindUsername -> bindSignalFindUsername(holder)
         }
     }
 
@@ -117,6 +118,17 @@ class ComposeItemAdapter @Inject constructor(
         holder.binding.avatar.recipients = emptyList()
         holder.binding.title.text =
             holder.itemView.context.getString(R.string.signal_group_title)
+        holder.binding.subtitle.isVisible = false
+        holder.binding.numbers.isVisible = false
+    }
+
+    private fun bindSignalFindUsername(holder: QkBindingViewHolder<ContactListItemBinding>) {
+        holder.binding.index.isVisible = false
+        holder.binding.icon.isVisible = true
+        holder.binding.icon.setImageResource(R.drawable.ic_search_black_24dp)
+        holder.binding.avatar.recipients = emptyList()
+        holder.binding.title.text =
+            holder.itemView.context.getString(R.string.signal_find_username)
         holder.binding.subtitle.isVisible = false
         holder.binding.numbers.isVisible = false
     }
@@ -282,6 +294,9 @@ class ComposeItemAdapter @Inject constructor(
         }
         if (old is ComposeItem.SignalNewGroup || new is ComposeItem.SignalNewGroup) {
             return old is ComposeItem.SignalNewGroup && new is ComposeItem.SignalNewGroup
+        }
+        if (old is ComposeItem.SignalFindUsername || new is ComposeItem.SignalFindUsername) {
+            return old is ComposeItem.SignalFindUsername && new is ComposeItem.SignalFindUsername
         }
         if (old is ComposeItem.SignalPerson || new is ComposeItem.SignalPerson) {
             return old is ComposeItem.SignalPerson && new is ComposeItem.SignalPerson &&

@@ -4898,9 +4898,24 @@ class SignalRepositoryImpl @Inject constructor(
     override fun account(): SignalAccount = SignalAccount(
         number = signalStore.selfNumberOrNull().orEmpty(),
         selfUuid = signalStore.selfAciOrNull().orEmpty(),
-        devices = emptyList(),
+        devices = runCatching { signalStore.devices() }.getOrNull().orEmpty(),
         thisDeviceId = signalStore.deviceId()
     )
+
+    override fun privacy(): SignalPrivacy? = runCatching { signalStore.privacy() }.getOrNull()
+
+    override fun setUsername(nickname: String): SignalRepository.UsernameOutcome =
+        runCatching { signalStore.setUsername(nickname) }
+            .getOrElse { SignalRepository.UsernameOutcome.Failed(it.message ?: it::class.java.simpleName) }
+
+    override fun deleteUsername(): Boolean = runCatching { signalStore.deleteUsername() }.getOrDefault(false)
+
+    override fun setNumberPrivacy(everybodySees: Boolean, findable: Boolean): Boolean =
+        runCatching { signalStore.setNumberPrivacy(everybodySees, findable) }.getOrDefault(false)
+
+    override fun findByUsername(username: String): SignalRepository.FindOutcome =
+        runCatching { signalStore.findByUsername(username) }
+            .getOrElse { SignalRepository.FindOutcome.Failed(it.message ?: it::class.java.simpleName) }
 
     override fun about(threadKey: String): String? =
         threadKey.takeIf { it.startsWith("direct:") }?.let { signalStore.aboutFor(it.removePrefix("direct:")) }

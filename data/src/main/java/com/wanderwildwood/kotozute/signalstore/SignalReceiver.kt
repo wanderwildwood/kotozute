@@ -1494,7 +1494,9 @@ internal class SignalReceiver(
                 val carrier = result.content.dataMessage ?: result.content.syncMessage?.sent?.message
                 val described = normalized?.let { m ->
                     if (groupChangeWords != null && carrier?.body.isNullOrEmpty() && carrier?.attachments.isNullOrEmpty()) {
-                        m.copy(body = groupChangeWords!!, read = true)
+                        // And kept: an update line is history, which upstream does not
+                        // expire with the messages around it.
+                        m.copy(body = groupChangeWords!!, read = true, expiresInSeconds = 0, expiresAt = 0)
                     } else m
                 }
                 // Downloaded now, while the CDN still has them. See SignalAttachments: a

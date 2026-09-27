@@ -461,6 +461,16 @@
     <!-- The draft's selection menu. Signal's TextFormatting_* words. -->
     <string name="signal_format">Format</string>
     <string name="signal_forward">Forward</string>
+    <!-- Message requests: Signal's MessageRequestBottomView wording. -->
+    <string name="signal_request_direct">%s wants to message you. Accept to reply. They won\'t know you\'ve seen their messages until you do.</string>
+    <string name="signal_request_group">You were added to %s. Accept to take part. Members won\'t know you\'ve seen their messages until you do.</string>
+    <string name="signal_request_accept">Accept</string>
+    <string name="sms_request_text">Not in your contacts, and you haven\'t replied. Accept to reply.</string>
+    <string name="signal_request_delete">Delete</string>
+    <string name="signal_request_block">Block</string>
+    <string name="signal_request_delete_confirm">Delete this conversation?</string>
+    <string name="signal_request_delete_confirm_group">Leave this group and delete it?</string>
+    <string name="signal_request_failed">Could not do that: %s</string>
     <string name="signal_attach_file">Picture or file</string>
     <string name="signal_attach_contact">Contact</string>
     <string name="signal_forward_to">Forward to</string>

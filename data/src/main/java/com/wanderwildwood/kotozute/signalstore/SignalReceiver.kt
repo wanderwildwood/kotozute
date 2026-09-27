@@ -1206,6 +1206,19 @@ internal class SignalReceiver(
                 // this message is not that. Guessing the derivation would either match nothing
                 // or, far worse, empty the wrong conversation.
                 result.content.syncMessage?.messageRequestResponse?.let { response ->
+                    // Accepted on another device: the conversation here stops being a request.
+                    // A group is named by its identifier, which is what its thread key is.
+                    if (response.type == MessageRequestResponse.Type.ACCEPT) {
+                        val aci = ServiceId.parseOrNull(response.threadAci, response.threadAciBinary)
+                        val key = when {
+                            aci != null -> "direct:$aci"
+                            response.groupId?.size == 32 -> "group:" + android.util.Base64.encodeToString(
+                                response.groupId!!.toByteArray(), android.util.Base64.NO_WRAP
+                            )
+                            else -> null
+                        }
+                        key?.let { runCatching { events.requestAccepted(it) } }
+                    }
                     val deletes = response.type == MessageRequestResponse.Type.DELETE ||
                         response.type == MessageRequestResponse.Type.BLOCK_AND_DELETE
                     val aci = ServiceId.parseOrNull(response.threadAci, response.threadAciBinary)

@@ -296,6 +296,9 @@ class Preferences @Inject constructor(
      */
     val signalTypingIndicators = rxPrefs.getBoolean("signalTypingIndicators", true)
 
+    /** Text conversations accepted as message requests, by thread id. See SmsRequests. */
+    val smsAcceptedRequests = rxPrefs.getStringSet("smsAcceptedRequests", emptySet())
+
     /**
      * Whether Signal threads sit in the one conversation list alongside SMS. On by default:
      * a conversation is a conversation, and which rail it arrived on is the badge's job to

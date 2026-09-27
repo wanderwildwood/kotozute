@@ -1433,7 +1433,8 @@ class SignalThreadActivity : QkThemedActivity() {
         val archived: Boolean,
         val pinned: Boolean,
         val muted: Boolean,
-        val name: String
+        val name: String,
+        val request: Boolean = false
     )
 
     private fun loadThreadState(needTitle: Boolean) {
@@ -1452,7 +1453,8 @@ class SignalThreadActivity : QkThemedActivity() {
                                     name = it.title,
                                     number = it.counterpartNumber,
                                     serviceId = it.threadKey.substringAfter(":")
-                                )
+                                ),
+                                request = it.request
                             )
                         }
                 }
@@ -1464,6 +1466,58 @@ class SignalThreadActivity : QkThemedActivity() {
                 isMuted = state.muted
                 invalidateOptionsMenu()
                 if (needTitle && state.name.isNotBlank()) binding.toolbarTitle.text = state.name
+                showRequest(state.request, state.name.ifBlank { binding.toolbarTitle.text.toString() })
+            }
+        }
+    }
+
+    /**
+     * A message request's bar, in place of the composer until it is answered: upstream's
+     * `MessageRequestBottomView`. Nothing can be written into a request -- replying is what
+     * accepting is for -- and a group offers no Block, which this app cannot do to a group.
+     */
+    private fun showRequest(request: Boolean, name: String) {
+        binding.requestBar.setVisible(request)
+        binding.composer.setVisible(!request)
+        if (!request) return
+        binding.requestText.text = getString(
+            if (isGroup) R.string.signal_request_group else R.string.signal_request_direct, name
+        )
+        binding.requestBlock.setVisible(!isGroup)
+        binding.requestAccept.setOnClickListener {
+            answerRequest { signalRepo.acceptRequest(threadKey) }
+        }
+        binding.requestBlock.setOnClickListener {
+            answerRequest { signalRepo.blockRequest(threadKey) }
+        }
+        binding.requestDelete.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setMessage(if (isGroup) R.string.signal_request_delete_confirm_group else R.string.signal_request_delete_confirm)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.signal_request_delete) { _, _ ->
+                    answerRequest(closeAfter = true) { signalRepo.deleteRequest(threadKey) }
+                }
+                .show()
+        }
+    }
+
+    private fun answerRequest(closeAfter: Boolean = false, answer: () -> Unit) {
+        binding.requestAccept.isEnabled = false
+        binding.requestDelete.isEnabled = false
+        binding.requestBlock.isEnabled = false
+        thread(isDaemon = true) {
+            val result = runCatching(answer)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                binding.requestAccept.isEnabled = true
+                binding.requestDelete.isEnabled = true
+                binding.requestBlock.isEnabled = true
+                result.onFailure {
+                    Toast.makeText(this, getString(R.string.signal_request_failed, it.message.orEmpty()), Toast.LENGTH_LONG).show()
+                }
+                if (result.isSuccess) {
+                    if (closeAfter) finish() else loadThreadState(needTitle = false)
+                }
             }
         }
     }

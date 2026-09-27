@@ -655,6 +655,18 @@ interface SignalRepository {
     /** Whether this person is on the account's blocked list, as this device last heard it. */
     fun isBlocked(threadKey: String): Boolean
 
+    /** Whether [threadKey] is a message request not yet answered. */
+    fun isRequest(threadKey: String): Boolean
+
+    /** Accepts a message request. Blocking; not the main thread. */
+    fun acceptRequest(threadKey: String)
+
+    /** Deletes a message request, leaving the group if it is one. Blocking. */
+    fun deleteRequest(threadKey: String)
+
+    /** Blocks the person behind a message request. Blocking; throws as [setBlocked] does. */
+    fun blockRequest(threadKey: String)
+
     /**
      * Whether [folder] holds a backup that needs **thirty digits from the person** to open.
      *

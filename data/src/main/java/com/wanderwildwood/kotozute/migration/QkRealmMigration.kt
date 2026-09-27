@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 31
+        const val SCHEMA_VERSION: Long = 32
     }
 
     @SuppressLint("ApplySharedPref")
@@ -539,6 +539,17 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.takeIf { !it.hasField("styles") }
                 ?.addField("styles", String::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 31L) {
+            // Whether a Signal conversation is a message request still waiting on an answer.
+            // Every conversation there already is starts answered: a request is only ever
+            // made by a new conversation arriving, never guessed for an old one.
+            realm.schema.get("SignalThread")
+                ?.takeIf { !it.hasField("request") }
+                ?.addField("request", Boolean::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

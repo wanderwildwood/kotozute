@@ -836,6 +836,9 @@ interface SignalRepository {
 
     fun connectionState(): Observable<ConnectionState>
 
+    /** Signal voice calls on this phone. */
+    fun calls(): SignalCallControl
+
     /**
      * Emits each newly stored *incoming* message, once. Notifications live in the
      * presentation layer, so the repository announces rather than notifies -- and because

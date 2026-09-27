@@ -831,6 +831,65 @@ internal class SignalSender(
      * answered with a retry receipt -- there is nobody to ask, the sender is this account --
      * so without this the ratchet stays broken and every later sync fails the same way.
      */
+    /** How a call message fared. The call machinery needs the kind, not a sentence. */
+    enum class CallSend { SENT, UNTRUSTED_IDENTITY, NO_SUCH_USER, NETWORK }
+
+    /**
+     * Sends one call message -- an offer, an answer, ICE candidates, a hangup or a busy.
+     *
+     * Sealed sender, like everything else this device sends. The failure mapping is upstream's
+     * (`SignalCallManager.sendCallMessage`): a changed identity stops the call rather than
+     * sending around it, and a missing or corrupt session is archived so the next message
+     * rebuilds it -- the call itself is reported as a network failure, because RingRTC only
+     * needs to know the message did not go.
+     */
+    fun sendCallMessage(
+        recipient: ServiceId,
+        message: org.whispersystems.signalservice.api.messages.calls.SignalServiceCallMessage
+    ): CallSend = try {
+        sender.sendCallMessage(
+            SignalServiceAddress(recipient),
+            sealedSender.accessFor(recipient.toString()),
+            message
+        )
+        CallSend.SENT
+    } catch (e: org.whispersystems.signalservice.api.crypto.UntrustedIdentityException) {
+        Timber.w(e, "signal calls: the caller's identity has changed; not sending")
+        CallSend.UNTRUSTED_IDENTITY
+    } catch (e: org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserException) {
+        Timber.w(e, "signal calls: the other person is no longer on Signal")
+        CallSend.NO_SUCH_USER
+    } catch (e: org.signal.libsignal.protocol.NoSessionException) {
+        Timber.w(e, "signal calls: missing or corrupt session; archiving so the next send rebuilds it")
+        archiveSessions(recipient)
+        CallSend.NETWORK
+    } catch (t: Throwable) {
+        Timber.w(t, "signal calls: a call message did not go")
+        CallSend.NETWORK
+    }
+
+    /**
+     * The relay servers a call may route through, and how long they may be used for.
+     *
+     * `GET /v2/calling/relays` on the authenticated socket, as upstream's
+     * `SignalCallManager.retrieveTurnServers` asks it. Null when the service could not be asked:
+     * a call cannot proceed without them.
+     */
+    fun turnServers(): List<org.whispersystems.signalservice.api.messages.calls.TurnServerInfo>? {
+        val api = org.signal.network.api.CallingApi(
+            connection.authenticated,
+            connection.unauthenticated,
+            PushServiceSocket(configuration, credentials, userAgent, true)
+        )
+        return when (val r = api.getTurnServerInfo()) {
+            is org.signal.network.NetworkResult.Success -> r.result
+            else -> {
+                Timber.w("signal calls: could not fetch relay servers: %s", r)
+                null
+            }
+        }
+    }
+
     fun sendNullMessage(recipient: ServiceId): Result = try {
         val result = sender.sendNullMessage(
             SignalServiceAddress(recipient),

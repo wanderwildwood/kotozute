@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A Signal call: who, how it is going, and what can be done about it.
+
+  Shown over the lock screen when a call rings, the way a phone call comes up. Words on the
+  buttons rather than icons, and nothing moves: the timer is the only thing that changes while
+  the call is up.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/name"
+        style="@style/TextPrimary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="48dp"
+        android:gravity="center"
+        android:maxLines="2"
+        android:textSize="32sp"
+        tools:text="Lydia" />
+
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/status"
+        style="@style/TextSecondary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:textSize="18sp"
+        tools:text="Signal call" />
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- While it rings. -->
+    <LinearLayout
+        android:id="@+id/ringing"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/decline"
+            android:layout_width="0dp"
+            android:layout_height="64dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:text="@string/signal_call_decline"
+            android:textSize="18sp" />
+
+        <Button
+            android:id="@+id/answer"
+            android:layout_width="0dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="@string/signal_call_answer"
+            android:textSize="18sp" />
+
+    </LinearLayout>
+
+    <!-- While it is up. -->
+    <LinearLayout
+        android:id="@+id/inCall"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/mute"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:text="@string/signal_call_mute"
+                android:textSize="18sp" />
+
+            <Button
+                android:id="@+id/speaker"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/signal_call_speaker"
+                android:textSize="18sp" />
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/hangUp"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="16dp"
+            android:text="@string/signal_call_hang_up"
+            android:textSize="18sp" />
+
+    </LinearLayout>
+
+</LinearLayout>

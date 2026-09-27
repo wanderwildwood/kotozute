@@ -996,11 +996,20 @@ internal class SignalReceiver(
                     }
                 }
 
-                // A Signal call. Nothing here can answer one, so what is recorded is how it
-                // ended: missed, answered or declined on another device. Signal ignores calls
-                // from somebody blocked, and our own devices never call us.
+                // A Signal call. It goes to the call machinery, which rings and answers; what
+                // is recorded here as well is how a call settled when this phone could not
+                // take part -- missed, or answered or declined on another device. Signal
+                // ignores calls from somebody blocked, and our own devices never call us.
                 result.content.callMessage?.let { call ->
-                    if (!fromSelf && !senderBlocked) handleCall(call, senderServiceId, envelope)
+                    if (!fromSelf && !senderBlocked) {
+                        handleCall(call, senderServiceId, envelope)
+                        runCatching {
+                            events.callMessage(
+                                call, senderServiceId, result.metadata.sourceDeviceId,
+                                envelope.serverTimestamp ?: 0L, serverDeliveredTimestamp
+                            )
+                        }.onFailure { Timber.w(it, "signal calls: could not hand over a call message") }
+                    }
                 }
                 // Another of our devices telling us how a call went, which is what stops a call
                 // answered on the other phone reading as missed here.

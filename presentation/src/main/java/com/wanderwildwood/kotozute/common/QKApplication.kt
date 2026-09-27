@@ -247,6 +247,17 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // threw on a background start and took every incoming SMS down with it.
         runCatching {
         signalNotifications.start()
+        // A Signal call that starts ringing brings up the call service, which rings and puts the
+        // call screen over the lock screen. Only on the change into ringing: the service
+        // follows the call itself from there.
+        signalRepo.calls().state()
+            .map { it is com.wanderwildwood.kotozute.repository.SignalCallState.Ringing }
+            .distinctUntilChanged()
+            .filter { it }
+            .subscribe(
+                { com.wanderwildwood.kotozute.feature.signalcall.SignalCallService.start(this) },
+                { Timber.w(it, "signal calls: watching for a ringing call") }
+            )
         if (prefs.signalEnabled.get()) {
             signalRepo.startStream()
             // The stream above is a thread in this process and dies with it, which is for

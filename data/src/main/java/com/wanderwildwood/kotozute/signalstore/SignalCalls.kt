@@ -13,7 +13,7 @@ import timber.log.Timber
  * call" with a notification, or an incoming call answered on another device -- so this does
  * the same, without ringing.
  */
-enum class CallOutcome { MISSED, ANSWERED_ELSEWHERE, DECLINED_ELSEWHERE, OUTGOING }
+enum class CallOutcome { MISSED, ANSWERED_ELSEWHERE, DECLINED_ELSEWHERE, OUTGOING, ANSWERED, DECLINED }
 
 internal object SignalCalls {
 

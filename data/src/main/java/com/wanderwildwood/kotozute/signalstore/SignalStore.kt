@@ -718,6 +718,50 @@ class SignalStore(private val context: Context) {
         ).sendReadSync(named) is SignalSender.Result.Sent
     }
 
+    private fun callSender() = SignalSender(
+        SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
+        SignalDataStore(database, account), connection, contacts
+    )
+
+    /** One call message to one person. See [SignalSender.sendCallMessage]. */
+    internal fun sendCallMessage(
+        recipient: String,
+        message: org.whispersystems.signalservice.api.messages.calls.SignalServiceCallMessage
+    ): SignalSender.CallSend {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
+            ?: return SignalSender.CallSend.NO_SUCH_USER
+        connection.connect()
+        return callSender().sendCallMessage(serviceId, message)
+    }
+
+    /** The relay servers for a call. See [SignalSender.turnServers]. */
+    internal fun turnServers(): List<org.whispersystems.signalservice.api.messages.calls.TurnServerInfo>? {
+        connection.connect()
+        return callSender().turnServers()
+    }
+
+    /**
+     * Somebody's identity key as this phone has it on record, serialized with its type byte.
+     * Null when there is none -- and a call from somebody whose key is not on record is not
+     * answered, which is upstream's rule too.
+     */
+    internal fun identityKeyOf(aci: String): ByteArray? = runCatching {
+        protocol.aci().getIdentity(org.signal.libsignal.protocol.SignalProtocolAddress(aci, 1))?.serialize()
+    }.getOrNull()
+
+    /**
+     * Forgets the receiver's note of a ringing call, because the call machinery has settled
+     * it. Without this the note would expire into a second, wrong "missed" line.
+     */
+    internal fun forgetRingingCall(callId: Long) {
+        runCatching { SignalCallStore(database).take(callId) }
+    }
+
+    /** This account's own ACI identity key, serialized with its type byte. */
+    internal fun ownIdentityKey(): ByteArray? = runCatching {
+        protocol.aci().identityKeyPair.publicKey.serialize()
+    }.getOrNull()
+
     /**
      * Tells one person that what they sent arrived on this phone.
      *

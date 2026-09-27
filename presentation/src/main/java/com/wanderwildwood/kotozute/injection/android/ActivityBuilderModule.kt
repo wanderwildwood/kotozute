@@ -104,6 +104,10 @@ abstract class ActivityBuilderModule {
     @ContributesAndroidInjector
     abstract fun bindSignalLinkActivity(): SignalLinkActivity
 
+    @ActivityScope
+    @ContributesAndroidInjector(modules = [])
+    abstract fun bindSignalCallActivity(): com.wanderwildwood.kotozute.feature.signalcall.SignalCallActivity
+
     @ContributesAndroidInjector
     abstract fun bindSignalRegisterActivity(): SignalRegisterActivity
 

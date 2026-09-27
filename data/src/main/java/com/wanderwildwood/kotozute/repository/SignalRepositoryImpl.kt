@@ -65,6 +65,18 @@ class SignalRepositoryImpl @Inject constructor(
     private val signalStore by lazy { com.wanderwildwood.kotozute.signalstore.SignalStore(context) }
 
     /**
+     * Signal voice calls. Lazy for the same reason as [signalStore], and because RingRTC itself
+     * only loads when a call first arrives.
+     */
+    private val callEngine by lazy {
+        com.wanderwildwood.kotozute.signalstore.SignalCallEngine(context, signalStore) { peer, callId, at, video, outcome ->
+            noteCall(peer, callId, at, video, outcome)
+        }
+    }
+
+    override fun calls(): SignalCallControl = callEngine
+
+    /**
      * "Note to Self", read from resources so it follows the phone's language.
      */
     private val noteToSelfTitle: String
@@ -811,6 +823,14 @@ class SignalRepositoryImpl @Inject constructor(
                 com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING ->
                     if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_outgoing_video
                     else com.wanderwildwood.kotozute.data.R.string.signal_call_outgoing_voice
+                // Answered or declined on this phone. Said without "on another device", which is
+                // the whole difference from the two above.
+                com.wanderwildwood.kotozute.signalstore.CallOutcome.ANSWERED ->
+                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_here_video
+                    else com.wanderwildwood.kotozute.data.R.string.signal_call_here_voice
+                com.wanderwildwood.kotozute.signalstore.CallOutcome.DECLINED ->
+                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_declined_here_video
+                    else com.wanderwildwood.kotozute.data.R.string.signal_call_declined_here_voice
             }
         )
         val outgoing = outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING
@@ -2886,6 +2906,14 @@ class SignalRepositoryImpl @Inject constructor(
             video: Boolean,
             outcome: com.wanderwildwood.kotozute.signalstore.CallOutcome
         ) = noteCall(peer, callId, at, video, outcome)
+
+        override fun callMessage(
+            call: org.whispersystems.signalservice.internal.push.CallMessage,
+            from: String,
+            sourceDevice: Int,
+            serverReceivedAt: Long,
+            serverDeliveredAt: Long
+        ) = callEngine.received(call, from, sourceDevice, serverReceivedAt, serverDeliveredAt)
 
         override fun undecryptableGaveUp(
             sender: String,

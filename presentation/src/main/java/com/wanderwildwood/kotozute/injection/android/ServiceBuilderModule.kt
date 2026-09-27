@@ -50,4 +50,8 @@ abstract class ServiceBuilderModule {
     @ContributesAndroidInjector
     abstract fun bindSignalStreamService(): SignalStreamService
 
+    @ActivityScope
+    @ContributesAndroidInjector()
+    abstract fun bindSignalCallService(): com.wanderwildwood.kotozute.feature.signalcall.SignalCallService
+
 }

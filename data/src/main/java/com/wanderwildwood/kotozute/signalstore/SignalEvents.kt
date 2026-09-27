@@ -103,6 +103,18 @@ interface SignalEvents {
     fun call(peer: String, callId: Long, at: Long, video: Boolean, outcome: CallOutcome) {}
 
     /**
+     * A call message from somebody, for the call machinery. Offers, answers, ICE candidates,
+     * hangups and busies all come this way; what is recorded about the call is still [call].
+     */
+    fun callMessage(
+        call: org.whispersystems.signalservice.internal.push.CallMessage,
+        from: String,
+        sourceDevice: Int,
+        serverReceivedAt: Long,
+        serverDeliveredAt: Long
+    ) {}
+
+    /**
      * Says in the conversation that somebody's name is now different from the one it held.
      *
      * Not the first name ever learned -- only a name that replaced another. A contact's

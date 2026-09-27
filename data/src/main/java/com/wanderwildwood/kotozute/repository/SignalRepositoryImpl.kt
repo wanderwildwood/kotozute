@@ -4595,6 +4595,13 @@ class SignalRepositoryImpl @Inject constructor(
         thisDeviceId = signalStore.deviceId()
     )
 
+    override fun about(threadKey: String): String? =
+        threadKey.takeIf { it.startsWith("direct:") }?.let { signalStore.aboutFor(it.removePrefix("direct:")) }
+
+    override fun setOwnAbout(about: String, emoji: String): SignalRepository.ProfileNameFailure? =
+        runCatching { signalStore.setOwnAbout(about, emoji) }
+            .getOrElse { SignalRepository.ProfileNameFailure.Unexplained(it.message ?: it::class.java.simpleName) }
+
     /** Marks [threadKey]'s safety number verified, or not, and says so in the conversation. */
     override fun setVerified(threadKey: String, verified: Boolean): Boolean {
         val aci = threadKey.removePrefix("direct:")

@@ -1184,6 +1184,22 @@ internal class SignalContactStore(
      * this account's name and avatar -- because of a column that arrived after them. Only an
      * explicit "no" from the account's own records withholds it.
      */
+    /** A person's About, as their profile last said it; null for none. */
+    fun setAbout(serviceId: String, about: String?) = withStoreLock(db) {
+        if (serviceId.isBlank()) return@withStoreLock
+        db.writableDatabase.execSQL(
+            "UPDATE recipient SET about = ? WHERE aci = ? OR pni = ?",
+            arrayOf<Any?>(about?.takeIf { it.isNotBlank() }, serviceId, serviceId)
+        )
+    }
+
+    fun aboutFor(serviceId: String): String? = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT about FROM recipient WHERE aci = ? OR pni = ? LIMIT 1",
+            arrayOf(serviceId, serviceId)
+        ).use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getString(0) else null }
+    }
+
     fun isWhitelisted(serviceId: String): Boolean = withStoreLock(db) {
         if (serviceId.isBlank()) return@withStoreLock true
         db.readableDatabase.rawQuery(

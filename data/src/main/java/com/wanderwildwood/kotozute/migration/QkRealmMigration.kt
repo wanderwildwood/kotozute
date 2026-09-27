@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 30
+        const val SCHEMA_VERSION: Long = 31
     }
 
     @SuppressLint("ApplySharedPref")
@@ -530,6 +530,15 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.takeIf { !it.hasField("revisionTs") }
                 ?.addField("revisionTs", Long::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 30L) {
+            // The body's text styles. Nothing before this kept them.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("styles") }
+                ?.addField("styles", String::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

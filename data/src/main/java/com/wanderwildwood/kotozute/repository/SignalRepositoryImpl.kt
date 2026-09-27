@@ -2461,6 +2461,7 @@ class SignalRepositoryImpl @Inject constructor(
         // once; a copy in Realm is a copy that can be opened for ever. The row stays so the
         // thread does not have a silent hole where a message was.
         row.attachments = if (m.viewOnce) "" else m.attachmentsJson
+        row.styles = m.stylesJson
         row.expiresAt = if (countdownStarted > 0L) countdownStarted else m.expiresAt
         row.expiresInSeconds = m.expiresInSeconds
         row.viewOnce = m.viewOnce
@@ -2519,14 +2520,21 @@ class SignalRepositoryImpl @Inject constructor(
 
     /** What the inbox row shows. A picture with no caption still needs to say something. */
     private fun previewOf(m: BridgeMessage): String =
-        preview(m.body, m.attachmentsJson, m.viewOnce)
+        preview(m.body, m.attachmentsJson, m.viewOnce, m.stylesJson)
 
     /** The same, from a stored row -- the sweep re-derives previews from what is left. */
     private fun previewOf(m: SignalMessage): String =
-        preview(m.body, m.attachments, m.viewOnce)
+        preview(m.body, m.attachments, m.viewOnce, m.styles)
 
-    private fun preview(body: String, attachmentsJson: String, viewOnce: Boolean): String = when {
-        body.isNotBlank() -> body
+    /**
+     * The line under a conversation's name. A spoiler is blanked in it: the list is not a
+     * place a spoiler can be tapped open, so showing it there would give away what the sender
+     * hid.
+     */
+    private fun preview(body: String, attachmentsJson: String, viewOnce: Boolean, styles: String): String = when {
+        body.isNotBlank() -> com.wanderwildwood.kotozute.signalstore.BodyStyles.withSpoilersHidden(
+            body, com.wanderwildwood.kotozute.signalstore.BodyStyles.decode(styles)
+        )
         viewOnce -> VIEW_ONCE_PREVIEW
         attachmentsJson.isNotBlank() && attachmentsJson != "[]" -> ATTACHMENT_PREVIEW
         else -> ""
@@ -2584,6 +2592,7 @@ class SignalRepositoryImpl @Inject constructor(
         read = m.read
         source = m.source
         attachments = m.attachmentsJson
+        styles = m.stylesJson
     }
 
     private fun announce(msgs: List<BridgeMessage>) {

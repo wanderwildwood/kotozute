@@ -49,6 +49,12 @@ open class SignalMessage : RealmObject() {
     var attachments: String = ""
 
     /**
+     * The body's styles: bold, italic, spoiler, strikethrough, monospace, as
+     * `[[start,length,"b"],...]` (see BodyStyles in the data module). Empty for plain text.
+     */
+    var styles: String = ""
+
+    /**
      * When this copy must be gone, in ms; 0 means never. This is the only copy there is, so
      * nothing else will ever remove it -- and unhonoured it keeps the message for ever, in
      * the thread, in the inbox snippet, in search and in the browser. It was written when a

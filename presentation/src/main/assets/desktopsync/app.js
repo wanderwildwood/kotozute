@@ -863,6 +863,45 @@ function safeHref(raw) {
   }
 }
 
+/*
+ * A message's text with its styles, as the phone draws it: bold, italic, strikethrough,
+ * monospace, and spoilers hidden until clicked. Styles arrive as [start, length, code] against
+ * the untrimmed body, and the text is drawn trimmed, so every range is moved by what the trim
+ * took off the front. Links are found within each styled stretch.
+ */
+function appendStyled(parent, raw, styles) {
+  const lead = raw.length - raw.trimStart().length;
+  const text = raw.trim();
+  const ranges = (styles || [])
+    .map(r => ({ s: Math.max(0, r[0] - lead), e: Math.min(text.length, r[0] + r[1] - lead), st: r[2] }))
+    .filter(r => r.e > r.s);
+  if (!ranges.length) { appendLinkified(parent, text); return; }
+  const cuts = new Set([0, text.length]);
+  ranges.forEach(r => { cuts.add(r.s); cuts.add(r.e); });
+  const points = [...cuts].sort((a, b) => a - b);
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1];
+    const on = new Set(ranges.filter(r => r.s <= a && r.e >= b).map(r => r.st));
+    let host = parent;
+    const wrap = (tag, cls) => {
+      const el = document.createElement(tag);
+      if (cls) el.className = cls;
+      host.appendChild(el);
+      host = el;
+    };
+    if (on.has('b')) wrap('b');
+    if (on.has('i')) wrap('i');
+    if (on.has('t')) wrap('s');
+    if (on.has('m')) wrap('code');
+    if (on.has('s')) {
+      wrap('span', 'spoiler');
+      host.title = 'Spoiler: click to show';
+      host.addEventListener('click', e => e.currentTarget.classList.add('shown'), { once: true });
+    }
+    appendLinkified(host, text.slice(a, b));
+  }
+}
+
 function appendLinkified(parent, text) {
   let last = 0;
   text.replace(LINK_PATTERN, (match, _g, offset) => {
@@ -2337,7 +2376,7 @@ async function loadMessages() {
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     const text = (m.body || '').trim();
-    if (text) appendLinkified(bubble, text);
+    if (text) appendStyled(bubble, m.body || '', m.styles || []);
     if (findQuery && text.toLowerCase().includes(findQuery.toLowerCase())) {
       wrap.classList.add('match');
     }

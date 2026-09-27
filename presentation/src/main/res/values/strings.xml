@@ -583,7 +583,7 @@
     <string name="signal_account_unlink_note">Devices are unlinked from the primary.</string>
     <string name="settings_signal_username_title">Username</string>
     <string name="settings_signal_username_summary">A name people can find you by without your number</string>
-    <string name="settings_signal_username_hint">Name, or name.42 for a number</string>
+    <string name="settings_signal_username_hint">name or name.42</string>
     <string name="settings_signal_username_current">Now %s</string>
     <string name="settings_signal_username_set">Your username is %s</string>
     <string name="settings_signal_username_taken">That name is taken. Try another</string>

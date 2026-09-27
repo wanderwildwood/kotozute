@@ -1486,9 +1486,12 @@ class SignalStore(private val context: Context) {
         runCatching { readStorage() }.onFailure { Timber.w(it, "signal storage: the account change waits for the next read") }
     }
 
-    /** The account's record as the last read took it, reading once if there has been none. */
+    /**
+     * The account's record, read fresh: the copy the last read took predates any write this
+     * phone made since, and another device may have changed it too.
+     */
     private fun ownAccountRecord(): org.whispersystems.signalservice.internal.storage.protos.AccountRecord? {
-        if (accountRecord == null) runCatching { readStorage() }
+        runCatching { readStorage() }
         val raw = accountRecord?.first ?: return null
         return runCatching {
             org.whispersystems.signalservice.internal.storage.protos.StorageRecord.ADAPTER.decode(raw).account

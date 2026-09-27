@@ -1221,6 +1221,16 @@ internal class SignalSender(
         failed(t)
     }
 
+    /** Asks our other devices to read this account's profile again. */
+    fun sendFetchLatestProfile(): Result = try {
+        val result = sender.sendSyncMessage(
+            SignalServiceSyncMessage.forFetchLatest(SignalServiceSyncMessage.FetchType.LOCAL_PROFILE)
+        )
+        if (result.isSuccess) Result.Sent(System.currentTimeMillis()) else failed(result)
+    } catch (t: Throwable) {
+        failed(t)
+    }
+
     fun sendReadSync(read: List<Pair<ServiceId.ACI, Long>>): Result {
         if (read.isEmpty()) return Result.Sent(System.currentTimeMillis())
         val timestamp = System.currentTimeMillis()

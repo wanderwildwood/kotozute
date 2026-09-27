@@ -33,6 +33,7 @@ import android.view.MenuInflater
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
+import com.wanderwildwood.kotozute.feature.extensions.isEmojiOnly
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import com.bluelinelabs.conductor.RouterTransaction
@@ -345,6 +346,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalReceipts.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalReceipts.checkbox.isChecked = state.signalReadReceipts
         binding.signalTyping.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalAbout.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalTyping.checkbox.isChecked = state.signalTypingIndicators
         // Only while it is true. Switched off in Android's settings, not here, so the app is
         // the one place that can say so.
@@ -412,6 +414,37 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun showDelayDurationDialog() = sendDelayDialog.show(activity!!)
 
     override fun showSignatureDialog(signature: String) = signatureDialog.setText(signature).show()
+
+    @Inject lateinit var signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
+
+    /**
+     * This account's About, as Signal shows it under a name. A leading emoji, if typed, is
+     * the status emoji Signal keeps beside it. Saving writes the whole profile back as it
+     * stands, with only this changed; see `SignalProfiles.setOwnAbout`.
+     */
+    override fun showSignalAboutDialog() {
+        val activity = activity ?: return
+        TextInputDialog(activity, context.getString(R.string.settings_signal_about_hint)) { text ->
+            val trimmed = text.trim()
+            val first = trimmed.substringBefore(' ')
+            val (emoji, about) = if (first.isNotEmpty() && first.isEmojiOnly()) {
+                first to trimmed.substringAfter(' ', "").trim()
+            } else {
+                "" to trimmed
+            }
+            kotlin.concurrent.thread(isDaemon = true) {
+                val failure = signalRepo.setOwnAbout(about, emoji)
+                activity.runOnUiThread {
+                    Toast.makeText(
+                        activity,
+                        if (failure == null) activity.getString(R.string.settings_signal_about_saved)
+                        else activity.getString(R.string.settings_signal_about_failed, failure.toString()),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }.show()
+    }
 
     override fun showAutoDeleteDialog(days: Int) = autoDeleteDialog.setExpiry(days).show()
 

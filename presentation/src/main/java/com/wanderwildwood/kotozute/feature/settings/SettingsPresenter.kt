@@ -304,6 +304,8 @@ class SettingsPresenter @Inject constructor(
                             context.makeToast(R.string.settings_signal_receipts_readonly)
 
                         // The same kind of setting as read receipts, held by the account.
+                        R.id.signalAbout -> view.showSignalAboutDialog()
+
                         R.id.signalTyping ->
                             context.makeToast(R.string.settings_signal_typing_readonly)
 

@@ -86,6 +86,16 @@
                 android:visibility="gone" />
 
             <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/about"
+                style="@style/TextSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="2dp"
+                android:paddingEnd="16dp"
+                android:visibility="gone" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/counts"
                 style="@style/TextSecondary"
                 android:layout_width="match_parent"

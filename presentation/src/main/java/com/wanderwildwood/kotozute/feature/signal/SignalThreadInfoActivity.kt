@@ -313,6 +313,8 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         val messages = signalRepo.getMessagesSnapshot(threadKey, MAX_MESSAGES_SCANNED)
         val names = runCatching { signalRepo.senderNamesFor(threadKey) }.getOrDefault(emptyMap())
         val pictures = messages.flatMap(::imageIdsOf)
+        // What they say about themselves, under their name, as Signal shows it.
+        val about = runCatching { signalRepo.about(threadKey) }.getOrNull()
 
         runOnUiThread {
             if (isFinishing) return@runOnUiThread
@@ -320,6 +322,8 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             binding.name.text = thread.title
             binding.number.text = thread.counterpartNumber
             binding.number.setVisible(thread.counterpartNumber.isNotBlank())
+            binding.about.text = about.orEmpty()
+            binding.about.setVisible(!about.isNullOrBlank())
 
             val count = resources.getQuantityString(
                 R.plurals.signal_info_counts, messages.size, messages.size

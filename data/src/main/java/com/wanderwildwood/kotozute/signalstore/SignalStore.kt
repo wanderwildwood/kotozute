@@ -2066,6 +2066,24 @@ class SignalStore(private val context: Context) {
      *
      * @return null on success, or why not, for the screen to word.
      */
+    /**
+     * Sets this account's About, then asks our other devices to read the profile again --
+     * upstream's `MultiDeviceProfileContentUpdateJob` -- so the primary shows it too.
+     */
+    fun setOwnAbout(about: String, emoji: String): com.wanderwildwood.kotozute.repository.SignalRepository.ProfileNameFailure? {
+        connection.connect()
+        val failure = SignalProfiles(connection, contacts, account).setOwnAbout(about, emoji)
+        if (failure == null) {
+            runCatching {
+                callSender().sendFetchLatestProfile()
+            }.onFailure { Timber.w(it, "signal profile: could not ask our other devices to read it again") }
+        }
+        return failure
+    }
+
+    /** A person's About as their profile last said it. */
+    fun aboutFor(aci: String): String? = runCatching { contacts.aboutFor(aci) }.getOrNull()
+
     fun setOwnProfileName(
         given: String,
         family: String

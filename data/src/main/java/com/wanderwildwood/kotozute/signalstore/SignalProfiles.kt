@@ -123,6 +123,7 @@ internal class SignalProfiles(
 
             // Asked, whatever came back. Without this the same people are asked again on every
             // batch and the per-pass budget never reaches anybody else.
+            runCatching { contacts.setAbout(aci, profile.about) }
             runCatching { contacts.markProfileFetched(aci) }
                 .onFailure { Timber.w(it, "signal profile: could not note the fetch") }
 
@@ -189,6 +190,8 @@ internal class SignalProfiles(
     /** A fetched profile, as much of it as this app uses. */
     private data class Profile(
         val name: String?,
+        /** Their About with its emoji first, as Signal shows it; null for none. */
+        val about: String? = null,
         /** The proof that they accept sealed sender, or null when they do not offer one. */
         val unidentifiedAccessVerifier: String?,
         /** They accept it from anybody, key or no key. */
@@ -282,6 +285,67 @@ internal class SignalProfiles(
         }
     }
 
+    /** A profile's About and emoji, decrypted, emoji first; null when there is neither. */
+    private fun aboutOf(
+        cipher: ProfileCipher,
+        profile: org.whispersystems.signalservice.api.profiles.SignalServiceProfile
+    ): String? {
+        fun read(field: String?) = field?.let {
+            runCatching { cipher.decryptString(android.util.Base64.decode(it, android.util.Base64.DEFAULT)) }.getOrNull()
+        }?.trim()?.takeIf { it.isNotEmpty() }
+        return listOfNotNull(read(profile.aboutEmoji), read(profile.about)).joinToString(" ").takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * Sets this account's About, and keeps everything else the profile says.
+     *
+     * The profile is written whole -- name, About, payments address, avatar, badges and
+     * whether the number is shared all go in one request -- so each is read back from the
+     * profile as it stands and passed through unchanged, as Signal Desktop does when a linked
+     * device edits it. Anything that cannot be read stops the write rather than being guessed:
+     * a guess would overwrite the account's own choice on every device.
+     */
+    fun setOwnAbout(about: String, emoji: String): ProfileNameFailure? {
+        val credentials = runCatching { accounts.credentials() }.getOrNull()
+            ?: return ProfileNameFailure.NoAccount
+        val aci = ServiceId.ACI.parseOrNull(credentials.aci)
+            ?: return ProfileNameFailure.NoServiceId
+        val rawKey = accounts.profileKey() ?: return ProfileNameFailure.NoProfileKey
+        val profileKey = runCatching { ProfileKey(rawKey) }.getOrNull()
+            ?: return ProfileNameFailure.ProfileKeyUnreadable
+        val own = runBlocking { connection.profiles.getVersionedProfile(aci, profileKey, null) }
+        if (own !is NetworkResult.Success) return ProfileNameFailure.Refused("could not read this account's profile: $own")
+        val profile = own.result
+        val cipher = ProfileCipher(profileKey)
+        fun bytes(field: String?) = field?.let { android.util.Base64.decode(it, android.util.Base64.DEFAULT) }
+        val name = runCatching { bytes(profile.name)?.let { String(cipher.decrypt(it)) } }.getOrNull()
+            ?.trimEnd('\u0000')
+            ?: return ProfileNameFailure.Refused("this account's name could not be read")
+        val payments = profile.paymentAddress?.let { encrypted ->
+            runCatching {
+                org.whispersystems.signalservice.internal.push.PaymentAddress.ADAPTER.decode(cipher.decryptWithLength(encrypted))
+            }.getOrNull() ?: return ProfileNameFailure.Refused("the payments address could not be read")
+        }
+        val sharing = when (val field = profile.phoneNumberSharing) {
+            null -> false
+            else -> runCatching { cipher.decryptBoolean(bytes(field)).orElse(null) }.getOrNull()
+                ?: return ProfileNameFailure.Refused("the number-sharing setting could not be read")
+        }
+        val badges = profile.badges.orEmpty().filter { it.visible }.map { it.id }
+        val result = connection.profiles.setVersionedProfile(
+            aci, profileKey, name, about, emoji, payments,
+            org.whispersystems.signalservice.api.profiles.AvatarUploadParams.unchanged(profile.avatar != null),
+            badges, sharing
+        )
+        return if (result is NetworkResult.Success) {
+            Timber.i("signal profile: this account's About is set")
+            null
+        } else {
+            Timber.w("signal profile: could not set this account's About: %s", result)
+            ProfileNameFailure.Refused("$result")
+        }
+    }
+
     /**
      * @param access the recipient's sealed sender access, or null to ask authenticated.
      */
@@ -324,7 +388,7 @@ internal class SignalProfiles(
         }
             // A profile with no readable name is still a profile, and what it says about
             // sealed sender is worth keeping. Returning null here threw that away.
-            ?: return Profile(null, profile.unidentifiedAccess, profile.unrestrictedUnidentifiedAccess)
+            ?: return Profile(null, aboutOf(cipher, profile), profile.unidentifiedAccess, profile.unrestrictedUnidentifiedAccess)
 
         // Given and family names are ONE field separated by a NUL byte, not by a space --
         // splitting on whitespace would break every name that contains one and would keep the
@@ -335,7 +399,7 @@ internal class SignalProfiles(
         // Not a plain given-then-family join: see [ProfileNames.joined], which puts a CJKV
         // name in the order its owner writes it.
         val name = ProfileNames.joined(given, family)
-        return Profile(name, profile.unidentifiedAccess, profile.unrestrictedUnidentifiedAccess)
+        return Profile(name, aboutOf(cipher, profile), profile.unidentifiedAccess, profile.unrestrictedUnidentifiedAccess)
     }
 
     companion object {

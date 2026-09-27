@@ -655,6 +655,15 @@ interface SignalRepository {
     /** Whether this person is on the account's blocked list, as this device last heard it. */
     fun isBlocked(threadKey: String): Boolean
 
+    /** What a person says about themselves on their profile, emoji first; null for none. */
+    fun about(threadKey: String): String?
+
+    /**
+     * Sets this account's About and its emoji, keeping everything else on the profile.
+     * Blocking; null on success, or why not.
+     */
+    fun setOwnAbout(about: String, emoji: String): ProfileNameFailure?
+
     /** Marks a person's safety number verified, or clears it. Blocking. False if it could not. */
     fun setVerified(threadKey: String, verified: Boolean): Boolean
 

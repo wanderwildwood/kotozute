@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 38
+    const val VERSION = 39
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -553,6 +553,9 @@ internal object ProtocolStoreSchema {
           -- something. Defaults to 1 so nobody already known loses their profile key before
           -- the first storage read says otherwise.
           whitelisted INTEGER NOT NULL DEFAULT 1,
+          -- What this person says about themselves, from their profile: the status emoji and
+          -- the line after it, as Signal shows them under a name. See v39.
+          about TEXT DEFAULT NULL,
           -- When this person's profile was last fetched, which is NOT the same question as
           -- when the row was last written. Signal keeps them apart for exactly this reason
           -- (`RecipientTable.LAST_PROFILE_FETCH`), and conflating them here meant profiles
@@ -971,6 +974,9 @@ internal object ProtocolStoreSchema {
          * Starts empty. The first fetch after this fills it without a note, the same as any
          * first name learned -- so upgrading does not write one into every conversation.
          */
+        /** A person's About, from their profile. */
+        39 to listOf("ALTER TABLE recipient ADD COLUMN about TEXT DEFAULT NULL;"),
+
         /** Calls ringing now. See [CALL_OFFER]. */
         38 to listOf(CALL_OFFER),
 

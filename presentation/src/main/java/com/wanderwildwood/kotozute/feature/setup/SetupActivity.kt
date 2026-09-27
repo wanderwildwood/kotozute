@@ -10,7 +10,6 @@ import androidx.core.view.isVisible
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.Navigator
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
-import com.wanderwildwood.kotozute.common.util.FilePicker
 import com.wanderwildwood.kotozute.common.widget.QkTextView
 import com.wanderwildwood.kotozute.databinding.SetupActivityBinding
 import com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService
@@ -41,7 +40,7 @@ class SetupActivity : QkThemedActivity() {
 
     private lateinit var binding: SetupActivityBinding
 
-    private enum class Page { WELCOME, TEXTING, SIGNAL, CONTACTS, LISTS, CONNECTED, FILES, DESKTOP, DONE }
+    private enum class Page { WELCOME, TEXTING, SIGNAL, CONTACTS, LISTS, CONNECTED, DESKTOP, DONE }
 
     private var page = Page.WELCOME
 
@@ -98,12 +97,8 @@ class SetupActivity : QkThemedActivity() {
         // Already on Signal: nothing to link. Its own pages follow instead.
         Page.SIGNAL -> !signalOn()
         Page.CONTACTS, Page.LISTS, Page.CONNECTED -> signalOn()
-        Page.FILES -> otherPickers().isNotEmpty()
         else -> true
     }
-
-    private fun otherPickers(): List<FilePicker.Choice> = FilePicker.choices(this)
-        .filterNot { it.packageName in SYSTEM_PICKERS }
 
     private fun next() {
         busy = false
@@ -157,15 +152,6 @@ class SetupActivity : QkThemedActivity() {
             Page.CONNECTED -> ask(R.string.setup_connected_heading, R.string.setup_connected_body,
                 choice(R.string.setup_connected_keep) { keepConnected(true) },
                 choice(R.string.setup_connected_catch_up, primary = true) { keepConnected(false) })
-
-            Page.FILES -> {
-                val chosen = prefs.filePicker.get()
-                ask(R.string.setup_files_heading, R.string.setup_files_body,
-                    choice(R.string.setup_files_system, primary = chosen.isBlank()) { prefs.filePicker.set(""); next() },
-                    *otherPickers().map { app ->
-                        choice(app.label, primary = chosen == app.packageName) { prefs.filePicker.set(app.packageName); next() }
-                    }.toTypedArray())
-            }
 
             Page.DESKTOP -> ask(R.string.setup_desktop_heading, R.string.setup_desktop_body,
                 choice(R.string.setup_desktop_on) {
@@ -243,9 +229,6 @@ class SetupActivity : QkThemedActivity() {
     companion object {
         private const val STATE_PAGE = "page"
         private const val STATE_SHOWN = "shown"
-
-        /** Android's own picker, under the names it goes by; offered here as "Android's own". */
-        private val SYSTEM_PICKERS = setOf("com.android.documentsui", "com.google.android.documentsui")
 
         fun intent(context: Context) = Intent(context, SetupActivity::class.java)
     }

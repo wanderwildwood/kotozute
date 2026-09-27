@@ -186,20 +186,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         uris.forEach(attachAnyFileSelectedIntent::onNext)
     }
 
-    private val pickFilesWithChooser = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val data = result.data ?: return@registerForActivityResult
-
-            val uris = data.clipData?.let { clipData ->
-                (0 until clipData.itemCount).mapNotNull { clipData.getItemAt(it).uri }
-            } ?: listOfNotNull(data.data)
-
-            uris.forEach(attachAnyFileSelectedIntent::onNext)
-        }
-    }
-
     private val pickContact = registerForActivityResult(
         ActivityResultContracts.PickContact()
     ) { uri ->
@@ -818,20 +804,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun requestFilePicker() {
-        // The files app chosen in Settings, when there is one. Otherwise, as before: Android
-        // 17 only allows Documents UI here, and below it the chooser offers any app that can
-        // hand over a file.
-        if (prefs.filePicker.get().isNotBlank() || Build.VERSION.SDK_INT >= 37) {
-            pickFilesWithDocsUI.launch("*/*" to true)
-        } else {
-            val intent = Intent(Intent.ACTION_PICK)
-                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-                .addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-                .putExtra(Intent.EXTRA_LOCAL_ONLY, false)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                .setType("*/*")
-            pickFilesWithChooser.launch(Intent.createChooser(intent, null))
-        }
+        // Whichever app Settings names -- Android's own picker unless another is chosen. The
+        // chooser this used to open is what the setting replaced: it left Android's picker
+        // out, and offered the gallery and the music player as ways to attach "any file".
+        pickFilesWithDocsUI.launch("*/*" to true)
     }
 
     override fun setDraft(draft: String) {

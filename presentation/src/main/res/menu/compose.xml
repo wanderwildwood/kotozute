@@ -84,6 +84,16 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/pinMessage"
+        android:title="@string/signal_pin"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/unpinMessage"
+        android:title="@string/signal_unpin"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/details"
         android:icon="@drawable/ic_info_outline_24dp"
         android:title="@string/compose_details_title"

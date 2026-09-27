@@ -27,6 +27,24 @@
     android:orientation="vertical"
     tools:context="com.wanderwildwood.kotozute.feature.compose.ComposeActivity">
 
+    <!-- The conversation's pinned messages, kept on this phone. See SmsPins. -->
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/pinnedBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/sendAsGroupBackground" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/messageList"
         android:layout_width="0dp"
@@ -37,7 +55,7 @@
         app:layout_constraintBottom_toTopOf="@id/encodingNotice"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/sendAsGroupBackground"
+        app:layout_constraintTop_toBottomOf="@id/pinnedBar"
         app:layout_goneMarginBottom="12dp"
         app:stackFromEnd="true"
         tools:listitem="@layout/message_list_item_in" />

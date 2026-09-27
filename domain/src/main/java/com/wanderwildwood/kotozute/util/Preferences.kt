@@ -322,6 +322,13 @@ class Preferences @Inject constructor(
      */
     val signalOpensFirst = rxPrefs.getBoolean("signalOpensFirst", false)
 
+    /**
+     * The app every attach button asks for files, by package; empty for Android's own picker.
+     * Chosen here because Android offers no "always" for it: its own picker outranks every
+     * other app that can answer. See `FilePicker`.
+     */
+    val filePicker = rxPrefs.getString("filePicker", "")
+
     /** The Signal list's own tab, 0 all or 1 groups. Kept apart from the SMS list's. */
     val signalConversationFilter = rxPrefs.getInteger("signalConversationFilter", 0)
 

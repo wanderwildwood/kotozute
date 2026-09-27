@@ -203,6 +203,13 @@
                 app:title="@string/settings_mms_size_title"
                 tools:summary="100KB" />
 
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/filePicker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_file_picker_title"
+                tools:summary="Android's own" />
+
         </LinearLayout>
 
         <LinearLayout

@@ -55,6 +55,7 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showDelayDurationDialog()
     fun showSignatureDialog(signature: String)
     fun showSignalAboutDialog()
+    fun showFilePickerDialog()
     fun showSignalUsernameDialog()
     fun showSignalNumberPrivacyDialog()
     fun showAutoDeleteDialog(days: Int)

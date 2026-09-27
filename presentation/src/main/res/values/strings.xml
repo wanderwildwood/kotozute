@@ -581,6 +581,8 @@
     <string name="signal_account_device_unnamed">no name</string>
     <string name="signal_account_devices_unread">The device list could not be read.</string>
     <string name="signal_account_unlink_note">Devices are unlinked from the primary.</string>
+    <string name="settings_file_picker_title">Choose files with</string>
+    <string name="settings_file_picker_system">Android\'s own picker</string>
     <string name="settings_signal_username_title">Username</string>
     <string name="settings_signal_username_summary">A name people can find you by without your number</string>
     <string name="settings_signal_username_hint">name or name.42</string>

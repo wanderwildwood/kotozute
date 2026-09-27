@@ -181,7 +181,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     private val pickFilesWithDocsUI = registerForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
+        com.wanderwildwood.kotozute.common.util.FilePicker.Contract { prefs.filePicker.get() }
     ) { uris ->
         uris.forEach(attachAnyFileSelectedIntent::onNext)
     }
@@ -806,16 +806,23 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun requestGallery() {
+        // A files app chosen in Settings is asked for pictures too; otherwise Android's own
+        // photo picker, which only Android can provide.
+        if (prefs.filePicker.get().isNotBlank()) {
+            pickFilesWithDocsUI.launch("image/*,video/*" to true)
+            return
+        }
         pickMedia.launch(
             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
         )
     }
 
     override fun requestFilePicker() {
-        // Android 17 only allows Documents UI here. Below it, keep the chooser, so any
-        // app that can hand over a file is still offered.
-        if (Build.VERSION.SDK_INT >= 37) {
-            pickFilesWithDocsUI.launch("*/*")
+        // The files app chosen in Settings, when there is one. Otherwise, as before: Android
+        // 17 only allows Documents UI here, and below it the chooser offers any app that can
+        // hand over a file.
+        if (prefs.filePicker.get().isNotBlank() || Build.VERSION.SDK_INT >= 37) {
+            pickFilesWithDocsUI.launch("*/*" to true)
         } else {
             val intent = Intent(Intent.ACTION_PICK)
                 .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)

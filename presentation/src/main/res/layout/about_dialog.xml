@@ -50,9 +50,13 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
+        <!-- The site's name opens the site, the way the llama beside it opens its page. -->
         <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/site"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:paddingVertical="4dp"
             android:text="@string/about_source"
             app:textSize="tertiary" />
 

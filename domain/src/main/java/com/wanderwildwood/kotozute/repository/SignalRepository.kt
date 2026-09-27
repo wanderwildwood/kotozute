@@ -667,6 +667,51 @@ interface SignalRepository {
     /** Marks a person's safety number verified, or clears it. Blocking. False if it could not. */
     fun setVerified(threadKey: String, verified: Boolean): Boolean
 
+    /** A group as its members see it, for its details screen. */
+    data class GroupInfo(
+        val title: String,
+        val description: String,
+        /** Members, this account among them, admins marked. */
+        val members: List<GroupMember>,
+        val pending: List<GroupMember>,
+        val requesting: List<GroupMember>,
+        val selfAdmin: Boolean,
+        /** This account is invited and has not answered. */
+        val selfInvited: Boolean,
+        val editInfoAdminsOnly: Boolean,
+        val addMembersAdminsOnly: Boolean,
+        val sendAdminsOnly: Boolean,
+        /** OFF, ON or APPROVAL. */
+        val link: String,
+        /** The invitation link, when there is one. */
+        val linkUrl: String?
+    )
+
+    data class GroupMember(val aci: String, val name: String, val admin: Boolean = false, val self: Boolean = false)
+
+    /** How a change to a group went. */
+    enum class GroupEditResult { DONE, UNNEEDED, NOT_ALLOWED, NOT_A_MEMBER, FAILED }
+
+    /** The group [threadKey] is, as the server has it now; null when it could not be read. Blocking. */
+    fun groupInfo(threadKey: String): GroupInfo?
+
+    fun renameGroup(threadKey: String, title: String): GroupEditResult
+    fun describeGroup(threadKey: String, text: String): GroupEditResult
+    /** Adds people; anybody whose profile key this phone lacks is invited instead. */
+    fun addToGroup(threadKey: String, acis: List<String>): GroupEditResult
+    fun removeFromGroup(threadKey: String, aci: String): GroupEditResult
+    fun setGroupAdmin(threadKey: String, aci: String, admin: Boolean): GroupEditResult
+    fun setEditInfoAdminsOnly(threadKey: String, on: Boolean): GroupEditResult
+    fun setAddMembersAdminsOnly(threadKey: String, on: Boolean): GroupEditResult
+    fun setSendAdminsOnly(threadKey: String, on: Boolean): GroupEditResult
+    /** OFF, ON or APPROVAL. */
+    fun setGroupLink(threadKey: String, state: String): GroupEditResult
+    fun resetGroupLink(threadKey: String): GroupEditResult
+    fun answerJoinRequest(threadKey: String, aci: String, approve: Boolean): GroupEditResult
+    fun answerGroupInvite(threadKey: String, accept: Boolean): GroupEditResult
+    /** Leaves, handing administration to [newAdmin] when this account is the last admin. */
+    fun leaveGroup(threadKey: String, newAdmin: String?): GroupEditResult
+
     /** Asks a poll: a question and 2 to 10 options. Blocking; throws as a send does. */
     fun createPoll(threadKey: String, question: String, multiple: Boolean, options: List<String>): Long
 

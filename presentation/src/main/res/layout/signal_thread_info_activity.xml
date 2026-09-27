@@ -130,6 +130,15 @@
                 android:paddingBottom="8dp"
                 android:visibility="gone" />
 
+            <!-- A group's own settings and people, built when the group has been read from the
+                 server: see SignalThreadInfoActivity.showGroup. -->
+            <LinearLayout
+                android:id="@+id/groupSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone" />
+
             <!-- The safety number, and loudly when the key behind it has changed. This is
                  the honest half of "verify keys": trusting a changed key automatically is
                  the opposite of verification. -->
@@ -241,6 +250,15 @@
                 android:layout_height="wrap_content"
                 xmlns:app3="http://schemas.android.com/apk/res-auto"
                 app3:title="@string/info_link" />
+
+            <!-- A group's Leave, with the other actions that end something. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/groupLeave"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                xmlns:app5="http://schemas.android.com/apk/res-auto"
+                app5:title="@string/group_leave" />
 
             <!-- Reaches the Signal account, not just this phone, so it holds everywhere.
                  Arms and confirms: it is outward-facing and not obviously undone. -->

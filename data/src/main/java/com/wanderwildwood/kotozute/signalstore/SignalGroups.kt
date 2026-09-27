@@ -49,8 +49,24 @@ internal class SignalGroups(
         /** Only administrators may post. */
         val announcementOnly: Boolean = false,
         /** Service ids of the members who are administrators. */
-        val admins: Set<String> = emptySet()
-    )
+        val admins: Set<String> = emptySet(),
+        val description: String = "",
+        /** Invited and not yet joined, by service id -- an account id or a phone-number identity. */
+        val pending: List<String> = emptyList(),
+        /** Asked to join by the group's link, waiting for an administrator. */
+        val requesting: List<String> = emptyList(),
+        /** Only administrators may change the name, description, picture and timer. */
+        val editInfoAdminsOnly: Boolean = false,
+        /** Only administrators may add members. */
+        val addMembersAdminsOnly: Boolean = false,
+        /** The group link: off, on, or on with an administrator approving each request. */
+        val link: Link = Link.OFF,
+        val linkPassword: ByteArray = ByteArray(0),
+        /** How the server names each pending invitation: what declining one has to hand back. */
+        val pendingCiphertexts: Map<String, ByteArray> = emptyMap()
+    ) {
+        enum class Link { OFF, ON, APPROVAL }
+    }
 
     /**
      * Credentials are issued per day and returned a week at a time, so they are fetched once
@@ -154,7 +170,23 @@ internal class SignalGroups(
             // that fails partway with no way to say who it failed for.
             members = group.members.mapNotNull { member ->
                 ServiceId.parseOrNull(member.aciBytes?.toByteArray())?.toString()
-            }
+            },
+            description = group.description,
+            pending = group.pendingMembers.mapNotNull { ServiceId.parseOrNull(it.serviceIdBytes.toByteArray())?.toString() },
+            requesting = group.requestingMembers.mapNotNull { ServiceId.parseOrNull(it.aciBytes.toByteArray())?.toString() },
+            editInfoAdminsOnly = group.accessControl?.attributes ==
+                org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.ADMINISTRATOR,
+            addMembersAdminsOnly = group.accessControl?.members ==
+                org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.ADMINISTRATOR,
+            link = when (group.accessControl?.addFromInviteLink) {
+                org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.ANY -> Group.Link.ON
+                org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.ADMINISTRATOR -> Group.Link.APPROVAL
+                else -> Group.Link.OFF
+            },
+            linkPassword = group.inviteLinkPassword.toByteArray(),
+            pendingCiphertexts = group.pendingMembers.mapNotNull { p ->
+                ServiceId.parseOrNull(p.serviceIdBytes.toByteArray())?.toString()?.let { it to p.serviceIdCipherText.toByteArray() }
+            }.toMap()
         ).also {
             harvest(group.members)
             Timber.i("signal groups: fetched a group with %d members", it.members.size)
@@ -224,6 +256,67 @@ internal class SignalGroups(
             }
         }
         return Changed.Failed("kept conflicting with other changes")
+    }
+
+    /**
+     * Makes [edit] to the group: upstream's `GroupManagerV2` for each kind. See [GroupEdit].
+     * A change the group already reflects comes back [Changed.Unneeded].
+     */
+    internal fun edit(masterKeyBytes: ByteArray, edit: GroupEdit): Changed {
+        val credentials = accounts.credentials()
+        val self = ServiceId.ACI.parseOrNull(credentials.aci) ?: return Changed.Failed("no account id")
+        fun aci(s: String) = ServiceId.ACI.parseOrNull(s)
+        fun newPassword() = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+        return change(masterKeyBytes) { group, ops ->
+            when (edit) {
+                is GroupEdit.Rename -> edit.title.trim().takeIf { it.isNotEmpty() && it != group.title }
+                    ?.let { ops.createModifyGroupTitle(it) }
+                is GroupEdit.Describe -> edit.text.trim().takeIf { it != group.description }
+                    ?.let { ops.createModifyGroupDescription(it) }
+                is GroupEdit.Add -> edit.acis.mapNotNull(::aci).filter { it.toString() !in group.members }
+                    .takeIf { it.isNotEmpty() }
+                    ?.map { candidateFor(it) ?: org.whispersystems.signalservice.api.groupsv2.GroupCandidate(it, java.util.Optional.empty()) }
+                    ?.let { ops.createModifyGroupMembershipChange(it.toSet(), emptySet(), self) }
+                is GroupEdit.Remove -> aci(edit.aci)?.takeIf { edit.aci in group.members }
+                    ?.let { ops.createRemoveMembersChange(setOf(it), false, emptyList()) }
+                is GroupEdit.Admin -> aci(edit.aci)?.takeIf { (edit.aci in group.admins) != edit.admin }
+                    ?.let {
+                        ops.createChangeMemberRole(
+                            it,
+                            if (edit.admin) org.signal.storageservice.storage.protos.groups.Member.Role.ADMINISTRATOR
+                            else org.signal.storageservice.storage.protos.groups.Member.Role.DEFAULT
+                        )
+                    }
+                is GroupEdit.EditInfoAdminsOnly -> if (group.editInfoAdminsOnly == edit.on) null
+                    else ops.createChangeAttributesRights(if (edit.on) org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.ADMINISTRATOR else org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.MEMBER)
+                is GroupEdit.AddMembersAdminsOnly -> if (group.addMembersAdminsOnly == edit.on) null
+                    else ops.createChangeMembershipRights(if (edit.on) org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.ADMINISTRATOR else org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.MEMBER)
+                is GroupEdit.SendAdminsOnly -> if (group.announcementOnly == edit.on) null
+                    else ops.createAnnouncementGroupChange(edit.on)
+                is GroupEdit.SetLink -> when {
+                    edit.state == group.link -> null
+                    edit.state == Group.Link.OFF -> ops.createChangeJoinByLinkRights(org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.UNSATISFIABLE)
+                    else -> {
+                        val rights = if (edit.state == Group.Link.APPROVAL) org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.ADMINISTRATOR else org.signal.storageservice.storage.protos.groups.AccessControl.AccessRequired.ANY
+                        // A link never made has no password yet; upstream makes one as it turns on.
+                        if (group.linkPassword.isEmpty()) ops.createModifyGroupLinkPasswordAndRightsChange(newPassword(), rights)
+                        else ops.createChangeJoinByLinkRights(rights)
+                    }
+                }
+                GroupEdit.ResetLink -> ops.createModifyGroupLinkPasswordChange(newPassword())
+                is GroupEdit.Approve -> aci(edit.aci)?.takeIf { edit.aci in group.requesting }
+                    ?.let { ops.createApproveGroupJoinRequest(setOf(it.rawUuid)) }
+                is GroupEdit.Deny -> aci(edit.aci)?.takeIf { edit.aci in group.requesting }
+                    ?.let { ops.createRefuseGroupJoinRequest(setOf(it), false, emptyList()) }
+                GroupEdit.AcceptInvite -> selfCredential(self)
+                    ?.takeIf { self.toString() in group.pending }
+                    ?.let { ops.createAcceptInviteChange(it) }
+                GroupEdit.DeclineInvite -> group.pendingCiphertexts[self.toString()]?.takeIf { self.toString() in group.pending }
+                    ?.let { ops.createRemoveInvitationChange(setOf(org.signal.libsignal.zkgroup.groups.UuidCiphertext(it))) }
+                is GroupEdit.Leave -> if (self.toString() !in group.members) null
+                    else ops.createLeaveAndPromoteMembersToAdmin(self, listOfNotNull(edit.newAdmin?.let(::aci)?.rawUuid))
+            }
+        }
     }
 
     /**
@@ -364,6 +457,17 @@ internal class SignalGroups(
      * it; the caller decides whether that means "invite them" or "give up", which is the
      * distinction upstream draws too.
      */
+    /** This account's own credential, from its own profile key: what accepting an invitation proves. */
+    private fun selfCredential(self: ServiceId.ACI): org.signal.libsignal.zkgroup.profiles.ExpiringProfileKeyCredential? {
+        val key = accounts.profileKey()?.let { runCatching { org.signal.libsignal.zkgroup.profiles.ProfileKey(it) }.getOrNull() }
+            ?: return null
+        return runCatching {
+            kotlinx.coroutines.runBlocking { connection.profiles.getVersionedProfileAndCredential(self, key, null) }
+        }.getOrNull()
+            ?.let { it as? org.signal.network.NetworkResult.Success }
+            ?.result?.second
+    }
+
     private fun candidateFor(
         aci: ServiceId.ACI
     ): org.whispersystems.signalservice.api.groupsv2.GroupCandidate? {

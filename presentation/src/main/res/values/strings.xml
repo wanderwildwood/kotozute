@@ -1177,6 +1177,51 @@
     <string name="signal_call_start">Call</string>
     <!-- Disappearing messages, on a Signal conversation's info screen. Upstream's choices. -->
     <string name="info_timer">Disappearing messages</string>
+    <!-- A group's details: Signal's ConversationSettingsFragment and ManageGroup words. -->
+    <string name="group_name">Group name</string>
+    <string name="group_description">Group description</string>
+    <string name="group_description_none">None</string>
+    <plurals name="group_members">
+        <item quantity="one">%d member</item>
+        <item quantity="other">%d members</item>
+    </plurals>
+    <plurals name="group_invited_count">
+        <item quantity="one">%d invited</item>
+        <item quantity="other">%d invited</item>
+    </plurals>
+    <string name="group_add_members">Add members</string>
+    <string name="group_add">Add</string>
+    <string name="group_nobody_to_add">Nobody else to add from your Signal conversations</string>
+    <string name="group_admin">Admin</string>
+    <string name="group_make_admin">Make admin</string>
+    <string name="group_remove_admin">Remove as admin</string>
+    <string name="group_remove_member">Remove from group</string>
+    <string name="group_remove_confirm">Remove %s from the group?</string>
+    <string name="group_requests">Requests to join</string>
+    <string name="group_request_summary">Asked to join by the group link</string>
+    <string name="group_request_question">Let them join the group?</string>
+    <string name="group_approve">Approve</string>
+    <string name="group_deny">Deny</string>
+    <string name="group_permissions">Permissions</string>
+    <string name="group_who_edits_info">Who can edit group info</string>
+    <string name="group_who_adds_members">Who can add members</string>
+    <string name="group_who_sends">Who can send messages</string>
+    <string name="group_all_members">All members</string>
+    <string name="group_only_admins">Only admins</string>
+    <string name="group_link">Group link</string>
+    <string name="group_link_off">Off</string>
+    <string name="group_link_on">On</string>
+    <string name="group_link_approval">On, admins approve new members</string>
+    <string name="group_link_share">Share link</string>
+    <string name="group_link_reset">Reset link</string>
+    <string name="group_leave">Leave group</string>
+    <string name="group_leave_confirm">You will no longer be able to send or receive messages in this group.</string>
+    <string name="group_choose_admin">Choose a new admin before you leave</string>
+    <string name="group_invited">You were invited to this group</string>
+    <string name="group_accept_invite">Accept invitation</string>
+    <string name="group_decline_invite">Decline invitation</string>
+    <string name="group_not_allowed">Only admins can do that in this group</string>
+    <string name="group_failed">Could not change the group. Try again when connected.</string>
     <string name="info_timer_off">Off</string>
     <string name="info_timer_4_weeks">4 weeks</string>
     <string name="info_timer_1_week">1 week</string>

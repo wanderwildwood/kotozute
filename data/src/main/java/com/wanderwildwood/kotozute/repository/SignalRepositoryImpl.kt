@@ -1515,7 +1515,7 @@ class SignalRepositoryImpl @Inject constructor(
                 senderUuid = selfAci,
                 senderNumber = "",
                 outgoing = true,
-                body = body,
+                body = shownBody(body, attachments),
                 groupId = "",
                 quoteTs = quote?.sentAt ?: 0L,
                 read = true,
@@ -1752,7 +1752,9 @@ class SignalRepositoryImpl @Inject constructor(
                 com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared("it is no longer on this phone")
             )
         }
-        return sendDirect(m.threadKey, m.body, attachments, quoteFor(m.threadKey, m.quoteTs), resending = m.date, stylesJson = m.styles, viewOnce = m.viewOnce)
+        // Our own copy of a card sent alone reads as the person; what went was no words.
+        val body = if (m.body == shownBody("", attachments)) "" else m.body
+        return sendDirect(m.threadKey, body, attachments, quoteFor(m.threadKey, m.quoteTs), resending = m.date, stylesJson = m.styles, viewOnce = m.viewOnce)
     }
 
     /**
@@ -1824,7 +1826,7 @@ class SignalRepositoryImpl @Inject constructor(
                 senderUuid = selfAci,
                 senderNumber = "",
                 outgoing = true,
-                body = body,
+                body = shownBody(body, attachments),
                 groupId = threadKey.removePrefix("group:"),
                 quoteTs = quote?.sentAt ?: 0L,
                 read = true,
@@ -1861,10 +1863,22 @@ class SignalRepositoryImpl @Inject constructor(
      * repository can turn into bytes; a sent one has no such copy, and inventing an id that
      * resolves to nothing would make the row claim a file it cannot produce.
      */
+    /**
+     * What our own copy of a message says: a contact card sent with no words reads as the
+     * person it is, as a received one does, rather than as a file type.
+     */
+    private fun shownBody(body: String, attachments: List<String>): String {
+        if (body.isNotBlank()) return body
+        val card = attachments.firstOrNull(com.wanderwildwood.kotozute.signalstore.ContactCards::isVCard) ?: return body
+        return com.wanderwildwood.kotozute.signalstore.ContactCards.nameInDataUri(card)?.let { "(contact) $it" } ?: body
+    }
+
     private fun outgoingAttachmentsJson(attachments: List<String>): String {
-        if (attachments.isEmpty()) return ""
+        // A card is not a file on our own copy; [shownBody] says who it is.
+        val files = attachments.filterNot(com.wanderwildwood.kotozute.signalstore.ContactCards::isVCard)
+        if (files.isEmpty()) return ""
         val array = org.json.JSONArray()
-        attachments.forEach { dataUri ->
+        files.forEach { dataUri ->
             val type = dataUri.substringAfter("data:", "").substringBefore(';')
             array.put(
                 org.json.JSONObject()

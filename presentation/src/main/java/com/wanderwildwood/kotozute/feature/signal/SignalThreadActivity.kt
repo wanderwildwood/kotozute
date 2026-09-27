@@ -1705,6 +1705,8 @@ class SignalThreadActivity : QkThemedActivity() {
         thread(isDaemon = true) {
             val threads = runCatching { signalRepo.getThreadsSnapshot(archived = false) }
                 .getOrDefault(emptyList())
+                // Not back into the conversation it came from.
+                .filter { it.threadKey != threadKey }
                 .map { it.threadKey to it.title.ifBlank { getString(R.string.signal_title) } }
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread

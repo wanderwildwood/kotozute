@@ -26,6 +26,18 @@ object ContactCards {
         return type == "text/x-vcard" || type == "text/vcard"
     }
 
+    /** The name on a vCard data URI, for our own copy of a card we sent. */
+    fun nameInDataUri(dataUri: String): String? {
+        val comma = dataUri.indexOf(',')
+        if (comma < 0) return null
+        val text = runCatching {
+            String(android.util.Base64.decode(dataUri.substring(comma + 1), android.util.Base64.DEFAULT))
+        }.getOrNull() ?: return null
+        val card = runCatching { Ezvcard.parse(text).first() }.getOrNull() ?: return null
+        return card.formattedName?.value?.takeIf { it.isNotBlank() }
+            ?: listOfNotNull(card.structuredName?.given, card.structuredName?.family).joinToString(" ").takeIf { it.isNotBlank() }
+    }
+
     /** The first card in [vcard], as Signal sends it; null when there is no name and nothing to reach. */
     fun toShared(vcard: String): SharedContact? {
         val card = runCatching { Ezvcard.parse(vcard).first() }.getOrNull() ?: return null

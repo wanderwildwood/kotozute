@@ -465,6 +465,10 @@
   /* Links in a message. Underlined rather than coloured: this page is ink on paper, and on
      the phone's own screen a colour is a shade of grey nobody can tell from the text. */
   .msgLink { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+  /* A spoiler: a bar in the text's colour until clicked, as on the phone. */
+  .spoiler:not(.shown) { background: var(--ink); cursor: pointer; border-radius: 2px; }
+  .spoiler:not(.shown), .spoiler:not(.shown) * { color: transparent; }
+  .msg.current .bubble .spoiler:not(.shown) { background: var(--paper); }
   .msgLink:hover { text-decoration-thickness: 2px; }
   .expiry { margin-top: 4px; font-size: 11px; color: var(--muted); }
   .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 3px; }

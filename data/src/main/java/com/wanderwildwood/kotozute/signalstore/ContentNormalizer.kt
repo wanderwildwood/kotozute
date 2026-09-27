@@ -253,7 +253,8 @@ internal object ContentNormalizer {
         // so a short body can legitimately carry tens of thousands of in-bounds mention ranges
         // -- each of which expands to a name. Uncapped, one small message becomes an enormous
         // string built on the receive thread.
-        body = withMentions(body, dataMessage.bodyRanges.take(BODY_RANGE_LIMIT), nameFor)
+        val (named, styles) = withMentions(body, dataMessage.bodyRanges.take(BODY_RANGE_LIMIT), nameFor)
+        body = named
 
         // Not a bubble in anybody's client. A vote belongs to its poll and a pin belongs to
         // the message it pins; both were being stored as a row with nothing in it, which is a
@@ -290,6 +291,7 @@ internal object ContentNormalizer {
             read = outgoing || groupCallEra != null,
             source = "live",
             attachmentsJson = attachmentsJson(dataMessage, viewOnce),
+            stylesJson = BodyStyles.encode(styles),
             // When this message's time runs out, or 0 for "the clock has not started".
             //
             // ⚠ An incoming message does not start counting until it is read. It used to start
@@ -524,40 +526,48 @@ internal object ContentNormalizer {
      * That is the honest trade for not having a mentions table: a name that was right at the
      * time, rather than a placeholder for ever.
      *
-     * The ranges are applied back to front so that each start index still refers to the string
-     * being edited -- replacing left to right moves every later index along by the difference.
+     * The same ranges also carry the text's styles, and writing a name in moves every style
+     * after it; both are done together in [BodyStyles.apply], which returns the styles moved to
+     * where their text now is.
      */
     private fun withMentions(
         body: String,
         ranges: List<org.whispersystems.signalservice.internal.push.BodyRange>,
         nameFor: (String) -> String?
-    ): String {
-        if (body.isEmpty() || ranges.isEmpty()) return body
-        val mentions = ranges
-            .mapNotNull { range ->
-                // Both fields, as everywhere else on this rail: a modern client fills only the
-                // binary one, and reading the string alone drops every mention it sends.
-                val aci = org.signal.core.models.ServiceId
-                    .parseOrNull(range.mentionAci, range.mentionAciBinary)
-                    ?.toString()
-                    ?: return@mapNotNull null
-                val start = range.start ?: return@mapNotNull null
-                val length = range.length ?: return@mapNotNull null
-                if (start < 0 || length <= 0 || start + length > body.length) return@mapNotNull null
-                Triple(start, length, aci)
-            }
-            .sortedByDescending { it.first }
-        if (mentions.isEmpty()) return body
-
-        val out = StringBuilder(body)
-        mentions.forEach { (start, length, aci) ->
+    ): Pair<String, List<BodyStyles.Range>> {
+        if (body.isEmpty() || ranges.isEmpty()) return body to emptyList()
+        val mentions = ranges.mapNotNull { range ->
+            // Both fields, as everywhere else on this rail: a modern client fills only the
+            // binary one, and reading the string alone drops every mention it sends.
+            val aci = org.signal.core.models.ServiceId
+                .parseOrNull(range.mentionAci, range.mentionAciBinary)
+                ?.toString()
+                ?: return@mapNotNull null
+            val start = range.start ?: return@mapNotNull null
+            val length = range.length ?: return@mapNotNull null
             // A name if anybody has one, the service id shortened if nobody does. Never the
             // placeholder, and never the whole id: this goes inline in a sentence.
             val name = nameFor(aci)?.takeIf { it.isNotBlank() }
                 ?: aci.take(com.wanderwildwood.kotozute.signal.SignalName.SHORT_SERVICE_ID)
-            out.replace(start, start + length, "@$name")
+            BodyStyles.Mention(start, length, "@$name")
         }
-        return out.toString()
+        // The same ranges carry text styles, with `style` set instead of a mention. See
+        // [BodyStyles]: they are moved to match the names written in.
+        val styles = ranges.mapNotNull { range ->
+            val style = when (range.style) {
+                org.whispersystems.signalservice.internal.push.BodyRange.Style.BOLD -> BodyStyles.Style.BOLD
+                org.whispersystems.signalservice.internal.push.BodyRange.Style.ITALIC -> BodyStyles.Style.ITALIC
+                org.whispersystems.signalservice.internal.push.BodyRange.Style.SPOILER -> BodyStyles.Style.SPOILER
+                org.whispersystems.signalservice.internal.push.BodyRange.Style.STRIKETHROUGH -> BodyStyles.Style.STRIKETHROUGH
+                org.whispersystems.signalservice.internal.push.BodyRange.Style.MONOSPACE -> BodyStyles.Style.MONOSPACE
+                else -> null
+            } ?: return@mapNotNull null
+            val start = range.start ?: return@mapNotNull null
+            val length = range.length ?: return@mapNotNull null
+            BodyStyles.Range(start, length, style)
+        }
+        if (mentions.isEmpty() && styles.isEmpty()) return body to emptyList()
+        return BodyStyles.apply(body, mentions, styles)
     }
 
     /**

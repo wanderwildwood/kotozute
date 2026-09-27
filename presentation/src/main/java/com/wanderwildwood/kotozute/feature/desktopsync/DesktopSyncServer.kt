@@ -1018,6 +1018,9 @@ class DesktopSyncServer(
         // particular message -- reacting to it -- needs the real one.
         put("signalId", m.id)
         put("body", m.body)
+        // The text's styles, which the page draws as the phone does -- spoilers included,
+        // hidden until clicked. `[[start, length, code], ...]`; see BodyStyles.
+        if (m.styles.isNotEmpty()) runCatching { put("styles", org.json.JSONArray(m.styles)) }
         put("date", m.date)
         put("isMe", m.outgoing)
         put("read", m.read)
@@ -1101,7 +1104,14 @@ class DesktopSyncServer(
                             ?: signalThreadTitle(original.threadKey)
                             ?: original.senderNumber.ifBlank { original.senderUuid.take(8) }
                     })
-                    put("body", original.body.replace("\n", " ").trim())
+                    // A quoted spoiler stays hidden: the quote line has no way to reveal it.
+                    put(
+                        "body",
+                        com.wanderwildwood.kotozute.signalstore.BodyStyles.withSpoilersHidden(
+                            original.body,
+                            com.wanderwildwood.kotozute.signalstore.BodyStyles.decode(original.styles)
+                        ).replace("\n", " ").trim()
+                    )
                 }
             })
         }

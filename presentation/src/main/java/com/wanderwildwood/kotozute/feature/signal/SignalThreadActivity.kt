@@ -1806,6 +1806,9 @@ class SignalThreadActivity : QkThemedActivity() {
             BubbleUtils.TIMESTAMP_THRESHOLD
     }
 
+    /** Messages whose spoilers have been tapped open, while this conversation is open. */
+    private val revealedSpoilers = mutableSetOf<String>()
+
     private inner class MessageHolder(
         private val b: SignalMessageListItemBinding
     ) : RecyclerView.ViewHolder(b.root) {
@@ -1822,7 +1825,23 @@ class SignalThreadActivity : QkThemedActivity() {
             // Links, on the same terms as the SMS thread: blocked, asked about, or opened,
             // whichever the one preference says. A Signal message is likelier than a text to
             // carry a link worth following, and until now it was something to retype.
-            b.body.text = MessageLinks.apply(b.body, text, prefs, messageLinkClicks)
+            // Bold, italic, strikethrough, monospace, and spoilers hidden until tapped. See
+            // [MessageStyles]. Only on the message's own text, never on the view-once line.
+            val styled = if (text === m.body) {
+                MessageStyles.apply(text, m.styles, b.body.currentTextColor, m.id in revealedSpoilers) {
+                    revealedSpoilers += m.id
+                    adapterPosition.takeIf { it != RecyclerView.NO_POSITION }
+                        ?.let { adapter.notifyItemChanged(it) }
+                }
+            } else {
+                text
+            }
+            b.body.text = MessageLinks.apply(b.body, styled, prefs, messageLinkClicks)
+            // A spoiler is opened with a tap, which needs the text to take taps even when
+            // links are switched off.
+            if (MessageStyles.hasSpoiler(m.styles) && m.id !in revealedSpoilers) {
+                b.body.movementMethod = android.text.method.LinkMovementMethod.getInstance()
+            }
             b.body.setVisible(text.isNotEmpty())
 
             // Emoji on their own are drawn large and without a bubble on the SMS side. This

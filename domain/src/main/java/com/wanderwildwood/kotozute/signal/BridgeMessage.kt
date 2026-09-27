@@ -22,6 +22,8 @@ data class BridgeMessage(
     val source: String,
     /** The bridge's attachment array, kept as JSON; the app only reads it to draw a row. */
     val attachmentsJson: String,
+    /** The text's styles -- bold, italic, spoiler and so on -- as [BodyStyles] stores them. */
+    val stylesJson: String = "",
 
     /**
      * When this copy must be gone, in ms, or 0 for never. The bridge sends it; the phone

@@ -134,7 +134,11 @@ class SignalNotifications @Inject constructor(
             message.senderNumber.ifBlank { context.getString(R.string.signal_title) }
         }
         val text = when {
-            message.body.isNotBlank() -> message.body
+            // A spoiler is blanked: a notification cannot be tapped open to reveal one, and the
+            // lock screen shows it to anybody holding the phone.
+            message.body.isNotBlank() -> com.wanderwildwood.kotozute.signalstore.BodyStyles.withSpoilersHidden(
+                message.body, com.wanderwildwood.kotozute.signalstore.BodyStyles.decode(message.styles)
+            )
             message.attachments.isNotBlank() -> context.getString(R.string.signal_attachment_image)
             else -> return
         }

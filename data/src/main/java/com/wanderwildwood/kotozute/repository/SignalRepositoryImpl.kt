@@ -1881,10 +1881,14 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     private fun outgoingAttachmentsJson(attachments: List<String>): String {
-        // A card is not a file on our own copy; [shownBody] says who it is.
+        val cards = attachments.filter(com.wanderwildwood.kotozute.signalstore.ContactCards::isVCard)
         val files = attachments.filterNot(com.wanderwildwood.kotozute.signalstore.ContactCards::isVCard)
-        if (files.isEmpty()) return ""
+        if (files.isEmpty() && cards.isEmpty()) return ""
         val array = org.json.JSONArray()
+        // A card is kept on our own copy as it is on a received one: the vCard filed as an
+        // attachment, so the sender sees "Attachment: <name>.vcf" as the recipient does and
+        // can open it. It used to be dropped here, and the sent card read as words only.
+        cards.forEach { dataUri -> keptCard(dataUri)?.let(array::put) }
         files.forEach { dataUri ->
             val type = dataUri.substringAfter("data:", "").substringBefore(';')
             array.put(
@@ -1903,8 +1907,30 @@ class SignalRepositoryImpl @Inject constructor(
                     .put("pending", false)
             )
         }
-        return array.toString()
+        return if (array.length() == 0) "" else array.toString()
     }
+
+    /** A card being sent, filed like a received one; null if it could not be kept. */
+    private fun keptCard(dataUri: String): org.json.JSONObject? {
+        val bytes = runCatching {
+            android.util.Base64.decode(dataUri.substringAfter(','), android.util.Base64.DEFAULT)
+        }.getOrNull() ?: return null
+        val name = com.wanderwildwood.kotozute.signalstore.ContactCards.nameInDataUri(dataUri) ?: "contact"
+        // A name of our own making, plain and unique, so it is kept exactly as given.
+        val id = runCatching {
+            signalStore.keepImportedAttachment("card-${System.currentTimeMillis()}-${cardSerial.incrementAndGet()}.vcf") {
+                java.io.ByteArrayInputStream(bytes)
+            }
+        }.getOrNull() ?: return null
+        return org.json.JSONObject()
+            .put("id", id)
+            .put("type", "text/x-vcard")
+            .put("filename", "$name.vcf")
+            .put("size", bytes.size)
+            .put("contact", true)
+    }
+
+    private val cardSerial = java.util.concurrent.atomic.AtomicInteger()
 
     override fun applyReceipts(senderUuid: String, timestamps: List<Long>, read: Boolean): Int {
         if (timestamps.isEmpty()) return 0

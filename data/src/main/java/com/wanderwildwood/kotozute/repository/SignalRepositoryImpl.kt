@@ -1932,6 +1932,30 @@ class SignalRepositoryImpl @Inject constructor(
 
     private val cardSerial = java.util.concurrent.atomic.AtomicInteger()
 
+    /**
+     * A view-once picture of ours opened, or a voice message played. Held to the same rules as
+     * a read receipt -- the account's setting, and only from the person it went to or a
+     * member of its group -- because upstream's `handleViewedReceipt` is gated the same way.
+     */
+    private fun applyViewed(senderUuid: String, timestamps: List<Long>) {
+        if (timestamps.isEmpty() || senderUuid.isBlank() || !prefs.signalReadReceipts.get()) return
+        val now = System.currentTimeMillis()
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalMessage::class.java)
+                    .equalTo("outgoing", true)
+                    .`in`("date", timestamps.toTypedArray())
+                    .beginGroup()
+                    .equalTo("threadKey", "direct:$senderUuid")
+                    .or()
+                    .beginsWith("threadKey", "group:")
+                    .endGroup()
+                    .findAll()
+                    .forEach { m -> if (m.viewedAt == 0L) m.viewedAt = now }
+            }
+        }
+    }
+
     override fun applyReceipts(senderUuid: String, timestamps: List<Long>, read: Boolean): Int {
         if (timestamps.isEmpty()) return 0
         // ⚠ Read receipts are one setting in both directions, and only the outgoing half was
@@ -2984,6 +3008,8 @@ class SignalRepositoryImpl @Inject constructor(
             // browser rail and to nobody here.
             applyReceipts(sender, timestamps, read)
         }
+
+        override fun viewed(sender: String, timestamps: List<Long>) = applyViewed(sender, timestamps)
 
         override fun requestAccepted(threadKey: String) = setRequest(threadKey, false)
 

@@ -944,6 +944,11 @@ internal class SignalReceiver(
                             timestamps,
                             receipt.type == org.whispersystems.signalservice.internal.push.ReceiptMessage.Type.READ
                         )
+                        // Viewed is its own claim: a view-once picture opened, a voice message
+                        // played. It used to count only as delivered.
+                        if (receipt.type == org.whispersystems.signalservice.internal.push.ReceiptMessage.Type.VIEWED) {
+                            events.viewed(result.metadata.sourceServiceId.toString(), timestamps)
+                        }
                         // Delivery only. A read receipt says somebody looked at it, which is
                         // not the same claim -- and Signal clears the log on the delivery arm
                         // (`ReceiptMessageProcessor.handleDeliveryReceipt` -> `addMslDelete`)

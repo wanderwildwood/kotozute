@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 35
+        const val SCHEMA_VERSION: Long = 36
     }
 
     @SuppressLint("ApplySharedPref")
@@ -578,6 +578,15 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.takeIf { !it.hasField("poll") }
                 ?.addField("poll", String::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 35L) {
+            // When a view-once picture or voice message of ours was opened. See viewedAt.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("viewedAt") }
+                ?.addField("viewedAt", Long::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

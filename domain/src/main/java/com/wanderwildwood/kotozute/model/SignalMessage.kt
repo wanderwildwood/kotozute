@@ -90,6 +90,12 @@ open class SignalMessage : RealmObject() {
     var readAt: Long = 0
 
     /**
+     * When a view-once picture of ours was opened, or a voice message of ours played: Signal's
+     * "viewed" receipt, which is a claim of its own -- read is not viewed. Outgoing only.
+     */
+    var viewedAt: Long = 0
+
+    /**
      * Reactions on this message, as JSON: [{"emoji":"...","who":"<uuid>"}].
      *
      * Held on the message rather than in a table of their own. A reaction is never read

@@ -38,6 +38,9 @@ interface SignalEvents {
     /** Messages we sent arrived, or were read, at the far end. */
     fun receipts(sender: String, timestamps: List<Long>, read: Boolean) {}
 
+    /** A "viewed" receipt: a view-once picture of ours opened, or a voice message played. */
+    fun viewed(sender: String, timestamps: List<Long>) {}
+
     /**
      * Tell a sender their message arrived here.
      *

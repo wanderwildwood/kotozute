@@ -2488,9 +2488,15 @@ class SignalThreadActivity : QkThemedActivity() {
                 else -> {
                     // "Edited" as Signal marks it, on either side: somebody reading a changed
                     // message should know it changed.
-                    val receipt = if (m.outgoing && (m.readAt > 0 || m.deliveredAt > 0)) {
-                        getString(if (m.readAt > 0) R.string.signal_message_read else R.string.signal_message_delivered)
-                    } else null
+                    val receipt = when {
+                        !m.outgoing -> null
+                        // Opened, for a view-once picture; played, for a voice message.
+                        m.viewedAt > 0 && m.viewOnce -> getString(R.string.signal_message_viewed)
+                        m.viewedAt > 0 && isVoiceNoteMessage(m) -> getString(R.string.signal_message_played)
+                        m.readAt > 0 -> getString(R.string.signal_message_read)
+                        m.deliveredAt > 0 -> getString(R.string.signal_message_delivered)
+                        else -> null
+                    }
                     val edited = if (m.revisionTs > 0) getString(R.string.signal_message_edited) else null
                     val line = listOfNotNull(edited, receipt).joinToString(" · ")
                     b.status.setVisible(line.isNotEmpty())
@@ -2919,6 +2925,12 @@ class SignalThreadActivity : QkThemedActivity() {
          * One function because two places ask, and they must not disagree: the branch for our
          * own sent copies and the branch for everything with an id to fetch.
          */
+        /** Whether this message is a voice message: its one attachment, as [isVoiceNote] reads it. */
+        private fun isVoiceNoteMessage(m: SignalMessage): Boolean {
+            val first = runCatching { JSONArray(m.attachments).optJSONObject(0) }.getOrNull() ?: return false
+            return isVoiceNote(first, first.optString("type"))
+        }
+
         private fun isVoiceNote(entry: org.json.JSONObject, type: String): Boolean =
             entry.optBoolean("voice") ||
                 com.wanderwildwood.kotozute.signal.VoiceNotes.isPlayableAudio(type)

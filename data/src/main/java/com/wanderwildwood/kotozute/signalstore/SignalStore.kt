@@ -222,6 +222,25 @@ class SignalStore(private val context: Context) {
     @Volatile
     private var capabilitiesRefreshed = false
 
+    /**
+     * Tells the server again whether this account's number finds it, as the account's own
+     * record says: the part of upstream's weekly `RefreshAttributesJob` (040240c4d2) that is
+     * safe from here. A number-privacy change made on another device is kept on the account's
+     * record, and this is what brings the server into line with it.
+     *
+     * ⛔ Not the full account attributes a primary's job sends. Those carry the registration
+     * lock, which goes up only while the lock is on; this app does not record whether it is,
+     * and the server cannot be asked, so a full refresh could switch somebody's lock off.
+     *
+     * @return whether it was told.
+     */
+    fun refreshDiscoverability(): Boolean {
+        val findable = privacy()?.findableByNumber ?: return false
+        connection.connect()
+        return connection.account.setPhoneNumberDiscoverability(findable) is
+            org.signal.libsignal.net.RequestResult.Success
+    }
+
     private fun runPreKeys(maintenanceOnly: Boolean): String {
         connection.connect()
         return try {

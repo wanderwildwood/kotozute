@@ -2128,6 +2128,13 @@ class SignalRepositoryImpl @Inject constructor(
         runCatching { signalStore.refreshCapabilities() }
             .onSuccess { Timber.i("signal account: %s", it) }
             .onFailure { Timber.w(it, "signal account: could not refresh capabilities") }
+        // Weekly, as upstream: whether the number finds this account, from the account's record.
+        val since = System.currentTimeMillis() - prefs.signalDiscoverabilityRefreshedAt.get()
+        if (since !in 0..DISCOVERABILITY_REFRESH_MS) {
+            runCatching { signalStore.refreshDiscoverability() }
+                .onSuccess { told -> if (told) prefs.signalDiscoverabilityRefreshedAt.set(System.currentTimeMillis()) }
+                .onFailure { Timber.w(it, "signal account: could not refresh discoverability") }
+        }
         // Somebody asked for a message again and the send did not happen. Upstream retries
         // that for a day with a job; this round is the nearest thing here, and it runs whether
         // or not anything has arrived -- which is the case the end of a receive batch cannot
@@ -5647,6 +5654,9 @@ class SignalRepositoryImpl @Inject constructor(
 
 
     companion object {
+        /** How often the account's discoverability is told to the server again: upstream's week. */
+        private const val DISCOVERABILITY_REFRESH_MS = 7L * 24 * 60 * 60 * 1000
+
         /**
          * How long a key transparency check may take before it is abandoned.
          *

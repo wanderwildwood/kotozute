@@ -329,6 +329,9 @@ class Preferences @Inject constructor(
      */
     val filePicker = rxPrefs.getString("filePicker", "")
 
+    /** When the account's discoverability was last told to the server again. See SignalStore.refreshDiscoverability. */
+    val signalDiscoverabilityRefreshedAt = rxPrefs.getLong("signalDiscoverabilityRefreshedAt", 0L)
+
     /** The setup guide has been through, or skipped; it is not offered again unasked. */
     val setupSeen = rxPrefs.getBoolean("setupSeen", false)
 

@@ -2498,6 +2498,11 @@ public class SignalServiceMessageSender {
     } else if (t instanceof InvalidPreKeyException) {
       Log.w(TAG, "[" + timestamp + "] Hit invalid prekey: " + recipient.getIdentifier(), t);
       return SendMessageResult.invalidPreKeyFailure(recipient);
+    } else if (t instanceof IOException && !(t instanceof NonSuccessfulResponseCodeException)) {
+      // Upstream f627988255: a transport failure to one recipient is a network failure for that
+      // one, not a throw that loses the results of everybody the message did reach.
+      Log.w(TAG, "[" + timestamp + "] Hit transport failure: " + recipient.getIdentifier(), t);
+      return SendMessageResult.networkFailure(recipient);
     } else {
       Log.w(TAG, "[" + timestamp + "] Hit unknown exception: " + recipient.getIdentifier(), t);
       throw new IOException(t);

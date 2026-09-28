@@ -2394,8 +2394,14 @@ class SignalThreadActivity : QkThemedActivity() {
                 m.attachments.isNotBlank() -> getString(R.string.signal_view_once_downloading)
                 else -> getString(R.string.signal_view_once_received)
             }
+            // A contact card opens from its words as well as from the attachment line under
+            // them: "(contact) Ada" is the part that looks like the thing, and a tap on it
+            // used to do nothing at all.
+            val card = if (isViewOnceLine) null else downloadableAttachment(m)?.takeIf { it.type.contains("vcard", ignoreCase = true) }
             if (viewOnceOpenable) {
                 b.body.setOnClickListener { openViewOnce(m.id) }
+            } else if (card != null) {
+                b.body.setOnClickListener { openAttachment(card) }
             } else {
                 b.body.setOnClickListener(null)
                 b.body.isClickable = false

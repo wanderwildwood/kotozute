@@ -265,8 +265,16 @@ internal object ContentNormalizer {
         // of a conversation is that it accounts for itself -- and an empty bubble is this
         // app's own invention, arrived at by having no case for the message rather than by
         // deciding anything. The sticker line above is the same idea and was already here.
+        //
+        // Some of those are not messages at all but things that happened -- a call, a group
+        // change, a poll closing -- and upstream draws those as update rows (`isCallLog`,
+        // `isGroupAction`, `isPollTerminate` in `MessageRecord.isUpdate`).
+        var update = false
         if (body.isEmpty() && dataMessage.attachments.isEmpty() && reaction == null) {
-            describe(dataMessage)?.let { body = it }
+            describe(dataMessage)?.let {
+                body = it
+                update = isEvent(dataMessage)
+            }
         }
 
         // A group call is one line per call, not one per person joining it: every member who
@@ -279,6 +287,7 @@ internal object ContentNormalizer {
 
         return BridgeMessage(
             id = groupCallEra?.let { groupCallIdFor(groupId, it) } ?: messageIdFor(authorUuid, authorNumber, timestamp),
+            update = update,
             threadKey = threadKey,
             ts = timestamp,
             senderUuid = authorUuid,
@@ -559,6 +568,15 @@ internal object ContentNormalizer {
      * writes for *itself* on making a group is a resource, because the repository that writes
      * it has one.
      */
+    /**
+     * Whether a message [describe] has words for is something that happened rather than
+     * something said: a call, a change to the group, a poll closing. Upstream's
+     * `MessageRecord.isUpdate` counts `isCallLog`, `isGroupAction` and `isPollTerminate`, and
+     * draws those rows centred with no bubble. A poll, a contact card, a payment is a message.
+     */
+    internal fun isEvent(m: DataMessage): Boolean =
+        m.groupCallUpdate != null || m.groupV2 != null || m.pollTerminate != null
+
     internal fun describe(m: DataMessage): String? = when {
         // ⚠ Before the group update below, which it would otherwise always lose to: every
         // message sent to a group carries the group's context, a call update included, so a

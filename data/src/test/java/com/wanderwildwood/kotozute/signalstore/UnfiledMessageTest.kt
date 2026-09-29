@@ -36,7 +36,8 @@ class UnfiledMessageTest {
         reactionTarget = "aci-2:1789",
         reactionRemove = true,
         groupMasterKey = ByteArray(32) { it.toByte() },
-        revisionTs = 1_790_000_000_555L
+        revisionTs = 1_790_000_000_555L,
+        update = true
     )
 
     @Test
@@ -45,6 +46,12 @@ class UnfiledMessageTest {
         // The key is compared by content; a data class compares a ByteArray by identity.
         assertArrayEquals(full.groupMasterKey, back.groupMasterKey)
         assertEquals(full.copy(groupMasterKey = null), back.copy(groupMasterKey = null))
+    }
+
+    @Test
+    fun `one written before update rows existed comes back as a message`() {
+        val old = org.json.JSONObject(UnfiledMessage.encode(full)).apply { remove("update") }.toString()
+        assertEquals(false, UnfiledMessage.decode(old).update)
     }
 
     @Test

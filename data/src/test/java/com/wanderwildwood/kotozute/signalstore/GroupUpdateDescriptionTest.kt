@@ -1,6 +1,8 @@
 package com.wanderwildwood.kotozute.signalstore
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.whispersystems.signalservice.internal.push.DataMessage
@@ -46,6 +48,30 @@ class GroupUpdateDescriptionTest {
         )
         assertEquals("Group call", ContentNormalizer.describe(call))
         assertEquals("groupcall:g:era-1", ContentNormalizer.groupCallIdFor("g", "era-1"))
+    }
+
+    @Test
+    fun `a call, a group change and a closed poll are events, drawn as update rows`() {
+        val call = update(revision = 3).copy(
+            groupCallUpdate = org.whispersystems.signalservice.internal.push.DataMessage.GroupCallUpdate(eraId = "era-1")
+        )
+        assertTrue(ContentNormalizer.isEvent(update(revision = 0)))
+        assertTrue(ContentNormalizer.isEvent(call))
+        assertTrue(
+            ContentNormalizer.isEvent(
+                DataMessage(pollTerminate = org.whispersystems.signalservice.internal.push.DataMessage.PollTerminate(targetSentTimestamp = 1L))
+            )
+        )
+    }
+
+    @Test
+    fun `a poll, a contact card or nothing at all is not an event`() {
+        assertFalse(
+            ContentNormalizer.isEvent(
+                DataMessage(pollCreate = org.whispersystems.signalservice.internal.push.DataMessage.PollCreate(question = "Lunch?"))
+            )
+        )
+        assertFalse(ContentNormalizer.isEvent(DataMessage()))
     }
 }
 

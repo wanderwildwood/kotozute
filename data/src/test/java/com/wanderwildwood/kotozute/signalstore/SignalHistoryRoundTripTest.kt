@@ -50,8 +50,8 @@ class SignalHistoryRoundTripTest {
                 }
             }
 
-        fun thread(key: String, title: String = "", number: String = "") {
-            threads += SignalHistoryExporter.Source.Thread(key, title, number)
+        fun thread(key: String, title: String = "", number: String = "", masterKey: ByteArray? = null) {
+            threads += SignalHistoryExporter.Source.Thread(key, title, number, masterKey)
         }
 
         fun message(
@@ -226,6 +226,23 @@ class SignalHistoryRoundTripTest {
         val (_, sink) = roundTrip(store, Sink(groups = emptyMap()))
 
         assertEquals(key, sink.inserted.single().threadKey)
+    }
+
+    @Test
+    fun `a group comes back with the key a send to it is made with`() {
+        // Restored without it, a group showed its history and could not be written to until
+        // somebody else in it wrote first (forum report, 2026-09-29).
+        val masterKey = ByteArray(32) { (it * 7 + 3).toByte() }
+        val key = "group:" + ContentNormalizer.groupIdForCheck(masterKey)
+        val store = Store()
+        store.thread(key, title = "Trip", masterKey = masterKey)
+        store.message(key, ts = 1_699_000_000_000, body = "in the group", sender = ada)
+
+        val (_, sink) = roundTrip(store)
+
+        val message = sink.inserted.single()
+        assertEquals(key, message.threadKey)
+        assertTrue(masterKey.contentEquals(message.groupMasterKey))
     }
 
     @Test

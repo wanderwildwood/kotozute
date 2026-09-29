@@ -28,7 +28,13 @@ internal class SignalHistoryExporter(
 
     /** What there is to write. Kept behind an interface so the shape can be tested. */
     internal interface Source {
-        data class Thread(val key: String, val title: String, val number: String)
+        data class Thread(
+            val key: String,
+            val title: String,
+            val number: String,
+            /** A group's master key, which is what lets a restored phone write to it. */
+            val groupMasterKey: ByteArray? = null
+        )
 
         data class Message(
             val ts: Long,
@@ -127,10 +133,20 @@ internal class SignalHistoryExporter(
                                     .put("kotozuteThreadKey", thread.key)
                                     .put(
                                         "group",
-                                        JSONObject().put(
-                                            "snapshot",
-                                            JSONObject().put("title", JSONObject().put("title", thread.title))
-                                        )
+                                        JSONObject()
+                                            // Signal's own field. Without it a restored
+                                            // group showed its history and could not be
+                                            // written to until somebody else wrote first --
+                                            // the key is what a send is made with.
+                                            .apply {
+                                                thread.groupMasterKey?.let {
+                                                    put("masterKey", java.util.Base64.getEncoder().encodeToString(it))
+                                                }
+                                            }
+                                            .put(
+                                                "snapshot",
+                                                JSONObject().put("title", JSONObject().put("title", thread.title))
+                                            )
                                     )
                             )
                         )

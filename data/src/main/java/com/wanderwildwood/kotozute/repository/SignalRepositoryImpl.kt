@@ -4813,7 +4813,10 @@ class SignalRepositoryImpl @Inject constructor(
                         com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Thread(
                             key = thread.threadKey,
                             title = thread.title,
-                            number = thread.counterpartNumber
+                            number = thread.counterpartNumber,
+                            groupMasterKey = if (thread.kind == "group") {
+                                groupMasterKeyFor(realm, thread.threadKey)?.copyOf()
+                            } else null
                         )
                     }
             }
@@ -4900,6 +4903,16 @@ class SignalRepositoryImpl @Inject constructor(
                             .equalTo("id", message.id)
                             .findFirst() != null
                         if (!held && store(r, message)) inserted++
+                        // A group imported before the key was kept has every message held
+                        // already, so store() never runs for it. The key still belongs on
+                        // its thread, and is the only thing this writes to a held one.
+                        if (held && message.groupMasterKey != null) {
+                            r.where(SignalThread::class.java)
+                                .equalTo("threadKey", message.threadKey)
+                                .findFirst()
+                                ?.takeIf { it.groupMasterKey == null }
+                                ?.groupMasterKey = message.groupMasterKey
+                        }
                     }
                 }
             }

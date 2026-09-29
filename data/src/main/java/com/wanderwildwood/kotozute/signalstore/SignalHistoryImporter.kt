@@ -71,13 +71,16 @@ internal class SignalHistoryImporter(
      * The same derivation a live message goes through -- [ContentNormalizer.groupIdForCheck]
      * -- so an imported group lands in the conversation it belongs to rather than beside it.
      */
-    private fun threadKeyFromMasterKey(encoded: String): String? {
+    private fun threadKeyFromMasterKey(bytes: ByteArray): String? = runCatching {
+        "group:" + ContentNormalizer.groupIdForCheck(bytes).ifBlank { return null }
+    }.getOrNull()
+
+    /** The export's master key as bytes, or null when it is absent or not one. */
+    private fun masterKeyBytes(encoded: String): ByteArray? {
         if (encoded.isBlank()) return null
-        return runCatching {
-            val bytes = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
-            if (bytes.size != GROUP_MASTER_KEY_SIZE) return null
-            "group:" + ContentNormalizer.groupIdForCheck(bytes).ifBlank { return null }
-        }.getOrNull()
+        return runCatching { java.util.Base64.getMimeDecoder().decode(encoded) }
+            .getOrNull()
+            ?.takeIf { it.size == GROUP_MASTER_KEY_SIZE }
     }
 
     class NotAnExport : Exception("no ${DirectoryExportSource.MAIN} in the chosen folder")
@@ -92,6 +95,7 @@ internal class SignalHistoryImporter(
         val people = mutableMapOf<String, Person>()
         val groupTitles = mutableMapOf<String, String>()
         val groupThreadKeys = mutableMapOf<String, String>()
+        val groupMasterKeys = mutableMapOf<String, ByteArray>()
         val chats = mutableMapOf<String, String>()
 
         // First pass: who and where. The export does not promise that a recipient appears
@@ -120,8 +124,16 @@ internal class SignalHistoryImporter(
                             // The master key, which Signal's own export carries and from
                             // which the thread key is *derived* rather than guessed. This is
                             // the answer the title match was standing in for.
-                            threadKeyFromMasterKey(group.optString("masterKey"))
-                                ?.let { groupThreadKeys[id] = it }
+                            masterKeyBytes(group.optString("masterKey"))?.let { key ->
+                                threadKeyFromMasterKey(key)?.let {
+                                    groupThreadKeys[id] = it
+                                    // Kept for the messages, which put it on the thread: a
+                                    // send to a group is made with it, and a group placed
+                                    // here without it showed its history and could not be
+                                    // written to until somebody else wrote first.
+                                    groupMasterKeys[id] = key
+                                }
+                            }
                             group.optJSONObject("snapshot")
                                 ?.optJSONObject("title")
                                 ?.optString("title")
@@ -242,6 +254,9 @@ internal class SignalHistoryImporter(
                     return@forEach
                 }
                 val groupId = if (threadKey.startsWith("group:")) threadKey.removePrefix("group:") else ""
+                // Only a key that derived this very thread: a title match found the thread
+                // some other way and has no key to vouch for.
+                val masterKey = groupMasterKeys[recipientId]?.takeIf { groupThreadKeys[recipientId] == threadKey }
 
                 val author = people[item.optString("authorId")] ?: Person("", "", "")
                 // The id must be the one a live copy of this message would carry, or an
@@ -280,7 +295,8 @@ internal class SignalHistoryImporter(
                         read = true,
                         source = "import",
                         attachmentsJson = "",
-                        update = true
+                        update = true,
+                        groupMasterKey = masterKey
                     )
                     landed += threadKey
                     if (batch.size >= BATCH) flush()
@@ -343,6 +359,7 @@ internal class SignalHistoryImporter(
                     read = isRead(item),
                     source = "import",
                     attachmentsJson = if (attachments.length() == 0) "" else attachments.toString(),
+                    groupMasterKey = masterKey,
                     expiresInSeconds = if (expiresIn > 0) expiresIn / 1000 else 0,
                     // Signal writes a start only once the timer has actually started, so an
                     // unread disappearing message carries a duration and no start. Treating

@@ -746,7 +746,10 @@ internal object ContentNormalizer {
                 .publicParams
                 .groupIdentifier
                 .serialize()
-            android.util.Base64.encodeToString(identifier, android.util.Base64.NO_WRAP)
+            // java.util's encoder is the same bytes as android.util's NO_WRAP (standard
+            // alphabet, padded) and also runs off a device, where android.util's threw and
+            // every group id came out blank under test.
+            java.util.Base64.getEncoder().encodeToString(identifier)
         }.getOrElse {
             // A group whose id cannot be derived has nothing to hang a thread on, and
             // guessing one would file the message in a thread nothing else will ever match.

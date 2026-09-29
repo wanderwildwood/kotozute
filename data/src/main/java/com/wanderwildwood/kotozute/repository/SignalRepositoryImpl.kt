@@ -4842,7 +4842,9 @@ class SignalRepositoryImpl @Inject constructor(
                                 quoteTs = message.quoteTs,
                                 expiresAt = message.expiresAt,
                                 expiresInSeconds = message.expiresInSeconds,
-                                attachmentsJson = message.attachments
+                                attachmentsJson = message.attachments,
+                                id = message.id,
+                                update = message.update
                             )
                         )
                     }

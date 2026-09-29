@@ -64,10 +64,13 @@ class SignalHistoryRoundTripTest {
             quoteTs: Long = 0,
             expiresAt: Long = 0,
             expiresInSeconds: Long = 0,
-            attachmentsJson: String = ""
+            attachmentsJson: String = "",
+            id: String = "",
+            update: Boolean = false
         ) {
             messages.getOrPut(key) { mutableListOf() } += SignalHistoryExporter.Source.Message(
-                ts, sender, outgoing, body, read, quoteTs, expiresAt, expiresInSeconds, attachmentsJson
+                ts, sender, outgoing, body, read, quoteTs, expiresAt, expiresInSeconds, attachmentsJson,
+                id = id, update = update
             )
         }
     }
@@ -140,6 +143,42 @@ class SignalHistoryRoundTripTest {
         assertEquals("hello", sink.inserted.first { !it.outgoing }.body)
         assertEquals("hi back", sink.inserted.first { it.outgoing }.body)
         assertEquals("Ada Lovelace", sink.names[key])
+    }
+
+    @Test
+    fun `a line saying what changed comes back as that line, under the id it had`() {
+        val store = Store()
+        val key = "direct:$ada"
+        store.thread(key, title = "Ada")
+        store.message(key, ts = 1_699_000_000_000, body = "Missed voice call", sender = ada,
+            id = "call:4242", update = true)
+        store.message(key, ts = 1_699_000_001_000, body = "You set the disappearing message timer to 4 weeks.",
+            sender = selfAci, outgoing = true, id = "$selfAci:1699000001000", update = true)
+        store.message(key, ts = 1_699_000_002_000, body = "an ordinary message", sender = ada)
+
+        val (exported, sink) = roundTrip(store)
+
+        assertEquals(3, exported.messages)
+        val call = sink.inserted.single { it.body == "Missed voice call" }
+        assertEquals("call:4242", call.id)
+        assertTrue(call.update)
+        assertTrue(call.read)
+        val timer = sink.inserted.single { it.body.startsWith("You set") }
+        assertEquals("$selfAci:1699000001000", timer.id)
+        assertTrue(timer.update)
+        assertTrue(timer.outgoing)
+        assertFalse(sink.inserted.single { it.body == "an ordinary message" }.update)
+    }
+
+    @Test
+    fun `an id read from a file is not trusted to land on some other message`() {
+        // Its own natural id, or a call or a notice: kept.
+        assertEquals("$ada:5", SignalHistoryImporter.updateId("$ada:5", ada, 5))
+        assertEquals("call:9", SignalHistoryImporter.updateId("call:9", ada, 5))
+        assertEquals("local:$ada:7", SignalHistoryImporter.updateId("local:$ada:7", ada, 5))
+        // Anybody else's message, or nothing at all: filed apart.
+        assertEquals("update:$ada:5", SignalHistoryImporter.updateId("$grace:5", ada, 5))
+        assertEquals("update:$ada:5", SignalHistoryImporter.updateId("", ada, 5))
     }
 
     @Test

@@ -80,7 +80,7 @@ class Navigator @Inject constructor(
      * leave out RoleManager, or ship no activity for either request, and one caller (the
      * send button) reaches this off the main thread.
      */
-    fun showDefaultSmsDialog(context: Activity) {
+    fun showDefaultSmsDialog(context: Activity, tapped: Boolean = true) {
         context.runOnUiThread {
             val roleIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 context.getSystemService(RoleManager::class.java)
@@ -91,7 +91,7 @@ class Navigator @Inject constructor(
 
             if (roleIntent != null) {
                 try {
-                    DefaultSmsRequest.asking()
+                    DefaultSmsRequest.asking(tapped)
                     context.startActivityForResult(roleIntent, DefaultSmsRequest.REQUEST_CODE)
                     return@runOnUiThread
                 } catch (e: ActivityNotFoundException) {

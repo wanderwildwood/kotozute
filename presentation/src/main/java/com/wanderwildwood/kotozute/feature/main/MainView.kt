@@ -41,7 +41,8 @@ interface MainView : QkView<MainState> {
     val snackbarButtonIntent: Observable<Unit>
     val snackbarHideIntent: Observable<Unit>
 
-    fun requestDefaultSms()
+    /** [tapped]: somebody asked for this, rather than the screen asking as it opened. */
+    fun requestDefaultSms(tapped: Boolean = true)
     fun requestPermissions()
     fun clearSearch()
     fun clearSelection()

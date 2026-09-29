@@ -364,8 +364,11 @@ class MainViewModel @Inject constructor(
         // either. Then the first tap on a conversation read the SMS provider without them
         // and the SecurityException took the whole app down. Hence the second ask below,
         // once the role screen has closed.
+        //
+        // Not once the texting line has been hidden: that is the same question. And unasked
+        // for, so a refusal Android makes itself is left at that -- see DefaultSmsRequest.
         if (!permissionManager.isDefaultSms()) {
-            view.requestDefaultSms()
+            if (prefs.askDefaultSms.get()) view.requestDefaultSms(tapped = false)
         } else if (!permissionManager.hasReadSms() || !permissionManager.hasContacts()) {
             view.requestPermissions()
         }

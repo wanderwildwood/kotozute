@@ -88,6 +88,7 @@
 
             <Button
                 android:id="@+id/send"
+                style="@style/EInkButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
@@ -120,6 +121,7 @@
 
             <Button
                 android:id="@+id/verify"
+                style="@style/EInkButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
@@ -139,7 +141,7 @@
             <!-- A number that cannot receive texts is a normal thing to be registering. -->
             <Button
                 android:id="@+id/callInstead"
-                style="?android:attr/borderlessButtonStyle"
+                style="@style/EInkTextButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/signal_register_call_instead" />
@@ -180,6 +182,7 @@
 
             <Button
                 android:id="@+id/unlock"
+                style="@style/EInkButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
@@ -222,6 +225,7 @@
 
             <Button
                 android:id="@+id/saveName"
+                style="@style/EInkButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"

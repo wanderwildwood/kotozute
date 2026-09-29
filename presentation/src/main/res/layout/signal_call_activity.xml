@@ -65,6 +65,7 @@
 
         <Button
             android:id="@+id/decline"
+            style="@style/EInkButton"
             android:layout_width="0dp"
             android:layout_height="64dp"
             android:layout_marginEnd="8dp"
@@ -74,6 +75,7 @@
 
         <Button
             android:id="@+id/answer"
+            style="@style/EInkButton"
             android:layout_width="0dp"
             android:layout_height="64dp"
             android:layout_marginStart="8dp"
@@ -92,34 +94,32 @@
         android:visibility="gone"
         tools:visibility="visible">
 
+        <!-- One above the other, full width: "Audio: Bluetooth" beside "Mute" wrapped onto a
+             second line and sat lower than its neighbour. -->
         <LinearLayout
             android:id="@+id/inCallControls"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
+            android:orientation="vertical">
             <Button
                 android:id="@+id/mute"
-                android:layout_width="0dp"
-                android:layout_height="64dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
+                style="@style/EInkButton"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
                 android:text="@string/signal_call_mute"
                 android:textSize="18sp" />
-
             <Button
                 android:id="@+id/speaker"
-                android:layout_width="0dp"
-                android:layout_height="64dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
+                style="@style/EInkButton"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="12dp"
                 android:text="@string/signal_call_output_earpiece"
                 android:textSize="18sp" />
-
         </LinearLayout>
-
         <Button
             android:id="@+id/hangUp"
+            style="@style/EInkButton"
             android:layout_width="match_parent"
             android:layout_height="64dp"
             android:layout_marginTop="16dp"

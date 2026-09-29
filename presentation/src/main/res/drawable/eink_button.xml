@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A button for this panel: white, a black rim, the dialog's 12dp corner. No fill and no
+  shadow: a grey fill is a screenful of dithering here, and a lift that animates on a press is
+  a smear. Pressed thickens the rim; not available is a dashed rim, since state is shown by the
+  border and never by colour.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false">
+        <shape android:shape="rectangle">
+            <corners android:radius="12dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke
+                android:width="2dp"
+                android:color="?android:attr/textColorPrimary"
+                android:dashWidth="6dp"
+                android:dashGap="4dp" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="12dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="4dp" android:color="?android:attr/textColorPrimary" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="12dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="2dp" android:color="?android:attr/textColorPrimary" />
+        </shape>
+    </item>
+</selector>

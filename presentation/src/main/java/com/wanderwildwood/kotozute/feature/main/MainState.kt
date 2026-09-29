@@ -33,6 +33,8 @@ data class MainState(
     /** Anything unread on either rail. Decides whether Mark all read is offered at all. */
     val hasUnread: Boolean = false,
     val defaultSms: Boolean = true,
+    /** Off once somebody has said texts belong to another app. See `Preferences.askDefaultSms`. */
+    val askDefaultSms: Boolean = true,
     val smsPermission: Boolean = true,
     val contactPermission: Boolean = true,
     val notificationPermission: Boolean = true,

@@ -16,6 +16,19 @@
         android:contentDescription="@string/signal_attachment_image"
         android:scaleType="centerCrop" />
 
+    <!-- Half size, as upstream halves its overlay on a thumbnail under twice its width.
+         Scaled rather than drawn at 24dp: the triangle's inset is fixed dp and would eat it. -->
+    <ImageView
+        android:id="@+id/playOverlay"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="center"
+        android:contentDescription="@string/signal_play_video"
+        android:scaleX="0.5"
+        android:scaleY="0.5"
+        android:src="@drawable/signal_play_overlay"
+        android:visibility="gone" />
+
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/label"
         style="@style/TextTertiary"

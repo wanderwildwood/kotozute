@@ -74,6 +74,7 @@
     <string name="main_default_sms_title">Set as default</string>
     <string name="main_default_sms_message">Messaging needs to be your default SMS app to send and receive texts</string>
     <string name="main_default_sms_change">Change</string>
+    <string name="main_default_sms_hide">Hide</string>
     <string name="main_permission_required">Permission required</string>
     <string name="main_permission_sms">Messaging needs permission to send and view SMS messages</string>
     <string name="main_permission_contacts">Messaging needs permission to view your contacts</string>
@@ -353,7 +354,7 @@
     <string name="signal_register_calling">Calling you with the code. Answer and write it down.</string>
     <string name="signal_record_cd">Record a voice message</string>
     <string name="signal_recording">Recording… tap again to stop</string>
-    <string name="signal_recorded">Voice message, %s — send it or tap the bin</string>
+    <string name="signal_recorded">Voice message, %s — tap to remove</string>
     <string name="signal_record_failed">The microphone would not start</string>
     <string name="signal_record_needs_permission">Recording needs the microphone permission</string>
     <string name="signal_record_permission_off">Recording needs the microphone permission, and Android won\'t ask for it again. Turn it on under Permissions in the app\'s settings.</string>
@@ -371,6 +372,7 @@
     <string name="signal_voice_message_unavailable">Voice message — not downloaded</string>
     <string name="signal_voice_message_failed">That voice message would not play</string>
     <string name="signal_gif_play">▶ GIF</string>
+    <string name="signal_play_video">Play video</string>
     <string name="signal_gif_playing">■ GIF</string>
     <string name="signal_gif_failed">That GIF would not play</string>
     <string name="signal_register_done">Registered. Signal on this phone is yours now.</string>
@@ -616,6 +618,8 @@
     <string name="setup_done_heading">Done</string>
     <string name="setup_done_body">Everything here is in Settings, and so is this guide, under Setup guide.</string>
     <string name="setup_done_finish">Finish</string>
+    <string name="settings_ask_default_sms_title">Ask to be the texting app</string>
+    <string name="settings_ask_default_sms_summary">A line along the bottom of the SMS list while another app handles texts</string>
     <string name="settings_setup_title">Setup guide</string>
     <string name="setup_pair_title">Pair texts and Signal?</string>
     <string name="setup_pair_body">Messaging can now pair each person\'s texts with their Signal conversation, so the badge at the top crosses between them. It asks Signal which of your contacts use it: their numbers go to Signal\'s lookup service scrambled, so the service cannot read them.</string>

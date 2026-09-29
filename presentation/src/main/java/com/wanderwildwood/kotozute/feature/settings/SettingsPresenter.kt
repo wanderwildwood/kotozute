@@ -100,6 +100,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.signalOpensFirst.asObservable()
                 .subscribe { on -> newState { copy(signalOpensFirst = on) } }
 
+        disposables += prefs.askDefaultSms.asObservable()
+                .subscribe { on -> newState { copy(askDefaultSms = on) } }
+
         disposables += signalRepo.connectionState()
                 .subscribe { conn ->
                     newState {
@@ -330,6 +333,8 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalOpensFirst ->
                             prefs.signalOpensFirst.set(!prefs.signalOpensFirst.get())
+
+                        R.id.askDefaultSms -> prefs.askDefaultSms.set(!prefs.askDefaultSms.get())
 
                         // Read over the network, so off the main thread, and shown even
                         // when it fails: a blank dialog would not say why it was blank.

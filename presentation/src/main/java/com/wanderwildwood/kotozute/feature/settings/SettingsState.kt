@@ -65,6 +65,7 @@ data class SettingsState(
     val signalKeepConnected: Boolean = false,
     val signalWeave: Boolean = true,
     val signalOpensFirst: Boolean = false,
+    val askDefaultSms: Boolean = true,
     val signalReadReceipts: Boolean = false,
     val signalTypingIndicators: Boolean = true,
     /**

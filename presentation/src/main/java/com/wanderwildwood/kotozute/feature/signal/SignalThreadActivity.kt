@@ -2720,6 +2720,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 stopGif()
             }
             b.gifPlayer.setVisible(false)
+            b.playOverlay.setVisible(false)
             // ⚠ Cleared here because only some rows set it. A voice note's or a GIF's tap
             // stayed on the view when the row was recycled onto an ordinary attachment, and
             // `bind` only sets one when there is none.
@@ -2802,7 +2803,11 @@ class SignalThreadActivity : QkThemedActivity() {
             // A GIF keeps its label under the picture, so it says it will play: its first
             // frame on its own looks exactly like a photo.
             val gif = isGif(first, type)
+            // A video's first frame alone reads as a photo, so it carries upstream's play
+            // mark (VideoSlide.hasPlayOverlay: a video that is not a GIF).
+            val video = type.startsWith("video/") && !gif
             fun labelUnderStill() {
+                b.playOverlay.setVisible(video)
                 if (gif) {
                     b.attachment.setText(R.string.signal_gif_play)
                     b.attachment.setVisible(true)
@@ -2910,6 +2915,8 @@ class SignalThreadActivity : QkThemedActivity() {
                     if (cached != null) {
                         image.setImageBitmap(cached)
                         label.setVisible(false)
+                        tile.findViewById<android.view.View>(R.id.playOverlay)
+                            .setVisible(type.startsWith("video/") && !isGif(entry, type))
                     } else {
                         fetchThumbnail(id, type)
                     }

@@ -80,6 +80,16 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone" />
+
+        <!-- On a video's first frame, so it does not read as a photo. -->
+        <ImageView
+            android:id="@+id/playOverlay"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:contentDescription="@string/signal_play_video"
+            android:src="@drawable/signal_play_overlay"
+            android:visibility="gone" />
     </FrameLayout>
 
     <!-- Several attachments on one message: an album. Only the first used to be drawn, so a

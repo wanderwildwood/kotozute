@@ -97,6 +97,12 @@ class Preferences @Inject constructor(
     val version = rxPrefs.getInteger("version", context.versionCode)
     val changelogVersion = rxPrefs.getInteger("changelogVersion", context.versionCode)
     val hasAskedForNotificationPermission = rxPrefs.getBoolean("hasAskedForNotificationPermission", false)
+    /**
+     * Whether the SMS list asks, along its bottom, to be the texting app while another app is.
+     * Off for somebody who uses this one for Signal and leaves texts to the phone's own app:
+     * the banner's Hide sets it, and Settings sets it back.
+     */
+    val askDefaultSms = rxPrefs.getBoolean("askDefaultSms", true)
     val backupDirectory = rxPrefs.getObject("backupDirectory", Uri.EMPTY, UriPreferenceConverter())
     @Deprecated("This should only be accessed when migrating to @blockingManager")
     val sia = rxPrefs.getBoolean("sia", false)

@@ -868,6 +868,8 @@ class SignalRepositoryImpl @Inject constructor(
             listOf(
                 com.wanderwildwood.kotozute.signal.BridgeMessage(
                     id = "call:$callId",
+                    // A call is history, not words: upstream's call-log row is an update row.
+                    update = true,
                     threadKey = "direct:$peer",
                     ts = at,
                     senderUuid = if (outgoing) selfAci else peer,
@@ -922,6 +924,8 @@ class SignalRepositoryImpl @Inject constructor(
                     // so it is stamped with when this phone noticed rather than with a
                     // timestamp some other device might also use.
                     id = "local:$aci:$now",
+                    // Upstream's identity and profile-change rows are update rows.
+                    update = true,
                     threadKey = threadKey,
                     ts = now,
                     senderUuid = aci,
@@ -1003,6 +1007,9 @@ class SignalRepositoryImpl @Inject constructor(
                     senderNumber = "",
                     outgoing = false,
                     body = context.getString(body),
+                    // Upstream's BAD_DECRYPT row is an update row. If the message itself turns
+                    // up later under this id, it is stored as a message and this flag goes.
+                    update = true,
                     groupId = group,
                     quoteTs = 0,
                     // Not marked read. Somebody losing a message should hear about it the same

@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 37
+        const val SCHEMA_VERSION: Long = 38
     }
 
     @SuppressLint("ApplySharedPref")
@@ -593,11 +593,23 @@ class QkRealmMigration @Inject constructor(
 
         if (version == 36L) {
             // A line saying what changed, drawn centred rather than as a bubble. See update.
-            // Rows already here stay messages: nothing on them says which were lines, and a
-            // guess from their wording could turn somebody's own words into a centred notice.
             realm.schema.get("SignalMessage")
                 ?.takeIf { !it.hasField("update") }
                 ?.addField("update", Boolean::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 37L) {
+            // Calls and the identity/profile notices already here are marked as update rows,
+            // because their ids say for certain what they are. Timer and group lines are not:
+            // nothing on them says which were lines, and a guess from their wording could turn
+            // somebody's own words into a centred notice. A step of its own because 37 reached
+            // a phone as a test build before these rows were marked.
+            listOf("call:", "groupcall:", "local:").forEach { prefix ->
+                realm.where("SignalMessage").beginsWith("id", prefix).findAll()
+                    .forEach { it.setBoolean("update", true) }
+            }
 
             version++
         }

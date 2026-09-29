@@ -33,6 +33,7 @@ internal object UnfiledMessage {
         .put("reactionTarget", m.reactionTarget)
         .put("reactionRemove", m.reactionRemove)
         .put("revisionTs", m.revisionTs)
+        .put("update", m.update)
         .apply {
             m.groupMasterKey?.let { put("groupMasterKey", Base64.getEncoder().encodeToString(it)) }
         }
@@ -61,7 +62,9 @@ internal object UnfiledMessage {
             reactionRemove = o.getBoolean("reactionRemove"),
             groupMasterKey = o.optString("groupMasterKey").takeIf { it.isNotEmpty() }
                 ?.let { Base64.getDecoder().decode(it) },
-            revisionTs = o.optLong("revisionTs", 0L)
+            revisionTs = o.optLong("revisionTs", 0L),
+            // Written before this field existed, a message was a message.
+            update = o.optBoolean("update", false)
         )
     }
 }

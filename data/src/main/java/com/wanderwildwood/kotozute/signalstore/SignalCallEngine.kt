@@ -317,7 +317,17 @@ internal class SignalCallEngine(
 
     /** Upstream's `retrieveTurnServers` then `IncomingCallActionProcessor.proceed`. */
     private fun fetchRelaysThenProceed(call: Active) = io.execute {
-        val servers = store.turnServers()
+        // Anything that goes wrong reaching the servers ends this call, not the app. Upstream
+        // catches the fetch's failure and treats it as a setup failure (`retrieveTurnServers`
+        // -> `handleSetupFailure`); here it was uncaught on this thread, and a call placed from
+        // a phone whose account was gone -- the connection has no credentials to open with --
+        // took the whole app down with it.
+        val servers = try {
+            store.turnServers()
+        } catch (t: Throwable) {
+            Timber.w(t, "signal calls: could not reach the relay servers")
+            null
+        }
         worker.execute {
             if (call.ended || active !== call) return@execute
             if (servers == null) {
@@ -486,7 +496,14 @@ internal class SignalCallEngine(
 
     /** Upstream's `sendCallMessage`, then `handleMessageSentSuccess` or `handleMessageSentError`. */
     private fun send(peer: Peer, callId: CallId, message: SignalServiceCallMessage) = io.execute {
-        val result = store.sendCallMessage(peer.aci, message)
+        // Opening the connection is outside the sender's own catch, so a failure there is a
+        // failed send, as upstream's `handleMessageSentError`, rather than an uncaught throw.
+        val result = try {
+            store.sendCallMessage(peer.aci, message)
+        } catch (t: Throwable) {
+            Timber.w(t, "signal calls: could not send a call message")
+            SignalSender.CallSend.NETWORK
+        }
         worker.execute {
             try {
                 if (result == SignalSender.CallSend.SENT) manager?.messageSent(callId)

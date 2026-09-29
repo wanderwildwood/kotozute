@@ -57,6 +57,15 @@ abstract class QkActivity : AppCompatActivity() {
         disableScreenshots(prefs.disableScreenshots.get())
     }
 
+    /** Every screen that can ask to be the texting app hears the answer here. */
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == com.wanderwildwood.kotozute.common.DefaultSmsRequest.REQUEST_CODE) {
+            com.wanderwildwood.kotozute.common.DefaultSmsRequest.answered(this, resultCode)
+        }
+    }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             android.R.id.home -> {

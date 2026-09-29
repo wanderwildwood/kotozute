@@ -96,6 +96,15 @@
               ~ Last on the root list: it is about the app itself rather than about anything the
               ~ app does, which is the same reason About sits off in the menu.
               -->
+            <!-- Brings back the texting line that the SMS list's Hide put away. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/askDefaultSms"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_ask_default_sms_summary"
+                app:title="@string/settings_ask_default_sms_title"
+                app:widget="@layout/settings_switch_widget" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/setupGuide"
                 android:layout_width="match_parent"

@@ -91,7 +91,8 @@ class Navigator @Inject constructor(
 
             if (roleIntent != null) {
                 try {
-                    context.startActivityForResult(roleIntent, 42389)
+                    DefaultSmsRequest.asking()
+                    context.startActivityForResult(roleIntent, DefaultSmsRequest.REQUEST_CODE)
                     return@runOnUiThread
                 } catch (e: ActivityNotFoundException) {
                     Timber.w(e, "No activity for the SMS role request")

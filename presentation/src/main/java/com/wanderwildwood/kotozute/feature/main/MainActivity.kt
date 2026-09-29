@@ -101,6 +101,7 @@ class MainActivity : QkThemedActivity(), MainView {
     override val swipeConversationIntent by lazy { itemTouchCallback.swipes }
     override val undoArchiveIntent: Subject<Unit> = PublishSubject.create()
     override val snackbarButtonIntent: Subject<Unit> = PublishSubject.create()
+    override val snackbarHideIntent: Subject<Unit> = PublishSubject.create()
 
     private val viewModel by lazy {
         ViewModelProviders.of(this, viewModelFactory)[MainViewModel::class.java]
@@ -129,6 +130,9 @@ class MainActivity : QkThemedActivity(), MainView {
             findViewById<QkTextView?>(R.id.snackbarButton).clicks()
                     .autoDisposable(scope(Lifecycle.Event.ON_DESTROY))
                     .subscribe(snackbarButtonIntent)
+            findViewById<QkTextView?>(R.id.snackbarHide).clicks()
+                    .autoDisposable(scope(Lifecycle.Event.ON_DESTROY))
+                    .subscribe(snackbarHideIntent)
         }
 
         binding.toolbar.navigationIcon = null
@@ -407,8 +411,10 @@ class MainActivity : QkThemedActivity(), MainView {
         when (state.syncing) {
             is SyncRepository.SyncProgress.Idle -> {
                 binding.syncing.isVisible = false
-                binding.snackbar.isVisible = (!state.defaultSms ||
-                        !state.smsPermission ||
+                // Texts handed to another app on purpose take their SMS permission with
+                // them: asking for it would be the same banner under another name.
+                binding.snackbar.isVisible = ((!state.defaultSms && state.askDefaultSms) ||
+                        (!state.smsPermission && state.askDefaultSms) ||
                         !state.contactPermission ||
                         !state.notificationPermission)
             }
@@ -429,14 +435,15 @@ class MainActivity : QkThemedActivity(), MainView {
             }
         }
 
+        findViewById<QkTextView?>(R.id.snackbarHide)?.isVisible = !state.defaultSms && state.askDefaultSms
         when {
-            !state.defaultSms -> {
+            !state.defaultSms && state.askDefaultSms -> {
                 findViewById<QkTextView?>(R.id.snackbarTitle)?.setText(R.string.main_default_sms_title)
                 findViewById<QkTextView?>(R.id.snackbarMessage)?.setText(R.string.main_default_sms_message)
                 findViewById<QkTextView?>(R.id.snackbarButton)?.setText(R.string.main_default_sms_change)
             }
 
-            !state.smsPermission -> {
+            !state.smsPermission && state.askDefaultSms -> {
                 findViewById<QkTextView?>(R.id.snackbarTitle)?.setText(R.string.main_permission_required)
                 findViewById<QkTextView?>(R.id.snackbarMessage)?.setText(R.string.main_permission_sms)
                 findViewById<QkTextView?>(R.id.snackbarButton)?.setText(R.string.main_permission_allow)

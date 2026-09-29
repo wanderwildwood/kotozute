@@ -808,11 +808,20 @@ class MainViewModel @Inject constructor(
                     lastArchivedThreadIds = listOf()
                 }
 
+        prefs.askDefaultSms.asObservable()
+                .autoDisposable(view.scope())
+                .subscribe { ask -> newState { copy(askDefaultSms = ask) } }
+
+        // Only the texting line has a Hide; the others are what the app cannot work without.
+        view.snackbarHideIntent
+                .autoDisposable(view.scope())
+                .subscribe { prefs.askDefaultSms.set(false) }
+
         view.snackbarButtonIntent
                 .withLatestFrom(state) { _, state ->
                     when {
-                        !state.defaultSms -> view.requestDefaultSms()
-                        !state.smsPermission -> view.requestPermissions()
+                        !state.defaultSms && state.askDefaultSms -> view.requestDefaultSms()
+                        !state.smsPermission && state.askDefaultSms -> view.requestPermissions()
                         !state.contactPermission -> view.requestPermissions()
                         !state.notificationPermission -> {
                             if (prefs.hasAskedForNotificationPermission.get()) {

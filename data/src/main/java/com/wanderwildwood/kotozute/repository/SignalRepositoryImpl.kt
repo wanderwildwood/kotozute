@@ -2622,6 +2622,7 @@ class SignalRepositoryImpl @Inject constructor(
         row.expiresAt = if (countdownStarted > 0L) countdownStarted else m.expiresAt
         row.expiresInSeconds = m.expiresInSeconds
         row.viewOnce = m.viewOnce
+        row.update = m.update
         // Only ever forward: an edit records itself, and anything else leaves it alone.
         if (m.revisionTs > row.revisionTs) row.revisionTs = m.revisionTs
 
@@ -2756,6 +2757,7 @@ class SignalRepositoryImpl @Inject constructor(
         source = m.source
         attachments = m.attachmentsJson
         styles = m.stylesJson
+        update = m.update
     }
 
     private fun announce(msgs: List<BridgeMessage>) {
@@ -3259,7 +3261,8 @@ class SignalRepositoryImpl @Inject constructor(
                     read = true,
                     source = "live",
                     attachmentsJson = "",
-                    groupMasterKey = masterKey
+                    groupMasterKey = masterKey,
+                    update = true
                 )
             )
         )
@@ -4972,7 +4975,8 @@ class SignalRepositoryImpl @Inject constructor(
                     attachmentsJson = "",
                     expiresInSeconds = 0L,
                     expiresAt = 0L,
-                    groupMasterKey = created.masterKey
+                    groupMasterKey = created.masterKey,
+                    update = true
                 )
             )
         )

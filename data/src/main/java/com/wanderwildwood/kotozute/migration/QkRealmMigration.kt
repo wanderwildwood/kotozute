@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 36
+        const val SCHEMA_VERSION: Long = 37
     }
 
     @SuppressLint("ApplySharedPref")
@@ -587,6 +587,17 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.takeIf { !it.hasField("viewedAt") }
                 ?.addField("viewedAt", Long::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 36L) {
+            // A line saying what changed, drawn centred rather than as a bubble. See update.
+            // Rows already here stay messages: nothing on them says which were lines, and a
+            // guess from their wording could turn somebody's own words into a centred notice.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("update") }
+                ?.addField("update", Boolean::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

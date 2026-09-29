@@ -140,6 +140,14 @@ open class SignalMessage : RealmObject() {
     /** When the pin lapses, [Long.MAX_VALUE] for one kept until unpinned; 0 when not pinned. */
     var pinnedUntil: Long = 0
 
+    /**
+     * A line saying what changed in the conversation -- a timer set, a group renamed -- rather
+     * than something anybody wrote. Upstream keeps these as their own kind of row and draws
+     * them centred with no bubble (`ConversationUpdateItem`, `conversation_item_update.xml`);
+     * drawn as a bubble on its author's side, "You set the timer" read as a message.
+     */
+    var update: Boolean = false
+
     companion object {
         const val SEND_SENT = 0
         const val SEND_SENDING = 1

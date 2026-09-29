@@ -52,6 +52,9 @@ data class BridgeMessage(
     val groupMasterKey: ByteArray? = null,
 
     /** On an edit, the edit's own sent timestamp; the row keeps the original's. 0 otherwise. */
-    val revisionTs: Long = 0
+    val revisionTs: Long = 0,
+
+    /** A line saying what changed, not a message. See [com.wanderwildwood.kotozute.model.SignalMessage.update]. */
+    val update: Boolean = false
 )
 

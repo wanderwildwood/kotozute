@@ -2363,6 +2363,8 @@ class SignalThreadActivity : QkThemedActivity() {
      */
     private fun canGroup(m: SignalMessage, other: SignalMessage?): Boolean {
         if (other == null) return false
+        // A line saying what changed stands alone; a bubble beside it is not part of a run with it.
+        if (m.update || other.update) return false
         if (m.outgoing != other.outgoing) return false
         if (m.senderUuid != other.senderUuid) return false
         return TimeUnit.MILLISECONDS.toMinutes(abs(m.date - other.date)) <
@@ -2576,7 +2578,8 @@ class SignalThreadActivity : QkThemedActivity() {
             val body = m.body
             // A call is a line in the history, not a message: nobody sent it, so there is
             // nothing to reply to, react to or take back.
-            val callLine = messageId.startsWith("call:") || messageId.startsWith("groupcall:")
+            // A line saying what changed in the conversation is the same: history, not words.
+            val callLine = messageId.startsWith("call:") || messageId.startsWith("groupcall:") || m.update
             val listener = android.view.View.OnLongClickListener {
                 // Nothing to react to, reply to or take back: nobody has it.
                 if (callLine) confirmDeleteForMe(messageId)
@@ -2621,6 +2624,27 @@ class SignalThreadActivity : QkThemedActivity() {
             } else {
                 b.image.setOnClickListener(null)
             }
+
+            if (m.update) drawAsUpdate()
+        }
+
+        /**
+         * A line saying what changed -- a timer set, a group renamed -- drawn as upstream draws
+         * its update rows (`conversation_item_update.xml`): centred, smaller, and with no bubble.
+         *
+         * Last in [bind] on purpose. Everything above has already put the row on its author's
+         * side in a bubble, and a recycled holder carries whatever the previous message left,
+         * so this undoes exactly the parts that make a line look like something somebody said.
+         * "You set the timer" in Note to Self came out as a bubble on the wrong side.
+         */
+        private fun drawAsUpdate() {
+            listOf(b.sender, b.imageFrame, b.album, b.attachment, b.quote, b.reactions, b.status)
+                .forEach { it.setVisible(false) }
+            (b.body.layoutParams as? android.widget.LinearLayout.LayoutParams)
+                ?.let { lp -> lp.gravity = Gravity.CENTER_HORIZONTAL; b.body.layoutParams = lp }
+            b.body.textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
+            b.body.background = null
+            textViewStyler.setTextSize(b.body, TextViewStyler.SIZE_SECONDARY)
         }
 
         /**

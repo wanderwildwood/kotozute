@@ -493,8 +493,8 @@ class MainActivity : QkThemedActivity(), MainView {
      */
     override fun showBackButton(show: Boolean) = Unit
 
-    override fun requestDefaultSms() =
-        navigator.showDefaultSmsDialog(this)
+    override fun requestDefaultSms(tapped: Boolean) =
+        navigator.showDefaultSmsDialog(this, tapped)
 
     override fun requestPermissions() {
         val permissions = mutableListOf(

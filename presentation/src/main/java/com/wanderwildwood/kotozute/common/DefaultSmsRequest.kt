@@ -27,14 +27,21 @@ object DefaultSmsRequest {
 
     private var askedAt = 0L
 
-    fun asking() {
-        askedAt = SystemClock.elapsedRealtime()
+    /**
+     * [tapped] false for an ask the app makes on its own, as the SMS list does when it opens.
+     * Its refusal is left at that: sending somebody to a settings page every time the app
+     * opened, for a question they had already answered "Don't ask again" to, is worse than
+     * the silence this exists to fix.
+     */
+    fun asking(tapped: Boolean) {
+        askedAt = if (tapped) SystemClock.elapsedRealtime() else 0L
     }
 
     fun answered(activity: Activity, resultCode: Int) {
-        val elapsed = SystemClock.elapsedRealtime() - askedAt
+        val at = askedAt
         askedAt = 0L
-        if (resultCode == Activity.RESULT_OK || elapsed > UNSEEN_MS) return
+        if (at == 0L || resultCode == Activity.RESULT_OK) return
+        if (SystemClock.elapsedRealtime() - at > UNSEEN_MS) return
         if (Telephony.Sms.getDefaultSmsPackage(activity) == activity.packageName) return
         try {
             activity.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))

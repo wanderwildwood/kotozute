@@ -39,7 +39,11 @@ internal class SignalHistoryExporter(
             val quoteTs: Long,
             val expiresAt: Long,
             val expiresInSeconds: Long,
-            val attachmentsJson: String
+            val attachmentsJson: String,
+            /** The row's own id, written for an update row so a restore lands on the same row. */
+            val id: String = "",
+            /** A line saying what changed, not a message. See `SignalMessage.update`. */
+            val update: Boolean = false
         )
 
         data class Attachment(val size: Long, val open: () -> InputStream)
@@ -196,6 +200,21 @@ internal class SignalHistoryExporter(
                         if (message.expiresAt > 0) {
                             item.put("expireStartDate", (message.expiresAt - inMs).toString())
                         }
+                    }
+
+                    // A line saying what changed goes out as an event, the way Signal files one:
+                    // an `updateMessage`, not a `standardMessage`. Signal's own update kinds are
+                    // structured (a timer's duration, a call's direction), and this row holds
+                    // only its words, so the words go in a field of our own -- a reader that
+                    // does not know it passes over an event it cannot place, which is the
+                    // truth, rather than importing a notice as something somebody said.
+                    if (message.update) {
+                        item.put("updateMessage", JSONObject().put("kotozuteText", message.body))
+                        if (message.id.isNotEmpty()) item.put("kotozuteId", message.id)
+                        out.writeRecord(JSONObject().put("chatItem", item))
+                        messages++
+                        if (messages % PROGRESS_EVERY == 0) onProgress(messages)
+                        return@eachMessage
                     }
 
                     val standard = JSONObject()

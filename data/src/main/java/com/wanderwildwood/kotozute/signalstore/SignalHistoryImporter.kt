@@ -187,7 +187,12 @@ internal class SignalHistoryImporter(
                 val item = parse(line)?.optJSONObject("chatItem") ?: return@forEach
 
                 // Events, not messages: "X joined the group", a timer change, a profile change.
-                if (item.has("updateMessage")) {
+                // Signal's own are structured, and this app has no words of its own for them, so
+                // they are passed over. One this app wrote carries its words in `kotozuteText`,
+                // and comes back as the line it was.
+                val update = item.optJSONObject("updateMessage")
+                val updateText = update?.optString("kotozuteText").orEmpty()
+                if (update != null && updateText.isBlank()) {
                     stats = stats.copy(skippedEvents = stats.skippedEvents + 1)
                     return@forEach
                 }
@@ -198,7 +203,7 @@ internal class SignalHistoryImporter(
                     return@forEach
                 }
                 val standard = item.optJSONObject("standardMessage")
-                if (standard == null) {
+                if (standard == null && update == null) {
                     stats = stats.copy(skippedEvents = stats.skippedEvents + 1)
                     return@forEach
                 }
@@ -259,6 +264,30 @@ internal class SignalHistoryImporter(
                 // created. The text is the latest one; only the timestamp comes from the
                 // original.
                 val ts = originalTimestamp(item)
+
+                if (update != null) {
+                    batch += BridgeMessage(
+                        id = updateId(item.optString("kotozuteId"), idAuthor, ts),
+                        threadKey = threadKey,
+                        ts = ts,
+                        senderUuid = author.uuid,
+                        senderNumber = author.number,
+                        outgoing = item.has("outgoing") || author.isSelf,
+                        body = updateText,
+                        groupId = groupId,
+                        quoteTs = 0L,
+                        // History, not news: an update row is never unread.
+                        read = true,
+                        source = "import",
+                        attachmentsJson = "",
+                        update = true
+                    )
+                    landed += threadKey
+                    if (batch.size >= BATCH) flush()
+                    return@forEach
+                }
+                standard!!
+
                 val body = standard.optJSONObject("text")?.optString("body").orEmpty()
                 val attachments = JSONArray()
                 var kept = 0
@@ -424,6 +453,25 @@ internal class SignalHistoryImporter(
 
         /** Rows per transaction: enough to be worth a write, small enough to report progress. */
         private const val BATCH = 200
+
+        /** The ids this app gives rows that are not messages: calls, and notices it wrote itself. */
+        private val UPDATE_ID_PREFIXES = listOf("call:", "groupcall:", "local:")
+
+        /**
+         * The id an imported update row is filed under.
+         *
+         * The one it had, when the file says so and it is the shape an update row's id takes --
+         * a call, a notice this phone wrote, or the author-and-moment id every message has -- so
+         * a restore onto a phone that still holds the row lands on it rather than beside it.
+         * Anything else is not trusted as a key: an id is where a row is written, and one read
+         * from a file must not be able to land on some other message.
+         */
+        internal fun updateId(written: String, author: String, ts: Long): String {
+            val natural = "$author:$ts"
+            val known = written == natural || UPDATE_ID_PREFIXES.any { written.startsWith(it) }
+            return if (written.isNotEmpty() && known) written else "update:$natural"
+        }
+
 
         /** A group master key is 32 bytes; anything else is not one, whatever it decodes to. */
         private const val GROUP_MASTER_KEY_SIZE = 32

@@ -26,7 +26,13 @@ private const val TYPING_MEMBERS_FOR_MS = 5 * 60_000L
 class SignalStore(private val context: Context) {
 
     private val database: ProtocolDatabase by lazy {
-        ProtocolDatabase(context, ProtocolStoreKey.require(context))
+        val key = ProtocolStoreKey.require(context)
+        // Before the helper opens anything: moves an existing store to Signal's key derivation
+        // once, with the checks described there, and says which way this file is to be opened.
+        val fast = runCatching { ProtocolStoreKdf.prepare(context, ProtocolDatabase.NAME, key) }
+            .onFailure { Timber.w(it, "signal store: could not prepare the key derivation switch") }
+            .getOrDefault(false)
+        ProtocolDatabase(context, key, fastKdf = fast)
     }
 
     /** The account: who this device is, and the counters that hand out key ids. */

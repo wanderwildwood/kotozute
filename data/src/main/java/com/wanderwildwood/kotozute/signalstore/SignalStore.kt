@@ -1767,6 +1767,12 @@ class SignalStore(private val context: Context) {
         return ContactsReport.Discovered(result.found, result.asked, result.withoutAci)
     }
 
+    /**
+     * Whether contact discovery has ever been run on this phone, which only happens when somebody
+     * agrees to it -- in setup, or Settings. Nothing looks a number up on its own until then.
+     */
+    fun discoveryAllowed(): Boolean = runCatching { discovery.submitted().isNotEmpty() }.getOrDefault(false)
+
     /** Whether the storage service key is here yet. */
     fun storageKeyKnown(): Boolean = runCatching { keys.known() }.getOrDefault(false)
 

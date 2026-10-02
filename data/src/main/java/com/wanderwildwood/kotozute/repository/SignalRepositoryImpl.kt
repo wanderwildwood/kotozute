@@ -5047,6 +5047,20 @@ class SignalRepositoryImpl @Inject constructor(
         return if (aci == signalStore.selfAciOrNull()) null else "direct:$aci"
     }
 
+    override fun signalThreadKeyLookingUp(number: String): String? {
+        signalThreadKeyForNumber(number)?.let { return it }
+        if (!linkedDirectly() || !signalStore.discoveryAllowed()) return null
+        val e164 = phoneNumberUtils.toE164(number) ?: return null
+        // Asked about before and not on Signal then: no point asking again on every open.
+        // The quota counts numbers, and a run with nothing new in it asks nothing.
+        return runCatching {
+            signalStore.discover(setOf(e164))
+            contactsChanged()
+            signalThreadKeyForNumber(number)
+        }.onFailure { Timber.w(it, "signal discovery: could not look up one number") }
+            .getOrNull()
+    }
+
     override fun smsNumberFor(threadKey: String): String? {
         if (!threadKey.startsWith("direct:")) return null
         val stored = Realm.getDefaultInstance().use { realm ->

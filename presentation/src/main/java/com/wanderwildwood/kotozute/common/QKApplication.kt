@@ -374,7 +374,12 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // Down here, not up with the rest of the Signal setup: WorkManager's own initialiser
         // is disabled in the manifest and it is built by hand just above, so asking for
         // getInstance() any earlier throws and takes the whole application down with it.
-        SignalSyncWorker.sync(applicationContext, prefs.signalEnabled.get())
+        // And again whenever "Keep Signal connected" changes, since that decides the interval.
+        // Settings, setup and the notification's Stop button all flip it; watching the
+        // preference catches every one of them.
+        prefs.signalKeepConnected.asObservable()
+            .distinctUntilChanged()
+            .subscribe { keep -> SignalSyncWorker.sync(applicationContext, prefs.signalEnabled.get(), keep) }
 
         // Whether anything of this app is on screen, for the one decision that needs it: how
         // often the Signal socket sends a keepalive. Signal reads the same fact from

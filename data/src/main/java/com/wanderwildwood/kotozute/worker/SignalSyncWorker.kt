@@ -97,16 +97,29 @@ class SignalSyncWorker(appContext: Context, params: WorkerParameters) : Worker(a
             )
         }
 
-        fun sync(context: Context, signalEnabled: Boolean) {
+        /**
+         * How often the round runs while the service holds the stream open. Then it only does
+         * key maintenance, which is due every two days ([PreKeyUploader.REFRESH_INTERVAL_MS]),
+         * and keys that run low between rounds are topped up when a message arrives anyway.
+         * At fifteen minutes it woke the phone 96 times a day to find nothing owed.
+         */
+        private const val KEPT_CONNECTED_HOURS = 6L
+
+        fun sync(context: Context, signalEnabled: Boolean, keepConnected: Boolean) {
             val wm = WorkManager.getInstance(context)
             if (!signalEnabled) {
                 wm.cancelUniqueWork(WORKER_TAG)
                 return
             }
+            val (interval, unit) =
+                if (keepConnected) KEPT_CONNECTED_HOURS to TimeUnit.HOURS else 15L to TimeUnit.MINUTES
             wm.enqueueUniquePeriodicWork(
                 WORKER_TAG,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequest.Builder(SignalSyncWorker::class.java, 15, TimeUnit.MINUTES)
+                // UPDATE, not KEEP: KEEP would hold on to whichever interval was scheduled
+                // first, so turning "Keep Signal connected" off would leave a phone with no
+                // stream checking in only every six hours.
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequest.Builder(SignalSyncWorker::class.java, interval, unit)
                     // Linear and short, because the only thing that asks for a retry is a
                     // catch-up that stopped short while the server was still holding more.
                     // That wants trying again in a moment, not in an hour.

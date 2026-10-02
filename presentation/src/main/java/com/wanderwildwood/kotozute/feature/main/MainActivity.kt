@@ -236,6 +236,7 @@ class MainActivity : QkThemedActivity(), MainView {
     override fun onNewIntent(intent: Intent?) =
         intent?.let {
             super.onNewIntent(intent)
+            if (DuraSpeed.isFixIntent(it)) DuraSpeed.showFix(this, prefs)
             it.run(onNewIntentIntent::onNext)
         } ?: Unit
 
@@ -478,6 +479,7 @@ class MainActivity : QkThemedActivity(), MainView {
             // Asked once, as Signal does on a phone without push -- and this app never has
             // push. After that the row in Signal settings is the way back to it.
             com.wanderwildwood.kotozute.feature.signal.BackgroundRunning.askOnce(this, prefs)
+            DuraSpeed.warnIfStopped(this, prefs)
         }
 
     override fun onPause() =

@@ -341,6 +341,12 @@ class Preferences @Inject constructor(
     /** The setup guide has been through, or skipped; it is not offered again unasked. */
     val setupSeen = rxPrefs.getBoolean("setupSeen", false)
 
+    /** The newest DuraSpeed stop already told about; see feature.main.DuraSpeed. */
+    val duraSpeedWarnedAt = rxPrefs.getLong("duraSpeedWarnedAt", 0L)
+
+    /** Said to be switched on in DuraSpeed's list. The list cannot be read, so this is the person's word. */
+    val duraSpeedAllowed = rxPrefs.getBoolean("duraSpeedAllowed", false)
+
     /** The Signal list's own tab, 0 all or 1 groups. Kept apart from the SMS list's. */
     val signalConversationFilter = rxPrefs.getInteger("signalConversationFilter", 0)
 

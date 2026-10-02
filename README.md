@@ -129,8 +129,9 @@ about every 15 minutes (less often while the phone sleeps) and when you open the
 on the phone in forced deep idle, with the app backgrounded: with the switch on the message
 arrives, with it off nothing arrives until the next catch-up.
 
-On a Kompakt, allow Messaging in **DuraSpeed** as well. DuraSpeed closes background apps a few
-minutes after the screen goes off, and that stops both the connection and the catch-ups.
+On a Kompakt, switch Messaging on in **DuraSpeed** as well ([how](#on-a-mudita-kompakt)). It closes
+background apps a few minutes after the screen goes off, and that stops both the connection and
+the catch-ups.
 
 **Threads start empty.** Signal's servers do not hold history and a newly linked device is not
 sent any, so conversations fill from the day you pair. Importing a Signal Desktop export is how
@@ -221,6 +222,32 @@ Released builds are signed with a real key supplied through `signing/`, which is
 Sideload the APK and let Android make it your default SMS app; it then imports your existing messages from the system SMS database. It installs *alongside* the stock Mudita SMS app rather than replacing it, so you can switch back whenever you like.
 
 Also inherited from upstream: scheduled messages, backup/restore, blocking, archiving, voice messages, attachments of any file type, and delayed sending.
+
+## On a Mudita Kompakt
+
+**Switch Messaging on in DuraSpeed, or texts that arrive while the phone sleeps are lost.**
+DuraSpeed is a MediaTek service on the Kompakt that closes installed apps a few minutes after
+the screen goes dark. Once it has, it drops every text meant for Messaging until the app is
+opened again: Android hands the text over, DuraSpeed skips the hand-over, Android discards its
+own copy, and the text is gone. Not late: it does not appear when you next open the app.
+Picture messages go the same way, and so does Signal's background connection. The stock Mudita
+app is on DuraSpeed's own allow list, which is why it never misses one.
+
+Kompakt's Settings has no way in to DuraSpeed: no menu entry, and no search box to look for it
+in. Its own screen will not open for another app either, but its App info page will, and
+Messaging's setup guide has an **Open DuraSpeed** button that goes there. Then:
+
+1. Tap **Open** on DuraSpeed's App info page.
+2. Switch **Messaging** on in the list. **On means allowed** to run in the background, which is
+   easy to read the wrong way round. Switching DuraSpeed off at the top works too, for every app.
+
+If DuraSpeed closes Messaging before that, the app says so the next time you open it, with the
+time it happened, and the same button. Texts that were already lost cannot be got back.
+
+From a computer with `adb`, DuraSpeed can be switched off for the whole phone instead:
+
+    adb shell settings put global setting.duraspeed.enabled 0
+    adb shell settings put system setting.duraspeed.enabled 0
 
 ## Credits
 

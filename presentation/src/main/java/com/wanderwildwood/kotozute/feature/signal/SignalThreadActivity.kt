@@ -459,7 +459,13 @@ class SignalThreadActivity : QkThemedActivity() {
         binding.record.setOnClickListener {
             if (recording) stopRecording() else askForMicThenRecord()
         }
-        binding.pending.setOnClickListener { clearAttachment() }
+        // While recording, this line says so, and tapping it is the way out: it has to close the
+        // microphone too. Clearing the line alone left the recorder running and this screen
+        // still "recording", so the send button never came back until the thread was reopened.
+        binding.pending.setOnClickListener {
+            if (recording) cancelRecording() else clearAttachment()
+            showSendOrRecord()
+        }
         binding.replying.setOnClickListener { clearReply() }
 
         // ⚠ The layout hides the cursor and nothing here ever showed it again, so on this
@@ -920,6 +926,14 @@ class SignalThreadActivity : QkThemedActivity() {
         recordingStartedAt = System.currentTimeMillis()
         binding.pending.setText(R.string.signal_recording)
         binding.pending.setVisible(true)
+    }
+
+    /** Closes the microphone and throws the recording away; nothing goes into the composer. */
+    private fun cancelRecording() {
+        recording = false
+        val uri = com.wanderwildwood.kotozute.manager.MediaRecorderManager.stopRecording()
+        if (uri != Uri.EMPTY) com.wanderwildwood.kotozute.util.FileUtils.deleteFile(uri)
+        binding.pending.setVisible(false)
     }
 
     /**

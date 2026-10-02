@@ -82,7 +82,6 @@
     <string name="compose_subtitle_results">%1$d dari %2$d hasil</string>
     <string name="compose_send_group_title">Kirim sebagai pesan grup</string>
     <string name="compose_send_group_summary">Penerima dan balasan akan ditampilkan ke semua orang</string>
-    <string name="compose_messages_empty">Ini adalah awal percakapan anda. Katakan sesuatu yang baik!</string>
     <string name="compose_vcard_label">Kartu nama</string>
     <string name="compose_scheduled_for">Jadwalkan pada</string>
     <string name="compose_scheduled_future">Waktu yang dipilih harus berada di masa depan!</string>

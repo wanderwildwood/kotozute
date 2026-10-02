@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%1$d af %2$d resultater</string>
     <string name="compose_send_group_title">Send som gruppe besked</string>
     <string name="compose_send_group_summary">Modtagere og besvarelser vil være synlige for alle</string>
-    <string name="compose_messages_empty">Detter er starten på den samtale. Sig noget pænt!</string>
     <string name="compose_vcard_label">Kontaktkort</string>
     <string name="compose_scheduled_for">Planlagt til</string>
     <string name="compose_scheduled_future">Valgte tidspunkt skal være i fremtiden!</string>

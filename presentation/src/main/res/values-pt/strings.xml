@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%1$d de %2$d resultados</string>
     <string name="compose_send_group_title">Enviar como mensagem de grupo</string>
     <string name="compose_send_group_summary">Destinatários e respostas visíveis para todos</string>
-    <string name="compose_messages_empty">Aqui é o início da sua conversa. Pode dizer algo simpático!</string>
     <string name="compose_vcard_label">Cartão do contacto</string>
     <string name="compose_scheduled_for">Agendada para</string>
     <string name="compose_scheduled_future">A hora escolhida tem que ser futura!</string>

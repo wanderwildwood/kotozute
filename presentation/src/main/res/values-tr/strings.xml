@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%1$d / %2$d sonuçlar</string>
     <string name="compose_send_group_title">Grup iletisi olarak gönder</string>
     <string name="compose_send_group_summary">Alıcılar ve yanıtlar herkese görünür olacak</string>
-    <string name="compose_messages_empty">Senin konuşma başlıyor. Güzel bir şey söyle!</string>
     <string name="compose_vcard_label">Kişi Kartı</string>
     <string name="compose_scheduled_for">Planlanan zaman:</string>
     <string name="compose_scheduled_future">Seçilen zaman gelecekte olmalı!</string>

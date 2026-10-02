@@ -84,7 +84,6 @@
     <string name="compose_subtitle_results">%1$d од %2$d резултата</string>
     <string name="compose_send_group_title">Пошаљи као групну поруку</string>
     <string name="compose_send_group_summary">Примаоци и одговори ће бити свима видљиви</string>
-    <string name="compose_messages_empty">Овде почиње ваш разговор. Реци нешто лепо за почетак!</string>
     <string name="compose_vcard_label">Контакт картица</string>
     <string name="compose_scheduled_for">Заказано за</string>
     <string name="compose_scheduled_future">Изабрано време мора бити у будућности!</string>

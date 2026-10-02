@@ -109,7 +109,6 @@
     <string name="compose_subtitle_results">Wyniki: %1$d z %2$d</string>
     <string name="compose_send_group_title">Wyślij jako wiadomość grupową</string>
     <string name="compose_send_group_summary">Odbiorcy i odpowiedzi będą widoczne dla wszystkich</string>
-    <string name="compose_messages_empty">To jest początek rozmowy. Powiedz coś miłego!</string>
     <string name="compose_vcard_label">Karta kontaktu</string>
     <string name="compose_scheduled_for">Zaplanowane na:</string>
     <string name="compose_scheduled_future">Wybrany czas musi być w przyszłości!</string>

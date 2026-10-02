@@ -85,7 +85,6 @@
     <string name="compose_subtitle_results">%1$d z %2$d výsledků</string>
     <string name="compose_send_group_title">Odeslat jako skupinovou zprávu</string>
     <string name="compose_send_group_summary">Příjemci a odpovědi budou viditelné všem</string>
-    <string name="compose_messages_empty">Toto je začátek vaší konverzace. Řekněte něco hezkého!</string>
     <string name="compose_vcard_label">Karta kontaktu</string>
     <string name="compose_scheduled_for">Plánovaný čas:</string>
     <string name="compose_scheduled_future">Vybraný čas musí teprve nastat (musí být v budoucnu)!</string>

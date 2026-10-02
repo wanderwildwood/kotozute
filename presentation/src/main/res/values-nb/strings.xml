@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%1$d av %2$d funn</string>
     <string name="compose_send_group_title">Send som gruppemelding</string>
     <string name="compose_send_group_summary">Mottakere og svar er synlig for alle</string>
-    <string name="compose_messages_empty">Nå starter samtalen. Si noe hyggelig!</string>
     <string name="compose_vcard_label">Kontakt</string>
     <string name="compose_scheduled_for">Planlagt for</string>
     <string name="compose_scheduled_future">Valgt tid må være i fremtid.</string>

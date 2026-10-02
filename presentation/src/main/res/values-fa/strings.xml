@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">اَبدُمان %1$d از %2$d</string>
     <string name="compose_send_group_title">فرستادن پیام گروهی</string>
     <string name="compose_send_group_summary">گیرندگان اود پاسخ‌ها برای همه هویدا خواهد بود</string>
-    <string name="compose_messages_empty">این آغاز گفتگوی شماست. چیز خوبی بگویید!</string>
     <string name="compose_vcard_label">کارت هَمدرِنگ</string>
     <string name="compose_scheduled_for">زمان برنامه‌ریزی‌شده:</string>
     <string name="compose_scheduled_future">زمان برگزیده باید در آینده باشد!</string>

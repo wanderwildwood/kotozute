@@ -85,7 +85,6 @@
     <string name="compose_subtitle_results">%1$d із %2$d результатів</string>
     <string name="compose_send_group_title">Надіслати як групове повідомлення</string>
     <string name="compose_send_group_summary">Отримувачі та відповіді будуть видимі для всіх</string>
-    <string name="compose_messages_empty">Це початок вашої бесіди. Скажіть, що-небудь приємне!</string>
     <string name="compose_vcard_label">Картка контакту</string>
     <string name="compose_scheduled_for">Заплановано на</string>
     <string name="compose_scheduled_future">Обраний час повинен бути в майбутньому!</string>

@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%1$d ng %2$d mga resulta</string>
     <string name="compose_send_group_title">Magpadala bilang group message</string>
     <string name="compose_send_group_summary">Ang mga tatanggap at tugon ay makikita ng lahat</string>
-    <string name="compose_messages_empty">Ito ang simula ng iyong pag-uusap. Magsabi ka ng maganda!</string>
     <string name="compose_vcard_label">Contact card</string>
     <string name="compose_scheduled_for">Naka-iskedyul para sa</string>
     <string name="compose_scheduled_future">Ang napiling oras ay dapat na sa hinaharap!</string>

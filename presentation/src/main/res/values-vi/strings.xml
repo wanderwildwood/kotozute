@@ -82,7 +82,6 @@
     <string name="compose_subtitle_results">%1$d trên %2$d kết quả</string>
     <string name="compose_send_group_title">Gửi theo nhóm tin nhắn</string>
     <string name="compose_send_group_summary">Người nhận và các câu trả lời sẽ được hiển thị với mọi người</string>
-    <string name="compose_messages_empty">Đây là sự khởi đầu của một cuộc trò chuyện. Hãy nói điều gì đó tốt đẹp nhé!</string>
     <string name="compose_vcard_label">Thẻ danh thiếp</string>
     <string name="compose_scheduled_for">Hẹn giờ cho</string>
     <string name="compose_scheduled_future">Thời gian chọn phải trong tương lai!</string>

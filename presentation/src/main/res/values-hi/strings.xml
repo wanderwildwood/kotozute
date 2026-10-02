@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%1$d के %2$d परिणाम</string>
     <string name="compose_send_group_title">समूह संदेश के रूप में भेजें</string>
     <string name="compose_send_group_summary">प्राप्तकर्ता और उत्तर सभी को दिखाई देंगे</string>
-    <string name="compose_messages_empty">यह आपकी बातचीत की शुरुआत है । कुछ अच्छा कहिये!</string>
     <string name="compose_vcard_label">संपर्क कार्ड</string>
     <string name="compose_scheduled_for">के लिए निर्धारित</string>
     <string name="compose_scheduled_future">चयनित समय भविष्य में होना चाहिए!</string>

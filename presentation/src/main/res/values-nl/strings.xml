@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%1$d van de %2$d resultaten</string>
     <string name="compose_send_group_title">Versturen als groepsbericht</string>
     <string name="compose_send_group_summary">Ontvangers en antwoorden zijn zichtbaar voor iedereen</string>
-    <string name="compose_messages_empty">Dit is het begin van je conversatie. Zeg iets leuks!</string>
     <string name="compose_vcard_label">Contactpersoonkaart</string>
     <string name="compose_scheduled_for">Geplande tijd:</string>
     <string name="compose_scheduled_future">De geselecteerde tijd moet in de toekomst liggen!</string>

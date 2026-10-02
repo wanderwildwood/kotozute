@@ -216,7 +216,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             binding.chips.layoutManager = FlexboxLayoutManager(this)
 
             messageAdapter.autoScrollToStart(binding.messageList)
-            messageAdapter.emptyView = binding.messagesEmpty
 
             binding.messageList.setHasFixedSize(true)
             binding.messageList.setItemViewCacheSize(20)

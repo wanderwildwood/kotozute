@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%1$d από %2$d αποτελέσματα</string>
     <string name="compose_send_group_title">Αποστολή ως ομαδικό μήνυμα</string>
     <string name="compose_send_group_summary">Οι παραλήπτες και απαντήσεις θα είναι ορατοί σε όλους</string>
-    <string name="compose_messages_empty">Εδώ ξεκινά η συζήτηση. Πείτε κάτι ωραίο!</string>
     <string name="compose_vcard_label">Κάρτα επαφής</string>
     <string name="compose_scheduled_for">Προγραμματίστηκε για</string>
     <string name="compose_scheduled_future">Η χρονική στιγμή πρέπει να βρίσκεται στο μέλλον!</string>

@@ -82,7 +82,6 @@
     <string name="compose_subtitle_results">已显示 %2$d 中的 %1$d 条结果</string>
     <string name="compose_send_group_title">群发消息</string>
     <string name="compose_send_group_summary">收件人和回复将对所有人可见</string>
-    <string name="compose_messages_empty">对话从这里开始，说些什么吧！</string>
     <string name="compose_vcard_label">联系人卡片</string>
     <string name="compose_scheduled_for">计划于：</string>
     <string name="compose_scheduled_future">所选时间必须是未来！</string>

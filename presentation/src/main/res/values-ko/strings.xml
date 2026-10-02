@@ -82,7 +82,6 @@
     <string name="compose_subtitle_results">%2$d 중 %1$d 결과</string>
     <string name="compose_send_group_title">그룹 메시지 보내기</string>
     <string name="compose_send_group_summary">받는 사람 및 답장이 모든 사람에게 표시됩니다.</string>
-    <string name="compose_messages_empty">새로운 대화가 시작되었어요! 대화를 해보세요!</string>
     <string name="compose_vcard_label">연락처</string>
     <string name="compose_scheduled_for">예정</string>
     <string name="compose_scheduled_future">선택한 시간은 반드시 현재 이후의 시간으로 설정해야 합니다</string>

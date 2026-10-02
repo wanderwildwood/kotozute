@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%1$d / %2$d tuloksesta</string>
     <string name="compose_send_group_title">Lähetä ryhmäviestinä</string>
     <string name="compose_send_group_summary">Vastaanottajat ja vastaukset näkyvät kaikille</string>
-    <string name="compose_messages_empty">Tämä on keskustelusi alku. Sano jotain mukavaa!</string>
     <string name="compose_vcard_label">Käyntikortti</string>
     <string name="compose_scheduled_for">Ajoitettu</string>
     <string name="compose_scheduled_future">Valitun ajan täytyy olla tulevaisuudessa!</string>

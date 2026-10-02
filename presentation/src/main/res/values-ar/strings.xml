@@ -87,7 +87,6 @@
     <string name="compose_subtitle_results">%1$d من %2$d النتائج</string>
     <string name="compose_send_group_title">إرسال رسالة جماعية</string>
     <string name="compose_send_group_summary">المتلقون والردود سيكونان مرئيين للجميع</string>
-    <string name="compose_messages_empty">هذا أول المحادثة. قل شيئا لطيفاً!</string>
     <string name="compose_vcard_label">بطاقة جهة الاتصال</string>
     <string name="compose_scheduled_for">مجدولة لـ</string>
     <string name="compose_scheduled_future">الوقت المحدّد يجب أن يكون مستقبلاً!</string>

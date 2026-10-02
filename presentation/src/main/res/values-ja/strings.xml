@@ -82,7 +82,6 @@
     <string name="compose_subtitle_results">%2$d 件中 %1$d 件の結果</string>
     <string name="compose_send_group_title">グループ メッセージとして送信</string>
     <string name="compose_send_group_summary">宛先と返信は全員に表示されます</string>
-    <string name="compose_messages_empty">これが会話の始まりです。何か素敵なことを言ってください！</string>
     <string name="compose_vcard_label">連絡先カード</string>
     <string name="compose_scheduled_for">送信予約</string>
     <string name="compose_scheduled_future">今より先の時間を選択してください！</string>

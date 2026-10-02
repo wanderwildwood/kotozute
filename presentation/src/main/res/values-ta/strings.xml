@@ -83,7 +83,6 @@
     <string name="compose_subtitle_results">%2$d-ல் %1$d ஆம் முடிவு</string>
     <string name="compose_send_group_title">குழு தகவலாக அனுப்பு</string>
     <string name="compose_send_group_summary">பெறுநர்கள் மற்றும் பதில்கள் அனைவருக்கும் தெரியும்</string>
-    <string name="compose_messages_empty">இது உங்கள் உரையாடலின் ஆரம்பம். ஏதாவது நல்லதைச் சொல்லுங்கள்!</string>
     <string name="compose_vcard_label">தொடர்பு அட்டை</string>
     <string name="compose_scheduled_for">குறித்த நேரம்</string>
     <string name="compose_scheduled_future">தேர்ந்தெடுக்கப்பட்ட நேரம் எதிர்காலத்தில் இருக்க வேண்டும்!</string>

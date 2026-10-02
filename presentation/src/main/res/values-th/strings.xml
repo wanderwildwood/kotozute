@@ -82,7 +82,6 @@
     <string name="compose_subtitle_results">%1$d ใน %2$d ของผลลัพท์</string>
     <string name="compose_send_group_title">ส่งเป็นข้อความกลุ่ม</string>
     <string name="compose_send_group_summary">ผู้รับและการตอบกลับจะแสดงให้ทุกคนเห็นทุกคน</string>
-    <string name="compose_messages_empty">การเริ่มต้นของการสนทนาของคุณ บอกกล่าวบางอย่างที่นี่</string>
     <string name="compose_vcard_label">นามบัตร</string>
     <string name="compose_scheduled_for">กำหนดการ</string>
     <string name="compose_scheduled_future">เลือกเวลาที่ต้องเป็นเวลาในอนาคต</string>

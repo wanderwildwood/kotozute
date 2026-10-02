@@ -106,7 +106,6 @@
     <string name="compose_subtitle_results">%1$d din %2$d rezultate</string>
     <string name="compose_send_group_title">Trimite ca mesaj de grup</string>
     <string name="compose_send_group_summary">Destinatarii si răspunsurile vor fi vizibile tuturor</string>
-    <string name="compose_messages_empty">Acesta este începutul conversației tale. Spune ceva drăguț!</string>
     <string name="compose_vcard_label">Carte de contact</string>
     <string name="compose_scheduled_for">Programat pentru</string>
     <string name="compose_scheduled_future">Timpul selectat trebuie să fie în viitor!</string>

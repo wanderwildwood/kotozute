@@ -23,6 +23,7 @@ import dagger.android.ContributesAndroidInjector
 import com.wanderwildwood.kotozute.feature.widget.WidgetProvider
 import com.wanderwildwood.kotozute.injection.scope.ActivityScope
 import com.wanderwildwood.kotozute.receiver.BlockThreadReceiver
+import com.wanderwildwood.kotozute.feature.main.DuraSpeedAllowedReceiver
 import com.wanderwildwood.kotozute.receiver.BootReceiver
 import com.wanderwildwood.kotozute.receiver.DefaultSmsChangedReceiver
 import com.wanderwildwood.kotozute.receiver.DeleteMessagesReceiver
@@ -47,6 +48,9 @@ abstract class BroadcastReceiverBuilderModule {
     @ActivityScope
     @ContributesAndroidInjector
     abstract fun bindBlockThreadReceiver(): BlockThreadReceiver
+
+    @ContributesAndroidInjector
+    abstract fun bindDuraSpeedAllowedReceiver(): DuraSpeedAllowedReceiver
 
     @ActivityScope
     @ContributesAndroidInjector

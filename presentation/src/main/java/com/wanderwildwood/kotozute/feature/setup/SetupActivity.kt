@@ -13,6 +13,7 @@ import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.widget.QkTextView
 import com.wanderwildwood.kotozute.databinding.SetupActivityBinding
 import com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService
+import com.wanderwildwood.kotozute.feature.main.DuraSpeed
 import com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity
 import com.wanderwildwood.kotozute.feature.signal.SignalRegisterActivity
 import com.wanderwildwood.kotozute.feature.signal.SignalStreamService
@@ -40,7 +41,7 @@ class SetupActivity : QkThemedActivity() {
 
     private lateinit var binding: SetupActivityBinding
 
-    private enum class Page { WELCOME, TEXTING, SIGNAL, CONTACTS, LISTS, CONNECTED, DESKTOP, DONE }
+    private enum class Page { WELCOME, TEXTING, KOMPAKT, SIGNAL, CONTACTS, LISTS, CONNECTED, DESKTOP, DONE }
 
     private var page = Page.WELCOME
 
@@ -94,6 +95,10 @@ class SetupActivity : QkThemedActivity() {
     /** Whether a page has anything to ask on this phone, right now. */
     private fun applies(p: Page): Boolean = when (p) {
         Page.TEXTING -> !permissions.isDefaultSms()
+        // DuraSpeed is MediaTek's, and on the Kompakt nothing on the phone can switch it off.
+        // Whether it is on cannot be read from here, so the page is shown on every Kompakt.
+        // Settings has no way in; the button opens its App info, whose Open button does.
+        Page.KOMPAKT -> DuraSpeed.isKompakt()
         // Already on Signal: nothing to link. Its own pages follow instead.
         Page.SIGNAL -> !signalOn()
         Page.CONTACTS, Page.LISTS, Page.CONNECTED -> signalOn()
@@ -137,6 +142,10 @@ class SetupActivity : QkThemedActivity() {
 
             Page.TEXTING -> ask(R.string.setup_texting_heading, R.string.setup_texting_body,
                 choice(R.string.setup_texting_make, primary = true) { navigator.showDefaultSmsDialog(this) })
+
+            Page.KOMPAKT -> ask(R.string.setup_kompakt_heading, R.string.setup_kompakt_body,
+                choice(R.string.setup_kompakt_how, primary = true) { DuraSpeed.open(this) },
+                choice(R.string.duraspeed_allowed) { DuraSpeed.markAllowed(this, prefs); next() })
 
             Page.SIGNAL -> ask(R.string.setup_signal_heading, R.string.setup_signal_body,
                 choice(R.string.setup_signal_link, primary = true) { startActivity(SignalLinkActivity.intent(this)) },

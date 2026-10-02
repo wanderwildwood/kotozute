@@ -125,7 +125,6 @@
     <string name="compose_subtitle_results">%1$d of %2$d results</string>
     <string name="compose_send_group_title">Send as group message</string>
     <string name="compose_send_group_summary_on">Recipients and replies will be visible to everyone</string>
-    <string name="compose_messages_empty">This is the start of your conversation. Say something nice!</string>
     <string name="compose_loading">Loading…</string>
     <string name="compose_vcard_label">Contact card</string>
     <string name="compose_scheduled_for">Scheduled time:</string>
@@ -397,7 +396,7 @@
          phone's own Signal reads it off the monitor. See SignalLinkOffer. -->
     <string name="signal_link_on_computer">Already running Signal on this phone? It cannot scan its own screen. Open\n\n%s\n\non your computer, then point this phone\u2019s Signal at the monitor.</string>
     <string name="settings_signal_keep_title">Keep Signal connected</string>
-    <string name="settings_signal_keep_summary">Messages arrive as they are sent, at the cost of a permanent notification. Off, Signal catches up about every 15 minutes and when you open the app. On a Kompakt, allow Messaging in DuraSpeed too, or it can be closed in the background.</string>
+    <string name="settings_signal_keep_summary">Messages arrive as they are sent, at the cost of a permanent notification. Off, Signal catches up about every 15 minutes and when you open the app. On a Kompakt, switch Messaging on in DuraSpeed too, or it closes the app in the background; the setup guide has a button that opens it.</string>
     <string name="signal_stream_channel">Signal connection</string>
     <string name="signal_stream_title">Signal is connected</string>
     <string name="signal_stream_text">Messages arrive as they are sent</string>
@@ -595,6 +594,19 @@
     <string name="setup_texting_heading">Texts</string>
     <string name="setup_texting_body">To send and receive texts and picture messages, Messaging has to be this phone\'s texting app. Android asks you to confirm.</string>
     <string name="setup_texting_make">Make it the texting app</string>
+    <string name="setup_kompakt_heading">Texts while the phone sleeps</string>
+    <string name="setup_kompakt_body">On a Kompakt, a service called DuraSpeed closes apps a few minutes after the screen goes dark, and will not let a text open Messaging again. A text that arrives then is lost, not late.\n\nTo stop it, open DuraSpeed below, tap Open, and switch Messaging on. On means allowed.</string>
+    <string name="setup_kompakt_how">Open DuraSpeed</string>
+    <string name="duraspeed_stopped_title">You may have missed a text</string>
+    <string name="duraspeed_stopped_body">From %1$s until you opened Messaging just now, the phone had it shut down, and any text sent to you in that time didn\'t arrive. There\'s no way to tell whether anyone did text then. If you were expecting something, ask them to send it again.\n\nThe phone\'s DuraSpeed setting does this. To stop it, open DuraSpeed, tap Open, and switch Messaging on.</string>
+    <string name="duraspeed_open">Open DuraSpeed</string>
+    <string name="duraspeed_later">Not now</string>
+    <string name="duraspeed_allowed">It\'s switched on</string>
+    <string name="duraspeed_channel">DuraSpeed</string>
+    <string name="duraspeed_ask_done">Is Messaging switched on in DuraSpeed now?</string>
+    <string name="duraspeed_not_yet">Not yet</string>
+    <string name="duraspeed_notification_title">Messaging can miss texts</string>
+    <string name="duraspeed_notification_text">The phone\'s DuraSpeed setting can shut Messaging down, and texts sent to you then never arrive. Open DuraSpeed, tap Open, and switch Messaging on.</string>
     <string name="setup_signal_heading">Signal</string>
     <string name="setup_signal_body">Signal can sit alongside your texts. If Signal is already on another phone or a computer, link this phone to it by scanning a code. If not, this phone\'s number can become a Signal account of its own. Skip this if you do not use Signal.</string>
     <string name="setup_signal_link">Link to my Signal</string>

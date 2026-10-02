@@ -61,9 +61,10 @@ class ConversationRepositoryImpl @Inject constructor(
         val sortOrder = mutableListOf("pinned", "draft", "lastMessage.date")
         val sortDirections = mutableListOf(Sort.DESCENDING, Sort.DESCENDING, Sort.DESCENDING)
 
+        // Pinned stays first; unread comes next, above everything else.
         if (unreadAtTop) {
-            sortOrder.add(0, "lastMessage.read")
-            sortDirections.add(0, Sort.ASCENDING)
+            sortOrder.add(1, "lastMessage.read")
+            sortDirections.add(1, Sort.ASCENDING)
         }
 
         return realm

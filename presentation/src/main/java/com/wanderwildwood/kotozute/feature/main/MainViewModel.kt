@@ -202,13 +202,13 @@ class MainViewModel @Inject constructor(
             joins[item.stableId]?.let { item.copy(joined = it) } ?: item
         }
 
-        // Pinned first on both rails, then newest, with unread above all of it when "Unread at
-        // the top" is on -- the order the SMS list's own query uses. Sorting the woven list by
-        // pin and date alone undid that setting the moment Signal was woven in.
+        // Pinned first on both rails, then unread when "Unread at the top" is on, then newest.
+        // A pin is a choice made about one conversation and outranks a new message in another;
+        // sorting the woven list by pin and date alone undid the unread setting entirely.
         val unreadFirst = prefs.unreadAtTop.get()
         return (unique + merged).sortedWith(
-            compareByDescending<InboxItem> { unreadFirst && it.unread }
-                .thenByDescending { it.pinned }
+            compareByDescending<InboxItem> { it.pinned }
+                .thenByDescending { unreadFirst && it.unread }
                 .thenByDescending { it.sortDate }
         )
     }

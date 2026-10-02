@@ -172,9 +172,13 @@ class SignalConversationsActivity : QkThemedActivity() {
                 data.filterNot { it.kind == "group" }
             else -> data
         }
-        // "Unread at the top" holds here as on the text list. The query's own order (pinned,
-        // then newest) is kept within each half, since a stable sort leaves ties as they were.
-        val shown = if (prefs.unreadAtTop.get()) kind.sortedByDescending { it.unread > 0 } else kind
+        // "Unread at the top" holds here as on the text list: pinned still first, then unread,
+        // then the query's own newest-first, kept by a stable sort.
+        val shown = if (prefs.unreadAtTop.get()) {
+            kind.sortedWith(compareByDescending<SignalThread> { it.pinned }.thenByDescending { it.unread > 0 })
+        } else {
+            kind
+        }
         adapter.submit(shown)
         val empty = shown.isEmpty()
         binding.empty.setVisible(empty)

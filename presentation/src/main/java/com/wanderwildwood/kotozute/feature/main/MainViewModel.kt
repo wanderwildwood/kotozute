@@ -202,10 +202,14 @@ class MainViewModel @Inject constructor(
             joins[item.stableId]?.let { item.copy(joined = it) } ?: item
         }
 
-        // Pinned first on both rails, then newest. The SMS list has always sorted this
-        // way; before this the merged list dropped the pin the moment Signal was woven in.
+        // Pinned first on both rails, then newest, with unread above all of it when "Unread at
+        // the top" is on -- the order the SMS list's own query uses. Sorting the woven list by
+        // pin and date alone undid that setting the moment Signal was woven in.
+        val unreadFirst = prefs.unreadAtTop.get()
         return (unique + merged).sortedWith(
-            compareByDescending<InboxItem> { it.pinned }.thenByDescending { it.sortDate }
+            compareByDescending<InboxItem> { unreadFirst && it.unread }
+                .thenByDescending { it.pinned }
+                .thenByDescending { it.sortDate }
         )
     }
 
@@ -374,9 +378,13 @@ class MainViewModel @Inject constructor(
         }
 
 
-        // when unreadAtTop preference changes, reload the model view data to refresh view
-        prefs.unreadAtTop.asObservable()
-            .skip(1)
+        // when unreadAtTop preference changes, reload the model view data to refresh view.
+        // Keeping groups and unknown senders to their own tabs changes the first tab's rows and
+        // its name, so it reloads the same way.
+        io.reactivex.Observable.merge(
+            prefs.unreadAtTop.asObservable().skip(1),
+            prefs.allOnlyPeople.asObservable().skip(1)
+        )
             .debounce(400, TimeUnit.MILLISECONDS)
             .observeOn(AndroidSchedulers.mainThread())
             .withLatestFrom(state) { _, state ->

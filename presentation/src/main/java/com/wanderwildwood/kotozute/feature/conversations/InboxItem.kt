@@ -16,6 +16,9 @@ sealed class InboxItem {
     /** Pinned threads sit above the rest, on either rail. */
     abstract val pinned: Boolean
 
+    /** Something in it has not been read; "Unread at the top" sorts on this. */
+    abstract val unread: Boolean
+
     /** Stable id for the adapter and for swipe. */
     abstract val stableId: Long
 
@@ -33,6 +36,7 @@ sealed class InboxItem {
         override val isValid: Boolean get() = conversation.isValid
         override val sortDate: Long get() = if (isValid) conversation.date else 0
         override val pinned: Boolean get() = isValid && conversation.pinned
+        override val unread: Boolean get() = isValid && conversation.unread
         // Read once, here, while the row is certainly alive: two rows deleted together
         // would otherwise both answer with the same fallback, and RecyclerView refuses
         // to hold two view holders under one stable id.
@@ -65,6 +69,9 @@ sealed class InboxItem {
         }
         override val pinned: Boolean
             get() = isValid && (thread.pinned || joined?.pinned == true)
+        // Either half, as the row's unread mark reads it.
+        override val unread: Boolean
+            get() = isValid && (thread.unread > 0 || joined?.unread == true)
 
         /**
          * Negative, so it can never collide with a telephony thread id (always positive)

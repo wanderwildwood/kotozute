@@ -505,9 +505,24 @@ class SignalThreadActivity : QkThemedActivity() {
         binding.typing.setVisible(names.isNotEmpty())
     }
 
+    /**
+     * ⚠ Asked of the database, not by walking [data]. This runs on opening and on every change
+     * to the thread -- a message sent, a receipt, a reaction -- and reading the date and the
+     * read flag off every message in a long history took seconds each time: a thread brought
+     * in from a desktop export took 4.5 s to open and as long again to show a sent message.
+     */
     private fun markRead(data: List<SignalMessage>) {
-        val newest = data.maxOfOrNull { it.date } ?: return
-        if (data.any { !it.outgoing && !it.read }) signalRepo.markRead(threadKey, newest)
+        val results = data as? io.realm.RealmResults<SignalMessage>
+        if (results == null) {
+            val newest = data.maxOfOrNull { it.date } ?: return
+            if (data.any { !it.outgoing && !it.read }) signalRepo.markRead(threadKey, newest)
+            return
+        }
+        if (!results.isValid || !results.isLoaded || results.isEmpty()) return
+        val unread = results.where().equalTo("outgoing", false).equalTo("read", false).count() > 0
+        if (!unread) return
+        val newest = results.max("date")?.toLong() ?: return
+        signalRepo.markRead(threadKey, newest)
     }
 
     /** Reads the picked file into a data URI; see [SignalAttachment] for why it resizes. */
@@ -697,7 +712,13 @@ class SignalThreadActivity : QkThemedActivity() {
      */
     private fun showPinned(data: List<SignalMessage>) {
         val now = System.currentTimeMillis()
-        val pinned = data.filter { it.pinnedUntil > now }.sortedByDescending { it.pinnedAt }
+        // A query, for the reason in [markRead]: pins are a handful in a history of thousands.
+        val results = data as? io.realm.RealmResults<SignalMessage>
+        val pinned: List<SignalMessage> = if (results != null && results.isValid && results.isLoaded) {
+            results.where().greaterThan("pinnedUntil", now).sort("pinnedAt", io.realm.Sort.DESCENDING).findAll()
+        } else {
+            data.filter { it.pinnedUntil > now }.sortedByDescending { it.pinnedAt }
+        }
         binding.pinnedBar.setVisible(pinned.isNotEmpty())
         if (pinned.isEmpty()) return
         if (pinnedIndex >= pinned.size) pinnedIndex = 0
@@ -2332,8 +2353,10 @@ class SignalThreadActivity : QkThemedActivity() {
         private var items: List<SignalMessage> = emptyList()
         private var filter: String = ""
 
+        // The live results themselves, not a copy: copying read every message in the thread on
+        // each change, and rows are only ever read a screen at a time. See [markRead].
         fun submit(data: List<SignalMessage>) {
-            all = data.toList()
+            all = data
             applyFilter()
         }
 

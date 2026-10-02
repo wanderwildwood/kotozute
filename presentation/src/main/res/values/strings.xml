@@ -29,6 +29,8 @@
     <string name="title_notification_prefs">Notifications</string>
     <string name="title_conversations">Conversations</string>
     <string name="filter_all">All</string>
+    <!-- The first tab when groups and unknown senders are kept to their own tabs: one-to-one conversations -->
+    <string name="filter_people">People</string>
     <string name="filter_groups">Groups</string>
     <string name="filter_unknown">Unknown</string>
     <string name="title_compose">Type a name or number</string>
@@ -281,6 +283,9 @@
     <string name="settings_read_receipts_title">Read receipts</string>
     <string name="settings_read_receipts_summary">MMS only. Tell a sender when you have read their message, and ask the same of the people you send to</string>
     <string name="settings_unread_at_top_title">Unread at the top</string>
+    <!-- Settings: groups and unknown senders appear only in their own tabs, and the first tab becomes "People" -->
+    <string name="settings_all_only_people_title">Keep groups and unknown senders in their own tabs</string>
+    <string name="settings_all_only_people_summary">The first tab becomes People: your one-to-one conversations</string>
     <!-- Settings: whether the unread count shows on the lock screen, through the Glance app -->
     <string name="settings_lock_screen_title">Unread on the lock screen</string>
     <!-- On the lock screen, through Glance -->
@@ -352,7 +357,7 @@
     <string name="signal_register_code_sent">Code sent by text. It can take a minute.</string>
     <string name="signal_register_calling">Calling you with the code. Answer and write it down.</string>
     <string name="signal_record_cd">Record a voice message</string>
-    <string name="signal_recording">Recording… tap again to stop</string>
+    <string name="signal_recording">Recording… tap the microphone to stop, or here to cancel</string>
     <string name="signal_recorded">Voice message, %s — tap to remove</string>
     <string name="signal_record_failed">The microphone would not start</string>
     <string name="signal_record_needs_permission">Recording needs the microphone permission</string>

@@ -161,6 +161,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.unreadAtTop.asObservable()
             .subscribe { enabled -> newState { copy(unreadAtTopEnabled = enabled) } }
 
+        disposables += prefs.allOnlyPeople.asObservable()
+            .subscribe { enabled -> newState { copy(allOnlyPeopleEnabled = enabled) } }
+
         disposables += prefs.lockScreen.asObservable()
             .subscribe { enabled -> newState { copy(lockScreenEnabled = enabled) } }
 
@@ -382,6 +385,8 @@ class SettingsPresenter @Inject constructor(
                         R.id.signalUnpair -> view.askSignalUnpair()
 
                         R.id.unreadAtTop -> prefs.unreadAtTop.set(!prefs.unreadAtTop.get())
+
+                        R.id.allOnlyPeople -> prefs.allOnlyPeople.set(!prefs.allOnlyPeople.get())
 
                         R.id.lockScreen -> {
                             prefs.lockScreen.set(!prefs.lockScreen.get())

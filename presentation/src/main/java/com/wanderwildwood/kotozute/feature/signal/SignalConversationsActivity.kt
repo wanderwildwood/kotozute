@@ -165,7 +165,16 @@ class SignalConversationsActivity : QkThemedActivity() {
     private fun show(data: List<SignalThread>) {
         val filtered = binding.filterTabs.visibility == View.VISIBLE &&
             prefs.signalConversationFilter.get() == FILTER_GROUPS
-        val shown = if (filtered) data.filter { it.kind == "group" } else data
+        val kind = when {
+            filtered -> data.filter { it.kind == "group" }
+            // Groups kept to their own tab, as on the text list, and the first tab is People. Requests stay, since this list has no tab of their own to hold them.
+            binding.filterTabs.visibility == View.VISIBLE && prefs.allOnlyPeople.get() ->
+                data.filterNot { it.kind == "group" }
+            else -> data
+        }
+        // "Unread at the top" holds here as on the text list. The query's own order (pinned,
+        // then newest) is kept within each half, since a stable sort leaves ties as they were.
+        val shown = if (prefs.unreadAtTop.get()) kind.sortedByDescending { it.unread > 0 } else kind
         adapter.submit(shown)
         val empty = shown.isEmpty()
         binding.empty.setVisible(empty)
@@ -179,6 +188,7 @@ class SignalConversationsActivity : QkThemedActivity() {
     }
 
     private fun selectFilterTab() {
+        binding.filterAll.setText(if (prefs.allOnlyPeople.get()) R.string.filter_people else R.string.filter_all)
         val groups = prefs.signalConversationFilter.get() == FILTER_GROUPS
         listOf(binding.filterAll to !groups, binding.filterGroups to groups)
             .forEach { (tab, selected) ->

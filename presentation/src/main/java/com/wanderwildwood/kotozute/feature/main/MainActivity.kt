@@ -204,6 +204,9 @@ class MainActivity : QkThemedActivity(), MainView {
     }
 
     private fun selectFilterTab(filter: Int) {
+        // With groups and unknown senders kept to their own tabs the first one is not "all",
+        // and says so.
+        binding.filterAll.setText(if (prefs.allOnlyPeople.get()) R.string.filter_people else R.string.filter_all)
         // Reset all tabs
         binding.filterAll.setBackgroundResource(android.R.color.transparent)
         binding.filterAll.setTextColor(android.graphics.Color.BLACK)
@@ -346,6 +349,7 @@ class MainActivity : QkThemedActivity(), MainView {
                 }
                 if (binding.recyclerView.adapter !== conversationsAdapter)
                     binding.recyclerView.adapter = conversationsAdapter
+                conversationsAdapter.inbox = true
                 conversationsAdapter.filterMode = state.page.filter
                 conversationsAdapter.updateData(state.page.data)
                 itemTouchHelper.attachToRecyclerView(binding.recyclerView)
@@ -375,6 +379,7 @@ class MainActivity : QkThemedActivity(), MainView {
                 }
                 if (binding.recyclerView.adapter !== conversationsAdapter)
                     binding.recyclerView.adapter = conversationsAdapter
+                conversationsAdapter.inbox = false
                 conversationsAdapter.updateData(state.page.data)
                 itemTouchHelper.attachToRecyclerView(null)
                 binding.empty.setText(R.string.archived_empty_text)

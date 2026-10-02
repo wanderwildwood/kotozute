@@ -679,6 +679,12 @@ interface SignalRepository {
      */
     fun signalThreadKeyLookingUp(number: String): String?
 
+    /**
+     * This account's own number and ACI as last copied out of the protocol store, or null
+     * before the first copy. Never opens the store, so it is safe on the main thread.
+     */
+    fun selfCached(): Pair<String, String>?
+
     /** The number a Signal conversation's texts are under, or null when none is known. Blocking. */
     fun smsNumberFor(threadKey: String): String?
 

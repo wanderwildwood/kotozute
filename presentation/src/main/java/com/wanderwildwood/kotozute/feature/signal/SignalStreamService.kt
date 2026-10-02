@@ -59,9 +59,13 @@ class SignalStreamService : android.app.Service() {
 
         startForeground(NOTIFICATION_ID, buildNotification())
         // Idempotent: startStream refuses to start a second loop while one is running, so
-        // this is safe on every redelivery.
-        runCatching { signalRepo.startStream() }
-            .onFailure { Timber.w(it, "signal: could not start the stream") }
+        // this is safe on every redelivery. Off the main thread: starting the stream opens the
+        // protocol store, and on a cold start that held the first screen for over a second
+        // while the store derived its key (measured 2026-10-02).
+        Thread {
+            runCatching { signalRepo.startStream() }
+                .onFailure { Timber.w(it, "signal: could not start the stream") }
+        }.also { it.isDaemon = true }.start()
         return START_STICKY
     }
 

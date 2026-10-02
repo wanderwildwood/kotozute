@@ -315,7 +315,17 @@ class SignalRepositoryImpl @Inject constructor(
     private val reaching = AtomicBoolean(false)
 
     init {
-        publishState(signalConnected = false, error = null)
+        // ⚠ Not here, on whatever thread is building the object graph -- which is the main
+        // thread, during Application.onCreate. Publishing reads the protocol store, and opening
+        // it derives its key twice (once per connection in the WAL pool), about 1.7 s on a
+        // Kompakt before the first screen could draw (measured 2026-10-02). The default state
+        // stands until this lands, and only if nothing has published since, so a socket that
+        // connected first is not reported down again.
+        val initial = state.value
+        Thread {
+            if (state.value === initial) publishState(signalConnected = false, error = null)
+            rememberSelf()
+        }.also { it.isDaemon = true }.start()
         signalStore.onRejected = ::onServerRefusedThisDevice
         // Asked fresh whenever a read receipt is about to go, rather than remembered from when
         // it was owed. See [SignalStore.readReceiptsEnabled].
@@ -5059,6 +5069,24 @@ class SignalRepositoryImpl @Inject constructor(
             signalThreadKeyForNumber(number)
         }.onFailure { Timber.w(it, "signal discovery: could not look up one number") }
             .getOrNull()
+    }
+
+    override fun selfCached(): Pair<String, String>? {
+        val number = prefs.signalSelfNumberCache.get()
+        val aci = prefs.signalSelfAciCache.get()
+        return if (number.isNotBlank() && aci.isNotBlank()) number to aci else null
+    }
+
+    /** Copies the account's own number and ACI out of the store for [selfCached]. Off the main thread. */
+    private fun rememberSelf() {
+        runCatching {
+            val number = signalStore.selfNumberOrNull().orEmpty()
+            val aci = signalStore.selfAciOrNull().orEmpty()
+            if (number.isNotBlank() && aci.isNotBlank()) {
+                prefs.signalSelfNumberCache.set(number)
+                prefs.signalSelfAciCache.set(aci)
+            }
+        }.onFailure { Timber.w(it, "signal: could not copy this account's own number") }
     }
 
     override fun smsNumberFor(threadKey: String): String? {

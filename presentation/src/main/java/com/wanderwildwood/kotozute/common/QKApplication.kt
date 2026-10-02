@@ -245,7 +245,10 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // stop the application being created, because a process that fails to start cannot
         // receive a text either -- which is exactly what happened when the stream service
         // threw on a background start and took every incoming SMS down with it.
-        runCatching {
+        // On its own thread: every line below reaches the protocol store, and the first touch
+        // opens it -- seconds of key derivation that used to stand between a tap on the icon and
+        // the first screen. Nothing here has to happen before that screen does.
+        Thread { runCatching {
         signalNotifications.start()
         // A Signal call that starts ringing brings up the call service, which rings and puts the
         // call screen over the lock screen. Only on the change into ringing: the service
@@ -268,7 +271,8 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
             // comes back after the phone has been off.
             SignalStreamService.sync(this, prefs.signalKeepConnected.get())
         }
-        }.onFailure { Timber.w(it, "signal: startup failed, carrying on without it") }
+        }.onFailure { Timber.w(it, "signal: startup failed, carrying on without it") } }
+            .also { it.isDaemon = true }.start()
 
         // Disappearing messages have to be swept here, because the phone's copy is the only
         // one there is -- and without this it is the copy that outlives the timer. Reads

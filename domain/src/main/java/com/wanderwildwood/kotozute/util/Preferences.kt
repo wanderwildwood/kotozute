@@ -344,6 +344,14 @@ class Preferences @Inject constructor(
     /** The newest DuraSpeed stop already told about; see feature.main.DuraSpeed. */
     val duraSpeedWarnedAt = rxPrefs.getLong("duraSpeedWarnedAt", 0L)
 
+    /**
+     * This account's own number and ACI, copied out of the protocol store once it is open, for
+     * the conversation list -- which runs on the main thread and would otherwise open the store
+     * there to find Note to Self. See SignalRepository.selfCached.
+     */
+    val signalSelfNumberCache = rxPrefs.getString("signalSelfNumberCache", "")
+    val signalSelfAciCache = rxPrefs.getString("signalSelfAciCache", "")
+
     /** Said to be switched on in DuraSpeed's list. The list cannot be read, so this is the person's word. */
     val duraSpeedAllowed = rxPrefs.getBoolean("duraSpeedAllowed", false)
 

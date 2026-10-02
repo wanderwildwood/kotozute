@@ -231,13 +231,11 @@ class MainViewModel @Inject constructor(
     private fun numberFor(thread: com.wanderwildwood.kotozute.model.SignalThread): String? {
         thread.counterpartNumber.takeIf { it.isNotBlank() }?.let { return it }
         if (thread.kind != "direct") return null
-        val self = runCatching { signalRepo.selfNumber() }.getOrDefault("")
-        val selfAci = runCatching { signalRepo.account().selfUuid }.getOrDefault("")
-        return if (self.isNotBlank() && selfAci.isNotBlank() && thread.counterpartUuid == selfAci) {
-            self
-        } else {
-            null
-        }
+        // The copy, not the store: this runs on the main thread on every rebuild of the list,
+        // and reading the store here held the first screen until it had opened -- about 1.5 s
+        // of a cold start. Before the first copy exists Note to Self is simply not joined yet.
+        val (self, selfAci) = runCatching { signalRepo.selfCached() }.getOrNull() ?: return null
+        return if (thread.counterpartUuid == selfAci) self else null
     }
 
     /**

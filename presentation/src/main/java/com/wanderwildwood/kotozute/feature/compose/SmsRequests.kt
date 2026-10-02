@@ -12,7 +12,7 @@ import io.realm.Realm
  * kept on this phone.
  *
  * Every rule is one that can only make a request of a conversation nobody here has taken
- * part in: a contact, or anything sent, and it is not one.
+ * part in: a contact, or anything sent, and it is not one. Nor is one with nothing received.
  */
 object SmsRequests {
 
@@ -23,8 +23,14 @@ object SmsRequests {
         if (recipients.any { it.contact != null }) return false
         if (conversation.id.toString() in prefs.smsAcceptedRequests.get()) return false
         return Realm.getDefaultInstance().use { realm ->
+            // Received: a conversation opened from this phone to a new number exists before
+            // anything is in it, and nobody has asked anything of it yet.
+            val received = realm.where(Message::class.java)
+                .equalTo("threadId", conversation.id)
+                .`in`("boxId", arrayOf<Int?>(0, 1))
+                .count() > 0L
             // Sent, in either table: anything that is not in the inbox (1) or "all" (0).
-            realm.where(Message::class.java)
+            received && realm.where(Message::class.java)
                 .equalTo("threadId", conversation.id)
                 .not().`in`("boxId", arrayOf<Int?>(0, 1))
                 .count() == 0L

@@ -1075,14 +1075,38 @@ function formatTime(ms) {
 // the conversation leaves and can only be found again on the phone.
 let showingArchived = false;
 
+/*
+ * The last body of each polled route, kept as text with its ETag. The phone answers 304 with
+ * nothing when it has not changed, which is almost every poll; resending the whole list and
+ * the whole open conversation every five seconds came to about 900 MB in one day. Kept as text
+ * and parsed afresh, so nothing done to a parsed copy can leak into the next poll's answer.
+ */
+const pollCache = new Map();
+
+/** GET [path] as parsed JSON, or null on failure; [res] is still handed back for the status. */
+async function getPolled(path) {
+  const held = pollCache.get(path);
+  const res = await api(path, held ? { headers: { 'If-None-Match': held.etag } } : {});
+  if (res.status === 304 && held) return { res, data: JSON.parse(held.text) };
+  if (!res.ok) return { res, data: null };
+  const text = await res.text();
+  const etag = res.headers.get('ETag');
+  if (etag) {
+    pollCache.delete(path);
+    pollCache.set(path, { etag, text });
+    // One entry per conversation visited; the oldest go first.
+    while (pollCache.size > 20) pollCache.delete(pollCache.keys().next().value);
+  }
+  return { res, data: JSON.parse(text) };
+}
+
 async function loadThreads() {
-  const res = await api('/api/threads' + (showingArchived ? '?archived=1' : ''));
-  if (!res.ok) {
+  const { res, data: threads } = await getPolled('/api/threads' + (showingArchived ? '?archived=1' : ''));
+  if (!threads) {
     statusEl.textContent = res.status === 401 ? 'bad token' : 'error';
     statusEl.classList.remove('live');
     return;
   }
-  const threads = await res.json();
   lastThreads = threads;
 
   // Same reasoning as loadMessages: don't rebuild the list (and lose its scroll
@@ -1272,7 +1296,19 @@ function replyFields(threadId) {
   return replyTo && replyTo.threadId === threadId ? { quoteTs: String(replyTo.date) } : {};
 }
 
-function openMessageMenu(m, x, y) {
+/**
+ * The text highlighted inside [el], or '' when nothing is or the highlight reaches outside it.
+ * Read when the menu opens: the click on a menu item can clear the selection before it runs.
+ */
+function selectionWithin(el) {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return '';
+  const range = sel.getRangeAt(0);
+  if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return '';
+  return sel.toString();
+}
+
+function openMessageMenu(m, x, y, selected) {
   const text = (m.body || '').trim();
   const items = [];
   // On Signal, by Signal's own id, not the numeric one the list keys on -- that one is a
@@ -1283,6 +1319,8 @@ function openMessageMenu(m, x, y) {
   const canReact = isSignal ? !!m.signalId : !!text;
   const mine = ((m.reactions || []).find(r => r.mine) || {}).emoji || '';
   if (isSignal && canReact) items.push(['Reply', () => startReply(m)]);
+  // A highlight is what the person meant to copy; the whole message stays one item below.
+  if (selected && selected.trim()) items.push(['Copy selection', () => copyText(selected)]);
   if (text) items.push(['Copy text', () => copyText(text)]);
   if (text) items.push(['Forward\u2026', () => forwardText(text)]);
   // The thread's rail, not the message's: an SMS message carries no rail field at all, so
@@ -2317,10 +2355,8 @@ async function loadMessages() {
   // screen, with a signature that says it is the right one, so the next poll leaves it
   // there.
   const forThread = activeThreadId;
-  const res = await api('/api/threads/' + forThread + '/messages?limit=' + messageLimit);
-  if (!res.ok || activeThreadId !== forThread) return;
-  const payload = await res.json();
-  if (activeThreadId !== forThread) return;
+  const { data: payload } = await getPolled('/api/threads/' + forThread + '/messages?limit=' + messageLimit);
+  if (!payload || activeThreadId !== forThread) return;
   // Response used to be a bare array; it's now {total, hasMore, messages}
   const messages = Array.isArray(payload) ? payload : (payload.messages || []);
   hasMoreMessages = Array.isArray(payload) ? false : !!payload.hasMore;
@@ -2335,7 +2371,7 @@ async function loadMessages() {
   // that had gone, until the reader opened another conversation and came back (issue #4).
   const sig = forThread + ':' + messageLimit + ':' + messages.length + ':' +
     (messages.length ? messages[messages.length - 1].id + ':' + messages[messages.length - 1].date : '') + ':' +
-    messages.map(m => (m.status || '') + (m.reactions || []).map(r => r.emoji + r.count + (r.mine ? '*' : '')).join('')).join('|');
+    messages.map(m => (m.status || '') + (m.reactions || []).map(r => r.emoji + r.count + (r.mine ? '*' : '') + (r.names || []).join(',')).join('')).join('|');
   if (sig === lastMessagesSig) return;
   const isNewThread = !lastMessagesSig.startsWith(forThread + ':');
   lastMessagesSig = sig;
@@ -2410,9 +2446,14 @@ async function loadMessages() {
     if ((m.reactions || []).length) {
       const chips = document.createElement('div');
       chips.className = 'reactions';
-      chips.textContent = m.reactions
-        .map(r => r.count === 1 ? r.emoji : r.emoji + '\u00a0' + r.count)
-        .join('  ');
+      // One span per emoji, so hovering one says who put it there.
+      m.reactions.forEach((r, i) => {
+        if (i) chips.append('  ');
+        const chip = document.createElement('span');
+        chip.textContent = r.count === 1 ? r.emoji : r.emoji + '\u00a0' + r.count;
+        if ((r.names || []).length) chip.title = r.names.join(', ');
+        chips.append(chip);
+      });
       bubble.append(chips);
     }
 
@@ -2570,7 +2611,7 @@ async function loadMessages() {
     // right-click, and a long press on a touchscreen still arrives as one.
     wrap.addEventListener('contextmenu', e => {
       e.preventDefault();
-      openMessageMenu(m, e.clientX, e.clientY);
+      openMessageMenu(m, e.clientX, e.clientY, selectionWithin(wrap));
     });
     wrap.append(inner);
     messagesEl.append(wrap);
@@ -2717,11 +2758,14 @@ composerEl.addEventListener('submit', async e => {
   }
 });
 
+let socketLive = false;
+
 function connectSocket() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const ws = new WebSocket(proto + '//' + location.host + '/?token=' + encodeURIComponent(token));
 
   ws.addEventListener('open', () => {
+    socketLive = true;
     statusEl.textContent = 'live';
     statusEl.classList.add('live');
   });
@@ -2732,6 +2776,7 @@ function connectSocket() {
   ws.addEventListener('message', () => { refresh(); });
 
   ws.addEventListener('close', () => {
+    socketLive = false;
     statusEl.textContent = 'reconnecting…';
     statusEl.classList.remove('live');
     setTimeout(connectSocket, 3000);
@@ -2742,6 +2787,7 @@ function connectSocket() {
 
 /** Pull the latest view. Safe to call any time; no-ops the message pane if nothing is open. */
 async function refresh() {
+  lastRefreshAt = Date.now();
   try {
     await loadThreads();
     await loadMessages();
@@ -2769,7 +2815,20 @@ connectSocket();
 // near-instant when it's healthy, but it can go quiet after laptop sleep, a
 // network switch, or a dropped push — polling guarantees the view still catches
 // up on its own without a manual reload.
-setInterval(refresh, 5000);
+//
+// Every five seconds only while the socket is down. While it is up, pushes do the work and the
+// poll is a slow check that it has not gone quiet; while the tab is hidden nobody is looking,
+// so nothing is polled at all, and coming back to it catches up at once. Each poll wakes the
+// phone's radio, so a tab left open on a desk all day was a steady drain on its battery.
+let lastRefreshAt = 0;
+setInterval(() => {
+  if (document.hidden) return;
+  if (Date.now() - lastRefreshAt < (socketLive ? 30000 : 4500)) return;
+  refresh();
+}, 5000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refresh();
+});
 
 /*
  * Offer to set Signal up, but only while it is not.

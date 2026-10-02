@@ -1008,7 +1008,8 @@ class DesktopSyncServer(
      */
     private fun signalMessageJson(
         m: SignalMessage,
-        senders: Map<String, String> = emptyMap()
+        senders: Map<String, String> = emptyMap(),
+        reactorName: (String) -> String = { it }
     ) = JSONObject().apply {
         // The desktop list keys on this; Signal's own id is a string, so derive a stable
         // number from it the same way thread ids are derived.
@@ -1064,6 +1065,8 @@ class DesktopSyncServer(
         // implementations of the same tally.
         if (m.reactions.isNotBlank()) {
             val counts = LinkedHashMap<String, Int>()
+            // Who, per emoji, for the page to show on hover.
+            val who = HashMap<String, MutableList<String>>()
             var mine = ""
             runCatching { JSONArray(m.reactions) }.getOrNull()?.let { arr ->
                 for (i in 0 until arr.length()) {
@@ -1071,6 +1074,7 @@ class DesktopSyncServer(
                     val emoji = entry.optString("emoji")
                     if (emoji.isEmpty()) continue
                     counts[emoji] = (counts[emoji] ?: 0) + 1
+                    who.getOrPut(emoji) { mutableListOf() } += reactorName(entry.optString("who"))
                     // Marked so the page can show which one is this account's, and offer to
                     // take that one back rather than guessing at somebody else's.
                     if (entry.optString("who") == "me") mine = emoji
@@ -1081,6 +1085,7 @@ class DesktopSyncServer(
                     counts.entries.sortedByDescending { it.value }.forEach { (emoji, n) ->
                         put(JSONObject().put("emoji", emoji).put("count", n).apply {
                             if (emoji == mine) put("mine", true)
+                            put("names", JSONArray(who[emoji].orEmpty()))
                         })
                     }
                 })
@@ -1876,7 +1881,7 @@ class DesktopSyncServer(
         }
         // One list, newest first, the same order the phone shows.
         rows.sortedByDescending { it.first }.forEach { array.put(it.second) }
-        return jsonResponse(Response.Status.OK, array)
+        return jsonIfChanged(session, array)
     }
 
     private fun handleGetMessages(threadId: Long, session: IHTTPSession): Response {
@@ -1894,14 +1899,30 @@ class DesktopSyncServer(
             // This rail and no other. One screen per rail, with the badge between them --
             // mixing the two here left the badge leading somewhere that looked the same,
             // which is no use to anybody wanting to see one rail on its own.
+            // Who reacted, by name. A group's whole membership, not only [senders]: someone who
+            // reacts and has never written in the thread is still a member with a name. Looked
+            // up only if some message on the page carries a reaction.
+            val members by lazy {
+                runCatching { signalRepository.mentionableNames(thread.threadKey) }
+                    .getOrDefault(emptyMap()) + senders
+            }
+            val reactorName: (String) -> String = { who ->
+                when {
+                    who == "me" -> "You"
+                    // One to one: whoever is not this account is the person the thread is with.
+                    thread.kind != "group" -> thread.title.ifBlank { who }
+                    // A uuid means nothing to a reader; a number at least can be recognised.
+                    else -> members[who] ?: if ('-' in who) "Someone" else who
+                }
+            }
             val array = JSONArray()
             signalRepository.getMessagesSnapshot(thread.threadKey, limit)
-                .forEach { array.put(signalMessageJson(it, senders)) }
+                .forEach { array.put(signalMessageJson(it, senders, reactorName)) }
             // The same envelope the SMS branch returns. A bare array here meant the browser
             // read hasMore as false for every Signal thread, so "Load older messages" was
             // never offered and a long conversation ended at its most recent page.
             val total = signalRepository.countMessages(thread.threadKey)
-            return jsonResponse(Response.Status.OK, JSONObject().apply {
+            return jsonIfChanged(session, JSONObject().apply {
                 put("total", total)
                 put("hasMore", total > limit)
                 put("messages", array)
@@ -1930,12 +1951,12 @@ class DesktopSyncServer(
         val total = all.size
         val array = JSONArray()
         all.takeLast(limit).forEach { message ->
-            array.put(messageJson(message, if (isGroup) senders else emptyList()))
+            array.put(messageJson(message, if (isGroup) senders else emptyList(), senders))
         }
 
         // Wrapped in an object (not a bare array) so the browser knows whether older
         // messages exist without having to guess from the count.
-        return jsonResponse(Response.Status.OK, JSONObject().apply {
+        return jsonIfChanged(session, JSONObject().apply {
             put("total", total)
             put("hasMore", total > limit)
             put("messages", array)
@@ -2521,7 +2542,12 @@ class DesktopSyncServer(
      * address on a message and the address on a recipient are frequently the same number
      * written two ways — +1 and a bare ten digits, or spaced and not.
      */
-    private fun messageJson(message: Message, senders: List<Pair<String, String>> = emptyList()) = JSONObject().apply {
+    private fun messageJson(
+        message: Message,
+        senders: List<Pair<String, String>> = emptyList(),
+        // Every recipient, group or not, to name whoever reacted.
+        recipients: List<Pair<String, String>> = emptyList()
+    ) = JSONObject().apply {
         put("id", message.id)
         put("body", message.getText())
         put("date", message.date)
@@ -2590,9 +2616,41 @@ class DesktopSyncServer(
                     .forEach { (emoji, n) ->
                         put(JSONObject().put("emoji", emoji).put("count", n).apply {
                             if (emoji == mine) put("mine", true)
+                            put("names", JSONArray(message.emojiReactions
+                                .filter { it.emoji == emoji }
+                                .map { r ->
+                                    if (r.senderAddress == EmojiReactionRepository.ME) "You"
+                                    else recipients.firstOrNull { (address, _) ->
+                                        PhoneNumberUtils.compare(address, r.senderAddress)
+                                    }?.second ?: r.senderAddress
+                                }))
                         })
                     }
             })
+        }
+    }
+
+    /**
+     * [body] as a 200 with an ETag, or an empty 304 when the browser already holds it.
+     *
+     * For the two routes the page polls. Every poll used to send the whole thread list and the
+     * whole open conversation whether anything had changed or not: on 2026-09-30 that was about
+     * 900 MB up from the phone in an afternoon and evening, some of it over cellular, waking the
+     * radio every few seconds. Nearly every poll finds nothing new, so nearly every answer is now
+     * a few bytes. The page sends If-None-Match itself rather than leaning on the HTTP cache,
+     * which a browser may refuse to keep for a self-signed certificate.
+     */
+    private fun jsonIfChanged(session: IHTTPSession, body: Any): Response {
+        val text = body.toString()
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray())
+        val etag = "\"" + digest.take(12).joinToString("") { "%02x".format(it) } + "\""
+        if (session.headers["if-none-match"] == etag) {
+            return newFixedLengthResponse(Response.Status.NOT_MODIFIED, "application/json", "").apply {
+                addHeader("ETag", etag)
+            }
+        }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", text).apply {
+            addHeader("ETag", etag)
         }
     }
 

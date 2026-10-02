@@ -671,6 +671,14 @@ interface SignalRepository {
      */
     fun signalThreadKeyForNumber(number: String): String?
 
+    /**
+     * [signalThreadKeyForNumber], and where that does not know the number, asks Signal's
+     * directory about it alone -- for a contact added since the last lookup, whose first
+     * conversation is a text one and would otherwise show no way across. Only where contact
+     * lookup has been agreed to before. Blocking, and on the network.
+     */
+    fun signalThreadKeyLookingUp(number: String): String?
+
     /** The number a Signal conversation's texts are under, or null when none is known. Blocking. */
     fun smsNumberFor(threadKey: String): String?
 

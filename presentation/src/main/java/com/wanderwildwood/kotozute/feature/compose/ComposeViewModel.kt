@@ -262,9 +262,12 @@ class ComposeViewModel @Inject constructor(
                 // A link made by hand first. It is how the rails are joined for a contact
                 // whose Signal shares no number, and one set from the browser has to hold
                 // here too, or the pair is joined in one place and separate in the other.
+                // Looking the number up where Signal does not know it yet: a contact added
+                // since the last lookup starts on texts, and this is how the badge across to
+                // Signal appears for them as it does for an established pair.
                 val key = signalRepo.linkedThreadKeyFor(conversationId)
                     ?: address.takeIf { it.isNotBlank() }
-                        ?.let { signalRepo.signalThreadKeyForNumber(it) }
+                        ?.let { runCatching { signalRepo.signalThreadKeyLookingUp(it) }.getOrNull() }
                 newState { copy(signalThreadKey = key) }
             }
             .subscribe()
@@ -287,7 +290,7 @@ class ComposeViewModel @Inject constructor(
             .observeOn(Schedulers.io())
             .map { address ->
                 address.takeIf { it.isNotBlank() }
-                    ?.let { signalRepo.signalThreadKeyForNumber(it) }
+                    ?.let { runCatching { signalRepo.signalThreadKeyLookingUp(it) }.getOrNull() }
                     .orEmpty()
             }
             .distinctUntilChanged()

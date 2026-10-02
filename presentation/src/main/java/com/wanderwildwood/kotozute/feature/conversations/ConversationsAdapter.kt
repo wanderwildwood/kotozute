@@ -94,6 +94,18 @@ class ConversationsAdapter @Inject constructor(
             }
         }
 
+    /**
+     * The inbox, as opposed to the archive shelf: only the inbox's first tab leaves out groups
+     * and message requests when they are kept to their own tabs (it is then called People).
+     */
+    var inbox: Boolean = true
+        set(value) {
+            if (field != value) {
+                field = value
+                applyFilter()
+            }
+        }
+
     private var source: List<InboxItem> = emptyList()
     private var items: List<InboxItem> = emptyList()
 
@@ -116,27 +128,33 @@ class ConversationsAdapter @Inject constructor(
         // from live Realm objects can already contain a corpse by the time it arrives.
         val source = source.filter { it.isValid }
         items = when (filterMode) {
-            // A Signal group is still a group; a Signal thread always has a counterpart,
-            // so it is never "unknown" in the sense the Unknown tab means.
-            1 -> source.filter {
-                when (it) {
-                    is InboxItem.Sms -> it.conversation.recipients.size > 1
-                    is InboxItem.Signal -> it.thread.kind == "group"
-                }
+            1 -> source.filter(::isGroup)
+            2 -> source.filter(::isUnknown)
+            // Groups and requests each have a tab of their own; with this on, that is the only
+            // place they appear, and the first tab -- People, then, not All -- is one to one.
+            else -> if (inbox && prefs.allOnlyPeople.get()) {
+                source.filterNot { isGroup(it) || isUnknown(it) }
+            } else {
+                source
             }
-            // Message requests, both rails: a Signal conversation somebody not accepted
-            // started, and a text one from somebody not in the address book that has never
-            // been answered. See SmsRequests and SignalThread.request.
-            2 -> source.filter {
-                when (it) {
-                    is InboxItem.Sms -> com.wanderwildwood.kotozute.feature.compose.SmsRequests.isRequest(prefs, it.conversation)
-                    is InboxItem.Signal -> it.thread.request
-                }
-            }
-            else -> source
         }
         notifyDataSetChanged()
         updateEmptyView()
+    }
+
+    // A Signal group is still a group; a Signal thread always has a counterpart, so it is
+    // never "unknown" in the sense the Unknown tab means.
+    private fun isGroup(item: InboxItem): Boolean = when (item) {
+        is InboxItem.Sms -> item.conversation.recipients.size > 1
+        is InboxItem.Signal -> item.thread.kind == "group"
+    }
+
+    // Message requests, both rails: a Signal conversation somebody not accepted started, and
+    // a text one from somebody not in the address book that has never been answered. See
+    // SmsRequests and SignalThread.request.
+    private fun isUnknown(item: InboxItem): Boolean = when (item) {
+        is InboxItem.Sms -> com.wanderwildwood.kotozute.feature.compose.SmsRequests.isRequest(prefs, item.conversation)
+        is InboxItem.Signal -> item.thread.request
     }
 
     private fun updateEmptyView() {

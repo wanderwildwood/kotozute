@@ -415,6 +415,8 @@ class Preferences @Inject constructor(
     val disableScreenshots = rxPrefs.getBoolean("disableScreenshots", false)
     val logging = rxPrefs.getBoolean("logging", false)
     val unreadAtTop = rxPrefs.getBoolean("unreadAtTop", false)
+    /** Groups and message requests only in their own tabs; the first tab is then "People". */
+    val allOnlyPeople = rxPrefs.getBoolean("allOnlyPeople", false)
     /** Whether the unread count is handed to Glance for the lock screen. */
     val lockScreen = rxPrefs.getBoolean("lockScreen", true)
     val conversationFilter = rxPrefs.getInteger("conversationFilter", CONVERSATION_FILTER_ALL)

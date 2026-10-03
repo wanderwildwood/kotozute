@@ -99,6 +99,8 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.ComposeActivityBinding
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
+import com.wanderwildwood.kotozute.extensions.isSmil
+import com.wanderwildwood.kotozute.extensions.isText
 
 
 class ComposeActivity : QkThemedActivity(), ComposeView {
@@ -521,8 +523,9 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         binding.toolbar.menu.findItem(R.id.unpinMessage)?.isVisible = chosen != null && chosenPinned
         showPinned(state.threadId)
         binding.toolbar.menu.findItem(R.id.delete)?.isVisible = !state.editingMode && ((state.selectedMessages > 0) || state.canSend)
+        // A picture with no text can take one too: it goes as "Loved an image".
         binding.toolbar.menu.findItem(R.id.react)?.isVisible =
-            !state.editingMode && state.selectedMessages == 1 && state.selectedMessagesHaveText
+            chosen != null && (state.selectedMessagesHaveText || chosen.parts.any { !it.isSmil() && !it.isText() })
         binding.toolbar.menu.findItem(R.id.forward)?.isVisible = !state.editingMode && state.selectedMessages == 1
         binding.toolbar.menu.findItem(R.id.show_status)?.isVisible = !state.editingMode && state.selectedMessages > 0
         binding.toolbar.menu.findItem(R.id.previous)?.isVisible = state.selectedMessages == 0 && state.query.isNotEmpty()
@@ -913,6 +916,9 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         menuInfo: ContextMenu.ContextMenuInfo?
     ) {
         super.onCreateContextMenu(menu, v, menuInfo)
+        // A long press on a picture opens this menu rather than selecting the message, so the
+        // toolbar's React never appears for one. Offered here as well, first, as on Signal.
+        menu?.add(Menu.NONE, R.id.react, Menu.NONE, R.string.signal_react)
         menuInflater.inflate(R.menu.mms_part_menu, menu)
     }
 

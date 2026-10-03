@@ -1312,11 +1312,11 @@ function openMessageMenu(m, x, y, selected) {
   const text = (m.body || '').trim();
   const items = [];
   // On Signal, by Signal's own id, not the numeric one the list keys on -- that one is a
-  // hash of it and the phone cannot turn it back into a row. On SMS, by the row's id, and
-  // only a message with text: the reaction quotes it ("Loved “…”"), and a picture has
-  // nothing to quote.
+  // hash of it and the phone cannot turn it back into a row. On SMS, by the row's id: the
+  // reaction quotes the text ("Loved “…”"), or names the picture when there is none
+  // ("Loved an image").
   const isSignal = activeThreadRail === 'signal';
-  const canReact = isSignal ? !!m.signalId : !!text;
+  const canReact = isSignal ? !!m.signalId : !!text || (m.attachments || []).length > 0;
   const mine = ((m.reactions || []).find(r => r.mine) || {}).emoji || '';
   if (isSignal && canReact) items.push(['Reply', () => startReply(m)]);
   // A highlight is what the person meant to copy; the whole message stays one item below.
@@ -2440,11 +2440,13 @@ async function loadMessages() {
       bubble.prepend(q);
     }
 
-    // Reactions others have put on this message. Under the bubble rather than overlapping
-    // it: the same reading the phone gives them, so one conversation looks like one
-    // conversation whichever screen it is on.
+    // Reactions on this message, ours and others'. Under the bubble and OUTSIDE it, after
+    // any picture: inside, a reaction sat between the caption and the photo and read as
+    // part of what was sent -- and an empty message's bubble is cleared below, taking a
+    // reaction drawn inside it along with it.
+    let chips = null;
     if ((m.reactions || []).length) {
-      const chips = document.createElement('div');
+      chips = document.createElement('div');
       chips.className = 'reactions';
       // One span per emoji, so hovering one says who put it there.
       m.reactions.forEach((r, i) => {
@@ -2454,7 +2456,6 @@ async function loadMessages() {
         if ((r.names || []).length) chip.title = r.names.join(', ');
         chips.append(chip);
       });
-      bubble.append(chips);
     }
 
     // Attachments, on either rail — without these a picture message is just an empty
@@ -2603,10 +2604,12 @@ async function loadMessages() {
       const who = document.createElement('div');
       who.className = 'who';
       who.textContent = m.from;
-      inner.append(who, bubble, stamp);
+      inner.append(who, bubble);
     } else {
-      inner.append(bubble, stamp);
+      inner.append(bubble);
     }
+    if (chips) inner.append(chips);
+    inner.append(stamp);
     // The phone opens a message's actions with a long press; on a desktop that is the
     // right-click, and a long press on a touchscreen still arrives as one.
     wrap.addEventListener('contextmenu', e => {

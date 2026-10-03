@@ -426,10 +426,12 @@
      an absence, not something anyone typed. */
   .viewOnce { font-style: italic; color: var(--muted); }
   .reactions {
-    margin-top: 4px; font-size: 13px; line-height: 1;
-    /* Its own line under the text, not hung off the bubble's corner: the browser bubble is
-       a plain flow box and a faked overlap would need absolute positioning to gain nothing. */
+    margin-top: 4px; padding: 0 6px; font-size: 13px; line-height: 1;
+    /* Its own line under the bubble, outside it, not hung off the bubble's corner: the
+       browser bubble is a plain flow box and a faked overlap would need absolute
+       positioning to gain nothing. Inside the bubble it read as part of the message. */
   }
+  .msg.me .reactions { text-align: right; }
   /* The emoji row at the head of a message's menu. Big enough to hit without aiming; the
      one already given is ringed rather than filled, since this page is ink on paper. */
   .reactRow { display: flex; gap: 2px; padding: 2px; }

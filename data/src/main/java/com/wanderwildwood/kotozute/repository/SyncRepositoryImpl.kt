@@ -304,7 +304,8 @@ class SyncRepositoryImpl @Inject constructor(
                     Realm.getDefaultInstance().use { realm ->
                         val targetMessage = reactions.findTargetMessage(
                             threadId,
-                            parsedReaction.originalMessage,
+                            parsedReaction,
+                            date,
                             realm
                         )
                         realm.executeTransaction {

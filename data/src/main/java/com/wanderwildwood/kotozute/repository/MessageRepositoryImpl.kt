@@ -48,6 +48,8 @@ import com.wanderwildwood.kotozute.extensions.anyOf
 import com.wanderwildwood.kotozute.extensions.insertOrUpdate
 import com.wanderwildwood.kotozute.extensions.isImage
 import com.wanderwildwood.kotozute.extensions.isVideo
+import com.wanderwildwood.kotozute.extensions.isSmil
+import com.wanderwildwood.kotozute.extensions.isText
 import com.wanderwildwood.kotozute.extensions.map
 import com.wanderwildwood.kotozute.extensions.resourceExists
 import com.wanderwildwood.kotozute.manager.ActiveConversationManager
@@ -930,14 +932,22 @@ open class MessageRepositoryImpl @Inject constructor(
         }
         val text = target.getText(false).trim()
         val addresses = conversation.recipients.map { it.address }
-        if (text.isEmpty() || addresses.isEmpty()) return false
+        // A message with no text is reacted to by what it carries -- "Loved an image", as an
+        // iPhone sends it -- and the first part that is neither layout nor text names that.
+        val attachment = target.parts.firstOrNull { !it.isSmil() && !it.isText() }
+        val reactionText = when {
+            text.isNotEmpty() -> reactions.composeReaction(emoji, text, remove)
+            attachment != null -> reactions.composeAttachmentReaction(emoji, attachment.type, remove)
+            else -> return false
+        }
+        if (addresses.isEmpty()) return false
         val group = addresses.size > 1 && conversation.sendAsGroup
 
         // ⚠ No signature and no accent stripping. Both rewrite the text, and the text is the
         // whole of the reaction: a signature after the closing quote, or straight quotes in
         // place of curly ones, and the other phone shows a message reading "Loved ..." instead.
         val messageUri = QkTransaction.createMessage(
-            context, target.subId, reactions.composeReaction(emoji, text, remove), "",
+            context, target.subId, reactionText, "",
             addresses.map(phoneNumberUtils::normalizeNumber).toTypedArray(),
             mutableListOf(), group, prefs.longAsMms.get(), false,
             prefs.delivery.get(), prefs.readReceipts.get()
@@ -946,14 +956,20 @@ open class MessageRepositoryImpl @Inject constructor(
         val message = syncProviderMessage(messageUri, group) ?: return false
 
         // Filed as a reaction now rather than at the next sync, so the thread shows the emoji
-        // under the message instead of a text reading "Loved ..." in the meantime.
+        // under the message instead of a text reading "Loved ..." in the meantime. Filed on
+        // the message that was picked, not on the one the text would be matched to: "Loved an
+        // image" names no picture, and a matched text could be an earlier message saying the
+        // same thing. A later full re-sync matches it again, as the other phone does.
         Realm.getDefaultInstance().use { realm ->
             val saved = realm.where(Message::class.java).equalTo("id", message.id).findFirst()
+            val picked = realm.where(Message::class.java).equalTo("id", targetId).findFirst()
             val parsed = reactions.parseEmojiReaction(message.getText(false))
             if (saved != null && parsed != null) {
                 realm.executeTransaction {
                     reactions.saveEmojiReaction(
-                        saved, parsed, reactions.findTargetMessage(saved.threadId, parsed.originalMessage, realm), realm
+                        saved, parsed,
+                        picked ?: reactions.findTargetMessage(saved.threadId, parsed, saved.date, realm),
+                        realm
                     )
                 }
             }
@@ -1047,7 +1063,8 @@ open class MessageRepositoryImpl @Inject constructor(
                 if (parsedReaction != null) {
                     val targetMessage = reactions.findTargetMessage(
                         savedMessage.threadId,
-                        parsedReaction.originalMessage,
+                        parsedReaction,
+                        savedMessage.date,
                         realm
                     )
                     realm.executeTransaction {

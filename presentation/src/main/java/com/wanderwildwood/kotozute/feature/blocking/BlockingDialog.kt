@@ -32,6 +32,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 // TODO: Once we have a custom dialog based on conductor, turn this into a controller
 class BlockingDialog @Inject constructor(
@@ -102,7 +103,7 @@ class BlockingDialog @Inject constructor(
 
         // Otherwise, show a dialog asking the user if they want to be directed to the external
         // blocking manager
-        AlertDialog.Builder(activity)
+        activity.einkDialog()
                 .setTitle(when (block) {
                     true -> R.string.blocking_block_title
                     false -> R.string.blocking_unblock_title

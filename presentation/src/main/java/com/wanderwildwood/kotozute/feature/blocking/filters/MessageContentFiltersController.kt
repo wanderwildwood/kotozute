@@ -39,6 +39,7 @@ import io.reactivex.subjects.Subject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.MessageContentFiltersControllerBinding
 import com.wanderwildwood.kotozute.databinding.MessageContentFiltersAddDialogBinding
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 class MessageContentFiltersController : QkController<MessageContentFiltersView, MessageContentFiltersState,
         MessageContentFiltersPresenter>(), MessageContentFiltersView {
@@ -96,7 +97,7 @@ class MessageContentFiltersController : QkController<MessageContentFiltersView, 
                 dialogBinding.caseSensitivity.isEnabled = !dialogBinding.regexp.checkbox.isChecked
             }
 
-        val dialog = AlertDialog.Builder(activity!!)
+        val dialog = activity!!.einkDialog()
                 .setView(layout)
                 .setPositiveButton(R.string.message_content_filters_dialog_create) { _, _ ->
                     var text = dialogBinding.input.text.toString();

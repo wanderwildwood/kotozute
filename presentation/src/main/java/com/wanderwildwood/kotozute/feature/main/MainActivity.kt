@@ -70,6 +70,7 @@ import com.wanderwildwood.kotozute.databinding.MainActivityBinding
 import android.widget.ProgressBar
 import com.wanderwildwood.kotozute.common.widget.QkTextView
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 class MainActivity : QkThemedActivity(), MainView {
 
@@ -533,7 +534,7 @@ class MainActivity : QkThemedActivity(), MainView {
     }
 
     override fun showDeleteDialog(conversations: List<Long>) {
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.dialog_delete_title)
             .setMessage(
                 resources.getQuantityString(

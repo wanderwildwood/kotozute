@@ -45,6 +45,7 @@ import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 /**
  * The inbox, both rails.
@@ -325,7 +326,7 @@ class ConversationsAdapter @Inject constructor(
             )
         }
         val danger = setOf(PersonAction.BLOCK, PersonAction.DELETE)
-        val dialog = AlertDialog.Builder(context)
+        val dialog = context.einkDialog()
             .setTitle(title)
             .setItems(actions.map { it.first }.toTypedArray()) { _, which ->
                 val (_, action) = actions[which]

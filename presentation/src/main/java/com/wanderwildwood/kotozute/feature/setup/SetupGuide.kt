@@ -9,6 +9,7 @@ import com.wanderwildwood.kotozute.feature.signal.say
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.util.Preferences
 import kotlin.concurrent.thread
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 /**
  * When the setup guide is offered: once, unasked.
@@ -33,7 +34,7 @@ object SetupGuide {
         }
         val signalOn = runCatching { signalRepo.connectionState().blockingFirst().configured }.getOrDefault(false)
         if (!signalOn) return
-        AlertDialog.Builder(activity)
+        activity.einkDialog()
             .setTitle(R.string.setup_pair_title)
             .setMessage(R.string.setup_pair_body)
             .setPositiveButton(R.string.setup_pair_yes) { _, _ ->

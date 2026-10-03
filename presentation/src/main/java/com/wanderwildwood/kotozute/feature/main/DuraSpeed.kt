@@ -2,7 +2,7 @@ package com.wanderwildwood.kotozute.feature.main
 
 import android.app.Activity
 import android.app.ActivityManager
-import android.app.AlertDialog
+import androidx.appcompat.app.AlertDialog
 import android.app.ApplicationExitInfo
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -16,6 +16,7 @@ import android.text.format.DateUtils
 import androidx.core.app.NotificationCompat
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.util.Preferences
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 /**
  * DuraSpeed, MediaTek's background manager on the Kompakt, force-stops apps a few minutes after
@@ -134,7 +135,7 @@ object DuraSpeed {
         if (askOnReturn) {
             askOnReturn = false
             if (needsAllowing(activity, prefs)) {
-                AlertDialog.Builder(activity)
+                activity.einkDialog()
                     .setMessage(R.string.duraspeed_ask_done)
                     .setPositiveButton(R.string.duraspeed_allowed) { _, _ -> markAllowed(activity, prefs) }
                     .setNegativeButton(R.string.duraspeed_not_yet, null)
@@ -152,7 +153,7 @@ object DuraSpeed {
         val flags = if (DateUtils.isToday(stoppedAt)) DateUtils.FORMAT_SHOW_TIME
             else DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_WEEKDAY
         val when_ = DateUtils.formatDateTime(activity, stoppedAt, flags)
-        AlertDialog.Builder(activity)
+        activity.einkDialog()
             .setTitle(R.string.duraspeed_stopped_title)
             .setMessage(activity.getString(R.string.duraspeed_stopped_body, when_))
             .setPositiveButton(R.string.duraspeed_open) { _, _ -> open(activity) }
@@ -163,7 +164,7 @@ object DuraSpeed {
     /** From the notification: the same words, and both answers. */
     fun showFix(activity: Activity, prefs: Preferences) {
         if (!needsAllowing(activity, prefs)) return
-        AlertDialog.Builder(activity)
+        activity.einkDialog()
             .setTitle(R.string.duraspeed_notification_title)
             .setMessage(R.string.duraspeed_notification_text)
             .setPositiveButton(R.string.duraspeed_open) { _, _ -> open(activity) }

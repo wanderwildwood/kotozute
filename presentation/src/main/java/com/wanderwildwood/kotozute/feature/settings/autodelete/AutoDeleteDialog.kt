@@ -25,7 +25,7 @@ import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.databinding.SettingsAutoDeleteDialogBinding
 
-class AutoDeleteDialog(context: Activity, listener: (Int) -> Unit) : AlertDialog(context) {
+class AutoDeleteDialog(context: Activity, listener: (Int) -> Unit) : AlertDialog(context, R.style.EInkDialog) {
 
     private val layout = SettingsAutoDeleteDialogBinding.inflate(LayoutInflater.from(context))
 

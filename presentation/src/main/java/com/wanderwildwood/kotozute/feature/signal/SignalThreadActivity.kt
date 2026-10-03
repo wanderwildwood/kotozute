@@ -55,6 +55,7 @@ import com.wanderwildwood.kotozute.common.util.TextViewStyler
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.feature.extensions.isEmojiOnly
 import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 class SignalThreadActivity : QkThemedActivity() {
 
@@ -276,7 +277,7 @@ class SignalThreadActivity : QkThemedActivity() {
             // tap after this was the same toast and no dialog, with nothing on screen saying
             // where the switch is. Signal answers this case with a dialog that opens the
             // app's settings (`withPermanentDenialDialog`); so does this.
-            AlertDialog.Builder(this)
+            einkDialog()
                 .setMessage(R.string.signal_record_permission_off)
                 .setPositiveButton(R.string.signal_record_permission_settings) { _, _ ->
                     navigator.showPermissions()
@@ -353,7 +354,7 @@ class SignalThreadActivity : QkThemedActivity() {
         // The same dialog the SMS thread shows, worded identically, because it is the same
         // question about the same kind of message.
         disposables.add(messageLinkClicks.subscribe { uri ->
-            AlertDialog.Builder(this)
+            einkDialog()
                 .setTitle(R.string.messageLinkHandling_dialog_title)
                 .setMessage(getString(R.string.messageLinkHandling_dialog_body, uri.toString()))
                 .setPositiveButton(R.string.messageLinkHandling_dialog_positive) { _, _ ->
@@ -437,7 +438,7 @@ class SignalThreadActivity : QkThemedActivity() {
         // A picture or file, or a contact card -- the two things Signal's own attach sheet
         // offers that this rail can send.
         binding.attach.setOnClickListener {
-            AlertDialog.Builder(this)
+            einkDialog()
                 .setItems(
                     arrayOf(
                         getString(R.string.signal_attach_file),
@@ -629,7 +630,7 @@ class SignalThreadActivity : QkThemedActivity() {
 
     /** Upstream's "End poll?": nobody can vote once it has ended. */
     private fun confirmEndPoll(messageId: String) {
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.signal_poll_end_title)
             .setMessage(R.string.signal_poll_end_body)
             .setNegativeButton(android.R.string.cancel, null)
@@ -677,7 +678,7 @@ class SignalThreadActivity : QkThemedActivity() {
             setPadding(pad, pad / 2, pad, 0)
             addView(question); addView(options); addView(multiple)
         }
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.signal_poll_new)
             .setView(box)
             .setNegativeButton(android.R.string.cancel, null)
@@ -747,7 +748,7 @@ class SignalThreadActivity : QkThemedActivity() {
             R.string.signal_pin_30_days to 2_592_000,
             R.string.signal_pin_forever to 0
         )
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.signal_pin_keep_for)
             .setItems(choices.map { getString(it.first) }.toTypedArray()) { _, which ->
                 changePin(messageId, pin = true, seconds = choices[which].second)
@@ -1086,7 +1087,7 @@ class SignalThreadActivity : QkThemedActivity() {
             if (names.isEmpty()) return@thread
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
-                AlertDialog.Builder(this)
+                einkDialog()
                     .setTitle(R.string.signal_mention_pick)
                     .setItems(names.toTypedArray()) { _, which ->
                         val text = binding.message.text ?: return@setItems
@@ -1552,7 +1553,7 @@ class SignalThreadActivity : QkThemedActivity() {
         val clearable = ComposeStyles.hasStyling(text, start, end)
         val labels = styles.map { getString(it.first) } +
             listOfNotNull(getString(R.string.signal_format_clear).takeIf { clearable })
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.signal_format)
             .setItems(labels.toTypedArray()) { _, which ->
                 if (which < styles.size) ComposeStyles.toggle(text, start, end, styles[which].second, SPOILER_SHADE)
@@ -1775,7 +1776,7 @@ class SignalThreadActivity : QkThemedActivity() {
             answerRequest { signalRepo.blockRequest(threadKey) }
         }
         binding.requestDelete.setOnClickListener {
-            AlertDialog.Builder(this)
+            einkDialog()
                 .setMessage(if (isGroup) R.string.signal_request_delete_confirm_group else R.string.signal_request_delete_confirm)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.signal_request_delete) { _, _ ->
@@ -1855,7 +1856,7 @@ class SignalThreadActivity : QkThemedActivity() {
             }
         }
 
-        val dialog = AlertDialog.Builder(this)
+        val dialog = einkDialog()
             // Two strings rather than a placeholder filled with "their": "Their's safety
             // number changed" is what one string and a fallback word produces.
             .setTitle(
@@ -1937,7 +1938,7 @@ class SignalThreadActivity : QkThemedActivity() {
             }
         }
         actions += getString(R.string.signal_unsent_delete) to { signalRepo.discardUnsent(messageId) }
-        AlertDialog.Builder(this)
+        einkDialog()
             .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
             .show()
     }
@@ -1947,7 +1948,7 @@ class SignalThreadActivity : QkThemedActivity() {
      * account's other devices too.
      */
     private fun confirmDeleteForMe(messageId: String) {
-        AlertDialog.Builder(this)
+        einkDialog()
             .setMessage(R.string.signal_delete_for_me_confirm)
             .setPositiveButton(R.string.signal_delete_for_me) { _, _ -> signalRepo.deleteForMe(messageId) }
             .setNegativeButton(android.R.string.cancel, null)
@@ -1998,7 +1999,7 @@ class SignalThreadActivity : QkThemedActivity() {
                     Toast.makeText(this, R.string.signal_forward_nowhere, Toast.LENGTH_SHORT).show()
                     return@runOnUiThread
                 }
-                AlertDialog.Builder(this)
+                einkDialog()
                     .setTitle(R.string.signal_forward_to)
                     .setItems(threads.map { it.second }.toTypedArray()) { _, which ->
                         forwardTo(threads[which].first, threads[which].second, body, styles, saved)
@@ -2105,14 +2106,14 @@ class SignalThreadActivity : QkThemedActivity() {
 
         if (canEditHere) actions += getString(R.string.signal_edit) to { startEdit(messageId, body) }
         if (history.isNotEmpty()) actions += getString(R.string.signal_edit_history) to {
-            AlertDialog.Builder(this)
+            einkDialog()
                 .setTitle(R.string.signal_edit_history)
                 .setMessage(history)
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
         }
         if (info.isNotEmpty()) actions += getString(R.string.signal_info) to {
-            AlertDialog.Builder(this).setMessage(info).setPositiveButton(android.R.string.ok, null).show()
+            einkDialog().setMessage(info).setPositiveButton(android.R.string.ok, null).show()
         }
         actions += getString(R.string.signal_delete_for_me) to { confirmDeleteForMe(messageId) }
 
@@ -2134,7 +2135,7 @@ class SignalThreadActivity : QkThemedActivity() {
             }
         }
 
-        val dialog = AlertDialog.Builder(this)
+        val dialog = einkDialog()
             .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
             .show()
 

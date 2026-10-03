@@ -659,6 +659,23 @@ interface SignalRepository {
     fun about(threadKey: String): String?
 
     /**
+     * The name the account owner has given one person, and a note about them -- Signal's
+     * Nickname screen. Blank parts mean none. Seen only on this account's own devices.
+     */
+    data class Nickname(val given: String, val family: String, val note: String)
+
+    /** The nickname held for a one-to-one conversation's person, or null when there is nobody to ask about. */
+    fun nickname(threadKey: String): Nickname?
+
+    /**
+     * Sets the nickname and note, or with every part blank takes them away; the conversation
+     * is called by it at once and it goes up to the account so the other devices follow.
+     *
+     * @return false when it could not be kept.
+     */
+    fun setNickname(threadKey: String, nickname: Nickname): Boolean
+
+    /**
      * Sets this account's About and its emoji, keeping everything else on the profile.
      * Blocking; null on success, or why not.
      */

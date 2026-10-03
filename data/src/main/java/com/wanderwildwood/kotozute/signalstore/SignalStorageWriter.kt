@@ -70,7 +70,13 @@ internal class SignalStorageWriter(
          */
         val blocked: Boolean? = null,
         /** Null keeps what the record says, for a caller with no view on it. */
-        val markedUnread: Boolean? = null
+        val markedUnread: Boolean? = null,
+        /**
+         * A nickname and note set on this phone, or null to keep the account's. Only ever
+         * non-null for a change made here -- see `nickname_pending`, schema v40 -- so a mute
+         * going up never carries this phone's idea of a name along with it.
+         */
+        val nickname: SignalContactStore.Nickname? = null
     )
 
     /** One row that went up: the id it went up under, and the record it went up as. */
@@ -366,7 +372,13 @@ internal class SignalStorageWriter(
                         blocked = desired.blocked ?: contact.blocked,
                         mutedUntilTimestamp = mutedUntilFor(contact.mutedUntilTimestamp, desired.muted, now),
                         archived = desired.archived,
-                        markedUnread = desired.markedUnread ?: contact.markedUnread
+                        markedUnread = desired.markedUnread ?: contact.markedUnread,
+                        // As upstream's `StorageSyncModels` writes them: no nickname at all
+                        // rather than an empty one, and an empty note rather than none.
+                        // ⚠ An `if`, not `?.let ... ?:` -- a nickname taken away is a null
+                        // field, and an elvis would read that as "keep the account's".
+                        nickname = if (desired.nickname != null) nicknameField(desired.nickname) else contact.nickname,
+                        note = if (desired.nickname != null) desired.nickname.note?.trim().orEmpty() else contact.note
                     )
                 ).encode()
             }
@@ -381,6 +393,23 @@ internal class SignalStorageWriter(
                 ).encode()
             }
             throw IllegalArgumentException("that record is neither a contact nor a group")
+        }
+
+        /**
+         * The record's nickname field for one set here, or null for none.
+         *
+         * Upstream: `recipient.nickname.takeUnless { it.isEmpty }?.let { ContactRecord.Name(
+         * given = it.givenName, family = it.familyName) }` -- absent when both parts are blank.
+         */
+        internal fun nicknameField(
+            nickname: SignalContactStore.Nickname
+        ): org.whispersystems.signalservice.internal.storage.protos.ContactRecord.Name? {
+            val given = nickname.given?.trim().orEmpty()
+            val family = nickname.family?.trim().orEmpty()
+            if (given.isEmpty() && family.isEmpty()) return null
+            return org.whispersystems.signalservice.internal.storage.protos.ContactRecord.Name(
+                given = given, family = family
+            )
         }
     }
 }

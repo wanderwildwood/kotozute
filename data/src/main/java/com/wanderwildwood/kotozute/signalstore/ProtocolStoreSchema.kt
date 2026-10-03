@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 39
+    const val VERSION = 40
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -556,6 +556,14 @@ internal object ProtocolStoreSchema {
           -- What this person says about themselves, from their profile: the status emoji and
           -- the line after it, as Signal shows them under a name. See v39.
           about TEXT DEFAULT NULL,
+          -- The name the account owner has given this person, and a note about them --
+          -- Signal's NICKNAME_GIVEN_NAME, NICKNAME_FAMILY_NAME and NOTE. Outranks every other
+          -- name. `nickname_pending` says the three were changed here and have not gone up to
+          -- the account yet, so a storage read does not put the old ones back. See v40.
+          nickname_given TEXT DEFAULT NULL,
+          nickname_family TEXT DEFAULT NULL,
+          note TEXT DEFAULT NULL,
+          nickname_pending INTEGER NOT NULL DEFAULT 0,
           -- When this person's profile was last fetched, which is NOT the same question as
           -- when the row was last written. Signal keeps them apart for exactly this reason
           -- (`RecipientTable.LAST_PROFILE_FETCH`), and conflating them here meant profiles
@@ -974,6 +982,25 @@ internal object ProtocolStoreSchema {
          * Starts empty. The first fetch after this fills it without a note, the same as any
          * first name learned -- so upgrading does not write one into every conversation.
          */
+        /**
+         * A nickname and a note, set by the account owner for one person.
+         *
+         * Upstream's `NicknameActivity` writes them with `RecipientTable.setNicknameAndNote`,
+         * which rotates the storage id so they reach the account, and they travel on the
+         * ContactRecord as `nickname` and `note` (`StorageSyncModels`). This app could read
+         * the nickname from a record but had nowhere to keep one of its own.
+         *
+         * `nickname_pending` is this app's, not Signal's. Signal merges a storage read into
+         * its own row field by field; this app writes a read over the row, so it needs to know
+         * which nickname is a local change still waiting to go up.
+         */
+        40 to listOf(
+            "ALTER TABLE recipient ADD COLUMN nickname_given TEXT DEFAULT NULL;",
+            "ALTER TABLE recipient ADD COLUMN nickname_family TEXT DEFAULT NULL;",
+            "ALTER TABLE recipient ADD COLUMN note TEXT DEFAULT NULL;",
+            "ALTER TABLE recipient ADD COLUMN nickname_pending INTEGER NOT NULL DEFAULT 0;"
+        ),
+
         /** A person's About, from their profile. */
         39 to listOf("ALTER TABLE recipient ADD COLUMN about TEXT DEFAULT NULL;"),
 

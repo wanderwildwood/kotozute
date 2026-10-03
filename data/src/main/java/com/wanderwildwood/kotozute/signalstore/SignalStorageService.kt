@@ -459,6 +459,12 @@ internal class SignalStorageService(
                     pni = pni,
                     e164 = e164,
                     name = nameOf(record),
+                    // The nickname whole, so one taken away elsewhere is taken away here too,
+                    // and the name beneath it for when that happens. See schema v40.
+                    nickname = SignalContactStore.Nickname(
+                        record.nickname?.given, record.nickname?.family, record.note
+                    ),
+                    nameBelowNickname = nameOf(record.copy(nickname = null)),
                     // Their own profile's name as the account holds it, apart from what they
                     // are shown as. Signal writes it from the record too, so a fetch that
                     // follows does not announce a change the account already knew about.

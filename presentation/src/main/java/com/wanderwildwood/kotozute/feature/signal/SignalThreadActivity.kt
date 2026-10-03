@@ -167,7 +167,7 @@ class SignalThreadActivity : QkThemedActivity() {
      * sender turns into the card Signal sends. See `ContactCards` in the data module.
      */
     private val contactPicker = registerForActivityResult(
-        ActivityResultContracts.PickContact()
+        com.wanderwildwood.kotozute.common.util.ContactsApp.PickContact()
     ) { uri: Uri? ->
         if (uri == null) return@registerForActivityResult
         thread(isDaemon = true) {

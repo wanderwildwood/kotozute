@@ -189,7 +189,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     private val pickContact = registerForActivityResult(
-        ActivityResultContracts.PickContact()
+        com.wanderwildwood.kotozute.common.util.ContactsApp.PickContact()
     ) { uri ->
         uri?.let(contactSelectedIntent::onNext)
     }

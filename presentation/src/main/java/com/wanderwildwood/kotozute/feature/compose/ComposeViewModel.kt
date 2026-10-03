@@ -751,6 +751,19 @@ class ComposeViewModel @Inject constructor(
                     navigator.showCompose("", listOf(menuInfo.viewHolderValue.getUri()))
             }
 
+        // message part context menu item selected - react to the message the part is in
+        view.contextItemIntent
+            .filter { it.itemId == R.id.react }
+            .mapNotNull { item ->
+                val menuInfo = item.menuInfo as QkContextMenuRecyclerView.ContextMenuInfo<Long, MmsPart>
+                menuInfo.viewHolderValue?.messages?.firstOrNull()?.id
+            }
+            .observeOn(Schedulers.io())
+            .map { id -> id to messageRepo.myEmojiReaction(id) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .autoDisposable(view.scope())
+            .subscribe { (id, mine) -> view.showReactionPicker(id, mine) }
+
         // message part context menu item selected - open externally
         view.contextItemIntent
             .filter { it.itemId == R.id.openExternally }

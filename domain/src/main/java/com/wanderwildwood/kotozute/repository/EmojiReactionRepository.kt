@@ -21,7 +21,17 @@ package com.wanderwildwood.kotozute.repository
 import com.wanderwildwood.kotozute.model.Message
 import io.realm.Realm
 
-data class ParsedEmojiReaction(val emoji: String, val originalMessage: String, val isRemoval: Boolean = false)
+/**
+ * [attachmentType] is set when the reaction names a picture rather than quoting text -- an
+ * iPhone's `Loved an image` -- and holds the MIME prefix the target must carry ("image/",
+ * "video/", or "" for any attachment). [originalMessage] is then empty.
+ */
+data class ParsedEmojiReaction(
+    val emoji: String,
+    val originalMessage: String,
+    val isRemoval: Boolean = false,
+    val attachmentType: String? = null,
+)
 
 interface EmojiReactionRepository {
     companion object {
@@ -48,7 +58,17 @@ interface EmojiReactionRepository {
      */
     fun composeReaction(emoji: String, targetText: String, remove: Boolean): String
 
-    fun findTargetMessage(threadId: Long, originalMessageText: String, realm: Realm): Message?
+    /**
+     * The same for a message with no text, only an attachment of [partType]: `Loved an
+     * image`. The other phone has nothing to match it by, so it takes the newest picture.
+     */
+    fun composeAttachmentReaction(emoji: String, partType: String, remove: Boolean): String
+
+    /**
+     * The message [reaction] is to: the one whose text it quotes, or, for a reaction to a
+     * picture, the newest message carrying one that arrived [before] the reaction itself.
+     */
+    fun findTargetMessage(threadId: Long, reaction: ParsedEmojiReaction, before: Long, realm: Realm): Message?
 
     fun saveEmojiReaction(
         reactionMessage: Message,

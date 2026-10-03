@@ -23,10 +23,11 @@ import android.view.LayoutInflater
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
+import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkAdapter
 import com.wanderwildwood.kotozute.databinding.QkDialogBinding
 
-class QkDialog(private val context: Activity) : AlertDialog(context) {
+class QkDialog(private val context: Activity) : AlertDialog(context, R.style.EInkDialog) {
 
     private val view = QkDialogBinding.inflate(LayoutInflater.from(context))
 

@@ -1,7 +1,7 @@
 package com.wanderwildwood.kotozute.feature.blocking.manager
 
 import android.app.Activity
-import android.app.AlertDialog
+import androidx.appcompat.app.AlertDialog
 import android.content.res.ColorStateList
 import android.view.View
 import androidx.core.view.isInvisible
@@ -17,6 +17,7 @@ import io.reactivex.Single
 import io.reactivex.subjects.PublishSubject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.BlockingManagerControllerBinding
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 class BlockingManagerController : QkController<BlockingManagerView, BlockingManagerState, BlockingManagerPresenter>(),
     BlockingManagerView {
@@ -90,7 +91,7 @@ class BlockingManagerController : QkController<BlockingManagerView, BlockingMana
     override fun siaClicked(): Observable<*> = binding.shouldIAnswer.clicks()
 
     override fun showCopyDialog(manager: String): Single<Boolean> = Single.create { emitter ->
-        AlertDialog.Builder(activity)
+        activity!!.einkDialog()
                 .setTitle(R.string.blocking_manager_copy_title)
                 .setMessage(resources?.getString(R.string.blocking_manager_copy_summary, manager))
                 .setPositiveButton(R.string.button_continue) { _, _ -> emitter.onSuccess(true) }

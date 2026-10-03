@@ -36,6 +36,7 @@ import io.reactivex.subjects.Subject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.BlockedNumbersControllerBinding
 import com.wanderwildwood.kotozute.databinding.BlockedNumbersAddDialogBinding
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 class BlockedNumbersController : QkController<BlockedNumbersView, BlockedNumbersState, BlockedNumbersPresenter>(),
     BlockedNumbersView {
@@ -83,7 +84,7 @@ class BlockedNumbersController : QkController<BlockedNumbersView, BlockedNumbers
         val dialogBinding = BlockedNumbersAddDialogBinding.inflate(LayoutInflater.from(activity))
         val layout = dialogBinding.root
         val textWatcher = BlockedNumberTextWatcher(dialogBinding.input, phoneNumberUtils)
-        val dialog = AlertDialog.Builder(activity!!)
+        val dialog = activity!!.einkDialog()
                 .setView(layout)
                 .setPositiveButton(R.string.blocked_numbers_dialog_block) { _, _ ->
                     saveAddressSubject.onNext(dialogBinding.input.text.toString())

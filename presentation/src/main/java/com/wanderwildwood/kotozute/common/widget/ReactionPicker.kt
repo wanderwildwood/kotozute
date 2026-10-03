@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 /**
  * A short row of emoji to react with, and a way to take one back.
@@ -32,7 +33,7 @@ object ReactionPicker {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(8), dp(16), dp(8), dp(16))
         }
-        val dialog = AlertDialog.Builder(context).setView(row).show()
+        val dialog = context.einkDialog().setView(row).show()
         choices.forEach { emoji ->
             val cell = QkTextView(context).apply {
                 text = emoji

@@ -71,6 +71,7 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import com.wanderwildwood.kotozute.databinding.SettingsControllerBinding
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 private const val PICK_EXPORT_FOLDER = 4803
 private const val PICK_BACKUP_FOLDER = 4804
@@ -502,7 +503,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     now.findableByNumber -> 1
                     else -> 2
                 }
-                AlertDialog.Builder(activity)
+                activity.einkDialog()
                     .setTitle(R.string.settings_signal_number_title)
                     .setSingleChoiceItems(
                         arrayOf(
@@ -552,7 +553,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             .filterNot { it.packageName == "com.android.documentsui" || it.packageName == "com.google.android.documentsui" }
         val labels = listOf(activity.getString(R.string.settings_file_picker_system)) + choices.map { it.label }
         val current = choices.indexOfFirst { it.packageName == filePrefs.filePicker.get() } + 1
-        AlertDialog.Builder(activity)
+        activity.einkDialog()
             .setTitle(R.string.settings_file_picker_title)
             .setSingleChoiceItems(labels.toTypedArray(), current) { dialog, which ->
                 filePrefs.filePicker.set(if (which == 0) "" else choices[which - 1].packageName)
@@ -567,7 +568,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override suspend fun showAutoDeleteWarningDialog(messages: Int): Boolean = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
-            AlertDialog.Builder(activity!!)
+            activity!!.einkDialog()
                     .setTitle(R.string.settings_auto_delete_warning)
                     .setMessage(context.resources.getString(R.string.settings_auto_delete_warning_message, messages))
                     .setOnCancelListener { cont.resume(false) }
@@ -603,7 +604,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 inputType = android.text.InputType.TYPE_CLASS_PHONE
                 setSingleLine(true)
             }
-            AlertDialog.Builder(activity)
+            activity.einkDialog()
                 .setTitle(R.string.settings_signal_backup_key_title)
                 .setMessage(R.string.settings_signal_backup_key_body)
                 .setView(input)
@@ -620,7 +621,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             val activity = activity ?: return@runOnUiThread
             binding.signalHistoryImport.summary =
                 activity.getString(R.string.settings_signal_import_summary)
-            AlertDialog.Builder(activity)
+            activity.einkDialog()
                 .setTitle(R.string.settings_signal_backup_key_title)
                 .setMessage(R.string.settings_signal_backup_key_wrong)
                 .setNegativeButton(R.string.button_cancel, null)
@@ -692,7 +693,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     }
                 }
             }
-            val dialog = AlertDialog.Builder(activity)
+            val dialog = activity.einkDialog()
                 .setTitle(R.string.settings_signal_history_title)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
@@ -715,7 +716,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun askDiscoverContacts() {
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread
-            AlertDialog.Builder(activity)
+            activity.einkDialog()
                 .setTitle(R.string.settings_signal_discover_contacts_confirm_title)
                 .setMessage(R.string.settings_signal_discover_contacts_confirm_body)
                 .setPositiveButton(R.string.settings_signal_discover_contacts_confirm_yes) { _, _ ->
@@ -730,7 +731,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread
             val text = log.ifBlank { activity.getString(R.string.settings_crash_log_none) }
-            AlertDialog.Builder(activity)
+            activity.einkDialog()
                 .setTitle(R.string.settings_crash_log_title)
                 // ⚠ The text itself, not a summary of it. Whoever sends this is sending
                 // whatever is on this screen, and a stack trace can carry message content in
@@ -763,7 +764,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun askFetchContacts() {
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread
-            AlertDialog.Builder(activity)
+            activity.einkDialog()
                 .setTitle(R.string.settings_signal_fetch_contacts_offer_title)
                 .setMessage(R.string.settings_signal_fetch_contacts_offer_body)
                 .setPositiveButton(R.string.settings_signal_fetch_contacts_offer_yes) { _, _ ->
@@ -779,7 +780,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun showSignalFetchResult(what: String) {
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread
-            AlertDialog.Builder(activity)
+            activity.einkDialog()
                 .setTitle(R.string.settings_signal_fetch_contacts_title)
                 .setMessage(what)
                 .setPositiveButton(android.R.string.ok, null)
@@ -889,7 +890,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     }
                 }
             }
-            AlertDialog.Builder(activity)
+            activity.einkDialog()
                 .setTitle(R.string.settings_signal_history_title)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
@@ -930,7 +931,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     append(activity.getString(R.string.signal_account_linked_note))
                 }
             }
-            val dialog = AlertDialog.Builder(activity)
+            val dialog = activity.einkDialog()
                 .setTitle(R.string.settings_signal_account_title)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
@@ -942,7 +943,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>) {
         if (urls.isEmpty()) {
-            AlertDialog.Builder(activity!!)
+            activity!!.einkDialog()
                 .setTitle(R.string.settings_desktop_sync_link_title)
                 .setMessage(R.string.settings_desktop_sync_link_none)
                 .setPositiveButton(android.R.string.ok, null)
@@ -973,7 +974,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             urls.forEach { (label, url) -> append(label).append('\n').append(url).append("\n\n") }
             append(activity!!.getString(R.string.settings_desktop_sync_link_bookmark))
         }
-        val builder = AlertDialog.Builder(activity!!)
+        val builder = activity!!.einkDialog()
                 .setTitle(R.string.settings_desktop_sync_link_title)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
@@ -1065,7 +1066,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         column.addView(given)
         column.addView(family)
 
-        androidx.appcompat.app.AlertDialog.Builder(context)
+        context.einkDialog()
             .setTitle(R.string.settings_signal_profile_name_title)
             .setMessage(R.string.signal_register_name_hint)
             .setView(column)

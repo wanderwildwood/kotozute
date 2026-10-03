@@ -101,6 +101,7 @@ import com.wanderwildwood.kotozute.databinding.ComposeActivityBinding
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.extensions.isSmil
 import com.wanderwildwood.kotozute.extensions.isText
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 
 class ComposeActivity : QkThemedActivity(), ComposeView {
@@ -452,7 +453,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         }
         binding.requestBlock.setOnClickListener { blockingDialog.show(this, listOf(threadId), true) }
         binding.requestDelete.setOnClickListener {
-            androidx.appcompat.app.AlertDialog.Builder(this)
+            einkDialog()
                 .setMessage(R.string.signal_request_delete_confirm)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.signal_request_delete) { _, _ ->
@@ -633,7 +634,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun showDetails(details: String) {
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.compose_details_title)
             .setMessage(details)
             .setCancelable(true)
@@ -649,7 +650,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         Toast.makeText(this, R.string.signal_reaction_failed, Toast.LENGTH_SHORT).show()
 
     override fun showMessageLinkAskDialog(uri: Uri) {
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.messageLinkHandling_dialog_title)
             .setMessage(getString(R.string.messageLinkHandling_dialog_body, uri.toString()))
             .setPositiveButton(
@@ -826,7 +827,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
     override fun showDeleteDialog(messages: List<Long>) {
         val count = messages.size
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.dialog_delete_title)
             .setMessage(resources.getQuantityString(R.plurals.dialog_delete_chat, count, count))
             .setPositiveButton(R.string.button_delete) { _, _ -> confirmDeleteIntent.onNext(messages) }
@@ -835,7 +836,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun showClearCurrentMessageDialog() {
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.dialog_clear_compose_title)
             .setMessage(R.string.dialog_clear_compose)
             .setPositiveButton(R.string.button_clear) { _, _ ->

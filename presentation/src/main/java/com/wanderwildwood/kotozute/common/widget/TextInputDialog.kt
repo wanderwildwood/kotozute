@@ -25,7 +25,7 @@ import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.databinding.TextInputDialogBinding
 
-class TextInputDialog(context: Activity, hint: String, listener: (String) -> Unit) : AlertDialog(context) {
+class TextInputDialog(context: Activity, hint: String, listener: (String) -> Unit) : AlertDialog(context, R.style.EInkDialog) {
 
     private val layout = TextInputDialogBinding.inflate(LayoutInflater.from(context))
 

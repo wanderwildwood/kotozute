@@ -34,6 +34,7 @@ import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.BlockedMessagesControllerBinding
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 class BlockedMessagesController : QkController<BlockedMessagesView, BlockedMessagesState, BlockedMessagesPresenter>(),
     BlockedMessagesView {
@@ -110,7 +111,7 @@ class BlockedMessagesController : QkController<BlockedMessagesView, BlockedMessa
 
     override fun showDeleteDialog(conversations: List<Long>) {
         val count = conversations.size
-        AlertDialog.Builder(activity!!)
+        activity!!.einkDialog()
                 .setTitle(R.string.dialog_delete_title)
                 .setMessage(resources?.getQuantityString(R.plurals.dialog_delete_message, count, count))
                 .setPositiveButton(R.string.button_delete) { _, _ -> confirmDeleteIntent.onNext(conversations) }

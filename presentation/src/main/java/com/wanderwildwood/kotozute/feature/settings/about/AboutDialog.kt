@@ -34,7 +34,7 @@ import android.net.Uri
  * A dialog rather than a screen of rows: About is not a setting, and it is one panel's worth of
  * text that nobody comes back to twice.
  */
-class AboutDialog(context: Activity, onVersionLongClick: () -> Unit) : AlertDialog(context) {
+class AboutDialog(context: Activity, onVersionLongClick: () -> Unit) : AlertDialog(context, R.style.EInkDialog) {
 
     private val layout = AboutDialogBinding.inflate(LayoutInflater.from(context))
 

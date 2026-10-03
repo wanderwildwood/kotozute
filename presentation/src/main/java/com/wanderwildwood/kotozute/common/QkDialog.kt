@@ -28,6 +28,7 @@ import com.wanderwildwood.kotozute.common.util.extensions.dpToPx
 import com.wanderwildwood.kotozute.common.util.extensions.setPadding
 import com.wanderwildwood.kotozute.injection.appComponent
 import javax.inject.Inject
+import com.wanderwildwood.kotozute.common.util.einkDialog
 
 /**
  * Wrapper around AlertDialog which makes it easier to display lists that use our UI
@@ -46,7 +47,7 @@ class QkDialog @Inject constructor(private val context: Context, val adapter: Me
         recyclerView.adapter = adapter
         recyclerView.setPadding(top = 8.dpToPx(context), bottom = 8.dpToPx(context))
 
-        val dialog = AlertDialog.Builder(activity)
+        val dialog = activity.einkDialog()
                 .setTitle(title)
                 .setView(recyclerView)
                 .create()

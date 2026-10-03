@@ -85,8 +85,25 @@ internal class SignalContactStore(
          * storage read can set them without a sync clearing them again.
          */
         val hidden: Boolean? = null,
-        val unregisteredAt: Long? = null
+        val unregisteredAt: Long? = null,
+        /**
+         * The nickname and note the account holds for them, from a storage read and nowhere
+         * else. Null means "this source does not carry one"; a [Nickname] with blank parts is
+         * the account saying there is none. See schema v40.
+         */
+        val nickname: Nickname? = null,
+        /**
+         * What they would be called with no nickname -- the address book's name, else their
+         * profile's -- so taking a nickname away here has something to fall back to.
+         */
+        val nameBelowNickname: String? = null
     )
+
+    /** Signal's nickname and note for one person: `Recipient.nickname` and `Recipient.note`. */
+    data class Nickname(val given: String?, val family: String?, val note: String?) {
+        /** The name it shows as, joined as profile names are, or null when it has none. */
+        val joined: String? get() = ProfileNames.joined(given, family)
+    }
 
     /** Whether a service id is a phone-number identity rather than an account. */
     private fun isPni(serviceId: String) = serviceId.startsWith(PNI_PREFIX)
@@ -147,7 +164,8 @@ internal class SignalContactStore(
                 val pni = c.pni ?: c.serviceId.takeIf { isPni(it) }
                 upsert(
                     database, aci, pni, c.e164, c.name, c.profileName, c.profileKey, c.username,
-                    c.hidden, c.unregisteredAt, numberChanges, c.storageRecord, c.remoteStorageId
+                    c.hidden, c.unregisteredAt, numberChanges, c.storageRecord, c.remoteStorageId,
+                    c.nickname, c.nameBelowNickname
                 )
             }
             database.setTransactionSuccessful()
@@ -201,9 +219,13 @@ internal class SignalContactStore(
          */
         storageRecord: ByteArray? = null,
         /** See [Contact.remoteStorageId]. Fill-only for the same reason as [storageRecord]. */
-        remoteStorageId: String? = null
+        remoteStorageId: String? = null,
+        /** See [Contact.nickname]. Applied whole when non-null, unless one set here is waiting. */
+        nickname: Nickname? = null,
+        nameBelowNickname: String? = null
     ) {
         val now = System.currentTimeMillis()
+        val carries = if (nickname != null) 1 else 0
         val byAci = aci?.let { candidateFor(database, "aci", it) }
         val byPni = pni?.let { candidateFor(database, "pni", it) }
         // By number too. One person can be here three times over -- found by number from
@@ -244,14 +266,16 @@ internal class SignalContactStore(
             database.execSQL(
                 "INSERT INTO recipient " +
                     "(aci, pni, e164, name, profile_name, profile_key, username, hidden, " +
-                    "unregistered_at, storage_record, remote_storage_id, updated_timestamp) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "unregistered_at, storage_record, remote_storage_id, nickname_given, " +
+                    "nickname_family, note, updated_timestamp) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 arrayOf<Any?>(
                     aci, pni, e164.orNull(), name.orNull(), profileName.orNull(), profileKey,
                     username.orNull(),
                     // Nothing said means the column's default, not null: these are NOT NULL.
                     if (hidden == true) 1 else 0, unregisteredAt ?: 0L,
                     storageRecord, remoteStorageId,
+                    nickname?.given.orNull(), nickname?.family.orNull(), nickname?.note.orNull(),
                     now
                 )
             )
@@ -314,6 +338,13 @@ internal class SignalContactStore(
               -- here would drop the record a write must start from. See [Contact.storageRecord].
               storage_record = COALESCE(?, storage_record),
               remote_storage_id = COALESCE(?, remote_storage_id),
+              -- The account's nickname, whole, from a storage read -- blank parts included,
+              -- because a nickname taken away elsewhere is a change too. Except while one set
+              -- here is still waiting to go up: the record being read is the one it replaces,
+              -- and applying it would quietly undo the change before it was sent. See v40.
+              nickname_given = CASE WHEN ? = 1 AND nickname_pending = 0 THEN ? ELSE nickname_given END,
+              nickname_family = CASE WHEN ? = 1 AND nickname_pending = 0 THEN ? ELSE nickname_family END,
+              note = CASE WHEN ? = 1 AND nickname_pending = 0 THEN ? ELSE note END,
               -- A new profile key means the name we hold was decrypted with the old one.
               -- Signal zeroes last_profile_fetch on every profile key write for this reason.
               last_profile_fetch = CASE
@@ -340,14 +371,109 @@ internal class SignalContactStore(
                 hidden?.let { if (it) 1 else 0 }, unregisteredAt,
                 // Positionally after unregistered_at, matching the SET clause above.
                 storageRecord, remoteStorageId,
+                carries, nickname?.given.orNull(),
+                carries, nickname?.family.orNull(),
+                carries, nickname?.note.orNull(),
                 profileKey, profileKey, profileKey, profileKey, now, existing
             )
         )
+        nameByNickname(database, existing, nameBelowNickname)
         // Collected, not announced. See [store]: the caller fires these once the transaction
         // has closed.
         if (aci != null && e164 != null && noteworthyNumberChange(numberBefore, e164)) {
             changes += Triple(aci, numberBefore.orEmpty(), e164)
         }
+    }
+
+    /**
+     * Puts a nickname above whatever name the row was just given.
+     *
+     * Signal's order is nickname, then address book, then profile (`Recipient.getDisplayName`),
+     * and every source that writes `name` here -- a contacts sync, a profile fetch, a storage
+     * read -- knows only its own part of that. So after any of them writes, the nickname is
+     * put back on top. With none, a nickname taken away here and not yet sent falls to
+     * [below], the name the record gives once its nickname is set aside.
+     */
+    private fun nameByNickname(
+        database: net.zetetic.database.sqlcipher.SQLiteDatabase,
+        rowId: Long,
+        below: String?
+    ) {
+        val (held, pending) = database.rawQuery(
+            "SELECT nickname_given, nickname_family, note, nickname_pending FROM recipient WHERE _id = ?",
+            arrayOf(rowId.toString())
+        ).use { c ->
+            if (!c.moveToFirst()) return
+            Nickname(c.getString(0), c.getString(1), c.getString(2)) to (c.getInt(3) != 0)
+        }
+        val name = held.joined ?: below.orNull()?.takeIf { pending } ?: return
+        database.execSQL("UPDATE recipient SET name = ? WHERE _id = ?", arrayOf<Any?>(name, rowId))
+    }
+
+    /**
+     * Sets, or with blank parts takes away, the nickname and note for one person.
+     *
+     * Upstream's `RecipientTable.setNicknameAndNote`: blank parts are stored as nothing, and
+     * the change is marked for the account (the caller rotates the storage id, as upstream's
+     * `rotateStorageId` there does). The shown name follows at once -- the nickname, or with
+     * none, what the account's record calls them without one, else their profile's name.
+     *
+     * @return false when there is no row for them, so nothing was set.
+     */
+    fun setNickname(serviceId: String, nickname: Nickname): Boolean = withStoreLock(db) {
+        val database = db.writableDatabase
+        val held = database.rawQuery(
+            "SELECT storage_record, profile_name FROM recipient WHERE aci = ? OR pni = ? LIMIT 1",
+            arrayOf(serviceId, serviceId)
+        ).use { c -> if (c.moveToFirst()) c.getBlob(0) to c.getString(1) else null }
+            ?: return@withStoreLock false
+        val (record, profileName) = held
+        val below = record
+            ?.let {
+                runCatching {
+                    org.whispersystems.signalservice.internal.storage.protos.StorageRecord.ADAPTER.decode(it).contact
+                }.getOrNull()
+            }
+            ?.let { SignalStorageService.nameOf(it.copy(nickname = null)) }
+            ?: profileName.orNull()
+        database.execSQL(
+            """
+            UPDATE recipient SET
+              nickname_given = ?, nickname_family = ?, note = ?, nickname_pending = 1,
+              name = COALESCE(?, ?, name)
+            WHERE aci = ? OR pni = ?
+            """.trimIndent(),
+            arrayOf<Any?>(
+                nickname.given.orNull(), nickname.family.orNull(), nickname.note.orNull(),
+                nickname.joined, below, serviceId, serviceId
+            )
+        )
+        true
+    }
+
+    /** Everybody with a nickname, by service id, to the name it shows as. */
+    fun nicknamed(): Map<String, String> = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            """
+            SELECT COALESCE(aci, pni), nickname_given, nickname_family FROM recipient
+            WHERE COALESCE(aci, pni) IS NOT NULL
+              AND (nickname_given IS NOT NULL OR nickname_family IS NOT NULL)
+            """.trimIndent(), null
+        ).use { c ->
+            buildMap {
+                while (c.moveToNext()) {
+                    Nickname(c.getString(1), c.getString(2), null).joined?.let { put(c.getString(0), it) }
+                }
+            }
+        }
+    }
+
+    /** The nickname and note held for one person, or null when there is no row. */
+    fun nicknameFor(serviceId: String): Nickname? = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT nickname_given, nickname_family, note FROM recipient WHERE aci = ? OR pni = ? LIMIT 1",
+            arrayOf(serviceId, serviceId)
+        ).use { c -> if (c.moveToFirst()) Nickname(c.getString(0), c.getString(1), c.getString(2)) else null }
     }
 
     private fun String?.orNull(): String? = this?.takeIf { it.isNotBlank() }
@@ -881,10 +1007,13 @@ internal class SignalContactStore(
               e164 = COALESCE(e164, (SELECT e164 FROM recipient WHERE _id = ?)),
               name = COALESCE(name, (SELECT name FROM recipient WHERE _id = ?)),
               profile_name = COALESCE(profile_name, (SELECT profile_name FROM recipient WHERE _id = ?)),
-              profile_key = COALESCE(profile_key, (SELECT profile_key FROM recipient WHERE _id = ?))
+              profile_key = COALESCE(profile_key, (SELECT profile_key FROM recipient WHERE _id = ?)),
+              nickname_given = COALESCE(nickname_given, (SELECT nickname_given FROM recipient WHERE _id = ?)),
+              nickname_family = COALESCE(nickname_family, (SELECT nickname_family FROM recipient WHERE _id = ?)),
+              note = COALESCE(note, (SELECT note FROM recipient WHERE _id = ?))
             WHERE _id = ?
             """.trimIndent(),
-            arrayOf<Any?>(absorb, absorb, absorb, absorb, absorb, absorb, keep)
+            arrayOf<Any?>(absorb, absorb, absorb, absorb, absorb, absorb, absorb, absorb, absorb, keep)
         )
         remapDependents(database, keep = keep, absorb = absorb)
         database.execSQL("DELETE FROM recipient WHERE _id = ?", arrayOf<Any?>(absorb))
@@ -1083,7 +1212,9 @@ internal class SignalContactStore(
          * The account's, from the manifest. The **only** id a write may delete, and null for
          * a row the account has never held. See schema v35.
          */
-        val remoteStorageId: String? = null
+        val remoteStorageId: String? = null,
+        /** A nickname set here and not yet sent, or null to leave the account's as it is. */
+        val nickname: Nickname? = null
     )
 
     /** Rows the account has not been told about, for the diff that will one day be a write. */
@@ -1091,7 +1222,8 @@ internal class SignalContactStore(
         db.readableDatabase.rawQuery(
             """
             SELECT COALESCE(aci, pni), group_id, name, profile_key IS NOT NULL,
-                   storage_id, remote_storage_id
+                   storage_id, remote_storage_id,
+                   nickname_pending, nickname_given, nickname_family, note
             FROM recipient WHERE storage_id IS NOT NULL
             """.trimIndent(), null
         ).use { c ->
@@ -1103,7 +1235,12 @@ internal class SignalContactStore(
                     name = c.getString(2),
                     hasProfileKey = c.getInt(3) != 0,
                     storageId = c.getString(4),
-                    remoteStorageId = c.getString(5)
+                    remoteStorageId = c.getString(5),
+                    nickname = if (c.getInt(6) != 0) {
+                        Nickname(c.getString(7), c.getString(8), c.getString(9))
+                    } else {
+                        null
+                    }
                 )
             }.toList()
         }
@@ -1120,7 +1257,8 @@ internal class SignalContactStore(
     fun markPushed(storageId: String, record: ByteArray) = withStoreLock(db) {
         db.writableDatabase.execSQL(
             """
-            UPDATE recipient SET remote_storage_id = storage_id, storage_record = ?, storage_id = NULL
+            UPDATE recipient SET remote_storage_id = storage_id, storage_record = ?, storage_id = NULL,
+              nickname_pending = 0
             WHERE storage_id = ?
             """.trimIndent(),
             arrayOf<Any?>(record, storageId)
@@ -1131,7 +1269,7 @@ internal class SignalContactStore(
     fun clearMarks(storageIds: List<String>) = withStoreLock(db) {
         storageIds.forEach { id ->
             db.writableDatabase.execSQL(
-                "UPDATE recipient SET storage_id = NULL WHERE storage_id = ?",
+                "UPDATE recipient SET storage_id = NULL, nickname_pending = 0 WHERE storage_id = ?",
                 arrayOf<Any?>(id)
             )
         }

@@ -1287,6 +1287,7 @@ class SignalRepositoryImpl @Inject constructor(
     private fun renameThreadsFromContacts() {
         mergeNumberKeyedThreads()
         contactsChanged()
+        retitleNicknamed()
         val names = signalStore.contactNames()
         // Not returned on an empty map any more. The account's own names are one source of
         // two now, and the reader's address book -- reached through a number learned from a
@@ -5119,6 +5120,70 @@ class SignalRepositoryImpl @Inject constructor(
     override fun about(threadKey: String): String? =
         threadKey.takeIf { it.startsWith("direct:") }?.let { signalStore.aboutFor(it.removePrefix("direct:")) }
 
+    override fun nickname(threadKey: String): SignalRepository.Nickname? {
+        val serviceId = threadKey.takeIf { it.startsWith("direct:") }?.removePrefix("direct:") ?: return null
+        // Not for Note to Self, as upstream offers it only on somebody else's settings.
+        if (serviceId == signalStore.selfAciOrNull()) return null
+        val held = runCatching { signalStore.nicknameFor(serviceId) }
+            .onFailure { Timber.w(it, "signal nickname: could not read one") }
+            .getOrNull() ?: return null
+        return SignalRepository.Nickname(held.given.orEmpty(), held.family.orEmpty(), held.note.orEmpty())
+    }
+
+    /**
+     * Upstream's `NicknameViewModel.save`: the nickname and note into the recipient row, which
+     * marks it for the account, then a storage sync. The conversation's title follows here
+     * too, because a one-to-one title is otherwise only ever filled in, never replaced.
+     */
+    override fun setNickname(threadKey: String, nickname: SignalRepository.Nickname): Boolean {
+        val serviceId = threadKey.takeIf { it.startsWith("direct:") }?.removePrefix("direct:") ?: return false
+        val kept = runCatching {
+            signalStore.setNickname(
+                serviceId,
+                com.wanderwildwood.kotozute.signalstore.SignalContactStore.Nickname(
+                    nickname.given.trim(), nickname.family.trim(), nickname.note.trim()
+                )
+            )
+        }.onFailure { Timber.w(it, "signal nickname: could not keep one") }.getOrDefault(false)
+        if (!kept) return false
+        retitleFromContact(threadKey)
+        contactsChanged()
+        runOffThread { pushStorageNow() }
+        return true
+    }
+
+    /**
+     * Conversations called by the nickname their person has, wherever it was set.
+     *
+     * Everything else here only fills a blank title, so that an address-book name is never
+     * written over. A nickname is different: it is the account owner naming this person on
+     * purpose, and upstream puts it first (`Recipient.getDisplayName`), above the address book.
+     */
+    private fun retitleNicknamed() {
+        val nicknamed = signalStore.nicknamed()
+        if (nicknamed.isEmpty()) return
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalThread::class.java).equalTo("kind", "direct").findAll().forEach { thread ->
+                    val name = nicknamed[thread.counterpartUuid] ?: return@forEach
+                    if (thread.title != name) thread.title = name
+                }
+            }
+        }
+    }
+
+    /** A one-to-one conversation called by what the store now calls its person. */
+    private fun retitleFromContact(threadKey: String) {
+        val name = nameForCounterpart(threadKey.removePrefix("direct:")) ?: return
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalThread::class.java).equalTo("threadKey", threadKey).findFirst()
+                    ?.takeIf { it.title != name }
+                    ?.title = name
+            }
+        }
+    }
+
     override fun setOwnAbout(about: String, emoji: String): SignalRepository.ProfileNameFailure? =
         runCatching { signalStore.setOwnAbout(about, emoji) }
             .getOrElse { SignalRepository.ProfileNameFailure.Unexplained(it.message ?: it::class.java.simpleName) }
@@ -5420,7 +5485,8 @@ class SignalRepositoryImpl @Inject constructor(
                 com.wanderwildwood.kotozute.signalstore.SignalStorageWriter.Desired(
                     muted = it.muted,
                     archived = it.archived,
-                    markedUnread = it.markedUnreadAt > 0
+                    markedUnread = it.markedUnreadAt > 0,
+                    nickname = row.nickname
                 )
             }
         }

@@ -96,6 +96,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         refreshLinkRow()
 
         binding.timer.setOnClickListener { pickTimer() }
+        binding.nickname.setOnClickListener { editNickname() }
 
         binding.archive.setOnClickListener {
             isArchived = !isArchived
@@ -180,6 +181,104 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         thread(isDaemon = true) { load() }
         if (threadKey.startsWith("group:")) thread(isDaemon = true) { loadGroup() }
         thread(isDaemon = true) { loadIdentity() }
+        thread(isDaemon = true) { loadNickname() }
+    }
+
+    /** The nickname as held, or null where this conversation has nobody to give one to. */
+    private var nickname: SignalRepository.Nickname? = null
+
+    private fun loadNickname() {
+        val held = runCatching { signalRepo.nickname(threadKey) }.getOrNull()
+        runOnUiThread {
+            if (isFinishing) return@runOnUiThread
+            nickname = held
+            binding.nickname.setVisible(held != null)
+            if (held == null) return@runOnUiThread
+            val name = listOf(held.given, held.family).filter { it.isNotBlank() }.joinToString(" ")
+            binding.nickname.summary = listOf(name, held.note).filter { it.isNotBlank() }
+                .joinToString("\n")
+                .ifBlank { getString(R.string.signal_nickname_none) }
+        }
+    }
+
+    /**
+     * Upstream's `NicknameActivity`, as a dialog: first name, last name and a note, at its
+     * limits (`NicknameViewModel`: 26 and 240). Saving with every part blank takes them away,
+     * and Delete does that in one go -- asking in its own face, not with a second dialog.
+     */
+    private fun editNickname() {
+        val held = nickname ?: return
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        fun field(hint: Int, text: String, max: Int, type: Int) = android.widget.EditText(this).apply {
+            setHint(hint)
+            setText(text)
+            inputType = type
+            filters = arrayOf(android.text.InputFilter.LengthFilter(max))
+        }
+        val nameType = android.text.InputType.TYPE_CLASS_TEXT or
+            android.text.InputType.TYPE_TEXT_VARIATION_PERSON_NAME or
+            android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS
+        val given = field(R.string.signal_nickname_first, held.given, NICKNAME_NAME_MAX, nameType)
+        val family = field(R.string.signal_nickname_last, held.family, NICKNAME_NAME_MAX, nameType)
+        val note = field(
+            R.string.signal_nickname_note, held.note, NICKNAME_NOTE_MAX,
+            android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        )
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+            addView(com.wanderwildwood.kotozute.common.widget.QkTextView(this@SignalThreadInfoActivity).apply {
+                setText(R.string.signal_nickname_private)
+            })
+            addView(given)
+            addView(family)
+            addView(note)
+        }
+        val hasOne = listOf(held.given, held.family, held.note).any { it.isNotBlank() }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.signal_nickname)
+            .setView(android.widget.ScrollView(this).apply { addView(box) })
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.signal_nickname_save) { _, _ ->
+                saveNickname(
+                    SignalRepository.Nickname(
+                        given.text.toString(), family.text.toString(), note.text.toString()
+                    )
+                )
+            }
+            .apply { if (hasOne) setNeutralButton(R.string.signal_nickname_delete, null) }
+            .show()
+        if (hasOne) {
+            val delete = dialog.getButton(android.content.DialogInterface.BUTTON_NEUTRAL)
+            var armed = false
+            val disarm = Runnable { armed = false; delete.setText(R.string.signal_nickname_delete) }
+            delete.setOnClickListener {
+                if (!armed) {
+                    armed = true
+                    delete.setText(R.string.signal_nickname_delete_armed)
+                    delete.postDelayed(disarm, ARM_TIMEOUT_MS)
+                    return@setOnClickListener
+                }
+                delete.removeCallbacks(disarm)
+                dialog.dismiss()
+                saveNickname(SignalRepository.Nickname("", "", ""))
+            }
+        }
+    }
+
+    private fun saveNickname(wanted: SignalRepository.Nickname) {
+        thread(isDaemon = true) {
+            val ok = runCatching { signalRepo.setNickname(threadKey, wanted) }.getOrDefault(false)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (!ok) Toast.makeText(this, R.string.signal_nickname_failed, Toast.LENGTH_LONG).show()
+                thread(isDaemon = true) { loadNickname() }
+                // The name at the top is the conversation's title, which the nickname now sets.
+                thread(isDaemon = true) { load() }
+            }
+        }
     }
 
     /**
@@ -808,6 +907,10 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         private const val ARM_TIMEOUT_MS = 4000L
         private const val EXTRA_KEY = "threadKey"
         private const val MEDIA_COLUMNS = 3
+
+        /** Upstream's `NicknameViewModel.NAME_MAX_LENGTH` and `NOTE_MAX_LENGTH`. */
+        private const val NICKNAME_NAME_MAX = 26
+        private const val NICKNAME_NOTE_MAX = 240
 
         /** Upstream's `ExpireTimerSettingsFragment__values`, in its order. */
         private val TIMER_CHOICES = listOf(

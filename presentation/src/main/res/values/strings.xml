@@ -552,6 +552,17 @@
     <string name="signal_info_members">In this group</string>
     <string name="signal_info_media">Pictures</string>
     <string name="signal_info_media_none">No pictures in this conversation</string>
+    <!-- Signal's Nickname screen, as a row on Details and a dialog. Wording from upstream's NicknameActivity. -->
+    <string name="signal_nickname">Nickname</string>
+    <string name="signal_nickname_none">None</string>
+    <string name="signal_nickname_private">Nicknames &amp; notes are stored with Signal and end-to-end encrypted. They are only visible to you.</string>
+    <string name="signal_nickname_first">First name</string>
+    <string name="signal_nickname_last">Last name</string>
+    <string name="signal_nickname_note">Note</string>
+    <string name="signal_nickname_save">Save</string>
+    <string name="signal_nickname_delete">Delete</string>
+    <string name="signal_nickname_delete_armed">Delete — tap again</string>
+    <string name="signal_nickname_failed">The nickname could not be kept</string>
     <plurals name="signal_info_counts">
         <item quantity="one">%1$d message</item>
         <item quantity="other">%1$d messages</item>

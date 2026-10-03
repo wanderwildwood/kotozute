@@ -2090,6 +2090,19 @@ class SignalStore(private val context: Context) {
     /** The name known for a service id, or null. */
     fun contactName(aci: String): String? = runCatching { contacts.nameFor(aci) }.getOrNull()
 
+    /** See [SignalContactStore.nicknamed]. */
+    fun nicknamed(): Map<String, String> = runCatching { contacts.nicknamed() }.getOrDefault(emptyMap())
+
+    /** See [SignalContactStore.nicknameFor]. */
+    internal fun nicknameFor(serviceId: String): SignalContactStore.Nickname? = contacts.nicknameFor(serviceId)
+
+    /**
+     * See [SignalContactStore.setNickname]; marked for the account in the same breath, as
+     * upstream's `setNicknameAndNote` rotates the storage id.
+     */
+    internal fun setNickname(serviceId: String, nickname: SignalContactStore.Nickname): Boolean =
+        contacts.setNickname(serviceId, nickname).also { if (it) contacts.rotateStorageId(serviceId) }
+
     /** The number known for one service id, or null. */
     fun contactNumber(aci: String): String? = runCatching { contacts.numberFor(aci) }.getOrNull()
 

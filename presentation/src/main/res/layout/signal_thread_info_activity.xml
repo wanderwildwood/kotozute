@@ -226,6 +226,16 @@
                 android:layout_marginTop="16dp"
                 android:background="@android:color/black" />
 
+            <!-- The name the reader gives this person, and a note: Signal's Nickname screen.
+                 Shown for one-to-one conversations only, once the person has a row. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/nickname"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:title="@string/signal_nickname"
+                xmlns:app="http://schemas.android.com/apk/res-auto" />
+
             <!-- How long messages here last. Tells the other side, or changes the group. -->
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/timer"

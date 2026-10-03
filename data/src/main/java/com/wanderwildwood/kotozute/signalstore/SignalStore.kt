@@ -1969,17 +1969,29 @@ class SignalStore(private val context: Context) {
     @Volatile
     private var onNumberChanged: ((aci: String, from: String, to: String) -> Unit)? = null
 
+    /**
+     * The name somebody is shown by has changed. Set by the repository, which keeps the
+     * conversation titles; unlike [onNumberChanged] it matters with nobody listening, since a
+     * title is read later, so it is a plain field that is always set.
+     */
+    @Volatile
+    var onShownNameChanged: (serviceId: String, from: String, to: String) -> Unit = { _, _, _ -> }
+
     /** Names for the people on the other end, from the primary's contacts sync. */
     internal val contacts: SignalContactStore by lazy {
-        SignalContactStore(database) { aci, from, to ->
-            // Blocked people are skipped for the same reason as a name change: a blocked
-            // person should not be able to put a line into a conversation, even a line about
-            // themselves. Read through `blocks`, not `contacts`, so this never re-enters the
-            // store that is mid-write.
-            if (!runCatching { blocks.isBlocked(aci, from) }.getOrDefault(false)) {
-                onNumberChanged?.invoke(aci, from, to)
-            }
-        }
+        SignalContactStore(
+            database,
+            onNumberChanged = { aci, from, to ->
+                // Blocked people are skipped for the same reason as a name change: a blocked
+                // person should not be able to put a line into a conversation, even a line about
+                // themselves. Read through `blocks`, not `contacts`, so this never re-enters the
+                // store that is mid-write.
+                if (!runCatching { blocks.isBlocked(aci, from) }.getOrDefault(false)) {
+                    onNumberChanged?.invoke(aci, from, to)
+                }
+            },
+            onNameChanged = { serviceId, from, to -> onShownNameChanged(serviceId, from, to) }
+        )
     }
 
     /** The account's blocked list, as the primary last sent it. */

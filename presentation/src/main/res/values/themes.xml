@@ -80,6 +80,20 @@
         <item name="colorControlActivated">@color/black</item>
     </style>
 
+    <!-- STYLE.md's EInkDialog for the View screens: no dimmed backdrop (on this panel a scrim
+         is a screenful of dithered grey, painted in and painted out again), no animation, no
+         shadow, and a white frame with a rim of ink. Through `einkDialog()`. -->
+    <style name="EInkDialog" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowElevation">0dp</item>
+        <item name="android:windowBackground">@drawable/dialog_eink</item>
+        <item name="android:textColorPrimary">@color/black</item>
+        <item name="colorAccent">@color/black</item>
+        <item name="colorControlActivated">@color/black</item>
+        <item name="buttonBarButtonStyle">@style/ButtonBarButton</item>
+    </style>
+
     <!-- Sentence case everywhere, dialogs included. AppCompat's button bar sets
          textAllCaps, so every dialog in the app shouted CLOSE, DELETE, CANCEL at a reader
          it had just interrupted. It was the last place the house rule was broken, and not

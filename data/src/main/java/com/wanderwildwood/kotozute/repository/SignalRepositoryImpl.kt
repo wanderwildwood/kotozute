@@ -335,6 +335,7 @@ class SignalRepositoryImpl @Inject constructor(
         signalStore.onConnecting = ::noteConnecting
         signalStore.onConversationState = ::applyConversationState
         signalStore.storageDesired = ::desiredStorageState
+        signalStore.onShownNameChanged = ::followRename
         signalStore.onPinnedRead = ::applyPinnedRead
         signalStore.pinsToWrite = ::desiredPins
         signalStore.onPinsWritten = { prefs.signalPinsDirty.set(false) }
@@ -5170,6 +5171,32 @@ class SignalRepositoryImpl @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * A conversation still called by somebody's old name takes their new one.
+     *
+     * Only where the title **is** the old name. A one-to-one title is otherwise only ever
+     * filled in, so that a name from the reader's own address book is never written over by
+     * one from the account -- and that still holds: a title that is not the name the store
+     * used to show did not come from the store, and is left as it is. What changes is that a
+     * nickname taken away on another device, or a new profile name, no longer leaves the
+     * conversation behind under a name nobody uses any more. Upstream has no titles to keep;
+     * its conversation list reads `Recipient.getDisplayName` live.
+     */
+    private fun followRename(serviceId: String, from: String, to: String) = runOffThread {
+        var renamed = 0
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalThread::class.java)
+                    .equalTo("kind", "direct")
+                    .equalTo("counterpartUuid", serviceId)
+                    .equalTo("title", from)
+                    .findAll()
+                    .forEach { it.title = to; renamed++ }
+            }
+        }
+        if (renamed > 0) contactsChanged()
     }
 
     /** A one-to-one conversation called by what the store now calls its person. */

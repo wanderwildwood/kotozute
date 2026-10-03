@@ -34,7 +34,13 @@ internal class SignalContactStore(
      *
      * Not when a number is learned for the first time -- see [noteworthyNumberChange].
      */
-    private val onNumberChanged: (aci: String, from: String, to: String) -> Unit = { _, _, _ -> }
+    private val onNumberChanged: (aci: String, from: String, to: String) -> Unit = { _, _, _ -> },
+    /**
+     * Told when the name somebody is shown by has changed -- a nickname set or taken away,
+     * a new profile name, a new address-book name -- so a conversation still called by the
+     * old one can follow. Not when a first name is learned; nothing was called anything yet.
+     */
+    private val onNameChanged: (serviceId: String, from: String, to: String) -> Unit = { _, _, _ -> }
 ) {
 
     /**
@@ -156,6 +162,7 @@ internal class SignalContactStore(
         // write transaction on the store that holds the identity keys. The lock is reentrant
         // so nothing deadlocks, which is exactly what makes it easy to miss.
         val numberChanges = mutableListOf<Triple<String, String, String>>()
+        val nameChanges = mutableListOf<Triple<String, String, String>>()
         database.beginTransaction()
         try {
             contacts.forEach { c ->
@@ -165,7 +172,7 @@ internal class SignalContactStore(
                 upsert(
                     database, aci, pni, c.e164, c.name, c.profileName, c.profileKey, c.username,
                     c.hidden, c.unregisteredAt, numberChanges, c.storageRecord, c.remoteStorageId,
-                    c.nickname, c.nameBelowNickname
+                    c.nickname, c.nameBelowNickname, nameChanges
                 )
             }
             database.setTransactionSuccessful()
@@ -178,6 +185,10 @@ internal class SignalContactStore(
         numberChanges.forEach { (aci, from, to) ->
             runCatching { onNumberChanged(aci, from, to) }
                 .onFailure { Timber.w(it, "signal contacts: could not note a number change") }
+        }
+        nameChanges.forEach { (serviceId, from, to) ->
+            runCatching { onNameChanged(serviceId, from, to) }
+                .onFailure { Timber.w(it, "signal contacts: could not pass on a name change") }
         }
     }
 
@@ -222,7 +233,9 @@ internal class SignalContactStore(
         remoteStorageId: String? = null,
         /** See [Contact.nickname]. Applied whole when non-null, unless one set here is waiting. */
         nickname: Nickname? = null,
-        nameBelowNickname: String? = null
+        nameBelowNickname: String? = null,
+        /** Where a changed shown name is put down, to be passed on after the commit. */
+        nameChanges: MutableList<Triple<String, String, String>>? = null
     ) {
         val now = System.currentTimeMillis()
         val carries = if (nickname != null) 1 else 0
@@ -312,6 +325,7 @@ internal class SignalContactStore(
         // half of that row with a different text conversation. Upstream notes a number change
         // in the conversation for its own reasons (`RecipientTable` -> `insertNumberChangeMessages`);
         // here there is a second reason on top of theirs.
+        val nameBefore = shownName(database, existing)
         val numberBefore = if (e164 != null && aci != null) {
             db.readableDatabase.rawQuery(
                 "SELECT e164 FROM recipient WHERE aci = ?", arrayOf(aci)
@@ -378,12 +392,26 @@ internal class SignalContactStore(
             )
         )
         nameByNickname(database, existing, nameBelowNickname)
+        if (nameChanges != null) {
+            val nameAfter = shownName(database, existing)
+            if (!nameBefore.isNullOrBlank() && !nameAfter.isNullOrBlank() && nameBefore != nameAfter) {
+                serviceIdOf(database, existing)?.let { nameChanges += Triple(it, nameBefore, nameAfter) }
+            }
+        }
         // Collected, not announced. See [store]: the caller fires these once the transaction
         // has closed.
         if (aci != null && e164 != null && noteworthyNumberChange(numberBefore, e164)) {
             changes += Triple(aci, numberBefore.orEmpty(), e164)
         }
     }
+
+    private fun shownName(database: net.zetetic.database.sqlcipher.SQLiteDatabase, rowId: Long): String? =
+        database.rawQuery("SELECT name FROM recipient WHERE _id = ?", arrayOf(rowId.toString()))
+            .use { c -> if (c.moveToFirst()) c.getString(0) else null }
+
+    private fun serviceIdOf(database: net.zetetic.database.sqlcipher.SQLiteDatabase, rowId: Long): String? =
+        database.rawQuery("SELECT COALESCE(aci, pni) FROM recipient WHERE _id = ?", arrayOf(rowId.toString()))
+            .use { c -> if (c.moveToFirst()) c.getString(0) else null }
 
     /**
      * Puts a nickname above whatever name the row was just given.

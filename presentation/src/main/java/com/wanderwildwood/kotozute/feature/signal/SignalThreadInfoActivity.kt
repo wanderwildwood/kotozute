@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.DateFormatter
+import com.wanderwildwood.kotozute.common.util.einkDialog
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.databinding.SignalMediaGridItemBinding
 import com.wanderwildwood.kotozute.databinding.SignalThreadInfoActivityBinding
@@ -237,7 +238,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             addView(note)
         }
         val hasOne = listOf(held.given, held.family, held.note).any { it.isNotBlank() }
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+        val dialog = einkDialog()
             .setTitle(R.string.signal_nickname)
             .setView(android.widget.ScrollView(this).apply { addView(box) })
             .setNegativeButton(android.R.string.cancel, null)
@@ -316,7 +317,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             Toast.makeText(this, R.string.info_link_none, Toast.LENGTH_SHORT).show()
             return
         }
-        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        val builder = einkDialog()
             .setTitle(R.string.info_link_pick)
             .setItems(choices.map { it.second }.toTypedArray()) { _, which ->
                 signalRepo.linkConversation(threadKey, choices[which].first)
@@ -474,7 +475,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     /** Upstream's list of timers, the one in force ticked. */
     private fun pickTimer() {
         val checked = TIMER_CHOICES.indexOfFirst { it.first == timerSeconds }
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.info_timer)
             .setSingleChoiceItems(TIMER_CHOICES.map { getString(it.second) }.toTypedArray(), checked) { dialog, which ->
                 dialog.dismiss()
@@ -798,7 +799,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
 
     private fun askText(@androidx.annotation.StringRes title: Int, current: String, onDone: (String) -> Unit) {
         val field = android.widget.EditText(this).apply { setText(current); setSelection(current.length) }
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(title)
             .setView(field)
             .setNegativeButton(android.R.string.cancel, null)
@@ -820,7 +821,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                     return@runOnUiThread
                 }
                 val chosen = BooleanArray(people.size)
-                androidx.appcompat.app.AlertDialog.Builder(this)
+                einkDialog()
                     .setTitle(R.string.group_add_members)
                     .setMultiChoiceItems(people.map { it.second }.toTypedArray(), chosen) { _, i, on -> chosen[i] = on }
                     .setNegativeButton(android.R.string.cancel, null)
@@ -839,21 +840,21 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                 groupEdit { signalRepo.setGroupAdmin(threadKey, m.aci, !m.admin) }
             },
             getString(R.string.group_remove_member) to {
-                androidx.appcompat.app.AlertDialog.Builder(this)
+                einkDialog()
                     .setMessage(getString(R.string.group_remove_confirm, m.name))
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton(R.string.group_remove_member) { _, _ -> groupEdit { signalRepo.removeFromGroup(threadKey, m.aci) } }
                     .show()
             }
         )
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(m.name)
             .setItems(actions.map { it.first }.toTypedArray()) { _, i -> actions[i].second() }
             .show()
     }
 
     private fun answerRequest(m: SignalRepository.GroupMember) {
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(m.name)
             .setMessage(R.string.group_request_question)
             .setNegativeButton(R.string.group_deny) { _, _ -> groupEdit { signalRepo.answerJoinRequest(threadKey, m.aci, false) } }
@@ -873,7 +874,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             }
             actions += getString(R.string.group_link_reset) to { groupEdit { signalRepo.resetGroupLink(threadKey) } }
         }
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.group_link)
             .setItems(actions.map { it.first }.toTypedArray()) { _, i -> actions[i].second() }
             .show()
@@ -887,7 +888,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         val others = g.members.filter { !it.self }
         val lastAdmin = g.selfAdmin && g.members.none { it.admin && !it.self } && others.isNotEmpty()
         if (lastAdmin) {
-            androidx.appcompat.app.AlertDialog.Builder(this)
+            einkDialog()
                 .setTitle(R.string.group_choose_admin)
                 .setItems(others.map { it.name }.toTypedArray()) { _, i ->
                     groupEdit(close = true) { signalRepo.leaveGroup(threadKey, others[i].aci) }
@@ -895,7 +896,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                 .show()
             return
         }
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        einkDialog()
             .setMessage(R.string.group_leave_confirm)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.group_leave) { _, _ -> groupEdit(close = true) { signalRepo.leaveGroup(threadKey, null) } }

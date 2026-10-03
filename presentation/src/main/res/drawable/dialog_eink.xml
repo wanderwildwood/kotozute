@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- STYLE.md's EInkDialog frame: white, a 2dp rim of ink, a 12dp corner. The inset is the
+     margin AppCompat's own dialog background keeps from the screen edge, which it carries in
+     the drawable rather than adding itself. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="16dp"
+    android:insetTop="16dp"
+    android:insetRight="16dp"
+    android:insetBottom="16dp">
+    <shape android:shape="rectangle">
+        <solid android:color="@android:color/white" />
+        <stroke android:width="2dp" android:color="@android:color/black" />
+        <corners android:radius="12dp" />
+    </shape>
+</inset>

@@ -379,6 +379,9 @@
             <data android:mimeType="vnd.android.cursor.item/contact" />
         </intent>
 
+        <!-- Contacts (enishi), named outright when it is installed. See ContactsApp. -->
+        <package android:name="com.wanderwildwood.enishi" />
+
         <!-- The dialer, for the call button on a conversation. -->
         <intent>
             <action android:name="android.intent.action.DIAL" />

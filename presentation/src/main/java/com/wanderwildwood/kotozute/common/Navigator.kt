@@ -28,6 +28,7 @@ import android.os.Build
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.provider.Telephony
+import com.wanderwildwood.kotozute.common.util.ContactsApp
 import com.wanderwildwood.kotozute.compat.TelephonyCompat
 import com.wanderwildwood.kotozute.extensions.resourceExists
 import com.wanderwildwood.kotozute.feature.backup.BackupActivity
@@ -304,14 +305,14 @@ class Navigator @Inject constructor(
                 .setType(ContactsContract.Contacts.CONTENT_TYPE)
                 .putExtra(ContactsContract.Intents.Insert.PHONE, address)
 
-        startActivityExternal(intent)
+        startActivityExternal(ContactsApp.prefer(context, intent))
     }
 
     fun showContact(lookupKey: String) {
         val intent = Intent(Intent.ACTION_VIEW)
                 .setData(Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, lookupKey))
 
-        startActivityExternal(intent)
+        startActivityExternal(ContactsApp.prefer(context, intent))
     }
 
     /**

@@ -190,15 +190,6 @@
     <string name="settings_swipe_actions_right">右スワイプ</string>
     <string name="settings_swipe_actions_left">左スワイプ</string>
     <string name="settings_swipe_actions_change">変更</string>
-    <string-array name="settings_swipe_actions">
-        <item>なし</item>
-        <item>アーカイブ</item>
-        <item>削除</item>
-        <item>ブロック</item>
-        <item>通話</item>
-        <item>既読にする</item>
-        <item>未読にする</item>
-    </string-array>
     <string name="settings_delivery_title">配信確認</string>
     <string name="settings_signature_title">署名</string>
     <string name="settings_signature_summary">メッセージの最後に署名を追加します</string>
@@ -266,15 +257,6 @@
     <string name="qkreply_menu_expand">表示を増やす</string>
     <string name="qkreply_menu_collapse">表示を減らす</string>
     <string name="qkreply_menu_view">会話を開く</string>
-    <string-array name="notification_actions">
-        <item>なし</item>
-        <item>アーカイブ</item>
-        <item>削除</item>
-        <item>ブロック</item>
-        <item>通話</item>
-        <item>既読にする</item>
-        <item>返信</item>
-    </string-array>
     <string name="button_yes">はい</string>
     <string name="button_continue">続行</string>
     <string name="button_cancel">キャンセル</string>
@@ -297,12 +279,6 @@
         <item>名前とメッセージを表示</item>
         <item>名前を表示</item>
         <item>コンテンツを隠す</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>小</item>
-        <item>標準</item>
-        <item>大</item>
-        <item>最大</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>遅延なし</item>

@@ -190,15 +190,6 @@
     <string name="settings_swipe_actions_right">向右滑動</string>
     <string name="settings_swipe_actions_left">向左滑動</string>
     <string name="settings_swipe_actions_change">變更</string>
-    <string-array name="settings_swipe_actions">
-        <item>無</item>
-        <item>封存</item>
-        <item>刪除</item>
-        <item>封鎖</item>
-        <item>通話</item>
-        <item>標示已讀</item>
-        <item>標示未讀</item>
-    </string-array>
     <string name="settings_delivery_title">送達確認</string>
     <string name="settings_signature_title">簽名</string>
     <string name="settings_signature_summary">在訊息結尾加入簽名</string>
@@ -268,15 +259,6 @@
     <string name="qkreply_menu_expand">顯示更多</string>
     <string name="qkreply_menu_collapse">顯示較少</string>
     <string name="qkreply_menu_view">開啟對話</string>
-    <string-array name="notification_actions">
-        <item>無</item>
-        <item>封存</item>
-        <item>刪除</item>
-        <item>封鎖</item>
-        <item>通話</item>
-        <item>標示已讀</item>
-        <item>回覆</item>
-    </string-array>
     <string name="button_yes">確定</string>
     <string name="button_continue">繼續</string>
     <string name="button_cancel">取消</string>
@@ -300,12 +282,6 @@
         <item>顯示姓名和訊息</item>
         <item>只顯示姓名</item>
         <item>隱藏內容</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>小</item>
-        <item>一般</item>
-        <item>大</item>
-        <item>更大</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>無延遲</item>

@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">Deslize à direita</string>
     <string name="settings_swipe_actions_left">Deslize à esquerda</string>
     <string name="settings_swipe_actions_change">Alterar</string>
-    <string-array name="settings_swipe_actions">
-        <item>Nenhuma</item>
-        <item>Arquivar</item>
-        <item>Apagar</item>
-        <item>Bloquear</item>
-        <item>Ligar</item>
-        <item>Marcar como lida</item>
-        <item>Marcar como não lida</item>
-    </string-array>
     <string name="settings_delivery_title">Confirmações de entrega</string>
     <string name="settings_signature_title">Assinatura</string>
     <string name="settings_signature_summary">Adicionar uma assinatura às mensagens</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">Mostrar mais</string>
     <string name="qkreply_menu_collapse">Mostrar menos</string>
     <string name="qkreply_menu_view">Abrir conversa</string>
-    <string-array name="notification_actions">
-        <item>Nenhuma</item>
-        <item>Arquivar</item>
-        <item>Apagar</item>
-        <item>Bloquear</item>
-        <item>Ligar</item>
-        <item>Marcar como lida</item>
-        <item>Responder</item>
-    </string-array>
     <string name="button_yes">Sim</string>
     <string name="button_continue">Continuar</string>
     <string name="button_cancel">Cancelar</string>
@@ -302,12 +284,6 @@
         <item>Mostrar nome e mensagem</item>
         <item>Mostrar nome</item>
         <item>Ocultar conteúdo</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Pequeno</item>
-        <item>Normal</item>
-        <item>Grande</item>
-        <item>Enorme</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Não</item>

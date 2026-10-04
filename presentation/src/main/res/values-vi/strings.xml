@@ -190,15 +190,6 @@
     <string name="settings_swipe_actions_right">Vuốt phải</string>
     <string name="settings_swipe_actions_left">Vuốt trái</string>
     <string name="settings_swipe_actions_change">THAY ĐỔI</string>
-    <string-array name="settings_swipe_actions">
-        <item>Không dùng</item>
-        <item>Lưu trữ</item>
-        <item>Xoá</item>
-        <item>Chặn</item>
-        <item>Gọi</item>
-        <item>Đánh dấu đã đọc</item>
-        <item>Đánh dấu chưa đọc</item>
-    </string-array>
     <string name="settings_delivery_title">Xác nhận đã gửi tin</string>
     <string name="settings_signature_title">Chữ ký</string>
     <string name="settings_signature_summary">Thêm chữ kí vào cuối đoạn tin nhắn của bạn</string>
@@ -266,15 +257,6 @@
     <string name="qkreply_menu_expand">Hiển thị nhiều hơn</string>
     <string name="qkreply_menu_collapse">Hiển thị ít hơn</string>
     <string name="qkreply_menu_view">Mở cuộc trò chuyện</string>
-    <string-array name="notification_actions">
-        <item>Không dùng</item>
-        <item>Lưu trữ</item>
-        <item>Xoá</item>
-        <item>Chặn</item>
-        <item>Gọi</item>
-        <item>Đánh dấu đã đọc</item>
-        <item>Trả lời</item>
-    </string-array>
     <string name="button_yes">Đồng ý</string>
     <string name="button_continue">Tiếp tục</string>
     <string name="button_cancel">Hủy</string>
@@ -297,12 +279,6 @@
         <item>Hiển thị tên và tin nhắn</item>
         <item>Hiển thị tên</item>
         <item>Ẩn nội dung</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Nhỏ</item>
-        <item>Bình thường</item>
-        <item>Lớn</item>
-        <item>Lớn hơn</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Không trì hoãn</item>

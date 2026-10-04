@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">Sağa kaydır</string>
     <string name="settings_swipe_actions_left">Sola Kaydır</string>
     <string name="settings_swipe_actions_change">DEĞİŞTİR</string>
-    <string-array name="settings_swipe_actions">
-        <item>Hiçbiri</item>
-        <item>Arşivle</item>
-        <item>Sil</item>
-        <item>Engelle</item>
-        <item>Ara</item>
-        <item>Okundu olarak işaretle</item>
-        <item>Okunmadı olarak işaretle</item>
-    </string-array>
     <string name="settings_delivery_title">İletim raporları</string>
     <string name="settings_signature_title">İmza</string>
     <string name="settings_signature_summary">İletilerinizin sonuna bir imza ekleyin</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">Daha fazla göster</string>
     <string name="qkreply_menu_collapse">Daha az göster</string>
     <string name="qkreply_menu_view">Sohbeti aç</string>
-    <string-array name="notification_actions">
-        <item>Hiçbiri</item>
-        <item>Arşivle</item>
-        <item>Sil</item>
-        <item>Engelle</item>
-        <item>Ara</item>
-        <item>Okundu olarak işaretle</item>
-        <item>Cevapla</item>
-    </string-array>
     <string name="button_yes">Evet</string>
     <string name="button_continue">Devam</string>
     <string name="button_cancel">İptal</string>
@@ -302,12 +284,6 @@
         <item>Adı ve ileti göster</item>
         <item>Adını göster</item>
         <item>İçeriği gizle</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Küçük</item>
-        <item>Normal</item>
-        <item>Büyük</item>
-        <item>Daha büyük</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Gecikme yok</item>

@@ -192,15 +192,6 @@
     <string name="settings_swipe_actions_right">Desni potez</string>
     <string name="settings_swipe_actions_left">Lijevi potez</string>
     <string name="settings_swipe_actions_change">PROMIJENI</string>
-    <string-array name="settings_swipe_actions">
-        <item>Nema</item>
-        <item>Arhiviraj</item>
-        <item>Izbriši</item>
-        <item>Blokiraj</item>
-        <item>Nazovi</item>
-        <item>Označi kao pročitano</item>
-        <item>Označi kao nepročitano</item>
-    </string-array>
     <string name="settings_delivery_title">Potvrde o dostavi</string>
     <string name="settings_signature_title">Potpis</string>
     <string name="settings_signature_summary">Dodajte potpis na kraj vaših poruka</string>
@@ -274,15 +265,6 @@
     <string name="qkreply_menu_expand">Prikaži više</string>
     <string name="qkreply_menu_collapse">Prikaži manje</string>
     <string name="qkreply_menu_view">Otvori razgovor</string>
-    <string-array name="notification_actions">
-        <item>Nema</item>
-        <item>Arhiviraj</item>
-        <item>Izbriši</item>
-        <item>Blokiraj</item>
-        <item>Nazovi</item>
-        <item>Označi kao pročitano</item>
-        <item>Odgovori</item>
-    </string-array>
     <string name="button_yes">Da</string>
     <string name="button_continue">Nastavi</string>
     <string name="button_cancel">Odustani</string>
@@ -307,12 +289,6 @@
         <item>Prikaži ime i poruku</item>
         <item>Prikaži ime</item>
         <item>Sakrij sadržaj</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Malo</item>
-        <item>Normalno</item>
-        <item>Veliko</item>
-        <item>Veće</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Bez odgode</item>

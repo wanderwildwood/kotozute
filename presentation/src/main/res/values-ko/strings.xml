@@ -190,15 +190,6 @@
     <string name="settings_swipe_actions_right">오른쪽으로 쓸어넘기기</string>
     <string name="settings_swipe_actions_left">왼쪽으로 쓸어넘기기</string>
     <string name="settings_swipe_actions_change">변경</string>
-    <string-array name="settings_swipe_actions">
-        <item>없음</item>
-        <item>아카이브</item>
-        <item>삭제</item>
-        <item>차단</item>
-        <item>전화</item>
-        <item>읽음으로 표시</item>
-        <item>읽지않음으로 표시</item>
-    </string-array>
     <string name="settings_delivery_title">전송 확인</string>
     <string name="settings_signature_title">서명</string>
     <string name="settings_signature_summary">문자 메시지 마지막에 서명을 추가합니다</string>
@@ -266,15 +257,6 @@
     <string name="qkreply_menu_expand">더 보기</string>
     <string name="qkreply_menu_collapse">적게 표시</string>
     <string name="qkreply_menu_view">대화 열기</string>
-    <string-array name="notification_actions">
-        <item>없음</item>
-        <item>보관</item>
-        <item>삭제</item>
-        <item>차단</item>
-        <item>전화</item>
-        <item>읽음으로 표시</item>
-        <item>답장</item>
-    </string-array>
     <string name="button_yes">예</string>
     <string name="button_continue">계속</string>
     <string name="button_cancel">취소</string>
@@ -299,12 +281,6 @@
         <item>이름 및 메시지 표시</item>
         <item>이름 표시</item>
         <item>내용 숨기기</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>작음</item>
-        <item>보통</item>
-        <item>크게</item>
-        <item>더 크게</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>지연 없음</item>

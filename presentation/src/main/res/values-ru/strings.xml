@@ -193,15 +193,6 @@
     <string name="settings_swipe_actions_right">Жест вправо</string>
     <string name="settings_swipe_actions_left">Жест влево</string>
     <string name="settings_swipe_actions_change">ИЗМЕНИТЬ</string>
-    <string-array name="settings_swipe_actions">
-        <item>Нет</item>
-        <item>Архивировать</item>
-        <item>Удалить</item>
-        <item>Блокировать</item>
-        <item>Позвонить</item>
-        <item>Пометить прочитанным</item>
-        <item>Пометить непрочитанным</item>
-    </string-array>
     <string name="settings_delivery_title">Отчёты о доставке</string>
     <string name="settings_signature_title">Подпись</string>
     <string name="settings_signature_summary">Добавлять подпись в конец ваших сообщений</string>
@@ -278,15 +269,6 @@
     <string name="qkreply_menu_expand">Показать ещё</string>
     <string name="qkreply_menu_collapse">Показать меньше</string>
     <string name="qkreply_menu_view">Открыть беседу</string>
-    <string-array name="notification_actions">
-        <item>Нет</item>
-        <item>В архив</item>
-        <item>Удалить</item>
-        <item>Заблокировать</item>
-        <item>Позвонить</item>
-        <item>Прочитано</item>
-        <item>Ответить</item>
-    </string-array>
     <string name="button_yes">Да</string>
     <string name="button_continue">Продолжить</string>
     <string name="button_cancel">Отмена</string>
@@ -312,12 +294,6 @@
         <item>Показать имя и сообщение</item>
         <item>Показать имя</item>
         <item>Скрыть содержание</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Маленький</item>
-        <item>Обычный</item>
-        <item>Крупный</item>
-        <item>Большой</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Без задержки</item>

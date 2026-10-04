@@ -189,15 +189,6 @@
     <string name="settings_swipe_actions_right">به راست بکشید</string>
     <string name="settings_swipe_actions_left">به چپ بکشید</string>
     <string name="settings_swipe_actions_change">ورتاندن</string>
-    <string-array name="settings_swipe_actions">
-        <item>هیچی</item>
-        <item>بایگانی</item>
-        <item>پاک کردن</item>
-        <item>مسدود کردن</item>
-        <item>تماس</item>
-        <item>نشان به‌عنوان خوانده شده</item>
-        <item>نشان به‌عنوان خوانده نشده</item>
-    </string-array>
     <string name="settings_delivery_title">هایشگ‌های رساندن</string>
     <string name="settings_signature_title">دستینه</string>
     <string name="settings_signature_summary">به پایان پیام‌های خود دستینگی بیافزایید</string>
@@ -268,15 +259,6 @@
     <string name="qkreply_menu_expand">نمایش بیشتر</string>
     <string name="qkreply_menu_collapse">نمایش کمتر</string>
     <string name="qkreply_menu_view">بازکردن گفتگو</string>
-    <string-array name="notification_actions">
-        <item>هیچ</item>
-        <item>بایگانی کن</item>
-        <item>حذف</item>
-        <item>مسدود کردن</item>
-        <item>تماس</item>
-        <item>نشان به‌عنوان خوانده شده</item>
-        <item>پاسخ</item>
-    </string-array>
     <string name="button_yes">آری</string>
     <string name="button_continue">ادامه</string>
     <string name="button_cancel">وازدن</string>
@@ -300,12 +282,6 @@
         <item>نمایش نام و پیام</item>
         <item>نمایش نام</item>
         <item>مخفی کردن محتویات</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>کوچک</item>
-        <item>عادی</item>
-        <item>بزرگ</item>
-        <item>بزرگتر</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>بدون درنگ</item>

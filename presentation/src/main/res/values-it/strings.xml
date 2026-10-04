@@ -192,15 +192,6 @@
     <string name="settings_swipe_actions_right">Scorrimento a destra</string>
     <string name="settings_swipe_actions_left">Scorrimento a sinistra</string>
     <string name="settings_swipe_actions_change">CAMBIA</string>
-    <string-array name="settings_swipe_actions">
-        <item>Nessuna</item>
-        <item>Archivia</item>
-        <item>Elimina</item>
-        <item>Blocca</item>
-        <item>Chiama</item>
-        <item>Segna come \"letto\"</item>
-        <item>Segna come \"da leggere\"</item>
-    </string-array>
     <string name="settings_delivery_title">Conferme di recapito</string>
     <string name="settings_signature_title">Firma</string>
     <string name="settings_signature_summary">Aggiungi una firma alla fine dei tuoi messaggi</string>
@@ -271,15 +262,6 @@
     <string name="qkreply_menu_expand">Mostra dettagli</string>
     <string name="qkreply_menu_collapse">Mostra meno</string>
     <string name="qkreply_menu_view">Apri la conversazione</string>
-    <string-array name="notification_actions">
-        <item>Nessuna</item>
-        <item>Archivia</item>
-        <item>Elimina</item>
-        <item>Blocca</item>
-        <item>Chiama</item>
-        <item>Segna come \"letto\"</item>
-        <item>Rispondi</item>
-    </string-array>
     <string name="button_yes">Sì</string>
     <string name="button_continue">Continua</string>
     <string name="button_cancel">Annulla</string>
@@ -303,12 +285,6 @@
         <item>Mostra il nome e il messaggio</item>
         <item>Mostra il nome</item>
         <item>Non mostrare il contenuto</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Piccolo</item>
-        <item>Normale</item>
-        <item>Grande</item>
-        <item>Enorme</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Nessun ritardo</item>

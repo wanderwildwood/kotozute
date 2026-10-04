@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">Nach rechts wischen</string>
     <string name="settings_swipe_actions_left">Nach links wischen</string>
     <string name="settings_swipe_actions_change">ÄNDERN</string>
-    <string-array name="settings_swipe_actions">
-        <item>Keine</item>
-        <item>Archivieren</item>
-        <item>Löschen</item>
-        <item>Blockieren</item>
-        <item>Anrufen</item>
-        <item>Als gelesen markieren</item>
-        <item>Als ungelesen markieren</item>
-    </string-array>
     <string name="settings_delivery_title">Zustellbestätigungen</string>
     <string name="settings_signature_title">Signatur</string>
     <string name="settings_signature_summary">Füge eine Signatur am Ende deiner Nachrichten hinzu</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">Mehr anzeigen</string>
     <string name="qkreply_menu_collapse">Weniger anzeigen</string>
     <string name="qkreply_menu_view">Unterhaltung öffnen</string>
-    <string-array name="notification_actions">
-        <item>Nichts</item>
-        <item>Archiv</item>
-        <item>Löschen</item>
-        <item>Blockieren</item>
-        <item>Anrufen</item>
-        <item>Als gelesen markieren</item>
-        <item>Antwort</item>
-    </string-array>
     <string name="button_yes">Ja</string>
     <string name="button_continue">Fortsetzen</string>
     <string name="button_cancel">Abbrechen</string>
@@ -302,12 +284,6 @@
         <item>Name und Nachricht anzeigen</item>
         <item>Name anzeigen</item>
         <item>Inhalt ausblenden</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Klein</item>
-        <item>Normal</item>
-        <item>Groß</item>
-        <item>Größer</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Keine Verzögerung</item>

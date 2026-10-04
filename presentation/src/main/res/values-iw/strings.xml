@@ -193,15 +193,6 @@
     <string name="settings_swipe_actions_right">ניגוב ימינה</string>
     <string name="settings_swipe_actions_left">ניגוב שמאלה</string>
     <string name="settings_swipe_actions_change">החלפה</string>
-    <string-array name="settings_swipe_actions">
-        <item>ללא</item>
-        <item>לארכיון</item>
-        <item>מחק</item>
-        <item>חסום</item>
-        <item>התקשר</item>
-        <item>סמן כהודעה שנקראה</item>
-        <item>סמן כהודעה שלא נקראה</item>
-    </string-array>
     <string name="settings_delivery_title">אישור מסירה</string>
     <string name="settings_signature_title">חתימה</string>
     <string name="settings_signature_summary">הוספת חתימה לסוף ההודעות שלך</string>
@@ -278,15 +269,6 @@
     <string name="qkreply_menu_expand">להציג יותר</string>
     <string name="qkreply_menu_collapse">להציג פחות</string>
     <string name="qkreply_menu_view">פתיחת התכתבות</string>
-    <string-array name="notification_actions">
-        <item>ללא</item>
-        <item>לארכיון</item>
-        <item>מחיקה</item>
-        <item>חסימה</item>
-        <item>להתקשר</item>
-        <item>סימון כהודעה שנקראה</item>
-        <item>להשיב</item>
-    </string-array>
     <string name="button_yes">כן</string>
     <string name="button_continue">המשך</string>
     <string name="button_cancel">ביטול</string>
@@ -312,12 +294,6 @@
         <item>הצגת שם והודעה</item>
         <item>הצגת שם</item>
         <item>הסתרת תוכן</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>קטן</item>
-        <item>רגיל</item>
-        <item>גדול</item>
-        <item>גדול יותר</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>ללא השהיה</item>

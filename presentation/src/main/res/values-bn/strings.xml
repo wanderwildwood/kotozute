@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">ডানে সোয়াইপ করুন</string>
     <string name="settings_swipe_actions_left">বামে সোয়াইপ করুন</string>
     <string name="settings_swipe_actions_change">পরিবর্তন করুন</string>
-    <string-array name="settings_swipe_actions">
-        <item>কোনোটা না</item>
-        <item>আর্কাইভ করুন</item>
-        <item>মুছে ফেলুন</item>
-        <item>অবরুদ্ধ করো</item>
-        <item>কল</item>
-        <item>পড়া হয়েছে চিহ্নিত করো</item>
-        <item>পড়া হয়নি চিহ্নিত করো</item>
-    </string-array>
     <string name="settings_delivery_title">ডেলিভারি নিশ্চিতকরন</string>
     <string name="settings_signature_title">স্বাক্ষর</string>
     <string name="settings_signature_summary">তোমার বার্তাগুলোর শেষে একটা স্বাক্ষর যোগ করো</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">আরও দেখান</string>
     <string name="qkreply_menu_collapse">আরও কম প্রদর্শন করুন</string>
     <string name="qkreply_menu_view">আলাপ খুলো</string>
-    <string-array name="notification_actions">
-        <item>কোনোটা না</item>
-        <item>আর্কাইভ</item>
-        <item>মুছুন</item>
-        <item>অবরুদ্ধ</item>
-        <item>কল</item>
-        <item>পড়া হয়েছে</item>
-        <item>প্রতুত্তর</item>
-    </string-array>
     <string name="button_yes">হ্যাঁ</string>
     <string name="button_continue">এগিয়ে যানও</string>
     <string name="button_cancel">বাতিল করুন</string>
@@ -302,12 +284,6 @@
         <item>নাম এবং বার্তা প্রদর্শন করো</item>
         <item>নাম দেখান</item>
         <item>কন্টেন্ট আড়াল করুন</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>ছোট</item>
-        <item>স্বাভাবিক</item>
-        <item>বড়</item>
-        <item>বড়</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>কোনো বিলম্ব নেই</item>

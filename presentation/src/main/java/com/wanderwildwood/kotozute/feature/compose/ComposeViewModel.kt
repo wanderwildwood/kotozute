@@ -125,12 +125,16 @@ class ComposeViewModel @Inject constructor(
     private val sendNewMessage: SendNewMessage,
     private val subscriptionManager: SubscriptionManagerCompat,
     private val saveImage: SaveImage,
+    private val syncContacts: com.wanderwildwood.kotozute.interactor.SyncContacts,
 ) : QkViewModel<ComposeView, ComposeState>(ComposeState(
         editingMode = threadId == 0L && addresses.isEmpty(),
         threadId = threadId,
         query = query)
 ) {
     private val chipsReducer: Subject<(List<Recipient>) -> List<Recipient>> = PublishSubject.create()
+
+    /** Whether "Add to contacts" was pressed and the contacts app has not been come back from. */
+    private var addedContact = false
     private val conversation: Subject<Conversation> = BehaviorSubject.create()
     private val messages: Subject<List<Message>> = BehaviorSubject.create()
     private val selectedChips: Subject<List<Recipient>> = BehaviorSubject.createDefault(listOf())
@@ -225,6 +229,7 @@ class ComposeViewModel @Inject constructor(
         if (addresses.isNotEmpty())
             selectedChips.onNext(addresses.map { address -> Recipient(address = address) })
 
+        disposables += syncContacts
         disposables += chipsReducer
                 .scan(listOf<Recipient>()) { previousState, reducer -> reducer(previousState) }
                 .doOnNext { chips -> newState { copy(selectedChips = chips) } }
@@ -501,7 +506,29 @@ class ComposeViewModel @Inject constructor(
             .withLatestFrom(conversation) { _, conversation -> conversation }
             .mapNotNull { conversation -> conversation.recipients.firstOrNull()?.address }
             .autoDisposable(view.scope())
-            .subscribe { navigator.addContact(it) }
+            .subscribe {
+                addedContact = true
+                navigator.addContact(it)
+            }
+
+        // Back from adding them: read the contacts again, once, so the name shows here at once.
+        // The list screen does this on every change, but only while it is alive, and a
+        // conversation opened straight from a notification has no list behind it.
+        view.activityVisibleIntent
+            .filter { visible -> visible && addedContact }
+            .autoDisposable(view.scope())
+            .subscribe {
+                addedContact = false
+                syncContacts.execute(Unit) {
+                    // The screen holds a copy of the conversation that does not follow later
+                    // writes, so its title would keep the number; fetch it afresh, now linked
+                    // to the new contact, and hand that round instead.
+                    val current = (conversation as? BehaviorSubject<Conversation>)?.value
+                    current?.takeIf { it.isValid }
+                        ?.let { conversationRepo.getConversation(it.id) }
+                        ?.let(conversation::onNext)
+                }
+            }
 
         view.optionsItemIntent
             .filter { it == R.id.call }

@@ -62,4 +62,55 @@ class SignalCallsTest {
         assertNull(SignalCalls.aciOf(ByteArray(15)))
         assertNull(SignalCalls.aciOf(null))
     }
+
+    // --- what other devices are told, and what they tell us ------------------------------------
+
+    @Test
+    fun `a delete is a one-to-one call's, and nothing else is`() {
+        assertTrue(SignalCalls.isDelete(CallEvent.Type.AUDIO_CALL, CallEvent.Event.DELETE))
+        assertTrue(SignalCalls.isDelete(CallEvent.Type.VIDEO_CALL, CallEvent.Event.DELETE))
+        assertFalse(SignalCalls.isDelete(CallEvent.Type.GROUP_CALL, CallEvent.Event.DELETE))
+        assertFalse(SignalCalls.isDelete(CallEvent.Type.AUDIO_CALL, CallEvent.Event.ACCEPTED))
+        // The control: a delete is not mistaken for a call settling.
+        assertNull(SignalCalls.outcomeOfEvent(CallEvent.Type.AUDIO_CALL, CallEvent.Direction.INCOMING, CallEvent.Event.DELETE))
+    }
+
+    /**
+     * ⚠ The receipt rule. A call line's timestamp is a call's, not a message anybody sent, so a
+     * read receipt for it names a message that does not exist. Only real messages pass.
+     */
+    @Test
+    fun `lines this phone wrote are told apart from messages`() {
+        assertTrue(SignalCalls.isOwnLine("call:1234"))
+        assertTrue(SignalCalls.isOwnLine("groupcall:abc"))
+        assertTrue(SignalCalls.isOwnLine("local:x"))
+        assertFalse(SignalCalls.isOwnLine("5f0c7b1e-0000-4000-8000-000000000001:1696350000000"))
+        assertTrue(SignalCalls.isCallLine("groupcall:abc"))
+        assertFalse(SignalCalls.isCallLine("local:x"))
+    }
+
+    @Test
+    fun `a call line gives up its call id, and nothing else does`() {
+        assertEquals(1234L, SignalCalls.callIdOf("call:1234"))
+        assertEquals(-5L, SignalCalls.callIdOf("call:-5"))
+        assertNull(SignalCalls.callIdOf("groupcall:1234"))
+        assertNull(SignalCalls.callIdOf("call:"))
+        assertNull(SignalCalls.callIdOf("someone:1234"))
+    }
+
+    @Test
+    fun `a conversation id goes both ways, and a group is its own`() {
+        val aci = "5f0c7b1e-0000-4000-8000-000000000001"
+        val bytes = SignalCalls.conversationIdOf(aci)!!
+        assertEquals(16, bytes.size)
+        assertEquals("direct:$aci", SignalCalls.threadKeyOf(bytes))
+        val group = ByteArray(32) { it.toByte() }
+        assertEquals(
+            "group:" + java.util.Base64.getEncoder().encodeToString(group),
+            SignalCalls.threadKeyOf(group)
+        )
+        assertNull(SignalCalls.threadKeyOf(ByteArray(20)))
+        assertNull(SignalCalls.threadKeyOf(null))
+        assertNull(SignalCalls.conversationIdOf("not an id"))
+    }
 }

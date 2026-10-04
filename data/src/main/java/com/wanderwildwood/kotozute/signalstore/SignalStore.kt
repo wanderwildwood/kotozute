@@ -847,6 +847,31 @@ class SignalStore(private val context: Context) {
         callSender().sendCallEvent(serviceId, callId, outgoing, video, accepted)
     }
 
+    /** A call deleted here, for our other devices. See [SignalSender.sendCallDeleted]. */
+    internal fun sendCallDeleted(peer: String, callId: Long, at: Long, outgoing: Boolean, video: Boolean): Boolean {
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(peer) ?: return false
+        connection.connect()
+        return callSender().sendCallDeleted(serviceId, callId, at, outgoing, video) is SignalSender.Result.Sent
+    }
+
+    /**
+     * Missed calls with [peer] seen here, for our other devices; owed and retried if it does not
+     * go, as upstream's `CallLogEventSendJob` is a day of unlimited attempts.
+     */
+    internal fun sendCallsRead(peer: String, callId: Long?, at: Long) {
+        val conversationId = SignalCalls.conversationIdOf(peer) ?: return
+        val went = runCatching {
+            connection.connect()
+            callSender().sendCallsRead(conversationId, callId, at) is SignalSender.Result.Sent
+        }.onFailure { Timber.w(it, "signal calls: telling our own devices a call was seen threw") }
+            .getOrDefault(false)
+        if (!went) {
+            Timber.w("signal calls: could not say a missed call was seen; will keep trying")
+            runCatching { SignalReceiptStore(database).owe(peer, listOf(at), SignalReceiptStore.Kind.CALLS_READ) }
+                .onFailure { Timber.w(it, "signal calls: could not note that one is owed; it is lost") }
+        }
+    }
+
     /** A group's members for typing messages, by master key, and when they were read. */
     private val typingMembers = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<org.signal.core.models.ServiceId>>>()
 
@@ -1177,6 +1202,25 @@ class SignalStore(private val context: Context) {
                     }
                 }
                 .onFailure { Timber.w(it, "signal receipt: could not drop the read receipts owed") }
+        }
+
+        // Missed calls seen here: one per conversation, at the newest time owed. The call id is
+        // not kept, so it goes by the time alone, which the receiver accepts in its place.
+        val callsRead = runCatching { store.owed(SignalReceiptStore.Kind.CALLS_READ) }
+            .onFailure { Timber.w(it, "signal calls: could not read which call reads are owed") }
+            .getOrDefault(emptyMap())
+        callsRead.forEach { (peer, timestamps) ->
+            val conversationId = SignalCalls.conversationIdOf(peer) ?: return@forEach
+            val went = runCatching {
+                connection.connect()
+                callSender().sendCallsRead(conversationId, null, timestamps.max()) is SignalSender.Result.Sent
+            }.onFailure { Timber.w(it, "signal calls: still could not say a call was seen") }
+                .getOrDefault(false)
+            if (went) {
+                told++
+                runCatching { store.clear(peer, timestamps, SignalReceiptStore.Kind.CALLS_READ) }
+                    .onFailure { Timber.w(it, "signal calls: could not clear one that went") }
+            }
         }
 
         runCatching { store.abandonExpired() }

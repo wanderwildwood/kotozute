@@ -5,13 +5,11 @@ import org.whispersystems.signalservice.internal.push.SyncMessage
 import timber.log.Timber
 
 /**
- * What became of a Signal call this phone could not answer.
+ * What became of a Signal call.
  *
- * This app has no calling, and until now a call to the account left no trace here at all:
- * somebody rang, the other phone was in a drawer, and the person carrying this one never
- * learned anyone had tried. Signal records every call in the conversation -- "Missed voice
- * call" with a notification, or an incoming call answered on another device -- so this does
- * the same, without ringing.
+ * Signal records every call in the conversation -- "Missed voice call" with a notification, or
+ * an incoming call answered on another device -- and so does this, whether the call rang here
+ * or on another of the account's devices.
  */
 enum class CallOutcome { MISSED, ANSWERED_ELSEWHERE, DECLINED_ELSEWHERE, OUTGOING, ANSWERED, DECLINED, PLACED, PLACED_UNANSWERED }
 
@@ -60,6 +58,47 @@ internal object SignalCalls {
             else -> null
         }
     }
+
+    /**
+     * Whether another device says a one-to-one call was deleted from its history.
+     *
+     * Upstream's `handleSynchronizeOneToOneCallEvent`: a DELETE takes the call's line out of the
+     * conversation (`markCallDeletedFromSyncEvent` -> `messages.deleteMessage`).
+     */
+    fun isDelete(type: SyncMessage.CallEvent.Type?, event: SyncMessage.CallEvent.Event?): Boolean =
+        (type == SyncMessage.CallEvent.Type.AUDIO_CALL || type == SyncMessage.CallEvent.Type.VIDEO_CALL) &&
+            event == SyncMessage.CallEvent.Event.DELETE
+
+    /** The call id in a one-to-one call line's message id, `call:<id>`; null for anything else. */
+    fun callIdOf(messageId: String): Long? =
+        messageId.takeIf { it.startsWith(CALL_LINE) }?.removePrefix(CALL_LINE)?.toLongOrNull()
+
+    /** A line this phone wrote for itself: a call, a group call, a note. No other device has it. */
+    fun isOwnLine(messageId: String): Boolean =
+        messageId.startsWith(CALL_LINE) || messageId.startsWith("groupcall:") || messageId.startsWith("local:")
+
+    /** A call line, one-to-one or group: what a call-log event acts on. */
+    fun isCallLine(messageId: String): Boolean =
+        messageId.startsWith(CALL_LINE) || messageId.startsWith("groupcall:")
+
+    /**
+     * Where a call-log event points: a one-to-one conversation by the other person's 16 bytes,
+     * a group by its 32-byte id. Upstream resolves `conversationId` the same two ways, then as
+     * a call link, which this app does not have.
+     */
+    fun threadKeyOf(conversationId: ByteArray?): String? = when (conversationId?.size) {
+        16 -> aciOf(conversationId)?.let { "direct:$it" }
+        32 -> "group:" + java.util.Base64.getEncoder().encodeToString(conversationId)
+        else -> null
+    }
+
+    /** The other person's service id as the 16 bytes a call event names them by. */
+    fun conversationIdOf(aci: String): ByteArray? = runCatching {
+        val uuid = java.util.UUID.fromString(aci)
+        java.nio.ByteBuffer.allocate(16).putLong(uuid.mostSignificantBits).putLong(uuid.leastSignificantBits).array()
+    }.getOrNull()
+
+    private const val CALL_LINE = "call:"
 
     /** A one-to-one call event names the other person by their service id's 16 bytes. */
     fun aciOf(conversationId: ByteArray?): String? {

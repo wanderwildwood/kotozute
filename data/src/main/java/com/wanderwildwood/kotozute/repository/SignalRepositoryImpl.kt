@@ -1731,6 +1731,124 @@ class SignalRepositoryImpl @Inject constructor(
     }
 
     /**
+     * Whether a call line was a video call. This app writes those lines and keeps no other
+     * record of the call, so its own wording is the answer -- and it has to be right: a device
+     * holding the call ignores a deletion that names the wrong type.
+     */
+    private fun isVideoCallLine(body: String): Boolean = listOf(
+        com.wanderwildwood.kotozute.data.R.string.signal_call_missed_video,
+        com.wanderwildwood.kotozute.data.R.string.signal_call_answered_video,
+        com.wanderwildwood.kotozute.data.R.string.signal_call_declined_video,
+        com.wanderwildwood.kotozute.data.R.string.signal_call_outgoing_video,
+        com.wanderwildwood.kotozute.data.R.string.signal_call_here_video,
+        com.wanderwildwood.kotozute.data.R.string.signal_call_declined_here_video
+    ).any { context.getString(it) == body }
+
+    /**
+     * Missed calls seen here, for the other devices: upstream's `MarkReadReceiver
+     * .processCallEvents`, which sends `forMarkedAsReadInConversation` for the newest call in
+     * the conversation up to when it was read. One-to-one only; a group's calls are left to
+     * its own devices.
+     */
+    private fun tellCallsSeen(threadKey: String, upToTs: Long) {
+        val peer = threadKey.takeIf { it.startsWith("direct:") }?.removePrefix("direct:") ?: return
+        val newest = Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .beginsWith("id", "call:")
+                .lessThanOrEqualTo("date", upToTs)
+                .sort("date", Sort.DESCENDING)
+                .findFirst()
+                ?.let { it.id to it.date }
+        } ?: return
+        signalStore.sendCallsRead(
+            peer, com.wanderwildwood.kotozute.signalstore.SignalCalls.callIdOf(newest.first), newest.second
+        )
+    }
+
+    /**
+     * What another device did with its call history, done here to the call lines.
+     *
+     * Upstream's `synchronizeCallLogEventViaTimestamp`: CLEAR deletes every call on or before
+     * the time (`deleteNonAdHocCallEventsOnOrBefore`, which takes the lines with it);
+     * MARKED_AS_READ marks every missed call up to it seen; MARKED_AS_READ_IN_CONVERSATION
+     * does that for one conversation. Where the event names a call this phone has, that
+     * call's time is the cutoff rather than the event's, as upstream prefers.
+     *
+     * "Seen" here is the line being read: this app has no call log, so the unread line is
+     * the whole of a missed call's badge.
+     */
+    private fun applyCallLog(
+        type: org.whispersystems.signalservice.internal.push.SyncMessage.CallLogEvent.Type?,
+        threadKey: String?,
+        callId: Long?,
+        at: Long?
+    ) = runOffThread {
+        val held = callId?.let { id ->
+            Realm.getDefaultInstance().use { realm ->
+                realm.where(SignalMessage::class.java).equalTo("id", "call:$id").findFirst()?.date
+            }
+        }
+        val cutoff = held ?: at ?: run {
+            Timber.w("signal calls: a call history event with nothing to go by; ignored")
+            return@runOffThread
+        }
+        when (type) {
+            org.whispersystems.signalservice.internal.push.SyncMessage.CallLogEvent.Type.CLEAR -> {
+                val doomed = Realm.getDefaultInstance().use { realm ->
+                    realm.where(SignalMessage::class.java)
+                        .beginGroup().beginsWith("id", "call:").or().beginsWith("id", "groupcall:").endGroup()
+                        .lessThanOrEqualTo("date", cutoff)
+                        .findAll().map { it.id }
+                }
+                doomed.forEach { removeWithdrawn(it, "call history cleared on another device") { true } }
+                Timber.i("signal calls: %d call line(s) cleared, as on another device", doomed.size)
+            }
+            org.whispersystems.signalservice.internal.push.SyncMessage.CallLogEvent.Type.MARKED_AS_READ ->
+                markCallLinesSeen(null, cutoff)
+            org.whispersystems.signalservice.internal.push.SyncMessage.CallLogEvent.Type.MARKED_AS_READ_IN_CONVERSATION -> {
+                if (threadKey == null) {
+                    Timber.w("signal calls: calls seen in a conversation this phone cannot name; ignored")
+                    return@runOffThread
+                }
+                markCallLinesSeen(threadKey, cutoff)
+            }
+            else -> Timber.i("signal calls: a call history event of a kind this app does not keep")
+        }
+    }
+
+    /** Unread call lines up to [cutoff] read, in one conversation or all; counts kept true. */
+    private fun markCallLinesSeen(threadKey: String?, cutoff: Long) {
+        val touched = mutableSetOf<String>()
+        val cleared = mutableSetOf<String>()
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                r.where(SignalMessage::class.java)
+                    .apply { if (threadKey != null) equalTo("threadKey", threadKey) }
+                    .beginGroup().beginsWith("id", "call:").or().beginsWith("id", "groupcall:").endGroup()
+                    .equalTo("read", false)
+                    .lessThanOrEqualTo("date", cutoff)
+                    .findAll().createSnapshot()
+                    .forEach { it.read = true; touched += it.threadKey }
+                touched.forEach { key ->
+                    val stillUnread = r.where(SignalMessage::class.java)
+                        .equalTo("threadKey", key)
+                        .equalTo("outgoing", false)
+                        .equalTo("read", false)
+                        .count()
+                    r.where(SignalThread::class.java).equalTo("threadKey", key)
+                        .findFirst()?.unread = stillUnread.toInt()
+                    if (stillUnread == 0L) cleared += key
+                }
+            }
+        }
+        if (touched.isEmpty()) return
+        Timber.i("signal calls: missed calls seen on another device, in %d conversation(s)", touched.size)
+        contactsChanged()
+        cleared.forEach { readElsewhere.onNext(it) }
+    }
+
+    /**
      * Deletes one message on this phone and tells the account's other devices to do the same,
      * as Signal's "Delete for me" does (`MultiDeviceDeleteSyncJob.enqueueMessageDeletes`).
      *
@@ -1745,8 +1863,15 @@ class SignalRepositoryImpl @Inject constructor(
         removeWithdrawn(messageId, "deleted for me") { true }
         outbox.clear(messageId)
         // Only a real message is addressable by (author, sent time) on another device.
-        val addressable = !messageId.startsWith("call:") && !messageId.startsWith("groupcall:") &&
-            !messageId.startsWith("local:")
+        val addressable = !com.wanderwildwood.kotozute.signalstore.SignalCalls.isOwnLine(messageId)
+        // A one-to-one call is the exception: every device has its own record of it, under the
+        // call's id, and upstream deletes those too (`CallSyncEventJob.createForDelete`).
+        com.wanderwildwood.kotozute.signalstore.SignalCalls.callIdOf(messageId)?.let { callId ->
+            val peer = m.threadKey.takeIf { it.startsWith("direct:") }?.removePrefix("direct:") ?: return@let
+            runCatching { signalStore.sendCallDeleted(peer, callId, m.date, m.outgoing, isVideoCallLine(m.body)) }
+                .onSuccess { if (!it) Timber.w("signal calls: the other devices were not told a call was deleted") }
+                .onFailure { Timber.w(it, "signal calls: could not tell the other devices a call was deleted") }
+        }
         if (!addressable) return@runOffThread
         val author = if (m.outgoing) signalStore.selfAciOrNull().orEmpty() else m.senderUuid
         val groupId = m.threadKey.takeIf { it.startsWith("group:") }
@@ -3137,6 +3262,19 @@ class SignalRepositoryImpl @Inject constructor(
             outcome: com.wanderwildwood.kotozute.signalstore.CallOutcome
         ) = noteCall(peer, callId, at, video, outcome)
 
+        override fun callDeleted(peer: String, callId: Long) = runOffThread {
+            // Only the line in that person's conversation: a call id is theirs and ours, and a
+            // line somewhere else with the same number is not this call.
+            removeWithdrawn("call:$callId", "call deleted on another device") { it.threadKey == "direct:$peer" }
+        }
+
+        override fun callLog(
+            type: org.whispersystems.signalservice.internal.push.SyncMessage.CallLogEvent.Type?,
+            threadKey: String?,
+            callId: Long?,
+            at: Long?
+        ) = applyCallLog(type, threadKey, callId, at)
+
         override fun callMessage(
             call: org.whispersystems.signalservice.internal.push.CallMessage,
             from: String,
@@ -4073,6 +4211,7 @@ class SignalRepositoryImpl @Inject constructor(
         val justRead = mutableListOf<Pair<String, Long>>()
         val now = System.currentTimeMillis()
         var liftedMark = false
+        var callsSeen = false
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val unread = r.where(SignalMessage::class.java)
@@ -4085,7 +4224,17 @@ class SignalRepositoryImpl @Inject constructor(
                 // walking the live results takes rows out from under the iteration and
                 // silently skips half of them.
                 unread.createSnapshot().forEach { message ->
-                    justRead += message.senderUuid to message.date
+                    // ⚠ A line this phone wrote is no message of theirs. Its timestamp is a
+                    // call's, so a receipt for it told the caller a message they never sent
+                    // had been read. Upstream files call lines already read (`insertCallLog`,
+                    // READ to 1) and keeps "missed call seen" apart, in its call table -- and
+                    // tells the other devices with a call-log event, below.
+                    val id = message.id
+                    if (com.wanderwildwood.kotozute.signalstore.SignalCalls.isOwnLine(id)) {
+                        if (com.wanderwildwood.kotozute.signalstore.SignalCalls.isCallLine(id)) callsSeen = true
+                    } else {
+                        justRead += message.senderUuid to message.date
+                    }
                     message.read = true
                     // Reading is what starts a disappearing message's clock. Until now it
                     // started when the message arrived, so a short timer could run out while
@@ -4109,6 +4258,7 @@ class SignalRepositoryImpl @Inject constructor(
             markNeedsSync(threadKey)
             pushStorageNow()
         }
+        if (callsSeen) tellCallsSeen(threadKey, upToTs)
         // The receipt goes out on this device's own connection, and only where the reader
         // asked for receipts to be sent. A receipt names the messages by the timestamps they
         // were sent with, which is what was just collected.

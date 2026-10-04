@@ -698,6 +698,13 @@ internal class SignalReceiver(
     }
 
     private fun handleCallEvent(event: org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent) {
+        if (SignalCalls.isDelete(event.type, event.event)) {
+            val peer = SignalCalls.aciOf(event.conversationId?.toByteArray()) ?: return
+            val id = event.callId ?: return
+            runCatching { events.callDeleted(peer, id) }
+                .onFailure { Timber.w(it, "signal calls: could not delete a call deleted elsewhere") }
+            return
+        }
         val outcome = SignalCalls.outcomeOfEvent(event.type, event.direction, event.event) ?: return
         val peer = SignalCalls.aciOf(event.conversationId?.toByteArray()) ?: return
         val id = event.callId ?: return
@@ -1035,6 +1042,17 @@ internal class SignalReceiver(
                 // answered on the other phone reading as missed here.
                 result.content.syncMessage?.callEvent?.let { event ->
                     if (fromSelf) handleCallEvent(event)
+                }
+                // And what it has done with its call history: cleared, or missed calls seen.
+                result.content.syncMessage?.callLogEvent?.let { log ->
+                    if (fromSelf) {
+                        runCatching {
+                            events.callLog(
+                                log.type, SignalCalls.threadKeyOf(log.conversationId?.toByteArray()),
+                                log.callId, log.timestamp
+                            )
+                        }.onFailure { Timber.w(it, "signal calls: could not apply a call history event") }
+                    }
                 }
 
                 // A contacts sync is not a message and never becomes one -- it is the

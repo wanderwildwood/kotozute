@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">வலது தேய்ப்பு</string>
     <string name="settings_swipe_actions_left">இடது தேய்ப்பு</string>
     <string name="settings_swipe_actions_change">மாற்று</string>
-    <string-array name="settings_swipe_actions">
-        <item>ஏதுமில்லை</item>
-        <item>காப்பகப்படுத்து</item>
-        <item>அழி</item>
-        <item>தடு</item>
-        <item>அழை</item>
-        <item>படித்ததாகக் குறி</item>
-        <item>படித்ததாகக் குறி</item>
-    </string-array>
     <string name="settings_delivery_title">வழங்குதல் உறுதிப்படுத்தல்கள்</string>
     <string name="settings_signature_title">ஒப்பம்</string>
     <string name="settings_signature_summary">தகவலின் முடிவில் ஒப்பத்தை சேர்</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">அதிகம் காட்டு</string>
     <string name="qkreply_menu_collapse">குறைவாக காட்டு</string>
     <string name="qkreply_menu_view">உரையாடலை திற</string>
-    <string-array name="notification_actions">
-        <item>ஏதுமில்லை</item>
-        <item>காப்பகப்படுத்து</item>
-        <item>அழி</item>
-        <item>தடு</item>
-        <item>அழை</item>
-        <item>படித்ததாகக் குறி</item>
-        <item>பதிலளி</item>
-    </string-array>
     <string name="button_yes">ஆம்</string>
     <string name="button_continue">தொடரு</string>
     <string name="button_cancel">ரத்துசெய்</string>
@@ -302,12 +284,6 @@
         <item>பெயர் மற்றும் தகவல் காட்டு</item>
         <item>பெயர் காட்டு</item>
         <item>உள்ளடக்கங்களை மறை</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>சிறிய</item>
-        <item>இயல்பு</item>
-        <item>பெரிய</item>
-        <item>மிகப்பெரிய</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>தாமதம் இல்லை</item>

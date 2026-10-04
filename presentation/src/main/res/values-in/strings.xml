@@ -190,15 +190,6 @@
     <string name="settings_swipe_actions_right">Geser ke kanan</string>
     <string name="settings_swipe_actions_left">Geser ke kiri</string>
     <string name="settings_swipe_actions_change">UBAH</string>
-    <string-array name="settings_swipe_actions">
-        <item>Tidak ada</item>
-        <item>Arsipkan</item>
-        <item>Hapus</item>
-        <item>Blokir</item>
-        <item>Panggil</item>
-        <item>Tandai dibaca</item>
-        <item>Tandai belum dibaca</item>
-    </string-array>
     <string name="settings_delivery_title">Konfirmasi pengiriman</string>
     <string name="settings_signature_title">Tanda tangan</string>
     <string name="settings_signature_summary">Tambahkan tanda tangan di akhir pesan anda</string>
@@ -266,15 +257,6 @@
     <string name="qkreply_menu_expand">Tampilkan lainnya</string>
     <string name="qkreply_menu_collapse">Tampilkan sedikit</string>
     <string name="qkreply_menu_view">Buka percakapan</string>
-    <string-array name="notification_actions">
-        <item>Tidak ada</item>
-        <item>Arsip</item>
-        <item>Hapus</item>
-        <item>Blokir</item>
-        <item>Panggil</item>
-        <item>Tandai dibaca</item>
-        <item>Balas</item>
-    </string-array>
     <string name="button_yes">Ya</string>
     <string name="button_continue">Lanjutkan</string>
     <string name="button_cancel">Batal</string>
@@ -297,12 +279,6 @@
         <item>Tampilkan nama dan pesan</item>
         <item>Tampilkan nama</item>
         <item>Sembunyikan konten</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Kecil</item>
-        <item>Normal</item>
-        <item>Besar</item>
-        <item>Lebih besar</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Tanpa tundaan</item>

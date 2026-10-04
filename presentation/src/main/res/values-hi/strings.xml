@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">दाहिने तरफ से खींचे</string>
     <string name="settings_swipe_actions_left">बायें तरफ से खींचे</string>
     <string name="settings_swipe_actions_change">बदलें</string>
-    <string-array name="settings_swipe_actions">
-        <item>कोई नहीं</item>
-        <item>संग्रह</item>
-        <item>मिटायें</item>
-        <item>अवरुदध करें</item>
-        <item>कॉल</item>
-        <item>पढ़ा गया मार्क करें</item>
-        <item>अपठित चिह्नित करें</item>
-    </string-array>
     <string name="settings_delivery_title">वितरण पुष्टि</string>
     <string name="settings_signature_title">हस्ताक्षर</string>
     <string name="settings_signature_summary">अपने संदेशों के अंत में एक हस्ताक्षर जोड़ें</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">अधिक दिखाएं</string>
     <string name="qkreply_menu_collapse">कम दिखाएं</string>
     <string name="qkreply_menu_view">वार्तालाप खोलें</string>
-    <string-array name="notification_actions">
-        <item>कोई नहीं</item>
-        <item>संग्रह</item>
-        <item>मिटायें</item>
-        <item>अवरुदध करें</item>
-        <item>कॉल</item>
-        <item>पढ़ा हुआ चिह्नित करें</item>
-        <item>जवाब दे</item>
-    </string-array>
     <string name="button_yes">हाँ</string>
     <string name="button_continue">जारी रखें</string>
     <string name="button_cancel">रद्द करें</string>
@@ -302,12 +284,6 @@
         <item>नाम व संदेश दिखाएं</item>
         <item>नाम दिखाएं</item>
         <item>सामाग्री छुपाएं</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>छोटा</item>
-        <item>सामान्य</item>
-        <item>बड़ा</item>
-        <item>और बड़ा</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>कोइ विलम्ब नही</item>

@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">Rechts vegen</string>
     <string name="settings_swipe_actions_left">Links vegen</string>
     <string name="settings_swipe_actions_change">WIJZIGEN</string>
-    <string-array name="settings_swipe_actions">
-        <item>Geen</item>
-        <item>Archiveren</item>
-        <item>Verwijderen</item>
-        <item>Blokkeren</item>
-        <item>Bellen</item>
-        <item>Markeren als gelezen</item>
-        <item>Markeren als ongelezen</item>
-    </string-array>
     <string name="settings_delivery_title">Afleverrapporten</string>
     <string name="settings_signature_title">Handtekening</string>
     <string name="settings_signature_summary">Voeg een handtekening toe aan het eind van je berichten</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">Toon meer</string>
     <string name="qkreply_menu_collapse">Toon minder</string>
     <string name="qkreply_menu_view">Open conversatie</string>
-    <string-array name="notification_actions">
-        <item>Geen</item>
-        <item>Archiveren</item>
-        <item>Verwijderen</item>
-        <item>Blokkeren</item>
-        <item>Bel</item>
-        <item>Markeer als gelezen</item>
-        <item>Beantwoorden</item>
-    </string-array>
     <string name="button_yes">Ja</string>
     <string name="button_continue">Doorgaan</string>
     <string name="button_cancel">Annuleren</string>
@@ -302,12 +284,6 @@
         <item>Toon naam en bericht</item>
         <item>Toon naam</item>
         <item>Inhoud verbergen</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Klein</item>
-        <item>Normaal</item>
-        <item>Groot</item>
-        <item>Groot</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Geen vertraging</item>

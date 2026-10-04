@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">Jobbra húzás</string>
     <string name="settings_swipe_actions_left">Balra húzás</string>
     <string name="settings_swipe_actions_change">MEGVÁLTOZTATÁS</string>
-    <string-array name="settings_swipe_actions">
-        <item>Nincs</item>
-        <item>Archiválás</item>
-        <item>Törlés</item>
-        <item>Blokkolás</item>
-        <item>Hívás</item>
-        <item>Megjelölés olvasottként</item>
-        <item>Megjelölés olvasatlanként</item>
-    </string-array>
     <string name="settings_delivery_title">Elküldés megerősítése</string>
     <string name="settings_signature_title">Aláírás</string>
     <string name="settings_signature_summary">Aláírás hozzáadása az üzenetek végéhez</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">Több megjelenítése</string>
     <string name="qkreply_menu_collapse">Kevesebb megjelenítése</string>
     <string name="qkreply_menu_view">Beszélgetés megnyitása</string>
-    <string-array name="notification_actions">
-        <item>Nincs</item>
-        <item>Arhiválás</item>
-        <item>Törlés</item>
-        <item>Blokkolás</item>
-        <item>Hívás</item>
-        <item>Megjelölés olvasottként</item>
-        <item>Válasz</item>
-    </string-array>
     <string name="button_yes">Igen</string>
     <string name="button_continue">Folytatás</string>
     <string name="button_cancel">Mégse</string>
@@ -302,12 +284,6 @@
         <item>Név és üzenet látható</item>
         <item>Név látható</item>
         <item>A tartalom rejtett</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Kicsi</item>
-        <item>Normál</item>
-        <item>Nagy</item>
-        <item>Nagyobb</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Nincs késleltetés</item>

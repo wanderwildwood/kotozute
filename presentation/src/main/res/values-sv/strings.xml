@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">Svepning till höger</string>
     <string name="settings_swipe_actions_left">Svepning till vänster</string>
     <string name="settings_swipe_actions_change">BYT</string>
-    <string-array name="settings_swipe_actions">
-        <item>Inget</item>
-        <item>Arkivera</item>
-        <item>Ta bort</item>
-        <item>Blockera</item>
-        <item>Ring upp</item>
-        <item>Markera som läst</item>
-        <item>Markera som oläst</item>
-    </string-array>
     <string name="settings_delivery_title">Leveransrapporter</string>
     <string name="settings_signature_title">Signatur</string>
     <string name="settings_signature_summary">Lägg till en signatur i slutet av dina meddelanden</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">Visa mer</string>
     <string name="qkreply_menu_collapse">Visa färre</string>
     <string name="qkreply_menu_view">Öppna konversation</string>
-    <string-array name="notification_actions">
-        <item>Inget</item>
-        <item>Arkivera</item>
-        <item>Radera</item>
-        <item>Blockera</item>
-        <item>Ring upp</item>
-        <item>Markera som läst</item>
-        <item>Svara</item>
-    </string-array>
     <string name="button_yes">Ja</string>
     <string name="button_continue">Fortsätt</string>
     <string name="button_cancel">Avbryt</string>
@@ -302,12 +284,6 @@
         <item>Visa namn och meddelande</item>
         <item>Visa namn</item>
         <item>Göm innehåll</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Liten</item>
-        <item>Normal</item>
-        <item>Stort</item>
-        <item>Större</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Ingen fördröjning</item>

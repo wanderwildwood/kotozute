@@ -191,15 +191,6 @@
     <string name="settings_swipe_actions_right">Høyre-sveip</string>
     <string name="settings_swipe_actions_left">Venstre-sveip</string>
     <string name="settings_swipe_actions_change">Endring</string>
-    <string-array name="settings_swipe_actions">
-        <item>Ingen</item>
-        <item>Arkivér</item>
-        <item>Slett</item>
-        <item>Block</item>
-        <item>Call</item>
-        <item>Mark read</item>
-        <item>Mark unread</item>
-    </string-array>
     <string name="settings_delivery_title">Leveringsbekreftelse</string>
     <string name="settings_signature_title">Signatur</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>
@@ -270,15 +261,6 @@
     <string name="qkreply_menu_expand">Vis mer</string>
     <string name="qkreply_menu_collapse">Vis mindre</string>
     <string name="qkreply_menu_view">Åpne samtale</string>
-    <string-array name="notification_actions">
-        <item>Ingen</item>
-        <item>Archive</item>
-        <item>Delete</item>
-        <item>Block</item>
-        <item>Call</item>
-        <item>Mark read</item>
-        <item>Reply</item>
-    </string-array>
     <string name="button_yes">Ja</string>
     <string name="button_continue">Continue</string>
     <string name="button_cancel">Avbryt</string>
@@ -302,12 +284,6 @@
         <item>Vis navn og melding</item>
         <item>Vis navn</item>
         <item>Skjul innhold</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Liten</item>
-        <item>Standard</item>
-        <item>Stor</item>
-        <item>Større</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Ingen forsinkelse</item>

@@ -195,15 +195,6 @@
     <string name="settings_swipe_actions_right">سحب لليمين</string>
     <string name="settings_swipe_actions_left">سحب لليسار</string>
     <string name="settings_swipe_actions_change">تغيير</string>
-    <string-array name="settings_swipe_actions">
-        <item>لاشيء</item>
-        <item>أرشفة</item>
-        <item>حذف</item>
-        <item>حظر</item>
-        <item>اتصل</item>
-        <item>مقروء</item>
-        <item>غير مقروء</item>
-    </string-array>
     <string name="settings_delivery_title">تأكيدات الإستلام</string>
     <string name="settings_signature_title">توقيع</string>
     <string name="settings_signature_summary">اضافة توقيع الى نهاية الرسائل</string>
@@ -286,15 +277,6 @@
     <string name="qkreply_menu_expand">إظهار المزيد</string>
     <string name="qkreply_menu_collapse">إظهار أقل</string>
     <string name="qkreply_menu_view">فتح المحادثة</string>
-    <string-array name="notification_actions">
-        <item>لا شيء</item>
-        <item>ارشيف</item>
-        <item>مسح</item>
-        <item>منع</item>
-        <item>اتصال</item>
-        <item>مقروء</item>
-        <item>اجابه</item>
-    </string-array>
     <string name="button_yes">نعم</string>
     <string name="button_continue">الاستمرار</string>
     <string name="button_cancel">إلغاء</string>
@@ -322,12 +304,6 @@
         <item>عرض الاسم والرسالة</item>
         <item>عرض الاسم</item>
         <item>إخفاء المحتويات</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>صغير</item>
-        <item>عادي</item>
-        <item>كبير</item>
-        <item>أكبر</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>دون تأخير</item>

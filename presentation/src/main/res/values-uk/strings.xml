@@ -193,15 +193,6 @@
     <string name="settings_swipe_actions_right">Провести праворуч</string>
     <string name="settings_swipe_actions_left">Провести ліворуч</string>
     <string name="settings_swipe_actions_change">ЗМІНИТИ</string>
-    <string-array name="settings_swipe_actions">
-        <item>Немає</item>
-        <item>Перенести в архів</item>
-        <item>Видалити</item>
-        <item>Заблокувати</item>
-        <item>Виклик</item>
-        <item>Позначити прочитаним</item>
-        <item>Позначити непрочитаним</item>
-    </string-array>
     <string name="settings_delivery_title">Звіти про доставку</string>
     <string name="settings_signature_title">Підпис</string>
     <string name="settings_signature_summary">Додавати підпис в кінець ваших повідомлень</string>
@@ -278,15 +269,6 @@
     <string name="qkreply_menu_expand">Показати більше</string>
     <string name="qkreply_menu_collapse">Показати меньше</string>
     <string name="qkreply_menu_view">Відкрити бесіду</string>
-    <string-array name="notification_actions">
-        <item>Немає</item>
-        <item>Архів</item>
-        <item>Видалити</item>
-        <item>Заблокувати</item>
-        <item>Виклик</item>
-        <item>Позначити прочитаним</item>
-        <item>Відповісти</item>
-    </string-array>
     <string name="button_yes">Так</string>
     <string name="button_continue">Продовжити</string>
     <string name="button_cancel">Скасувати</string>
@@ -312,12 +294,6 @@
         <item>Показати ім\'я та повідомлення</item>
         <item>Показати ім\'я</item>
         <item>Приховати вміст</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Малий</item>
-        <item>Нормальний</item>
-        <item>Великий</item>
-        <item>Більший</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Без затримок</item>

@@ -193,15 +193,6 @@
     <string name="settings_swipe_actions_right">Right swipe</string>
     <string name="settings_swipe_actions_left">Left swipe</string>
     <string name="settings_swipe_actions_change">CHANGE</string>
-    <string-array name="settings_swipe_actions">
-        <item>None</item>
-        <item>Archive</item>
-        <item>Delete</item>
-        <item>Block</item>
-        <item>Call</item>
-        <item>Mark read</item>
-        <item>Mark unread</item>
-    </string-array>
     <string name="settings_delivery_title">Žinučių pristatymo patvirtinimai</string>
     <string name="settings_signature_title">Signature</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>
@@ -278,15 +269,6 @@
     <string name="qkreply_menu_expand">Rodyti daugiau</string>
     <string name="qkreply_menu_collapse">Rodyti mažiau</string>
     <string name="qkreply_menu_view">Atidaryti pokalbį</string>
-    <string-array name="notification_actions">
-        <item>None</item>
-        <item>Archive</item>
-        <item>Delete</item>
-        <item>Block</item>
-        <item>Call</item>
-        <item>Mark read</item>
-        <item>Reply</item>
-    </string-array>
     <string name="button_yes">Yes</string>
     <string name="button_continue">Continue</string>
     <string name="button_cancel">Atšaukti</string>
@@ -312,12 +294,6 @@
         <item>Rodyti vardą ir žinutę</item>
         <item>Rodyti vardą</item>
         <item>Slėpti turinį</item>
-    </string-array>
-    <string-array name="text_sizes">
-        <item>Mažas</item>
-        <item>Normalus</item>
-        <item>Didelis</item>
-        <item>Didžiausias</item>
     </string-array>
     <string-array name="delayed_sending_labels">
         <item>Be delsimo</item>

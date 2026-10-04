@@ -43,7 +43,14 @@ internal class SignalReceiptStore(private val db: ProtocolDatabase) {
          * `isReadReceiptsEnabled` and returns without sending -- so somebody who turns
          * receipts off does not have yesterday's backlog go out behind them.
          */
-        READ_RECEIPT("read-receipt")
+        READ_RECEIPT("read-receipt"),
+
+        /**
+         * Tell this account's own devices the missed calls with this person, up to the
+         * timestamp, were seen here: a call-log event, not a receipt, keyed the same way.
+         * Upstream's `CallLogEventSendJob`, a day of unlimited attempts like the rest.
+         */
+        CALLS_READ("calls-read")
     }
 
     /** Somebody still waiting to be told something, and since when. */

@@ -105,6 +105,22 @@ interface SignalEvents {
      */
     fun call(peer: String, callId: Long, at: Long, video: Boolean, outcome: CallOutcome) {}
 
+    /** Another of this account's devices deleted a one-to-one call from its history. */
+    fun callDeleted(peer: String, callId: Long) {}
+
+    /**
+     * Another of this account's devices cleared its call history, or saw its missed calls --
+     * all of them, or one conversation's ([threadKey]) -- up to [at]. [callId] names the call
+     * that event was about, when it says; its own time then stands in for [at], as upstream's
+     * `handleSynchronizeCallLogEvent` prefers the call it can find to the time it was sent.
+     */
+    fun callLog(
+        type: org.whispersystems.signalservice.internal.push.SyncMessage.CallLogEvent.Type?,
+        threadKey: String?,
+        callId: Long?,
+        at: Long?
+    ) {}
+
     /**
      * A call message from somebody, for the call machinery. Offers, answers, ICE candidates,
      * hangups and busies all come this way; what is recorded about the call is still [call].

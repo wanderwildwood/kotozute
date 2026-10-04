@@ -1293,6 +1293,63 @@ internal class SignalSender(
         }
     }
 
+    /**
+     * Tells this account's other devices a one-to-one call was deleted here. Upstream's
+     * `CallSyncEventJob.createForDelete`, built by `CallEventSyncMessageUtil.createDeleteCallEvent`.
+     *
+     * ⚠ The type has to be the one the call was: a receiver holding the call ignores a DELETE
+     * whose type, direction or peer does not match its own record (`typeMismatch` in
+     * `handleSynchronizeOneToOneCallEvent`).
+     */
+    fun sendCallDeleted(peer: ServiceId, callId: Long, at: Long, outgoing: Boolean, video: Boolean): Result {
+        val event = org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent(
+            conversationId = peer.toByteString(),
+            callId = callId,
+            timestamp = at,
+            type = if (video) {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Type.VIDEO_CALL
+            } else {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Type.AUDIO_CALL
+            },
+            direction = if (outgoing) {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Direction.OUTGOING
+            } else {
+                org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Direction.INCOMING
+            },
+            event = org.whispersystems.signalservice.internal.push.SyncMessage.CallEvent.Event.DELETE
+        )
+        return try {
+            val result = sender.sendSyncMessage(SignalServiceSyncMessage.forCallEvent(event))
+            if (result.isSuccess) Result.Sent(at) else failed(result)
+        } catch (t: Throwable) {
+            Timber.w(t, "signal calls: could not tell our own devices a call was deleted")
+            failed(t)
+        }
+    }
+
+    /**
+     * Tells this account's other devices the calls in one conversation, up to [at], have been
+     * seen here. Upstream's `CallLogEventSendJob.forMarkedAsReadInConversation`, which
+     * `MarkReadReceiver.processCallEvents` sends whenever reading a conversation marked a
+     * missed call read. [callId] names the newest call it covers; without one, the receiver
+     * goes by [at] alone, as upstream's does when it cannot find the call.
+     */
+    fun sendCallsRead(conversationId: ByteArray, callId: Long?, at: Long): Result {
+        val event = org.whispersystems.signalservice.internal.push.SyncMessage.CallLogEvent(
+            type = org.whispersystems.signalservice.internal.push.SyncMessage.CallLogEvent.Type.MARKED_AS_READ_IN_CONVERSATION,
+            timestamp = at,
+            conversationId = okio.ByteString.of(*conversationId),
+            callId = callId
+        )
+        return try {
+            val result = sender.sendSyncMessage(SignalServiceSyncMessage.forCallLogEvent(event))
+            if (result.isSuccess) Result.Sent(at) else failed(result)
+        } catch (t: Throwable) {
+            Timber.w(t, "signal calls: could not tell our own devices a missed call was seen")
+            failed(t)
+        }
+    }
+
     /** Asks the primary for the blocked list, which arrives later through the socket. */
     fun requestBlockedList(): Result = try {
         val result = sender.sendSyncMessage(

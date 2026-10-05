@@ -901,6 +901,9 @@ interface SignalRepository {
      */
     fun setArchived(threadKey: String, archived: Boolean)
 
+    /** "Keep muted chats archived", here and on the account so the other devices agree. */
+    fun setKeepMutedArchived(on: Boolean)
+
     /**
      * Who this phone is signed in as and which devices are on that account. Throws if Signal
      * cannot be reached, so a screen can say so rather than show a blank.

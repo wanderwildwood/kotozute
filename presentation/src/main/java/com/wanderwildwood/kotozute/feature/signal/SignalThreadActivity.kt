@@ -165,6 +165,36 @@ class SignalThreadActivity : QkThemedActivity() {
     private var pendingViewOnce = false
 
     /**
+     * A GIF from GIPHY, fetched here as upstream's `GiphyMp4Repository.saveToBlob` does: the MP4,
+     * sent as `video/mp4` marked GIF. See [SignalGifActivity].
+     */
+    private val gifPicker = registerForActivityResult(SignalGifActivity.Pick()) { mp4: String? ->
+        if (mp4 == null) return@registerForActivityResult
+        pendingLoads++
+        showSendOrRecord()
+        thread(isDaemon = true) {
+            val result = runCatching { com.wanderwildwood.kotozute.signalstore.Giphy.fetch(mp4) }
+            runOnUiThread {
+                pendingLoads = (pendingLoads - 1).coerceAtLeast(0)
+                result.onSuccess { bytes ->
+                    pendingAttachment = com.wanderwildwood.kotozute.signal.Gifs.mark(
+                        "data:${com.wanderwildwood.kotozute.signal.Gifs.CONTENT_TYPE};base64," +
+                            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                    )
+                    pendingViewOnce = false
+                    pendingName = getString(R.string.signal_gif)
+                    binding.pending.text = getString(R.string.signal_attached, pendingName)
+                    binding.pending.setVisible(true)
+                }.onFailure {
+                    Timber.w(it, "signal gif: could not fetch the one chosen")
+                    Toast.makeText(this, R.string.signal_attach_failed, Toast.LENGTH_LONG).show()
+                }
+                showSendOrRecord()
+            }
+        }
+    }
+
+    /**
      * A contact, attached as its vCard -- the same one the SMS side attaches -- which the
      * sender turns into the card Signal sends. See `ContactCards` in the data module.
      */
@@ -436,13 +466,14 @@ class SignalThreadActivity : QkThemedActivity() {
             })
         }
 
-        // A picture or file, or a contact card -- the two things Signal's own attach sheet
+        // A picture or file, a GIF, or a contact card -- the things Signal's own attach sheet
         // offers that this rail can send.
         binding.attach.setOnClickListener {
             einkDialog()
                 .setItems(
                     arrayOf(
                         getString(R.string.signal_attach_file),
+                        getString(R.string.signal_attach_gif),
                         getString(R.string.signal_attach_view_once),
                         getString(R.string.signal_attach_contact),
                         getString(R.string.signal_poll_new)
@@ -450,8 +481,9 @@ class SignalThreadActivity : QkThemedActivity() {
                 ) { _, which ->
                     when (which) {
                         0 -> picker.launch("*/*" to true)
-                        1 -> viewOncePicker.launch("image/*" to false)
-                        2 -> contactPicker.launch(null)
+                        1 -> gifPicker.launch(Unit)
+                        2 -> viewOncePicker.launch("image/*" to false)
+                        3 -> contactPicker.launch(null)
                         else -> askForPoll()
                     }
                 }

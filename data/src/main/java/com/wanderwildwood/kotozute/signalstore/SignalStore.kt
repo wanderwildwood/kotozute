@@ -1540,6 +1540,12 @@ class SignalStore(private val context: Context) {
     /** Told once the pinned list is on the account. */
     internal var onPinsWritten: () -> Unit = {}
 
+    /** The account's "Keep muted chats archived", as each read finds it. Set by the repository. */
+    internal var onKeepMutedArchivedRead: (Boolean) -> Unit = {}
+
+    /** Upstream's `ChatsSettingsViewModel.setKeepMutedChatsArchived`: the setting, then a storage sync. */
+    fun setKeepMutedChatsArchived(on: Boolean) = amendAccount { it.copy(keepMutedChatsArchived = on) }
+
     /**
      * A change to the account's own record still to be written -- a username, who sees the
      * number -- composed in order, and cleared once the account says it.
@@ -1737,6 +1743,10 @@ class SignalStore(private val context: Context) {
             accountRecord = { raw, id, pinned ->
                 accountRecord = raw to id
                 runCatching { onPinnedRead(pinned) }
+                runCatching {
+                    org.whispersystems.signalservice.internal.storage.protos.StorageRecord.ADAPTER.decode(raw)
+                        .account?.let { onKeepMutedArchivedRead(it.keepMutedChatsArchived) }
+                }
             },
             blocked = { people, groups ->
                 // Replaces the held list rather than adding to it: a storage read is the

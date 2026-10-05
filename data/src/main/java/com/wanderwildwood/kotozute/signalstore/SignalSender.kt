@@ -2248,6 +2248,8 @@ internal class SignalSender(
             // presented as something somebody said. See [VoiceNotes] for why the marker
             // rides inside the data URI rather than beside it.
             .withVoiceNote(com.wanderwildwood.kotozute.signal.VoiceNotes.isMarked(dataUri))
+            // The same for a GIF: without the flag a GIPHY pick arrives as a plain video.
+            .withGif(com.wanderwildwood.kotozute.signal.Gifs.isMarked(dataUri))
             .build()
     }
 

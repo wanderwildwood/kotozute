@@ -206,12 +206,9 @@ class ReceiveMmsWorker(appContext: Context, workerParams: WorkerParameters)
                             return Result.success(inputData)
                         }
 
-                        // unarchive conversation if necessary
-                        if (conversation.archived)
-                            conversationRepo.markUnarchived(listOf(conversation.id))
-
-                        // unarchive conversation if necessary
-                        if (conversation.archived) {
+                        // unarchive conversation if necessary -- unless muted and muted chats
+                        // stay archived, Signal's `ThreadTable.allowedToUnarchive` (forum #108)
+                        if (conversation.archived && !prefs.keepsArchived(conversation.id)) {
                             Timber.v("conversation unarchived")
                             conversationRepo.markUnarchived(listOf(conversation.id))
                         }

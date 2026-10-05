@@ -38,9 +38,12 @@ object VoiceNotes {
      * Returns [dataUri] unchanged when it is not a data URI or already carries the marker, so
      * this is safe to apply more than once.
      */
-    fun mark(dataUri: String): String {
+    fun mark(dataUri: String): String = markParameter(dataUri, PARAMETER)
+
+    /** [mark] for any media-type parameter -- [Gifs] rides the same way. */
+    internal fun markParameter(dataUri: String, parameter: String): String {
         if (!dataUri.startsWith(PREFIX)) return dataUri
-        if (isMarked(dataUri)) return dataUri
+        if (hasParameter(dataUri, parameter)) return dataUri
         val comma = dataUri.indexOf(',')
         if (comma < 0) return dataUri
 
@@ -49,21 +52,23 @@ object VoiceNotes {
         // Before the encoding token, and before the data. A header of "audio/aac;base64"
         // becomes "audio/aac;voice-note;base64".
         val marked = if (header.contains(BASE64_TOKEN)) {
-            header.replace(BASE64_TOKEN, ";$PARAMETER$BASE64_TOKEN")
+            header.replace(BASE64_TOKEN, ";$parameter$BASE64_TOKEN")
         } else {
-            "$header;$PARAMETER"
+            "$header;$parameter"
         }
         return "$PREFIX$marked$rest"
     }
 
     /** Whether this attachment was recorded as a voice note. */
-    fun isMarked(dataUri: String): Boolean {
+    fun isMarked(dataUri: String): Boolean = hasParameter(dataUri, PARAMETER)
+
+    internal fun hasParameter(dataUri: String, parameter: String): Boolean {
         if (!dataUri.startsWith(PREFIX)) return false
         val comma = dataUri.indexOf(',')
         if (comma < 0) return false
         return dataUri.substring(PREFIX.length, comma)
             .split(';')
-            .any { it.trim() == PARAMETER }
+            .any { it.trim() == parameter }
     }
 
     /**

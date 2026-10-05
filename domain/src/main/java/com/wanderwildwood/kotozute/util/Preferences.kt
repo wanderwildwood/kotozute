@@ -423,6 +423,11 @@ class Preferences @Inject constructor(
     val disableScreenshots = rxPrefs.getBoolean("disableScreenshots", false)
     val logging = rxPrefs.getBoolean("logging", false)
     val unreadAtTop = rxPrefs.getBoolean("unreadAtTop", false)
+    /**
+     * Signal's "Keep muted chats archived": a muted conversation stays archived when a message
+     * arrives; any other is brought back. The Signal account's own setting when Signal is on.
+     */
+    val keepMutedArchived = rxPrefs.getBoolean("keepMutedArchived", false)
     /** Groups and message requests only in their own tabs; the first tab is then "People". */
     val allOnlyPeople = rxPrefs.getBoolean("allOnlyPeople", false)
     /** Whether the unread count is handed to Glance for the lock screen. */
@@ -478,6 +483,16 @@ class Preferences @Inject constructor(
             else -> rxPrefs.getBoolean("notifications_$threadId", default.get())
         }
     }
+
+    /**
+     * Whether an arriving text leaves this archived conversation archived: [keepMutedArchived]
+     * is on and the conversation is muted. A text conversation is muted when its own
+     * notifications have been switched off -- not when they are all off app-wide, which is
+     * not a choice about this one.
+     */
+    fun keepsArchived(threadId: Long): Boolean =
+        keepMutedArchived.get() &&
+            rxPrefs.getBoolean("notifications_$threadId").let { it.isSet && !it.get() }
 
     fun notificationPreviews(threadId: Long = 0): Preference<Int> {
         val default = rxPrefs.getInteger("notification_previews", 0)

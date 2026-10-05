@@ -1743,7 +1743,11 @@ class SignalStore(private val context: Context) {
             accountRecord = { raw, id, pinned ->
                 accountRecord = raw to id
                 runCatching { onPinnedRead(pinned) }
-                runCatching {
+                // ⚠ Not while a change of ours is waiting to go up. [amendAccount] reads before
+                // it writes, and that read carries the value being replaced -- applied, it put
+                // the switch back the moment it was turned. The pinned list has the same guard
+                // (`signalPinsDirty`); the next read after the write brings the new value.
+                if (accountEdit == null) runCatching {
                     org.whispersystems.signalservice.internal.storage.protos.StorageRecord.ADAPTER.decode(raw)
                         .account?.let { onKeepMutedArchivedRead(it.keepMutedChatsArchived) }
                 }

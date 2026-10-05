@@ -640,6 +640,14 @@ internal object ProtocolStoreSchema {
      * fallback available here the way there is for the message database. A version with no
      * entry is still an error, deliberately: an unhandled upgrade must be loud rather than
      * leave a half-known schema in place.
+     *
+     * ⚠ A step that creates a table uses the table's constant, which is its shape **today**,
+     * not its shape at that version. So a store old enough to run v10 gets a `recipient` that
+     * already has every column added after it, and v15's `ADD COLUMN sealed_sender_mode` then
+     * fails as a duplicate, every time it is opened. Every store made by v1.12.0 to v1.19.37
+     * (v5 to v12) did that, here or at v21's `message_log.device_id`. The upgrade therefore skips an `ADD COLUMN` whose column is already there; see
+     * [ProtocolDatabase.onUpgrade]. Signal guards its own the same way when a step may have
+     * already happened (`V203_PreKeyStaleTimestamp`, `columnExists`).
      */
     val MIGRATIONS: Map<Int, List<String>> = mapOf(
         // v2 added the envelope queue, so that an envelope can be written down before it is

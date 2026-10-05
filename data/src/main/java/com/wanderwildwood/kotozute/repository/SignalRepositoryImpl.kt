@@ -339,6 +339,7 @@ class SignalRepositoryImpl @Inject constructor(
         signalStore.onPinnedRead = ::applyPinnedRead
         signalStore.pinsToWrite = ::desiredPins
         signalStore.onPinsWritten = { prefs.signalPinsDirty.set(false) }
+        signalStore.onKeepMutedArchivedRead = { on -> prefs.keepMutedArchived.set(on) }
     }
 
     /**
@@ -1545,11 +1546,9 @@ class SignalRepositoryImpl @Inject constructor(
                 quoteTs = quote?.sentAt ?: 0L,
                 read = true,
                 source = "live",
-                // What we sent, so the row can draw it. Marked not pending: unlike a
-                // received attachment this one is not on disk under an id -- it was
-                // uploaded from the composer's own copy -- so there is nothing to fetch
-                // and nothing to say is missing.
-                attachmentsJson = outgoingAttachmentsJson(attachments),
+                // What we sent, kept under an id so the row can draw it -- see
+                // [outgoingAttachmentsJson]. Marked not pending: there is nothing to fetch.
+                attachmentsJson = outgoingAttachmentsJson(attachments, timestamp, viewOnce),
                 // Our own copy expires too. The clock starts now because this is the
                 // moment we sent it, which is what Signal stamps as the start for an
                 // outgoing message.
@@ -1984,7 +1983,7 @@ class SignalRepositoryImpl @Inject constructor(
                 source = "live",
                 // As a one-to-one send's: the row draws what went, and the outbox keeps the
                 // bytes so a send cut off can go again.
-                attachmentsJson = outgoingAttachmentsJson(attachments),
+                attachmentsJson = outgoingAttachmentsJson(attachments, timestamp, viewOnce),
                 // Our own copy of a group send expires on the group's timer too.
                 expiresInSeconds = expiresIn.toLong(),
                 expiresAt = if (expiresIn > 0) timestamp + expiresIn * 1000L else 0L,
@@ -2024,7 +2023,23 @@ class SignalRepositoryImpl @Inject constructor(
         return com.wanderwildwood.kotozute.signalstore.ContactCards.nameInDataUri(card)?.let { "(contact) $it" } ?: body
     }
 
-    private fun outgoingAttachmentsJson(attachments: List<String>): String {
+    /**
+     * Our own copy of what was sent, each file kept on the phone under an id.
+     *
+     * ⚠ **A sent picture used to be filed with no id**, so the bubble had no bytes to draw
+     * and showed a file name instead (forum #108) -- while the same picture sent from the
+     * Signal app arrived here as a sync transcript with a pointer, was downloaded, and drew.
+     * Upstream keeps the sender's copy too: `AttachmentTable.insertAttachmentsForMessage`
+     * writes an outgoing message's files to disk before the send, and the conversation draws
+     * from them.
+     *
+     * The id is made from the message's timestamp, so a resend of the same message (which
+     * reuses the timestamp) lands on the file already kept rather than leaving a second one.
+     * A view-once picture is not kept: upstream deletes the sender's file as soon as it has
+     * gone (`IndividualSendJob` / `PushGroupSendJob` call
+     * `deleteAttachmentFilesForViewOnceMessage`), so the sender never sees it again either.
+     */
+    private fun outgoingAttachmentsJson(attachments: List<String>, timestamp: Long, viewOnce: Boolean): String {
         val cards = attachments.filter(com.wanderwildwood.kotozute.signalstore.ContactCards::isVCard)
         val files = attachments.filterNot(com.wanderwildwood.kotozute.signalstore.ContactCards::isVCard)
         if (files.isEmpty() && cards.isEmpty()) return ""
@@ -2033,14 +2048,23 @@ class SignalRepositoryImpl @Inject constructor(
         // attachment, so the sender sees "Attachment: <name>.vcf" as the recipient does and
         // can open it. It used to be dropped here, and the sent card read as words only.
         cards.forEach { dataUri -> keptCard(dataUri)?.let(array::put) }
-        files.forEach { dataUri ->
+        files.forEachIndexed { index, dataUri ->
             val type = dataUri.substringAfter("data:", "").substringBefore(';')
+            val bytes = if (viewOnce) null else runCatching {
+                android.util.Base64.decode(dataUri.substringAfter(','), android.util.Base64.DEFAULT)
+            }.getOrNull()
+            // A name of our own making, plain and unique, so it is kept exactly as given.
+            val id = bytes?.let {
+                runCatching {
+                    signalStore.keepImportedAttachment("sent-$timestamp-$index") { java.io.ByteArrayInputStream(it) }
+                }.getOrNull()
+            }.orEmpty()
             array.put(
                 org.json.JSONObject()
-                    .put("id", "")
+                    .put("id", id)
                     .put("type", type.ifBlank { "application/octet-stream" })
                     .put("filename", "")
-                    .put("size", 0)
+                    .put("size", bytes?.size ?: 0)
                     // ⚠ Both ends, or only the far one is right. The wire flag is set from
                     // this same marker in `SignalSender.attachmentStream`, so a voice note
                     // sent from here already arrives as a voice note for the recipient --
@@ -2048,6 +2072,7 @@ class SignalRepositoryImpl @Inject constructor(
                     // attachment. The message would have looked wrong only to the person who
                     // recorded it, which is the half nobody thinks to check.
                     .put("voice", com.wanderwildwood.kotozute.signal.VoiceNotes.isMarked(dataUri))
+                    .put("gif", com.wanderwildwood.kotozute.signal.Gifs.isMarked(dataUri))
                     .put("pending", false)
             )
         }
@@ -2163,6 +2188,7 @@ class SignalRepositoryImpl @Inject constructor(
                 messages.forEach { if (store(r, it)) fresh.add(it) }
             }
         }
+        flushUnarchivedByArrival()
         announce(fresh)
         // A contacts sync can have landed in the same batch as the messages it names.
         renameThreadsFromContacts()
@@ -2692,6 +2718,22 @@ class SignalRepositoryImpl @Inject constructor(
      * Idempotent by primary key: the same message may arrive more than once. Returns
      * whether a row was actually created, which is what stops a redelivery from ringing.
      */
+    /** Conversations [store] brought back from the archive, still to be told to the account. */
+    private val unarchivedByArrival: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /**
+     * Upstream's unarchive ends in `StorageSyncHelper.scheduleSyncForDataChange`, so the other
+     * devices bring the conversation back too. Marked here, outside the Realm write, and sent
+     * off the receive thread.
+     */
+    private fun flushUnarchivedByArrival() {
+        if (unarchivedByArrival.isEmpty()) return
+        val keys = unarchivedByArrival.toList()
+        unarchivedByArrival.removeAll(keys.toSet())
+        keys.forEach(::markNeedsSync)
+        runOffThread { pushStorageNow() }
+    }
+
     private fun store(realm: Realm, m: BridgeMessage): Boolean {
         if (m.id.isBlank()) return false
 
@@ -2804,6 +2846,18 @@ class SignalRepositoryImpl @Inject constructor(
             }
         // Anything we send into a conversation answers it, as it does upstream.
         if (m.outgoing && thread.request) thread.request = false
+        // A message arriving brings an archived conversation back, as upstream's
+        // `insertMessageInbox` does with `unarchive = true` -- unless it is muted and the
+        // account keeps muted chats archived (`ThreadTable.allowedToUnarchive`). Only a new
+        // row from the wire: our own sends and an imported backup are not somebody writing.
+        // ⚠ This never happened at all: an archived Signal conversation stayed hidden however
+        // many messages came in (forum #108).
+        if (isNew && !m.outgoing && m.source == "live" && thread.archived &&
+            !(prefs.keepMutedArchived.get() && thread.muted)
+        ) {
+            thread.archived = false
+            unarchivedByArrival += m.threadKey
+        }
         // Only the newest message speaks for the thread. Messages can arrive out of
         // order -- a reconnect replays by cursor, and an imported backup arrives
         // backwards -- so this is guarded on the timestamp rather than on arrival.
@@ -5859,6 +5913,14 @@ class SignalRepositoryImpl @Inject constructor(
             }
         }
         pushStorageNow()
+    }
+
+    override fun setKeepMutedArchived(on: Boolean) = runOffThread {
+        prefs.keepMutedArchived.set(on)
+        if (prefs.signalEnabled.get()) {
+            runCatching { signalStore.setKeepMutedChatsArchived(on) }
+                .onFailure { Timber.w(it, "signal storage: the setting waits for the next read") }
+        }
     }
 
     override fun getThreadsSnapshot(archived: Boolean): List<SignalThread> =

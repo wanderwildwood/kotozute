@@ -367,6 +367,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalStatus.summary = state.signalStatusSummary
 
         binding.unreadAtTop.checkbox.isChecked = state.unreadAtTopEnabled
+        binding.keepMutedArchived.checkbox.isChecked = state.keepMutedArchived
         binding.allOnlyPeople.checkbox.isChecked = state.allOnlyPeopleEnabled
         binding.lockScreen.checkbox.isChecked = state.lockScreenEnabled
 

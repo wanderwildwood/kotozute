@@ -148,6 +148,14 @@
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/keepMutedArchived"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_keep_muted_archived_summary"
+                app:title="@string/settings_keep_muted_archived_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/lockScreen"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

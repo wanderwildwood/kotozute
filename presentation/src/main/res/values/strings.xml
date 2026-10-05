@@ -287,6 +287,9 @@
     <string name="settings_unread_at_top_title">Unread at the top</string>
     <!-- Settings: groups and unknown senders appear only in their own tabs, and the first tab becomes "People" -->
     <string name="settings_all_only_people_title">Keep groups and unknown senders in their own tabs</string>
+    <!-- Signal's own wording, preferences__pref_keep_muted_chats_archived and its summary -->
+    <string name="settings_keep_muted_archived_title">Keep muted chats archived</string>
+    <string name="settings_keep_muted_archived_summary">Muted chats that are archived will remain archived when a new message arrives.</string>
     <string name="settings_all_only_people_summary">The first tab becomes People: your one-to-one conversations</string>
     <!-- Settings: whether the unread count shows on the lock screen, through the Glance app -->
     <string name="settings_lock_screen_title">Unread on the lock screen</string>
@@ -520,6 +523,14 @@
     <string name="signal_request_delete_confirm_group">Leave this group and delete it?</string>
     <string name="signal_request_failed">Could not do that: %s</string>
     <string name="signal_attach_file">Picture or file</string>
+    <string name="signal_attach_gif">GIF</string>
+    <string name="signal_gif">GIF</string>
+    <string name="signal_gif_title">GIF</string>
+    <string name="signal_gif_search_hint">Search GIPHY</string>
+    <string name="signal_gif_loading">Loading…</string>
+    <string name="signal_gif_none">No GIFs found</string>
+    <string name="signal_gif_search_failed">Could not reach GIPHY. Check the connection and try again.</string>
+    <string name="signal_gif_powered_by">Powered by GIPHY</string>
     <string name="signal_attach_contact">Contact</string>
     <plurals name="signal_attached_many">
         <item quantity="one">Attached: %d picture. Tap to remove</item>

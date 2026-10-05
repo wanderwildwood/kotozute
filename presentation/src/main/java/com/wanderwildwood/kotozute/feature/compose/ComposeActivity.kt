@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.feature.compose
 
+import com.wanderwildwood.kotozute.common.widget.SelectionMenu
 import com.wanderwildwood.kotozute.repository.EmojiReactionRepository
 import com.wanderwildwood.kotozute.common.widget.ReactionPicker
 import android.Manifest
@@ -246,6 +247,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             binding.message.supportsInputContent = true
 
             binding.message.showCursorWhenWriting()
+
+            // The selection bar's overflow, which the Kompakt never draws: Select all, Share,
+            // Define and the other apps that act on text, behind a ⋮.
+            SelectionMenu.fold(binding.message, getString(R.string.signal_message_share))
 
             binding.railBadge.setOnClickListener {
                 signalThreadKey?.let { key ->

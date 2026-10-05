@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.feature.signal
 
+import com.wanderwildwood.kotozute.common.widget.SelectionMenu
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Intent
@@ -1509,34 +1510,20 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     /**
-     * Signal's formatting, from the draft's selection menu.
+     * The draft's selection menu: Signal's formatting, Define and the other apps that act on
+     * text.
      *
-     * One "Format" item opening a list, rather than upstream's five items beside Copy: the
-     * Kompakt's selection toolbar shows three items and has no overflow, so Strikethrough,
-     * Monospace, Spoiler and Clear formatting could not be reached at all.
+     * The Kompakt's selection toolbar shows three items and has no overflow, so upstream's five
+     * formatting items beside Copy could not be reached, and nor could anything else past the
+     * third. [SelectionMenu] keeps Android's first items on the bar and gives back a ⋮ for the
+     * rest; Format is one entry in it, after Android's own and before the text apps.
      */
     private fun offerFormatting() {
-        binding.message.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
-            override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
-                val order = listOf(android.R.id.copy, android.R.id.cut, android.R.id.paste)
-                    .minOf { menu.findItem(it)?.order ?: 0 }
-                menu.add(0, FORMAT_MENU, order, R.string.signal_format)
-                return true
-            }
-
-            override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
-
-            override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
-                if (item.itemId != FORMAT_MENU) return false
-                val start = binding.message.selectionStart
-                val end = binding.message.selectionEnd
-                mode.finish()
-                pickFormat(start, end)
-                return true
-            }
-
-            override fun onDestroyActionMode(mode: android.view.ActionMode) = Unit
-        }
+        SelectionMenu.fold(
+            binding.message,
+            getString(R.string.signal_message_share),
+            listOf(SelectionMenu.Own(getString(R.string.signal_format)) { start, end -> pickFormat(start, end) }),
+        )
     }
 
     /** The styles in Signal's order, and Clear formatting where there is some to clear. */
@@ -2314,9 +2301,6 @@ class SignalThreadActivity : QkThemedActivity() {
 
         /** Upstream's most attachments in one message (`RemoteConfig.maxAttachmentCount`). */
         private const val MAX_ALBUM = 32
-
-        /** The draft's Format menu item. Any id does; this stays clear of the platform's. */
-        private const val FORMAT_MENU = 0x5f01
 
         /** A spoiler in the draft: shown, on a light grey, so the writer can see what it hides. */
         private const val SPOILER_SHADE = 0xFFD0D0D0.toInt()

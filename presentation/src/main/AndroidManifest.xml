@@ -352,6 +352,12 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- The apps that act on selected text, such as Define, so the draft's selection
+             menu can offer them. -->
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
         <!-- Without this the camera cannot be seen at all on API 30+, so the
              photo it is asked to take has nowhere it is allowed to write. -->
         <intent>

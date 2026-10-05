@@ -207,7 +207,10 @@ class MainActivity : QkThemedActivity(), MainView {
     private fun selectFilterTab(filter: Int) {
         // With groups and unknown senders kept to their own tabs the first one is not "all",
         // and says so.
-        binding.filterAll.setText(if (prefs.allOnlyPeople.get()) R.string.filter_people else R.string.filter_all)
+        binding.filterAll.text = tabLabel(
+            if (prefs.allOnlyPeople.get()) R.string.filter_people else R.string.filter_all, 0)
+        binding.filterGroups.text = tabLabel(R.string.filter_groups, 1)
+        binding.filterUnknown.text = tabLabel(R.string.filter_unknown, 2)
         // Reset all tabs
         binding.filterAll.setBackgroundResource(android.R.color.transparent)
         binding.filterAll.setTextColor(android.graphics.Color.BLACK)
@@ -232,6 +235,12 @@ class MainActivity : QkThemedActivity(), MainView {
             }
         }
     }
+
+    /** A tab holding something unread is marked with a dot ahead of its name, where an
+     *  ellipsis on a narrow tab cannot cut it off. */
+    private fun tabLabel(name: Int, tab: Int): String =
+        if (conversationsAdapter.hasUnread(tab)) getString(R.string.filter_tab_unread, getString(name))
+        else getString(name)
 
     fun updateFilterTabSelection(filter: Int) {
         selectFilterTab(filter)

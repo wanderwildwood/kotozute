@@ -33,6 +33,8 @@
     <string name="filter_people">People</string>
     <string name="filter_groups">Groups</string>
     <string name="filter_unknown">Unknown</string>
+    <!-- A tab with something unread under it: a dot ahead of the tab's name. -->
+    <string name="filter_tab_unread">• %s</string>
     <string name="title_compose">Type a name or number</string>
 
 

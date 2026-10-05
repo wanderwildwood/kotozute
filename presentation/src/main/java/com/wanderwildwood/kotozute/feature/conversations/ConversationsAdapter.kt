@@ -128,19 +128,31 @@ class ConversationsAdapter @Inject constructor(
         // Deleted rows are dropped before anything reads a field off them. A list built
         // from live Realm objects can already contain a corpse by the time it arrives.
         val source = source.filter { it.isValid }
-        items = when (filterMode) {
-            1 -> source.filter(::isGroup)
-            2 -> source.filter(::isUnknown)
-            // Groups and requests each have a tab of their own; with this on, that is the only
-            // place they appear, and the first tab -- People, then, not All -- is one to one.
-            else -> if (inbox && prefs.allOnlyPeople.get()) {
-                source.filterNot { isGroup(it) || isUnknown(it) }
-            } else {
-                source
-            }
-        }
+        items = source.filter { inTab(it, filterMode) }
         notifyDataSetChanged()
         updateEmptyView()
+    }
+
+    private fun inTab(item: InboxItem, tab: Int): Boolean = when (tab) {
+        1 -> isGroup(item)
+        2 -> isUnknown(item)
+        // Groups and requests each have a tab of their own; with this on, that is the only
+        // place they appear, and the first tab -- People, then, not All -- is one to one.
+        else -> !(inbox && prefs.allOnlyPeople.get()) || !(isGroup(item) || isUnknown(item))
+    }
+
+    /**
+     * Something unread under [tab], whichever tab is showing. With groups and requests kept
+     * to their own tabs, a new message there has no row anywhere else to give it away, so the
+     * tab's label carries the mark instead.
+     */
+    fun hasUnread(tab: Int): Boolean = source.any { it.isValid && isUnread(it) && inTab(it, tab) }
+
+    // Unread on either half. A row standing for both rails that ignored an unread text
+    // would quietly hide it: the text conversation has no row of its own any more.
+    private fun isUnread(item: InboxItem): Boolean = when (item) {
+        is InboxItem.Sms -> item.conversation.unread
+        is InboxItem.Signal -> item.thread.unread > 0 || item.joined?.unread == true
     }
 
     // A Signal group is still a group; a Signal thread always has a counterpart, so it is
@@ -171,12 +183,7 @@ class ConversationsAdapter @Inject constructor(
     override fun getItemViewType(position: Int): Int = when (val item = getItem(position)) {
         // Asked during the layout pass a deletion sets off, before the rebuilt list has
         // reached the adapter, so the row here may already be gone from the database.
-        is InboxItem.Sms -> if (item.isValid && item.conversation.unread) 1 else 0
-        // Unread on either half. A row standing for both rails that ignored an unread text
-        // would quietly hide it: the text conversation has no row of its own any more.
-        is InboxItem.Signal -> if (
-            item.isValid && (item.thread.unread > 0 || item.joined?.unread == true)
-        ) 1 else 0
+        is InboxItem -> if (item.isValid && isUnread(item)) 1 else 0
         null -> 0
     }
 

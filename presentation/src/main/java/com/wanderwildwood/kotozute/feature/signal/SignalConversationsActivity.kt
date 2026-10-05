@@ -180,6 +180,7 @@ class SignalConversationsActivity : QkThemedActivity() {
             kind
         }
         adapter.submit(shown)
+        selectFilterTab()
         val empty = shown.isEmpty()
         binding.empty.setVisible(empty)
         binding.recyclerView.setVisible(!empty)
@@ -192,7 +193,16 @@ class SignalConversationsActivity : QkThemedActivity() {
     }
 
     private fun selectFilterTab() {
-        binding.filterAll.setText(if (prefs.allOnlyPeople.get()) R.string.filter_people else R.string.filter_all)
+        // A dot ahead of the name for a tab with something unread, as on the text list.
+        val unread = threads.orEmpty().filter { it.isValid && it.unread > 0 }
+        fun label(name: Int, marked: Boolean) =
+            if (marked) getString(R.string.filter_tab_unread, getString(name)) else getString(name)
+        binding.filterAll.text = if (prefs.allOnlyPeople.get()) {
+            label(R.string.filter_people, unread.any { it.kind != "group" })
+        } else {
+            label(R.string.filter_all, unread.isNotEmpty())
+        }
+        binding.filterGroups.text = label(R.string.filter_groups, unread.any { it.kind == "group" })
         val groups = prefs.signalConversationFilter.get() == FILTER_GROUPS
         listOf(binding.filterAll to !groups, binding.filterGroups to groups)
             .forEach { (tab, selected) ->

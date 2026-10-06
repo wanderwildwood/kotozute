@@ -861,6 +861,9 @@
     <string name="signal_notification_reply_failed">Your reply did not go. Open the conversation to send it again.</string>
     <string name="signal_replying">Replying to %1$s: %2$s — tap to cancel</string>
     <string name="signal_reaction_remove_mine">Remove my %1$s</string>
+    <!-- Signal's ReactionsRecipientAdapter_you and ReactionsBottomSheetDialogFragment_tap_to_remove, on one line. -->
+    <string name="signal_reaction_you_remove">You \u00b7 Tap to remove</string>
+    <string name="signal_reaction_someone">Someone</string>
     <string name="signal_scheduled">Scheduled</string>
     <string name="signal_schedule_needs_text">Write something first</string>
     <string name="signal_schedule_no_attachments">A scheduled Signal message is text only. Send the picture now, or remove it.</string>

@@ -1088,13 +1088,17 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     }
 
     override fun showSignalProfileNameResult(failure: String?) {
-        val context = activity ?: return
-        val message = if (failure == null) {
-            context.getString(R.string.signal_profile_name_saved)
-        } else {
-            context.getString(R.string.signal_profile_name_failed, failure)
+        // ⚠ Called from the presenter's network thread. A Toast made there has no Looper and
+        // throws -- which took the whole app down the moment a new name had been saved.
+        activity?.runOnUiThread {
+            val context = activity ?: return@runOnUiThread
+            val message = if (failure == null) {
+                context.getString(R.string.signal_profile_name_saved)
+            } else {
+                context.getString(R.string.signal_profile_name_failed, failure)
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
-        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 
     /** Arm-and-confirm, for the same reason the reset row is: it destroys messages. */

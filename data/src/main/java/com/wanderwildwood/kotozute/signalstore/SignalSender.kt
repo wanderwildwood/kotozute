@@ -1531,6 +1531,11 @@ internal class SignalSender(
                 SignalServiceDataMessage.Reaction(emoji, remove, targetAuthor, targetSentTimestamp)
             )
             .build()
+        // Note to Self: a sync transcript to our own devices, as upstream's `ReactionSendJob`
+        // does for a destination that `isSelf()`. Sent as an ordinary message to our own
+        // account, the server answered every attempt with a device mismatch and it ended in
+        // "Failed to resolve conflicts after 4 attempts!".
+        if (isSelf(recipient)) return sendToSelf(message, timestamp)
 
         return try {
             val owedProof = owesPniProof(recipient)

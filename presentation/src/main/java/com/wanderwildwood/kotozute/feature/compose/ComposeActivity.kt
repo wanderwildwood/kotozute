@@ -21,6 +21,7 @@ package com.wanderwildwood.kotozute.feature.compose
 import com.wanderwildwood.kotozute.common.widget.SelectionMenu
 import com.wanderwildwood.kotozute.repository.EmojiReactionRepository
 import com.wanderwildwood.kotozute.common.widget.ReactionPicker
+import com.wanderwildwood.kotozute.common.widget.ReactionDetails
 import android.Manifest
 import android.app.Activity
 import android.app.DatePickerDialog
@@ -228,6 +229,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             // Which message is chosen, for Pin and Unpin. Subscribed before the view model is
             // bound, so it has heard of a selection by the time the screen redraws for it.
             messageAdapter.selectionChanges.autoDisposable(scope()).subscribe { currentSelection = it }
+            // Who reacted; tapping your own takes it back through the picker's own path.
+            messageAdapter.reactionClicks.autoDisposable(scope()).subscribe { (id, rows) ->
+                ReactionDetails.show(this, rows) { emoji -> reactionPickedIntent.onNext(Triple(id, emoji, true)) }
+            }
             // The thread turns a page the way the conversation list does. See the extension:
             // it moves by pixels, so a bubble taller than the screen takes two pages and a
             // picture still decoding cannot throw it off.

@@ -2232,6 +2232,44 @@ class SignalThreadActivity : QkThemedActivity() {
         ""
     }.getOrDefault("")
 
+    /**
+     * Who gave each reaction on a message, by name; see [ReactionDetails].
+     *
+     * Names as Desktop Sync's `reactorName` gives them: in a group the whole membership, not
+     * only those who have written, since someone can react without ever speaking.
+     */
+    private fun showReactors(messageId: String, reactions: String) {
+        val title = binding.toolbarTitle.text?.toString().orEmpty()
+        thread(isDaemon = true) {
+            val members = if (isGroup) {
+                runCatching { signalRepo.mentionableNames(threadKey) }.getOrDefault(emptyMap()) + senderNames
+            } else {
+                emptyMap()
+            }
+            val rows = runCatching { JSONArray(reactions) }.getOrNull()?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    val e = arr.optJSONObject(i) ?: return@mapNotNull null
+                    val emoji = e.optString("emoji").ifEmpty { return@mapNotNull null }
+                    val who = e.optString("who")
+                    val name = when {
+                        who == "me" -> getString(R.string.signal_you)
+                        // One to one: whoever is not this account is the person the thread is with.
+                        !isGroup -> title.ifBlank { who }
+                        // A uuid means nothing to a reader; a number at least can be recognised.
+                        else -> members[who] ?: if ('-' in who) getString(R.string.signal_reaction_someone) else who
+                    }
+                    com.wanderwildwood.kotozute.common.widget.ReactionDetails.Row(emoji, name, who == "me")
+                }
+            }.orEmpty()
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                com.wanderwildwood.kotozute.common.widget.ReactionDetails.show(this, rows) { emoji ->
+                    sendReaction(messageId, emoji, remove = true)
+                }
+            }
+        }
+    }
+
     private fun findSmsCounterpart() {
         thread(isDaemon = true) {
             // A link made by hand wins over any matching, and is checked first. It exists
@@ -2653,6 +2691,8 @@ class SignalThreadActivity : QkThemedActivity() {
             // to. Without this it was the one kind that answered no gesture at all.
             b.image.setOnLongClickListener(listener)
             b.attachment.setOnLongClickListener(listener)
+            // Now that a tap on them opens who reacted, they take the long-press too.
+            b.reactions.setOnLongClickListener(listener)
 
             bindAttachment(m) { tile ->
                 if (unsent) showUnsentActions(messageId, body)
@@ -2757,6 +2797,10 @@ class SignalThreadActivity : QkThemedActivity() {
                 // A non-breaking space, so the count cannot wrap away from its emoji.
                 .joinToString("  ") { (emoji, n) -> if (n == 1) emoji else "$emoji\u00a0$n" }
             b.reactions.setVisible(true)
+            // A tap says who, as in Signal. Read off [m] now: the holder is recycled.
+            val messageId = m.id
+            val reactions = m.reactions
+            b.reactions.setOnClickListener { showReactors(messageId, reactions) }
         }
 
         /**

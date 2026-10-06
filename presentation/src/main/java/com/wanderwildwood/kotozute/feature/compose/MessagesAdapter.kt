@@ -65,6 +65,8 @@ import com.wanderwildwood.kotozute.feature.extensions.isEmojiOnly
 import com.wanderwildwood.kotozute.model.Conversation
 import com.wanderwildwood.kotozute.model.Message
 import com.wanderwildwood.kotozute.model.Recipient
+import com.wanderwildwood.kotozute.repository.EmojiReactionRepository
+import com.wanderwildwood.kotozute.common.widget.ReactionDetails
 import com.wanderwildwood.kotozute.util.PhoneNumberUtils
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.disposables.Disposable
@@ -163,6 +165,8 @@ class MessagesAdapter @Inject constructor(
     val cancelSendingClicks: Subject<Long> = PublishSubject.create()
     val sendNowClicks: Subject<Long> = PublishSubject.create()
     val resendClicks: Subject<Long> = PublishSubject.create()
+    /** A message's reactions tapped: its id, and who gave which. */
+    val reactionClicks: Subject<Pair<Long, List<ReactionDetails.Row>>> = PublishSubject.create()
     val partContextMenuRegistrar: Subject<View> = PublishSubject.create()
 
     var data: Pair<Conversation, RealmResults<Message>>? = null
@@ -243,10 +247,30 @@ class MessagesAdapter @Inject constructor(
             }
 
             view.setOnClickListener(clickListener)
+            // A tap on the reactions says who gave them, as in Signal -- unless messages are
+            // being chosen, where a tap anywhere on a bubble chooses it.
+            reactions.setOnClickListener { tapped ->
+                val message = getItem(adapterPosition) ?: return@setOnClickListener
+                if (toggleSelection(message.id, false)) {
+                    view.isActivated = isSelected(message.id)
+                } else {
+                    reactionClicks.onNext(message.id to message.emojiReactions.map { reaction ->
+                        val mine = reaction.senderAddress == EmojiReactionRepository.ME
+                        ReactionDetails.Row(
+                            reaction.emoji,
+                            if (mine) tapped.context.getString(R.string.signal_you)
+                            else contactCache[reaction.senderAddress]?.getDisplayName()
+                                ?: reaction.senderAddress,
+                            mine
+                        )
+                    })
+                }
+            }
             view.setOnLongClickListener(longClickListener)
 
             // Also set listeners on body to ensure long press works on message text
             view.findViewById<TightTextView>(R.id.body).setOnLongClickListener(longClickListener)
+            reactions.setOnLongClickListener(longClickListener)
             view.findViewById<TightTextView>(R.id.body).setOnClickListener(clickListener)
         }
     }

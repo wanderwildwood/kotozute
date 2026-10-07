@@ -17,7 +17,7 @@ class ProfileNamesTest {
 
     @Test
     fun `a latin name is given then family`() {
-        assertEquals("Lydia Nichole", ProfileNames.joined("Lydia", "Nichole"))
+        assertEquals("Ada Whitlock", ProfileNames.joined("Ada", "Whitlock"))
     }
 
     @Test
@@ -47,9 +47,9 @@ class ProfileNamesTest {
 
     @Test
     fun `one part on its own is just that part`() {
-        assertEquals("Lydia", ProfileNames.joined("Lydia", null))
+        assertEquals("Ada", ProfileNames.joined("Ada", null))
         assertEquals("山田", ProfileNames.joined(null, "山田"))
-        assertEquals("Nichole", ProfileNames.joined("   ", "Nichole"))
+        assertEquals("Whitlock", ProfileNames.joined("   ", "Whitlock"))
     }
 
     @Test
@@ -62,7 +62,7 @@ class ProfileNamesTest {
 
     @Test
     fun `each part is trimmed`() {
-        assertEquals("Lydia Nichole", ProfileNames.joined("  Lydia ", " Nichole  "))
+        assertEquals("Ada Whitlock", ProfileNames.joined("  Ada ", " Whitlock  "))
     }
 
     @Test
@@ -118,7 +118,7 @@ class ProfileNamesTest {
 
     @Test
     fun `a name that fits is left alone`() {
-        assertEquals("Lydia", ProfileNames.trimToFit("Lydia", ProfileNames.MAX_PART_LENGTH))
+        assertEquals("Ada", ProfileNames.trimToFit("Ada", ProfileNames.MAX_PART_LENGTH))
         assertEquals("", ProfileNames.trimToFit("", ProfileNames.MAX_PART_LENGTH))
     }
 }

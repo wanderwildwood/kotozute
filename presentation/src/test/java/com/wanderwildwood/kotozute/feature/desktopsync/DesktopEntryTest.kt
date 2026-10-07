@@ -11,13 +11,13 @@ import org.junit.Test
  */
 class DesktopEntryTest {
 
-    private val url = "http://100.97.1.2:8443?token=ABC123"
+    private val url = "http://100.64.0.2:8443?token=ABC123"
 
     @Test
     fun execLineIsTheValidatedOne() {
         val exec = desktopEntryFor(url).lines().single { it.startsWith("Exec=") }
         assertEquals(
-            """Exec=sh -c "for b in brave-browser brave chromium chromium-browser google-chrome google-chrome-stable microsoft-edge vivaldi; do command -v \\${'$'}b >/dev/null 2>&1 && exec \\${'$'}b --app='http://100.97.1.2:8443?token=ABC123'; done; for f in com.brave.Browser com.google.Chrome org.chromium.Chromium com.microsoft.Edge com.vivaldi.Vivaldi; do flatpak info \\${'$'}f >/dev/null 2>&1 && exec flatpak run \\${'$'}f --app='http://100.97.1.2:8443?token=ABC123'; done; exec xdg-open 'http://100.97.1.2:8443?token=ABC123'"""",
+            """Exec=sh -c "for b in brave-browser brave chromium chromium-browser google-chrome google-chrome-stable microsoft-edge vivaldi; do command -v \\${'$'}b >/dev/null 2>&1 && exec \\${'$'}b --app='http://100.64.0.2:8443?token=ABC123'; done; for f in com.brave.Browser com.google.Chrome org.chromium.Chromium com.microsoft.Edge com.vivaldi.Vivaldi; do flatpak info \\${'$'}f >/dev/null 2>&1 && exec flatpak run \\${'$'}f --app='http://100.64.0.2:8443?token=ABC123'; done; exec xdg-open 'http://100.64.0.2:8443?token=ABC123'"""",
             exec
         )
     }

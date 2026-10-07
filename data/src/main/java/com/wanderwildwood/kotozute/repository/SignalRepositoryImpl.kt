@@ -200,7 +200,7 @@ class SignalRepositoryImpl @Inject constructor(
             // ⚠ The one that matters behind a VPN. With Tailscale (or any VPN) up, the default
             // network IS the VPN, and it stays "available" through airplane mode -- no onLost,
             // no onAvailable -- while its capabilities change as the network under it goes and
-            // comes back. Seen on David's phone: the stream sat 23s after Wi-Fi returned.
+            // comes back. Seen on the author's phone: the stream sat 23s after Wi-Fi returned.
             override fun onCapabilitiesChanged(
                 network: android.net.Network,
                 caps: android.net.NetworkCapabilities
@@ -216,7 +216,7 @@ class SignalRepositoryImpl @Inject constructor(
             }
         }
 
-        // ⚠ **The default network is not enough behind a VPN.** Measured on David's phone with
+        // ⚠ **The default network is not enough behind a VPN.** Measured on the author's phone with
         // Tailscale up: airplane mode on and off produced NO default-network event at all --
         // the default network is the VPN, and to an ordinary app it never changes. The real
         // networks under it (Wi-Fi, mobile) do come and go, so they are watched directly: a

@@ -740,7 +740,7 @@ internal class SignalReceiver(
      * ⚠ This is the only moment it is knowable. A sealed-sender envelope carries **no source**;
      * the sender's name lives inside the protocol exception and nowhere else. Not writing it
      * down here means a message that never arrives can never be attributed to anybody, which is
-     * the difference between a conversation saying "something from Lydia could not be read" and
+     * the difference between a conversation saying "something from Ada could not be read" and
      * saying nothing at all.
      */
     private var lastAskedAbout: Asked? = null

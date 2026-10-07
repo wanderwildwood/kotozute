@@ -61,7 +61,7 @@ object SelectionMenu {
             var rest = emptyList<Entry>()
             override fun onCreateActionMode(mode: ActionMode, menu: Menu) = true
             override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
-                rest = foldMenu(menu) { item -> menu.performIdentifierAction(item.itemId, 0) } + missing(view, menu, mode, share, own)
+                rest = foldMenu(menu) { item -> press(view, menu, mode, item) } + missing(view, menu, mode, share, own)
                 showMore(menu, rest.isNotEmpty())
                 return true
             }
@@ -97,6 +97,23 @@ object SelectionMenu {
         override fun onGetContentRect(mode: ActionMode, v: View, outRect: Rect) {
             if (callback is ActionMode.Callback2) callback.onGetContentRect(mode, v, outRect) else super.onGetContentRect(mode, v, outRect)
         }
+    }
+
+    /**
+     * Presses a folded item of a text view's menu. Android gives every text app in it one id, so
+     * pressing by id would always start the first of them (Define in place of Translate); a text
+     * app is started here from its own item instead.
+     */
+    private fun press(view: TextView, menu: Menu, mode: ActionMode, item: MenuItem) {
+        val app = item.intent
+        if (app?.action != Intent.ACTION_PROCESS_TEXT || app.component == null) {
+            menu.performIdentifierAction(item.itemId, 0)
+            return
+        }
+        val start = minOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
+        val end = maxOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
+        startTextApp(view, Intent(app), view.text.subSequence(start, end).toString())
+        mode.finish()
     }
 
     /** Hides what will not fit, and returns it in Android's order, each with how to press it. */
@@ -212,11 +229,6 @@ object SelectionMenu {
     }
 
     /**
-     * Starts an app that acts on text. From a field that can be written in, it is started for a
-     * result, and what comes back replaces the selection, if the selection still holds what was
-     * sent. Through the activity's result registry, so the host needs no onActivityResult.
-     */
-    /**
      * The activity behind a view's context. Views inflated through a ContextThemeWrapper (tayori's
      * compose screen), a dialog or an AppCompat tint wrapper do not hold the activity directly,
      * and a plain cast would quietly make Define's swap do nothing.
@@ -227,6 +239,11 @@ object SelectionMenu {
         else -> null
     }
 
+    /**
+     * Starts an app that acts on text. From a field that can be written in, it is started for a
+     * result, and what comes back replaces the selection, if the selection still holds what was
+     * sent. Through the activity's result registry, so the host needs no onActivityResult.
+     */
     private fun startTextApp(view: View, intent: Intent, text: String) {
         val activity = view.context.findActivity() ?: return
         val field = view as? TextView

@@ -560,6 +560,8 @@
     <string name="signal_archived_empty">No archived Signal conversations</string>
     <string name="signal_message_copy">Copy text</string>
     <string name="signal_message_share">Share</string>
+    <!-- Opens Translate on a message's text; offered only when Translate is installed. -->
+    <string name="message_translate">Translate</string>
     <string name="signal_message_copied">Copied</string>
     <string name="signal_info_title">Details</string>
     <string name="signal_info_members">In this group</string>

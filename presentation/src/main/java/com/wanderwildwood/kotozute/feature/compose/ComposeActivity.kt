@@ -71,6 +71,7 @@ import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.Navigator
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.DateFormatter
+import com.wanderwildwood.kotozute.common.util.TranslateApp
 import com.wanderwildwood.kotozute.common.util.extensions.autoScrollToStart
 import com.wanderwildwood.kotozute.common.util.extensions.dpToPx
 import com.wanderwildwood.kotozute.common.util.extensions.hideKeyboard
@@ -532,6 +533,9 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         val chosenPinned = chosen != null && SmsPins.isPinned(prefs, state.threadId, SmsPins.keyOf(chosen))
         binding.toolbar.menu.findItem(R.id.pinMessage)?.isVisible = chosen != null && !chosenPinned
         binding.toolbar.menu.findItem(R.id.unpinMessage)?.isVisible = chosen != null && chosenPinned
+        // Translate, on the one message chosen, when Translate is on the phone. See TranslateApp.
+        binding.toolbar.menu.findItem(R.id.translate)?.isVisible =
+            chosen != null && TranslateApp.intent(this, chosen.getText()) != null
         showPinned(state.threadId)
         binding.toolbar.menu.findItem(R.id.delete)?.isVisible = !state.editingMode && ((state.selectedMessages > 0) || state.canSend)
         // A picture with no text can take one too: it goes as "Loved an image".
@@ -911,6 +915,12 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             pinnedIndex = 0
             messageAdapter.clearSelection()
             showPinned(threadId)
+            return true
+        }
+        if (item.itemId == R.id.translate) {
+            val m = selectedMessage() ?: return true
+            TranslateApp.intent(this, m.getText())?.let(::startActivity)
+            messageAdapter.clearSelection()
             return true
         }
         optionsItemIntent.onNext(item.itemId)

@@ -73,6 +73,12 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- "The messaging app", for whatever asks for it by kind. Android offers only a
+                 DEFAULT activity in its chooser, which the launcher entry above is not. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.APP_MESSAGING" />
             </intent-filter>
             <meta-data

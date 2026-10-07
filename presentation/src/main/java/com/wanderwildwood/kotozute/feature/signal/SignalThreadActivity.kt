@@ -33,6 +33,7 @@ import com.wanderwildwood.kotozute.repository.SafetyNumberChanged
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.common.util.DateFormatter
 import com.wanderwildwood.kotozute.common.util.MessageLinks
+import com.wanderwildwood.kotozute.common.util.TranslateApp
 import dagger.android.AndroidInjection
 import io.reactivex.disposables.CompositeDisposable
 import io.realm.RealmResults
@@ -2121,6 +2122,10 @@ class SignalThreadActivity : QkThemedActivity() {
                     )
                 }
             )
+            // Translate's panel on the whole message, when Translate is on the phone.
+            TranslateApp.intent(this, body)?.let { translate ->
+                actions += getString(R.string.message_translate) to { startActivity(translate) }
+            }
         }
 
         if (canEditHere) actions += getString(R.string.signal_edit) to { startEdit(messageId, body) }

@@ -259,7 +259,7 @@ rather than crediting a negative age.
 ## Connected, and run against a live account (2026-09-24)
 
 The writer now runs inside every storage read (`SignalStore.readStorage`), always. It first
-shipped behind a switch in Signal settings; after the live run below, David's call was "do it
+shipped behind a switch in Signal settings; after the live run below, the author's call was "do it
 like Signal", which has no setting for this, so the switch and `prefs.signalStorageWrite` are
 gone. Archive and mute also push
 straight away, as upstream schedules a `StorageSyncJob` on each. After a write the other
@@ -283,11 +283,11 @@ group can be written too. Until now every group was skipped as "no record to ame
 
 ### What the first run showed
 
-On David's account, where signal-cli on the Lenovo is the primary and this phone is device 4:
+On the author's account, where signal-cli on the Lenovo is the primary and this phone is device 4:
 
 1. The one old mark already matched the account: `1 marked row(s) already match the
    account`. It was cleared and nothing was sent.
-2. Archiving Lydia's conversation: `wrote 1 record(s), replaced 1, now at version 1230`.
+2. Archiving a conversation: `wrote 1 record(s), replaced 1, now at version 1230`.
    A fresh read got all six records back, all opened, and nothing marked.
 3. Unarchiving it: version 1231, the same clean read-back.
 

@@ -23,7 +23,7 @@ class VpnPeerGateTest {
 
     @Test
     fun `tailscale and loopback pass with no other vpn up`() {
-        assertTrue(isAllowedPeer("100.97.232.53", emptyList()))
+        assertTrue(isAllowedPeer("100.64.0.53", emptyList()))
         assertTrue(isAllowedPeer("fd7a:115c:a1e0::1", emptyList()))
         assertTrue(isAllowedPeer("127.0.0.1", emptyList()))
         assertTrue(isAllowedPeer("::1", emptyList()))

@@ -22,7 +22,7 @@
         android:ellipsize="end"
         android:lines="1"
         android:textStyle="bold"
-        tools:text="Lydia" />
+        tools:text="Ada" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/subtitle"

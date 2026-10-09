@@ -31,4 +31,6 @@ fun MmsPart.isAudio() = ContentType.isAudioType(type.lowercase())
 
 fun MmsPart.isText() = ContentType.TEXT_PLAIN.lowercase() == type.lowercase()
 
-fun MmsPart.isVCard() = ContentType.TEXT_VCARD.lowercase() == type.lowercase()
+// Both spellings: "text/x-vcard" is what phones have sent for years, "text/vcard" is the
+// registered one and what some newer senders use. A card under either is the same card.
+fun MmsPart.isVCard() = type.lowercase() == ContentType.TEXT_VCARD.lowercase() || type.lowercase() == "text/vcard"

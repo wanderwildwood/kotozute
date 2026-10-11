@@ -36,6 +36,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.READ_CONTACTS" />
@@ -290,6 +291,12 @@
             android:name=".feature.signalcall.SignalCallService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+        <!-- Plays a Signal voice note on with the screen locked or the thread closed.
+             mediaPlayback, as upstream's VoiceNotePlaybackService. -->
+        <service
+            android:name=".feature.signal.VoiceNotePlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
         <service
             android:name=".feature.widget.WidgetService"
             android:permission="android.permission.BIND_REMOTEVIEWS" />

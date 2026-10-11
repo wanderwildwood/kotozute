@@ -21,7 +21,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.R
-import com.wanderwildwood.kotozute.common.QkMediaPlayer
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.databinding.SignalMessageListItemBinding
@@ -970,6 +969,9 @@ class SignalThreadActivity : QkThemedActivity() {
      * carrier transcoder -- and which arrives on Signal as a file nothing offers to play.
      */
     private fun startRecording() {
+        // A voice note playing would be recorded into the new one. Upstream pauses it the same
+        // way (`ConversationFragment`'s `onSessionWillBegin`).
+        SignalVoicePlayer.pause()
         val uri = com.wanderwildwood.kotozute.manager.MediaRecorderManager.startRecording(
             this,
             format = com.wanderwildwood.kotozute.manager.MediaRecorderManager.Format.SIGNAL_AAC
@@ -1175,32 +1177,32 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     /**
-     * Which voice note is playing, so a second tap on the same row stops it and a tap on a
-     * different one replaces it.
-     */
-    private var playingAttachmentId: String? = null
-
-    /**
-     * Plays a received voice note, or stops it if it is the one already playing.
+     * Play, pause or resume a received voice note.
+     *
+     * The player itself is [SignalVoicePlayer], outside this screen, so a note goes on with
+     * the screen locked or the thread closed -- upstream's split between
+     * `VoiceNotePlaybackService` and the `VoiceNoteMediaController` a conversation holds.
+     * A different note replaces the one loaded; [SignalVoicePlayer] remembers where that one
+     * was.
      *
      * ⚠ Written to a cache file rather than played from memory. `MediaPlayer` takes a path,
      * a URI or a file descriptor and none of those is a byte array; the alternative is a
      * local socket, which is a lot of machinery for a file measured in tens of kilobytes.
-     * The copy is deleted as soon as playback ends or is replaced.
+     * [SignalVoicePlayer] deletes the copy as soon as playback ends or is replaced.
+     *
+     * @param onStarted called once the note is playing from cold, not on a resume.
      */
-    private fun togglePlayback(id: String, onState: (Boolean) -> Unit) {
-        if (playingAttachmentId == id) {
-            stopPlayback()
-            onState(false)
+    private fun toggleVoiceNote(id: String, onStarted: () -> Unit) {
+        if (SignalVoicePlayer.isCurrent(id)) {
+            if (SignalVoicePlayer.isPlaying) SignalVoicePlayer.pause()
+            else SignalVoicePlayer.resume(this)
             return
         }
-        stopPlayback()
 
         thread(isDaemon = true) {
             val bytes = signalRepo.loadAttachment(id)
             if (bytes == null || bytes.isEmpty()) {
                 runOnUiThread {
-                    onState(false)
                     Toast.makeText(this, R.string.signal_voice_message_failed, Toast.LENGTH_SHORT).show()
                 }
                 return@thread
@@ -1208,47 +1210,64 @@ class SignalThreadActivity : QkThemedActivity() {
             val file = java.io.File(cacheDir, "voice-$id.aac")
             val ok = runCatching { file.writeBytes(bytes) }.isSuccess
             runOnUiThread {
-                if (!ok) {
-                    onState(false)
-                    Toast.makeText(this, R.string.signal_voice_message_failed, Toast.LENGTH_SHORT).show()
-                    return@runOnUiThread
-                }
-                val started = runCatching {
-                    QkMediaPlayer.reset()
-                    QkMediaPlayer.setDataSource(this, Uri.fromFile(file))
-                    QkMediaPlayer.prepare()
-                    QkMediaPlayer.setOnCompletionListener {
-                        // The row has to be told, or it keeps offering to stop something
-                        // that already finished.
-                        playingAttachmentId = null
-                        file.delete()
-                        runOnUiThread { onState(false) }
-                    }
-                    QkMediaPlayer.start()
-                }.isSuccess
-
+                val started = ok && SignalVoicePlayer.start(
+                    this, id, file, threadKey,
+                    binding.toolbarTitle.text?.toString().orEmpty()
+                )
                 if (started) {
-                    playingAttachmentId = id
-                    playingFile = file
-                    onState(true)
+                    onStarted()
                 } else {
                     file.delete()
-                    onState(false)
                     Toast.makeText(this, R.string.signal_voice_message_failed, Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
-    /** The cache copy currently being played, so it can be removed when playback stops. */
-    private var playingFile: java.io.File? = null
+    /**
+     * Redraw the rows showing a voice note, after the player changed. Only the voice rows,
+     * and only what they show of it: a whole-row rebind would redraw the bubble too, and
+     * every redraw is a panel refresh.
+     */
+    private val voiceListener = SignalVoicePlayer.Listener {
+        redrawVoiceRows()
+        scheduleVoiceTick()
+    }
 
-    private fun stopPlayback() {
-        if (playingAttachmentId == null) return
-        playingAttachmentId = null
-        runCatching { QkMediaPlayer.reset() }
-        playingFile?.delete()
-        playingFile = null
+    private fun redrawVoiceRows(onlyPlaying: Boolean = false) {
+        val list = binding.recyclerView
+        val current = SignalVoicePlayer.currentId
+        for (i in 0 until list.childCount) {
+            val holder = list.getChildViewHolder(list.getChildAt(i)) as? MessageHolder ?: continue
+            // A tick moves only the playing row: setText redraws even an unchanged time.
+            if (onlyPlaying && holder.voiceId != current) continue
+            holder.drawVoice()
+        }
+    }
+
+    private val voiceTicker = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Moves the playing row's bar and time on, once a second while it plays and this screen is
+     * showing. ⚠ Once a second, not upstream's 50 ms (`VoiceNoteMediaController`'s progress
+     * handler): every tick is an e-ink refresh of the row. Stopped in [onPause] as upstream's is.
+     */
+    private val voiceTick = object : Runnable {
+        override fun run() {
+            redrawVoiceRows(onlyPlaying = true)
+            if (SignalVoicePlayer.isPlaying) voiceTicker.postDelayed(this, VOICE_TICK_MS)
+        }
+    }
+
+    private fun scheduleVoiceTick() {
+        voiceTicker.removeCallbacks(voiceTick)
+        if (SignalVoicePlayer.isPlaying) voiceTicker.postDelayed(voiceTick, VOICE_TICK_MS)
+    }
+
+    /** "3:10": minutes unpadded, seconds two digits, as upstream's `AudioView_duration`. */
+    private fun voiceClock(ms: Int): String {
+        val s = (ms / 1000).coerceAtLeast(0)
+        return String.format(java.util.Locale.ROOT, "%d:%02d", s / 60, s % 60)
     }
 
     /**
@@ -2320,6 +2339,10 @@ class SignalThreadActivity : QkThemedActivity() {
         visibleThreadKey = threadKey
         // Whatever was announced about this conversation is answered by reading it.
         notifications.cancel(threadKey)
+        // The note may have been paused, moved or finished from the notification meanwhile.
+        SignalVoicePlayer.addListener(voiceListener)
+        redrawVoiceRows()
+        scheduleVoiceTick()
     }
 
     override fun onPause() {
@@ -2331,7 +2354,11 @@ class SignalThreadActivity : QkThemedActivity() {
         // recording is kept rather than discarded: it is in the composer, where an unsent
         // draft belongs.
         if (recording) stopRecording()
-        stopPlayback()
+        // ⚠ A voice note is *not* stopped here any more: playing on with the screen locked is
+        // the point of [VoiceNotePlaybackService]. Only the row's ticking stops, as upstream's
+        // progress handler does in `VoiceNoteMediaController.onPause`.
+        SignalVoicePlayer.removeListener(voiceListener)
+        voiceTicker.removeCallbacks(voiceTick)
         stopGif()
         super.onPause()
     }
@@ -2365,7 +2392,7 @@ class SignalThreadActivity : QkThemedActivity() {
     override fun onDestroy() {
         messages?.removeAllChangeListeners()
         disposables.clear()
-        stopPlayback()
+        // No stopPlayback: a voice note outlives the thread it was started from, as upstream's.
         stopGif()
         super.onDestroy()
     }
@@ -2373,6 +2400,9 @@ class SignalThreadActivity : QkThemedActivity() {
     companion object {
         /** Plain ASCII on purpose: the Kompakt's font has no glyph for the nicer arrows. */
         private const val RAIL_SWITCH_ARROW = ">"
+
+        /** How often a playing voice note's row moves on. Each move is an e-ink refresh. */
+        private const val VOICE_TICK_MS = 1000L
 
         /** Upstream's most attachments in one message (`RemoteConfig.maxAttachmentCount`). */
         private const val MAX_ALBUM = 32
@@ -2607,7 +2637,7 @@ class SignalThreadActivity : QkThemedActivity() {
             (b.root as? android.widget.LinearLayout)?.let { root ->
                 // The timestamp stays centred whichever side the message is on, so only the
                 // children below it follow the sender.
-                listOf(b.sender, b.imageFrame, b.album, b.attachment, b.quote, b.body, b.reactions, b.status).forEach { child ->
+                listOf(b.sender, b.imageFrame, b.album, b.attachment, b.voiceNote, b.quote, b.body, b.reactions, b.status).forEach { child ->
                     (child.layoutParams as? android.widget.LinearLayout.LayoutParams)
                         ?.let { lp -> lp.gravity = side; child.layoutParams = lp }
                 }
@@ -2828,6 +2858,10 @@ class SignalThreadActivity : QkThemedActivity() {
             // stayed on the view when the row was recycled onto an ordinary attachment, and
             // `bind` only sets one when there is none.
             b.attachment.setOnClickListener(null)
+            // Hidden until bindVoiceNote shows it, and forgotten so a tick does not redraw a
+            // recycled row as somebody else's voice note.
+            voiceId = null
+            b.voiceNote.setVisible(false)
             b.image.tag = null
             b.image.setVisible(false)
             b.attachment.setVisible(false)
@@ -3070,42 +3104,104 @@ class SignalThreadActivity : QkThemedActivity() {
                 com.wanderwildwood.kotozute.signal.VoiceNotes.isPlayableAudio(type)
 
         /**
-         * A voice note, as a row that plays when tapped.
+         * A voice note: play/pause, a bar to drag through it, and "0:42 / 3:10".
          *
-         * Deliberately plain: a label and a leading glyph, no waveform and no moving progress
-         * bar. A waveform is Signal's answer on a screen that redraws sixty times a second;
-         * on this panel it is an expensive drawing of nothing anybody needs, and an animated
-         * progress bar would be a full-panel refresh several times a second while it played.
+         * Upstream's `AudioView`, kept to what this panel can afford. No waveform: on a screen
+         * that redraws sixty times a second it is cheap, here it is an expensive drawing of
+         * nothing anybody needs. The bar moves once a second while playing (see `voiceTick`),
+         * never animates, and the button swaps its icon rather than morphing into the other.
          *
-         * ⚠ The play state is read from the activity rather than kept in the holder, because
-         * holders are recycled: a holder that scrolled away while playing would otherwise
-         * carry "playing" onto whatever message it was reused for.
+         * ⚠ The play state is read from [SignalVoicePlayer] rather than kept in the holder,
+         * because holders are recycled: a holder that scrolled away while playing would
+         * otherwise carry "playing" onto whatever message it was reused for. [voiceId] only
+         * says which note this row shows, and is cleared in bindAttachment.
          */
         private fun bindVoiceNote(id: String, pending: Boolean, messageId: String? = null) {
-            b.attachment.setVisible(true)
             if (pending) {
                 // Nothing to play: the bytes never arrived. Said plainly rather than offering
                 // a button that does nothing.
+                b.attachment.setVisible(true)
                 b.attachment.setText(R.string.signal_voice_message_unavailable)
                 b.attachment.setOnClickListener(null)
                 return
             }
+            voiceId = id
+            voiceDragging = false
+            b.voiceNote.setVisible(true)
+            drawVoice()
 
-            fun draw(playing: Boolean) {
-                b.attachment.setText(
-                    if (playing) R.string.signal_voice_message_playing
-                    else R.string.signal_voice_message_play
-                )
-            }
-            draw(playingAttachmentId == id)
-
-            b.attachment.setOnClickListener {
-                togglePlayback(id) { playing ->
-                    // Only if this holder still shows the same message.
-                    if (b.attachment.isAttachedToWindow) draw(playing)
+            b.voicePlayPause.setOnClickListener {
+                toggleVoiceNote(id) {
                     // Played is listened to: upstream's viewed receipt for a voice note.
-                    if (playing && messageId != null) signalRepo.markListened(messageId)
+                    if (messageId != null) signalRepo.markListened(messageId)
                 }
+            }
+
+            b.voiceSeek.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                private var wasPlaying = false
+
+                override fun onProgressChanged(bar: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
+                    // Where the thumb would land, while it is held. Only on the user's own
+                    // moves: a tick sets the bar too, and draws its own time.
+                    if (fromUser && voiceId == id) drawVoiceTime(id, progress)
+                }
+
+                // Upstream's `AudioView.SeekBarModifiedListener`: pause while held, then jump
+                // and carry on if it was playing; a paused note just moves.
+                override fun onStartTrackingTouch(bar: android.widget.SeekBar) {
+                    voiceDragging = true
+                    wasPlaying = SignalVoicePlayer.isCurrent(id) && SignalVoicePlayer.isPlaying
+                    if (wasPlaying) SignalVoicePlayer.pause()
+                }
+
+                override fun onStopTrackingTouch(bar: android.widget.SeekBar) {
+                    voiceDragging = false
+                    SignalVoicePlayer.seekTo(id, bar.progress)
+                    if (wasPlaying && SignalVoicePlayer.isCurrent(id)) {
+                        SignalVoicePlayer.resume(this@SignalThreadActivity)
+                    }
+                }
+            })
+        }
+
+        /** Which voice note this row shows, or null. Not whether it plays -- see [bindVoiceNote]. */
+        var voiceId: String? = null
+            private set
+
+        /** The bar is held: a tick must not pull the thumb out from under the finger. */
+        private var voiceDragging = false
+
+        /** Bring this row's player up to date with [SignalVoicePlayer]. A no-op on other rows. */
+        fun drawVoice() {
+            val id = voiceId ?: return
+            if (voiceDragging) return
+            val playing = SignalVoicePlayer.isCurrent(id) && SignalVoicePlayer.isPlaying
+            // Only when it changes: setImageResource invalidates even for the same picture,
+            // and this runs on every tick.
+            if (b.voicePlayPause.tag != playing) {
+                b.voicePlayPause.tag = playing
+                b.voicePlayPause.setImageResource(if (playing) R.drawable.exo_icon_pause else R.drawable.exo_icon_play)
+                b.voicePlayPause.contentDescription =
+                    getString(if (playing) R.string.signal_voice_pause else R.string.signal_voice_play)
+            }
+
+            // Its length is only known once it has been loaded -- Signal's attachment record
+            // carries none we keep -- so a note never played this session has a bar that
+            // does not move yet, and says what it is instead of a time.
+            val length = SignalVoicePlayer.durationOf(id)?.takeIf { it > 0 }
+            b.voiceSeek.isEnabled = length != null
+            b.voiceSeek.max = length ?: 1
+            val at = SignalVoicePlayer.positionOf(id)
+            b.voiceSeek.progress = if (length != null) at.coerceIn(0, length) else 0
+            drawVoiceTime(id, at)
+        }
+
+        private fun drawVoiceTime(id: String, at: Int) {
+            val length = SignalVoicePlayer.durationOf(id)?.takeIf { it > 0 }
+            b.voiceTime.text = if (length == null) {
+                getString(R.string.signal_voice_message)
+            } else {
+                getString(R.string.signal_voice_time, voiceClock(at.coerceIn(0, length)), voiceClock(length))
             }
         }
     }

@@ -5,6 +5,7 @@
      layout rather than a copy of it, drawn with the same bubble drawables and text styles
      so the two threads read as one app. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -110,6 +111,54 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="2dp"
         android:visibility="gone" />
+
+    <!-- A voice note's player: play/pause, a bar to drag through it, and where it is.
+         Upstream's AudioView without the waveform and the animated button: each frame of
+         either is a panel refresh here. The bar's drawables are the MMS player's, so the two
+         threads' voice notes look alike. No ripple on the button: on e-ink it is a smear. -->
+    <LinearLayout
+        android:id="@+id/voiceNote"
+        android:layout_width="240dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="2dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/voicePlayPause"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@null"
+            android:contentDescription="@string/signal_voice_play"
+            android:padding="8dp"
+            android:src="@drawable/exo_icon_play"
+            app:tint="@android:color/black" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <SeekBar
+                android:id="@+id/voiceSeek"
+                android:layout_width="match_parent"
+                android:layout_height="24dp"
+                android:background="@null"
+                android:progressDrawable="@drawable/audio_seekbar_progress"
+                android:splitTrack="false"
+                android:thumb="@drawable/audio_seekbar_thumb" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                android:id="@+id/voiceTime"
+                style="@style/TextSecondary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp" />
+        </LinearLayout>
+    </LinearLayout>
 
     <!-- What this message is replying to, when it quotes something. Above the bubble and
          set in the muted colour, so it reads as context rather than as another message: a

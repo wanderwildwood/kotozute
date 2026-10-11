@@ -376,10 +376,14 @@
     <string name="signal_attachment_open_failed">That attachment could not be opened.</string>
     <string name="signal_attachment_no_app">Nothing on this phone offers to open that kind of file.</string>
     <string name="signal_voice_message">Voice message</string>
-    <string name="signal_voice_message_play">▶ Voice message</string>
-    <string name="signal_voice_message_playing">■ Voice message</string>
     <string name="signal_voice_message_unavailable">Voice message — not downloaded</string>
     <string name="signal_voice_message_failed">That voice message would not play</string>
+    <string name="signal_voice_play">Play</string>
+    <string name="signal_voice_pause">Pause</string>
+    <string name="signal_voice_stop">Stop</string>
+    <!-- Where a voice note is, and how long it is: "0:42 / 3:10". -->
+    <string name="signal_voice_time">%1$s / %2$s</string>
+    <string name="signal_voice_channel">Voice messages</string>
     <string name="signal_gif_play">▶ GIF</string>
     <string name="signal_play_video">Play video</string>
     <string name="signal_gif_playing">■ GIF</string>

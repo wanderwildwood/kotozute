@@ -24,6 +24,9 @@
     </style>
 
     <style name="AppBaseTheme" parent="Theme.AppCompat.NoActionBar">
+        <!-- No scrollbars: a list moves a page to a swipe, and nothing else needs one. -->
+        <item name="android:scrollbarThumbVertical">@android:color/transparent</item>
+        <item name="android:scrollbarThumbHorizontal">@android:color/transparent</item>
         <item name="actionMenuTextAppearance">@style/ActionMenuText</item>
         <item name="android:divider">@color/separatorDark</item>
         <item name="android:navigationBarColor">@color/backgroundDark</item>
@@ -50,6 +53,8 @@
     </style>
 
     <style name="AppThemeDialog" parent="Theme.AppCompat.Dialog">
+        <item name="android:scrollbarThumbVertical">@android:color/transparent</item>
+        <item name="android:scrollbarThumbHorizontal">@android:color/transparent</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
         <item name="android:textColorTertiary">@color/text_tertiary</item>

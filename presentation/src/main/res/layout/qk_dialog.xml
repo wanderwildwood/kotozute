@@ -68,7 +68,8 @@
         app:layout_constraintTop_toBottomOf="@id/subtitle"
         tools:itemCount="20"
         tools:listitem="@layout/phone_number_list_item"
-        tools:visibility="visible" />
+        tools:visibility="visible"
+        android:scrollbars="none" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/positiveButton"

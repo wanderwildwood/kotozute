@@ -133,7 +133,8 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:paddingTop="8dp"
-            android:clipToPadding="false" />
+            android:clipToPadding="false"
+            android:scrollbars="none" />
 
         <!-- A thread reached from the directory has no messages in it yet. Blank white with
              a composer under it reads as broken; one line reads as new. -->

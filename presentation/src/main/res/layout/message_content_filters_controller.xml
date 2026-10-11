@@ -32,7 +32,8 @@
             android:clipToPadding="false"
             android:paddingTop="8dp"
             android:paddingBottom="8dp"
-            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            android:scrollbars="none" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
             android:id="@+id/empty"

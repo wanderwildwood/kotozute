@@ -246,7 +246,8 @@
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintBottom_toTopOf="@id/bottom"
         app:layout_constraintTop_toBottomOf="@id/toolbar"
-        tools:listitem="@layout/conversation_list_item" />
+        tools:listitem="@layout/conversation_list_item"
+        android:scrollbars="none" />
 
     <!-- A drawn line rather than the inherited 8dp gradient: a soft shadow is
          dithered noise on e-ink, and this is the same weight of stroke the

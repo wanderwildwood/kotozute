@@ -40,6 +40,7 @@
         android:paddingTop="8dp"
         android:paddingBottom="8dp"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        tools:listitem="@layout/blocked_list_item" />
+        tools:listitem="@layout/blocked_list_item"
+        android:scrollbars="none" />
 
 </FrameLayout>

@@ -77,7 +77,8 @@
         android:dividerHeight="0dp"
         android:paddingTop="8dp"
         android:paddingBottom="8dp"
-        tools:listitem="@layout/widget_list_item" />
+        tools:listitem="@layout/widget_list_item"
+        android:scrollbars="none" />
 
     <!-- This needs to be a FrameLayout, since Views are not supported-->
     <FrameLayout

@@ -26,6 +26,9 @@
     <attr name="switchTrackDisabled" format="color" />
 
     <style name="AppLaunchTheme" parent="Theme.AppCompat.NoActionBar">
+        <!-- No scrollbars: a list moves a page to a swipe, and nothing else needs one. -->
+        <item name="android:scrollbarThumbVertical">@android:color/transparent</item>
+        <item name="android:scrollbarThumbHorizontal">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/white</item>
         <item name="android:statusBarColor">@color/white</item>
         <item name="android:windowBackground">@color/white</item>
@@ -37,6 +40,8 @@
     </style>
 
     <style name="AppBaseTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:scrollbarThumbVertical">@android:color/transparent</item>
+        <item name="android:scrollbarThumbHorizontal">@android:color/transparent</item>
         <item name="actionMenuTextAppearance">@style/ActionMenuText</item>
         <item name="android:divider">@color/separatorLight</item>
         <item name="android:queryBackground">@color/white</item>
@@ -63,6 +68,8 @@
     </style>
 
     <style name="AppThemeDialog" parent="Theme.AppCompat.Light.Dialog">
+        <item name="android:scrollbarThumbVertical">@android:color/transparent</item>
+        <item name="android:scrollbarThumbHorizontal">@android:color/transparent</item>
         <item name="android:textColorPrimary">@color/black</item>
         <item name="android:textColorSecondary">@color/textSecondary</item>
         <item name="android:textColorTertiary">@color/textTertiary</item>
@@ -84,6 +91,8 @@
          is a screenful of dithered grey, painted in and painted out again), no animation, no
          shadow, and a white frame with a rim of ink. Through `einkDialog()`. -->
     <style name="EInkDialog" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:scrollbarThumbVertical">@android:color/transparent</item>
+        <item name="android:scrollbarThumbHorizontal">@android:color/transparent</item>
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:windowAnimationStyle">@null</item>
         <item name="android:windowElevation">0dp</item>

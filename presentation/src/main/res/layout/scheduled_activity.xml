@@ -59,7 +59,8 @@
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior">
+            app:layout_behavior="@string/appbar_scrolling_view_behavior"
+            android:scrollbars="none">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -132,7 +133,8 @@
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp"
                     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                    tools:listitem="@layout/scheduled_message_list_item" />
+                    tools:listitem="@layout/scheduled_message_list_item"
+                    android:scrollbars="none" />
 
             </LinearLayout>
 

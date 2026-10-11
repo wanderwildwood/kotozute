@@ -87,6 +87,7 @@
         app:layout_constraintHorizontal_bias="0"
         app:layout_constraintStart_toStartOf="@id/recipients"
         app:layout_constraintTop_toBottomOf="@id/body"
-        tools:listitem="@layout/scheduled_message_image_list_item" />
+        tools:listitem="@layout/scheduled_message_image_list_item"
+        android:scrollbars="none" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

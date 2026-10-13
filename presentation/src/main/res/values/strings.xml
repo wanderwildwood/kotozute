@@ -293,14 +293,14 @@
     <string name="settings_all_only_people_summary">The first tab becomes People: your one-to-one conversations</string>
     <!-- Settings: whether the unread count shows on the lock screen, through the Glance app -->
     <string name="settings_lock_screen_title">Unread on the lock screen</string>
-    <!-- On the lock screen, through Glance -->
+    <!-- On the lock screen, through Glance: conversations with something unread, not messages -->
     <plurals name="lock_screen_unread_texts">
-        <item quantity="one">%d text</item>
-        <item quantity="other">%d texts</item>
+        <item quantity="one">%d text chat</item>
+        <item quantity="other">%d text chats</item>
     </plurals>
     <plurals name="lock_screen_unread_signal">
-        <item quantity="one">%d Signal</item>
-        <item quantity="other">%d Signal</item>
+        <item quantity="one">%d Signal chat</item>
+        <item quantity="other">%d Signal chats</item>
     </plurals>
     <string name="settings_signature_title">Signature</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>

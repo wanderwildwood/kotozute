@@ -13,8 +13,8 @@ It continues [QKSMS](https://github.com/moezbhatti/qksms) by way of [QUIK](https
 
 | | |
 |---|---|
-| ![The conversation list, Signal and texts together](screenshots/1-conversations.png) | ![A Signal conversation: two calls and a quoted reply](screenshots/2-conversation.png) |
-| ![A Signal voice call, heard on a Bluetooth headset](screenshots/4-call.png) | ![Replying to a message, with the reply half written](screenshots/5-reply.png) |
+| ![The conversation list, with the All / Groups / Unknown tabs](screenshots/1-conversations.png) | ![A conversation: where I am, sent through Whereabouts](screenshots/2-conversation.png) |
+| ![A Signal voice call, heard on a Bluetooth headset](screenshots/4-call.png) | ![A reply half written](screenshots/5-reply.png) |
 
 Desktop Sync, which is the page the phone serves to a browser on your own computer:
 
@@ -186,6 +186,13 @@ Every call goes through Signal's relay servers rather than straight between the 
 nobody on a call learns this phone's IP address. Headsets and Bluetooth are not handled yet, and
 another of your devices is not yet told when a call was answered here. RingRTC adds about 13 MB to
 the download.
+
+## Sending where you are
+
+With [Whereabouts](https://github.com/wanderwildwood/ibasho) installed, the attach menu has
+**Send where I am**, in texts and on Signal alike. Whereabouts names Messaging and asks first,
+takes one fix and hands it over, and Messaging sends a map link and the coordinates. Messaging
+itself has no location permission. Without Whereabouts the option is not there.
 
 ## On the lock screen
 

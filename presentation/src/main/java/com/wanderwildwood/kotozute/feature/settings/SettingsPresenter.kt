@@ -326,6 +326,9 @@ class SettingsPresenter @Inject constructor(
                         R.id.signalNotificationsOff ->
                             com.wanderwildwood.kotozute.feature.signal.NotificationsOff.open(context)
 
+                        R.id.signalFullScreenCalls ->
+                            com.wanderwildwood.kotozute.feature.signal.FullScreenCalls.open(context)
+
                         R.id.signalBackground ->
                             com.wanderwildwood.kotozute.feature.signal.BackgroundRunning.ask(context)
 

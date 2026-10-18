@@ -463,6 +463,8 @@
     <string name="settings_signal_receipts_summary">Tell people when you have read their Signal message. One setting for the whole account, changed in Signal on your other phone</string>
     <string name="settings_signal_notifications_off_title">Signal notifications are off</string>
     <string name="settings_signal_notifications_off_summary">Android is not showing them, so new messages arrive without a word. Tap to turn them on.</string>
+    <string name="settings_signal_fullscreen_title">Let calls wake the screen</string>
+    <string name="settings_signal_fullscreen_summary">Android has stopped a Signal call from filling the screen, so it only rings as a notification. Tap to allow it.</string>
     <string name="settings_signal_background_title">Let Messaging run in the background</string>
     <string name="settings_signal_background_summary">Android can pause Messaging to save battery, which delays Signal messages. Tap to let it keep running.</string>
     <string name="settings_signal_receipts_readonly">Read receipts are one setting for the whole Signal account. Change it in Signal on your other phone and this follows.</string>
@@ -1368,4 +1370,8 @@
     <string name="whereabouts_message_as_of">As of %1$s</string>
     <string name="whereabouts_no_fix">Whereabouts could not find where you are</string>
     <string name="whereabouts_no_permission">Whereabouts needs location access first</string>
+
+    <!-- Restricted settings (Android 13+, roles from 15), only after a request comes back blocked -->
+    <string name="restricted_settings_hint">Android blocks this for apps installed from a file.\nOpen App info, tap ⋮, then Allow restricted settings, and try again.</string>
+    <string name="restricted_settings_app_info">App info</string>
 </resources>

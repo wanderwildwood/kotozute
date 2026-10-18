@@ -358,6 +358,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             state.signalPaired && state.signalEnabled &&
                 com.wanderwildwood.kotozute.feature.signal.NotificationsOff.any(binding.root.context)
         )
+        // Only on Android 14 and later, and only while calls cannot wake the screen.
+        binding.signalFullScreenCalls.setVisible(
+            state.signalPaired && state.signalEnabled &&
+                !com.wanderwildwood.kotozute.feature.signal.FullScreenCalls.isAllowed(binding.root.context)
+        )
         // Only while it is needed: once Android lets Messaging run, there is nothing to ask.
         binding.signalBackground.setVisible(
             state.signalPaired && state.signalEnabled &&

@@ -45,7 +45,18 @@ import com.wanderwildwood.kotozute.common.util.einkDialog
  */
 object DuraSpeed {
 
-    fun isKompakt(): Boolean = Build.MANUFACTURER.equals("Mudita", ignoreCase = true)
+    private const val PACKAGE = "com.mediatek.duraspeed"
+
+    /**
+     * Whether DuraSpeed is on this phone at all. Not the maker's name: KompaktOS also says
+     * "Mudita" and has no DuraSpeed, and there the notification and the prompt were a dead end
+     * (the App info page for a missing package closes at once). Listed in the manifest's
+     * <queries> so the lookup can see it.
+     */
+    fun isKompakt(context: Context): Boolean = runCatching {
+        context.packageManager.getApplicationInfo(PACKAGE, 0)
+        true
+    }.getOrDefault(false)
 
     /** The newest force-stop by the system since [after], or null. Android 11 and later. */
     fun lastStop(context: Context, after: Long): Long? {
@@ -81,7 +92,7 @@ object DuraSpeed {
     }.getOrNull()
 
     fun needsAllowing(context: Context, prefs: Preferences): Boolean =
-        isKompakt() && isTextingApp(context) && isOn(context) != false && !prefs.duraSpeedAllowed.get()
+        isKompakt(context) && isTextingApp(context) && isOn(context) != false && !prefs.duraSpeedAllowed.get()
 
     fun markAllowed(context: Context, prefs: Preferences) {
         prefs.duraSpeedAllowed.set(true)
@@ -125,7 +136,7 @@ object DuraSpeed {
      * since otherwise the texts went to whichever app is.
      */
     fun warnIfStopped(activity: Activity, prefs: Preferences) {
-        if (!isKompakt() || !isTextingApp(activity)) return
+        if (!isKompakt(activity) || !isTextingApp(activity)) return
         refreshNotification(activity, prefs)
         if (isFixIntent(activity.intent)) {
             activity.intent.removeExtra(EXTRA_FIX)

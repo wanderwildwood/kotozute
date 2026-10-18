@@ -98,7 +98,7 @@ class SetupActivity : QkThemedActivity() {
         // DuraSpeed is MediaTek's, and on the Kompakt nothing on the phone can switch it off.
         // Whether it is on cannot be read from here, so the page is shown on every Kompakt.
         // Settings has no way in; the button opens its App info, whose Open button does.
-        Page.KOMPAKT -> DuraSpeed.isKompakt()
+        Page.KOMPAKT -> DuraSpeed.isKompakt(this)
         // Already on Signal: nothing to link. Its own pages follow instead.
         Page.SIGNAL -> !signalOn()
         Page.CONTACTS, Page.LISTS, Page.CONNECTED -> signalOn()

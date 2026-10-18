@@ -356,6 +356,8 @@
     </application>
 
     <queries>
+        <!-- DuraSpeed, so its absence can be told from its presence (KompaktOS has none). -->
+        <package android:name="com.mediatek.duraspeed" />
         <!-- Whereabouts, for "Send where I am": one location, asked of it once. -->
         <intent>
             <action android:name="com.wanderwildwood.ibasho.action.SHARE_LOCATION_ONCE" />

@@ -1360,4 +1360,12 @@
     <string name="info_timer_not_allowed">Only the group\'s admins can change this</string>
     <string name="info_timer_not_member">You are no longer in this group</string>
     <string name="info_timer_failed">Could not change it. Try again when connected.</string>
+
+    <!-- Send where I am, through Whereabouts (Whereabouts.kt) -->
+    <string name="whereabouts_send">Send where I am</string>
+    <string name="whereabouts_message">Where I am: %1$s</string>
+    <string name="whereabouts_message_accuracy">Within %1$d m</string>
+    <string name="whereabouts_message_as_of">As of %1$s</string>
+    <string name="whereabouts_no_fix">Whereabouts could not find where you are</string>
+    <string name="whereabouts_no_permission">Whereabouts needs location access first</string>
 </resources>

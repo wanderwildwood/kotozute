@@ -52,6 +52,7 @@
         <item name="android:windowBackground">@color/white</item>
         <item name="actionBarPopupTheme">@style/PopupTheme</item>
         <item name="actionOverflowMenuStyle">@style/PopupMenuNoAnimation</item>
+        <item name="actionOverflowButtonStyle">@style/OverflowButton</item>
         <item name="popupMenuStyle">@style/ListPopupNoAnimation</item>
         <item name="buttonBarButtonStyle">@style/ButtonBarButton</item>
         <item name="bubbleColor">@color/white</item>
@@ -137,10 +138,23 @@
     -->
     <style name="PopupMenuNoAnimation" parent="Widget.AppCompat.PopupMenu.Overflow">
         <item name="android:popupAnimationStyle">@null</item>
+        <item name="android:popupBackground">@drawable/popup_eink</item>
+        <item name="android:popupElevation">0dp</item>
     </style>
 
     <style name="ListPopupNoAnimation" parent="Widget.AppCompat.PopupMenu">
         <item name="android:popupAnimationStyle">@null</item>
+        <item name="android:popupBackground">@drawable/popup_eink</item>
+        <item name="android:popupElevation">0dp</item>
+    </style>
+
+    <!-- The overflow dots in a 48dp button like every other action, so they sit where
+         Mudita's TopAppBarMMD puts its last icon. AppCompat's is 40dp, which set them 10px
+         further right than in the other apps. -->
+    <style name="OverflowButton" parent="Widget.AppCompat.ActionButton.Overflow">
+        <item name="android:minWidth">48dp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
     </style>
 
     <style name="PopupTheme" parent="ThemeOverlay.AppCompat.Light">

@@ -170,11 +170,11 @@
 
     </androidx.appcompat.widget.Toolbar>
 
+    <!-- Mudita's 1dp rule under the top bar, in place of the inherited 8dp grey gradient. -->
     <View
-        android:id="@+id/view2"
         android:layout_width="match_parent"
-        android:layout_height="8dp"
-        android:background="@drawable/ab_shadow"
+        android:layout_height="1dp"
+        android:background="#000000"
         app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

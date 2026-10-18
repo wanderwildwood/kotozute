@@ -63,9 +63,16 @@
         <item name="android:stateListAnimator">@null</item>
     </style>
 
+    <!-- The top bar as Mudita's TopAppBarMMD draws it in every other app here: 64dp, the title
+         16dp in (or straight after a 56dp back arrow, at 56dp), the last action's icon 28dp
+         from the right edge, and a 1dp rule beneath (@layout/top_bar_rule, laid under each
+         bar by its screen). -->
     <style name="Toolbar">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">56dp</item>
+        <item name="android:layout_height">64dp</item>
+        <item name="contentInsetStart">16dp</item>
+        <item name="contentInsetStartWithNavigation">0dp</item>
+        <item name="android:paddingEnd">4dp</item>
 
         <!-- This needs to be set so that we can tint the toolbar and not change the background
          resource. This is mainly so that QkReplyActivity can call setClipToOutline -->
@@ -81,6 +88,10 @@
         <item name="android:gravity">start|center_vertical</item>
         <item name="android:maxLines">1</item>
         <item name="android:textColor">?android:attr/textColorPrimary</item>
+        <!-- MMD's titleLarge: Lato at 24sp (TextViewStyler's toolbar size), whatever font
+             the rest of the screen is in. MMD asks for Medium from a family with no Medium
+             face, so what it draws is Lato Regular, and so is this. -->
+        <item name="android:fontFamily">@font/lato</item>
         <item name="textSize">toolbar</item>
     </style>
 

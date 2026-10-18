@@ -7,14 +7,9 @@
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
-        style="@style/Toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        style="@style/Toolbar" />
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:background="@android:color/black" />
+    <include layout="@layout/top_bar_rule" />
 
     <!-- Searched on the keyboard's Search key, not as each letter is typed: every search is
          a trip through Signal's proxy to GIPHY, and a grid that redraws per keystroke is a

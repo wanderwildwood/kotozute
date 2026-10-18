@@ -13,19 +13,18 @@
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
-        style="@style/Toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        style="@style/Toolbar">
 
         <com.wanderwildwood.kotozute.common.widget.QkTextView
             android:id="@+id/toolbarTitle"
             style="@style/ToolbarText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setup_title"
-            android:textSize="16sp" />
+            android:text="@string/setup_title" />
 
     </androidx.appcompat.widget.Toolbar>
+
+    <include layout="@layout/top_bar_rule" />
 
     <ScrollView
         android:layout_width="match_parent"

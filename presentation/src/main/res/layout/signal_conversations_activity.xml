@@ -7,9 +7,7 @@
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
-        style="@style/Toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        style="@style/Toolbar">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -22,12 +20,11 @@
                 style="@style/ToolbarText"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="16sp" />
+                android:layout_weight="1" />
 
             <!-- In the title's place while the lists are kept apart, as the SMS list has
                  them: the same tabs, less Unknown, which a Signal thread never is. -->
-            <LinearLayout
+            <com.wanderwildwood.kotozute.common.widget.StoneTabRow
                 android:id="@+id/filterTabs"
                 android:layout_width="0dp"
                 android:layout_weight="1"
@@ -35,43 +32,43 @@
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
                 android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:visibility="gone">
 
             <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/filterAll"
                 android:layout_width="wrap_content"
-                android:layout_weight="1"
-                android:layout_height="match_parent"
+                android:layout_height="40dp"
                 android:minWidth="48dp"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
                 android:gravity="center"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text="@string/filter_all"
                 android:textStyle="bold"
+                android:fontFamily="@font/lato"
                 android:background="@android:color/transparent"
-                android:textColor="#000000"
-                app:textSize="secondary" />
+                android:textColor="#000000" />
 
             <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/filterGroups"
                 android:layout_width="wrap_content"
-                android:layout_weight="1"
-                android:layout_height="match_parent"
+                android:layout_marginStart="6dp"
+                android:layout_height="40dp"
                 android:minWidth="48dp"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
                 android:gravity="center"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text="@string/filter_groups"
                 android:textStyle="bold"
+                android:fontFamily="@font/lato"
                 android:background="@android:color/transparent"
-                android:textColor="#000000"
-                app:textSize="secondary" />
+                android:textColor="#000000" />
 
-            </LinearLayout>
+            </com.wanderwildwood.kotozute.common.widget.StoneTabRow>
 
             <!-- Crosses back to the SMS list. Present only while the two lists are being
                  kept apart; woven, this screen is not reached from a list at all. -->
@@ -99,10 +96,7 @@
 
     </androidx.appcompat.widget.Toolbar>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:background="@android:color/black" />
+    <include layout="@layout/top_bar_rule" />
 
     <!-- Says plainly when the bridge is unreachable. Receiving catches up on its own,
          but sending cannot happen, so this is not decoration. -->

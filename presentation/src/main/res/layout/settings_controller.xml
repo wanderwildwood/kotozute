@@ -516,6 +516,14 @@
                 app:title="@string/settings_signal_notifications_off_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalFullScreenCalls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_fullscreen_summary"
+                app:title="@string/settings_signal_fullscreen_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalBackground"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

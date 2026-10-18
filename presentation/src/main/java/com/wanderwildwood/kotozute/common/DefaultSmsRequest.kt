@@ -3,9 +3,11 @@ package com.wanderwildwood.kotozute.common
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import android.provider.Telephony
+import com.wanderwildwood.kotozute.common.util.RestrictedSettings
 import timber.log.Timber
 
 /**
@@ -41,6 +43,14 @@ object DefaultSmsRequest {
         val at = askedAt
         askedAt = 0L
         if (at == 0L || resultCode == Activity.RESULT_OK) return
+        if (Telephony.Sms.getDefaultSmsPackage(activity) == activity.packageName) return
+        // Android 15 and later refuse the role outright to an app installed from a file until
+        // restricted settings are allowed for it, and the Default apps page is refused too, so
+        // say how instead of sending them there. Android 15 is when roles joined the list.
+        if (Build.VERSION.SDK_INT >= 35 && RestrictedSettings.isRestricted(activity)) {
+            RestrictedSettings.showHint(activity)
+            return
+        }
         if (SystemClock.elapsedRealtime() - at > UNSEEN_MS) return
         if (Telephony.Sms.getDefaultSmsPackage(activity) == activity.packageName) return
         try {

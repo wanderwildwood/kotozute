@@ -87,6 +87,7 @@ class SignalConversationsActivity : QkThemedActivity() {
             navigator.crossToSmsList()
             finish()
         }
+        binding.filterTabs.textSizePref = prefs.textSize.get()
         binding.filterAll.setOnClickListener { chooseFilter(FILTER_ALL) }
         binding.filterGroups.setOnClickListener { chooseFilter(FILTER_GROUPS) }
 

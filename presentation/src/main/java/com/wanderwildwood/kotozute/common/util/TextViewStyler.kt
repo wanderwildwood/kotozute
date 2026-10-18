@@ -87,7 +87,7 @@ class TextViewStyler @Inject constructor(
                     SIZE_PRIMARY -> 18f
                     SIZE_SECONDARY -> 15f
                     SIZE_TERTIARY -> 14f
-                    SIZE_TOOLBAR -> 20f
+                    SIZE_TOOLBAR -> 24f
                     SIZE_DIALOG -> 18f
                     SIZE_EMOJI -> 32f
                     else -> textSize / paint.density
@@ -175,13 +175,11 @@ class TextViewStyler @Inject constructor(
                 else -> 14f
             }
 
+            // A top bar's title is MMD's titleLarge, 24sp, as in every other app here. Only
+            // the largest setting, which is for reading at a distance, makes it bigger.
             SIZE_TOOLBAR -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 18f
-                Preferences.TEXT_SIZE_NORMAL -> 20f
-                Preferences.TEXT_SIZE_LARGE -> 22f
-                Preferences.TEXT_SIZE_LARGER -> 26f
-                Preferences.TEXT_SIZE_SUPER -> 52f
-                else -> 20f
+                Preferences.TEXT_SIZE_SUPER -> 48f
+                else -> 24f
             }
 
             SIZE_DIALOG -> textView.textSize = when (textSizePref) {

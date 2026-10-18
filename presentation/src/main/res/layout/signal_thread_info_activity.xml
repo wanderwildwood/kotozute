@@ -8,9 +8,7 @@
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
-        style="@style/Toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        style="@style/Toolbar">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -23,8 +21,7 @@
                 style="@style/ToolbarText"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="16sp" />
+                android:layout_weight="1" />
 
             <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/railBadge"
@@ -46,10 +43,7 @@
 
     </androidx.appcompat.widget.Toolbar>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:background="@android:color/black" />
+    <include layout="@layout/top_bar_rule" />
 
     <ScrollView
         android:layout_width="match_parent"

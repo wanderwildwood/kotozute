@@ -190,6 +190,7 @@ class MainActivity : QkThemedActivity(), MainView {
             prefs.signalOpensFirst.get()
 
     private fun setupFilterTabs() {
+        binding.filterTabs.textSizePref = prefs.textSize.get()
         binding.filterAll.setOnClickListener {
             selectFilterTab(0)
             filterChangedIntent.onNext(0)

@@ -17,6 +17,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import com.wanderwildwood.kotozute.common.util.Whereabouts
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -198,6 +199,26 @@ class SignalThreadActivity : QkThemedActivity() {
      * A contact, attached as its vCard -- the same one the SMS side attaches -- which the
      * sender turns into the card Signal sends. See `ContactCards` in the data module.
      */
+    // Send where I am: Whereabouts asks the person, takes one fix and hands it back.
+    private val askWhereabouts = registerForActivityResult(Whereabouts.AskOnce()) { result ->
+        if (result !is Whereabouts.Result.Place) {
+            Whereabouts.problem(this, result)?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+            return@registerForActivityResult
+        }
+        val text = Whereabouts.message(this, result)
+        val draft = binding.message.text?.toString().orEmpty()
+        if (draft.isBlank() && pendingAttachment == null && editing == null) {
+            // Nothing written or attached: it goes as its own message, as the person asked.
+            binding.message.setText(text)
+            send()
+        } else {
+            // Something half written is never sent on their behalf: the place goes under it,
+            // and the person sends both.
+            binding.message.setText(if (draft.isBlank()) text else draft.trimEnd() + "\n" + text)
+            binding.message.setSelection(binding.message.text?.length ?: 0)
+        }
+    }
+
     private val contactPicker = registerForActivityResult(
         com.wanderwildwood.kotozute.common.util.ContactsApp.PickContact()
     ) { uri: Uri? ->
@@ -468,23 +489,26 @@ class SignalThreadActivity : QkThemedActivity() {
 
         // A picture or file, a GIF, or a contact card -- the things Signal's own attach sheet
         // offers that this rail can send.
+        // And where you are, from Whereabouts, when it is installed to ask.
         binding.attach.setOnClickListener {
+            val whereabouts = Whereabouts.isAvailable(this)
+            val items = listOfNotNull(
+                getString(R.string.signal_attach_file),
+                getString(R.string.signal_attach_gif),
+                getString(R.string.signal_attach_view_once),
+                getString(R.string.signal_attach_contact),
+                getString(R.string.signal_poll_new),
+                getString(R.string.whereabouts_send).takeIf { whereabouts },
+            )
             einkDialog()
-                .setItems(
-                    arrayOf(
-                        getString(R.string.signal_attach_file),
-                        getString(R.string.signal_attach_gif),
-                        getString(R.string.signal_attach_view_once),
-                        getString(R.string.signal_attach_contact),
-                        getString(R.string.signal_poll_new)
-                    )
-                ) { _, which ->
+                .setItems(items.toTypedArray()) { _, which ->
                     when (which) {
                         0 -> picker.launch("*/*" to true)
                         1 -> gifPicker.launch(Unit)
                         2 -> viewOncePicker.launch("image/*" to false)
                         3 -> contactPicker.launch(null)
-                        else -> askForPoll()
+                        4 -> askForPoll()
+                        else -> askWhereabouts.launch(Unit)
                     }
                 }
                 .show()

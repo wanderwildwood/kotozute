@@ -7,9 +7,7 @@
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
-        style="@style/Toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        style="@style/Toolbar">
 
         <!-- The title, with the rail beside it. On a phone where a contact can hold both an
              SMS and a Signal thread, which one you are typing into is not a detail. -->
@@ -25,8 +23,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textDirection="ltr"
-                android:textSize="16sp" />
+                android:textDirection="ltr" />
 
             <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/railBadge"
@@ -50,11 +47,7 @@
 
     </androidx.appcompat.widget.Toolbar>
 
-    <View
-        android:id="@+id/titleBarBlackLine"
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:background="@android:color/black" />
+    <include layout="@layout/top_bar_rule" />
 
     <!-- Find in conversation. Filters the thread to the messages that match rather than
          stepping through them one at a time: on e-ink, seeing every hit at once costs one

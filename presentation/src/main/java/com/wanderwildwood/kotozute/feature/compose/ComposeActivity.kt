@@ -198,6 +198,33 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         uri?.let(contactSelectedIntent::onNext)
     }
 
+    // Send where I am: Whereabouts asks the person, takes one fix and hands it back.
+    private var whereaboutsAvailable = false
+
+    private val askWhereabouts = registerForActivityResult(
+        com.wanderwildwood.kotozute.common.util.Whereabouts.AskOnce()
+    ) { result -> placeFromWhereabouts(result) }
+
+    private fun placeFromWhereabouts(result: com.wanderwildwood.kotozute.common.util.Whereabouts.Result) {
+        val whereabouts = com.wanderwildwood.kotozute.common.util.Whereabouts
+        if (result !is com.wanderwildwood.kotozute.common.util.Whereabouts.Result.Place) {
+            whereabouts.problem(this, result)?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+            return
+        }
+        val text = whereabouts.message(this, result)
+        val draft = binding.message.text?.toString().orEmpty()
+        if (draft.isBlank()) {
+            // Nothing written yet: it goes as its own message, as the person asked.
+            binding.message.setText(text)
+            binding.send.post { binding.send.performClick() }
+        } else {
+            // Something half written is never sent on their behalf: the place goes under it,
+            // and the person sends both.
+            binding.message.setText(draft.trimEnd() + "\n" + text)
+            binding.message.setSelection(binding.message.text?.length ?: 0)
+        }
+    }
+
     private fun getSeekBarUpdater(): ObservableSubscribeProxy<Long> {
         return Observable.interval(500, TimeUnit.MILLISECONDS)
             .subscribeOn(Schedulers.single())
@@ -215,6 +242,13 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         intent.getStringExtra("title")?.let { title = it }
 
         viewModel.bindView(this)
+
+        val sendWhereIAm = View.OnClickListener {
+            binding.shadeBackground.performClick()
+            askWhereabouts.launch(Unit)
+        }
+        binding.whereabouts.setOnClickListener(sendWhereIAm)
+        binding.whereaboutsLabel.setOnClickListener(sendWhereIAm)
 
             chipsAdapter.view = binding.chips
 
@@ -417,6 +451,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
     override fun onStart() {
         super.onStart()
+        // Asked again each time, since Whereabouts may have come or gone in between.
+        whereaboutsAvailable = com.wanderwildwood.kotozute.common.util.Whereabouts.isAvailable(this)
         activityVisibleIntent.onNext(true)
     }
 
@@ -574,6 +610,9 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
         binding.attach.rotation = if (state.attaching) 135f else 0f
         binding.attaching.isVisible = state.attaching
+        val whereabouts = state.attaching && whereaboutsAvailable
+        binding.whereabouts.isVisible = whereabouts
+        binding.whereaboutsLabel.isVisible = whereabouts
 
         binding.shadeBackground.apply {
             when {

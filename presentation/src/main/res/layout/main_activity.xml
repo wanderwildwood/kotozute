@@ -28,6 +28,7 @@
         android:id="@+id/toolbar"
         style="@style/Toolbar"
         android:animateLayoutChanges="false"
+        app:contentInsetStart="4dp"
         app:contentInsetStartWithNavigation="0dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -48,9 +49,11 @@
                 android:layout_height="48dp"
                 android:background="@android:color/transparent">
 
+                <!-- 24dp, the size of every other top-bar icon; it was 20. Its centre is 28dp
+                     in, where TopAppBarMMD puts a back arrow. -->
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_search_black_24dp"
                     app:tint="#000000" />
@@ -66,82 +69,74 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="4dp"
                 android:visibility="gone"
                 android:text="@string/title_conversations" />
 
-            <!-- Filter Tabs with Search and Compose -->
-            <!-- Weighted rather than wrap_content: at wrap_content the labels set the
-                 width, and three of them at 48dp targets ran past the right edge of a
-                 480px screen. Weighted, the row takes the space that is left and the
-                 tabs inside share it. -->
-            <LinearLayout
+            <!-- The filter tabs, as StoneTabs draws them in the other apps: the row takes the
+                 room between search and the cog, and the tabs sit from its left at their own
+                 widths, stepping down a size when they would not fit (StoneTabRow). -->
+            <com.wanderwildwood.kotozute.common.widget.StoneTabRow
                 android:id="@+id/filterTabs"
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="48dp"
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-                <!-- QkTextView, so the label follows the app's Font size setting
-                     like every other piece of text instead of a hardcoded 13sp. -->
                 <com.wanderwildwood.kotozute.common.widget.QkTextView
                     android:id="@+id/filterAll"
                     android:layout_width="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_height="match_parent"
+                    android:layout_height="40dp"
                     android:minWidth="48dp"
-                    android:paddingStart="4dp"
-                    android:paddingEnd="4dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
                     android:gravity="center"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:text="@string/filter_all"
                     android:textStyle="bold"
+                    android:fontFamily="@font/lato"
                     android:background="@drawable/filter_tab_selected"
-                    android:textColor="@android:color/white"
-                    app:textSize="secondary" />
+                    android:textColor="@android:color/white" />
 
-                <!-- QkTextView, so the label follows the app's Font size setting
-                     like every other piece of text instead of a hardcoded 13sp. -->
                 <com.wanderwildwood.kotozute.common.widget.QkTextView
                     android:id="@+id/filterGroups"
                     android:layout_width="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_height="match_parent"
+                    android:layout_marginStart="6dp"
+                    android:layout_height="40dp"
                     android:minWidth="48dp"
-                    android:paddingStart="4dp"
-                    android:paddingEnd="4dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
                     android:gravity="center"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:text="@string/filter_groups"
                     android:textStyle="bold"
+                    android:fontFamily="@font/lato"
                     android:background="@android:color/transparent"
-                    android:textColor="#000000"
-                    app:textSize="secondary" />
+                    android:textColor="#000000" />
 
-                <!-- QkTextView, so the label follows the app's Font size setting
-                     like every other piece of text instead of a hardcoded 13sp. -->
                 <com.wanderwildwood.kotozute.common.widget.QkTextView
                     android:id="@+id/filterUnknown"
                     android:layout_width="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_height="match_parent"
+                    android:layout_marginStart="6dp"
+                    android:layout_height="40dp"
                     android:minWidth="48dp"
-                    android:paddingStart="4dp"
-                    android:paddingEnd="4dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
                     android:gravity="center"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:text="@string/filter_unknown"
                     android:textStyle="bold"
+                    android:fontFamily="@font/lato"
                     android:background="@android:color/transparent"
-                    android:textColor="#000000"
-                    app:textSize="secondary" />
+                    android:textColor="#000000" />
 
-            </LinearLayout>
+            </com.wanderwildwood.kotozute.common.widget.StoneTabRow>
 
             <!-- Only when the two lists are being kept apart (Settings, "One conversation
                  list", off). Woven, there is nothing to cross to and this stays gone. -->
@@ -186,15 +181,14 @@
             android:layout_height="64dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="8dp"
             android:paddingEnd="8dp"
             android:visibility="gone">
 
             <ImageView
                 android:id="@+id/searchBack"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:padding="10dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="12dp"
                 android:src="@drawable/ic_arrow_back_black_24dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/abc_action_bar_up_description"
@@ -250,11 +244,10 @@
         android:scrollbars="none" />
 
     <!-- A drawn line rather than the inherited 8dp gradient: a soft shadow is
-         dithered noise on e-ink, and this is the same weight of stroke the
-         filter pill used to carry. -->
+         dithered noise on e-ink. 1dp, Mudita's own rule under a top bar. -->
     <View
         android:layout_width="0dp"
-        android:layout_height="1.5dp"
+        android:layout_height="1dp"
         android:background="#000000"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

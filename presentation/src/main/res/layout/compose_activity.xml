@@ -366,6 +366,7 @@
         style="@style/Toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="64dp"
         android:gravity="center_vertical"
         app:layout_constrainedHeight="true"
         app:layout_constraintHeight_max="140dp"
@@ -393,7 +394,6 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:textDirection="ltr"
-                    android:textSize="16sp"
                     tools:text="Moez Bhatti" />
 
                 <com.wanderwildwood.kotozute.common.widget.QkTextView
@@ -440,18 +440,12 @@
 
     </androidx.appcompat.widget.Toolbar>
 
-    <View
-        android:id="@+id/titleBarShadow"
-        android:layout_width="match_parent"
-        android:layout_height="8dp"
-        android:background="@drawable/ab_shadow"
-        app:layout_constraintTop_toBottomOf="@id/toolbar" />
-
+    <!-- Mudita's 1dp rule under the top bar, in place of the inherited 8dp grey gradient. -->
     <View
         android:id="@+id/titleBarBlackLine"
         android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:background="@android:color/black"
+        android:layout_height="1dp"
+        android:background="#000000"
         app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
     <androidx.constraintlayout.widget.Group
@@ -473,6 +467,41 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/titleBarBlackLine"
         tools:visibility="gone" />
+
+    <!-- Send where I am: one location from Whereabouts, which asks first. Not in the
+         "attaching" group, because it shows only when Whereabouts can answer. -->
+    <ImageView
+        android:id="@+id/whereabouts"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/circle_outline"
+        android:contentDescription="@string/whereabouts_send"
+        android:elevation="4dp"
+        android:padding="10dp"
+        android:src="@drawable/ic_place_black_24dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/contact"
+        app:layout_constraintEnd_toEndOf="@id/attach"
+        app:layout_constraintStart_toStartOf="@id/attach"
+        app:tint="@android:color/black" />
+
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/whereaboutsLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/rounded_rectangle_outline"
+        android:elevation="4dp"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:text="@string/whereabouts_send"
+        android:textColor="@android:color/black"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/whereabouts"
+        app:layout_constraintStart_toEndOf="@id/whereabouts"
+        app:layout_constraintTop_toTopOf="@id/whereabouts" />
 
     <ImageView
         android:id="@+id/contact"

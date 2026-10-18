@@ -8,14 +8,9 @@
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
-        style="@style/Toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        style="@style/Toolbar" />
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:background="@android:color/black" />
+    <include layout="@layout/top_bar_rule" />
 
     <!-- Named here rather than on a second screen. Signal gives the name its own step
          because that step also carries an avatar, a timer and a list of who is in; this

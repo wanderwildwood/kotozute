@@ -14,19 +14,18 @@
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
-        style="@style/Toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        style="@style/Toolbar">
 
         <com.wanderwildwood.kotozute.common.widget.QkTextView
             android:id="@+id/toolbarTitle"
             style="@style/ToolbarText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/signal_link_title"
-            android:textSize="16sp" />
+            android:text="@string/signal_link_title" />
 
     </androidx.appcompat.widget.Toolbar>
+
+    <include layout="@layout/top_bar_rule" />
 
     <TextView
         android:id="@+id/instructions"

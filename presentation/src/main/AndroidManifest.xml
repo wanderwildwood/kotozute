@@ -356,6 +356,10 @@
     </application>
 
     <queries>
+        <!-- Whereabouts, for "Send where I am": one location, asked of it once. -->
+        <intent>
+            <action android:name="com.wanderwildwood.ibasho.action.SHARE_LOCATION_ONCE" />
+        </intent>
         <package android:name="com.cuiet.blockCalls" />
         <package android:name="com.flexaspect.android.everycallcontrol" />
         <package android:name="org.mistergroup.muzutozvednout" />

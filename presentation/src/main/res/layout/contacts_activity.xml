@@ -47,10 +47,7 @@
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         style="@style/Toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         app:contentInsetStartWithNavigation="0dp"
-        app:layout_constrainedHeight="true"
         app:layout_constraintTop_toTopOf="parent">
 
         <FrameLayout
@@ -94,7 +91,7 @@
                 android:inputType="textFilter|textNoSuggestions"
                 android:privateImeOptions="nm"
                 android:maxLines="1"
-                android:paddingStart="12dp"
+                android:paddingStart="0dp"
                 android:paddingEnd="12dp"
                 android:textColorHint="?android:attr/textColorTertiary"
                 app:textSize="primary"
@@ -136,10 +133,11 @@
 
     </androidx.appcompat.widget.Toolbar>
 
+    <!-- Mudita's 1dp rule under the top bar, in place of the inherited 8dp grey gradient. -->
     <View
         android:layout_width="match_parent"
-        android:layout_height="8dp"
-        android:background="@drawable/ab_shadow"
+        android:layout_height="1dp"
+        android:background="#000000"
         app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
     <View

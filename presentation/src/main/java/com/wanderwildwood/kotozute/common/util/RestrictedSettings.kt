@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -22,15 +23,26 @@ object RestrictedSettings {
     private const val OP = "android:access_restricted_settings"
 
     /** True only where the restriction exists and has not been lifted for this app. */
+    /**
+     * True where the restriction can be in force for this app: Android 13 or later, installed
+     * from a file (the package installer records that), and not lifted. On Android 13 and 14
+     * lifting it sets the app-op to allowed; from Android 15 Android keeps that elsewhere, so
+     * there this is answered only after a request has already come back refused.
+     */
     fun isRestricted(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
-        return runCatching {
-            val ops = context.getSystemService(AppOpsManager::class.java)
-            // Errored is what Android sets for an app installed from a file; allowing restricted
-            // settings sets it to allowed. Anything else is not this restriction.
-            val mode = ops.unsafeCheckOpNoThrow(OP, context.applicationInfo.uid, context.packageName)
-            mode == AppOpsManager.MODE_ERRORED || mode == AppOpsManager.MODE_IGNORED
+        val fromFile = runCatching {
+            val source = context.packageManager.getInstallSourceInfo(context.packageName).packageSource
+            source == PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE ||
+                source == PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE
         }.getOrDefault(false)
+        if (!fromFile) return false
+        val lifted = runCatching {
+            val ops = context.getSystemService(AppOpsManager::class.java)
+            ops.unsafeCheckOpNoThrow(OP, context.applicationInfo.uid, context.packageName) ==
+                AppOpsManager.MODE_ALLOWED
+        }.getOrDefault(false)
+        return !lifted
     }
 
     fun showHint(activity: Activity) {

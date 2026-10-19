@@ -428,6 +428,10 @@
     <string name="info_deleted_toast">Deleted %1$d message(s)</string>
     <string name="info_delete_failed">Nothing was deleted</string>
     <string name="signal_action_failed">That did not work</string>
+    <plurals name="main_block_signal_confirm">
+        <item quantity="one">Block this person on Signal? Their texts stop too, where the two are one conversation here.</item>
+        <item quantity="other">Block these %d people on Signal? Their texts stop too, where the two are one conversation here.</item>
+    </plurals>
     <string name="info_block_both">Stops their texts as well, since the two are one conversation here</string>
     <string name="info_link">Link to a text conversation</string>
     <string name="info_link_linked">Linked to %s</string>
@@ -594,8 +598,6 @@
     <string name="signal_unmute">Unmute notifications</string>
     <string name="signal_muted_toast">Muted. Messages still arrive.</string>
     <string name="signal_block_armed">Block on Signal — tap again</string>
-    <string name="signal_row_block_armed">Block \u2014 stops their texts as well; tap again</string>
-    <string name="signal_row_delete_armed">Delete conversation \u2014 this phone holds the only copy; tap again</string>
     <string name="signal_blocked_toast">Blocked on Signal, on every device</string>
     <string name="signal_block_failed">Not blocked — Signal would not take the change</string>
     <string name="signal_unblock_armed">Unblock on Signal — tap again</string>
@@ -721,6 +723,10 @@
     <string name="signal_editing">Editing your message · tap to cancel</string>
     <string name="signal_edit_failed">Not edited: %1$s</string>
     <string name="signal_delete_for_me_confirm">Delete this message from this phone and your other devices? The people in the conversation keep their copy.</string>
+    <plurals name="signal_delete_for_me_confirm_many">
+        <item quantity="one">Delete this message from this phone and your other devices? The people in the conversation keep their copy.</item>
+        <item quantity="other">Delete these %d messages from this phone and your other devices? The people in the conversation keep their copy.</item>
+    </plurals>
     <string name="signal_safety_number">Safety number</string>
     <string name="signal_safety_accept_title">Accept the new key</string>
     <string name="signal_safety_accept_summary">Only after you have checked the digits with them another way. Until you do, messages to them will not send.</string>

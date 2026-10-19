@@ -19,9 +19,6 @@
 package com.wanderwildwood.kotozute.feature.conversations
 
 import android.content.Context
-import com.wanderwildwood.kotozute.repository.SignalRepository.PersonAction
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
@@ -45,7 +42,6 @@ import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
-import com.wanderwildwood.kotozute.common.util.einkDialog
 
 /**
  * The inbox, both rails.
@@ -55,9 +51,10 @@ import com.wanderwildwood.kotozute.common.util.einkDialog
  * SyncRepositoryImpl.removeOldMessages() empties Conversation and Message on every full
  * sync, so Signal rows kept there would be destroyed by an ordinary re-sync.
  *
- * Only SMS rows are selectable and swipeable. Archive, delete, pin and multi-select are all
- * telephony operations keyed on a thread id; rather than pretend they apply to a Signal
- * thread, the row simply does not offer them.
+ * Rows on both rails are selectable, the same way: hold one to start choosing, tap more to
+ * add them, then act from the bar. A Signal row is held in the selection by its negative
+ * stable id, and the screen resolves it to its thread (see InboxSelection). Only SMS rows
+ * are swipeable.
  */
 class ConversationsAdapter @Inject constructor(
     private val colors: Colors,
@@ -66,7 +63,6 @@ class ConversationsAdapter @Inject constructor(
     private val scheduledMessageRepo: ScheduledMessageRepository,
     private val navigator: Navigator,
     private val phoneNumberUtils: PhoneNumberUtils,
-    private val signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository,
     private val prefs: com.wanderwildwood.kotozute.util.Preferences
 ) : RecyclerView.Adapter<QkBindingViewHolder<ConversationListItemBinding>>() {
     override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
@@ -187,7 +183,7 @@ class ConversationsAdapter @Inject constructor(
         null -> 0
     }
 
-    // ---- selection: SMS only -------------------------------------------------
+    // ---- selection: both rails, by stable id ----------------------------------
 
     private fun toggleSelection(id: Long, force: Boolean = true): Boolean {
         if (!force && selection.isEmpty()) return false
@@ -205,8 +201,7 @@ class ConversationsAdapter @Inject constructor(
     }
 
     fun toggleSelectAll() {
-        val selectable = items.filterIsInstance<InboxItem.Sms>().filter { it.isValid }
-                .map { it.conversation.id }
+        val selectable = items.filter { it.isValid }.map { it.stableId }
         val needToSelectAll = selection.size != selectable.size
         selection.clear()
         if (needToSelectAll) selection.addAll(selectable)
@@ -252,11 +247,15 @@ class ConversationsAdapter @Inject constructor(
                         }
                     }
                     is InboxItem.Signal -> {
+                        // Mid-selection a tap chooses it, as it does a text row.
+                        if (toggleSelection(item.stableId, false)) {
+                            view.isActivated = isSelected(item.stableId)
+                            return@setOnClickListener
+                        }
                         // Opens the rail the row is reporting. The row shows whichever half
                         // spoke last, so a row reading "Perfect, thank you!" -- a text --
                         // that opened the Signal side showed neither that message nor any
-                        // reason it was named after it. Not selectable, so a tap always
-                        // opens it, even mid-selection.
+                        // reason it was named after it.
                         val joined = item.joined
                         if (item.textIsNewer && joined != null) {
                             navigator.showConversation(joined.id, null, joined.getTitle())
@@ -273,105 +272,16 @@ class ConversationsAdapter @Inject constructor(
                         toggleSelection(item.conversation.id)
                         view.isActivated = isSelected(item.conversation.id)
                     }
-                    // A Signal row could not be selected and so offered nothing at all: no
-                    // archive, no pin, no mute, from a list where every other row has them.
-                    // Selection is the wrong shape for it -- the bulk actions above are
-                    // telephony ones keyed on a thread id -- so the long press opens the
-                    // same set directly, on the one row it was made on.
-                    is InboxItem.Signal -> showSignalRowMenu(view.context, item)
+                    // The same as a text row: it starts the selection, and the bar acts
+                    // on every row chosen. It used to open a menu for this row alone,
+                    // which left Signal rows the only ones that could not be chosen together.
+                    is InboxItem.Signal -> {
+                        toggleSelection(item.stableId)
+                        view.isActivated = isSelected(item.stableId)
+                    }
                     null -> Unit
                 }
                 true
-            }
-        }
-    }
-
-    /**
-     * What a Signal row can be asked to do, from the list, as any other row can.
-     *
-     * The same set the browser offers on a right-click, in the same order, so the two do not
-     * disagree about what a row is for. Each one acts on the *person*: where their two rails
-     * are joined the text half goes with it, which is what a single row has to mean.
-     */
-    private fun showSignalRowMenu(
-        context: Context,
-        item: InboxItem.Signal,
-        /** Which destructive action is already armed, if any; see below. */
-        armed: PersonAction? = null
-    ) {
-        val thread = item.thread
-        val title = signalTitle(item)
-        val actions = buildList<Pair<String, PersonAction>> {
-            add(
-                if (thread.pinned) context.getString(R.string.main_menu_unpin) to PersonAction.UNPIN
-                else context.getString(R.string.main_menu_pin) to PersonAction.PIN
-            )
-            add(context.getString(R.string.main_menu_unread) to PersonAction.UNREAD)
-            add(
-                if (thread.muted) context.getString(R.string.signal_unmute) to PersonAction.UNMUTE
-                else context.getString(R.string.signal_mute) to PersonAction.MUTE
-            )
-            add(
-                if (thread.archived) context.getString(R.string.signal_unarchive) to PersonAction.UNARCHIVE
-                else context.getString(R.string.signal_archive) to PersonAction.ARCHIVE
-            )
-            // Last, because they are the destructive ones. Each asks in its own face rather
-            // than by stacking a second dialog on this one: the entry arms, says what a
-            // second tap will do and what it costs, and disarms itself so a stray tap leaves
-            // no live trigger for whoever picks the phone up next.
-            add(
-                context.getString(
-                    if (armed == PersonAction.BLOCK) R.string.signal_row_block_armed
-                    else R.string.info_block
-                ) to PersonAction.BLOCK
-            )
-            add(
-                context.getString(
-                    if (armed == PersonAction.DELETE) R.string.signal_row_delete_armed
-                    else R.string.info_delete
-                ) to PersonAction.DELETE
-            )
-        }
-        val danger = setOf(PersonAction.BLOCK, PersonAction.DELETE)
-        val dialog = context.einkDialog()
-            .setTitle(title)
-            .setItems(actions.map { it.first }.toTypedArray()) { _, which ->
-                val (_, action) = actions[which]
-                when {
-                    action !in danger -> runSignalRowAction(context, thread.threadKey, action)
-                    action == armed -> runSignalRowAction(context, thread.threadKey, action)
-                    else -> showSignalRowMenu(context, item, armed = action)
-                }
-            }
-            .show()
-
-        if (armed != null) {
-            val decor = dialog.window?.decorView
-            val disarm = Runnable {
-                if (dialog.isShowing) {
-                    dialog.dismiss()
-                    showSignalRowMenu(context, item, armed = null)
-                }
-            }
-            decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
-            // Choosing anything else, or backing out, takes the trigger with it.
-            dialog.setOnDismissListener { decor?.removeCallbacks(disarm) }
-        }
-    }
-
-    private fun runSignalRowAction(
-        context: Context,
-        threadKey: String,
-        action: PersonAction
-    ) {
-        // Off the main thread: blocking reaches the Signal account over the network, and
-        // the rest touch two databases.
-        kotlin.concurrent.thread(isDaemon = true) {
-            val done = signalRepo.actOnPerson(threadKey, action)
-            if (!done) {
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    Toast.makeText(context, R.string.signal_action_failed, Toast.LENGTH_SHORT).show()
-                }
             }
         }
     }
@@ -463,8 +373,7 @@ class ConversationsAdapter @Inject constructor(
     ) {
         val thread = item.thread
 
-        // Never selected: Signal rows are not part of the telephony selection.
-        holder.containerView.isActivated = false
+        holder.containerView.isActivated = isSelected(item.stableId)
         holder.binding.rail.isVisible = true
 
         holder.binding.title.collapseEnabled = false
@@ -493,10 +402,5 @@ class ConversationsAdapter @Inject constructor(
     override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
         super.onDetachedFromRecyclerView(recyclerView)
         disposables.clear()
-    }
-
-    companion object {
-        /** How long an armed destructive entry stays armed, as everywhere else in the app. */
-        private const val ARM_TIMEOUT_MS = 4000L
     }
 }

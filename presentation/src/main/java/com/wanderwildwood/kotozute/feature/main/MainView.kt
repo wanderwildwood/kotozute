@@ -49,7 +49,11 @@ interface MainView : QkView<MainState> {
     fun toggleSelectAll()
     fun themeChanged()
     fun showBlockingDialog(conversations: List<Long>, block: Boolean)
-    fun showDeleteDialog(conversations: List<Long>)
+    /** [signal]: Signal rows are among them, whose deletion reaches the other devices too. */
+    fun showDeleteDialog(conversations: List<Long>, signal: Boolean = false)
+    /** Asks before blocking [count] people on Signal; [onConfirm] runs only on yes. */
+    fun confirmSignalBlock(count: Int, onConfirm: () -> Unit)
+    fun showSignalActionFailed()
     fun showRenameDialog(conversationName: String)
     fun showArchivedSnackbar(countConversationsArchived: Int, isArchiving: Boolean)
 }

@@ -30,6 +30,7 @@ import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.Toast
 import android.view.ViewStub
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
@@ -289,6 +290,12 @@ class MainActivity : QkThemedActivity(), MainView {
             else -> true
         }
 
+        val rename = when (state.page) {
+            is Inbox -> state.page.rename
+            is Archived -> state.page.rename
+            else -> false
+        }
+
         val selectedConversations = when (state.page) {
             is Inbox -> state.page.selected
             is Archived -> state.page.selected
@@ -342,7 +349,7 @@ class MainActivity : QkThemedActivity(), MainView {
             findItem(R.id.unread)?.isVisible = ( !markRead && selectedConversations != 0 ) ||
                     selectedConversations > 1
             findItem(R.id.block)?.isVisible = selectedConversations != 0
-            findItem(R.id.rename)?.isVisible = selectedConversations == 1
+            findItem(R.id.rename)?.isVisible = rename && selectedConversations == 1
         }
 
         conversationsAdapter.emptyView = binding.empty.takeIf {
@@ -543,19 +550,33 @@ class MainActivity : QkThemedActivity(), MainView {
         blockingDialog.show(this, conversations, block)
     }
 
-    override fun showDeleteDialog(conversations: List<Long>) {
+    override fun showDeleteDialog(conversations: List<Long>, signal: Boolean) {
+        val message = resources.getQuantityString(
+            R.plurals.dialog_delete_message,
+            conversations.size,
+            conversations.size
+        )
         einkDialog()
             .setTitle(R.string.dialog_delete_title)
-            .setMessage(
-                resources.getQuantityString(
-                    R.plurals.dialog_delete_message,
-                    conversations.size,
-                    conversations.size
-                )
-            )
+            // A Signal conversation goes from the other devices as well, and nothing brings
+            // it back: said here, where the row's own menu used to say it.
+            .setMessage(if (signal) message + "\n\n" + getString(R.string.info_delete_summary) else message)
             .setPositiveButton(R.string.button_delete) { _, _ -> confirmDeleteIntent.onNext(conversations) }
             .setNegativeButton(R.string.button_cancel, null)
             .show()
+    }
+
+    override fun confirmSignalBlock(count: Int, onConfirm: () -> Unit) {
+        einkDialog()
+            .setTitle(R.string.blocking_block_title)
+            .setMessage(resources.getQuantityString(R.plurals.main_block_signal_confirm, count, count))
+            .setPositiveButton(R.string.info_block) { _, _ -> onConfirm() }
+            .setNegativeButton(R.string.button_cancel, null)
+            .show()
+    }
+
+    override fun showSignalActionFailed() {
+        Toast.makeText(this, R.string.signal_action_failed, Toast.LENGTH_SHORT).show()
     }
 
     override fun showRenameDialog(conversationName: String) =

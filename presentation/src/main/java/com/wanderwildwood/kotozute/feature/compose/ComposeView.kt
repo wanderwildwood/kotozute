@@ -87,6 +87,8 @@ interface ComposeView : QkView<ComposeState> {
     val recordAudioChronometer: Subject<Boolean>
 
     fun clearSelection()
+    /** Closes the conversation: after Mark unread or Archive, as the Signal one does. */
+    fun leaveConversation()
     fun toggleSelectAll()
     fun expandMessages(messageIds: List<Long>, expand: Boolean)
     fun showDetails(details: String)

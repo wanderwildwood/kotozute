@@ -57,6 +57,9 @@ data class ComposeState(
     val subscription: SubscriptionInfoCompat? = null,
     val canSend: Boolean = false,
     val muted: Boolean = false,
+    /** The conversation's own pin and shelf, for the menu's Pin and Archive. */
+    val pinned: Boolean = false,
+    val archived: Boolean = false,
     /**
      * Whether this conversation is with one person whom the address book does not know.
      *

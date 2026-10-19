@@ -114,6 +114,11 @@ class ComposeViewModel @Inject constructor(
     private val signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository,
     private val deleteMessages: DeleteMessages,
     private val markRead: MarkRead,
+    private val markArchived: com.wanderwildwood.kotozute.interactor.MarkArchived,
+    private val markUnarchived: com.wanderwildwood.kotozute.interactor.MarkUnarchived,
+    private val markPinned: com.wanderwildwood.kotozute.interactor.MarkPinned,
+    private val markUnpinned: com.wanderwildwood.kotozute.interactor.MarkUnpinned,
+    private val markUnread: com.wanderwildwood.kotozute.interactor.MarkUnread,
     private val messageDetailsFormatter: MessageDetailsFormatter,
     private val messageRepo: MessageRepository,
     private val scheduledMessageRepo: ScheduledMessageRepository,
@@ -350,6 +355,12 @@ class ComposeViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .subscribe { id -> newState { copy(muted = !prefs.notifications(id).get()) } }
 
+        // Which of Pin and Unpin, Archive and Unarchive the menu offers.
+        disposables += conversation
+                .map { conversation -> conversation.pinned to conversation.archived }
+                .distinctUntilChanged()
+                .subscribe { (pinned, archived) -> newState { copy(pinned = pinned, archived = archived) } }
+
         disposables += conversation
                 .map { conversation -> conversation.id }
                 .distinctUntilChanged()
@@ -559,6 +570,45 @@ class ComposeViewModel @Inject constructor(
                     val notify = itemId == R.id.unmute
                     prefs.notifications(conversation.id).set(notify)
                     newState { copy(muted = !notify) }
+                }
+                .autoDisposable(view.scope())
+                .subscribe()
+
+        // Pin, Mark unread and Archive, as SignalThreadActivity's menu has them and doing what
+        // it does with each: a pin stays on screen; marking unread leaves, since the
+        // read-on-view would otherwise undo it at once; archiving leaves, as the row has gone.
+        view.optionsItemIntent
+                .filter { it == R.id.pinConversation || it == R.id.unpinConversation }
+                .withLatestFrom(conversation) { itemId, conversation ->
+                    val pin = itemId == R.id.pinConversation
+                    if (pin) markPinned.execute(listOf(conversation.id))
+                    else markUnpinned.execute(listOf(conversation.id))
+                    newState { copy(pinned = pin) }
+                }
+                .autoDisposable(view.scope())
+                .subscribe()
+
+        view.optionsItemIntent
+                .filter { it == R.id.markUnreadConversation }
+                .withLatestFrom(conversation) { _, conversation -> conversation.id }
+                .autoDisposable(view.scope())
+                .subscribe { id ->
+                    markUnread.execute(listOf(id))
+                    view.leaveConversation()
+                }
+
+        // Both halves where this person also has a Signal thread, because the inbox shows one
+        // row for both -- the rule SignalThreadActivity follows from the other side.
+        // Archiving only the text half would leave the row where it was.
+        view.optionsItemIntent
+                .filter { it == R.id.archiveConversation || it == R.id.unarchiveConversation }
+                .withLatestFrom(conversation, state) { itemId, conversation, state ->
+                    val archive = itemId == R.id.archiveConversation
+                    if (archive) markArchived.execute(listOf(conversation.id))
+                    else markUnarchived.execute(listOf(conversation.id))
+                    state.signalThreadKey?.let { key -> signalRepo.setArchived(key, archive) }
+                    if (archive) context.makeToast(R.string.signal_archived_toast)
+                    view.leaveConversation()
                 }
                 .autoDisposable(view.scope())
                 .subscribe()

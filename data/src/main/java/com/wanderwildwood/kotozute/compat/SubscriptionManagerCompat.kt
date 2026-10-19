@@ -44,6 +44,10 @@ class SubscriptionManagerCompat @Inject constructor(context: Context, private va
             }
         }
 
+    /** The SIM picked for texts in Android's settings, or -1 where it asks each time. */
+    val defaultSmsSubscriptionId: Int
+        get() = SubscriptionManager.getDefaultSmsSubscriptionId()
+
     init {
         subscriptionManager = SubscriptionManager.from(context)
     }

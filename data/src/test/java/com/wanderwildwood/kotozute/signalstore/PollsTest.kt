@@ -21,6 +21,19 @@ class PollsTest {
         assertNotNull(Polls.create("q", false, listOf("a", "b")))
     }
 
+    // Upstream's own cases from f8ba4ae848 (EnvelopeContentValidatorTest): a family emoji is
+    // seven code points and eleven UTF-16 units, a flag two and four, "e" plus a combining
+    // accent two and two -- each one grapheme.
+    @Test
+    fun `limits are counted in graphemes, not UTF-16 units`() {
+        val family = "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66"
+        val flag = "\uD83C\uDDFA\uD83C\uDDF8"
+        assertNotNull(Polls.create(family.repeat(200), false, listOf("option1", "option2")))
+        assertNull(Polls.create(family.repeat(201), false, listOf("option1", "option2")))
+        assertNotNull(Polls.create("how are you", true, listOf(flag.repeat(100), "e\u0301".repeat(100))))
+        assertNull(Polls.create("how are you", true, listOf(flag.repeat(101), "option2")))
+    }
+
     @Test
     fun `a later vote replaces an earlier one, and a late old one changes nothing`() {
         val first = Polls.vote(poll, "ada", 1, listOf(0))!!

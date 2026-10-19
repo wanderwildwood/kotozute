@@ -2,6 +2,7 @@ package com.wanderwildwood.kotozute.signalstore
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.text.BreakIterator
 
 /**
  * A poll, as kept beside the message that asked it: the question, the options, whether more
@@ -13,7 +14,10 @@ import org.json.JSONObject
  * nothing; an empty selection takes the vote back; an index outside the options, or more than
  * one where only one may be chosen, or any vote on a poll that has ended, is refused. Limits
  * from `EnvelopeContentValidator`: 2 to 10 options, the question at most 200 characters, each
- * option at most 100. Kept apart from the protobuf so it can be tested.
+ * option at most 100 -- counted as a reader sees them, one per grapheme, not in UTF-16 units
+ * (upstream f8ba4ae848, `graphemeCount`). Counted in units, a family emoji is eleven and a flag
+ * four, so a poll of emoji options that Signal sends and accepts was dropped here on arrival.
+ * Kept apart from the protobuf so it can be tested.
  */
 object Polls {
 
@@ -40,10 +44,22 @@ object Polls {
     fun create(question: String, multiple: Boolean, options: List<String>): Poll? {
         val q = question.trim()
         val opts = options.map { it.trim() }
-        if (q.isEmpty() || q.length > MAX_QUESTION) return null
+        if (q.isEmpty() || q.graphemeCount() > MAX_QUESTION) return null
         if (opts.size !in MIN_OPTIONS..MAX_OPTIONS) return null
-        if (opts.any { it.isEmpty() || it.length > MAX_OPTION }) return null
+        if (opts.any { it.isEmpty() || it.graphemeCount() > MAX_OPTION }) return null
         return Poll(q, multiple, opts)
+    }
+
+    /** Upstream's `EnvelopeContentValidator.graphemeCount`, as it is there. */
+    internal fun String.graphemeCount(): Int {
+        val iterator = BreakIterator.getCharacterInstance()
+        iterator.setText(this)
+
+        var count = 0
+        while (iterator.next() != BreakIterator.DONE) {
+            count++
+        }
+        return count
     }
 
     /** [poll] with [voter]'s vote applied, or null when upstream would refuse it. */

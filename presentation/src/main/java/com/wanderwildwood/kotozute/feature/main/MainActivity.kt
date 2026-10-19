@@ -579,6 +579,11 @@ class MainActivity : QkThemedActivity(), MainView {
         Toast.makeText(this, R.string.signal_action_failed, Toast.LENGTH_SHORT).show()
     }
 
+    override fun showMuted(count: Int) {
+        Toast.makeText(this, resources.getQuantityString(R.plurals.main_muted_toast, count, count), Toast.LENGTH_SHORT)
+            .show()
+    }
+
     override fun showRenameDialog(conversationName: String) =
         TextInputDialog(
             this,

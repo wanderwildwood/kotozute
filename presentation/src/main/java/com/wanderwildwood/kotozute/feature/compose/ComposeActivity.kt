@@ -710,6 +710,9 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override fun showReactionFailed() =
         Toast.makeText(this, R.string.signal_reaction_failed, Toast.LENGTH_SHORT).show()
 
+    override fun showMuted() =
+        Toast.makeText(this, R.string.signal_muted_toast, Toast.LENGTH_SHORT).show()
+
     override fun showMessageLinkAskDialog(uri: Uri) {
         einkDialog()
             .setTitle(R.string.messageLinkHandling_dialog_title)

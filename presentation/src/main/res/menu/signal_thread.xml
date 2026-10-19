@@ -10,6 +10,31 @@
         android:title="@string/signal_call_start"
         android:visible="false"
         app:showAsAction="always" />
+    <!-- While messages are chosen: the same icons, in the same places, as the SMS thread's
+         selection bar. The rest of one message's entries are added under the overflow. -->
+    <item
+        android:id="@+id/signalSelCopy"
+        android:icon="@drawable/ic_content_copy_black_24dp"
+        android:title="@string/compose_menu_copy"
+        android:visible="false"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/signalSelForward"
+        android:icon="@drawable/ic_forward_black_24dp"
+        android:title="@string/compose_menu_forward"
+        android:visible="false"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/signalSelDelete"
+        android:icon="@drawable/ic_delete_white_24dp"
+        android:title="@string/signal_delete_for_me"
+        android:visible="false"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/signalSelShare"
+        android:title="@string/signal_message_share"
+        android:visible="false"
+        app:showAsAction="never" />
     <item
         android:id="@+id/signalInfo"
         android:title="@string/menu_info"

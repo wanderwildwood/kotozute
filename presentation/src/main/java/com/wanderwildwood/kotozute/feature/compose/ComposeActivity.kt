@@ -559,6 +559,14 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         )
         binding.toolbar.menu.findItem(R.id.info)?.isVisible = !state.editingMode && state.selectedMessages == 0
                 && state.query.isEmpty()
+        // Pin, Mark unread and Archive for the conversation, as the Signal conversation has.
+        val conversationMenu = !state.editingMode && state.selectedMessages == 0 && state.query.isEmpty()
+                && state.threadId != 0L
+        binding.toolbar.menu.findItem(R.id.pinConversation)?.isVisible = conversationMenu && !state.pinned
+        binding.toolbar.menu.findItem(R.id.unpinConversation)?.isVisible = conversationMenu && state.pinned
+        binding.toolbar.menu.findItem(R.id.markUnreadConversation)?.isVisible = conversationMenu
+        binding.toolbar.menu.findItem(R.id.archiveConversation)?.isVisible = conversationMenu && !state.archived
+        binding.toolbar.menu.findItem(R.id.unarchiveConversation)?.isVisible = conversationMenu && state.archived
         binding.toolbar.menu.findItem(R.id.copy)?.isVisible =
             !state.editingMode && state.selectedMessages > 0 && state.selectedMessagesHaveText
         binding.toolbar.menu.findItem(R.id.share)?.isVisible =
@@ -965,6 +973,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         optionsItemIntent.onNext(item.itemId)
         return true
     }
+
+    override fun leaveConversation() = finish()
 
     override fun getColoredMenuItems(): List<Int> {
         return super.getColoredMenuItems() + R.id.call

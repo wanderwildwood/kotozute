@@ -47,6 +47,8 @@ data class Inbox(
     val markPinned: Boolean = true,
     val markMuted: Boolean = true,
     val markRead: Boolean = false,
+    /** One text conversation selected; a Signal thread has no local name to set. */
+    val rename: Boolean = false,
     val data: List<InboxItem>? = null,
     val selected: Int = 0,
     val filter: Int = 0 // 0=All, 1=Groups, 2=Unknown
@@ -62,6 +64,8 @@ data class Archived(
     val markPinned: Boolean = true,
     val markMuted: Boolean = true,
     val markRead: Boolean = false,
+    /** One text conversation selected; a Signal thread has no local name to set. */
+    val rename: Boolean = false,
     val data: List<InboxItem>? = null,
     val selected: Int = 0
 ) : MainPage()

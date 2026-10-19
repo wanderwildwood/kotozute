@@ -48,6 +48,7 @@ import com.wanderwildwood.kotozute.repository.EmojiReactionRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
 import com.wanderwildwood.kotozute.repository.SyncRepository
 import com.wanderwildwood.kotozute.feature.conversations.InboxItem
+import com.wanderwildwood.kotozute.feature.conversations.InboxSelection
 import com.wanderwildwood.kotozute.model.SignalThread
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.util.Preferences
@@ -86,6 +87,10 @@ class MainViewModel @Inject constructor(
     ))
 ) {
     private var lastArchivedThreadIds = listOf<Long>(0)
+    private var lastArchivedSignalKeys = listOf<String>()
+
+    /** The selected rows, copied off the list as the selection changes. See InboxSelection. */
+    private var selectedRows = listOf<InboxSelection.Row>()
 
     // The inbox is merged from two live Realm collections. Signal cannot share Conversation
     // -- a full sync empties that table -- so the rails are joined here and re-merged
@@ -161,6 +166,39 @@ class MainViewModel @Inject constructor(
                 ?.let { InboxSearchResult.Signal(it, found, it.snippet) }
         }
         return (unique + signal).sortedWith(compareBy({ it.messages > 0 }, { -it.messages }))
+    }
+
+    private fun selectedRow(item: InboxItem): InboxSelection.Row = when (item) {
+        is InboxItem.Sms -> with(item.conversation) {
+            InboxSelection.Row(
+                id = id,
+                pinned = pinned,
+                muted = !prefs.notifications(id).get(),
+                unread = unread,
+                canAddContact = recipients.size == 1 && recipients.first()?.contact == null
+            )
+        }
+        // The thread's own pin and mute, which are what the Signal conversation's menu shows.
+        is InboxItem.Signal -> InboxSelection.Row(
+            id = item.stableId,
+            signalKey = item.thread.threadKey,
+            joinedId = item.joined?.id,
+            pinned = item.thread.pinned,
+            muted = item.thread.muted,
+            unread = item.unread
+        )
+    }
+
+    /**
+     * One person action on each Signal thread, off the main thread: blocking reaches the
+     * account over the network and the rest touch two databases. Told once if any failed.
+     */
+    private fun actOnSignal(view: MainView, keys: List<String>, action: SignalRepository.PersonAction) {
+        if (keys.isEmpty()) return
+        kotlin.concurrent.thread(isDaemon = true) {
+            val failed = keys.count { key -> !signalRepo.actOnPerson(key, action) }
+            if (failed > 0) AndroidSchedulers.mainThread().scheduleDirect { view.showSignalActionFailed() }
+        }
     }
 
     private fun markEverythingRead() {
@@ -606,12 +644,19 @@ class MainViewModel @Inject constructor(
             .autoDisposable(view.scope())
             .subscribe { view.toggleSelectAll() }
 
+        // Every action below acts on the whole selection, both rails. Text rows go through
+        // the interactors they always did; Signal rows through SignalRepository.actOnPerson,
+        // the same per-person rule the browser uses, so a Signal row that stands for a
+        // joined text conversation still takes that half with it.
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.archive }
-                .withLatestFrom(view.conversationsSelectedIntent) { _, conversations ->
-                    markArchived.execute(conversations)
-                    lastArchivedThreadIds = conversations.toList()
-                    view.showArchivedSnackbar(lastArchivedThreadIds.count(), true)
+                .withLatestFrom(view.conversationsSelectedIntent) { _, ids ->
+                    val chosen = InboxSelection.split(ids, selectedRows)
+                    if (chosen.sms.isNotEmpty()) markArchived.execute(chosen.sms)
+                    actOnSignal(view, chosen.signal, SignalRepository.PersonAction.ARCHIVE)
+                    lastArchivedThreadIds = chosen.sms
+                    lastArchivedSignalKeys = chosen.signal
+                    view.showArchivedSnackbar(chosen.sms.size + chosen.signal.size, true)
                     view.clearSelection()
                 }
                 .autoDisposable(view.scope())
@@ -619,22 +664,27 @@ class MainViewModel @Inject constructor(
 
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.unarchive }
-                .withLatestFrom(view.conversationsSelectedIntent) { _, conversations ->
-                    markUnarchived.execute(conversations.toList())
-                    view.showArchivedSnackbar(conversations.count(), false)
+                .withLatestFrom(view.conversationsSelectedIntent) { _, ids ->
+                    val chosen = InboxSelection.split(ids, selectedRows)
+                    if (chosen.sms.isNotEmpty()) markUnarchived.execute(chosen.sms)
+                    actOnSignal(view, chosen.signal, SignalRepository.PersonAction.UNARCHIVE)
+                    view.showArchivedSnackbar(chosen.sms.size + chosen.signal.size, false)
                     view.clearSelection()
                 }
                 .autoDisposable(view.scope())
                 .subscribe()
 
+        // Deleting a text conversation needs the default SMS app; a Signal-only selection
+        // does not, and is not stopped for it.
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.delete }
-                .filter { permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() } }
-                .withLatestFrom(view.conversationsSelectedIntent) { _, conversations ->
-                    view.showDeleteDialog(conversations)
+                .withLatestFrom(view.conversationsSelectedIntent) { _, ids -> ids }
+                .filter { ids ->
+                    ids.none { it > 0 } ||
+                        permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() }
                 }
                 .autoDisposable(view.scope())
-                .subscribe()
+                .subscribe { ids -> view.showDeleteDialog(ids, ids.any(InboxItem::isSignalId)) }
 
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.add }
@@ -650,18 +700,17 @@ class MainViewModel @Inject constructor(
                 .subscribe()
 
         view.optionsItemIntent
-                .filter { itemId -> itemId == R.id.pin }
-                .withLatestFrom(view.conversationsSelectedIntent) { _, conversations ->
-                    markPinned.execute(conversations.toList())
-                    view.clearSelection()
-                }
-                .autoDisposable(view.scope())
-                .subscribe()
-
-        view.optionsItemIntent
-                .filter { itemId -> itemId == R.id.unpin }
-                .withLatestFrom(view.conversationsSelectedIntent) { _, conversations ->
-                    markUnpinned.execute(conversations.toList())
+                .filter { itemId -> itemId == R.id.pin || itemId == R.id.unpin }
+                .withLatestFrom(view.conversationsSelectedIntent) { itemId, ids ->
+                    val chosen = InboxSelection.split(ids, selectedRows)
+                    val pin = itemId == R.id.pin
+                    if (chosen.sms.isNotEmpty()) {
+                        if (pin) markPinned.execute(chosen.sms) else markUnpinned.execute(chosen.sms)
+                    }
+                    actOnSignal(
+                        view, chosen.signal,
+                        if (pin) SignalRepository.PersonAction.PIN else SignalRepository.PersonAction.UNPIN
+                    )
                     view.clearSelection()
                 }
                 .autoDisposable(view.scope())
@@ -673,38 +722,65 @@ class MainViewModel @Inject constructor(
         // wanted to do in a hurry. Same switch, reachable from the selection.
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.mute || itemId == R.id.unmute }
-                .withLatestFrom(view.conversationsSelectedIntent) { itemId, conversations ->
+                .withLatestFrom(view.conversationsSelectedIntent) { itemId, ids ->
+                    val chosen = InboxSelection.split(ids, selectedRows)
                     val notify = itemId == R.id.unmute
-                    conversations.forEach { id -> prefs.notifications(id).set(notify) }
+                    chosen.sms.forEach { id -> prefs.notifications(id).set(notify) }
+                    actOnSignal(
+                        view, chosen.signal,
+                        if (notify) SignalRepository.PersonAction.UNMUTE else SignalRepository.PersonAction.MUTE
+                    )
                     view.clearSelection()
                 }
                 .autoDisposable(view.scope())
                 .subscribe()
 
+        // Read the way Mark all read reads a Signal row: the thread up to now, and the text
+        // conversation joined to it, since the row's unread mark is either half.
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.read }
-                .filter { permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() } }
-                .withLatestFrom(view.conversationsSelectedIntent) { _, conversations ->
-                    markRead.execute(conversations.toList())
-                    view.clearSelection()
+                .withLatestFrom(view.conversationsSelectedIntent) { _, ids -> InboxSelection.split(ids, selectedRows) }
+                .filter { chosen ->
+                    chosen.sms.isEmpty() ||
+                        permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() }
                 }
                 .autoDisposable(view.scope())
-                .subscribe()
+                .subscribe { chosen ->
+                    val texts = chosen.sms + chosen.joined
+                    if (texts.isNotEmpty()) markRead.execute(texts)
+                    val now = System.currentTimeMillis()
+                    chosen.signal.forEach { key -> signalRepo.markRead(key, now) }
+                    view.clearSelection()
+                }
 
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.unread }
-                .filter { permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() } }
-                .withLatestFrom(view.conversationsSelectedIntent) { _, conversations ->
-                    markUnread.execute(conversations.toList())
-                    view.clearSelection()
+                .withLatestFrom(view.conversationsSelectedIntent) { _, ids -> InboxSelection.split(ids, selectedRows) }
+                .filter { chosen ->
+                    chosen.sms.isEmpty() ||
+                        permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() }
                 }
                 .autoDisposable(view.scope())
-                .subscribe()
+                .subscribe { chosen ->
+                    if (chosen.sms.isNotEmpty()) markUnread.execute(chosen.sms)
+                    actOnSignal(view, chosen.signal, SignalRepository.PersonAction.UNREAD)
+                    view.clearSelection()
+                }
 
+        // A text block goes through the blocking dialog as it always has. Blocking on Signal
+        // reaches the account and stops the joined texts too, so it asks first -- the row's
+        // own menu used to arm and ask for a second tap for the same reason.
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.block }
-                .withLatestFrom(view.conversationsSelectedIntent) { _, conversations ->
-                    view.showBlockingDialog(conversations.toList(), true)
+                .withLatestFrom(view.conversationsSelectedIntent) { _, ids ->
+                    val chosen = InboxSelection.split(ids, selectedRows)
+                    if (chosen.sms.isNotEmpty()) view.showBlockingDialog(chosen.sms, true)
+                    if (chosen.signal.isNotEmpty()) {
+                        val keys = chosen.signal
+                        view.confirmSignalBlock(keys.size) {
+                            actOnSignal(view, keys, SignalRepository.PersonAction.BLOCK)
+                        }
+                    }
                     view.clearSelection()
                 }
                 .autoDisposable(view.scope())
@@ -713,38 +789,36 @@ class MainViewModel @Inject constructor(
         view.optionsItemIntent
             .filter { itemId -> itemId == R.id.rename }
             .withLatestFrom(view.conversationsSelectedIntent) { _, conversationIds -> conversationIds.first() }
+            .filter { conversationId -> conversationId > 0 }
             .mapNotNull { conversationId -> conversationRepo.getConversation(conversationId) }
             .autoDisposable(view.scope())
             .subscribe { conversation -> view.showRenameDialog(conversation.name) }
 
         view.conversationsSelectedIntent
                 .withLatestFrom(state) { selection, state ->
-                    val conversations = selection.mapNotNull(conversationRepo::getConversation)
-                    val add = conversations.firstOrNull()
-                            ?.takeIf { conversations.size == 1 }
-                            ?.takeIf { conversation -> conversation.recipients.size == 1 }
-                            ?.recipients?.first()
-                            ?.takeIf { recipient -> recipient.contact == null } != null
-                    val pin = conversations.sumBy { if (it.pinned) -1 else 1 } >= 0
-                    // Offer whichever the selection mostly is not, the same way pin does.
-                    val mute = conversations.sumBy {
-                        if (prefs.notifications(it.id).get()) 1 else -1
-                    } >= 0
-                    val read = when (conversations.size) {
-                        0    -> false
-                        1    -> conversations[0].unread
-                        else -> true
+                    val shown = when (state.page) {
+                        is Inbox -> state.page.data
+                        is Archived -> state.page.data
+                        else -> null
+                    }.orEmpty()
+                    selectedRows = selection.mapNotNull { id ->
+                        val item = shown.firstOrNull { it.isValid && it.stableId == id }
+                            ?: conversationRepo.takeIf { id > 0 }?.getConversation(id)?.let { InboxItem.Sms(it) }
+                        item?.takeIf { it.isValid }?.let(::selectedRow)
                     }
+                    val offer = InboxSelection.offer(selectedRows)
                     val selected = selection.size
 
                     when (state.page) {
                         is Inbox -> {
-                            val page = state.page.copy(addContact = add, markPinned = pin, markMuted = mute, markRead = read, selected = selected)
+                            val page = state.page.copy(addContact = offer.addContact, markPinned = offer.pin,
+                                markMuted = offer.mute, markRead = offer.read, rename = offer.rename, selected = selected)
                             newState { copy(page = page) }
                         }
 
                         is Archived -> {
-                            val page = state.page.copy(addContact = add, markPinned = pin, markMuted = mute, markRead = read, selected = selected)
+                            val page = state.page.copy(addContact = offer.addContact, markPinned = offer.pin,
+                                markMuted = offer.mute, markRead = offer.read, rename = offer.rename, selected = selected)
                             newState { copy(page = page) }
                         }
 
@@ -755,11 +829,14 @@ class MainViewModel @Inject constructor(
                 .autoDisposable(view.scope())
                 .subscribe()
 
-        // Delete the conversation
+        // Delete the conversation. The ids may come from the selection or from a swipe; a
+        // swipe is only ever on a text row, so it needs nothing from selectedRows.
         view.confirmDeleteIntent
                 .autoDisposable(view.scope())
-                .subscribe { conversations ->
-                    deleteConversations.execute(conversations.toList())
+                .subscribe { ids ->
+                    val chosen = InboxSelection.split(ids, selectedRows)
+                    if (chosen.sms.isNotEmpty()) deleteConversations.execute(chosen.sms)
+                    actOnSignal(view, chosen.signal, SignalRepository.PersonAction.DELETE)
                     view.clearSelection()
                 }
 
@@ -790,6 +867,7 @@ class MainViewModel @Inject constructor(
                         Preferences.SWIPE_ACTION_ARCHIVE ->
                             markArchived.execute(listOf(threadId)) {
                                 lastArchivedThreadIds = listOf(threadId)
+                                lastArchivedSignalKeys = listOf()
                                 view.showArchivedSnackbar(1, true)
                             }
                         Preferences.SWIPE_ACTION_DELETE ->
@@ -813,8 +891,10 @@ class MainViewModel @Inject constructor(
         view.undoArchiveIntent
                 .autoDisposable(view.scope())
                 .subscribe {
-                    markUnarchived.execute(lastArchivedThreadIds.toList())
+                    if (lastArchivedThreadIds.isNotEmpty()) markUnarchived.execute(lastArchivedThreadIds.toList())
+                    actOnSignal(view, lastArchivedSignalKeys, SignalRepository.PersonAction.UNARCHIVE)
                     lastArchivedThreadIds = listOf()
+                    lastArchivedSignalKeys = listOf()
                 }
 
         prefs.askDefaultSms.asObservable()

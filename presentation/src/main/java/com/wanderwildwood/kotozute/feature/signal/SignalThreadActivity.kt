@@ -366,6 +366,32 @@ class SignalThreadActivity : QkThemedActivity() {
         val lm = LinearLayoutManager(this).apply { stackFromEnd = true }
         binding.recyclerView.layoutManager = lm
         binding.recyclerView.adapter = adapter
+        // While messages are chosen, a tap anywhere on a row chooses or lets go of it, as in
+        // the SMS thread -- not the picture opening, the link, the vote. Only a finished tap
+        // is taken: its ACTION_UP is stolen, so the view under it is cancelled rather than
+        // clicked, and a drag still turns the page.
+        binding.recyclerView.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
+            private var tapped = false
+            private val taps = android.view.GestureDetector(this@SignalThreadActivity,
+                object : android.view.GestureDetector.SimpleOnGestureListener() {
+                    override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
+                        tapped = true
+                        return true
+                    }
+                })
+
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: android.view.MotionEvent): Boolean {
+                if (chosen.isEmpty()) return false
+                if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) tapped = false
+                taps.onTouchEvent(e)
+                if (e.actionMasked != android.view.MotionEvent.ACTION_UP || !tapped) return false
+                tapped = false
+                val row = rv.findChildViewUnder(e.x, e.y) ?: return false
+                val record = (rv.getChildViewHolder(row) as? MessageHolder)?.current ?: return false
+                toggleChosen(record)
+                return true
+            }
+        })
         // As in an SMS thread: by pixels, so a bubble taller than the screen takes two pages
         // rather than being skipped.
         binding.recyclerView.turnsAPageOnSwipe()
@@ -1087,7 +1113,7 @@ class SignalThreadActivity : QkThemedActivity() {
         val who = when {
             original.outgoing -> getString(R.string.signal_quote_you)
             else -> senderNames[original.senderUuid]
-                ?: binding.toolbarTitle.text?.toString()?.takeIf { it.isNotBlank() }
+                ?: threadTitle().takeIf { it.isNotBlank() }
                 ?: original.senderNumber.ifBlank { original.senderUuid.take(8) }
         }
         val snippet = original.body.replace("\n", " ").trim().ifEmpty {
@@ -1236,7 +1262,7 @@ class SignalThreadActivity : QkThemedActivity() {
             runOnUiThread {
                 val started = ok && SignalVoicePlayer.start(
                     this, id, file, threadKey,
-                    binding.toolbarTitle.text?.toString().orEmpty()
+                    threadTitle()
                 )
                 if (started) {
                     onStarted()
@@ -1557,7 +1583,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 scheduledMessageRepo.saveScheduledMessage(
                     date = at,
                     subId = -1,
-                    recipients = listOf(binding.toolbarTitle.text.toString()),
+                    recipients = listOf(threadTitle()),
                     sendAsGroup = false,
                     body = body,
                     attachments = emptyList(),
@@ -1700,6 +1726,13 @@ class SignalThreadActivity : QkThemedActivity() {
 
     override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
         menu?.findItem(R.id.signalCall)?.isVisible = callPeer != null
+        menu?.findItem(R.id.signalInfo)?.isVisible = true
+        menu?.findItem(R.id.signalFind)?.isVisible = true
+        menu?.findItem(R.id.signalPin)?.isVisible = true
+        menu?.findItem(R.id.signalMute)?.isVisible = true
+        menu?.findItem(R.id.signalMarkUnread)?.isVisible = true
+        menu?.findItem(R.id.archiveSignal)?.isVisible = true
+        menu?.let(::prepareSelectionMenu)
         menu?.findItem(R.id.archiveSignal)?.setTitle(
             if (isArchived) R.string.signal_unarchive else R.string.signal_archive
         )
@@ -1712,7 +1745,12 @@ class SignalThreadActivity : QkThemedActivity() {
         return super.onPrepareOptionsMenu(menu)
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+    override fun onOptionsItemSelected(item: MenuItem): Boolean = when {
+        chosen.isNotEmpty() && item.itemId != android.R.id.home && onSelectionItem(item.itemId) -> true
+        else -> onThreadItem(item)
+    }
+
+    private fun onThreadItem(item: MenuItem): Boolean = when (item.itemId) {
         R.id.signalCall -> {
             val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                 this, android.Manifest.permission.RECORD_AUDIO
@@ -1813,8 +1851,12 @@ class SignalThreadActivity : QkThemedActivity() {
                 isPinned = state.pinned
                 isMuted = state.muted
                 invalidateOptionsMenu()
-                if (needTitle && state.name.isNotBlank()) binding.toolbarTitle.text = state.name
-                showRequest(state.request, state.name.ifBlank { binding.toolbarTitle.text.toString() })
+                if (needTitle && state.name.isNotBlank()) {
+                    // Under the count while messages are chosen; it comes back when they are not.
+                    if (titleUnderSelection != null) titleUnderSelection = state.name
+                    else binding.toolbarTitle.text = state.name
+                }
+                showRequest(state.request, state.name.ifBlank { threadTitle() })
             }
         }
     }
@@ -1990,30 +2032,21 @@ class SignalThreadActivity : QkThemedActivity() {
      * What can be done with one of our own messages that did not go: send it again, or let it
      * go. Signal offers the same two on a failed message.
      */
-    private fun showUnsentActions(messageId: String, body: String) {
-        val actions = mutableListOf<Pair<String, () -> Unit>>()
-        actions += getString(R.string.signal_send_again) to { sendAgain(messageId) }
-        if (body.isNotBlank()) {
-            actions += getString(R.string.signal_message_copy) to {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("Signal message", body))
-                Toast.makeText(this, R.string.signal_message_copied, Toast.LENGTH_SHORT).show()
-            }
-        }
-        actions += getString(R.string.signal_unsent_delete) to { signalRepo.discardUnsent(messageId) }
-        einkDialog()
-            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
-            .show()
-    }
-
     /**
      * Asked first, as Signal asks: a deleted message does not come back, and it goes from the
      * account's other devices too.
      */
-    private fun confirmDeleteForMe(messageId: String) {
+    private fun confirmDeleteForMe(messageIds: List<String>, unsent: Set<String> = emptySet()) {
+        if (messageIds.isEmpty()) return
+        val message = if (messageIds.size == 1) getString(R.string.signal_delete_for_me_confirm)
+        else resources.getQuantityString(R.plurals.signal_delete_for_me_confirm_many, messageIds.size, messageIds.size)
         einkDialog()
-            .setMessage(R.string.signal_delete_for_me_confirm)
-            .setPositiveButton(R.string.signal_delete_for_me) { _, _ -> signalRepo.deleteForMe(messageId) }
+            .setMessage(message)
+            .setPositiveButton(R.string.signal_delete_for_me) { _, _ ->
+                messageIds.forEach { id ->
+                    if (id in unsent) signalRepo.discardUnsent(id) else signalRepo.deleteForMe(id)
+                }
+            }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
@@ -2033,6 +2066,9 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     }
 
+    /** One message's words, styles and attachment, as they go on to another conversation. */
+    private data class Forwardable(val body: String, val styles: String, val saved: SavedAttachment?)
+
     /**
      * Forwarding, where a message can be forwarded: upstream's `MultiselectForwardFragment`
      * rules. Not a view-once message, which is the point of view-once, and not one whose
@@ -2040,16 +2076,19 @@ class SignalThreadActivity : QkThemedActivity() {
      * forwarding something else. Its styles go with it; who wrote it and what it replied to
      * do not, as in Signal.
      */
-    private fun forwardFor(m: SignalMessage, saved: SavedAttachment?): (() -> Unit)? {
+    private fun forwardableOf(m: SignalMessage, saved: SavedAttachment?): Forwardable? {
         if (m.viewOnce) return null
         if (m.attachments.isNotBlank() && saved == null) return null
         if (m.body.isBlank() && saved == null) return null
-        val body = m.body
-        val styles = m.styles
-        return { pickForwardTarget(body, styles, saved) }
+        return Forwardable(m.body, m.styles, saved)
     }
 
-    private fun pickForwardTarget(body: String, styles: String, saved: SavedAttachment?) {
+    private fun forwardFor(m: SignalMessage, saved: SavedAttachment?): (() -> Unit)? =
+        forwardableOf(m, saved)?.let { f -> { pickForwardTarget(listOf(f)) } }
+
+    /** Asks where once, however many messages are going, and sends them oldest first. */
+    private fun pickForwardTarget(items: List<Forwardable>) {
+        if (items.isEmpty()) return
         thread(isDaemon = true) {
             val threads = runCatching { signalRepo.getThreadsSnapshot(archived = false) }
                 .getOrDefault(emptyList())
@@ -2065,25 +2104,29 @@ class SignalThreadActivity : QkThemedActivity() {
                 einkDialog()
                     .setTitle(R.string.signal_forward_to)
                     .setItems(threads.map { it.second }.toTypedArray()) { _, which ->
-                        forwardTo(threads[which].first, threads[which].second, body, styles, saved)
+                        forwardTo(threads[which].first, threads[which].second, items)
                     }
                     .show()
             }
         }
     }
 
-    private fun forwardTo(target: String, title: String, body: String, styles: String, saved: SavedAttachment?) {
+    private fun forwardTo(target: String, title: String, items: List<Forwardable>) {
         thread(isDaemon = true) {
+            // One after another, stopping at the first that fails, so what arrives is a run
+            // from the start of what was chosen rather than a scattering of it.
             val result = runCatching {
-                // The picture goes up again as ours, from the copy on this phone.
-                val attachment = saved?.let { a ->
-                    val bytes = signalRepo.loadAttachment(a.id)
-                        ?: throw IllegalStateException(getString(R.string.signal_forward_missing))
-                    val uri = "data:${a.type.ifBlank { "application/octet-stream" }};base64," +
-                        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                    if (a.voice) com.wanderwildwood.kotozute.signal.VoiceNotes.mark(uri) else uri
+                items.forEach { item ->
+                    // The picture goes up again as ours, from the copy on this phone.
+                    val attachment = item.saved?.let { a ->
+                        val bytes = signalRepo.loadAttachment(a.id)
+                            ?: throw IllegalStateException(getString(R.string.signal_forward_missing))
+                        val uri = "data:${a.type.ifBlank { "application/octet-stream" }};base64," +
+                            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        if (a.voice) com.wanderwildwood.kotozute.signal.VoiceNotes.mark(uri) else uri
+                    }
+                    signalRepo.send(target, item.body, listOfNotNull(attachment), 0L, item.styles)
                 }
-                signalRepo.send(target, body, listOfNotNull(attachment), 0L, styles)
             }
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
@@ -2098,12 +2141,21 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     }
 
+    /** What one entry of a message's actions is, so the selection bar can lift some onto it. */
+    private enum class Act {
+        REPLY, FORWARD, END_POLL, PIN, REACT, OPEN, SAVE, UNREACT, COPY, SHARE, TRANSLATE,
+        EDIT, HISTORY, INFO, DELETE, WITHDRAW, SEND_AGAIN
+    }
+
+    private class Entry(val act: Act, val label: String, val run: () -> Unit)
+
     /**
-     * Copy or share one message. A dialog rather than a selection mode: selection earns its
-     * complexity when you act on many messages at once, and here there is nothing yet that
-     * takes more than one.
+     * Everything that can be done to one message, in the order the old long-press menu had
+     * it. The selection's ⋮ lists these when exactly one message is chosen; an album picture
+     * held on its own still opens them as a dialog, the way the SMS thread opens a menu for a
+     * held picture.
      */
-    private fun showMessageActions(
+    private fun messageEntries(
         body: String,
         messageId: String,
         mine: String,
@@ -2111,8 +2163,6 @@ class SignalThreadActivity : QkThemedActivity() {
         sentAt: Long,
         /** What this message carries, where it is on the phone. Null when there is nothing. */
         attachment: SavedAttachment? = null,
-        /** Whether "take back" is already armed; see below. */
-        armed: Boolean = false,
         /** Whether this is one of ours that can still be edited; see [SignalRepository.canEdit]. */
         canEditHere: Boolean = false,
         /** Signal's message details, already worded. Empty for none. */
@@ -2125,98 +2175,233 @@ class SignalThreadActivity : QkThemedActivity() {
         pinned: Boolean? = null,
         /** Ends the poll this message asks; null where it is not ours, or has ended. */
         endPoll: (() -> Unit)? = null
-    ) {
-        val actions = mutableListOf<Pair<String, () -> Unit>>()
-        actions += getString(R.string.signal_reply) to { startReply(sentAt) }
-        forward?.let { actions += getString(R.string.signal_forward) to it }
-        endPoll?.let { actions += getString(R.string.signal_poll_end) to it }
+    ): List<Entry> {
+        val actions = mutableListOf<Entry>()
+        actions += Entry(Act.REPLY, getString(R.string.signal_reply)) { startReply(sentAt) }
+        forward?.let { actions += Entry(Act.FORWARD, getString(R.string.signal_forward), it) }
+        endPoll?.let { actions += Entry(Act.END_POLL, getString(R.string.signal_poll_end), it) }
         when (pinned) {
-            true -> actions += getString(R.string.signal_unpin) to { changePin(messageId, pin = false, seconds = 0) }
-            false -> actions += getString(R.string.signal_pin) to { askPinDuration(messageId) }
+            true -> actions += Entry(Act.PIN, getString(R.string.signal_unpin)) { changePin(messageId, pin = false, seconds = 0) }
+            false -> actions += Entry(Act.PIN, getString(R.string.signal_pin)) { askPinDuration(messageId) }
             null -> Unit
         }
-        actions += getString(R.string.signal_react) to { askForReaction(messageId, mine) }
+        actions += Entry(Act.REACT, getString(R.string.signal_react)) { askForReaction(messageId, mine) }
         // Only where there is something to act on; see [downloadableAttachment].
         attachment?.let { saved ->
-            actions += getString(R.string.signal_attachment_open) to { openAttachment(saved) }
-            actions += getString(R.string.signal_attachment_save) to { saveAttachment(saved) }
+            actions += Entry(Act.OPEN, getString(R.string.signal_attachment_open)) { openAttachment(saved) }
+            actions += Entry(Act.SAVE, getString(R.string.signal_attachment_save)) { saveAttachment(saved) }
         }
         if (mine.isNotEmpty()) {
-            actions += getString(R.string.signal_reaction_remove_mine, mine) to {
+            actions += Entry(Act.UNREACT, getString(R.string.signal_reaction_remove_mine, mine)) {
                 sendReaction(messageId, mine, remove = true)
             }
         }
         if (body.isNotBlank()) {
-            actions += listOf(
-                getString(R.string.signal_message_copy) to {
-                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("Signal message", body))
-                    Toast.makeText(this, R.string.signal_message_copied, Toast.LENGTH_SHORT).show()
-                },
-                getString(R.string.signal_message_share) to {
-                    startActivity(
-                        Intent.createChooser(
-                            Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, body)
-                            },
-                            getString(R.string.signal_message_share)
-                        )
-                    )
-                }
-            )
+            actions += Entry(Act.COPY, getString(R.string.signal_message_copy)) { copyText(body) }
+            actions += Entry(Act.SHARE, getString(R.string.signal_message_share)) { shareText(body) }
             // Translate's panel on the whole message, when Translate is on the phone.
             TranslateApp.intent(this, body)?.let { translate ->
-                actions += getString(R.string.message_translate) to { startActivity(translate) }
+                actions += Entry(Act.TRANSLATE, getString(R.string.message_translate)) { startActivity(translate) }
             }
         }
 
-        if (canEditHere) actions += getString(R.string.signal_edit) to { startEdit(messageId, body) }
-        if (history.isNotEmpty()) actions += getString(R.string.signal_edit_history) to {
+        if (canEditHere) actions += Entry(Act.EDIT, getString(R.string.signal_edit)) { startEdit(messageId, body) }
+        if (history.isNotEmpty()) actions += Entry(Act.HISTORY, getString(R.string.signal_edit_history)) {
             einkDialog()
                 .setTitle(R.string.signal_edit_history)
                 .setMessage(history)
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
         }
-        if (info.isNotEmpty()) actions += getString(R.string.signal_info) to {
+        if (info.isNotEmpty()) actions += Entry(Act.INFO, getString(R.string.signal_info)) {
             einkDialog().setMessage(info).setPositiveButton(android.R.string.ok, null).show()
         }
-        actions += getString(R.string.signal_delete_for_me) to { confirmDeleteForMe(messageId) }
+        actions += Entry(Act.DELETE, getString(R.string.signal_delete_for_me)) { confirmDeleteForMe(listOf(messageId)) }
 
         // Last, because it is the destructive one, and offered only on our own messages and
         // only while Signal would still accept it -- offering it on somebody else's message,
         // or on one too old to withdraw, is offering something that can only end in an
-        // apology.
-        //
-        // It arms rather than opening a dialog to ask. A second dialog stacked on this one
-        // would be two full-panel repaints to ask one question; the row asks in its own face
-        // instead, and disarms itself so a stray tap leaves no live trigger behind.
+        // apology. It arms rather than going at once; see [armWithdraw].
         if (SignalRepository.canWithdraw(outgoing, sentAt)) {
-            actions += if (armed) {
-                getString(R.string.signal_withdraw_armed) to { withdraw(messageId) }
-            } else {
-                getString(R.string.signal_withdraw) to {
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = true, canEditHere = canEditHere, info = info, forward = forward, history = history, pinned = pinned, endPoll = endPoll)
-                }
+            actions += Entry(Act.WITHDRAW, getString(R.string.signal_withdraw)) { armWithdraw(messageId) }
+        }
+        return actions
+    }
+
+    /** A message that did not go: send it again, copy it, or let it go. */
+    private fun unsentEntries(messageId: String, body: String): List<Entry> {
+        val actions = mutableListOf<Entry>()
+        actions += Entry(Act.SEND_AGAIN, getString(R.string.signal_send_again)) { sendAgain(messageId) }
+        if (body.isNotBlank()) actions += Entry(Act.COPY, getString(R.string.signal_message_copy)) { copyText(body) }
+        actions += Entry(Act.DELETE, getString(R.string.signal_unsent_delete)) { signalRepo.discardUnsent(messageId) }
+        return actions
+    }
+
+    private fun showEntries(entries: List<Entry>) {
+        einkDialog()
+            .setItems(entries.map { it.label }.toTypedArray()) { _, which -> entries[which].run() }
+            .show()
+    }
+
+    /**
+     * Take back, asked twice. A dialog of one entry that names what a second tap will do and
+     * what it costs, and disarms itself after a few seconds so a stray tap leaves no live
+     * trigger for whoever picks the phone up next.
+     */
+    private fun armWithdraw(messageId: String) {
+        val dialog = einkDialog()
+            .setItems(arrayOf(getString(R.string.signal_withdraw_armed))) { _, _ -> withdraw(messageId) }
+            .show()
+        val decor = dialog.window?.decorView
+        val disarm = Runnable { if (!isFinishing && dialog.isShowing) dialog.dismiss() }
+        decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
+        // Choosing it, or backing out, takes the trigger with it.
+        dialog.setOnDismissListener { decor?.removeCallbacks(disarm) }
+    }
+
+    private fun copyText(text: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Signal message", text))
+        Toast.makeText(this, R.string.signal_message_copied, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun shareText(text: String) {
+        startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                },
+                getString(R.string.signal_message_share)
+            )
+        )
+    }
+
+    // ---- choosing messages ------------------------------------------------------------
+
+    /**
+     * One chosen message, read while its row was bound: a holder is recycled onto another
+     * message, and the bar would then act on whichever one had scrolled into its place.
+     */
+    private class Chosen(
+        val id: String,
+        val date: Long,
+        val body: String,
+        /** A call or a line saying what changed: history, so Delete for me is all it takes. */
+        val historyLine: Boolean,
+        /** Ours, and did not go; deleting it discards it, as its own menu always did. */
+        val unsent: Boolean,
+        val forwardable: Forwardable?,
+        /** Its entries, built when the ⋮ opens for it alone. */
+        val entries: () -> List<Entry>
+    )
+
+    /** The messages chosen, by id, in the order they were chosen. */
+    private val chosen = LinkedHashMap<String, Chosen>()
+
+    /** The thread's name while the title says how many are chosen. See [threadTitle]. */
+    private var titleUnderSelection: CharSequence? = null
+
+    /** The conversation's name, whether or not the title is showing a count just now. */
+    private fun threadTitle(): String =
+        (titleUnderSelection ?: binding.toolbarTitle.text)?.toString().orEmpty()
+
+    /**
+     * Hold to choose, then tap to add more -- the SMS thread's selection, which this thread
+     * did not have: a long press here opened a menu for the one message under it.
+     */
+    private fun toggleChosen(c: Chosen) {
+        if (chosen.remove(c.id) == null) chosen[c.id] = c
+        selectionChanged()
+    }
+
+    private fun clearChosen() {
+        if (chosen.isEmpty()) return
+        chosen.clear()
+        selectionChanged()
+    }
+
+    private fun selectionChanged() {
+        if (chosen.isNotEmpty()) {
+            if (titleUnderSelection == null) titleUnderSelection = binding.toolbarTitle.text
+            binding.toolbarTitle.text = getString(R.string.compose_title_selected, chosen.size)
+        } else {
+            titleUnderSelection?.let { binding.toolbarTitle.text = it }
+            titleUnderSelection = null
+        }
+        // As the SMS thread hides its crossing while messages are chosen.
+        binding.railBadge.setVisible(chosen.isEmpty())
+        adapter.notifyDataSetChanged()
+        invalidateOptionsMenu()
+    }
+
+    /** The chosen, oldest first: the order they were said in is the order to copy them. */
+    private fun chosenInOrder(): List<Chosen> = chosen.values.sortedBy { it.date }
+
+    private fun chosenText(): String =
+        chosenInOrder().map { it.body }.filter { it.isNotBlank() }.joinToString("\n\n")
+
+    /** Copy and Share: words only, and never from a line nobody wrote. */
+    private fun chosenHasText(): Boolean =
+        chosen.values.none { it.historyLine } && chosen.values.any { it.body.isNotBlank() }
+
+    private fun chosenForwardable(): Boolean =
+        chosen.isNotEmpty() && chosen.values.all { it.forwardable != null && !it.unsent }
+
+    /** What the bar does with a selection item; false when [itemId] is not one of them. */
+    private fun onSelectionItem(itemId: Int): Boolean {
+        val picked = chosenInOrder()
+        if (picked.isEmpty()) return false
+        when (itemId) {
+            R.id.signalSelCopy -> { clearChosen(); copyText(picked.map { it.body }.filter { it.isNotBlank() }.joinToString("\n\n")) }
+            R.id.signalSelShare -> { val text = chosenText(); clearChosen(); shareText(text) }
+            R.id.signalSelForward -> {
+                val items = picked.mapNotNull { it.forwardable }
+                clearChosen()
+                pickForwardTarget(items)
+            }
+            R.id.signalSelDelete -> {
+                val single = picked.singleOrNull()
+                clearChosen()
+                // A message that did not go is discarded, as its own menu always did; it was
+                // never anyone else's, so there is nothing to ask about.
+                if (single != null && single.unsent) signalRepo.discardUnsent(single.id)
+                else confirmDeleteForMe(picked.map { it.id }, unsent = picked.filter { it.unsent }.map { it.id }.toSet())
+            }
+            else -> {
+                // One of the chosen message's own entries, listed under ⋮.
+                val index = itemId - SINGLE_ENTRY_BASE
+                val entries = picked.singleOrNull()?.entries?.invoke() ?: return false
+                val entry = overflowEntries(entries).getOrNull(index) ?: return false
+                clearChosen()
+                entry.run()
             }
         }
+        return true
+    }
 
-        val dialog = einkDialog()
-            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
-            .show()
+    /** The one message's entries that are not already on the bar as icons. */
+    private fun overflowEntries(entries: List<Entry>): List<Entry> =
+        entries.filterNot { it.act == Act.COPY || it.act == Act.FORWARD || it.act == Act.DELETE }
 
-        if (armed) {
-            val decor = dialog.window?.decorView
-            val disarm = Runnable {
-                if (!isFinishing && dialog.isShowing) {
-                    dialog.dismiss()
-                    showMessageActions(body, messageId, mine, outgoing, sentAt, attachment, armed = false, canEditHere = canEditHere, info = info, forward = forward, history = history, pinned = pinned, endPoll = endPoll)
-                }
+    private fun prepareSelectionMenu(menu: Menu) {
+        val selecting = chosen.isNotEmpty()
+        listOf(
+            R.id.signalCall, R.id.signalInfo, R.id.signalFind, R.id.signalPin,
+            R.id.signalMute, R.id.signalMarkUnread, R.id.archiveSignal
+        ).forEach { id -> if (selecting) menu.findItem(id)?.isVisible = false }
+        menu.removeGroup(SINGLE_ENTRY_GROUP)
+        val single = chosen.values.singleOrNull()
+        menu.findItem(R.id.signalSelCopy)?.isVisible = selecting && chosenHasText()
+        menu.findItem(R.id.signalSelForward)?.isVisible = selecting && chosenForwardable()
+        menu.findItem(R.id.signalSelDelete)?.isVisible = selecting
+        // Share is one of the single message's own entries; for several it stands alone.
+        menu.findItem(R.id.signalSelShare)?.isVisible = selecting && single == null && chosenHasText()
+        if (single != null) {
+            overflowEntries(single.entries()).forEachIndexed { i, entry ->
+                menu.add(SINGLE_ENTRY_GROUP, SINGLE_ENTRY_BASE + i, SINGLE_ENTRY_ORDER + i, entry.label)
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
             }
-            decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
-            // Choosing anything else, or backing out, takes the trigger with it.
-            dialog.setOnDismissListener { decor?.removeCallbacks(disarm) }
         }
     }
 
@@ -2287,7 +2472,7 @@ class SignalThreadActivity : QkThemedActivity() {
      * only those who have written, since someone can react without ever speaking.
      */
     private fun showReactors(messageId: String, reactions: String) {
-        val title = binding.toolbarTitle.text?.toString().orEmpty()
+        val title = threadTitle()
         thread(isDaemon = true) {
             val members = if (isGroup) {
                 runCatching { signalRepo.mentionableNames(threadKey) }.getOrDefault(emptyMap()) + senderNames
@@ -2396,6 +2581,10 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     override fun onBackPressed() {
+        if (chosen.isNotEmpty()) {
+            clearChosen()
+            return
+        }
         if (binding.searchBar.visibility == android.view.View.VISIBLE) {
             closeSearch()
             return
@@ -2405,6 +2594,10 @@ class SignalThreadActivity : QkThemedActivity() {
     }
 
     override fun onSupportNavigateUp(): Boolean {
+        if (chosen.isNotEmpty()) {
+            clearChosen()
+            return true
+        }
         if (binding.searchBar.visibility == android.view.View.VISIBLE) {
             closeSearch()
             return true
@@ -2436,6 +2629,11 @@ class SignalThreadActivity : QkThemedActivity() {
 
         /** How long an armed destructive row stays armed, as everywhere else in the app. */
         private const val ARM_TIMEOUT_MS = 4000L
+
+        /** The chosen message's own entries, added under ⋮ by [prepareSelectionMenu]. */
+        private const val SINGLE_ENTRY_GROUP = 0x51
+        private const val SINGLE_ENTRY_BASE = 0x5100
+        private const val SINGLE_ENTRY_ORDER = 1000
 
         /**
          * The shortest recording worth sending.
@@ -2471,6 +2669,13 @@ class SignalThreadActivity : QkThemedActivity() {
         // each change, and rows are only ever read a screen at a time. See [markRead].
         fun submit(data: List<SignalMessage>) {
             all = data
+            // A chosen message that has gone -- deleted here or from another device -- is no
+            // longer chosen. Only read when something is, so an ordinary change still reads a
+            // screen of rows and not the whole thread.
+            if (chosen.isNotEmpty()) {
+                val present = data.mapTo(HashSet()) { it.id }
+                if (chosen.keys.retainAll(present)) selectionChanged()
+            }
             applyFilter()
         }
 
@@ -2528,6 +2733,9 @@ class SignalThreadActivity : QkThemedActivity() {
     private inner class MessageHolder(
         private val b: SignalMessageListItemBinding
     ) : RecyclerView.ViewHolder(b.root) {
+        /** The message this holder is showing, as the selection would take it. */
+        var current: Chosen? = null
+
         fun bind(m: SignalMessage, previous: SignalMessage?, next: SignalMessage?) {
             // A view-once message has no body and no attachment on purpose -- the picture
             // is gone, which is the whole promise. The row is kept so the thread does not
@@ -2696,12 +2904,11 @@ class SignalThreadActivity : QkThemedActivity() {
                 if (canGroup(m, next)) 0 else 16.dpToPx(this@SignalThreadActivity)
             )
 
-            // A message you could read and not copy. The SMS side has had a selection mode
-            // since it was QKSMS; this is the small version of it -- the things anyone
-            // actually reaches for, on the gesture they will already try.
+            // Hold to choose it, as in the SMS thread; the bar and ⋮ then act on what is
+            // chosen. See [toggleChosen].
             //
-            // The id and the reactions are read now rather than off the holder later: a
-            // holder is recycled onto another message, and the menu would then act on
+            // Everything the bar needs is read now rather than off the holder later: a
+            // holder is recycled onto another message, and the bar would then act on
             // whichever one had scrolled into its place.
             val messageId = m.id
             val mine = myReaction(m)
@@ -2731,18 +2938,33 @@ class SignalThreadActivity : QkThemedActivity() {
             // nothing to reply to, react to or take back.
             // A line saying what changed in the conversation is the same: history, not words.
             val callLine = messageId.startsWith("call:") || messageId.startsWith("groupcall:") || m.update
+            val history = if (callLine) "" else editHistory(m)
+            val pinnedNow = if (m.viewOnce) null else m.pinnedUntil > System.currentTimeMillis()
+            val endPoll = com.wanderwildwood.kotozute.signalstore.Polls.decode(m.poll)
+                ?.takeIf { m.outgoing && !it.ended }
+                ?.let { { confirmEndPoll(messageId) } }
+            val forwardable = if (callLine || unsent) null else forwardableOf(m, saved)
+            val forward = forwardable?.let { f -> { pickForwardTarget(listOf(f)) } }
+            val entries: () -> List<Entry> = {
+                when {
+                    // Nothing to react to, reply to or take back: nobody has it.
+                    callLine -> listOf(Entry(Act.DELETE, getString(R.string.signal_delete_for_me)) {
+                        confirmDeleteForMe(listOf(messageId))
+                    })
+                    unsent -> unsentEntries(messageId, body)
+                    else -> messageEntries(
+                        body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable, info = details,
+                        forward = forward, history = history, pinned = pinnedNow, endPoll = endPoll
+                    )
+                }
+            }
+            val record = Chosen(messageId, sentAt, if (callLine) "" else body, callLine, unsent, forwardable, entries)
+            current = record
+            // A chosen message re-bound -- an edit, a receipt -- is chosen as it is now.
+            if (chosen.containsKey(messageId)) chosen[messageId] = record
+            b.root.isActivated = chosen.containsKey(messageId)
             val listener = android.view.View.OnLongClickListener {
-                // Nothing to react to, reply to or take back: nobody has it.
-                if (callLine) confirmDeleteForMe(messageId)
-                else if (unsent) showUnsentActions(messageId, body)
-                else showMessageActions(
-                    body, messageId, mine, outgoing, sentAt, saved, canEditHere = editable, info = details,
-                    forward = forwardFor(m, saved), history = editHistory(m),
-                    pinned = if (m.viewOnce) null else m.pinnedUntil > System.currentTimeMillis(),
-                    endPoll = com.wanderwildwood.kotozute.signalstore.Polls.decode(m.poll)
-                        ?.takeIf { m.outgoing && !it.ended }
-                        ?.let { { confirmEndPoll(m.id) } }
-                )
+                toggleChosen(record)
                 true
             }
             b.body.setOnLongClickListener(listener)
@@ -2753,9 +2975,17 @@ class SignalThreadActivity : QkThemedActivity() {
             // Now that a tap on them opens who reacted, they take the long-press too.
             b.reactions.setOnLongClickListener(listener)
 
+            // A picture of an album, held on its own, opens its message's entries for that
+            // picture -- so "Save" saves the one held -- as the SMS thread opens a menu for a
+            // held picture rather than choosing the message.
             bindAttachment(m) { tile ->
-                if (unsent) showUnsentActions(messageId, body)
-                else showMessageActions(m.body, messageId, mine, outgoing, sentAt, tile)
+                if (unsent) showEntries(unsentEntries(messageId, body))
+                else showEntries(
+                    messageEntries(
+                        body, messageId, mine, outgoing, sentAt, tile, canEditHere = editable, info = details,
+                        forward = forward, history = history, pinned = pinnedNow, endPoll = endPoll
+                    )
+                )
             }
 
             // A tap opens it. The picture on screen is a thumbnail sized for a message list,

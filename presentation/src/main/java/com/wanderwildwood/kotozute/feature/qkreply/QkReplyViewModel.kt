@@ -89,13 +89,23 @@ class QkReplyViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .subscribe { title -> newState { copy(title = title) } }
 
+        // The SIM a reply goes out on: the one the other person last wrote to, so an answer
+        // comes from the number they know. Not the one last sent from: a message sent from the
+        // wrong SIM by mistake would otherwise set every reply after it on the same wrong SIM.
         val latestSubId = messages
-                .map { messages -> messages.lastOrNull()?.subId ?: -1 }
+                .map { messages -> messages.lastOrNull { !it.isMe() }?.subId ?: -1 }
                 .distinctUntilChanged()
 
         val subscriptions = ActiveSubscriptionObservable(subscriptionManager)
         disposables += Observables.combineLatest(latestSubId, subscriptions) { subId, subs ->
-            val sub = if (subs.size > 1) subs.firstOrNull { it.subscriptionId == subId } ?: subs[0] else null
+            // With nothing to go by, the SIM chosen for texts in Android's settings, and only
+            // failing that the first slot. It was always the first slot, whatever the settings
+            // said, so a phone with its eSIM set for texts sent from the physical SIM.
+            val sub = if (subs.size > 1) {
+                subs.firstOrNull { it.subscriptionId == subId }
+                    ?: subs.firstOrNull { it.subscriptionId == subscriptionManager.defaultSmsSubscriptionId }
+                    ?: subs[0]
+            } else null
             newState { copy(subscription = sub) }
         }.subscribe()
     }

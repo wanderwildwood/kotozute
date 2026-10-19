@@ -730,6 +730,10 @@ class MainViewModel @Inject constructor(
                         view, chosen.signal,
                         if (notify) SignalRepository.PersonAction.UNMUTE else SignalRepository.PersonAction.MUTE
                     )
+                    // Said the way the Signal conversation says it: on muting only, and only
+                    // when text conversations are among the rows, so a selection of Signal
+                    // rows alone stays as quiet as it was.
+                    if (!notify && chosen.sms.isNotEmpty()) view.showMuted(chosen.sms.size + chosen.signal.size)
                     view.clearSelection()
                 }
                 .autoDisposable(view.scope())

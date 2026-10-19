@@ -54,6 +54,8 @@ interface MainView : QkView<MainState> {
     /** Asks before blocking [count] people on Signal; [onConfirm] runs only on yes. */
     fun confirmSignalBlock(count: Int, onConfirm: () -> Unit)
     fun showSignalActionFailed()
+    /** Says that [count] chats were muted, as a Signal conversation does when muted. */
+    fun showMuted(count: Int)
     fun showRenameDialog(conversationName: String)
     fun showArchivedSnackbar(countConversationsArchived: Int, isArchiving: Boolean)
 }

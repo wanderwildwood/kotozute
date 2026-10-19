@@ -94,6 +94,8 @@ interface ComposeView : QkView<ComposeState> {
     fun showDetails(details: String)
     fun showReactionPicker(messageId: Long, mine: String)
     fun showReactionFailed()
+    /** The note a Signal conversation shows when muted from its menu. */
+    fun showMuted()
     fun showMessageLinkAskDialog(uri: Uri)
     fun requestDefaultSms()
     fun requestStoragePermission()

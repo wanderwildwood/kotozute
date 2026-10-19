@@ -570,6 +570,8 @@ class ComposeViewModel @Inject constructor(
                     val notify = itemId == R.id.unmute
                     prefs.notifications(conversation.id).set(notify)
                     newState { copy(muted = !notify) }
+                    // As SignalThreadActivity does: a note on muting, none on unmuting.
+                    if (!notify) view.showMuted()
                 }
                 .autoDisposable(view.scope())
                 .subscribe()

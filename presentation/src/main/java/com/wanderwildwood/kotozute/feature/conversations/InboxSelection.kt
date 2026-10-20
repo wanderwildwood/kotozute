@@ -22,7 +22,9 @@ object InboxSelection {
         val muted: Boolean = false,
         val unread: Boolean = false,
         /** One text conversation with one person who is not in the address book. */
-        val canAddContact: Boolean = false
+        val canAddContact: Boolean = false,
+        /** A Signal row whose text half spoke last, so a tap opens the text conversation. */
+        val textIsNewer: Boolean = false
     ) {
         val isSignal: Boolean get() = signalKey != null
     }
@@ -49,6 +51,56 @@ object InboxSelection {
             signal = signalRows.mapNotNull { it.signalKey },
             joined = signalRows.mapNotNull { it.joinedId }.filter { it > 0 }
         )
+    }
+
+    /** Where Mark unread lands: these text conversations, and these Signal threads. */
+    data class UnreadTargets(val sms: List<Long>, val signal: List<String>)
+
+    /**
+     * Mark unread puts back one message per row, the newest one from the other person, and
+     * on a Signal row that stands for a text conversation too it has to pick a half.
+     *
+     * The half a tap opens comes first, because opening it is what reads the mark again; a
+     * mark left on the half that does not open would keep the row bold after it was read.
+     * When that half has nothing from the other person -- somebody who has Signal but only
+     * ever texts back -- the other half takes it. Only when neither has anything from them
+     * does the mark go on the half that opens, which is all it could do before.
+     *
+     * Marking only the Signal half was the bug: a person joined by number whose Signal
+     * thread held nothing but our own messages had no message there to mark unread, and the
+     * text half was never touched, so Mark unread did nothing at all.
+     */
+    fun unreadTargets(
+        ids: Collection<Long>,
+        rows: Collection<Row>,
+        textHasIncoming: (Long) -> Boolean,
+        signalHasIncoming: (String) -> Boolean
+    ): UnreadTargets {
+        val byId = rows.associateBy { it.id }
+        val sms = mutableListOf<Long>()
+        val signal = mutableListOf<String>()
+        ids.forEach { id ->
+            if (id > 0) {
+                sms += id
+                return@forEach
+            }
+            val row = byId[id]?.takeIf { it.isSignal } ?: return@forEach
+            val key = row.signalKey!!
+            val joined = row.joinedId?.takeIf { it > 0 }
+            if (joined == null) {
+                signal += key
+                return@forEach
+            }
+            val textFirst = row.textIsNewer
+            val firstHas = if (textFirst) textHasIncoming(joined) else signalHasIncoming(key)
+            val useText = when {
+                firstHas -> textFirst
+                (if (textFirst) signalHasIncoming(key) else textHasIncoming(joined)) -> !textFirst
+                else -> textFirst
+            }
+            if (useText) sms += joined else signal += key
+        }
+        return UnreadTargets(sms.distinct(), signal.distinct())
     }
 
     /** What the selection bar offers for [rows]. */

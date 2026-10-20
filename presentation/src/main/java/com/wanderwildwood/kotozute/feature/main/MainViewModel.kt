@@ -185,7 +185,8 @@ class MainViewModel @Inject constructor(
             joinedId = item.joined?.id,
             pinned = item.thread.pinned,
             muted = item.thread.muted,
-            unread = item.unread
+            unread = item.unread,
+            textIsNewer = item.textIsNewer
         )
     }
 
@@ -637,7 +638,12 @@ class MainViewModel @Inject constructor(
         view.optionsItemIntent
             .filter { itemId -> itemId == R.id.markAllRead }
             .autoDisposable(view.scope())
-            .subscribe { markEverythingRead() }
+            // Then the selection goes, as after every other entry in this menu. Left standing,
+            // the screen looked as if nothing had been done while the whole inbox had been read.
+            .subscribe {
+                markEverythingRead()
+                view.clearSelection()
+            }
 
         view.optionsItemIntent
             .filter { itemId -> itemId == R.id.select_all }
@@ -757,9 +763,14 @@ class MainViewModel @Inject constructor(
                     view.clearSelection()
                 }
 
+        // One half per row, the one InboxSelection.unreadTargets picks. The Signal half goes to
+        // markUnread directly rather than through actOnPerson, which would mark a linked text
+        // half unread as well and leave the row bold after the half that opens was read.
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.unread }
-                .withLatestFrom(view.conversationsSelectedIntent) { _, ids -> InboxSelection.split(ids, selectedRows) }
+                .withLatestFrom(view.conversationsSelectedIntent) { _, ids ->
+                    InboxSelection.unreadTargets(ids, selectedRows, messageRepo::hasIncoming, signalRepo::hasIncoming)
+                }
                 .filter { chosen ->
                     chosen.sms.isEmpty() ||
                         permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() }
@@ -767,7 +778,7 @@ class MainViewModel @Inject constructor(
                 .autoDisposable(view.scope())
                 .subscribe { chosen ->
                     if (chosen.sms.isNotEmpty()) markUnread.execute(chosen.sms)
-                    actOnSignal(view, chosen.signal, SignalRepository.PersonAction.UNREAD)
+                    chosen.signal.forEach(signalRepo::markUnread)
                     view.clearSelection()
                 }
 

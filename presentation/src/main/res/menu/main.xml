@@ -20,16 +20,6 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <!-- Not a selection action like the rest of this menu, since it acts on the whole
-         inbox, but it rides with them. On a 480px screen an overflow button costs the
-         filter tabs their full names, and this was the only thing outside selection mode
-         keeping that button on screen. Settings has it for the ordinary case. -->
-    <item
-        android:id="@+id/markAllRead"
-        android:title="@string/main_menu_mark_all_read"
-        android:visible="false"
-        app:showAsAction="never" />
-
     <item
         android:id="@+id/select_all"
         android:icon="?attr/actionModeSelectAllDrawable"
@@ -119,4 +109,18 @@
         android:visible="false"
         app:showAsAction="ifRoom" />
 
+    <!-- Not a selection action like the rest of this menu, since it acts on the whole
+         inbox, but it rides with them. On a 480px screen an overflow button costs the
+         filter tabs their full names, and this was the only thing outside selection mode
+         keeping that button on screen. Settings has it for the ordinary case.
+
+         Last, and it must stay last. It was first, which put it directly under the
+         overflow button: the open menu draws its first entry where the finger already is,
+         so a second tap on the button - a slow e-ink screen invites one - read the whole
+         inbox, chosen rows or not. -->
+    <item
+        android:id="@+id/markAllRead"
+        android:title="@string/main_menu_mark_all_read"
+        android:visible="false"
+        app:showAsAction="never" />
 </menu>

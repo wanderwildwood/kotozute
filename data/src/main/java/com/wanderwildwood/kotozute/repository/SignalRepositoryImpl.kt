@@ -5752,6 +5752,14 @@ class SignalRepositoryImpl @Inject constructor(
         pushStorageNow()
     }
 
+    override fun hasIncoming(threadKey: String): Boolean =
+        Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .equalTo("outgoing", false)
+                .findFirst() != null
+        }
+
     /**
      * Makes a conversation read as unread by its newest incoming message, not the thread's
      * counter. thread.unread is recomputed from message read-state every time a message lands,

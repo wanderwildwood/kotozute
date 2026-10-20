@@ -29,6 +29,10 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
+import android.view.MotionEvent
+import android.annotation.SuppressLint
+import android.os.SystemClock
+import androidx.appcompat.view.menu.MenuItemImpl
 import android.view.View
 import android.widget.Toast
 import android.view.ViewStub
@@ -616,8 +620,22 @@ class MainActivity : QkThemedActivity(), MainView {
             super.onCreateOptionsMenu(it)
         } ?: false
 
-    override fun onOptionsItemSelected(item: MenuItem) =
-        optionsItemIntent.onNext(item.itemId).let { true }
+    /** When the last tap on this screen's own window lifted; see [OverflowTap]. */
+    private var lastTouchUp = 0L
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_UP) lastTouchUp = SystemClock.uptimeMillis()
+        return super.dispatchTouchEvent(ev)
+    }
+
+    // The home arrow is no MenuItemImpl, so it never counts as an overflow entry.
+    @SuppressLint("RestrictedApi")
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        val fromOverflow = (item as? MenuItemImpl)?.isActionButton == false
+        if (OverflowTap.isStray(fromOverflow, SystemClock.uptimeMillis() - lastTouchUp)) return true
+        optionsItemIntent.onNext(item.itemId)
+        return true
+    }
 
     private fun showSearchMode() {
         binding.toolbarContent.visibility = View.GONE

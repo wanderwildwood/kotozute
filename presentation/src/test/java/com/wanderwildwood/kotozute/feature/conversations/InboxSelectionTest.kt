@@ -80,4 +80,70 @@ class InboxSelectionTest {
         assertTrue(InboxSelection.offer(listOf(text.copy(canAddContact = true))).addContact)
         assertFalse(InboxSelection.offer(listOf(text.copy(canAddContact = true), alex)).addContact)
     }
+
+    // ---- Mark unread: one half per row ----------------------------------------
+
+    private fun targets(
+        ids: List<Long>,
+        rows: List<InboxSelection.Row>,
+        textIncoming: Set<Long> = emptySet(),
+        signalIncoming: Set<String> = emptySet()
+    ) = InboxSelection.unreadTargets(ids, rows, { it in textIncoming }, { it in signalIncoming })
+
+    @Test
+    fun `a text row is marked as itself`() {
+        val chosen = targets(listOf(7L, 9L), listOf(text))
+        assertEquals(listOf(7L, 9L), chosen.sms)
+        assertTrue(chosen.signal.isEmpty())
+    }
+
+    @Test
+    fun `a signal row with nothing from them on signal marks its text half`() {
+        // The phone's case: somebody joined by number who has Signal but only ever texts
+        // back. Marking the Signal half found nothing to mark and the row stayed read.
+        val chosen = targets(listOf(alex.id), listOf(alex), textIncoming = setOf(42L))
+        assertEquals(listOf(42L), chosen.sms)
+        assertTrue(chosen.signal.isEmpty())
+        val textNewer = targets(listOf(alex.id), listOf(alex.copy(textIsNewer = true)), textIncoming = setOf(42L))
+        assertEquals(listOf(42L), textNewer.sms)
+    }
+
+    @Test
+    fun `the half a tap opens is marked when it has something from them`() {
+        val both = setOf(42L)
+        val signalSide = targets(listOf(alex.id), listOf(alex), textIncoming = both, signalIncoming = setOf(alexKey))
+        assertEquals(listOf(alexKey), signalSide.signal)
+        assertTrue(signalSide.sms.isEmpty())
+        val textSide = targets(
+            listOf(alex.id), listOf(alex.copy(textIsNewer = true)), textIncoming = both, signalIncoming = setOf(alexKey)
+        )
+        assertEquals(listOf(42L), textSide.sms)
+        assertTrue(textSide.signal.isEmpty())
+    }
+
+    @Test
+    fun `text newer but nothing from them by text marks the signal half`() {
+        val chosen = targets(listOf(alex.id), listOf(alex.copy(textIsNewer = true)), signalIncoming = setOf(alexKey))
+        assertEquals(listOf(alexKey), chosen.signal)
+        assertTrue(chosen.sms.isEmpty())
+    }
+
+    @Test
+    fun `nothing from them on either half marks the half that opens`() {
+        assertEquals(listOf(alexKey), targets(listOf(alex.id), listOf(alex)).signal)
+        assertEquals(listOf(42L), targets(listOf(alex.id), listOf(alex.copy(textIsNewer = true))).sms)
+    }
+
+    @Test
+    fun `a signal row with no text half, and a gone row, are handled`() {
+        val chosen = targets(listOf(group.id, alex.id, 7L), listOf(group, text))
+        assertEquals(listOf(groupKey), chosen.signal)
+        assertEquals(listOf(7L), chosen.sms)
+    }
+
+    @Test
+    fun `a text conversation chosen twice over is marked once`() {
+        val chosen = targets(listOf(42L, alex.id), listOf(alex), textIncoming = setOf(42L))
+        assertEquals(listOf(42L), chosen.sms)
+    }
 }

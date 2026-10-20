@@ -59,7 +59,15 @@ interface MessageRepository {
 
     fun markRead(threadIds: Collection<Long>): Int
 
+    /**
+     * Puts each conversation back to unread by its newest message from the other person, SMS
+     * or MMS, and by its last message, which is what the inbox reads the mark from. A
+     * conversation with nothing from the other person is marked by its last message alone.
+     */
     fun markUnread(threadIds: Collection<Long>): Int
+
+    /** Whether the conversation holds a message from the other person, SMS or MMS. */
+    fun hasIncoming(threadId: Long): Boolean
 
     fun markSending(messageId: Long)
 

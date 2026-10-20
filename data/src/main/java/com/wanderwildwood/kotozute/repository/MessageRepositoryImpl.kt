@@ -445,23 +445,70 @@ open class MessageRepositoryImpl @Inject constructor(
             }
             ?: 0
 
-    override fun markUnread(threadIds: Collection<Long>) =
-        threadIds.takeIf { it.isNotEmpty() }
-            ?.let {
-                Realm.getDefaultInstance()?.use { realm ->
-                    val conversations = realm.where(Conversation::class.java)
-                        .anyOf("id", threadIds.toLongArray())
-                        .equalTo("lastMessage.read", true)
-                        .findAll()
-
-                    realm.executeTransaction {
-                        conversations.forEach { it.lastMessage?.read = false }
-                    }
-                }.run {
-                    telephonyMarkSeenRead(null, false, threadIds)
+    /**
+     * Marks the newest message from the other person unread, SMS or MMS, and the last message
+     * too, since the inbox reads a conversation's mark off its last message alone.
+     *
+     * This used to mark only the last message in Realm and every message of the thread in the
+     * provider. Where the last message was our own reply, the one message somebody would want
+     * flagged again -- theirs -- was not the one marked here; and the provider was told the
+     * whole history was unread, which any other app counting unread texts would believe.
+     */
+    override fun markUnread(threadIds: Collection<Long>): Int {
+        if (threadIds.isEmpty()) return 0
+        // (type, contentId) of each message changed, for the provider below. Collected inside
+        // the transaction, while the managed rows can still be read.
+        val marked = mutableListOf<Pair<String, Long>>()
+        Realm.getDefaultInstance().use { realm ->
+            val conversations = realm.where(Conversation::class.java)
+                .anyOf("id", threadIds.toLongArray())
+                .findAll()
+            realm.executeTransaction {
+                conversations.forEach { conversation ->
+                    listOfNotNull(newestIncoming(realm, conversation.id), conversation.lastMessage)
+                        .distinctBy { it.id }
+                        .forEach { message ->
+                            message.read = false
+                            marked += message.type to message.contentId
+                        }
                 }
             }
-            ?: 0
+        }
+        marked.forEach { (type, contentId) ->
+            if (contentId <= 0) return@forEach
+            val uri = when (type) {
+                Message.TYPE_MMS -> Mms.CONTENT_URI
+                else -> Sms.CONTENT_URI
+            }
+            tryOrNull(true) {
+                context.contentResolver.update(
+                    ContentUris.withAppendedId(uri, contentId),
+                    contentValuesOf(Sms.READ to 0),
+                    null,
+                    null
+                )
+            }
+        }
+        return marked.size
+    }
+
+    override fun hasIncoming(threadId: Long): Boolean =
+        Realm.getDefaultInstance().use { realm -> newestIncoming(realm, threadId) != null }
+
+    /**
+     * The newest message the other person sent in [threadId], or null. Incoming is the inbox
+     * box, or "all" -- the same test as [Message.isMe], and the box numbers are the same for
+     * SMS and MMS. A reaction is left out: it is drawn on the message it answers, not as a
+     * message of its own, so marking it would mark nothing anybody can see.
+     */
+    private fun newestIncoming(realm: Realm, threadId: Long): Message? =
+        realm.where(Message::class.java)
+            .equalTo("threadId", threadId)
+            .`in`("boxId", arrayOf(Sms.MESSAGE_TYPE_ALL, Sms.MESSAGE_TYPE_INBOX))
+            .equalTo("isEmojiReaction", false)
+            .sort("date", Sort.DESCENDING)
+            .findFirst()
+            ?.takeIf { !it.isMe() }
 
     /**
      * Send a read receipt for every message about to be marked read whose sender asked for one.

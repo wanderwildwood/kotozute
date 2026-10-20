@@ -1015,6 +1015,9 @@ interface SignalRepository {
     /** Put a thread back to unread, so it is picked up again later. */
     fun markUnread(threadKey: String)
 
+    /** Whether the thread holds anything from the other side -- what [markUnread] marks. */
+    fun hasIncoming(threadKey: String): Boolean
+
     /** Whether this thread's notifications are silenced. Read on the notification path. */
     fun isMuted(threadKey: String): Boolean
     fun getMessages(threadKey: String): RealmResults<SignalMessage>

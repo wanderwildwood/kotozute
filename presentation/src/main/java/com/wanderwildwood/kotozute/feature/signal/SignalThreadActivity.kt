@@ -52,7 +52,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.appcompat.app.AlertDialog
-import com.wanderwildwood.kotozute.extensions.contactToVCard
 import com.wanderwildwood.kotozute.common.util.TextViewStyler
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.feature.extensions.isEmojiOnly
@@ -224,12 +223,21 @@ class SignalThreadActivity : QkThemedActivity() {
     ) { uri: Uri? ->
         if (uri == null) return@registerForActivityResult
         thread(isDaemon = true) {
-            val vcard = runCatching { uri.contactToVCard(this) }.getOrNull()
+            // Read and checked once, here, the same as the text side does: see ContactCardFile.
+            // It used to attach the provider's card address and read it at send time, and
+            // where the provider gave back nothing an empty message went with no card in it.
+            val card = runCatching { com.wanderwildwood.kotozute.util.ContactCardFile.make(this, uri) }.getOrNull()
             runOnUiThread {
-                if (vcard == null || vcard == Uri.EMPTY) {
+                if (card == null) {
                     Toast.makeText(this, R.string.signal_attach_failed, Toast.LENGTH_LONG).show()
                 } else {
-                    attach(vcard)
+                    // The bytes are in memory, so the file is not needed past this point.
+                    pendingAttachment = card.dataUri
+                    pendingViewOnce = false
+                    pendingName = card.name
+                    binding.pending.text = getString(R.string.signal_attached, pendingName)
+                    binding.pending.setVisible(true)
+                    card.file.parentFile?.deleteRecursively()
                 }
             }
         }

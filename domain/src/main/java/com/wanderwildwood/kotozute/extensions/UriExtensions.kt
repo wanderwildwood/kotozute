@@ -33,7 +33,9 @@ import androidx.core.net.toFile
 
 fun Uri.isEmpty() = this == Uri.EMPTY
 
-fun Uri.isVCard(context: Context): Boolean = getType(context) == "text/x-vcard"
+/** A card goes by two types: `text/x-vcard`, which Android uses, and `text/vcard`, the standard's. */
+fun Uri.isVCard(context: Context): Boolean =
+    getType(context).substringBefore(';').trim().lowercase().let { it == "text/x-vcard" || it == "text/vcard" }
 
 fun Uri.isAudio(context: Context): Boolean = getType(context).startsWith("audio/")
 
@@ -72,8 +74,13 @@ fun Uri.getType(context: Context): String {
     var retVal: String? = null
     when (scheme) {
         ContentResolver.SCHEME_CONTENT -> retVal = context.contentResolver.getType(this)
-        ContentResolver.SCHEME_FILE -> retVal =
-            MimeTypeMap.getSingleton().getMimeTypeFromExtension(this.toFile().extension)
+        ContentResolver.SCHEME_FILE -> retVal = this.toFile().extension.lowercase().let { extension ->
+            // A contact card is named for what Android itself attaches cards as, whatever
+            // this phone's type table says: some answer `text/vcard`, and an MMS part's type
+            // is what the other phone goes by.
+            if (extension == "vcf") "text/x-vcard"
+            else MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+        }
     }
     return retVal ?: "application/octect-stream"
 }

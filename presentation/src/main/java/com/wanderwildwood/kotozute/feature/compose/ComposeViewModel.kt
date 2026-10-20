@@ -1117,13 +1117,24 @@ class ComposeViewModel @Inject constructor(
                 .subscribe { view.requestContact() }
 
         // Contact was selected for attachment
+        // The card is read and written to a file here, once, and that file is what is
+        // attached: see ContactCardFile for why the contact itself is not. A contact that
+        // gives no card is said so, and nothing is attached.
         view.contactSelectedIntent
-                .subscribeOn(Schedulers.io())
+                .observeOn(Schedulers.io())
+                .map { uri ->
+                    com.wanderwildwood.kotozute.util.ContactCardFile.make(context, uri)
+                        ?.let { java.util.Optional.of(it) } ?: java.util.Optional.empty()
+                }
+                .observeOn(AndroidSchedulers.mainThread())
                 .autoDisposable(view.scope())
                 .subscribe(
-                    {
-                        newState {
-                            copy(attachments = attachments + Attachment(context, uri = it))
+                    { card ->
+                        if (card.isPresent) {
+                            val attachment = Attachment(context, uri = card.get().uri)
+                            newState { copy(attachments = attachments + attachment) }
+                        } else {
+                            context.makeToast(R.string.compose_contact_error)
                         }
                     }
                 ) { error ->

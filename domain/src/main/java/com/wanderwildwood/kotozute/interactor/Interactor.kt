@@ -32,12 +32,17 @@ abstract class Interactor<in Params> : Disposable {
 
     abstract fun buildObservable(params: Params): Flowable<*>
 
-    fun execute(params: Params, onComplete: () -> Unit = {}) {
+    /**
+     * [onError] runs on the main thread, as [onComplete] does; the failure is logged either way.
+     * ⚠ It comes before [onComplete] so that a trailing lambda, as every caller writes it, is
+     * still the completion.
+     */
+    fun execute(params: Params, onError: (Throwable) -> Unit = {}, onComplete: () -> Unit = {}) {
         disposables += buildObservable(params)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .doOnComplete(onComplete)
-                .subscribe({}, Timber::w)
+                .subscribe({}, { error -> Timber.w(error); onError(error) })
     }
 
     override fun dispose() {

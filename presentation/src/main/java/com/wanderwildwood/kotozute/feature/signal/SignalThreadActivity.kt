@@ -17,6 +17,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import com.wanderwildwood.kotozute.common.util.ClosedByBlock
 import com.wanderwildwood.kotozute.common.util.Whereabouts
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -1886,7 +1887,10 @@ class SignalThreadActivity : QkThemedActivity() {
             answerRequest { signalRepo.acceptRequest(threadKey) }
         }
         binding.requestBlock.setOnClickListener {
-            answerRequest { signalRepo.blockRequest(threadKey) }
+            // Closes once blocked, as Block in Info does: the chat leaves the list with it.
+            answerRequest(closeAfter = true) {
+                signalRepo.blockRequest(threadKey)
+            }
         }
         binding.requestDelete.setOnClickListener {
             einkDialog()
@@ -2553,6 +2557,11 @@ class SignalThreadActivity : QkThemedActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Blocked from Info, opened over this: leave for the list, where the chat has gone.
+        if (ClosedByBlock.take(threadKey)) {
+            finish()
+            return
+        }
         visibleThreadKey = threadKey
         // Whatever was announced about this conversation is answered by reading it.
         notifications.cancel(threadKey)

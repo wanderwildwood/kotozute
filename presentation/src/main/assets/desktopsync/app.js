@@ -1059,15 +1059,20 @@ function expiryLabel(at) {
   return 'in ' + Math.round(hours / 24) + 'd';
 }
 
-function formatTime(ms) {
+// The list row has room for a date or a time, so a day other than today is just its date. A
+// message's own stamp keeps the time on every day: a thread read back from last week is
+// still a conversation with gaps in it, and the date alone flattens a morning and an evening
+// into one line. The year comes in only when it is not this one.
+function formatTime(ms, withTime) {
   if (!ms) return '';
   const d = new Date(ms);
   const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) {
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  }
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  const date = d.toLocaleDateString([], d.getFullYear() === now.getFullYear()
+    ? { month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' });
+  return withTime ? date + ', ' + time : date;
 }
 
 // Which shelf the list is showing. The archive is a place things go into from the row
@@ -2589,7 +2594,7 @@ async function loadMessages() {
     const marksSim = sim !== null && (previousSubId === null || String(m.subId) !== String(previousSubId));
     previousSubId = m.subId;
 
-    stamp.textContent = formatTime(m.date)
+    stamp.textContent = formatTime(m.date, true)
       + (m.status === 'failed' ? ' · not sent'
         : m.status === 'sending' ? ' · sending…'
         : '')

@@ -603,6 +603,8 @@
         <item quantity="other">Muted %d chats. Messages still arrive.</item>
     </plurals>
     <string name="signal_block_armed">Block on Signal — tap again</string>
+    <string name="sms_blocked_toast">Blocked. Their texts no longer show in your chats.</string>
+    <string name="sms_block_failed">Not blocked — the change could not be saved</string>
     <string name="signal_blocked_toast">Blocked on Signal, on every device</string>
     <string name="signal_block_failed">Not blocked — Signal would not take the change</string>
     <string name="signal_unblock_armed">Unblock on Signal — tap again</string>

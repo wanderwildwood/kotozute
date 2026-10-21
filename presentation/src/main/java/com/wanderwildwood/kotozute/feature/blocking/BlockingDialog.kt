@@ -20,6 +20,7 @@ package com.wanderwildwood.kotozute.feature.blocking
 
 import android.app.Activity
 import android.content.Context
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.blocking.BlockingClient
@@ -44,7 +45,18 @@ class BlockingDialog @Inject constructor(
     private val markUnblocked: MarkUnblocked
 ) {
 
-    fun show(activity: Activity, conversationIds: List<Long>, block: Boolean) = GlobalScope.launch {
+    /**
+     * [onBlocked] runs on the main thread once the conversations are marked blocked -- after
+     * the external manager's dialog, where there is one, and not at all if that is cancelled.
+     * A failure to mark them says so in words, rather than leaving a person who believes the
+     * block worked. Nothing is called back for an unblock.
+     */
+    fun show(
+        activity: Activity,
+        conversationIds: List<Long>,
+        block: Boolean,
+        onBlocked: () -> Unit = {}
+    ) = GlobalScope.launch {
         val addresses = conversationIds.toLongArray()
                 .let { conversationRepo.getConversations(*it) }
                 .flatMap { conversation -> conversation.recipients }
@@ -58,7 +70,7 @@ class BlockingDialog @Inject constructor(
         if (blockingManager.getClientCapability() == BlockingClient.Capability.BLOCK_WITHOUT_PERMISSION) {
             // If we can block/unblock in the external manager, then just fire that off and exit
             if (block) {
-                markBlocked.execute(MarkBlocked.Params(conversationIds, prefs.blockingManager.get(), null))
+                saveBlock(activity, conversationIds, onBlocked)
                 blockingManager.block(addresses).subscribe()
             } else {
                 markUnblocked.execute(conversationIds)
@@ -68,13 +80,28 @@ class BlockingDialog @Inject constructor(
             // If all of the addresses are already in their correct state in the blocking manager, just marked the
             // conversations blocked and exit
             when (block) {
-                true -> markBlocked.execute(MarkBlocked.Params(conversationIds, prefs.blockingManager.get(), null))
+                true -> saveBlock(activity, conversationIds, onBlocked)
                 false -> markUnblocked.execute(conversationIds)
             }
         } else {
             // Otherwise, show the UI that lets the users know they need to mark the number as blocked in the client
-            showDialog(activity, conversationIds, addresses, block)
+            showDialog(activity, conversationIds, addresses, block, onBlocked)
         }
+    }
+
+    private fun saveBlock(activity: Activity, conversationIds: List<Long>, onBlocked: () -> Unit) {
+        markBlocked.execute(
+            MarkBlocked.Params(conversationIds, prefs.blockingManager.get(), null),
+            onError = {
+                // The block is saved before the chats are marked read, so a failure in the
+                // reading still leaves them blocked: that is the block having worked.
+                val saved = conversationIds.all { id -> conversationRepo.getConversation(id)?.blocked == true }
+                if (saved) onBlocked()
+                else if (!activity.isFinishing) {
+                    Toast.makeText(activity, R.string.sms_block_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        ) { onBlocked() }
     }
 
     private fun allBlocked(addresses: List<String>): Boolean = addresses.all { address ->
@@ -85,7 +112,8 @@ class BlockingDialog @Inject constructor(
         activity: Activity,
         conversationIds: List<Long>,
         addresses: List<String>,
-        block: Boolean
+        block: Boolean,
+        onBlocked: () -> Unit
     ) = withContext(MainScope().coroutineContext) {
         val res = when (block) {
             true -> R.plurals.blocking_block_external
@@ -111,7 +139,7 @@ class BlockingDialog @Inject constructor(
                 .setMessage(message)
                 .setPositiveButton(R.string.button_continue) { _, _ ->
                     if (block) {
-                        markBlocked.execute(MarkBlocked.Params(conversationIds, prefs.blockingManager.get(), null))
+                        saveBlock(activity, conversationIds, onBlocked)
                         blockingManager.block(addresses).subscribe()
                     } else {
                         markUnblocked.execute(conversationIds)

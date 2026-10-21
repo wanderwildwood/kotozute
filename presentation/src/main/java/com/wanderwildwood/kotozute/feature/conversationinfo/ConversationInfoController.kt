@@ -31,6 +31,8 @@ import com.wanderwildwood.kotozute.common.base.QkController
 import com.wanderwildwood.kotozute.common.util.extensions.scrapViews
 import com.wanderwildwood.kotozute.common.widget.TextInputDialog
 import com.wanderwildwood.kotozute.feature.blocking.BlockingDialog
+import com.wanderwildwood.kotozute.common.util.ClosedByBlock
+import android.widget.Toast
 import com.wanderwildwood.kotozute.feature.conversationinfo.injection.ConversationInfoModule
 import com.wanderwildwood.kotozute.injection.appComponent
 import io.reactivex.Observable
@@ -114,7 +116,14 @@ class ConversationInfoController(
     override fun showNameDialog(name: String) = nameDialog.setText(name).show()
 
     override fun showBlockingDialog(conversations: List<Long>, block: Boolean) {
-        blockingDialog.show(activity!!, conversations, block)
+        val activity = activity!!
+        blockingDialog.show(activity, conversations, block) {
+            // Back to the list, past the conversation this was opened over: the chat is gone
+            // from it, and that is the block seen to work. See ClosedByBlock.
+            conversations.forEach { id -> ClosedByBlock.mark(ClosedByBlock.sms(id)) }
+            Toast.makeText(activity.applicationContext, R.string.sms_blocked_toast, Toast.LENGTH_LONG).show()
+            activity.finish()
+        }
     }
 
     override fun requestDefaultSms() {

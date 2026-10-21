@@ -10,6 +10,7 @@ import android.util.LruCache
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.Toast
+import com.wanderwildwood.kotozute.common.util.ClosedByBlock
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.R
@@ -170,8 +171,12 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                         blocked = wanted
                         binding.block.title = getString(blockRowTitle())
                         // Leaving is right for a block -- the conversation is one you have
-                        // just stopped -- and wrong for taking one back.
-                        if (wanted) finish()
+                        // just stopped -- and wrong for taking one back. The conversation
+                        // under this leaves as well, back to the list: see ClosedByBlock.
+                        if (wanted) {
+                            ClosedByBlock.mark(threadKey)
+                            finish()
+                        }
                     }
                 }
             }

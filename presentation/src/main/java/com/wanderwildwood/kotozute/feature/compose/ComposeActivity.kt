@@ -48,6 +48,7 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.SeekBar
 import android.widget.Toast
+import com.wanderwildwood.kotozute.common.util.ClosedByBlock
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -498,7 +499,13 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             SmsRequests.accept(prefs, threadId)
             binding.requestBar.setVisible(false)
         }
-        binding.requestBlock.setOnClickListener { blockingDialog.show(this, listOf(threadId), true) }
+        binding.requestBlock.setOnClickListener {
+            // Closes once blocked, as Block in Info does: the chat leaves the list with it.
+            blockingDialog.show(this, listOf(threadId), true) {
+                Toast.makeText(applicationContext, R.string.sms_blocked_toast, Toast.LENGTH_LONG).show()
+                finish()
+            }
+        }
         binding.requestDelete.setOnClickListener {
             einkDialog()
                 .setMessage(R.string.signal_request_delete_confirm)
@@ -511,6 +518,15 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         }
     }
 
+    /** The conversation on screen, for [ClosedByBlock]; 0 before one is open. */
+    private var shownThreadId = 0L
+
+    override fun onResume() {
+        super.onResume()
+        // Blocked from Info, opened over this: leave for the list, where the chat has gone.
+        if (shownThreadId != 0L && ClosedByBlock.take(ClosedByBlock.sms(shownThreadId))) finish()
+    }
+
     override fun render(state: ComposeState) {
         if (state.hasError) {
             finish()
@@ -518,6 +534,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         }
 
         threadId.onNext(state.threadId)
+        shownThreadId = state.threadId
         showRequest(state)
 
         title = when {

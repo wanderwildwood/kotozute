@@ -8,12 +8,12 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.feature.gallery.ZoomPhotoView
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import dagger.android.AndroidInjection
 import java.io.File
@@ -86,9 +86,10 @@ class ViewOnceActivity : AppCompatActivity() {
             }, fill)
             return
         }
-        frame.addView(ImageView(this).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
+        // Zooms like the gallery; a single tap still closes it.
+        frame.addView(ZoomPhotoView(this).apply {
             setImageBitmap(bitmap)
+            setOnClickListener { finish() }
         }, fill)
     }
 

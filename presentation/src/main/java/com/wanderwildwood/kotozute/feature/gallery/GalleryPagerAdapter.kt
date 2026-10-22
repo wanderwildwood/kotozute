@@ -36,6 +36,7 @@ import com.wanderwildwood.kotozute.common.base.QkViewHolder
 import com.wanderwildwood.kotozute.extensions.isImage
 import com.wanderwildwood.kotozute.extensions.isVideo
 import com.wanderwildwood.kotozute.model.MmsPart
+import com.bumptech.glide.request.target.Target
 import com.wanderwildwood.kotozute.util.GlideApp
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
@@ -61,23 +62,6 @@ class GalleryPagerAdapter @Inject constructor(private val context: Context) : Qk
         val inflater = LayoutInflater.from(parent.context)
         return QkViewHolder(when (viewType) {
             VIEW_TYPE_IMAGE -> GalleryImagePageBinding.inflate(inflater, parent, false).let { page ->
-                val attacher = page.image.attacher
-
-                // When calling the public setter, it doesn't allow the midscale to be the same as the
-                // maxscale or the minscale. We don't want 3 levels and we don't want to modify the library
-                // so let's celebrate the invention of reflection!
-                attacher.javaClass.getDeclaredField("mMinScale").run {
-                    isAccessible = true
-                    setFloat(attacher, 1f)
-                }
-                attacher.javaClass.getDeclaredField("mMidScale").run {
-                    isAccessible = true
-                    setFloat(attacher, 1f)
-                }
-                attacher.javaClass.getDeclaredField("mMaxScale").run {
-                    isAccessible = true
-                    setFloat(attacher, 3f)
-                }
                 page.root
             }
 
@@ -99,8 +83,10 @@ class GalleryPagerAdapter @Inject constructor(private val context: Context) : Qk
                             .load(part.getUri())
                             .into(GalleryImagePageBinding.bind(holder.itemView).image)
 
+                    // Full size, not fitted to the page, or 100% would be a stretched thumbnail.
                     else -> GlideApp.with(context)
                             .asBitmap()
+                            .override(Target.SIZE_ORIGINAL)
                             .load(part.getUri())
                             .into(GalleryImagePageBinding.bind(holder.itemView).image)
                 }

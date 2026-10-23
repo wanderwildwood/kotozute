@@ -303,6 +303,10 @@ third-party client suits you is your judgement to make, and worth making deliber
 account reached this way is still your account, with everything that implies, and none of this
 code has been reviewed by anyone at Signal.
 
+## Privacy
+
+Privacy: what the app stores and what it sends is set out in [PRIVACY.md](PRIVACY.md).
+
 ## Licence
 
 **AGPL-3.0-or-later** — see [LICENSE](LICENSE) for the full text.

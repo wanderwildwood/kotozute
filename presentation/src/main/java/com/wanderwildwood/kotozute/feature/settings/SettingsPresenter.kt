@@ -280,7 +280,14 @@ class SettingsPresenter @Inject constructor(
                             }
                         }
 
-                        R.id.desktopSyncLink -> view.showDesktopSyncLinkDialog(desktopSyncUrls())
+                        R.id.desktopSyncLink -> {
+                            val urls = desktopSyncUrls()
+                            // Empty because "VPN only" hid the Wi-Fi address, or empty because
+                            // there is nothing at all: the fix is different, so the words are.
+                            val hiddenByVpnOnly = urls.isEmpty() && prefs.desktopSyncVpnOnly.get() &&
+                                DesktopSyncService.reachableAddresses(context).isNotEmpty()
+                            view.showDesktopSyncLinkDialog(urls, hiddenByVpnOnly)
+                        }
 
                         R.id.desktopSyncVpnOnly ->
                             prefs.desktopSyncVpnOnly.set(!prefs.desktopSyncVpnOnly.get())
@@ -744,7 +751,7 @@ class SettingsPresenter @Inject constructor(
                     it.first in DesktopSyncService.VPN_LABELS
             }
             .map { (label, host) ->
-                label to "http://$host:${DesktopSyncService.PORT}?token=$token"
+                label to DesktopSyncService.linkUrl(prefs.desktopSyncTls.get(), host, DesktopSyncService.PORT, token)
             }
     }
 

@@ -93,7 +93,7 @@ class SignalLinkActivity : QkThemedActivity() {
                     it.first in DesktopSyncService.VPN_LABELS
             }
             .map { (_, host) ->
-                "http://$host:${DesktopSyncService.PORT}/signal-link?token=$token"
+                DesktopSyncService.linkUrl(prefs.desktopSyncTls.get(), host, DesktopSyncService.PORT, token, "/signal-link")
             }
             .firstOrNull() ?: return
         binding.onComputer.text = getString(R.string.signal_link_on_computer, address)

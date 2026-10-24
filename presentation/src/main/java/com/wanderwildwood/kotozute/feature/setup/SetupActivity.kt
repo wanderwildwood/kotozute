@@ -14,6 +14,7 @@ import com.wanderwildwood.kotozute.common.widget.QkTextView
 import com.wanderwildwood.kotozute.databinding.SetupActivityBinding
 import com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService
 import com.wanderwildwood.kotozute.feature.main.DuraSpeed
+import com.wanderwildwood.kotozute.feature.signal.FullScreenCalls
 import com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity
 import com.wanderwildwood.kotozute.feature.signal.SignalRegisterActivity
 import com.wanderwildwood.kotozute.feature.signal.SignalStreamService
@@ -41,9 +42,27 @@ class SetupActivity : QkThemedActivity() {
 
     private lateinit var binding: SetupActivityBinding
 
-    private enum class Page { WELCOME, TEXTING, KOMPAKT, SIGNAL, CONTACTS, LISTS, CONNECTED, DESKTOP, DONE }
+    private enum class Page { WELCOME, TEXTING, KOMPAKT, SIGNAL, CALLS, CONTACTS, LISTS, CONNECTED, DESKTOP, DONE }
 
     private var page = Page.WELCOME
+
+    /**
+     * The microphone, asked for ahead of the first call. Placing or answering a call asks for
+     * it too (SignalThreadActivity, SignalCallActivity); this is the same permission.
+     */
+    private val micPermission = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted && !shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) {
+            // Android has stopped asking: the switch is in the app's permissions.
+            navigator.showPermissions()
+        }
+        if (page == Page.CALLS) show()
+    }
+
+    private fun micAllowed() = androidx.core.content.ContextCompat.checkSelfPermission(
+        this, android.Manifest.permission.RECORD_AUDIO
+    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
     /**
      * Pages already put in front of the reader. Kept in the count after they stop applying --
@@ -101,7 +120,7 @@ class SetupActivity : QkThemedActivity() {
         Page.KOMPAKT -> DuraSpeed.isKompakt(this)
         // Already on Signal: nothing to link. Its own pages follow instead.
         Page.SIGNAL -> !signalOn()
-        Page.CONTACTS, Page.LISTS, Page.CONNECTED -> signalOn()
+        Page.CALLS, Page.CONTACTS, Page.LISTS, Page.CONNECTED -> signalOn()
         else -> true
     }
 
@@ -151,6 +170,22 @@ class SetupActivity : QkThemedActivity() {
                 choice(R.string.setup_signal_link, primary = true) { startActivity(SignalLinkActivity.intent(this)) },
                 choice(R.string.setup_signal_register) { startActivity(SignalRegisterActivity.intent(this)) })
 
+            Page.CALLS -> {
+                val missing = buildList<QkTextView> {
+                    if (!micAllowed()) add(choice(R.string.setup_calls_mic, primary = true) {
+                        micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                    })
+                    if (!FullScreenCalls.isAllowed(this@SetupActivity)) add(choice(R.string.setup_calls_screen, primary = isEmpty()) {
+                        FullScreenCalls.open(this@SetupActivity)
+                    })
+                }
+                ask(R.string.setup_calls_heading, R.string.setup_calls_body, *missing.toTypedArray())
+                if (missing.isEmpty()) {
+                    tell(getString(R.string.setup_calls_done))
+                    showOnly(choice(R.string.setup_continue, primary = true) { next() })
+                }
+            }
+
             Page.CONTACTS -> ask(R.string.setup_contacts_heading, R.string.setup_contacts_body,
                 choice(R.string.setup_contacts_look, primary = true) { lookUpContacts() })
 
@@ -163,9 +198,16 @@ class SetupActivity : QkThemedActivity() {
                 choice(R.string.setup_connected_catch_up, primary = true) { keepConnected(false) })
 
             Page.DESKTOP -> ask(R.string.setup_desktop_heading, R.string.setup_desktop_body,
-                choice(R.string.setup_desktop_on) {
+                choice(R.string.setup_desktop_on_vpn, primary = true) {
+                    prefs.desktopSyncVpnOnly.set(true)
                     DesktopSyncService.start(this)
-                    tell(getString(R.string.setup_desktop_started))
+                    tell(getString(R.string.setup_desktop_started_vpn))
+                    showOnly(choice(R.string.setup_continue, primary = true) { next() })
+                },
+                choice(R.string.setup_desktop_on_wifi) {
+                    prefs.desktopSyncVpnOnly.set(false)
+                    DesktopSyncService.start(this)
+                    tell(getString(R.string.setup_desktop_started_wifi))
                     showOnly(choice(R.string.setup_continue, primary = true) { next() })
                 })
 

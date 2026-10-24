@@ -947,11 +947,14 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         }
     }
 
-    override fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>) {
+    override fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>, hiddenByVpnOnly: Boolean) {
         if (urls.isEmpty()) {
             activity!!.einkDialog()
                 .setTitle(R.string.settings_desktop_sync_link_title)
-                .setMessage(R.string.settings_desktop_sync_link_none)
+                .setMessage(
+                    if (hiddenByVpnOnly) R.string.settings_desktop_sync_link_vpn_only
+                    else R.string.settings_desktop_sync_link_none
+                )
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
             return

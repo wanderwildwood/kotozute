@@ -1,6 +1,6 @@
 # Messaging — Privacy Policy
 
-Version 1.34.9. Last reviewed 23 October 2026.
+Version 1.34.10. Last reviewed 23 October 2026.
 
 This is the policy for Messaging (kotozute, 言伝), the app published from this repository.
 

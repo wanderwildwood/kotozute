@@ -390,6 +390,13 @@ class DesktopSyncService : Service() {
             return found.map { (address, label) -> label to address }
         }
 
+        /** The one place the scheme is decided: the socket is TLS exactly when "Use HTTPS" is on. */
+        fun scheme(tls: Boolean): String = if (tls) "https" else "http"
+
+        /** A link to this phone's relay. [path] is empty or starts with a slash. */
+        fun linkUrl(tls: Boolean, host: String, port: Int, token: String, path: String = ""): String =
+            "${scheme(tls)}://$host:$port$path?token=$token"
+
         const val LABEL_TAILSCALE = "Tailscale"
         const val LABEL_VPN = "VPN"
         /** The labels whose addresses "VPN only" lets through; the rest would answer 403. */

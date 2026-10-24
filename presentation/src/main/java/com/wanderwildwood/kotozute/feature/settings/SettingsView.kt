@@ -62,7 +62,7 @@ interface SettingsView : QkViewContract<SettingsState> {
     suspend fun showAutoDeleteWarningDialog(messages: Int): Boolean
     fun showMmsSizePicker()
     fun showMessageLinkHandlingDialogPicker()
-    fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>)
+    fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>, hiddenByVpnOnly: Boolean = false)
     fun askDesktopSyncReset()
     fun showSignalAccountDialog(account: com.wanderwildwood.kotozute.repository.SignalAccount?)
     fun chooseSignalExportFolder()

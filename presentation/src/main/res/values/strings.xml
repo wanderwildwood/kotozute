@@ -670,9 +670,16 @@
     <string name="setup_connected_keep">Keep Signal connected</string>
     <string name="setup_connected_catch_up">Catch up now and then</string>
     <string name="setup_desktop_heading">Desktop Sync</string>
-    <string name="setup_desktop_body">Read and send your messages from a computer\'s web browser, over the same network or a VPN. The address to open on the computer is in Settings, under Desktop Sync.</string>
-    <string name="setup_desktop_on">Turn it on</string>
-    <string name="setup_desktop_started">On. Settings, under Desktop Sync, shows the address to open.</string>
+    <string name="setup_desktop_body">Read and send your messages from a computer\'s browser.\nVPN only needs a VPN such as Tailscale on the phone and the computer; on plain Wi-Fi there is no address.\nThis Wi-Fi too works without one, but anyone on the same Wi-Fi can reach the page, over plain HTTP, with the link\'s token as the only gate.</string>
+    <string name="setup_desktop_on_vpn">Turn it on (VPN only)</string>
+    <string name="setup_desktop_on_wifi">Turn it on for this Wi-Fi too</string>
+    <string name="setup_desktop_started_vpn">On, VPN only. Settings, under Desktop Sync, shows the address to open once a VPN such as Tailscale is connected on this phone and the computer.</string>
+    <string name="setup_desktop_started_wifi">On, for this Wi-Fi too (VPN only is off). Settings, under Desktop Sync, shows the address to open; you can switch VPN only back on there.</string>
+    <string name="setup_calls_heading">Signal calls</string>
+    <string name="setup_calls_body">Signal voice calls (never video) need the microphone permission. To ring and fill the screen while the phone is asleep they also need Android\'s full-screen notifications setting, which Android 14 and later can switch off.</string>
+    <string name="setup_calls_mic">Allow the microphone</string>
+    <string name="setup_calls_screen">Let calls wake the screen</string>
+    <string name="setup_calls_done">Nothing more is needed for calls.</string>
     <string name="setup_done_heading">Done</string>
     <string name="setup_done_body">Everything here is in Settings, and so is this guide, under Setup guide.</string>
     <string name="setup_done_finish">Finish</string>
@@ -903,6 +910,7 @@
     <string name="settings_desktop_sync_link_summary">Open this on your computer</string>
     <string name="settings_desktop_sync_link_bookmark">Bookmark it — the address stays the same.</string>
     <string name="settings_desktop_sync_link_none">Desktop Sync is on, but this phone has no usable address yet.</string>
+    <string name="settings_desktop_sync_link_vpn_only">VPN only is on and no VPN is connected. Connect one, or switch VPN only off in Settings, Desktop Sync.</string>
     <string name="settings_desktop_sync_tls_title">Use HTTPS</string>
     <string name="settings_desktop_sync_tls_summary">Needed before a browser will let the page use the microphone. The phone makes its own certificate, so every visit starts with a security warning you have to accept, and an already-paired browser needs the link again.</string>
     <string name="settings_desktop_sync_vpn_only_title">VPN only</string>

@@ -598,8 +598,7 @@ class DesktopSyncServer(
             ?: "127.0.0.1"
         // The scheme has to follow the socket, or the link hands somebody a page that will
         // not load at all.
-        val scheme = if (prefs.desktopSyncTls.get()) "https" else "http"
-        val url = "$scheme://$address:$listeningPort?token=$token"
+        val url = DesktopSyncService.linkUrl(prefs.desktopSyncTls.get(), address, listeningPort, token)
         val entry = desktopEntryFor(url)
         return newFixedLengthResponse(Response.Status.OK, "application/x-desktop", entry).apply {
             addHeader("Content-Disposition", "attachment; filename=\"messaging.desktop\"")

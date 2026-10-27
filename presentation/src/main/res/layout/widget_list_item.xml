@@ -100,7 +100,7 @@
             android:layout_alignParentEnd="true"
             android:layout_marginStart="16dp"
             android:clickable="false"
-            android:textSize="12sp"
+            android:textSize="14sp"
             tools:text="@tools:sample/date/day_of_week" />
 
         <TextView

@@ -40,7 +40,7 @@
                 android:paddingBottom="4dp"
                 android:text="@string/signal_rail_label"
                 android:textColor="@android:color/white"
-                android:textSize="13sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
         </LinearLayout>
@@ -159,7 +159,7 @@
         android:paddingTop="4dp"
         android:paddingEnd="12dp"
         android:paddingBottom="4dp"
-        android:textSize="12sp"
+        android:textSize="14sp"
         android:textStyle="italic"
         android:visibility="gone" />
 
@@ -174,7 +174,7 @@
         android:paddingTop="8dp"
         android:paddingEnd="12dp"
         android:paddingBottom="8dp"
-        android:textSize="12sp"
+        android:textSize="14sp"
         android:visibility="gone" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
@@ -186,7 +186,7 @@
         android:paddingTop="8dp"
         android:paddingEnd="12dp"
         android:paddingBottom="8dp"
-        android:textSize="12sp"
+        android:textSize="14sp"
         android:visibility="gone" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
@@ -194,7 +194,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="12dp"
-        android:textSize="12sp"
+        android:textSize="14sp"
         android:visibility="gone" />
 
     <View

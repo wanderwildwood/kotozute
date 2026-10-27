@@ -149,6 +149,8 @@ class SetupActivity : QkThemedActivity() {
         binding.where.isVisible = at >= 0
         binding.where.text = if (at >= 0) getString(R.string.setup_where, at + 1, pages.size) else ""
         binding.status.isVisible = false
+        // Each page starts at its top, not wherever the last one was left.
+        binding.scroll.scrollTo(0, 0)
         // The last page has its own button; Close under it would be a second way to say it.
         binding.skip.isVisible = page != Page.DONE
         binding.choices.removeAllViews()

@@ -54,7 +54,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProviders
@@ -741,13 +740,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             .setMessage(getString(R.string.messageLinkHandling_dialog_body, uri.toString()))
             .setPositiveButton(
                 R.string.messageLinkHandling_dialog_positive
-            ) { _, _ ->
-                ContextCompat.startActivity(
-                    this,
-                    Intent(Intent.ACTION_VIEW).setData(uri),
-                    null
-                )
-            }
+            ) { _, _ -> com.wanderwildwood.kotozute.common.util.WebLinks.open(this, uri) }
             .setNegativeButton(R.string.messageLinkHandling_dialog_negative) { _, _ -> { } }
             .show()
     }

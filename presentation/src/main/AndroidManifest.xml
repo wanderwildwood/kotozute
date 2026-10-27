@@ -373,6 +373,18 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- Web browsers, so a link can go to a real one rather than to the WebView test
+             shell some phones carry. See WebLinks. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
         <!-- The apps that act on selected text, such as Define, so the draft's selection
              menu can offer them. -->
         <intent>

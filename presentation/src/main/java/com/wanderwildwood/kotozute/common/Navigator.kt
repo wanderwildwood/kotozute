@@ -264,8 +264,7 @@ class Navigator @Inject constructor(
      */
     fun installCallBlocker() {
         val url = "https://play.google.com/store/apps/details?id=com.cuiet.blockCalls"
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        startActivityExternal(intent)
+        com.wanderwildwood.kotozute.common.util.WebLinks.open(context, Uri.parse(url))
     }
 
     /**
@@ -273,8 +272,7 @@ class Navigator @Inject constructor(
      */
     fun installCallControl() {
         val url = "https://play.google.com/store/apps/details?id=com.flexaspect.android.everycallcontrol"
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        startActivityExternal(intent)
+        com.wanderwildwood.kotozute.common.util.WebLinks.open(context, Uri.parse(url))
     }
 
     /**
@@ -282,14 +280,12 @@ class Navigator @Inject constructor(
      */
     fun installSia() {
         val url = "https://play.google.com/store/apps/details?id=org.mistergroup.shouldianswer"
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        startActivityExternal(intent)
+        com.wanderwildwood.kotozute.common.util.WebLinks.open(context, Uri.parse(url))
     }
 
     fun showSupport() {
         // Was a mailto: to upstream QUIK's maintainer, who can't help with this fork.
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$REPO_URL/issues"))
-        startActivityExternal(intent)
+        com.wanderwildwood.kotozute.common.util.WebLinks.open(context, Uri.parse("$REPO_URL/issues"))
     }
 
     fun showInvite() {

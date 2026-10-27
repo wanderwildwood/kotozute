@@ -215,7 +215,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     private fun editNickname() {
         val held = nickname ?: return
         val pad = (20 * resources.displayMetrics.density).toInt()
-        fun field(hint: Int, text: String, max: Int, type: Int) = android.widget.EditText(this).apply {
+        fun field(hint: Int, text: String, max: Int, type: Int) = com.wanderwildwood.kotozute.common.widget.StaticCaretEditText(this).apply {
             setHint(hint)
             setText(text)
             inputType = type
@@ -803,7 +803,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     }
 
     private fun askText(@androidx.annotation.StringRes title: Int, current: String, onDone: (String) -> Unit) {
-        val field = android.widget.EditText(this).apply { setText(current); setSelection(current.length) }
+        val field = com.wanderwildwood.kotozute.common.widget.StaticCaretEditText(this).apply { setText(current); setSelection(current.length) }
         einkDialog()
             .setTitle(title)
             .setView(field)

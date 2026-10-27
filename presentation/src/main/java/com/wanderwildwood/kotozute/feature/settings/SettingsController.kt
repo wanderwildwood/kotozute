@@ -31,7 +31,6 @@ import androidx.core.content.ContextCompat
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.View
-import android.widget.EditText
 import android.widget.Toast
 import com.wanderwildwood.kotozute.feature.extensions.isEmojiOnly
 import androidx.appcompat.app.AlertDialog
@@ -83,8 +82,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     @Inject lateinit var context: Context
     @Inject lateinit var colors: Colors
     @Inject lateinit var textSizeDialog: QkDialog
-    @Inject lateinit var groupMessagesDialog: QkDialog
     @Inject lateinit var sendDelayDialog: QkDialog
+    @Inject lateinit var groupMessagesDialog: QkDialog
     @Inject lateinit var mmsSizeDialog: QkDialog
     @Inject lateinit var messageLinkHandlingDialog: QkDialog
 
@@ -144,8 +143,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun onViewCreated() {
         binding.preferences.postDelayed({ binding.preferences?.animateLayoutChanges = true }, 100)
         textSizeDialog.adapter.setData(R.array.text_sizes)
-        groupMessagesDialog.adapter.setData(R.array.group_messages_labels)
         sendDelayDialog.adapter.setData(R.array.delayed_sending_labels)
+        groupMessagesDialog.adapter.setData(R.array.group_messages_labels)
         mmsSizeDialog.adapter.setData(R.array.mms_sizes, R.array.mms_sizes_ids)
         messageLinkHandlingDialog.adapter.setData(R.array.messageLinkHandlings, R.array.messageLinkHandling_ids)
 
@@ -274,8 +273,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun textSizeSelected(): Observable<Int> = textSizeDialog.adapter.menuItemClicks
 
     override fun sendDelaySelected(): Observable<Int> = sendDelayDialog.adapter.menuItemClicks
-    override fun groupMessagesSelected(): Observable<Int> = groupMessagesDialog.adapter.menuItemClicks
 
+    override fun groupMessagesSelected(): Observable<Int> = groupMessagesDialog.adapter.menuItemClicks
 
     override fun signatureChanged(): Observable<String> = signatureSubject
 
@@ -292,9 +291,9 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
 
         binding.delayed.summary = state.sendDelaySummary
+        sendDelayDialog.adapter.selectedItem = state.sendDelayId
         binding.groupMessages.summary = state.groupMessagesSummary
         groupMessagesDialog.adapter.selectedItem = state.groupMessagesId
-        sendDelayDialog.adapter.selectedItem = state.sendDelayId
 
         binding.delivery.checkbox.isChecked = state.deliveryEnabled
         binding.readReceipts.checkbox.isChecked = state.readReceiptsEnabled
@@ -430,8 +429,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun showTextSizePicker() = textSizeDialog.show(activity!!)
 
     override fun showDelayDurationDialog() = sendDelayDialog.show(activity!!)
-    override fun showGroupMessagesDialog() = groupMessagesDialog.show(activity!!)
 
+    override fun showGroupMessagesDialog() = groupMessagesDialog.show(activity!!)
 
     override fun showSignatureDialog(signature: String) = signatureDialog.setText(signature).show()
 
@@ -611,7 +610,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun askSignalBackupKey(folder: String) {
         activity?.runOnUiThread {
             val activity = activity ?: return@runOnUiThread
-            val input = EditText(activity).apply {
+            val input = com.wanderwildwood.kotozute.common.widget.StaticCaretEditText(activity).apply {
                 setHint(R.string.settings_signal_backup_key_hint)
                 // Digits and the spaces they were written down in. A phone keyboard that
                 // opens on letters for a key that has none is a small cruelty.
@@ -1070,12 +1069,12 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(48, 24, 48, 0)
         }
-        val given = android.widget.EditText(context).apply {
+        val given = com.wanderwildwood.kotozute.common.widget.StaticCaretEditText(context).apply {
             hint = context.getString(R.string.signal_register_given_name)
             inputType = android.text.InputType.TYPE_TEXT_VARIATION_PERSON_NAME
             maxLines = 1
         }
-        val family = android.widget.EditText(context).apply {
+        val family = com.wanderwildwood.kotozute.common.widget.StaticCaretEditText(context).apply {
             hint = context.getString(R.string.signal_register_family_name)
             inputType = android.text.InputType.TYPE_TEXT_VARIATION_PERSON_NAME
             maxLines = 1

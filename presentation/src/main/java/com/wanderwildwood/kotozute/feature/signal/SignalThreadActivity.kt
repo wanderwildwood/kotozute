@@ -754,12 +754,12 @@ class SignalThreadActivity : QkThemedActivity() {
     private fun askForPoll() {
         val pad = (16 * resources.displayMetrics.density).toInt()
         // One line: a return goes on to the options rather than into the question.
-        val question = android.widget.EditText(this).apply {
+        val question = com.wanderwildwood.kotozute.common.widget.StaticCaretEditText(this).apply {
             setHint(R.string.signal_poll_question)
             isSingleLine = true
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
         }
-        val options = android.widget.EditText(this).apply {
+        val options = com.wanderwildwood.kotozute.common.widget.StaticCaretEditText(this).apply {
             setHint(R.string.signal_poll_options)
             minLines = 3
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE

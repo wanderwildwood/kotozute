@@ -101,13 +101,6 @@
                 android:layout_height="wrap_content"
                 app:title="@string/settings_ringtone_title" />
 
-            <View
-                android:id="@+id/actionsDivider"
-                android:layout_width="match_parent"
-                android:layout_height="3dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:background="?android:attr/divider" />
 
             <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/actionsTitle"
@@ -135,13 +128,6 @@
                 app:title="@string/settings_notification_action_3"
                 tools:summary="None" />
 
-            <View
-                android:id="@+id/qkreplyDivider"
-                android:layout_width="match_parent"
-                android:layout_height="3dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:background="?android:attr/divider" />
 
             <com.wanderwildwood.kotozute.common.widget.QkTextView
                 android:id="@+id/qkreplyTitle"
@@ -175,11 +161,5 @@
         android:background="#000000"
         app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:layout_gravity="bottom"
-        android:background="?android:attr/divider"
-        app:layout_constraintBottom_toBottomOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

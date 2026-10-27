@@ -87,6 +87,7 @@ import com.wanderwildwood.kotozute.extensions.mapNotNull
 import com.wanderwildwood.kotozute.feature.compose.editing.ChipsAdapter
 import com.wanderwildwood.kotozute.feature.contacts.ContactsActivity
 import com.wanderwildwood.kotozute.model.Attachment
+import com.wanderwildwood.kotozute.model.MmsPart
 import com.wanderwildwood.kotozute.model.Recipient
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -748,6 +749,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override fun requestDefaultSms() {
         navigator.showDefaultSmsDialog(this)
     }
+
+    private val partSaver = com.wanderwildwood.kotozute.common.util.PartSaver(this)
+
+    override fun saveAttachment(part: MmsPart) = partSaver.save(part)
 
     override fun requestStoragePermission() {
         ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 0)

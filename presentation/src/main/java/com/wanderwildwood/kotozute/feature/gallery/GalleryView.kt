@@ -29,5 +29,6 @@ interface GalleryView : QkView<GalleryState> {
     fun pageChanged(): Observable<MmsPart>
 
     fun requestStoragePermission()
+    fun saveAttachment(part: MmsPart)
 
 }

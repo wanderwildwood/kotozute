@@ -27,7 +27,6 @@ import com.wanderwildwood.kotozute.common.Navigator
 import com.wanderwildwood.kotozute.common.base.QkViewModel
 import com.wanderwildwood.kotozute.common.util.extensions.makeToast
 import com.wanderwildwood.kotozute.extensions.mapNotNull
-import com.wanderwildwood.kotozute.interactor.SaveImage
 import com.wanderwildwood.kotozute.manager.PermissionManager
 import com.wanderwildwood.kotozute.repository.ConversationRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
@@ -42,7 +41,6 @@ class GalleryViewModel @Inject constructor(
     private val context: Context,
     private val messageRepo: MessageRepository,
     private val navigator: Navigator,
-    private val saveImage: SaveImage,
     private val permissions: PermissionManager
 ) : QkViewModel<GalleryView, GalleryState>(GalleryState()) {
     init {
@@ -69,12 +67,12 @@ class GalleryViewModel @Inject constructor(
                 .subscribe { navigationVisible -> newState { copy(navigationVisible = navigationVisible) } }
 
         // Save image to device
+        // Where the person picks (PartSaver), so no storage permission is asked for.
         view.optionsItemSelected()
                 .filter { it == R.id.save }
-                .filter { permissions.hasStorage().also { if (!it) view.requestStoragePermission() } }
-                .withLatestFrom(view.pageChanged()) { _, part -> part.id }
+                .withLatestFrom(view.pageChanged()) { _, part -> part }
                 .autoDisposable(view.scope())
-                .subscribe { partId -> saveImage.execute(partId) { context.makeToast(R.string.gallery_toast_saved) } }
+                .subscribe { part -> view.saveAttachment(part) }
 
         // Share image externally
         view.optionsItemSelected()

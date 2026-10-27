@@ -1,6 +1,6 @@
 # Messaging — Privacy Policy
 
-Version 1.34.10. Last reviewed 23 October 2026.
+Version 1.35.0. Last reviewed 27 October 2026.
 
 This is the policy for Messaging (kotozute, 言伝), the app published from this repository.
 
@@ -30,9 +30,10 @@ The manifest sets `allowBackup="false"`, so Android does not copy the app into a
 
 **Uninstalling the app deletes its own database, its Signal keys and the Signal account on this phone. It does not delete your texts**, which stay in Android's message store.
 
-Four things leave the app's storage only when you ask:
+Five things leave the app's storage only when you ask:
 
 - **Backup and restore** writes your texts to a file in a place you choose.
+- **Save**, on a picture, video or file in a conversation, writes a copy where you choose, through Android's own save screen.
 - **Write a copy out** (Settings, Signal, Chat history) writes your Signal messages to a folder you pick, encrypted. Import reads a Signal Desktop export or such a copy from a folder you pick.
 - **Desktop Sync**, below.
 - **A crash record.** If the app closes itself unexpectedly, it writes what went wrong to a file in its own private storage, so that you can read it in Settings, clear it there, or choose to send it: the screen shows you the whole text first. Nothing is sent unless you do. A crash record can contain the text of a message, because the failure may have happened while handling one. Separately, **Settings, Logging** is off by default; when you turn it on it writes a log to a place you choose.

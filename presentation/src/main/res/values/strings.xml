@@ -1002,7 +1002,13 @@
     <string name="about_llama">feed the llamas</string>
     <string name="about_source" translatable="false">wanderthe.dev</string>
     <string name="about_license" translatable="false">GNU General Public License v3</string>
-    <string name="about_collects">Your messages stay on this phone. Desktop Sync, once you switch it on, serves a page from the phone straight to your own computer — no cloud service and no relay in between.</string>
+    <!-- About: the short form of PRIVACY.md, then Terms. Never claim less than the app does. -->
+    <string name="about_privacy_heading">Privacy</string>
+    <string name="about_privacy_where">Your messages are kept on this phone. Texts and picture messages go through your carrier, as on any phone. If you link Signal, this phone becomes a linked device of your own Signal account: Signal messages and calls are end-to-end encrypted, and Signal\'s servers carry them. Desktop Sync, off until you switch it on, serves your messages from the phone to a browser on your own computer, over your VPN or your Wi-Fi, with no cloud service and no relay in between. Nothing is sent to the app\'s maker.</string>
+    <string name="about_privacy_permissions">Your contacts are read to put names to conversations; their numbers go to Signal\'s lookup only if you agree to Find contacts on Signal. The microphone is used only while you record a voice message or are on a Signal call. GIF search, through Signal\'s proxy, and Check for updates, from GitHub, go online only when you use them.</string>
+    <string name="about_privacy_close">There are no ads, no analytics and no tracking. Backups, chat-history copies and saved attachments go only where you choose to save them.</string>
+    <string name="about_terms_heading">Terms</string>
+    <string name="about_terms">This app is free software under the GNU General Public License v3. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
     <string name="about_fork">Continues QKSMS by Moez Bhatti, by way of octoshrimpy\'s QUIK; the e-ink work began in lamdanAmiti\'s InkMessage. All under the same licence.</string>
 
 

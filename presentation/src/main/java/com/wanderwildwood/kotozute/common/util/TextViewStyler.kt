@@ -157,8 +157,10 @@ class TextViewStyler @Inject constructor(
                 else -> 18f
             }
 
+            // Never under 14sp, the house minimum: Small makes the primary text smaller, and
+            // the two below it stop at 14.
             SIZE_SECONDARY -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 13f
+                Preferences.TEXT_SIZE_SMALL -> 14f
                 Preferences.TEXT_SIZE_NORMAL -> 15f
                 Preferences.TEXT_SIZE_LARGE -> 17f
                 Preferences.TEXT_SIZE_LARGER -> 19f
@@ -167,7 +169,7 @@ class TextViewStyler @Inject constructor(
             }
 
             SIZE_TERTIARY -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 12f
+                Preferences.TEXT_SIZE_SMALL -> 14f
                 Preferences.TEXT_SIZE_NORMAL -> 14f
                 Preferences.TEXT_SIZE_LARGE -> 16f
                 Preferences.TEXT_SIZE_LARGER -> 18f

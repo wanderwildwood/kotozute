@@ -30,6 +30,7 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun aboutLongClicks(): Observable<*>
     fun textSizeSelected(): Observable<Int>
     fun sendDelaySelected(): Observable<Int>
+    fun groupMessagesSelected(): Observable<Int>
     fun signatureChanged(): Observable<String>
     fun autoDeleteChanged(): Observable<Int>
     fun mmsSizeSelected(): Observable<Int>
@@ -53,6 +54,7 @@ interface SettingsView : QkViewContract<SettingsState> {
 
     fun showTextSizePicker()
     fun showDelayDurationDialog()
+    fun showGroupMessagesDialog()
     fun showSignatureDialog(signature: String)
     fun showSignalAboutDialog()
     fun showFilePickerDialog()

@@ -1764,6 +1764,7 @@ class DesktopSyncServer(
         val recipients: List<String>
         val signalKey: String
         val conversationId: Long
+        var separate = false
         if (signalThread != null) {
             // Signal threads are keyed by uuid and have no addresses. The thread's name
             // rides in recipients so the scheduled list has something to show; nothing
@@ -1777,6 +1778,7 @@ class DesktopSyncServer(
             recipients = conversation.recipients.map { it.address }
             signalKey = ""
             conversationId = conversation.id
+            separate = !conversation.sendAsGroup
         }
 
         return runCatching {
@@ -1784,7 +1786,7 @@ class DesktopSyncServer(
                 date = submission.at,
                 subId = submission.subId,
                 recipients = recipients,
-                sendAsGroup = recipients.size > 1 && signalKey.isEmpty(),
+                sendAsGroup = recipients.size > 1 && signalKey.isEmpty() && !separate,
                 body = body,
                 attachments = emptyList(),
                 conversationId = conversationId,
@@ -2395,10 +2397,13 @@ class DesktopSyncServer(
         // Resolve the conversation up front so its id can be handed back to the browser,
         // which then jumps straight into the thread. The interactor resolves the same
         // conversation from the same addresses.
-        val sendAsGroup = addresses.size > 1
-        val threadId = runCatching {
-            conversationRepository.getOrCreateConversation(addresses)?.id
+        // A new chat starts as Settings > Group messages says; one already there keeps its
+        // own choice, as it does on the phone.
+        val conversation = runCatching {
+            conversationRepository.getOrCreateConversation(addresses, prefs.sendAsGroup.get())
         }.getOrNull()
+        val threadId = conversation?.id
+        val sendAsGroup = addresses.size > 1 && (conversation?.sendAsGroup ?: prefs.sendAsGroup.get())
 
         val failed = sendAndWait(
             threadId ?: 0L, addresses, sendAsGroup, body, submission.attachments,

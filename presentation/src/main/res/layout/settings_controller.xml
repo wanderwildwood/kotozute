@@ -191,6 +191,13 @@
                 android:layout_height="wrap_content"
                 app:title="@string/settings_delayed_title"
                 tools:summary="No delay" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/groupMessages"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_group_messages_title"
+                tools:summary="One group chat" />
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/delivery"
                 android:layout_width="match_parent"

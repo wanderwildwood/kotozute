@@ -126,6 +126,15 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.sendDelay.asObservable()
                 .subscribe { id -> newState { copy(sendDelaySummary = delayedSendingLabels[id], sendDelayId = id) } }
 
+        // A text to two or more people: one group chat (MMS, everyone sees everyone), or the
+        // same text to each person in their own chat. Only the default for a new chat: each
+        // conversation keeps its own choice (Conversation.sendAsGroup), which the compose
+        // screen's switch changes.
+        val groupMessagesLabels = context.resources.getStringArray(R.array.group_messages_labels)
+        disposables += prefs.sendAsGroup.asObservable()
+                .map { group -> if (group) 0 else 1 }
+                .subscribe { id -> newState { copy(groupMessagesSummary = groupMessagesLabels[id], groupMessagesId = id) } }
+
         disposables += prefs.delivery.asObservable()
             .subscribe { enabled -> newState { copy(deliveryEnabled = enabled) } }
 
@@ -267,6 +276,8 @@ class SettingsPresenter @Inject constructor(
                         R.id.update -> onUpdateClicked(view)
 
                         R.id.delayed -> view.showDelayDurationDialog()
+
+                        R.id.groupMessages -> view.showGroupMessagesDialog()
 
                         R.id.delivery -> prefs.delivery.set(!prefs.delivery.get())
 
@@ -458,6 +469,10 @@ class SettingsPresenter @Inject constructor(
         view.sendDelaySelected()
                 .autoDisposable(view.scope())
                 .subscribe(prefs.sendDelay::set)
+
+        view.groupMessagesSelected()
+                .autoDisposable(view.scope())
+                .subscribe { id -> prefs.sendAsGroup.set(id == 0) }
 
         view.signatureChanged()
                 .doOnNext(prefs.signature::set)

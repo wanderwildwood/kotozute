@@ -23,7 +23,7 @@ import org.whispersystems.signalservice.internal.push.EditMessage
  */
 class EditChainTest {
 
-    private val sender = UUID.fromString("d6cd2de6-2397-4bf4-bb68-b29a6228fbbd")
+    private val sender = UUID.fromString("4f6e2a8c-1b3d-4e5f-9a7b-2c8d6e0f1a3b")
     private val self = UUID.fromString("0f2d5c1a-3b4e-4f60-8a71-92b3c4d5e6f7")
     private val original = 1_790_000_000_000L
     private val firstEdit = original + 60_000

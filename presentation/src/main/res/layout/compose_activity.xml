@@ -134,11 +134,12 @@
         app:layout_constraintEnd_toEndOf="@id/sendAsGroupBackground"
         app:layout_constraintTop_toTopOf="@id/sendAsGroupBackground" />
 
+    <!-- A plain line under the switch, where QUIK drew a grey shadow. -->
     <View
         android:id="@+id/sendAsGroupShadow"
         android:layout_width="match_parent"
-        android:layout_height="8dp"
-        android:background="@drawable/ab_shadow"
+        android:layout_height="1dp"
+        android:background="@android:color/black"
         app:layout_constraintTop_toBottomOf="@id/sendAsGroupBackground" />
 
     <androidx.constraintlayout.widget.Group

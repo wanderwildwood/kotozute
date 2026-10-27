@@ -618,10 +618,15 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
         binding.loading.setVisible(state.loading)
 
-        // Always hide the binding.send as group switch - it should always be enabled
-        binding.sendAsGroup.setVisible(false)
-        binding.sendAsGroupSwitch.isChecked = true  // Always binding.send as group when multiple recipients
-        binding.sendAsGroupSummary.setText(R.string.compose_send_group_summary_on)
+        // A new text to two or more people: one group chat, or the same text to each person
+        // in their own chat. Settings > Sending > Group messages picks which a new chat starts
+        // with; this switch changes it for this chat (Conversation.sendAsGroup).
+        binding.sendAsGroup.setVisible(state.editingMode && state.selectedChips.size >= 2)
+        binding.sendAsGroupSwitch.isChecked = state.sendAsGroup
+        binding.sendAsGroupSummary.setText(when (state.sendAsGroup) {
+            true -> R.string.compose_send_group_summary_on
+            false -> R.string.compose_send_group_summary_off
+        })
 
         binding.messageList.setVisible(!state.editingMode || state.sendAsGroup || state.selectedChips.size == 1)
         messageAdapter.data = state.messages

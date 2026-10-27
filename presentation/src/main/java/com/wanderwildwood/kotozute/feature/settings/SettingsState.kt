@@ -27,6 +27,8 @@ data class SettingsState(
     val notificationsEnabled: Boolean = true,
     val sendDelaySummary: String = "",
     val sendDelayId: Int = 0,
+    val groupMessagesSummary: String = "",
+    val groupMessagesId: Int = 0,
     val deliveryEnabled: Boolean = false,
     val readReceiptsEnabled: Boolean = false,
     val unreadAtTopEnabled: Boolean = false,

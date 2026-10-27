@@ -241,8 +241,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun signalDiscoverContactsConfirmed(): Observable<*> = signalDiscoverContactsSubject
 
     private companion object {
-        /** How long an armed row stays armed. Birding's ConfirmingRow uses the same five seconds. */
-        const val ARM_TIMEOUT_MS = 5000L
+        /** How long an armed row stays armed. Six seconds, as every armed row here. */
+        const val ARM_TIMEOUT_MS = 6000L
     }
 
     /** Whether the reset row is armed, and the callback that stands it back down. */

@@ -910,7 +910,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
 
     companion object {
         /** Long enough to read the armed label, short enough not to stay live. */
-        private const val ARM_TIMEOUT_MS = 4000L
+        private const val ARM_TIMEOUT_MS = 6000L
         private const val EXTRA_KEY = "threadKey"
         private const val MEDIA_COLUMNS = 3
 

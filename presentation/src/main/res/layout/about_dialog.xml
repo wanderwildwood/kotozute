@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Paged rather than scrolled, as the settings screens are: Privacy and Terms make this
+     longer than one screen at the larger text sizes. -->
+<com.wanderwildwood.kotozute.common.widget.PagingScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:scrollbars="none">
+
+<LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -18,35 +25,67 @@
         app:textSize="primary"
         tools:text="Messaging 1.5.3" />
 
-    <!-- What it sends, before the licence. This app serves a web page off the phone, which
-         is not what a stranger would assume of a texting app, and the house rule is that
-         the ones which cannot be safely assumed say so here. -->
+    <!-- The short form of PRIVACY.md. What it sends comes first: this app serves a web page
+         off the phone and can carry Signal, neither of which a stranger would assume of a
+         texting app. -->
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
-        android:text="@string/about_collects"
+        android:text="@string/about_privacy_heading"
+        android:textStyle="bold"
+        app:textSize="secondary" />
+
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/about_privacy_where"
+        app:textSize="secondary" />
+
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/about_privacy_permissions"
+        app:textSize="secondary" />
+
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/about_privacy_close"
         app:textSize="secondary" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
-        android:text="@string/about_license"
+        android:text="@string/about_terms_heading"
+        android:textStyle="bold"
         app:textSize="secondary" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/about_terms"
+        app:textSize="secondary" />
+
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
         android:text="@string/about_fork"
         app:textSize="secondary" />
 
     <!-- A llama, and the page a donation goes to. Last, on one line after the site's name,
-         where somebody who went looking will find it and nobody else has to read past it. -->
+         where somebody who went looking will find it and nobody else has to read past it.
+         Each is a full 48dp to press. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="8dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -56,7 +95,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackground"
-            android:paddingVertical="4dp"
+            android:gravity="center_vertical"
+            android:minHeight="48dp"
+            android:paddingEnd="6dp"
             android:text="@string/about_source"
             app:textSize="tertiary" />
 
@@ -64,14 +105,14 @@
             android:id="@+id/llama"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
             android:background="?attr/selectableItemBackground"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
+            android:minHeight="48dp"
             android:orientation="horizontal"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp">
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp">
 
             <ImageView
                 android:layout_width="22dp"
@@ -91,3 +132,5 @@
     </LinearLayout>
 
 </LinearLayout>
+
+</com.wanderwildwood.kotozute.common.widget.PagingScrollView>

@@ -26,7 +26,10 @@
 
     <include layout="@layout/top_bar_rule" />
 
-    <ScrollView
+    <!-- Turns pages rather than scrolling, landing on a row's edge, so a choice is never
+         left cut through at the bottom of the screen at the larger text sizes. -->
+    <com.wanderwildwood.kotozute.common.widget.PagingScrollView
+        android:id="@+id/scroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -84,7 +87,7 @@
 
         </LinearLayout>
 
-    </ScrollView>
+    </com.wanderwildwood.kotozute.common.widget.PagingScrollView>
 
     <View
         android:layout_width="match_parent"

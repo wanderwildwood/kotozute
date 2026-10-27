@@ -190,7 +190,9 @@ class ComposeViewModel @Inject constructor(
                 // else does. Nothing downstream will ever emit for a conversation that was
                 // never created, so stop the spinner here rather than leave the screen
                 // reading "Loading" for as long as it is open.
-                if (conversationRepo.getOrCreateConversation(addresses) == null) {
+                // A chat made here starts as Settings > Group messages says; one found keeps
+                // its own choice.
+                if (conversationRepo.getOrCreateConversation(addresses, prefs.sendAsGroup.get()) == null) {
                     newState { copy(loading = false) }
                 }
             }
@@ -869,13 +871,19 @@ class ComposeViewModel @Inject constructor(
             }
 
         // toggle the group sending mode and update the conversation saved value
+        //
+        // The screen's own state changes first (QUIK 701661598 / 7e44142b4): a chat being
+        // made has no messages yet, and Realm tells nobody when an empty conversation
+        // changes, so waiting for the saved value to come back left the switch where it was
+        // -- and the send used the old choice.
         view.sendAsGroupIntent
+            .withLatestFrom(state) { _, state -> !state.sendAsGroup }
+            .doOnNext { group -> newState { copy(sendAsGroup = group) } }
             .observeOn(Schedulers.io())
             // The lambda's last expression returns Unit, and RxJava's combiner is declared
-            // to return a non-null R -- which Kotlin 2 will no longer infer as Unit. Saying
-            // so explicitly is the whole fix; the behaviour is unchanged.
-            .withLatestFrom(conversation, state) { _, conversation, state ->
-                conversationRepo.updateSendAsGroup(conversation.id, !state.sendAsGroup)
+            // to return a non-null R -- which Kotlin 2 will no longer infer as Unit.
+            .withLatestFrom(conversation) { group, conversation ->
+                conversationRepo.updateSendAsGroup(conversation.id, group)
                 Unit
             }
             .autoDisposable(view.scope())

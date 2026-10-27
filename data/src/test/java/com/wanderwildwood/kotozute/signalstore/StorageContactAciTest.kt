@@ -21,7 +21,7 @@ import java.util.UUID
  */
 class StorageContactAciTest {
 
-    private val uuid = UUID.fromString("d6cd2de6-2397-4bf4-bb68-b29a6228fbbd")
+    private val uuid = UUID.fromString("4f6e2a8c-1b3d-4e5f-9a7b-2c8d6e0f1a3b")
 
     private fun bytes(id: UUID) = ByteBuffer.allocate(16)
         .putLong(id.mostSignificantBits)

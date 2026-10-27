@@ -29,6 +29,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.Telephony
 import android.provider.Telephony.Mms
@@ -96,6 +97,9 @@ open class MessageRepositoryImpl @Inject constructor(
 
     companion object {
         const val TELEPHONY_UPDATE_CHUNK_SIZE = 200
+
+        /** The wait between the texts of one "Separate chats" send. */
+        const val SEPARATE_SEND_PACE_MS = 1500L
 
         /**
          * How long a message may claim to be sending before it is treated as never sent.
@@ -915,7 +919,14 @@ open class MessageRepositoryImpl @Inject constructor(
 
             // if multiple messages to send, create each and recurse to send
             if (explodedMessages.size > 1) {
-                explodedMessages.forEach { explodedMessageUri ->
+                explodedMessages.forEachIndexed { index, explodedMessageUri ->
+                    // Separate chats: one text per person, a moment apart rather than all in
+                    // the same instant, so a carrier that throttles bursts does not drop or
+                    // hold the later ones. Never on the main thread (every caller sends
+                    // from an interactor on io, but a wait there would freeze the screen).
+                    if (index > 0 && Looper.myLooper() != Looper.getMainLooper()) {
+                        Thread.sleep(SEPARATE_SEND_PACE_MS)
+                    }
                     val childMessage = syncProviderMessage(explodedMessageUri, message.sendAsGroup)
                     if (childMessage != null) {
                         Timber.v("created message id ${childMessage.id} from uri $explodedMessageUri")

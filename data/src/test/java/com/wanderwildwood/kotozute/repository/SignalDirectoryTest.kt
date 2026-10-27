@@ -189,9 +189,9 @@ class SignalDirectoryTest {
         val people = SignalDirectory.merge(
             threads = emptyList(),
             contacts = listOf(
-                SignalDirectory.Row("11111111-1111-4111-8111-111111111111", "", "+13162099737"),
+                SignalDirectory.Row("11111111-1111-4111-8111-111111111111", "", "+15550100124"),
                 SignalDirectory.Row("22222222-2222-4222-8222-222222222222", "Ada Lovelace", ""),
-                SignalDirectory.Row("33333333-3333-4333-8333-333333333333", "", "+14044082757"),
+                SignalDirectory.Row("33333333-3333-4333-8333-333333333333", "", "+15550100125"),
                 SignalDirectory.Row("44444444-4444-4444-8444-444444444444", "Grace Hopper", "")
             ),
             selfAci = null
@@ -199,7 +199,7 @@ class SignalDirectoryTest {
 
         assertEquals(listOf("Ada Lovelace", "Grace Hopper"), people.take(2).map { it.name })
         // Still present, still in order, underneath.
-        assertEquals(listOf("+13162099737", "+14044082757"), people.drop(2).map { it.name })
+        assertEquals(listOf("+15550100124", "+15550100125"), people.drop(2).map { it.name })
     }
 
     @Test
@@ -210,14 +210,14 @@ class SignalDirectoryTest {
         val people = SignalDirectory.merge(
             threads = emptyList(),
             contacts = listOf(
-                SignalDirectory.Row("11111111-1111-4111-8111-111111111111", "", "+13162099737"),
-                SignalDirectory.Row("22222222-2222-4222-8222-222222222222", "", "+12079076604")
+                SignalDirectory.Row("11111111-1111-4111-8111-111111111111", "", "+15550100124"),
+                SignalDirectory.Row("22222222-2222-4222-8222-222222222222", "", "+15550100123")
             ),
             selfAci = null,
-            nameForNumber = { number -> "Maggie King".takeIf { number == "+12079076604" } }
+            nameForNumber = { number -> "Ada Tester".takeIf { number == "+15550100123" } }
         )
 
-        assertEquals("Maggie King", people.first().name)
+        assertEquals("Ada Tester", people.first().name)
     }
 
 }

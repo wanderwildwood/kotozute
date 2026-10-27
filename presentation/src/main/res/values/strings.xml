@@ -129,6 +129,7 @@
     <string name="compose_subtitle_results">%1$d of %2$d results</string>
     <string name="compose_send_group_title">Send as group message</string>
     <string name="compose_send_group_summary_on">Recipients and replies will be visible to everyone</string>
+    <string name="compose_send_group_summary_off">Each person gets the text in their own chat, and replies come back there</string>
     <string name="compose_loading">Loading…</string>
     <string name="compose_vcard_label">Contact card</string>
     <string name="compose_scheduled_for">Scheduled time:</string>
@@ -267,6 +268,7 @@
     <string name="settings_qkreply_tap_dismiss_title">Tap to dismiss</string>
     <string name="settings_qkreply_tap_dismiss_summary">Tap outside of the popup to close it</string>
     <string name="settings_delayed_title">Delayed sending</string>
+    <string name="settings_group_messages_title">Group messages</string>
     <string name="settings_swipe_actions">Swipe actions</string>
     <string name="settings_swipe_actions_right">Right swipe</string>
     <string name="settings_swipe_actions_left">Left swipe</string>
@@ -1064,6 +1066,13 @@
         <item>Large</item>
         <item>Larger</item>
         <item>Super</item>
+    </string-array>
+
+    <!-- Settings > Sending > Group messages. In this order: index 0 is the default. Texts
+         only: a Signal group is a group of its own and is never split. -->
+    <string-array name="group_messages_labels">
+        <item>One group chat</item>
+        <item>Separate chats</item>
     </string-array>
 
     <string-array name="delayed_sending_labels">

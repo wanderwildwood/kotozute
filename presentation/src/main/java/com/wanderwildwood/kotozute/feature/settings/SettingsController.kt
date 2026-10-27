@@ -83,6 +83,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     @Inject lateinit var context: Context
     @Inject lateinit var colors: Colors
     @Inject lateinit var textSizeDialog: QkDialog
+    @Inject lateinit var groupMessagesDialog: QkDialog
     @Inject lateinit var sendDelayDialog: QkDialog
     @Inject lateinit var mmsSizeDialog: QkDialog
     @Inject lateinit var messageLinkHandlingDialog: QkDialog
@@ -143,6 +144,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun onViewCreated() {
         binding.preferences.postDelayed({ binding.preferences?.animateLayoutChanges = true }, 100)
         textSizeDialog.adapter.setData(R.array.text_sizes)
+        groupMessagesDialog.adapter.setData(R.array.group_messages_labels)
         sendDelayDialog.adapter.setData(R.array.delayed_sending_labels)
         mmsSizeDialog.adapter.setData(R.array.mms_sizes, R.array.mms_sizes_ids)
         messageLinkHandlingDialog.adapter.setData(R.array.messageLinkHandlings, R.array.messageLinkHandling_ids)
@@ -272,6 +274,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun textSizeSelected(): Observable<Int> = textSizeDialog.adapter.menuItemClicks
 
     override fun sendDelaySelected(): Observable<Int> = sendDelayDialog.adapter.menuItemClicks
+    override fun groupMessagesSelected(): Observable<Int> = groupMessagesDialog.adapter.menuItemClicks
+
 
     override fun signatureChanged(): Observable<String> = signatureSubject
 
@@ -288,6 +292,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
 
         binding.delayed.summary = state.sendDelaySummary
+        binding.groupMessages.summary = state.groupMessagesSummary
+        groupMessagesDialog.adapter.selectedItem = state.groupMessagesId
         sendDelayDialog.adapter.selectedItem = state.sendDelayId
 
         binding.delivery.checkbox.isChecked = state.deliveryEnabled
@@ -424,6 +430,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun showTextSizePicker() = textSizeDialog.show(activity!!)
 
     override fun showDelayDurationDialog() = sendDelayDialog.show(activity!!)
+    override fun showGroupMessagesDialog() = groupMessagesDialog.show(activity!!)
+
 
     override fun showSignatureDialog(signature: String) = signatureDialog.setText(signature).show()
 

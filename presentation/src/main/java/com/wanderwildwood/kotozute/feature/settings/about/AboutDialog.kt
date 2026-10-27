@@ -25,8 +25,8 @@ import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.BuildConfig
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.databinding.AboutDialogBinding
-import android.content.Intent
 import android.net.Uri
+import com.wanderwildwood.kotozute.common.util.WebLinks
 
 /**
  * What this app is, what it does with what you give it, and where the source is.
@@ -49,21 +49,15 @@ class AboutDialog(context: Activity, onVersionLongClick: () -> Unit) : AlertDial
             dismiss()
             true
         }
-        // The Kompakt may have nothing registered for a web address at all, so these are
-        // allowed to fail quietly rather than take the dialog down with it. Straight to the
-        // checkout, by the short square.link form the site itself links to, so a regenerated
-        // checkout follows it and a published app does not break.
+        // A real browser, never the WebView test shell some phones answer web addresses with;
+        // with no browser at all the address is copied and the dialog says so (WebLinks).
+        // Straight to the checkout, by the short square.link form the site itself links to,
+        // so a regenerated checkout follows it and a published app does not break.
         layout.llama.setOnClickListener {
-            runCatching {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://square.link/u/AGu8oT10")),
-                )
-            }
+            WebLinks.open(context, Uri.parse("https://square.link/u/AGu8oT10"))
         }
         layout.site.setOnClickListener {
-            runCatching {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wanderthe.dev")))
-            }
+            WebLinks.open(context, Uri.parse("https://wanderthe.dev"))
         }
         setButton(DialogInterface.BUTTON_POSITIVE, context.getString(R.string.button_close)) { _, _ -> }
     }

@@ -447,10 +447,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 .setPositiveButton(R.string.messageLinkHandling_dialog_positive) { _, _ ->
                     // Shown to the person rather than logged: they asked for this link to
                     // open, so a phone with nothing that handles it has to say so.
-                    runCatching { startActivity(Intent(Intent.ACTION_VIEW).setData(uri)) }
-                        .onFailure {
-                            Toast.makeText(this, R.string.signal_link_no_app, Toast.LENGTH_SHORT).show()
-                        }
+                    com.wanderwildwood.kotozute.common.util.WebLinks.open(this, uri)
                 }
                 .setNegativeButton(R.string.messageLinkHandling_dialog_negative, null)
                 .show()

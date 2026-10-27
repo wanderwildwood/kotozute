@@ -882,6 +882,7 @@
     <string name="signal_attach_view_once">View-once picture</string>
     <string name="signal_attached_view_once">View once: %s</string>
     <string name="signal_link_no_app">Nothing on this phone opens that kind of link</string>
+    <string name="web_link_no_browser_copied">No web browser on this phone. The address is copied: %s</string>
     <string name="signal_react">React\u2026</string>
     <string name="signal_quote">\u21b3 %1$s: %2$s</string>
     <string name="signal_quote_you">You</string>

@@ -2642,7 +2642,7 @@ class SignalThreadActivity : QkThemedActivity() {
         private const val SPOILER_SHADE = 0xFFD0D0D0.toInt()
 
         /** How long an armed destructive row stays armed, as everywhere else in the app. */
-        private const val ARM_TIMEOUT_MS = 4000L
+        private const val ARM_TIMEOUT_MS = 6000L
 
         /** The chosen message's own entries, added under ⋮ by [prepareSelectionMenu]. */
         private const val SINGLE_ENTRY_GROUP = 0x51

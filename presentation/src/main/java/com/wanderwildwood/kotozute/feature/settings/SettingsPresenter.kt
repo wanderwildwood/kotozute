@@ -66,7 +66,7 @@ class SettingsPresenter @Inject constructor(
 
     private companion object {
         /** How long an armed install row stays armed. The same as every other armed row here. */
-        const val UPDATE_ARM_TIMEOUT_MS = 5000L
+        const val UPDATE_ARM_TIMEOUT_MS = 6000L
     }
 
     /**
@@ -840,7 +840,7 @@ class SettingsPresenter @Inject constructor(
 
     /**
      * Stands an armed install row back down, so a stray tap does not leave a live trigger for
-     * whoever picks the phone up next. The same five seconds every other armed row uses.
+     * whoever picks the phone up next. The same six seconds every other armed row uses.
      *
      * Checks what the row is before standing it down: by the time this fires the person may
      * have tapped again and started the download, and disarming that would put the row back to

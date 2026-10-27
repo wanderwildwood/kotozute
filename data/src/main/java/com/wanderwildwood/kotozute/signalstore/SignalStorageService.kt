@@ -595,9 +595,17 @@ internal class SignalStorageService(
             self.aci != null && self.aci == aci -> "it describes this account"
             self.pni != null && self.pni == pni -> "it describes this account"
             self.e164 != null && e164 != null && e164 == self.e164 -> "it describes this account"
+            // Signal-Android 79c189d4ba: Desktop's local release-notes chat has a made-up ACI
+            // that is not an account. A Desktop that put it in storage had every phone
+            // writing it back and forth; it is refused here as upstream refuses it, and a
+            // record never kept is never written back.
+            aci == DESKTOP_RELEASE_NOTES_ACI -> "Desktop's release notes chat, not an account"
             e164 != null && !E164_PATTERN.matches(e164) -> "a phone number that is not one"
             else -> null
         }
+
+        /** Upstream `ReleaseChannel.DESKTOP_RELEASE_NOTES_ACI`. */
+        internal const val DESKTOP_RELEASE_NOTES_ACI = "11111111-1111-4111-8111-111111111111"
 
         private const val BATCH = 200
 

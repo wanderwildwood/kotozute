@@ -51,6 +51,18 @@ class StorageRecordValidityTest {
     }
 
     @Test
+    fun `Desktop's release notes chat is refused`() {
+        // Signal-Android 79c189d4ba. Kept, it went back up with every write and came down
+        // again with every read.
+        assertNotNull(reason(aci = SignalStorageService.DESKTOP_RELEASE_NOTES_ACI))
+        // Round-tripped through ServiceId, as aciOf hands it over.
+        val parsed = org.signal.core.models.ServiceId.ACI
+            .parseOrNull(SignalStorageService.DESKTOP_RELEASE_NOTES_ACI)?.toString()
+        assertNotNull(reason(aci = parsed))
+        assertNull(reason(aci = "11111111-1111-4111-8111-111111111112"))
+    }
+
+    @Test
     fun `somebody else with a similar id is not mistaken for this account`() {
         // The control. If the self test were a prefix or substring match rather than equality
         // it would refuse real contacts, which is a worse fault than the one it prevents.

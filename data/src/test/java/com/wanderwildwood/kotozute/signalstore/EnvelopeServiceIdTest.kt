@@ -60,6 +60,17 @@ class EnvelopeServiceIdTest {
     }
 
     @Test
+    fun `a failure's sender counts only when it names an account`() {
+        // Signal-Android aded3f3eb7: an unknown sender gets no retry receipt and no reset.
+        assertEquals(uuid.toString(), SignalReceiver.knownSender(uuid.toString()))
+        assertEquals("PNI:$uuid", SignalReceiver.knownSender("PNI:$uuid"))
+        assertNull(SignalReceiver.knownSender(null))
+        assertNull(SignalReceiver.knownSender(""))
+        assertNull(SignalReceiver.knownSender("not-an-account"))
+        assertNull(SignalReceiver.knownSender("+15550100"))
+    }
+
+    @Test
     fun `a pni destination is recognised from the string field`() {
         assertTrue(addressedToPni(destination = "PNI:$uuid"))
     }

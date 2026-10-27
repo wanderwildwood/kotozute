@@ -2071,7 +2071,12 @@ internal class SignalReceiver(
      * minus the half that resends: that needs a log of sent ciphertext this app does not keep.
      */
     private fun repairSessionFor(sender: String, deviceId: Int, serialized: ByteArray) {
-        if (sender.isBlank()) return
+        // Signal-Android aded3f3eb7: nothing is reset or resent for a sender that is not an
+        // account. Blank was the only case caught before; a malformed id reached the store.
+        if (knownSender(sender) == null) {
+            Timber.w("signal retry: a retry receipt from an unknown sender; leaving it")
+            return
+        }
         runCatching {
             val error = org.signal.libsignal.protocol.message.DecryptionErrorMessage(serialized)
             if (error.deviceId != accounts.credentials().deviceId) {
@@ -2267,9 +2272,15 @@ internal class SignalReceiver(
             .filterIsInstance<org.signal.libsignal.metadata.ProtocolException>()
             .firstOrNull() ?: return false
 
-        val sender = protocolFailure.sender?.takeIf { it.isNotBlank() }
+        // Signal-Android aded3f3eb7: a sender that does not resolve to an account gets
+        // neither a retry receipt nor anything done to its sessions. Checked here, before the
+        // failure is counted or our prekeys are replaced on its account.
+        val sender = knownSender(protocolFailure.sender)
             ?: senderOf(envelope)
-            ?: return false
+            ?: run {
+                Timber.w("signal retry: the sender is unknown; not asking it to resend")
+                return false
+            }
         // Never at ourselves. A failure against our own primary's sync stream is a session to
         // repair, not a resend to request, and a receipt aimed at our own account would be
         // asking a device that cannot answer.
@@ -2834,6 +2845,13 @@ internal class SignalReceiver(
          * failure the comment there says this code exists to end. See
          * [[SignalStorageService.aciOf]] for the same trap in the contact list.
          */
+        /**
+         * The sender's id when it names an account, else null: upstream's `isUnknown`. The
+         * string a libsignal failure carries is not checked by anything before it gets here.
+         */
+        internal fun knownSender(raw: String?): String? =
+            raw?.takeIf { it.isNotBlank() }?.let { ServiceId.parseOrNull(it, false) }?.toString()
+
         internal fun senderOf(envelope: Envelope): String? =
             ServiceId.parseOrNull(envelope.sourceServiceId, envelope.sourceServiceIdBinary)
                 ?.toString()

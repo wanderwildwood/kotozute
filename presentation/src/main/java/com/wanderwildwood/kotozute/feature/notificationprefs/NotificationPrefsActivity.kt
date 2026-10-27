@@ -105,7 +105,6 @@ class NotificationPrefsActivity : QkThemedActivity(), NotificationPrefsView {
         binding.vibration.checkbox.isChecked = state.vibrationEnabled
         binding.ringtone.summary = state.ringtoneName
 
-        binding.actionsDivider.isVisible = state.threadId == 0L
         binding.actionsTitle.isVisible = state.threadId == 0L
         binding.action1.isVisible = state.threadId == 0L
         binding.action1.summary = state.action1Summary
@@ -114,7 +113,6 @@ class NotificationPrefsActivity : QkThemedActivity(), NotificationPrefsView {
         binding.action3.isVisible = state.threadId == 0L
         binding.action3.summary = state.action3Summary
 
-        binding.qkreplyDivider.isVisible = state.threadId == 0L
         binding.qkreplyTitle.isVisible = state.threadId == 0L
         binding.qkreply.checkbox.isChecked = state.qkReplyEnabled
         binding.qkreply.isVisible = state.threadId == 0L

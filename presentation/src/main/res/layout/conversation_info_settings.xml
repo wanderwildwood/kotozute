@@ -23,11 +23,6 @@
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:layout_marginBottom="8dp"
-        android:background="?android:attr/divider" />
 
     <com.wanderwildwood.kotozute.common.widget.PreferenceView
         android:id="@+id/groupName"
@@ -65,10 +60,5 @@
         android:layout_height="wrap_content"
         app:title="@string/info_delete" />
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:layout_marginTop="8dp"
-        android:background="?android:attr/divider" />
 
 </LinearLayout>

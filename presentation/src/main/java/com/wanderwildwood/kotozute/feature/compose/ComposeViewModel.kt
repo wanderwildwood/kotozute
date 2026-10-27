@@ -57,7 +57,6 @@ import com.wanderwildwood.kotozute.interactor.AddScheduledMessage
 import com.wanderwildwood.kotozute.interactor.DeleteMessages
 import com.wanderwildwood.kotozute.interactor.MarkRead
 import com.wanderwildwood.kotozute.interactor.SendExistingMessage
-import com.wanderwildwood.kotozute.interactor.SaveImage
 import com.wanderwildwood.kotozute.interactor.SendNewMessage
 import com.wanderwildwood.kotozute.manager.ActiveConversationManager
 import com.wanderwildwood.kotozute.manager.PermissionManager
@@ -129,7 +128,6 @@ class ComposeViewModel @Inject constructor(
     private val sendExistingMessage: SendExistingMessage,
     private val sendNewMessage: SendNewMessage,
     private val subscriptionManager: SubscriptionManagerCompat,
-    private val saveImage: SaveImage,
     private val syncContacts: com.wanderwildwood.kotozute.interactor.SyncContacts,
 ) : QkViewModel<ComposeView, ComposeState>(ComposeState(
         editingMode = threadId == 0L && addresses.isEmpty(),
@@ -805,16 +803,13 @@ class ComposeViewModel @Inject constructor(
                 .subscribe { newState { copy(query = "", searchSelectionId = -1) } }
 
         // message part context menu item selected - save
+        // Where the person picks (PartSaver), so no storage permission is asked for.
         view.contextItemIntent
             .filter { it.itemId == R.id.save }
-            .filter { permissionManager.hasStorage().also { if (!it) view.requestStoragePermission() } }
             .autoDisposable(view.scope())
             .subscribe {
                 val menuInfo = it.menuInfo as QkContextMenuRecyclerView.ContextMenuInfo<Long, MmsPart>
-                if (menuInfo.viewHolderValue != null)
-                    saveImage.execute(menuInfo.viewHolderValue.id) {
-                        context.makeToast(R.string.gallery_toast_saved)
-                    }
+                if (menuInfo.viewHolderValue != null) view.saveAttachment(menuInfo.viewHolderValue)
             }
 
         // message part context menu item selected - share

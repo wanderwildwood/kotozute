@@ -26,6 +26,7 @@ import androidx.core.view.inputmethod.InputContentInfoCompat
 import com.wanderwildwood.kotozute.common.QkMediaPlayer
 import com.wanderwildwood.kotozute.common.base.QkView
 import com.wanderwildwood.kotozute.model.Attachment
+import com.wanderwildwood.kotozute.model.MmsPart
 import com.wanderwildwood.kotozute.model.Recipient
 import io.reactivex.Observable
 import io.reactivex.subjects.Subject
@@ -99,6 +100,7 @@ interface ComposeView : QkView<ComposeState> {
     fun showMessageLinkAskDialog(uri: Uri)
     fun requestDefaultSms()
     fun requestStoragePermission()
+    fun saveAttachment(part: MmsPart)
     fun requestRecordAudioPermission()
     fun requestSmsPermission()
     fun showContacts(sharing: Boolean, chips: List<Recipient>)

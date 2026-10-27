@@ -104,6 +104,10 @@ class GalleryActivity : QkActivity(), GalleryView {
 
     override fun pageChanged(): Observable<MmsPart> = pageChangedSubject
 
+    private val partSaver = com.wanderwildwood.kotozute.common.util.PartSaver(this)
+
+    override fun saveAttachment(part: MmsPart) = partSaver.save(part)
+
     override fun requestStoragePermission() {
         ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 0)
     }

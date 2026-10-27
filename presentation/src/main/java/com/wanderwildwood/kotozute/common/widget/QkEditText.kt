@@ -25,7 +25,6 @@ import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputConnectionWrapper
-import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
@@ -45,7 +44,8 @@ import javax.inject.Inject
  * the contacts chip view
  */
 class QkEditText @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null)
-    : AppCompatEditText(context, attrs) {
+    // A steady caret rather than the platform's blinking one: see StaticCaretEditText.
+    : StaticCaretEditText(context, attrs) {
 
     @Inject lateinit var textViewStyler: TextViewStyler
 

@@ -47,8 +47,6 @@ interface MessageRepository {
 
     fun getPartsForConversation(threadId: Long): RealmResults<MmsPart>
 
-    fun savePart(id: Long): Uri?
-
     fun getUnreadUnseenMessages(threadId: Long): RealmResults<Message>
 
     fun getUnreadMessages(threadId: Long): RealmResults<Message>

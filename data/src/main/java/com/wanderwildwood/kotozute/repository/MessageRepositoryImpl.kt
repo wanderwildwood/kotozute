@@ -28,14 +28,11 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.os.Looper
-import android.provider.MediaStore
 import android.provider.Telephony
 import android.provider.Telephony.Mms
 import android.provider.Telephony.Sms
 import android.telephony.SmsManager
-import android.webkit.MimeTypeMap
 import androidx.core.content.contentValuesOf
 import com.android.mms.transaction.MmsMessageSender
 import com.google.android.mms.ContentType
@@ -249,71 +246,6 @@ open class MessageRepositoryImpl @Inject constructor(
             .endGroup()
             .sort("id", Sort.DESCENDING)
             .findAllAsync()
-
-    override fun savePart(id: Long): Uri? {
-        val part = getPart(id) ?: return null
-
-        val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(part.type)
-            ?: return null
-        // fileDateAndTime is divided by 1000 in order to remove the extra 0's after date and time
-        // This way the file name isn't so long.
-        val fileDateAndTime = (part.messages?.firstOrNull()?.date)?.div(1000)
-        val fileName = "Messaging_${part.type.split("/").last()}_$fileDateAndTime.$extension"
-
-        val values = contentValuesOf(
-            MediaStore.MediaColumns.DISPLAY_NAME to fileName,
-            MediaStore.MediaColumns.MIME_TYPE to part.type,
-        )
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            values.put(MediaStore.MediaColumns.IS_PENDING, 1)
-            values.put(
-                MediaStore.MediaColumns.RELATIVE_PATH, when {
-                    // Named for this app, not the one it was forked from. A picture saved
-                    // out of Messaging used to land in Pictures/QUIK, under a name nobody
-                    // on this phone would recognise. Backups already went to
-                    // Messaging/Backups, so the app disagreed with itself. Anything saved
-                    // before this stays where it was put.
-                    part.isImage() -> "${Environment.DIRECTORY_PICTURES}/Messaging"
-                    part.isVideo() -> "${Environment.DIRECTORY_MOVIES}/Messaging"
-                    else -> "${Environment.DIRECTORY_DOWNLOADS}/Messaging"
-                }
-            )
-        }
-
-        val contentUri = when {
-            part.isImage() -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            part.isVideo() -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI
-
-            else -> MediaStore.Files.getContentUri("external")
-        }
-
-        val uri = context.contentResolver.insert(contentUri, values)
-        Timber.v("Saving $fileName (${part.type}) to $uri")
-
-        uri?.let {
-            context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                context.contentResolver.openInputStream(part.getUri())?.use { inputStream ->
-                    inputStream.copyTo(outputStream, 1024)
-                }
-            }
-            Timber.v("Saved $fileName (${part.type}) to $uri")
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                context.contentResolver.update(
-                    uri,
-                    contentValuesOf(MediaStore.MediaColumns.IS_PENDING to 0),
-                    null,
-                    null
-                )
-                Timber.v("Marked $uri as not pending")
-            }
-        }
-
-        return uri
-    }
 
     override fun getUnreadUnseenMessages(threadId: Long): RealmResults<Message> =
         Realm.getDefaultInstance()

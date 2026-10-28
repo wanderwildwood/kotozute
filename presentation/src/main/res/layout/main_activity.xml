@@ -166,11 +166,11 @@
                 android:id="@+id/settingsIcon"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:padding="12dp"
-                android:src="@drawable/ic_settings_modern_24dp"
+                android:padding="13dp"
+                android:src="@drawable/ic_settings_outline"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/drawer_settings"
-                app:tint="#000000" />
+                app:tint="?android:attr/textColorPrimary" />
 
         </LinearLayout>
 

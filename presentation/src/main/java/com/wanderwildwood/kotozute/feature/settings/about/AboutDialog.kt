@@ -56,6 +56,7 @@ class AboutDialog(context: Activity, onVersionLongClick: () -> Unit) : AlertDial
         layout.llama.setOnClickListener {
             WebLinks.open(context, Uri.parse("https://square.link/u/AGu8oT10"))
         }
+        layout.licences.setOnClickListener { LicencesDialog(context).show() }
         layout.site.setOnClickListener {
             WebLinks.open(context, Uri.parse("https://wanderthe.dev"))
         }

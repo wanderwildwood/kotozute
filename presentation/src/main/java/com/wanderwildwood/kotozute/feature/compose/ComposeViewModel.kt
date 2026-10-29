@@ -856,7 +856,9 @@ class ComposeViewModel @Inject constructor(
             .autoDisposable(view.scope())
             .subscribe {
                 val menuInfo = it.menuInfo as QkContextMenuRecyclerView.ContextMenuInfo<Long, MmsPart>
-                if (menuInfo.viewHolderValue != null)
+                if (menuInfo.viewHolderValue != null && com.wanderwildwood.kotozute.util.ContactCardFile.isVCardType(menuInfo.viewHolderValue.type))
+                    navigator.viewContactCard(menuInfo.viewHolderValue.id)
+                else if (menuInfo.viewHolderValue != null)
                     navigator.viewFile(
                         MmsPartProvider().getUriForMmsPartId(
                             context, menuInfo.viewHolderValue.id,
@@ -911,7 +913,8 @@ class ComposeViewModel @Inject constructor(
                 .filter { part -> !part.isImage() && !part.isVideo() }
                 .autoDisposable(view.scope())
                 .subscribe {
-                    navigator.viewFile(
+                    if (com.wanderwildwood.kotozute.util.ContactCardFile.isVCardType(it.type)) navigator.viewContactCard(it.id)
+                    else navigator.viewFile(
                         MmsPartProvider().getUriForMmsPartId(context, it.id, it.getBestFilename()),
                         it.type
                     )

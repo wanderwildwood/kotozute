@@ -376,6 +376,9 @@
     <string name="signal_attachment_saved">Saved.</string>
     <string name="signal_attachment_save_failed">That could not be saved.</string>
     <string name="signal_attachment_open_failed">That attachment could not be opened.</string>
+    <string name="contact_card_missing">This contact card is not on the phone any more, or the message never finished downloading it.</string>
+    <string name="contact_card_empty">This contact card arrived empty, so there is nothing to show.</string>
+    <string name="contact_card_damaged">This file is not a readable contact card.</string>
     <string name="signal_attachment_no_app">Nothing on this phone offers to open that kind of file.</string>
     <string name="signal_voice_message">Voice message</string>
     <string name="signal_voice_message_unavailable">Voice message — not downloaded</string>
@@ -1009,6 +1012,17 @@
     <string name="about_privacy_close">There are no ads, no analytics and no tracking. Backups, chat-history copies and saved attachments go only where you choose to save them.</string>
     <string name="about_terms_heading">Terms</string>
     <string name="about_terms">This app is free software under the GNU General Public License v3. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
+    <string name="about_licences">Licences</string>
+    <string name="licences_source">Source code</string>
+    <string name="licences_licence">Licence</string>
+    <string name="licences_licence_words">GNU Affero General Public License v3 or later, held by wander wildwood. Free software with no warranty. It contains Signal\'s AGPL code, so the whole app is AGPL; the full text is below. Anyone who runs a modified version for others over a network must offer them its source.</string>
+    <string name="licences_built_with">Built with</string>
+    <string name="licences_agpl">GNU Affero General Public License v3</string>
+    <string name="licences_gpl">GNU General Public License v3 (QKSMS, QUIK, InkMessage)</string>
+    <string name="licences_apache">Apache License 2.0</string>
+    <string name="licences_mit">MIT licence</string>
+    <string name="licences_bsd">BSD licences</string>
+    <string name="licences_ofl">SIL Open Font License 1.1 (Lato)</string>
     <string name="about_fork">Continues QKSMS by Moez Bhatti, by way of octoshrimpy\'s QUIK; the e-ink work began in lamdanAmiti\'s InkMessage. All under the same licence.</string>
 
 

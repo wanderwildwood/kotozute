@@ -28,7 +28,12 @@ import android.os.Build
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.provider.Telephony
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
+import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.util.ContactsApp
+import com.wanderwildwood.kotozute.common.util.ReceivedCard
 import com.wanderwildwood.kotozute.compat.TelephonyCompat
 import com.wanderwildwood.kotozute.extensions.resourceExists
 import com.wanderwildwood.kotozute.feature.backup.BackupActivity
@@ -324,6 +329,37 @@ class Navigator @Inject constructor(
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
         startActivityExternal(intent)
+    }
+
+    /**
+     * Opens a received contact card in Contacts. The card is read here and a clean copy is
+     * handed over, and when that cannot be done the person is told in words what went wrong.
+     */
+    fun viewContactCard(partId: Long) {
+        val app = context.applicationContext
+        Thread {
+            val result = ReceivedCard.stage(app, partId)
+            Handler(Looper.getMainLooper()).post {
+                val uri = result.uri
+                if (uri == null) {
+                    val message = when (result.failure) {
+                        ReceivedCard.Failure.EMPTY -> R.string.contact_card_empty
+                        ReceivedCard.Failure.NOT_A_CARD -> R.string.contact_card_damaged
+                        else -> R.string.contact_card_missing
+                    }
+                    Toast.makeText(app, message, Toast.LENGTH_LONG).show()
+                } else {
+                    val intent = ContactsApp.prefer(
+                        app,
+                        Intent(Intent.ACTION_VIEW)
+                            .setDataAndType(uri, "text/x-vcard")
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    )
+                    runCatching { startActivityExternal(intent) }
+                        .onFailure { Toast.makeText(app, R.string.signal_attachment_no_app, Toast.LENGTH_LONG).show() }
+                }
+            }
+        }.start()
     }
 
     fun shareFile(uri: Uri, mimeType: String) {

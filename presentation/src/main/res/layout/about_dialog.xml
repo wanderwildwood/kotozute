@@ -79,6 +79,17 @@
         android:text="@string/about_fork"
         app:textSize="secondary" />
 
+    <com.wanderwildwood.kotozute.common.widget.QkTextView
+        android:id="@+id/licences"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:text="@string/about_licences"
+        android:textStyle="bold"
+        app:textSize="secondary" />
+
     <!-- A llama, and the page a donation goes to. Last, on one line after the site's name,
          where somebody who went looking will find it and nobody else has to read past it.
          Each is a full 48dp to press. -->

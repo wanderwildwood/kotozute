@@ -23,6 +23,7 @@ import androidx.core.view.isVisible
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkViewHolder
 import com.wanderwildwood.kotozute.common.util.Colors
+import com.wanderwildwood.kotozute.common.util.ReceivedCard
 import com.wanderwildwood.kotozute.common.util.extensions.getDisplayName
 import com.wanderwildwood.kotozute.common.util.extensions.resolveThemeColor
 import com.wanderwildwood.kotozute.common.util.extensions.setBackgroundTint
@@ -32,7 +33,6 @@ import com.wanderwildwood.kotozute.extensions.mapNotNull
 import com.wanderwildwood.kotozute.feature.compose.BubbleUtils
 import com.wanderwildwood.kotozute.model.Message
 import com.wanderwildwood.kotozute.model.MmsPart
-import com.wanderwildwood.kotozute.util.tryOrNull
 import ezvcard.Ezvcard
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -60,18 +60,18 @@ class VCardBinder @Inject constructor(colors: Colors, private val context: Conte
 
         holder.containerView.setOnClickListener { clicks.onNext(part.id) }
 
-        tryOrNull(true) {
-            Observable.just(part.getUri())
-                .map(context.contentResolver::openInputStream)
-                .mapNotNull { inputStream -> inputStream.use { Ezvcard.parse(it).first() } }
-                .map { vcard -> vcard.getDisplayName() ?: "" }
+        // Read the way the tap reads it (ReceivedCard), so a card kept in the message's text
+        // column shows its name too, and one that cannot be read leaves the label alone
+        // instead of taking the whole conversation down with it.
+        Observable.fromCallable { ReceivedCard.clean(ReceivedCard.read(context, part.id)) ?: ByteArray(0) }
+                .map { bytes -> if (bytes.isEmpty()) "" else (Ezvcard.parse(String(bytes, Charsets.UTF_8)).first()?.getDisplayName() ?: "") }
+                .onErrorReturnItem("")
                 .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { displayName ->
+                .subscribe({ displayName ->
                     binding.name?.text = displayName
                     binding.name.isVisible = displayName.isNotEmpty()
-                }
-        }
+                }, { binding.name.isVisible = false })
 
         if (!message.isMe()) {
             binding.vCardBackground.setBackgroundTint(theme.theme)

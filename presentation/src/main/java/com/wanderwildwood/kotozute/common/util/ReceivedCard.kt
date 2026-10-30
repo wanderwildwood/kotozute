@@ -43,7 +43,7 @@ object ReceivedCard {
     }
 
     /** Reads the part's bytes: as a file first, and from the message's text column if it has none. */
-    private fun read(context: Context, partId: Long): ByteArray? {
+    fun read(context: Context, partId: Long): ByteArray? {
         val part = Uri.parse("content://mms/part/$partId")
         val fromFile = runCatching {
             context.contentResolver.openInputStream(part)?.use { it.readBytes() }

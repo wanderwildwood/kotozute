@@ -98,7 +98,11 @@ off nearly every row.
   one crosses to the other
 - Search reaches message bodies on both rails at once, from the phone or the browser
 - Disappearing messages disappear, and a view-once photo is never stored
-- Safety numbers, with a loud warning when someone's key has changed
+- Safety numbers, with a loud warning when someone's key has changed. If a message to them will
+  not send because their safety number changed (a new phone or a reinstall), it stays in the
+  conversation as "Not sent" and a notice offers **View safety number** or **Accept and send**
+  (tap twice). Accepting trusts the new key and sends the waiting messages once, oldest first;
+  nothing is sent before you accept. Compare the number with them first if the message is private
 - Pin, mute, mark unread, archive, block, and a details screen with the pictures a conversation
   has carried
 - Bring old messages across from a Signal Desktop export

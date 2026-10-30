@@ -116,6 +116,74 @@
         android:textSize="14sp"
         android:visibility="gone" />
 
+    <!-- A message waiting because the other person's safety number changed. Plain words,
+         the two things that can be done, and what it means for anyone who wants to know. -->
+    <LinearLayout
+        android:id="@+id/identityNotice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/identityNoticeText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/identityNoticeWhat"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:text="@string/signal_identity_what"
+            android:textSize="14sp"
+            android:textStyle="italic" />
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/identityNoticeExplain"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/signal_identity_explain"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/identityView"
+                style="@style/EInkButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:text="@string/signal_identity_view"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/identityAccept"
+                style="@style/EInkButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_weight="1"
+                android:text="@string/signal_identity_accept"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"

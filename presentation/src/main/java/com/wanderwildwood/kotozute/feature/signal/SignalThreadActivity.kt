@@ -30,6 +30,7 @@ import com.wanderwildwood.kotozute.databinding.SignalThreadActivityBinding
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
+import com.wanderwildwood.kotozute.repository.IdentityNotice
 import com.wanderwildwood.kotozute.repository.SafetyNumberChanged
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.common.util.DateFormatter
@@ -410,12 +411,15 @@ class SignalThreadActivity : QkThemedActivity() {
         results.addChangeListener { data, _ ->
             adapter.submit(data)
             showPinned(data)
+            refreshIdentityNotice()
             binding.empty.setVisible(data.isEmpty())
             if (data.isNotEmpty()) binding.recyclerView.scrollToPosition(data.size - 1)
             markRead(data)
         }
         adapter.submit(results)
         showPinned(results)
+        setUpIdentityNotice()
+        refreshIdentityNotice()
         binding.empty.setVisible(results.isEmpty())
         markRead(results)
 
@@ -1696,8 +1700,14 @@ class SignalThreadActivity : QkThemedActivity() {
                     }
                     .onFailure { failure ->
                         // The message stays in the box either way, so nothing typed is lost.
-                        if (failure is SafetyNumberChanged) {
-                            offerSafetyNumberChoice(failure, body, attachment)
+                        if (IdentityNotice.isIdentityProblem(failure)) {
+                            // Kept in the thread as "Not sent" -- see sendThroughOutbox -- so
+                            // the composer is cleared rather than holding a second copy.
+                            binding.message.setText("")
+                            clearAttachment()
+                            clearReply()
+                            identityRefused = true
+                            refreshIdentityNotice()
                         } else if (failure is com.wanderwildwood.kotozute.repository.SentButNotFiled) {
                             // ⚠ Not a failed send, and the only branch here that must not read
                             // like one. The composer still holds the text, so the obvious next
@@ -1934,105 +1944,100 @@ class SignalThreadActivity : QkThemedActivity() {
             if (smsThreadId != 0L) getString(R.string.signal_switch_to_sms) else label
     }
 
+    /** The last send in this screen was refused for a changed safety number. */
+    private var identityRefused = false
+    private var identityArmed = false
+    private val disarmIdentity = Runnable {
+        identityArmed = false
+        binding.identityAccept.setText(R.string.signal_identity_accept)
+    }
+
     /**
-     * Offers the decision where the person already is, rather than leaving them a sentence.
+     * Shows, or hides, the notice for a changed safety number.
      *
-     * ⚠ Signal has **no standalone "accept this key?"** anywhere. A send blocked by a changed
-     * safety number puts the choice in front of the send itself -- "Send anyway", which trusts
-     * the new key and resends in one action, alongside a way to check the number first. The
-     * thing they were already trying to do is what carries the decision.
-     *
-     * This app used to fail the send with a sentence and leave them to work out unaided that a
-     * row on another screen was the remedy. Drawn as this app draws a choice of actions -- the
-     * same picker the message menu uses -- rather than as Signal's bottom sheet, and the
-     * consequential one arms rather than asking again, per STYLE.md.
-     *
-     * Checking comes first and sending anyway last: the safer path is the one a thumb finds
-     * without aiming, and a consequential action goes last.
+     * Signal puts this choice in front of the send itself; here the refused message stays in
+     * the thread as "Not sent" and the notice above it carries the two ways forward. The rule
+     * for when it shows is [IdentityNotice.shows].
      */
-    private fun offerSafetyNumberChoice(
-        failure: SafetyNumberChanged,
-        body: String,
-        attachment: String?,
-        armed: Boolean = false
-    ) {
-        val actions = mutableListOf<Pair<String, () -> Unit>>()
-        actions += getString(R.string.signal_safety_verify) to {
+    private fun refreshIdentityNotice() {
+        val data = messages ?: return
+        val waiting = data.count {
+            it.outgoing && it.sendState == com.wanderwildwood.kotozute.model.SignalMessage.SEND_FAILED
+        }
+        val direct = threadKey.startsWith("direct:")
+        if (!direct || waiting == 0) {
+            binding.identityNotice.setVisible(false)
+            return
+        }
+        thread(isDaemon = true) {
+            val changed = runCatching { signalRepo.identity(threadKey).changed }.getOrDefault(false)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                val show = IdentityNotice.shows(direct, changed, identityRefused, waiting)
+                binding.identityNotice.setVisible(show)
+                if (!show) return@runOnUiThread
+                val name = threadTitle().takeIf { it.isNotBlank() && it != getString(R.string.signal_title) }
+                binding.identityNoticeText.text = name
+                    ?.let { getString(R.string.signal_identity_notice, it) }
+                    ?: getString(R.string.signal_identity_notice_unknown)
+            }
+        }
+    }
+
+    private fun setUpIdentityNotice() {
+        binding.identityNoticeWhat.setOnClickListener {
+            binding.identityNoticeExplain.setVisible(binding.identityNoticeExplain.visibility != View.VISIBLE)
+        }
+        binding.identityView.setOnClickListener {
             startActivity(SignalThreadInfoActivity.intentFor(this, threadKey))
         }
-        actions += if (armed) {
-            getString(R.string.signal_safety_send_anyway_armed) to {
-                acceptAndResend(body, attachment)
+        binding.identityAccept.setOnClickListener {
+            if (!identityArmed) {
+                identityArmed = true
+                binding.identityAccept.setText(R.string.signal_identity_accept_armed)
+                binding.identityAccept.postDelayed(disarmIdentity, ARM_TIMEOUT_MS)
+            } else {
+                binding.identityAccept.removeCallbacks(disarmIdentity)
+                disarmIdentity.run()
+                acceptAndRetry()
             }
-        } else {
-            getString(R.string.signal_safety_send_anyway) to {
-                offerSafetyNumberChoice(failure, body, attachment, armed = true)
-            }
-        }
-
-        val dialog = einkDialog()
-            // Two strings rather than a placeholder filled with "their": "Their's safety
-            // number changed" is what one string and a fallback word produces.
-            .setTitle(
-                failure.name
-                    ?.let { getString(R.string.signal_safety_changed_title, it) }
-                    ?: getString(R.string.signal_safety_changed_title_unknown)
-            )
-            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
-            .show()
-
-        if (armed) {
-            val decor = dialog.window?.decorView
-            val disarm = Runnable {
-                if (!isFinishing && dialog.isShowing) {
-                    dialog.dismiss()
-                    offerSafetyNumberChoice(failure, body, attachment, armed = false)
-                }
-            }
-            decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
-            dialog.setOnDismissListener { decor?.removeCallbacks(disarm) }
         }
     }
 
     /**
-     * Trusts the new key and sends the message that was refused, in one action.
-     *
-     * Upstream's `trustAndVerify` then resend. Accepting archives the sessions built on the old
-     * key -- see `SignalStore.acceptIdentity` -- so the resend negotiates a fresh one rather
-     * than going out over a ratchet the other end has moved off.
+     * Trusts the new key, then sends each waiting message once, oldest first. Nothing goes
+     * before the accept; a message that still fails stays in the thread as "Not sent".
+     * Accepting archives the sessions built on the old key (`SignalStore.acceptIdentity`), so
+     * the retry negotiates a fresh one.
      */
-    private fun acceptAndResend(body: String, attachment: String?) {
-        binding.send.isEnabled = false
-        // Still in the composer: a refused send leaves the draft where it was.
-        val styles = draftStyles(body)
+    private fun acceptAndRetry() {
+        val data = messages ?: return
+        val ids = IdentityNotice.retryOrder(
+            data.filter {
+                it.outgoing && it.sendState == com.wanderwildwood.kotozute.model.SignalMessage.SEND_FAILED
+            }.map { it.id to it.date }
+        )
+        binding.identityAccept.isEnabled = false
         thread(isDaemon = true) {
-            val accepted = runCatching { signalRepo.acceptIdentity(threadKey) }.getOrDefault(false)
-            val quoteTs = replyingTo
-            val result = if (accepted) {
-                runCatching { signalRepo.send(threadKey, body, listOfNotNull(attachment), quoteTs, styles) }
-            } else {
-                Result.failure(IllegalStateException(getString(R.string.signal_safety_accept_failed)))
-            }
+            val outcome = IdentityNotice.acceptAndRetry(
+                ids,
+                accept = {
+                    // Already accepted from Info counts: the key is trusted either way.
+                    signalRepo.acceptIdentity(threadKey) || !signalRepo.identity(threadKey).changed
+                },
+                retry = { signalRepo.resend(it) }
+            )
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
-                binding.send.isEnabled = true
-                result
-                    .onSuccess {
-                        binding.message.setText("")
-                        clearAttachment()
-                        clearReply()
-                    }
-                    .onFailure {
-                        // ⚠ The composer is deliberately **not** cleared here -- clearing is
-                        // in onSuccess alone -- so a failed send leaves the text where they
-                        // typed it. The message names the reason the send path gave, because
-                        // "it failed" and "they have left Signal" need different responses.
-                        Toast.makeText(
-                            this,
-                            getString(R.string.signal_send_failed, sayFailure(it).orEmpty()),
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
+                binding.identityAccept.isEnabled = true
+                if (outcome.accepted) identityRefused = false
+                val message = when {
+                    !outcome.accepted -> getString(R.string.signal_safety_accept_failed)
+                    outcome.stillWaiting > 0 -> getString(R.string.signal_identity_still_waiting)
+                    else -> null
+                }
+                message?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+                refreshIdentityNotice()
             }
         }
     }
@@ -2065,11 +2070,16 @@ class SignalThreadActivity : QkThemedActivity() {
             val result = runCatching { signalRepo.resend(messageId) }
             runOnUiThread {
                 result.onFailure { failure ->
-                    Toast.makeText(
-                        this,
-                        getString(R.string.signal_send_failed, sayFailure(failure).orEmpty()),
-                        Toast.LENGTH_LONG
-                    ).show()
+                    if (IdentityNotice.isIdentityProblem(failure)) {
+                        identityRefused = true
+                        refreshIdentityNotice()
+                    } else {
+                        Toast.makeText(
+                            this,
+                            getString(R.string.signal_send_failed, sayFailure(failure).orEmpty()),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
         }
@@ -2560,6 +2570,8 @@ class SignalThreadActivity : QkThemedActivity() {
             return
         }
         visibleThreadKey = threadKey
+        // The key may have been accepted from Info meanwhile.
+        refreshIdentityNotice()
         // Whatever was announced about this conversation is answered by reading it.
         notifications.cancel(threadKey)
         // The note may have been paused, moved or finished from the notification meanwhile.

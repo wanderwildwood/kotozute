@@ -376,7 +376,7 @@
     <string name="signal_attachment_saved">Saved.</string>
     <string name="signal_attachment_save_failed">That could not be saved.</string>
     <string name="signal_attachment_open_failed">That attachment could not be opened.</string>
-    <string name="contact_card_missing">This contact card is not on the phone any more, or the message never finished downloading it.</string>
+    <string name="contact_card_missing">This contact card is no longer on the phone, or never finished downloading.</string>
     <string name="contact_card_empty">This contact card arrived empty, so there is nothing to show.</string>
     <string name="contact_card_damaged">This file is not a readable contact card.</string>
     <string name="signal_attachment_no_app">Nothing on this phone offers to open that kind of file.</string>

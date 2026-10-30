@@ -90,4 +90,12 @@ class SendFailureWordingTest {
         assertEquals(SendFailure.KeysStale, SignalSender.explain(SendRefused(SendFailure.KeysStale)))
         assertEquals(SendFailure.NoCertificate, SignalSender.explain(SendRefused(SendFailure.NoCertificate)))
     }
+
+    @Test
+    fun `an untrusted identity key reads as a changed safety number`() {
+        assertEquals(
+            SendFailure.SafetyNumberChanged(null),
+            SignalSender.explain(org.signal.libsignal.protocol.UntrustedIdentityException("someone"))
+        )
+    }
 }

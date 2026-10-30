@@ -1605,7 +1605,10 @@ class SignalRepositoryImpl @Inject constructor(
             val sentAt = try {
                 send()
             } catch (t: Throwable) {
-                if (resending) {
+                // A message refused for a changed safety number is kept, marked not sent, in
+                // the thread and the outbox: the notice there offers to accept the new key
+                // and send it. It is never dropped and never sent before that choice.
+                if (resending || com.wanderwildwood.kotozute.repository.IdentityNotice.isIdentityProblem(t)) {
                     runCatching { setSendState(row.id, SignalMessage.SEND_FAILED) }
                         .onFailure { Timber.w(it, "signal send: could not mark a message not sent") }
                 } else {

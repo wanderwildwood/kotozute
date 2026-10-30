@@ -469,3 +469,18 @@ measurement, because a negative answer ends the route regardless of what the bat
 Whether the phone can hold the Signal websocket without ruining the battery. That is
 measurable on hardware before any of the above is paid for, and it decides whether the rest
 is worth doing.
+
+## When a safety number changes
+
+Signal refuses to send to a contact whose identity key changed (a new phone, a reinstall) until
+the change is accepted; the library reports it as `UntrustedIdentityException`. The sender maps
+that, and its own typed refusal, to `SendFailure.SafetyNumberChanged`. The message is not
+dropped: it stays in the thread marked "Not sent" and in the outbox, and the conversation shows
+"<Name>'s safety number has changed. Messages are not sent until you check it." with **View
+safety number** (the details screen) and **Accept and send** (armed, 6000 ms). Accepting calls
+the same `acceptIdentity` the details screen uses, which marks the new key trusted-unverified and
+archives the sessions built on the old key; only then is each waiting message sent once, oldest
+first. If a retry fails it stays queued. The rules are in `IdentityNotice` (domain) and tested in
+`IdentityNoticeTest`. "What does this mean?" in the notice explains it in plain words. Group
+conversations have one key per member, so the notice is for one-to-one conversations; a group
+send refused for this shows its plain-words failure and the message stays "Not sent".

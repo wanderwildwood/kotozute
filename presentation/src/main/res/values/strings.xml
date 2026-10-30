@@ -746,6 +746,14 @@
         <item quantity="one">Delete this message from this phone and your other devices? The people in the conversation keep their copy.</item>
         <item quantity="other">Delete these %d messages from this phone and your other devices? The people in the conversation keep their copy.</item>
     </plurals>
+    <string name="signal_identity_notice">%1$s\'s safety number has changed. Messages are not sent until you check it.</string>
+    <string name="signal_identity_notice_unknown">Their safety number has changed. Messages are not sent until you check it.</string>
+    <string name="signal_identity_view">View safety number</string>
+    <string name="signal_identity_accept">Accept and send</string>
+    <string name="signal_identity_accept_armed">Accept and send \u2014 tap again</string>
+    <string name="signal_identity_what">What does this mean?</string>
+    <string name="signal_identity_explain">A safety number is a code made from your key and theirs. It changes when they get a new phone or reinstall Signal. It can also change if someone is intercepting your messages. Compare the number with them on a call or in person, then tap Accept and send. Accepting sends the waiting messages to the new key.</string>
+    <string name="signal_identity_still_waiting">Accepted, but a message could not be sent yet. It is kept; tap it to send again.</string>
     <string name="signal_safety_number">Safety number</string>
     <string name="signal_safety_accept_title">Accept the new key</string>
     <string name="signal_safety_accept_summary">Only after you have checked the digits with them another way. Until you do, messages to them will not send.</string>

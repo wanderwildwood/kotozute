@@ -2353,6 +2353,13 @@ internal class SignalSender(
             is org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserException ->
                 SendFailure.TheyLeft
 
+            // The recipient's key changed and nothing has accepted it. Reached by the paths that
+            // throw libsignal's own exception (edits, reactions, calls) instead of returning a
+            // result; named here so they read the same as a refused message.
+            is org.signal.libsignal.protocol.UntrustedIdentityException,
+            is org.whispersystems.signalservice.api.crypto.UntrustedIdentityException ->
+                SendFailure.SafetyNumberChanged(null)
+
             else -> SendFailure.Unexplained(t.message ?: t::class.java.simpleName)
         }
 

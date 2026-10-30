@@ -139,5 +139,6 @@ object DesktopSyncPairing {
         digits = null
         expiresAt = 0
         attemptsLeft = 0
+        burned = false
     }
 }

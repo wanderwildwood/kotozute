@@ -71,40 +71,5 @@ data class SettingsState(
     val signalOpensFirst: Boolean = false,
     val askDefaultSms: Boolean = true,
     val signalReadReceipts: Boolean = false,
-    val signalTypingIndicators: Boolean = true,
-    /**
-     * What the update row currently says, and what a tap on it would do.
-     *
-     * One field rather than a summary string and a handful of booleans: the row has exactly one
-     * face at a time, and the face is the whole of what the presenter decided.
-     */
-    val update: UpdateRow = UpdateRow.Idle("")
+    val signalTypingIndicators: Boolean = true
 )
-
-/**
- * The faces of the update row, in the order a person meets them.
- *
- * [Available] and [Armed] carry the version twice over because the row names both: what it
- * would install, and what that replaces.
- */
-sealed interface UpdateRow {
-
-    /** Offering a check. Shows what is running. */
-    data class Idle(val running: String) : UpdateRow
-
-    /** A check or a download is in flight. */
-    data class Busy(val message: Int) : UpdateRow
-
-    /** A check came back with something newer. Offers the install, unarmed. */
-    data class Available(val version: String, val running: String) : UpdateRow
-
-    /** The install has been offered and tapped once. A second tap does it. */
-    data class Armed(val version: String, val running: String) : UpdateRow
-
-    /** Something to say and nothing to do about it. Shows [message] and goes back to [Idle]. */
-    data class Reported(val message: Int, val running: String) : UpdateRow
-
-    /** Android will not let this app install packages. Tapping opens the screen that changes that. */
-    object NotPermitted : UpdateRow
-
-}

@@ -86,8 +86,6 @@ import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.repository.SignalRepositoryImpl
 import com.wanderwildwood.kotozute.repository.SyncRepository
 import com.wanderwildwood.kotozute.repository.SyncRepositoryImpl
-import com.wanderwildwood.kotozute.repository.UpdateRepository
-import com.wanderwildwood.kotozute.repository.UpdateRepositoryImpl
 import com.wanderwildwood.kotozute.worker.InjectionWorkerFactory
 import javax.inject.Singleton
 
@@ -192,9 +190,6 @@ class AppModule(private var application: Application) {
 
     @Provides
     fun provideMessageContentFilterRepository(repository: MessageContentFilterRepositoryImpl): MessageContentFilterRepository = repository
-
-    @Provides
-    fun provideUpdateRepository(repository: UpdateRepositoryImpl): UpdateRepository = repository
 
     @Provides
     fun provideContactRepository(repository: ContactRepositoryImpl): ContactRepository = repository

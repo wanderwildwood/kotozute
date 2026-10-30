@@ -119,14 +119,6 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showSignalProfileNameResult(failure: String?)
 
     fun askSignalUnpair()
-    /**
-     * Opens the Android screen where this app is allowed, or not allowed, to install packages.
-     *
-     * Not something the app can grant itself, and not worth a dialog explaining that: the row
-     * says what is missing and this takes them to the switch.
-     */
-    fun showInstallPermissionSetting()
-
     fun showSection(container: Int, title: Int)
     fun showSwipeActions()
 }

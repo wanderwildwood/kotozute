@@ -28,6 +28,7 @@ import android.content.BroadcastReceiver
 import android.os.Bundle
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
+import android.os.Build
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import androidx.work.WorkerFactory
@@ -50,7 +51,6 @@ import com.wanderwildwood.kotozute.BuildConfig
 import com.wanderwildwood.kotozute.migration.QkRealmMigration
 import com.wanderwildwood.kotozute.util.NightModeManager
 import com.wanderwildwood.kotozute.worker.HousekeepingWorker
-import com.wanderwildwood.kotozute.worker.UpdateCheckWorker
 import io.realm.Realm
 import io.realm.RealmConfiguration
 import kotlinx.coroutines.Dispatchers
@@ -373,7 +373,13 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         // register, or re-register, housekeeping work manager
         HousekeepingWorker.register(applicationContext)
-        UpdateCheckWorker.register(applicationContext)
+        // Earlier builds checked for updates by themselves. This one never does, so clear the
+        // job and the notification channel those builds left behind.
+        WorkManager.getInstance(applicationContext).cancelUniqueWork("UpdateCheckWorker")
+        if (Build.VERSION.SDK_INT >= 26) {
+            getSystemService(android.app.NotificationManager::class.java)
+                ?.deleteNotificationChannel("notifications_update")
+        }
 
         // Down here, not up with the rest of the Signal setup: WorkManager's own initialiser
         // is disabled in the manifest and it is built by hand just above, so asking for

@@ -272,21 +272,14 @@ Download <https://github.com/wanderwildwood/kotozute/releases/latest/download/ko
 sideload it. That address always points at the newest release, and every release publishes a
 `.sha256` beside the APK if you would rather check than trust.
 
-After that the app can do it for you. **Settings → Check for updates** asks the release page
-what the newest version is, and offers to install it when that is newer than what is running. It
-fetches the same APK and the same `.sha256` this page serves, checks one against the other, and
-throws the download away unread rather than installing it if they disagree.
+The app never updates itself: it does not check for updates, download them or install them, and it holds no permission to install apps. Updates come from GitHub or the InkApps store.
 
-That needs Android's permission to install apps — granted per app, and the row takes you to the
-screen for it if it is missing. Nothing is checked unless you tap: the app does not look for
-updates on a schedule, in the background, or when it starts.
-
-If you would rather something outside the app did it, add this repository to
+To be told about each new release, add this repository to
 [Obtainium](https://github.com/ImranR98/Obtainium):
 
     https://github.com/wanderwildwood/kotozute
 
-It will offer each new release as it appears. **The application id is settled** — updates
+Obtainium will offer each new release as it appears. **The application id is settled** — updates
 install over what you have, keeping your settings and anything the app has stored.
 
 ## Not affiliated with Signal

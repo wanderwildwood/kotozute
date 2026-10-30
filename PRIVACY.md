@@ -49,13 +49,12 @@ From the app's manifests (`presentation/src/main/AndroidManifest.xml` and `data/
 - `RECORD_AUDIO`: voice messages and Signal voice calls. `MODIFY_AUDIO_SETTINGS` and `BLUETOOTH`: routing a call's sound to the earpiece, speaker, wired or Bluetooth headset.
 - `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`, and `WRITE_EXTERNAL_STORAGE` (capped below the Kompakt's Android version, so never granted on it): attaching and saving files.
 - `CAMERA`: declared in the manifest. The app takes no pictures itself: the camera button hands the job to the phone's camera app, and the app generates a QR code for linking Signal but never scans one. The manifest's own comment on this line (that it is for scanning a pairing code) is out of date.
-- `INTERNET`: Signal, the update check, GIF search and Desktop Sync, all below.
+- `INTERNET`: Signal, GIF search and Desktop Sync, all below.
 - `ACCESS_NETWORK_STATE`: whether a connection is there.
 - `POST_NOTIFICATIONS`: message and call notifications. `USE_FULL_SCREEN_INTENT`: the Signal call screen over the lock screen.
 - `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`: the services that keep Desktop Sync running, hold the Signal connection open while "Keep Signal connected" is on, keep a call going with the screen off, and play a voice note with the screen locked.
 - `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, `SCHEDULE_EXACT_ALARM`, `VIBRATE`: delivering and sending on time, restarting what you had switched on after a restart, scheduled messages, and vibration.
 - `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`: the one request Signal makes on a phone without push, so Android does not defer the only thing that brings messages in.
-- `REQUEST_INSTALL_PACKAGES`: Settings, Check for updates, which downloads a newer build and hands it to Android's own installer. Android grants this permission per app, you can take it back at any time, and nothing installs without you asking. It is described below.
 
 The store lists more entries than these because the app is built with ShortcutBadger, a library that puts an unread count on launcher icons and carries the private badge permissions of other makers' launchers (several are named `READ_SETTINGS` and `WRITE_SETTINGS` in those makers' own namespaces). Each is that launcher's badge provider and nothing else, and none of those launchers is on this phone. The last is `com.wanderwildwood.kotozute.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, which AndroidX declares for its own internal receivers; it is signature-level and namespaced to this app, so nothing else can hold it.
 
@@ -69,7 +68,7 @@ The store lists more entries than these because the app is built with ShortcutBa
 
 **GIF search.** The Signal GIF picker asks GIPHY, through Signal's content proxy (`contentproxy.signal.org`), so GIPHY sees the proxy and not you, and the proxy sees only that you connected to GIPHY. Only when you open the picker.
 
-**The update check** (`api.github.com`, then `github.com` for the download). Only when you tap Settings, Check for updates: the app asks GitHub for the newest release of this project, and, if you agree, downloads that release's APK and its checksum, and discards the download unread if they disagree. GitHub sees your IP address. The app never looks for updates on its own.
+**Updates.** The app never looks for updates, downloads one or installs one, and holds no permission to install apps. Messaging is updated through GitHub (with Obtainium, for instance) or through the InkApps store, never by itself.
 
 **Desktop Sync**, off by default, never starts by itself. When on, the app runs a small web server on the phone that serves your messages, texts and Signal, to a browser on your computer, through a link with a secret token. By default it refuses anyone not connected through a VPN; if you switch that off it also accepts connections from your local network. The connection is plain http unless you turn on its TLS option, which uses a certificate the phone makes for itself. Nothing is sent to the developer or any third party. Your messages are visible to anyone who has the link and can reach the phone, so do not share it, and Settings can reset it.
 

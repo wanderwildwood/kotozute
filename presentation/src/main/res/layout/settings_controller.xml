@@ -112,12 +112,6 @@
                 android:layout_height="wrap_content"
                 app:title="@string/settings_setup_title" />
 
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/update"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:title="@string/settings_update_title" />
-
         </LinearLayout>
 
         <LinearLayout

@@ -146,4 +146,51 @@ class DesktopSyncPairingTest {
         assertTrue(DesktopSyncPairing.redeem(code))
         assertFalse(DesktopSyncPairing.lockedOut())
     }
+
+    @Test
+    fun `showing issues one when there is none and keeps it while it lasts`() {
+        val first = DesktopSyncPairing.show()!!
+        assertEquals(DesktopSyncPairing.LIFETIME_MS, first.leftMs)
+        clock += DesktopSyncPairing.LIFETIME_MS - 1
+        val again = DesktopSyncPairing.show()!!
+        assertEquals(first.code, again.code)
+        assertEquals(1L, again.leftMs)
+    }
+
+    @Test
+    fun `a code that ran out is replaced at the boundary and only the new one works`() {
+        val first = DesktopSyncPairing.show()!!
+        clock += DesktopSyncPairing.LIFETIME_MS
+        val next = DesktopSyncPairing.show()!!
+        assertEquals(DesktopSyncPairing.LIFETIME_MS, next.leftMs)
+        if (next.code != first.code) assertFalse(DesktopSyncPairing.redeem(first.code))
+        assertTrue(DesktopSyncPairing.redeem(next.code))
+    }
+
+    @Test
+    fun `a code that was used is replaced by a new one`() {
+        val first = DesktopSyncPairing.show()!!
+        assertTrue(DesktopSyncPairing.redeem(first.code))
+        val next = DesktopSyncPairing.show()!!
+        assertEquals(DesktopSyncPairing.LIFETIME_MS, next.leftMs)
+        assertTrue(DesktopSyncPairing.redeem(next.code))
+    }
+
+    @Test
+    fun `one code is valid at a time`() {
+        val a = DesktopSyncPairing.issue()
+        val b = DesktopSyncPairing.issue()
+        if (a != b) assertFalse(DesktopSyncPairing.redeem(a))
+        assertTrue(DesktopSyncPairing.redeem(b))
+    }
+
+    @Test
+    fun `too many wrong tries leave nothing to show until one is asked for`() {
+        val code = DesktopSyncPairing.show()!!.code
+        val wrong = if (code == "000000") "111111" else "000000"
+        repeat(DesktopSyncPairing.MAX_ATTEMPTS) { assertFalse(DesktopSyncPairing.redeem(wrong)) }
+        assertNull(DesktopSyncPairing.show())
+        assertFalse(DesktopSyncPairing.redeem(code))
+        assertTrue(DesktopSyncPairing.redeem(DesktopSyncPairing.issue()))
+    }
 }

@@ -821,7 +821,9 @@
     </plurals>
     <string name="settings_signal_history_groups">%d group conversations were skipped: this phone has no thread for them yet. Open the group here once and import again.</string>
     <string name="settings_desktop_sync_code_intro">On the computer, open:</string>
-    <string name="settings_desktop_sync_code">and enter this code:\n\n    %1$s\n\nIt lasts three minutes and works once.</string>
+    <string name="settings_desktop_sync_code">and enter this code:\n\n    %1$s\n</string>
+    <string name="settings_desktop_sync_code_left">Works once, for %1$s</string>
+    <string name="settings_desktop_sync_code_locked">Too many wrong tries, so the code is cancelled. Close this and tap Show link again for a new one.</string>
     <string name="settings_desktop_sync_link_full">Or use the full link, which needs no code:</string>
     <string name="contacts_signal_hint">Search people on Signal</string>
     <string name="signal_rail_label">Signal</string>
@@ -984,6 +986,7 @@
         <item quantity="other">Continue to %s and allow these numbers</item>
     </plurals>
 
+    <string name="setup_welcome_about">About, privacy and terms</string>
     <string name="about_title">About</string>
 
     <!-- Substitutions are for price and currency. Ex: Lifetime upgrade for $1.99 USD -->
@@ -1004,12 +1007,11 @@
     <string name="about_name" translatable="false">Messaging %s</string>
     <string name="about_llama">feed the llamas</string>
     <string name="about_source" translatable="false">wanderthe.dev</string>
-    <string name="about_license" translatable="false">GNU General Public License v3</string>
     <!-- About: the short form of PRIVACY.md, then Terms. Never claim less than the app does. -->
     <string name="about_privacy_heading">Privacy</string>
     <string name="about_privacy_where">Your messages are kept on this phone. Texts and picture messages go through your carrier, as on any phone. If you link Signal, this phone becomes a linked device of your own Signal account: Signal messages and calls are end-to-end encrypted, and Signal\'s servers carry them. Desktop Sync, off until you switch it on, serves your messages from the phone to a browser on your own computer, over your VPN or your Wi-Fi, with no cloud service and no relay in between. Nothing is sent to the app\'s maker.</string>
-    <string name="about_privacy_permissions">Your contacts are read to put names to conversations; their numbers go to Signal\'s lookup only if you agree to Find contacts on Signal. The microphone is used only while you record a voice message or are on a Signal call. GIF search, through Signal\'s proxy, and Check for updates, from GitHub, go online only when you use them.</string>
-    <string name="about_privacy_close">There are no ads, no analytics and no tracking. Backups, chat-history copies and saved attachments go only where you choose to save them.</string>
+    <string name="about_privacy_permissions">Your contacts are read to put names to conversations; their numbers go to Signal\'s lookup only if you agree to Find contacts on Signal. The microphone is used only while you record a voice message or are on a Signal call. GIF search, through Signal\'s proxy, and Check for updates, from GitHub, go online only when you use them. Check for updates downloads a newer build of this app and hands it to Android\'s installer; it never runs by itself and nothing installs unless you agree.</string>
+    <string name="about_privacy_close">There are no ads, no analytics and no tracking. Backups, chat-history copies and saved attachments go only where you choose to save them. A debug log, off until you press and hold the version line in About, writes what the app does, including message text, to a file in the app\'s own storage; it leaves the phone only if you copy it out.</string>
     <string name="about_terms_heading">Terms</string>
     <string name="about_terms">This app is free software under the GNU Affero General Public License v3 or later. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
     <string name="about_licences">Licences</string>

@@ -62,6 +62,8 @@ object MessageLinks {
             }
         }
 
+        if (mode == Preferences.MESSAGE_LINK_HANDLING_ALLOW) WebLinks.guard(span)
+
         // linksClickable false in Ask mode so the framework does not open a URLSpan behind the
         // dialog's back; the ClickableSpans above still fire.
         view.linksClickable = mode != Preferences.MESSAGE_LINK_HANDLING_ASK

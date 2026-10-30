@@ -231,11 +231,7 @@
         <receiver android:name=".receiver.MessageMarkReceiver" />
         <receiver
             android:name=".receiver.SpeakThreadsReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name=".action.ACTION_SPEAK_MESSAGES" />
-            </intent-filter>
-        </receiver>
+            android:exported="false" />
         <receiver android:name=".receiver.RemoteMessagingReceiver" />
         <receiver android:name=".receiver.NightModeReceiver" />
         <receiver

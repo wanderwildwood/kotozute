@@ -159,7 +159,10 @@ class SetupActivity : QkThemedActivity() {
         )
         when (page) {
             Page.WELCOME -> ask(R.string.setup_welcome_heading, R.string.setup_welcome_body,
-                choice(R.string.setup_welcome_start, primary = true) { next() })
+                choice(R.string.setup_welcome_start, primary = true) { next() },
+                choice(R.string.setup_welcome_about) {
+                    com.wanderwildwood.kotozute.feature.settings.about.AboutDialog(this) { }.show()
+                })
 
             Page.TEXTING -> ask(R.string.setup_texting_heading, R.string.setup_texting_body,
                 choice(R.string.setup_texting_make, primary = true) { navigator.showDefaultSmsDialog(this) })

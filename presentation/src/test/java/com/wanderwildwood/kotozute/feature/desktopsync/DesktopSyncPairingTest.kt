@@ -119,4 +119,31 @@ class DesktopSyncPairingTest {
         assertNull(DesktopSyncPairing.current())
         assertFalse(DesktopSyncPairing.redeem(code))
     }
+
+    @Test
+    fun `the countdown reads minutes and seconds`() {
+        assertEquals("3:00", DesktopSyncPairing.countdown(DesktopSyncPairing.LIFETIME_MS))
+        assertEquals("2:41", DesktopSyncPairing.countdown(161_000))
+        assertEquals("0:01", DesktopSyncPairing.countdown(1))
+        assertEquals("0:00", DesktopSyncPairing.countdown(0))
+        assertEquals("0:00", DesktopSyncPairing.countdown(-5))
+    }
+
+    @Test
+    fun `five wrong tries lock the dialog out until a code is asked for again`() {
+        DesktopSyncPairing.issue()
+        assertFalse(DesktopSyncPairing.lockedOut())
+        repeat(DesktopSyncPairing.MAX_ATTEMPTS) { DesktopSyncPairing.redeem("not it") }
+        assertNull(DesktopSyncPairing.current())
+        assertTrue(DesktopSyncPairing.lockedOut())
+        DesktopSyncPairing.issue()
+        assertFalse(DesktopSyncPairing.lockedOut())
+    }
+
+    @Test
+    fun `a spent or expired code is not a lockout`() {
+        val code = DesktopSyncPairing.issue()
+        assertTrue(DesktopSyncPairing.redeem(code))
+        assertFalse(DesktopSyncPairing.lockedOut())
+    }
 }

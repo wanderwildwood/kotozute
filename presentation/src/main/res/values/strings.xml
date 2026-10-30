@@ -1011,7 +1011,7 @@
     <string name="about_privacy_permissions">Your contacts are read to put names to conversations; their numbers go to Signal\'s lookup only if you agree to Find contacts on Signal. The microphone is used only while you record a voice message or are on a Signal call. GIF search, through Signal\'s proxy, and Check for updates, from GitHub, go online only when you use them.</string>
     <string name="about_privacy_close">There are no ads, no analytics and no tracking. Backups, chat-history copies and saved attachments go only where you choose to save them.</string>
     <string name="about_terms_heading">Terms</string>
-    <string name="about_terms">This app is free software under the GNU General Public License v3. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
+    <string name="about_terms">This app is free software under the GNU Affero General Public License v3 or later. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
     <string name="about_licences">Licences</string>
     <string name="licences_source">Source code</string>
     <string name="licences_licence">Licence</string>

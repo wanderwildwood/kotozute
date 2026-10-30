@@ -109,6 +109,21 @@ object DesktopSyncPairing {
         }
     }
 
+    /** What a dialog shows: the code and the milliseconds it has left. */
+    data class Shown(val code: String, val leftMs: Long)
+
+    /**
+     * The code to show now. One that has run out or been used is replaced by a new one, so a
+     * dialog left open never shows a dead code; only one code is valid at a time. After too many
+     * wrong tries there is none (null) until [issue] is asked for by hand.
+     */
+    @Synchronized
+    fun show(): Shown? {
+        if (burned) return null
+        val code = current() ?: issue()
+        return Shown(code, remainingMs())
+    }
+
     /** True when the last code was burned by wrong tries: no new one appears by itself. */
     @Synchronized
     fun lockedOut(): Boolean = burned

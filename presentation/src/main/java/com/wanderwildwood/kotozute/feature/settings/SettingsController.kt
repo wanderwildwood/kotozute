@@ -1031,8 +1031,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         val tick = object : Runnable {
             override fun run() {
                 if (!dialog.isShowing) return
-                var current = pairing.current()
-                if (current == null && !pairing.lockedOut()) current = pairing.issue()
+                val current = pairing.show()?.code
                 if (current != null || shown != null) {
                     shown = current
                     dialog.findViewById<android.widget.TextView>(android.R.id.message)?.text = render(current)

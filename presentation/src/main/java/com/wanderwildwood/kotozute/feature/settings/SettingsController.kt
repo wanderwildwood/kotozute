@@ -978,18 +978,33 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // both Wi-Fi and a VPN up there is more than one right answer and no way from
         // here to know which the computer can see. Showing one and hiding the rest is what
         // made a wrong address so hard to diagnose: the page just never loaded.
-        val message = buildString {
+        // The code is replaced by a fresh one when it runs out or is used while this dialog is
+        // open, with the time left counting down once a second; five wrong tries end it for
+        // good until the dialog is opened again. The ticking only runs while the dialog shows.
+        fun render(code: String?): String = buildString {
             append(activity!!.getString(R.string.settings_desktop_sync_code_intro)).append("\n\n")
             hosts.forEach { (label, url) -> append(label).append('\n').append(url).append("\n\n") }
-            append(activity!!.getString(
-                R.string.settings_desktop_sync_code,
-                code.substring(0, 3) + " " + code.substring(3)
-            ))
+            if (code != null) {
+                append(activity!!.getString(
+                    R.string.settings_desktop_sync_code,
+                    code.substring(0, 3) + " " + code.substring(3)
+                ))
+                append("\n")
+                append(activity!!.getString(
+                    R.string.settings_desktop_sync_code_left,
+                    com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncPairing.countdown(
+                        com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncPairing.remainingMs()
+                    )
+                ))
+            } else {
+                append(activity!!.getString(R.string.settings_desktop_sync_code_locked))
+            }
             append("\n\n")
             append(activity!!.getString(R.string.settings_desktop_sync_link_full)).append("\n\n")
             urls.forEach { (label, url) -> append(label).append('\n').append(url).append("\n\n") }
             append(activity!!.getString(R.string.settings_desktop_sync_link_bookmark))
         }
+        val message = render(code)
         val builder = activity!!.einkDialog()
                 .setTitle(R.string.settings_desktop_sync_link_title)
                 .setMessage(message)
@@ -1009,6 +1024,24 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         val dialog = builder.show()
         // Selectable as well as copyable, so part of it can be taken if that is what is wanted.
         dialog.findViewById<android.widget.TextView>(android.R.id.message)?.setTextIsSelectable(true)
+
+        val pairing = com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncPairing
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        var shown: String? = code
+        val tick = object : Runnable {
+            override fun run() {
+                if (!dialog.isShowing) return
+                var current = pairing.current()
+                if (current == null && !pairing.lockedOut()) current = pairing.issue()
+                if (current != null || shown != null) {
+                    shown = current
+                    dialog.findViewById<android.widget.TextView>(android.R.id.message)?.text = render(current)
+                }
+                handler.postDelayed(this, 1000)
+            }
+        }
+        handler.postDelayed(tick, 1000)
+        dialog.setOnDismissListener { handler.removeCallbacks(tick) }
     }
 
     /**

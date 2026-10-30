@@ -28,6 +28,7 @@ object DesktopSyncPairing {
     private var digits: String? = null
     private var expiresAt: Long = 0
     private var attemptsLeft: Int = 0
+    private var burned = false
 
     /**
      * Swappable so the tests can hold time still.
@@ -53,6 +54,7 @@ object DesktopSyncPairing {
         digits = code
         expiresAt = now() + LIFETIME_MS
         attemptsLeft = MAX_ATTEMPTS
+        burned = false
         return code
     }
 
@@ -101,7 +103,20 @@ object DesktopSyncPairing {
 
     private fun spendAttempt() {
         attemptsLeft -= 1
-        if (attemptsLeft <= 0) clear()
+        if (attemptsLeft <= 0) {
+            clear()
+            burned = true
+        }
+    }
+
+    /** True when the last code was burned by wrong tries: no new one appears by itself. */
+    @Synchronized
+    fun lockedOut(): Boolean = burned
+
+    /** "2:41" for 161_000 ms; rounds up, so the last second reads 0:01, never 0:00 while live. */
+    fun countdown(ms: Long): String {
+        val seconds = ((ms.coerceAtLeast(0) + 999) / 1000).toInt()
+        return "%d:%02d".format(seconds / 60, seconds % 60)
     }
 
     @Synchronized

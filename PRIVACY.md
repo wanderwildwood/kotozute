@@ -36,7 +36,7 @@ Five things leave the app's storage only when you ask:
 - **Save**, on a picture, video or file in a conversation, writes a copy where you choose, through Android's own save screen.
 - **Write a copy out** (Settings, Signal, Chat history) writes your Signal messages to a folder you pick, encrypted. Import reads a Signal Desktop export or such a copy from a folder you pick.
 - **Desktop Sync**, below.
-- **A crash record.** If the app closes itself unexpectedly, it writes what went wrong to a file in its own private storage, so that you can read it in Settings, clear it there, or choose to send it: the screen shows you the whole text first. Nothing is sent unless you do. A crash record can contain the text of a message, because the failure may have happened while handling one. Separately, **Settings, Logging** is off by default; when you turn it on it writes a log to a place you choose.
+- **A crash record.** If the app closes itself unexpectedly, it writes what went wrong to a file in its own private storage, so that you can read it in Settings, clear it there, or choose to send it: the screen shows you the whole text first. Nothing is sent unless you do. A crash record can contain the text of a message, because the failure may have happened while handling one. Separately, a **debug log** is off by default; you turn it on by pressing and holding the version line in About. It records what the app does, **including the text of messages**, in a file in the app's own storage (`Android/data/com.wanderwildwood.kotozute/files/`, not the Downloads folder). It is never sent anywhere; it leaves the phone only if you copy it out yourself, and you turn it off the same way.
 
 ## Permissions, and what each is for
 

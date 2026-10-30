@@ -28,6 +28,26 @@ object WebLinks {
     /** Test shells, not browsers. */
     private val SHELLS = setOf("org.chromium.webview_shell", "com.android.webview.shell")
 
+    /**
+     * Swaps every web-address span in [span] for one that opens through [open], so a tapped link in
+     * "Allow" mode cannot reach the WebView shell through the framework's own URLSpan.
+     */
+    fun guard(span: android.text.SpannableStringBuilder) {
+        for (urlSpan in span.getSpans(0, span.length, android.text.style.URLSpan::class.java)) {
+            val scheme = Uri.parse(urlSpan.url).scheme?.lowercase()
+            if (scheme != "http" && scheme != "https") continue
+            val start = span.getSpanStart(urlSpan)
+            val end = span.getSpanEnd(urlSpan)
+            val flags = span.getSpanFlags(urlSpan)
+            span.removeSpan(urlSpan)
+            span.setSpan(object : android.text.style.ClickableSpan() {
+                override fun onClick(widget: android.view.View) {
+                    open(widget.context, Uri.parse(urlSpan.url))
+                }
+            }, start, end, flags)
+        }
+    }
+
     /** True when something was opened. */
     fun open(context: Context, uri: Uri): Boolean {
         val intent = Intent(Intent.ACTION_VIEW, uri)

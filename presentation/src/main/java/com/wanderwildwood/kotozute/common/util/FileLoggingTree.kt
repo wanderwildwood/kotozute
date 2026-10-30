@@ -19,13 +19,10 @@
 package com.wanderwildwood.kotozute.common.util
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
-import com.wanderwildwood.kotozute.util.FileUtils
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.schedulers.Schedulers
 import timber.log.Timber
-import java.io.FileNotFoundException
 import java.text.SimpleDateFormat
 import java.util.Locale
 import javax.inject.Inject
@@ -42,8 +39,6 @@ class FileLoggingTree @Inject constructor(
     companion object {
         val TAG: String? = FileLoggingTree::class.simpleName
     }
-
-    private var logFileUri: Uri? = null
 
     override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
         if (!prefs.logging.get()) return
@@ -73,33 +68,16 @@ class FileLoggingTree @Inject constructor(
                         Log.getStackTraceString(t)
                     }\n"
 
-                // if uri of log file not yet determined, get one now
-                if (logFileUri == null) {
-                    val filename = "Quik-log-${
-                        SimpleDateFormat(
-                            "yyyy-MM-dd",
-                            Locale.getDefault()
-                        ).format(System.currentTimeMillis())
-                    }.log"
-
-                    val (uri, e) = FileUtils.create(
-                        FileUtils.Location.Downloads,
-                        context,
-                        filename,
-                        "text/plain"
-                    )
-                    if (e is Exception)
-                        Log.e(TAG, "Error opening log file", e)
-                    else
-                        logFileUri = uri
-                }
-
-                logFileUri?.let {
-                    val e = FileUtils.append(context, it, logItem.toByteArray())
-                    if (e is FileNotFoundException)
-                        Log.e(TAG, "Log file went away. Lost log file item: $logItem", e)
-                    else if (e is Exception)
-                        Log.e(TAG, "Error while logging into file", e)
+                // The log stays in the app's own storage, not in the public Downloads folder:
+                // it holds message text, so nothing else on the phone may read it.
+                val filename = "Quik-log-${
+                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(System.currentTimeMillis())
+                }.log"
+                try {
+                    val dir = context.getExternalFilesDir(null) ?: context.filesDir
+                    java.io.File(dir, filename).appendBytes(logItem.toByteArray())
+                } catch (e: java.io.IOException) {
+                    Log.e(TAG, "Error while logging into file", e)
                 }
             }
         }

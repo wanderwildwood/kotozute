@@ -516,6 +516,10 @@ class MessagesAdapter @Inject constructor(
                     }
                 }
             }
+            Preferences.MESSAGE_LINK_HANDLING_ALLOW -> {
+                Linkify.addLinks(span, Linkify.WEB_URLS or Linkify.EMAIL_ADDRESSES or Linkify.PHONE_NUMBERS)
+                com.wanderwildwood.kotozute.common.util.WebLinks.guard(span)
+            }
         }
 
         return RenderedBody(span, displayText.isEmojiOnly(), truncated)

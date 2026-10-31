@@ -261,9 +261,6 @@
     <string name="settings_notification_silent_title">Silent if not a contact</string>
     <string name="settings_notification_silent_summary">Silences notifications for messages without recipients in your contacts</string>
     <string name="settings_vibration_title">Vibration</string>
-    <string name="sound_chooser_silent">Silent</string>
-    <string name="sound_chooser_default">Default</string>
-    <string name="sound_chooser_done">Done</string>
     <string name="settings_ringtone_title">Sound</string>
     <string name="settings_ringtone_none">None</string>
     <string name="settings_qkreply_title">Quick reply</string>

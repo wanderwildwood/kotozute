@@ -124,25 +124,14 @@ class NotificationPrefsActivity : QkThemedActivity(), NotificationPrefsView {
     override fun showPreviewModeDialog() = previewModeDialog.show(this)
 
     override fun showRingtonePicker(default: Uri?) {
-        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
-        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
-        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, default)
-        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
-        startActivityForResult(intent, 123)
+        SoundChooser.show(this, RingtoneManager.TYPE_NOTIFICATION, getString(R.string.settings_ringtone_title), default) { uri ->
+            ringtoneSelectedIntent.onNext(uri?.toString() ?: "")
+        }
     }
 
     override fun showActionDialog(selected: Int) {
         actionsDialog.adapter.selectedItem = selected
         actionsDialog.show(this)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 123 && resultCode == Activity.RESULT_OK) {
-            val uri: Uri? = data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            ringtoneSelectedIntent.onNext(uri?.toString() ?: "")
-        }
     }
 
 }

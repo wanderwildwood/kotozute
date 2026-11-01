@@ -356,6 +356,8 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalProfileName -> view.askSignalProfileName()
 
+                        R.id.signalDevices -> view.showSignalDevices()
+
                         R.id.signalAccount -> {
                             Thread {
                                 val account = runCatching { signalRepo.account() }.getOrNull()

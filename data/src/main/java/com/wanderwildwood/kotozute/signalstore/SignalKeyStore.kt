@@ -170,6 +170,9 @@ internal class SignalKeyStore(private val db: ProtocolDatabase) {
         org.signal.libsignal.messagebackup.MessageBackupKey(pool, account).aesKey
     }.onFailure { Timber.w(it, "signal keys: the backup key would not derive") }.getOrNull()
 
+    /** The account entropy pool, or null while it is not held. Needed to hand a new device its keys. */
+    fun entropyPool(): String? = runCatching { pool() }.getOrNull()
+
     private fun pool(): String? = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             "SELECT entropy_pool FROM account_keys WHERE _id = 1", null

@@ -319,6 +319,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // Primary only: a linked device inherits the primary's profile and must not write
         // over it. See [SettingsState.signalIsPrimary].
         binding.signalProfileName.setVisible(state.signalIsPrimary)
+        binding.signalDevices.setVisible(state.signalIsPrimary)
 
         binding.signalEnabled.setVisible(state.signalPaired)
         binding.signalEnabled.checkbox.isChecked = state.signalEnabled
@@ -1065,6 +1066,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun showSignalLink() {
         activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity.intent(it)) }
+    }
+
+    override fun showSignalDevices() {
+        activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalDevicesActivity.intent(it)) }
     }
 
     override fun showSignalRegister() {

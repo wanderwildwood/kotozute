@@ -263,6 +263,15 @@ interface SignalRepository {
      */
     fun isPrimaryDevice(): Boolean
 
+    /** The other devices on this account, or null when the list could not be read. Primary only. */
+    suspend fun linkedDevices(): List<SignalDevice>?
+
+    /** Adds a device (Signal Desktop, say) from the `sgnl://linkdevice` text its QR code holds. Primary only. */
+    suspend fun addLinkedDevice(link: String): AddDeviceResult
+
+    /** Unlinks one of the other devices. False when it could not be done. Primary only. */
+    suspend fun removeLinkedDevice(deviceId: Int): Boolean
+
     /**
      * Recomputes and republishes the connection state.
      *
@@ -1097,3 +1106,6 @@ data class SignalIdentity(val safetyNumber: String, val trustLevel: String) {
     val changed: Boolean get() = trustLevel == "UNTRUSTED"
     val verified: Boolean get() = trustLevel == "TRUSTED_VERIFIED"
 }
+
+/** How adding another device to this account ended. */
+enum class AddDeviceResult { Linked, BadCode, LimitReached, NotPrimary, Failed }

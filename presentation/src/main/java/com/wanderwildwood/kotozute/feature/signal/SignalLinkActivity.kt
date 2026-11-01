@@ -74,6 +74,15 @@ class SignalLinkActivity : QkThemedActivity() {
         binding.status.setText(R.string.signal_link_waiting)
         SignalLinkOffer.offer(url)
         showComputerRoute()
+        // The phone that already runs Signal cannot scan a code it is showing. Signal opens
+        // its own link-device links, so hand it this one directly instead of a screenshot.
+        val open = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+        val handled = packageManager.resolveActivity(open, 0) != null
+        binding.openInSignal.visibility = if (handled) android.view.View.VISIBLE else android.view.View.GONE
+        binding.openInSignal.setOnClickListener {
+            runCatching { startActivity(open) }
+        }
     }
 
     /**

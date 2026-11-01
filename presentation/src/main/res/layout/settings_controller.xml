@@ -422,6 +422,14 @@
                 app:summary="@string/settings_signal_account_summary"
                 app:title="@string/settings_signal_account_title" />
 
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalDevices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_devices_summary"
+                app:title="@string/settings_signal_devices_title" />
+
             <!--
                 Only a phone that REGISTERED its own account has anything to do here. A linked
                 device inherits the primary's profile and must not write over it.

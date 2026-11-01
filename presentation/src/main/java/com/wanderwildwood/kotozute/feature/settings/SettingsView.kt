@@ -108,6 +108,9 @@ interface SettingsView : QkViewContract<SettingsState> {
 
     fun showSignalRegister()
 
+    /** The linked-devices screen. Primary only. */
+    fun showSignalDevices()
+
 
     /** Ask for this account's own profile name. Primary only; see [SettingsState.signalIsPrimary]. */
     fun askSignalProfileName()

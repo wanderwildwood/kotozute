@@ -145,6 +145,7 @@
             android:taskAffinity=".signalcall"
             android:turnScreenOn="true" />
         <activity android:name=".feature.signal.SignalRegisterActivity" />
+        <activity android:name=".feature.signal.SignalDevicesActivity" />
         <activity android:name=".feature.signal.SignalThreadActivity" />
         <activity android:name=".feature.signal.SignalThreadInfoActivity" />
         <activity android:name=".feature.signal.ViewOnceActivity" android:theme="@style/AppLaunchTheme" />
@@ -352,6 +353,12 @@
     </application>
 
     <queries>
+        <!-- Signal's own app, so Link can hand it the code on a phone that already has it. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="sgnl" android:host="linkdevice" />
+        </intent>
         <!-- DuraSpeed, so its absence can be told from its presence (KompaktOS has none). -->
         <package android:name="com.mediatek.duraspeed" />
         <!-- Whereabouts, for "Send where I am": one location, asked of it once. -->

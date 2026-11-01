@@ -1405,6 +1405,30 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun linkedDevices(): List<SignalDevice>? =
+        if (!isPrimaryDevice()) null
+        else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { signalStore.devices() }.getOrNull()?.filter { !it.isPrimary }
+        }
+
+    override suspend fun addLinkedDevice(link: String): AddDeviceResult =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val outcome = runCatching { signalStore.desktopLinker().add(link) }
+                .getOrElse { com.wanderwildwood.kotozute.signalstore.DesktopLinker.Outcome.Failed("exception") }
+            when (outcome) {
+                is com.wanderwildwood.kotozute.signalstore.DesktopLinker.Outcome.Linked -> AddDeviceResult.Linked
+                is com.wanderwildwood.kotozute.signalstore.DesktopLinker.Outcome.BadCode -> AddDeviceResult.BadCode
+                is com.wanderwildwood.kotozute.signalstore.DesktopLinker.Outcome.LimitReached -> AddDeviceResult.LimitReached
+                is com.wanderwildwood.kotozute.signalstore.DesktopLinker.Outcome.NotPrimary -> AddDeviceResult.NotPrimary
+                is com.wanderwildwood.kotozute.signalstore.DesktopLinker.Outcome.Failed -> AddDeviceResult.Failed
+            }
+        }
+
+    override suspend fun removeLinkedDevice(deviceId: Int): Boolean =
+        isPrimaryDevice() && kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { signalStore.desktopLinker().remove(deviceId) }.getOrDefault(false)
+        }
+
     override fun isPrimaryDevice(): Boolean = runCatching {
         signalStore.isLinked() &&
             signalStore.account.credentials().deviceId ==
@@ -2191,8 +2215,11 @@ class SignalRepositoryImpl @Inject constructor(
                 messages.forEach { if (store(r, it)) fresh.add(it) }
             }
         }
+        // A read sync that came in the same batch, before these rows existed, is applied now
+        // and its messages are not announced: they were read on another device already.
+        val readAlready = readSyncs.filed(fresh.filter { !it.outgoing }.map { it.id })
         flushUnarchivedByArrival()
-        announce(fresh)
+        announce(if (readAlready.isEmpty()) fresh else fresh.filter { it.id !in readAlready })
         // A contacts sync can have landed in the same batch as the messages it names.
         renameThreadsFromContacts()
         // Cosmetic and self-healing: a group whose name did not land shows its identifier
@@ -4195,7 +4222,22 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private fun applyReadElsewhere(read: List<Pair<String, Long>>, readAt: Long) = runOffThread {
         if (read.isEmpty()) return@runOffThread
-        val ids = read.map { (sender, at) -> "$sender:$at" }
+        // Through the ledger: a sync for a message that is not filed yet (same batch) is kept
+        // and applied by [ingest]. See [ReadSyncLedger].
+        readSyncs.applied(read.map { (sender, at) -> "$sender:$at" }, readAt)
+    }
+
+    /** Held until the message arrives; the rows are marked by [markReadRows]. */
+    private val readSyncs = com.wanderwildwood.kotozute.signalstore.ReadSyncLedger(
+        object : com.wanderwildwood.kotozute.signalstore.ReadSyncLedger.Rows {
+            override fun markRead(ids: Collection<String>, readAt: Long): Set<String> =
+                markReadRows(ids.toList(), readAt)
+        }
+    )
+
+    /** Marks the rows read; returns the ids that exist on file (read now or before). */
+    private fun markReadRows(ids: List<String>, readAt: Long): Set<String> {
+        val present = mutableSetOf<String>()
         // ⚠ Not `System.currentTimeMillis()`, which is what this used. A disappearing
         // message's clock starts when somebody reads it, and when the reading happened on
         // another device the only honest answer is the timestamp that device sent -- which is
@@ -4212,6 +4254,7 @@ class SignalRepositoryImpl @Inject constructor(
             realm.executeTransaction { r ->
                 ids.forEach { id ->
                     val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
+                    if (row != null) present += id
                     if (row != null && !row.read) {
                         row.read = true
                         // Read elsewhere is still read, so the clock starts here too --
@@ -4249,6 +4292,7 @@ class SignalRepositoryImpl @Inject constructor(
             // cancelled here: notifications belong to the presentation layer.
             cleared.forEach { readElsewhere.onNext(it) }
         }
+        return present
     }
 
     /**

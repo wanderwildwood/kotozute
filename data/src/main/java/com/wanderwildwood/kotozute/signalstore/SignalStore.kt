@@ -2586,6 +2586,8 @@ class SignalStore(private val context: Context) {
      * along with the trust store it reads off the classpath; that is a move on its own, not
      * something to fold into a linking change.
      */
+    internal fun desktopLinker(): DesktopLinker = DesktopLinker(context, connection, account, keys)
+
     fun linker(onReadReceipts: (Boolean) -> Unit = {}): DeviceLinker = DeviceLinker(
         SignalNetworkConfig.configuration(),
         SignalNetworkConfig.USER_AGENT,

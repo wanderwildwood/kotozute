@@ -62,6 +62,16 @@
         android:contentDescription="@string/signal_link_title"
         android:scaleType="fitCenter" />
 
+    <!-- Only when an app that opens Signal link codes is on this phone. -->
+    <Button
+        android:id="@+id/openInSignal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:text="@string/signal_link_open_in_signal"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/status"
         android:layout_width="match_parent"

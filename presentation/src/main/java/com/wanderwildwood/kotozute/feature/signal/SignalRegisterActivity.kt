@@ -43,9 +43,12 @@ class SignalRegisterActivity : QkThemedActivity() {
     /**
      * Carried rather than kept in the repository, so abandoning leaves nothing behind.
      *
-     * In memory only, which means it does **not** survive the activity being destroyed: a
-     * rebuilt screen starts a new session and a new captcha. That is the honest limit of this
-     * -- an earlier version of this comment claimed the opposite.
+     * Also written to a private file by [remember] (see [RegisterProgress]) and read back by [restore], for
+     * [RegisterProgress.WINDOW_MS] at most. Leaving for the text message that holds the code is the
+     * whole of this flow when this app is the default messaging app, and the screen must be
+     * where it was left when that person comes back -- whether the activity survived or was
+     * rebuilt, or was backed out of and opened again from the menu. Cleared as soon as the
+     * account exists or the attempt is refused, so nothing is left sitting on disk.
      */
     private var sessionId: String? = null
     private var number: String = ""
@@ -97,6 +100,47 @@ class SignalRegisterActivity : QkThemedActivity() {
         binding.saveName.setOnClickListener { saveName() }
 
         showStagingSwitchIfDebug()
+        restore()
+    }
+
+    private val progress by lazy {
+        val prefs = getSharedPreferences(PROGRESS_FILE, Context.MODE_PRIVATE)
+        RegisterProgress(object : RegisterProgress.Store {
+            override fun read(): Map<String, String> =
+                prefs.all.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap()
+
+            // commit(), not apply(): the screen is about to be left for the messaging app and
+            // the process may be killed there before an asynchronous write lands.
+            override fun write(values: Map<String, String>) {
+                val e = prefs.edit().clear()
+                values.forEach { (k, v) -> e.putString(k, v) }
+                e.commit()
+            }
+        })
+    }
+
+    private fun remember() {
+        val id = sessionId ?: return
+        progress.codeSent(id, number, askedForACall)
+    }
+
+    private fun forget() = progress.forget()
+
+    /**
+     * Puts the code step back if this screen was left a moment ago. Works whether the activity
+     * was rebuilt or the process was killed, because the state is read from the private store
+     * and not from the instance. The code field itself is never saved.
+     */
+    private fun restore() {
+        val saved = progress.resume() ?: return
+        sessionId = saved.sessionId
+        number = saved.number
+        askedForACall = saved.askedForACall
+        binding.number.setText(number)
+        binding.warning.setVisible(false)
+        binding.numberStep.setVisible(false)
+        binding.codeStep.setVisible(true)
+        binding.status.setText(R.string.signal_register_code_sent)
     }
 
     /**
@@ -208,6 +252,7 @@ class SignalRegisterActivity : QkThemedActivity() {
                 if (askedForACall) R.string.signal_register_calling
                 else R.string.signal_register_code_sent
             )
+            remember()
         }
 
         is SignalRepository.Registration.NeedsPin -> {
@@ -225,6 +270,8 @@ class SignalRegisterActivity : QkThemedActivity() {
                 tries == 1 -> getString(R.string.signal_register_pin_wrong_one)
                 else -> getString(R.string.signal_register_pin_wrong, "$tries")
             }
+            // Not kept: the PIN check's credentials are memory-only, so it cannot be resumed.
+            forget()
         }
 
         is SignalRepository.Registration.Registered -> {
@@ -240,6 +287,7 @@ class SignalRegisterActivity : QkThemedActivity() {
             // visit: an account with no profile name is not obviously broken from the inside,
             // only from the outside, where every correspondent sees a bare number.
             binding.nameStep.setVisible(true)
+            forget()
             binding.scroll.post { binding.scroll.scrollTo(0, 0) }
             binding.status.setText(R.string.signal_register_done)
         }
@@ -252,6 +300,7 @@ class SignalRegisterActivity : QkThemedActivity() {
             binding.captcha.setVisible(false)
             binding.warning.setVisible(true)
             binding.numberStep.setVisible(true)
+            forget()
             binding.scroll.post { binding.scroll.scrollTo(0, 0) }
             binding.status.text = getString(
                 R.string.signal_register_failed,
@@ -339,6 +388,8 @@ class SignalRegisterActivity : QkThemedActivity() {
     companion object {
         /** Read by [com.wanderwildwood.kotozute.common.QKApplication] at startup. */
         private const val STAGING_PREF = "signalStaging"
+
+        private const val PROGRESS_FILE = "signal_register_progress"
 
         private const val CAPTCHA_HOST = "signalcaptchas.org"
         private const val CAPTCHA_SCHEME = "signalcaptcha://"

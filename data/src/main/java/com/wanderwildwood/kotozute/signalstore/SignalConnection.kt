@@ -135,6 +135,11 @@ internal class SignalConnection(
 
     val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
 
+    /** Adding, listing and removing other devices on the account: only a primary may. */
+    val linkDevice: org.signal.network.api.LinkDeviceApi by lazy {
+        org.signal.network.api.LinkDeviceApi(authenticated)
+    }
+
     /** The account itself: what this device can do, and what it is. */
     val account: org.whispersystems.signalservice.api.account.AccountApi by lazy {
         org.whispersystems.signalservice.api.account.AccountApi(authenticated)

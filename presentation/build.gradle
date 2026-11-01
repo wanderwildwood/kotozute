@@ -21,6 +21,7 @@ apply plugin: 'base'
 apply plugin: 'realm-android' // Realm needs to be before Kotlin or the build will fail
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 // Signing comes from a real keystore in signing/, which is gitignored and written by the
 // release workflow from repository secrets. There is no fallback: a clone without it builds
@@ -193,6 +194,9 @@ android {
     buildFeatures {
         buildConfig true
         viewBinding true
+        // The main screen's toolbar, its bottom tab bar and the About panel are Compose,
+        // in the MMD house style; everything else is still XML views.
+        compose true
         // Off by default from AGP 9, and this project uses them: the debug build type sets
         // resource values. Silently disabled, they would not fail — they would just stop
         // existing, which is the worse outcome.
@@ -223,6 +227,25 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycle_version"
 
     // androidx
+    //
+    // Compose, for the parts of the main screen that are being moved over. The BOM owns the
+    // versions; MMD is built against the same Compose line and would otherwise drag in a
+    // second one.
+    implementation platform("androidx.compose:compose-bom:2025.01.00")
+    implementation "androidx.compose.foundation:foundation"
+    // Left to the BOM on purpose: it resolves material3 1.3.1, which is what MMD 1.0.2 is
+    // compiled against. Naming an older one would drag MMD below its own API.
+    implementation "androidx.compose.material3:material3"
+    // No icon artifact: the glyphs are the shop's own set, as path data in
+    // common/compose/Icons.kt, the same one jimeikin draws with.
+    implementation "androidx.compose.ui:ui"
+    implementation "androidx.compose.ui:ui-tooling-preview"
+    debugImplementation "androidx.compose.ui:ui-tooling"
+    implementation "androidx.activity:activity-compose:1.9.3"
+    // Mudita Mindful Design, the e-ink component library both house apps draw with. It is
+    // published to ~/.m2 from the MMD checkout (see the top-level build file).
+    implementation "com.mudita:MMD:1.0.2"
+
     implementation "androidx.appcompat:appcompat:$androidx_appcompat_version"
     implementation "androidx.emoji2:emoji2-bundled:$androidx_emoji2_version"
     implementation "androidx.constraintlayout:constraintlayout:$androidx_constraintlayout_version"

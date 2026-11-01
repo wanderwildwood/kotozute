@@ -68,3 +68,6 @@ key.properties
 
 # Local working notes, not for publication.
 AGENTS.md
+
+# Kotlin build session data written by the included wire-handler build.
+.kotlin/

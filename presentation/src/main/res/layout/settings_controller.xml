@@ -63,6 +63,8 @@
                 android:layout_height="wrap_content"
                 app:title="@string/settings_notifications_title" />
 
+            <include layout="@layout/preference_divider" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categoryDisplay"
                 android:layout_width="match_parent"
@@ -92,6 +94,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:title="@string/settings_category_signal" />
+
+            <include layout="@layout/preference_divider" />
 
             <!--
               ~ Last on the root list: it is about the app itself rather than about anything the

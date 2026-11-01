@@ -30,20 +30,23 @@
         android:id="@+id/icon"
         android:layout_width="24dp"
         android:layout_height="24dp"
-        android:layout_marginStart="24dp"
+        android:layout_marginStart="16dp"
         android:duplicateParentState="true"
         android:visibility="gone" />
 
+    <!-- 16dp in from either edge, as every other list in the app and MMD's own lists;
+         minHeight 56dp keeps a row with no summary as easy to hit as one with. -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:duplicateParentState="true"
+        android:minHeight="56dp"
         android:orientation="vertical"
-        android:paddingLeft="24dp"
-        android:paddingTop="16dp"
-        android:paddingRight="24dp"
-        android:paddingBottom="16dp">
+        android:paddingLeft="16dp"
+        android:paddingTop="10dp"
+        android:paddingRight="16dp"
+        android:paddingBottom="10dp">
 
         <com.wanderwildwood.kotozute.common.widget.QkTextView
             android:id="@+id/titleView"

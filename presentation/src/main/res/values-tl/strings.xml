@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Walang nakita</string>
     <string name="archived_empty_text">Ang iyong mga isinantabing pakikipag-usap at makikita rito</string>
     <string name="main_fab_cd">Magsimula ng bagong usapan</string>
-    <string name="main_default_sms_title">Love texting again</string>
     <string name="main_default_sms_message">Gawin ang Messaging bilang iyong default na SMS app</string>
     <string name="main_default_sms_change">Baguhin</string>
     <string name="main_permission_required">Kailangan ang iyong pahintulot</string>

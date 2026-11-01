@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text"> Sonuç Yok</string>
     <string name="archived_empty_text">Arşivlenmiş konuşmalarınız burada görünür</string>
     <string name="main_fab_cd">Yeni konuşma başlat</string>
-    <string name="main_default_sms_title">Yine iletileşmeyi seviyorum</string>
     <string name="main_default_sms_message">Messaging varsayılan SMS uygulaması yap</string>
     <string name="main_default_sms_change">Değiştir</string>
     <string name="main_permission_required">İzin gerekli</string>

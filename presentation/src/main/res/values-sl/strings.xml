@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Ni rezultatov</string>
     <string name="archived_empty_text">Vaši arhivirani pogovori se bodo pojavili tukaj</string>
     <string name="main_fab_cd">Začni nov pogovor</string>
-    <string name="main_default_sms_title">Znova vzljubite sporočanje</string>
     <string name="main_default_sms_message">Napravi Messaging privzet program za sporočanje</string>
     <string name="main_default_sms_change">Spremeni</string>
     <string name="main_permission_required">Potrebno dovoljenje</string>

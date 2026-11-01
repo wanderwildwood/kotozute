@@ -54,7 +54,6 @@
     <string name="inbox_search_empty_text">Brak wyników</string>
     <string name="archived_empty_text">Miejsce dla twoich zarchiwizowanych rozmów</string>
     <string name="main_fab_cd">Rozpocznij nową rozmowę</string>
-    <string name="main_default_sms_title">Pokochaj SMSowanie na nowo</string>
     <string name="main_default_sms_message">Ustaw Messaging jako domyślną aplikację do SMSów i MMSów</string>
     <string name="main_default_sms_change">Zmień</string>
     <string name="main_permission_required">Wymagane uprawnienie</string>

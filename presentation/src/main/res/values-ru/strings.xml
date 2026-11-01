@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Нет результатов</string>
     <string name="archived_empty_text">Архивированные беседы будут появляться здесь</string>
     <string name="main_fab_cd">Начать новую беседу</string>
-    <string name="main_default_sms_title">Снова полюбите писать</string>
     <string name="main_default_sms_message">Сделать Messaging приложением SMS по умолчанию</string>
     <string name="main_default_sms_change">Изменить</string>
     <string name="main_permission_required">Требуется разрешение</string>

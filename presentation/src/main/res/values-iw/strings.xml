@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">אין תוצאות</string>
     <string name="archived_empty_text">ההתכתבויות שהעברת לארכיון תופענה כאן</string>
     <string name="main_fab_cd">התחלת התכתבות חדשה</string>
-    <string name="main_default_sms_title">להתאהב מחדש בכתיבת הודעות</string>
     <string name="main_default_sms_message">הגדרת Messaging כיישומון בררת מחדל למסרונים</string>
     <string name="main_default_sms_change">החלף</string>
     <string name="main_permission_required">נדרשת הרשאה</string>

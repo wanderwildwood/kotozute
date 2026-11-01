@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Результатів немає</string>
     <string name="archived_empty_text">Ваші архівовані бесіди з\'являтимуться тут</string>
     <string name="main_fab_cd">Почати нову бесіду</string>
-    <string name="main_default_sms_title">Ви знову полюбите писати</string>
     <string name="main_default_sms_message">Зробити Messaging початковою програмою для SMS</string>
     <string name="main_default_sms_change">Встановити</string>
     <string name="main_permission_required">Вимагається дозвіл</string>

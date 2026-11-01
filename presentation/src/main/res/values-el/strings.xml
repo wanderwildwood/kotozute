@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Δεν υπάρχουν αποτελέσματα</string>
     <string name="archived_empty_text">Οι αρχειοθετημένες συζητήσεις σας θα εμφανίζονται εδώ</string>
     <string name="main_fab_cd">Έναρξη νέας συνομιλίας</string>
-    <string name="main_default_sms_title">Αγαπήστε και πάλι τα SMS</string>
     <string name="main_default_sms_message">Ορίστε το Messaging ως προκαθορισμένη εφαρμογή SMS</string>
     <string name="main_default_sms_change">Αλλαγή</string>
     <string name="main_permission_required">Απαιτείται άδεια</string>

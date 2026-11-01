@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">முடிவுகள் இல்லை</string>
     <string name="archived_empty_text">உம் காப்பகப்படுத்திய உரையாடல்கள் இங்கு தோன்றும்</string>
     <string name="main_fab_cd">புதிய உரையாடலைத் தொடங்கு</string>
-    <string name="main_default_sms_title">Love texting again</string>
     <string name="main_default_sms_message">Messaging-ஐ உம் இயல்புநிலை குறுஞ்செய்தி செயலியாக்கு</string>
     <string name="main_default_sms_change">மாற்று</string>
     <string name="main_permission_required">அனுமதி தேவை</string>

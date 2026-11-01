@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Tidak ada hasil</string>
     <string name="archived_empty_text">Arsip percakapan anda akan ditampilkan di sini</string>
     <string name="main_fab_cd">Mulai percakapan baru</string>
-    <string name="main_default_sms_title">Love texting again</string>
     <string name="main_default_sms_message">Tetapkan Messaging sebagai aplikasi SMS default anda</string>
     <string name="main_default_sms_change">Ubah</string>
     <string name="main_permission_required">Membutuhkan izin</string>

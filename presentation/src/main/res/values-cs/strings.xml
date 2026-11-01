@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Žádné výsledky</string>
     <string name="archived_empty_text">Zde se objeví vaše archivované konverzace</string>
     <string name="main_fab_cd">Zahájit novou konverzaci</string>
-    <string name="main_default_sms_title">Zamilujte si znovu psaní</string>
     <string name="main_default_sms_message">Nastavte si Messaging jako výchozí SMS aplikaci</string>
     <string name="main_default_sms_change">Nastavit</string>
     <string name="main_permission_required">Vyžadováno oprávnění</string>

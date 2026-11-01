@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">لا نتائج</string>
     <string name="archived_empty_text">ستظهر المحادثات المؤرشفة الخاصة بك هنا</string>
     <string name="main_fab_cd">بدء محادثة جديدة</string>
-    <string name="main_default_sms_title">ستحب المراسلة ثانية</string>
     <string name="main_default_sms_message">جعل Messaging تطبيق الرسائل النصية الافتراضي لديك</string>
     <string name="main_default_sms_change">تغيير</string>
     <string name="main_permission_required">الإذن مطلوب</string>

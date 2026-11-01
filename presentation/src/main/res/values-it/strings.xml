@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Nessun risultato</string>
     <string name="archived_empty_text">Le tue conversazioni vengono archiviate qui</string>
     <string name="main_fab_cd">Inizia nuova conversazione</string>
-    <string name="main_default_sms_title">Adoro scrivere di nuovo SMS</string>
     <string name="main_default_sms_message">Rendi Messaging la tua app di SMS predefinita</string>
     <string name="main_default_sms_change">Modifica</string>
     <string name="main_permission_required">Autorizzazione necessaria</string>

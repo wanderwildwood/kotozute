@@ -54,7 +54,6 @@
     <string name="inbox_search_empty_text">Niciun rezultat</string>
     <string name="archived_empty_text">Conversațiile tale arhivate vor apărea aici</string>
     <string name="main_fab_cd">Începe o conversație nouă</string>
-    <string name="main_default_sms_title">Iubește din nou schimbul de mesaje text</string>
     <string name="main_default_sms_message">Fă Messaging aplicația prestabilită pentru SMS</string>
     <string name="main_default_sms_change">Schimbă</string>
     <string name="main_permission_required">Permisiune necesară</string>

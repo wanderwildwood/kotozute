@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">بی اَبدُم</string>
     <string name="archived_empty_text">بایگانی‌هایتان اینجا نمایش داده می‌شود</string>
     <string name="main_fab_cd">آغاز گفتگوی نو</string>
-    <string name="main_default_sms_title">دوباره دوستدار پیامک‌ شوید</string>
     <string name="main_default_sms_message">Messaging را برنامه پیش‌گزیده‌ی پیامکتان کنید</string>
     <string name="main_default_sms_change">ورتاندن</string>
     <string name="main_permission_required">نیازمند هیشتن</string>

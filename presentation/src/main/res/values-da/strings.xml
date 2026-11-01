@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Ingen resultater</string>
     <string name="archived_empty_text">Dine arkiverede samtaler vil fremgå her</string>
     <string name="main_fab_cd">Start ny samtale</string>
-    <string name="main_default_sms_title">Elsk at SMS\'e igen</string>
     <string name="main_default_sms_message">Gør Messaging til din standard SMS-app</string>
     <string name="main_default_sms_change">Skift</string>
     <string name="main_permission_required">Tilladelse nødvendig</string>

@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">无结果</string>
     <string name="archived_empty_text">存档的对话会出现在这里</string>
     <string name="main_fab_cd">开始新对话</string>
-    <string name="main_default_sms_title">再次爱上发短信</string>
     <string name="main_default_sms_message">将 Messaging 设为默认短信应用</string>
     <string name="main_default_sms_change">更改</string>
     <string name="main_permission_required">需要权限</string>

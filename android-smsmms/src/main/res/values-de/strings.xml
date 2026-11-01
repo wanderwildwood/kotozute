@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- Copyright (C) 2013 Jacob Klinker
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+
+    <string name="message_delivered">Nachricht zugestellt</string>
+    <string name="message_not_delivered">Nachricht nicht zugestellt</string>
+    <string name="error">Fehler</string>
+    <string name="invalid_destination">Ungültige Zieladresse.</string>
+    <string name="service_not_activated">Dienst im Netz nicht aktiviert.</string>
+    <string name="service_message_not_found">Nachricht abgelaufen oder nicht verfügbar.</string>
+    <string name="service_network_problem">Konnte wegen eines Netzwerkproblems nicht gesendet werden.</string>
+    <string name="message_queued">Deine Nachricht kann gerade nicht gesendet werden. Sie wird gesendet, sobald der Dienst verfügbar ist.</string>
+    <string name="download_later">Herunterladen geht gerade nicht. Versuche es später erneut.</string>
+    <string name="no_apn">Für die App ist kein APN angegeben, du musst ihn in den Einstellungen einrichten!</string>
+    <string name="no_subject">(Kein Betreff)</string>
+    <string name="unknown_sender">Unbekannter Absender</string>
+    <string name="dl_failure_notification">Konnte die Nachricht „<xliff:g id="subject">%1$s</xliff:g>“ von <xliff:g id="from">%2$s</xliff:g> nicht herunterladen.</string>
+
+    <string name="auto_select_multiple_apns">Für deinen Anbieter wurden mehrere verschiedene APNs gefunden. Sie werden aufgelistet, nachdem du unten auf die Nachricht tippst. Wenn einer der folgenden bei dir nicht funktioniert, probiere einen anderen — einer davon sollte richtig funktionieren!\n\nDu kommst immer zu dieser APN-Auswahl, indem du in die Einstellungen gehst, die Seite für MMS-Einstellungen öffnest und dort „APNs automatisch auswählen“ wählst.\n\nIn den MMS-Einstellungen kannst du außerdem aus einer Liste voreingestellter APNs wählen, die statt der automatisch gefundenen funktionieren könnten.</string>
+    <string name="ok">OK</string>
+    <string name="auto_select_apn">APNs automatisch auswählen</string>
+    <string name="auto_select_failed">APNs automatisch auswählen ist fehlgeschlagen. Wähle stattdessen deinen Anbieter aus der voreingestellten Liste in den MMS-Einstellungen</string>
+    <string name="write_settings_permission">Seit Android Marshmallow können Multimedia-Messaging-Apps nicht mehr direkt anfordern, Nachrichten über deine mobilen Daten zu senden, was zum Senden von Bildern und Ähnlichem nötig ist.\n\nUm Nachrichten senden zu können, braucht die App die Berechtigung zum Ändern der Systemeinstellungen, die ausdrücklich erteilt werden muss. Ohne sie schlägt das Senden von Multimedia-Nachrichten fehl.</string>
+
+</resources>

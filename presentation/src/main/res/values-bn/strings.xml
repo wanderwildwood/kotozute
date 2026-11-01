@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">কোনো ফলাফল নেই</string>
     <string name="archived_empty_text">তোমার আর্কাইভ করা আলাপ এখানে দেখা যাবে</string>
     <string name="main_fab_cd">নতুন আলাপ শুরু করো</string>
-    <string name="main_default_sms_title">আবার বার্তাকে ভালবাসুন</string>
     <string name="main_default_sms_message">Messaging-কে তোমার ডিফল্ট এসএমএস অ্যাপ করো</string>
     <string name="main_default_sms_change">পরিবর্তন করো</string>
     <string name="main_permission_required">অনুমতি প্রয়োজন</string>

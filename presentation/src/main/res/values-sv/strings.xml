@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Inga resultat</string>
     <string name="archived_empty_text">Dina arkiverade konversationer kommer att dyka upp här</string>
     <string name="main_fab_cd">Starta en ny konversation</string>
-    <string name="main_default_sms_title">Älska att skicka SMS igen</string>
     <string name="main_default_sms_message">Gör Messaging till din standard-app för SMS</string>
     <string name="main_default_sms_change">Ändra</string>
     <string name="main_permission_required">Tillstånd krävs</string>

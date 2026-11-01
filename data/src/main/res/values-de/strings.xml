@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Der Name der Unterhaltung mit dir selbst.
+
+      Steht hier statt im presentation-Modul, weil der Thread dort benannt wird, wo er
+      erstellt wird, und das ist in diesem Modul. Signals eigene Clients verwenden dieselben Worte.
+    -->
+    <string name="signal_note_to_self">Notiz an mich</string>
+    <string name="signal_typing_someone">Jemand</string>
+
+    <!--
+      Die erste Zeile einer Gruppe, die dieses Telefon gerade erstellt hat.
+
+      Signal schreibt an beiden Enden ein Update in die Unterhaltung: „Du hast die Gruppe erstellt.“
+      für die Person, die sie erstellt hat, „X hat dich zur Gruppe hinzugefügt.“ für alle anderen
+      (GroupsV2UpdateMessageProducer). Diese App hat keine Update-Zeile, nur Nachrichten, also sagt sie
+      dasselbe als Nachricht. Die Formulierung der Empfängerseite steht in ContentNormalizer.describe,
+      wo es keinen Context gibt, um eine Ressource zu lesen; siehe den Hinweis dort.
+    -->
+    <string name="signal_group_created_by_you">Du hast die Gruppe erstellt.</string>
+    <!--
+      Wird anstelle einer Nachricht angezeigt, die dieses Telefon erneut angefordert hat und nie bekam.
+      Schlicht und ohne Vorwurf gesagt: Niemand hat etwas falsch gemacht, und die Leserin kann nur
+      handeln, indem sie die Person direkt fragt, also wird genau das vorgeschlagen.
+    -->
+    <!--
+      Wird in einer Unterhaltung angezeigt, wenn der Signal-Profilname von jemandem einen anderen
+      ersetzt, den dieses Telefon bereits hatte. Beide Namen, weil die ganze Information darin liegt,
+      welcher neu ist, und wer die Änderung nicht erkennt, ist genau die Leserin, für die diese Zeile da ist.
+    -->
+    <!--
+      Wird in einer Unterhaltung angezeigt, wenn die Signal-Nummer von jemandem eine andere ersetzt,
+      die dieses Telefon hatte. Beide Nummern, weil in dieser App eine Person eine Zeile über zwei
+      Kanäle ist und die Nummer das ist, was die SMS-Hälfte zusammenführt, die alte also die ist,
+      an die die Leserin vielleicht geschrieben hat.
+    -->
+    <!--
+      Wird in einer Unterhaltung angezeigt, nachdem eine zweite hineingefaltet wurde. Nennt, unter
+      welchem Namen die andere Seite bekannt war, weil das der Leserin hilft zu erkennen, welche
+      Unterhaltung gerade aus ihrem Posteingang verschwunden ist.
+    -->
+    <string name="signal_threads_joined">Diese Unterhaltung und die mit %1$s sind dieselbe Person, deshalb sind sie jetzt eine.</string>
+    <string name="signal_number_changed">Die Nummer dieser Person hat sich von %1$s zu %2$s geändert.</string>
+    <string name="signal_call_missed_voice">Verpasster Sprachanruf</string>
+    <string name="signal_call_missed_video">Verpasster Videoanruf</string>
+    <string name="signal_call_answered_voice">Sprachanruf, auf einem anderen Gerät angenommen</string>
+    <string name="signal_call_answered_video">Videoanruf, auf einem anderen Gerät angenommen</string>
+    <string name="signal_call_declined_voice">Sprachanruf, auf einem anderen Gerät abgelehnt</string>
+    <string name="signal_call_declined_video">Videoanruf, auf einem anderen Gerät abgelehnt</string>
+    <string name="signal_call_outgoing_voice">Ausgehender Sprachanruf, von einem anderen Gerät</string>
+    <string name="signal_call_outgoing_video">Ausgehender Videoanruf, von einem anderen Gerät</string>
+    <string name="signal_call_here_voice">Sprachanruf</string>
+    <string name="signal_call_here_video">Videoanruf, als Sprachanruf angenommen</string>
+    <string name="signal_call_declined_here_voice">Abgelehnter Sprachanruf</string>
+    <string name="signal_call_declined_here_video">Abgelehnter Videoanruf</string>
+    <string name="signal_call_placed">Ausgehender Sprachanruf</string>
+    <string name="signal_call_placed_unanswered">Ausgehender Sprachanruf, nicht angenommen</string>
+    <string name="signal_profile_name_changed">%1$s heißt jetzt %2$s.</string>
+    <string name="signal_message_unreadable">Hierher wurde eine Nachricht gesendet, die dieses Telefon nicht lesen konnte. Es hat sie erneut angefordert, aber sie kam nicht. Bitte darum, sie noch einmal zu senden.</string>
+    <!--
+      Wird anstelle einer Nachricht angezeigt, deren Absender sie als Nachricht markiert hat, die eine
+      neuere Version von Signal braucht, als diese App umsetzt. Sagt absichtlich nichts darüber, was
+      die Nachricht war: Dieser Build kann es nicht wissen, und Raten ist genau der Fehler, der vermieden wird.
+    -->
+    <!--
+      Wird erst nach einer zweiten fehlgeschlagenen Schlüsseltransparenz-Prüfung angezeigt. Sagt, was
+      bekannt ist, und nicht mehr: dass Signals öffentliches Verzeichnis und der Server sich über
+      dieses Konto uneinig sind. Es sagt absichtlich nicht „du wirst angegriffen“ — die Prüfung kann
+      eine Kompromittierung nicht von einem Serverfehler unterscheiden.
+    -->
+    <string name="signal_key_transparency_failed">Signals öffentliches Verzeichnis und der Server sind sich über dieses Konto uneinig. Prüfe deine Signal-Geräte und vertraue den Sicherheitsnummern hier erst wieder, wenn das geklärt ist.</string>
+    <string name="signal_message_needs_update">Hierher wurde eine Nachricht gesendet, die diese App zu alt ist, um sie richtig anzuzeigen. Lies sie auf einem anderen Gerät, bis dieses aktualisiert ist.</string>
+    <!--
+      Deren Signal, nicht unseres. Die Formulierung von Upstream für denselben Fall bittet die Leserin,
+      den Absender zu einer Aktualisierung und zum erneuten Senden zu bewegen, was das Einzige ist, was funktionieren kann.
+    -->
+    <string name="signal_message_sender_too_old">Hierher wurde eine Nachricht mit einer Version von Signal gesendet, die diese App nicht mehr lesen kann. Bitte darum, Signal zu aktualisieren und die Nachricht erneut zu senden.</string>
+    <!--
+      Keine Seite benannt, weil dieser Build wirklich nicht sagen kann, welche falsch ist: Der
+      Chiffretext liegt in einer Version vor, die er nicht spricht. Zu sagen, wessen Schuld es ist,
+      wäre geraten.
+    -->
+    <string name="signal_message_unreadable_form">Hierher wurde eine Nachricht gesendet, die diese App nicht lesen konnte. Sie erneut anzufordern würde nicht helfen.</string>
+
+    <!-- Zeilen, die in eine Signal-Unterhaltung geschrieben werden, wenn sie sich ändert. Wortlaut von
+         Signal Android (GroupsV2UpdateMessageProducer, MessageRecord_*). -->
+    <string name="signal_update_you">Du</string>
+    <string name="signal_update_someone">Jemand</string>
+    <string name="signal_update_you_pinned">Du hast eine Nachricht angeheftet</string>
+    <string name="signal_update_you_ended_poll">Du hast die Umfrage beendet: „%1$s“</string>
+    <string name="signal_update_ended_poll">%1$s hat die Umfrage beendet: „%2$s“</string>
+    <string name="signal_update_pinned">%1$s hat eine Nachricht angeheftet</string>
+    <string name="signal_update_verified">Du hast deine Sicherheitsnummer mit %1$s als verifiziert markiert.</string>
+    <string name="signal_update_unverified">Du hast deine Sicherheitsnummer mit %1$s als nicht verifiziert markiert.</string>
+    <string name="signal_update_group_updated">Gruppe aktualisiert.</string>
+    <string name="signal_update_you_timer_off">Du hast verschwindende Nachrichten deaktiviert.</string>
+    <string name="signal_update_timer_off">%1$s hat verschwindende Nachrichten deaktiviert.</string>
+    <string name="signal_update_you_timer">Du hast den Timer für verschwindende Nachrichten auf %1$s gesetzt.</string>
+    <string name="signal_update_timer">%1$s hat den Timer für verschwindende Nachrichten auf %2$s gesetzt.</string>
+    <string name="signal_update_you_renamed">Du hast den Gruppennamen in „%1$s“ geändert.</string>
+    <string name="signal_update_renamed">%1$s hat den Gruppennamen in „%2$s“ geändert.</string>
+    <string name="signal_update_you_description">Du hast die Gruppenbeschreibung geändert.</string>
+    <string name="signal_update_description">%1$s hat die Gruppenbeschreibung geändert.</string>
+    <string name="signal_update_you_avatar">Du hast das Gruppenbild geändert.</string>
+    <string name="signal_update_avatar">%1$s hat das Gruppenbild geändert.</string>
+    <string name="signal_update_you_added">Du hast %1$s hinzugefügt.</string>
+    <string name="signal_update_added">%1$s hat %2$s hinzugefügt.</string>
+    <string name="signal_update_added_you">%1$s hat dich zur Gruppe hinzugefügt.</string>
+    <string name="signal_update_you_joined">Du bist der Gruppe beigetreten.</string>
+    <string name="signal_update_joined">%1$s ist der Gruppe beigetreten.</string>
+    <string name="signal_update_joined_by_link">%1$s ist der Gruppe über den Gruppenlink beigetreten.</string>
+    <string name="signal_update_you_accepted">Du hast die Einladung zur Gruppe angenommen.</string>
+    <string name="signal_update_accepted">%1$s hat eine Einladung zur Gruppe angenommen.</string>
+    <string name="signal_update_invited_you">%1$s hat dich zur Gruppe eingeladen.</string>
+    <plurals name="signal_update_you_invited">
+        <item quantity="one">Du hast %1$d Person zur Gruppe eingeladen.</item>
+        <item quantity="other">Du hast %1$d Personen zur Gruppe eingeladen.</item>
+    </plurals>
+    <plurals name="signal_update_invited">
+        <item quantity="one">%1$s hat %2$d Person zur Gruppe eingeladen.</item>
+        <item quantity="other">%1$s hat %2$d Personen zur Gruppe eingeladen.</item>
+    </plurals>
+    <string name="signal_update_you_removed">Du hast %1$s entfernt.</string>
+    <string name="signal_update_removed">%1$s hat %2$s entfernt.</string>
+    <string name="signal_update_removed_you">%1$s hat dich aus der Gruppe entfernt.</string>
+    <string name="signal_update_you_left">Du hast die Gruppe verlassen.</string>
+    <string name="signal_update_left">%1$s hat die Gruppe verlassen.</string>
+    <string name="signal_update_you_made_admin">Du hast %1$s zum Admin gemacht.</string>
+    <string name="signal_update_made_admin">%1$s hat %2$s zum Admin gemacht.</string>
+    <string name="signal_update_made_you_admin">%1$s hat dich zum Admin gemacht.</string>
+    <string name="signal_update_you_revoked_admin">Du hast %1$s die Admin-Rechte entzogen.</string>
+    <string name="signal_update_revoked_admin">%1$s hat %2$s die Admin-Rechte entzogen.</string>
+    <string name="signal_update_revoked_your_admin">%1$s hat dir die Admin-Rechte entzogen.</string>
+    <string name="signal_update_you_admins_only">Du hast die Gruppeneinstellungen so geändert, dass nur Admins Nachrichten senden dürfen.</string>
+    <string name="signal_update_admins_only">%1$s hat die Gruppeneinstellungen so geändert, dass nur Admins Nachrichten senden dürfen.</string>
+    <string name="signal_update_you_all_send">Du hast die Gruppeneinstellungen so geändert, dass alle Mitglieder Nachrichten senden dürfen.</string>
+    <string name="signal_update_all_send">%1$s hat die Gruppeneinstellungen so geändert, dass alle Mitglieder Nachrichten senden dürfen.</string>
+    <string name="signal_update_you_edit_admins">Du hast geändert, wer Gruppeninfos bearbeiten kann, und zwar auf „Nur Admins“.</string>
+    <string name="signal_update_edit_admins">%1$s hat geändert, wer Gruppeninfos bearbeiten kann, und zwar auf „Nur Admins“.</string>
+    <string name="signal_update_you_edit_all">Du hast geändert, wer Gruppeninfos bearbeiten kann, und zwar auf „Alle Mitglieder“.</string>
+    <string name="signal_update_edit_all">%1$s hat geändert, wer Gruppeninfos bearbeiten kann, und zwar auf „Alle Mitglieder“.</string>
+    <string name="signal_update_you_add_admins">Du hast geändert, wer die Gruppenmitgliedschaft bearbeiten kann, und zwar auf „Nur Admins“.</string>
+    <string name="signal_update_add_admins">%1$s hat geändert, wer die Gruppenmitgliedschaft bearbeiten kann, und zwar auf „Nur Admins“.</string>
+    <string name="signal_update_you_add_all">Du hast geändert, wer die Gruppenmitgliedschaft bearbeiten kann, und zwar auf „Alle Mitglieder“.</string>
+    <string name="signal_update_add_all">%1$s hat geändert, wer die Gruppenmitgliedschaft bearbeiten kann, und zwar auf „Alle Mitglieder“.</string>
+    <string name="signal_update_you_link_on">Du hast den Gruppenlink ohne Bestätigung durch Admins eingeschaltet.</string>
+    <string name="signal_update_link_on">%1$s hat den Gruppenlink ohne Bestätigung durch Admins eingeschaltet.</string>
+    <string name="signal_update_you_link_approval">Du hast den Gruppenlink mit Bestätigung durch Admins eingeschaltet.</string>
+    <string name="signal_update_link_approval">%1$s hat den Gruppenlink mit Bestätigung durch Admins eingeschaltet.</string>
+    <string name="signal_update_you_link_off">Du hast den Gruppenlink ausgeschaltet.</string>
+    <string name="signal_update_link_off">%1$s hat den Gruppenlink ausgeschaltet.</string>
+    <string name="signal_update_asked_to_join">%1$s hat über den Gruppenlink um Beitritt gebeten.</string>
+    <string name="signal_update_you_approved">Du hast die Beitrittsanfrage von %1$s zur Gruppe angenommen.</string>
+    <string name="signal_update_approved">%1$s hat die Beitrittsanfrage von %2$s zur Gruppe angenommen.</string>
+    <string name="signal_update_you_ended">Du hast die Gruppe beendet.</string>
+    <string name="signal_update_ended">%1$s hat die Gruppe beendet.</string>
+    <plurals name="signal_timer_seconds">
+        <item quantity="one">%d Sekunde</item>
+        <item quantity="other">%d Sekunden</item>
+    </plurals>
+    <plurals name="signal_timer_minutes">
+        <item quantity="one">%d Minute</item>
+        <item quantity="other">%d Minuten</item>
+    </plurals>
+    <plurals name="signal_timer_hours">
+        <item quantity="one">%d Stunde</item>
+        <item quantity="other">%d Stunden</item>
+    </plurals>
+    <plurals name="signal_timer_days">
+        <item quantity="one">%d Tag</item>
+        <item quantity="other">%d Tage</item>
+    </plurals>
+    <plurals name="signal_timer_weeks">
+        <item quantity="one">%d Woche</item>
+        <item quantity="other">%d Wochen</item>
+    </plurals>
+</resources>

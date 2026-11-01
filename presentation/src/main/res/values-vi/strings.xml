@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Không có kết quả</string>
     <string name="archived_empty_text">Các cuộc trò chuyện đã lưu trữ của bạn sẽ xuất hiện ở đây</string>
     <string name="main_fab_cd">Bắt đầu cuộc trò chuyện</string>
-    <string name="main_default_sms_title">Hãy yêu thích việc nhắn tin một lần nữa</string>
     <string name="main_default_sms_message">Đặt Messaging là ứng dụng SMS mặc định</string>
     <string name="main_default_sms_change">Thay đổi</string>
     <string name="main_permission_required">Yêu cầu quyền truy cập</string>

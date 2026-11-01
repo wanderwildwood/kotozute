@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">無結果</string>
     <string name="archived_empty_text">您存檔的對話將出現在這裡</string>
     <string name="main_fab_cd">開始新對話</string>
-    <string name="main_default_sms_title">愛上發訊息</string>
     <string name="main_default_sms_message">將Messaging設為預設信息應用程式</string>
     <string name="main_default_sms_change">更改</string>
     <string name="main_permission_required">需要授權</string>

@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">No hay resultados</string>
     <string name="archived_empty_text">Sus conversaciones archivadas aparecerán aquí</string>
     <string name="main_fab_cd">Iniciar una nueva conversación</string>
-    <string name="main_default_sms_title">Me encanta enviar mensajes de texto otra vez</string>
     <string name="main_default_sms_message">Haga de Messaging su aplicación SMS por defecto</string>
     <string name="main_default_sms_change">Cambios</string>
     <string name="main_permission_required">Se requiere permiso</string>

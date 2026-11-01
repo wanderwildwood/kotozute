@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">ไม่มีผลลัพธ์</string>
     <string name="archived_empty_text">บทสนทนาของคุณที่จัดเก็บไว้จะปรากฏที่นี่</string>
     <string name="main_fab_cd">เริ่มการสนทนาใหม่</string>
-    <string name="main_default_sms_title">อยากส่งข้อความอีกครั้ง</string>
     <string name="main_default_sms_message">ทำให้ Messaging แอป SMS ค่าเริ่มต้นของคุณ</string>
     <string name="main_default_sms_change">เปลี่ยน</string>
     <string name="main_permission_required">ต้องการใช้สิทธิ์การเข้าถึง</string>

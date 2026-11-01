@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">결과없음</string>
     <string name="archived_empty_text">보관된 메시지가 여기 나타납니다</string>
     <string name="main_fab_cd">새로운 대화 시작하기</string>
-    <string name="main_default_sms_title">메시지의 매력에 다시 빠지세요</string>
     <string name="main_default_sms_message">Messaging 앱을 기본 메시지 앱으로 설정하기</string>
     <string name="main_default_sms_change">변경하기</string>
     <string name="main_permission_required">권한을 부여해 주세요</string>

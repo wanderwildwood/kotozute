@@ -1,99 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
-  ~ Copyright (C) 2019 Moez Bhatti <moez.bhatti@gmail.com>
-  ~
-  ~ This file is part of QKSMS.
-  ~
-  ~ QKSMS is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ QKSMS is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU General Public License
-  ~ along with QKSMS.  If not, see <http://www.gnu.org/licenses/>.
-  -->
+  Every word this app shows, in the order a reader meets it: the conversation list, a
+  conversation, the screens that write and schedule a message, then settings and everything
+  behind it. values-de/strings.xml has the same keys in the same order; a key added here is
+  added there too.
+
+  Where a string is used in one place, the comment above it says which. Where the wording is
+  Signal's own, the comment names the upstream string it came from, so a later change there
+  can be followed rather than guessed at.
+
+  Part of kotozute. Free software; see LICENSE for the licence and the warranty.
+-->
 <resources>
 
-    <string name="app_name" translatable="false">Messaging</string>
+    <!-- ============================================================ -->
+    <!-- App name and the launcher's shortcuts -->
 
+    <string name="app_name" translatable="false">Messaging</string>
+    <!-- The launcher's long press: the words under the shortcut. -->
     <string name="shortcut_compose_long_label">New conversation</string>
+    <!-- The same shortcut where Android has room for one word. -->
     <string name="shortcut_compose_short_label">Compose</string>
+    <!-- Said when the shortcut is switched off in Settings. -->
     <string name="shortcut_compose_disabled_message">Shortcut disabled</string>
 
+    <!-- ============================================================ -->
+    <!-- Main screen: the conversation list -->
+
+    <!-- Top bar title on the archived list. -->
     <string name="title_archived">Archived</string>
-    <string name="title_settings">Settings</string>
-    <string name="title_notification_prefs">Notifications</string>
+    <!-- The screen's name; the top bar shows the filter instead. -->
     <string name="title_conversations">Conversations</string>
+    <!-- The first tab, when people, groups and unknown senders share one list. -->
     <string name="filter_all">All</string>
     <!-- The first tab when groups and unknown senders are kept to their own tabs: one-to-one conversations -->
     <string name="filter_people">People</string>
+    <!-- The tab holding group conversations. -->
     <string name="filter_groups">Groups</string>
+    <!-- The tab holding senders who are not in the contacts. -->
     <string name="filter_unknown">Unknown</string>
     <!-- A tab with something unread under it: a dot ahead of the tab's name. -->
     <string name="filter_tab_unread">• %s</string>
-    <string name="title_compose">Type a name or number</string>
-
-
-    <string name="menu_add_person">Add person</string>
-    <string name="menu_call">Call</string>
-    <string name="menu_info">Details</string>
-
-    <string name="menu_mms_part_save">Save to gallery</string>
-    <string name="menu_mms_part_share">Share</string>
-    <string name="menu_mms_part_forward">Forward</string>
-    <string name="menu_mms_part_open">Open externally</string>
-
-    <string name="main_title_selected">%d selected</string>
-    <string name="main_menu_select_all">Select all</string>
-    <string name="main_menu_archive">Archive</string>
-    <string name="main_menu_unarchive">Unarchive</string>
-    <string name="main_menu_delete">Delete</string>
-    <string name="main_menu_add_contact">Add to contacts</string>
-    <string name="main_menu_pin">Pin to top</string>
-    <string name="main_menu_unpin">Unpin</string>
-    <string name="main_menu_mark_all_read">Mark all read</string>
-    <string name="main_menu_read">Mark read</string>
-    <string name="main_menu_unread">Mark unread</string>
-    <string name="main_menu_block">Block</string>
-    <string name="main_menu_send_now">Send now</string>
-    <string name="main_menu_rename_conversation">Rename conversation</string>
+    <!-- The fourth item in the bottom bar: it opens the new-message screen, it is not a filter. -->
+    <string name="tab_compose">Message</string>
+    <!-- Placeholder in the top bar's search field, and the magnifier's name. -->
+    <string name="main_search_hint">Search</string>
+    <!-- The line along the bottom while the database is read again. -->
     <string name="main_syncing">Syncing messages…</string>
+    <!-- %1$d is how far the sync has got, %2$d how much there is. -->
     <string name="main_syncing_count">Syncing messages… %1$d of %2$d</string>
+    <!-- The second line of a conversation whose last message is yours. -->
     <string name="main_sender_you">You: %s</string>
+    <!-- The same line while a draft is waiting. %s is the draft. -->
     <string name="main_sender_draft">Draft: %s</string>
+    <!-- The divider above the message hits in search results. -->
     <string name="main_message_results_title">Results in messages</string>
     <!-- Was a plain string, so a single hit read "1 messages". -->
     <plurals name="main_message_results">
         <item quantity="one">%d message</item>
         <item quantity="other">%d messages</item>
     </plurals>
+    <!-- Said in the middle of an empty conversation list. -->
     <string name="inbox_empty_text">Your conversations will appear here</string>
+    <!-- Said when a search finds nothing. -->
     <string name="inbox_search_empty_text">No results</string>
+    <!-- Said in the middle of an empty archived list. -->
     <string name="archived_empty_text">Your archived conversations will appear here</string>
-    <string name="main_fab_cd">Start new conversation</string>
+
+    <!-- ============================================================ -->
+    <!-- Main screen: the menu while rows are selected -->
+
+    <!-- Top bar title while rows are ticked. %d is how many. -->
+    <string name="main_title_selected">%d selected</string>
+    <!-- Menu item (verb) while rows are ticked. -->
+    <string name="main_menu_select_all">Select all</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_archive">Archive</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_unarchive">Unarchive</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_delete">Delete</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_add_contact">Add to contacts</string>
+    <!-- Menu item (verb): keep this conversation at the top of the list. -->
+    <string name="main_menu_pin">Pin to top</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_unpin">Unpin</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_mark_all_read">Mark all read</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_read">Mark read</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_unread">Mark unread</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_block">Block</string>
+    <!-- Menu item (verb) on a scheduled message. -->
+    <string name="main_menu_send_now">Send now</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_rename_conversation">Rename conversation</string>
+    <plurals name="main_block_signal_confirm">
+        <item quantity="one">Block this person on Signal? Their texts stop too, where the two are one conversation here.</item>
+        <item quantity="other">Block these %d people on Signal? Their texts stop too, where the two are one conversation here.</item>
+    </plurals>
+    <!-- The same note for muting from the conversation list's selection, one or several. -->
+    <plurals name="main_muted_toast">
+        <item quantity="one">Muted. Messages still arrive.</item>
+        <item quantity="other">Muted %d chats. Messages still arrive.</item>
+    </plurals>
+    <plurals name="toast_archived">
+        <item quantity="one">Archived conversation</item>
+        <item quantity="other">Archived %d conversations</item>
+    </plurals>
+    <plurals name="toast_unarchived">
+        <item quantity="one">Unarchived conversation</item>
+        <item quantity="other">Unarchived %d conversations</item>
+    </plurals>
+
+    <!-- ============================================================ -->
+    <!-- Main screen: the hint along the bottom -->
+
+    <!-- The permission hint's title while another app handles texts. -->
     <string name="main_default_sms_title">Set as default</string>
+    <!-- The same hint's one sentence. -->
     <string name="main_default_sms_message">Messaging needs to be your default SMS app to send and receive texts</string>
+    <!-- The hint's button (verb): open Android's default-apps screen. -->
     <string name="main_default_sms_change">Change</string>
+    <!-- The hint's other button (verb): put the line away for good. -->
     <string name="main_default_sms_hide">Hide</string>
+    <!-- The hint's title when a permission is missing. -->
     <string name="main_permission_required">Permission required</string>
+    <!-- The hint while SMS permission is refused. -->
     <string name="main_permission_sms">Messaging needs permission to send and view SMS messages</string>
+    <!-- The hint while contacts permission is refused. -->
     <string name="main_permission_contacts">Messaging needs permission to view your contacts</string>
+    <!-- The hint while notification permission is refused. -->
     <string name="main_permission_notifications">Messaging needs permission to display notifications</string>
+    <!-- The hint's button (verb). -->
     <string name="main_permission_allow">Allow</string>
+    <string name="signal_sms_taken">Another app is getting your text messages now. Tap to make this the text app again.</string>
 
-    <string name="scheduled_menu_send_now">Send now</string>
-    <string name="scheduled_menu_edit_message">Edit message</string>
+    <!-- ============================================================ -->
+    <!-- A conversation: its messages, menus and details -->
 
-    <string name="drawer_archived">Archived</string>
-    <string name="drawer_scheduled">Scheduled</string>
-    <string name="drawer_blocking">Blocking</string>
-    <string name="drawer_settings">Settings</string>
+    <!-- Conversation menu item (verb): add somebody to the thread. -->
+    <string name="menu_add_person">Add person</string>
+    <!-- Conversation menu item (verb). -->
+    <string name="menu_call">Call</string>
+    <!-- Conversation menu item: the details screen. -->
+    <string name="menu_info">Details</string>
+    <!-- Menu on a picture or file in a conversation (verb). -->
+    <string name="menu_mms_part_save">Save to gallery</string>
+    <!-- The same menu (verb). -->
+    <string name="menu_mms_part_share">Share</string>
+    <!-- The same menu (verb). -->
+    <string name="menu_mms_part_forward">Forward</string>
+    <!-- The same menu (verb). -->
+    <string name="menu_mms_part_open">Open externally</string>
+    <!-- Under a message that is on its way. -->
+    <string name="message_status_sending">Sending…</string>
+    <!-- Under a message that arrived. %s is the time. -->
+    <string name="message_status_delivered">Delivered %s</string>
+    <!-- Under a message the other side has opened. -->
+    <string name="message_status_read">Read</string>
+    <!-- Under a message that did not go; tapping tries again. -->
+    <string name="message_status_failed">Failed to send. Tap to try again</string>
+    <string name="message_body_too_long_to_display">⚠ Message is long. Copy or Save for the full text</string>
+    <!-- Top bar title on a conversation's details. -->
+    <string name="info_title">Details</string>
+    <!-- Said when the address is put on the clipboard. -->
+    <string name="info_copied_address">Address copied</string>
+    <!-- The row that renames the conversation. -->
+    <string name="info_name">Conversation title</string>
+    <!-- The row that opens this conversation's notification settings. -->
+    <string name="info_notifications">Notifications</string>
+    <!-- Row (verb). -->
+    <string name="info_archive">Archive</string>
+    <!-- Row (verb). -->
+    <string name="info_unarchive">Unarchive</string>
+    <!-- Row (verb). -->
+    <string name="info_block">Block</string>
+    <!-- Row (verb). -->
+    <string name="info_unblock">Unblock</string>
+    <!-- Row: deletes the conversation and everything in it. -->
+    <string name="info_delete">Delete conversation</string>
+    <!-- The same row, armed: a second tap does it. -->
+    <string name="info_delete_confirm">Delete conversation — tap again</string>
+    <!-- Said when a picture cannot be read. -->
+    <string name="gallery_error">Couldn\'t load media</string>
+    <!-- Said when the clipboard refuses the text. -->
+    <string name="clipboard_too_large_to_copy">Data size exceeds clipboard limit</string>
+    <!-- Said when the clipboard cannot be reached at all. -->
+    <string name="clipboard_unable_to_copy_to">Unable to copy to the clipboard</string>
+    <!-- Said in place of an attachment that is no longer on the phone. -->
+    <string name="attachment_missing">Missing</string>
+    <string name="contact_card_missing">This contact card is no longer on the phone, or never finished downloading.</string>
+    <string name="contact_card_empty">This contact card arrived empty, so there is nothing to show.</string>
+    <string name="contact_card_damaged">This file is not a readable contact card.</string>
+    <string name="info_delete_summary">Removes it here and from your other Signal devices. Nothing can bring it back</string>
+    <string name="info_delete_armed_summary">This phone holds the only copy. Write a copy out first if you want to keep it</string>
+    <string name="info_delete_both">Their texts go too, since the two are one conversation here</string>
+    <string name="info_deleted_toast">Deleted %1$d message(s)</string>
+    <string name="info_delete_failed">Nothing was deleted</string>
+    <string name="info_block_both">Stops their texts as well, since the two are one conversation here</string>
+    <string name="info_link">Link to a text conversation</string>
+    <string name="info_link_linked">Linked to %s</string>
+    <string name="info_link_pick">Which conversation is the same person?</string>
+    <string name="info_link_unlink">Unlink</string>
+    <string name="info_link_none">No text conversations to link to</string>
+    <!-- Opens Translate on a message's text; offered only when Translate is installed. -->
+    <string name="message_translate">Translate</string>
+    <string name="messageLinkHandling_dialog_title">External link</string>
+    <string name="messageLinkHandling_dialog_body">Some links may be unsafe or redirect you unexpectedly. Review the link below before proceeding:\n\n%1$s\n\nDo you want to continue?</string>
+    <string name="messageLinkHandling_dialog_positive">Yes, open the link</string>
+    <string name="messageLinkHandling_dialog_negative">No</string>
+    <string name="messages_text_share_file_error">That file could not be shared</string>
 
+    <!-- ============================================================ -->
+    <!-- Dialogs and the buttons they share -->
 
+    <!-- The delete dialog's title. -->
     <string name="dialog_delete_title">Delete</string>
     <plurals name="dialog_delete_message">
         <item quantity="one">Are you sure you would like to delete this conversation?</item>
@@ -107,107 +232,206 @@
         <item quantity="one">Are you sure you would like to send this message now?</item>
         <item quantity="other">Are you sure you would like to send %d messages now?</item>
     </plurals>
-
+    <!-- The dialog before a scheduled message is edited. -->
     <string name="dialog_edit_scheduled_message_title">Edit message</string>
+    <!-- What editing costs. -->
     <string name="dialog_edit_scheduled_message">Editing this message will remove it from the schedule.\n\nMake sure to re-submit it on the next screen, or it will be lost.\n\nDo you want to continue?</string>
+    <!-- Button (verb). -->
     <string name="dialog_edit_scheduled_message_positive_button">Yes, edit the message</string>
-
+    <!-- The dialog before the composer is emptied. -->
     <string name="dialog_clear_compose_title">Clear message</string>
+    <!-- Its question. -->
     <string name="dialog_clear_compose">Clear the message? This action can\'t be undone.</string>
+    <!-- A dialog button. -->
+    <string name="button_yes">Yes</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_continue">Continue</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_cancel">Cancel</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_close">Close</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_delete">Delete</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_save">Save</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_stop">Stop</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_undo">Undo</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_clear">Clear</string>
 
-    <string-array name="message_options">
-        <item>Copy text</item>
-        <item>Forward</item>
-        <item>Delete</item>
-    </string-array>
+    <!-- ============================================================ -->
+    <!-- Writing a message -->
 
+    <string name="title_compose">Type a name or number</string>
+    <!-- The dialog that picks which SIM sends. -->
     <string name="compose_number_picker_title">Choose a phone number</string>
+    <!-- A SIM's row. %s is its name. -->
     <string name="compose_number_picker_default">%s ∙ Default</string>
+    <!-- A SIM's row: only this once. -->
     <string name="compose_number_picker_once">Just once</string>
+    <!-- A SIM's row: always for this conversation. -->
     <string name="compose_number_picker_always">Always</string>
+    <!-- Top bar title while people are picked. %d is how many. -->
     <string name="compose_title_selected">%d selected</string>
+    <!-- %1$d of %2$d hits. -->
     <string name="compose_subtitle_results">%1$d of %2$d results</string>
+    <!-- A switch on the new-message screen. -->
     <string name="compose_send_group_title">Send as group message</string>
+    <!-- Its hint while on. -->
     <string name="compose_send_group_summary_on">Recipients and replies will be visible to everyone</string>
+    <!-- Its hint while off. -->
     <string name="compose_send_group_summary_off">Each person gets the text in their own chat, and replies come back there</string>
+    <!-- Said while the contact list loads. -->
     <string name="compose_loading">Loading…</string>
+    <!-- The label on a contact card attachment. -->
     <string name="compose_vcard_label">Contact card</string>
+    <!-- A label on the scheduling screen. -->
     <string name="compose_scheduled_for">Scheduled time:</string>
+    <!-- Said when the chosen time has gone. -->
     <string name="compose_scheduled_future">Selected time must be in the future!</string>
+    <!-- Said after scheduling. -->
     <string name="compose_scheduled_toast">Added to scheduled messages</string>
+    <!-- Menu item: the scheduled messages for this conversation. -->
     <string name="compose_scheduled_view">Scheduled messages for this conversation</string>
+    <!-- Placeholder in the composer. -->
     <string name="compose_hint">Write a message…</string>
+    <!-- Said when none of the picked people can be written to. -->
     <string name="compose_no_valid_recipients">Can\'t send to other participants</string>
+    <!-- Selection menu item (verb). -->
     <string name="compose_menu_copy">Copy text</string>
+    <!-- Selection menu item (verb). -->
     <string name="compose_menu_share">Share text</string>
+    <!-- Selection menu item (verb). -->
     <string name="compose_menu_forward">Forward</string>
+    <!-- Selection menu item: the message's details. -->
     <string name="compose_menu_show_status">Show status</string>
+    <!-- Selection menu item (verb). -->
     <string name="compose_menu_delete">Delete</string>
+    <!-- Selection menu item: the message before. -->
     <string name="compose_menu_previous">Previous</string>
+    <!-- Selection menu item: the message after. -->
     <string name="compose_menu_next">Next</string>
+    <!-- Selection menu item (verb): empty the composer. -->
     <string name="compose_menu_clear">Clear</string>
+    <!-- Top bar title on a message's details. -->
     <string name="compose_details_title">Message details</string>
+    <!-- A line in them. %s is the type. -->
     <string name="compose_details_type">Type: %s</string>
+    <!-- A line in them. %s is the sender. -->
     <string name="compose_details_from">From: %s</string>
+    <!-- A line in them. %s is the recipient. -->
     <string name="compose_details_to">To: %s</string>
+    <!-- A line in them. %s is the time. -->
     <string name="compose_details_sent">Sent: %s</string>
+    <!-- A line in them. %s is the time. -->
     <string name="compose_details_received">Received: %s</string>
+    <!-- A line in them. %s is the time. -->
     <string name="compose_details_delivered">Delivered: %s</string>
+    <!-- A line in them. %d is the code. -->
     <string name="compose_details_error_code">Error code: %d</string>
+    <!-- Spoken description of the attach button. -->
     <string name="compose_attach_cd">Add an attachment</string>
+    <!-- The attach sheet: any file. -->
     <string name="compose_attach_file_cd">Attach any file</string>
+    <!-- The attach sheet: a photo. -->
     <string name="compose_gallery_cd">Attach a photo</string>
+    <!-- The attach sheet: a recording. -->
     <string name="compose_audio_message_cd">Record an audio message</string>
+    <!-- The attach sheet: the camera. -->
     <string name="compose_camera_cd">Take a photo</string>
+    <!-- Spoken description of the schedule button. -->
     <string name="compose_schedule_cd">Schedule message</string>
+    <!-- The same button once a time is chosen. -->
     <string name="compose_schedule_cancel_cd">Cancel schedule message</string>
+    <!-- The attach sheet: a contact card. -->
     <string name="compose_contact_cd">Attach a contact</string>
+    <!-- Said when the card cannot be read. -->
     <string name="compose_contact_error">Error reading contact</string>
+    <!-- Said when there is no room for the photo. -->
     <string name="compose_camera_error">Couldn\'t make room for the photo</string>
+    <!-- Said when no camera app can hand a photo back. -->
     <string name="compose_camera_unavailable">This phone has no camera app that can hand a photo back</string>
     <!-- Example: SIM 1 (Verizon) selected-->
     <string name="compose_sim_changed_toast">SIM %1$d (%2$s) selected</string>
+    <!-- Spoken description of the SIM button. %s is the chosen SIM. -->
     <string name="compose_sim_cd">%s selected, change SIM card</string>
+    <!-- Spoken description of the send button. -->
     <string name="compose_send_cd">Send message</string>
+    <!-- Spoken description of the record button. -->
     <string name="compose_record_audio_msg_cd">Record audio message</string>
-
+    <!-- Spoken description of the cancel button. -->
     <string name="compose_record_audio_msg_abort_cd">Cancel audio message</string>
+    <!-- Spoken description of the attach button. -->
     <string name="compose_record_audio_msg_attach_cd">Attach audio message</string>
+    <!-- Spoken description of play and pause. -->
     <string name="compose_record_audio_msg_play_pause_cd">Play or pause audio message</string>
-
+    <!-- Button (verb) on a message that is waiting. -->
     <string name="compose_message_cancel">Cancel</string>
+    <!-- Button (verb). -->
     <string name="compose_message_send_now">Send now</string>
+    <!-- Label on a message's SIM line. -->
     <string name="compose_message_sim">SIM number</string>
+    <!-- Spoken description of one message in a list. -->
     <string name="compose_message_item">Message item</string>
+    <!-- Label on an attachment. -->
     <string name="compose_message_attachment">Attachment</string>
+    <!-- Said on the compose screen the moment a draft re-encodes, because nothing else on
+         the phone says it and the sender is about to be cut off at 70 characters. Names the
+         setting that prevents it, in the words that setting uses. -->
+    <string name="compose_wide_characters">A character here is outside plain SMS text, so a message now holds 70 characters instead of 160. “Strip accents from outgoing SMS”, in settings, keeps it at 160.</string>
+    <!-- Placeholder in the new-message screen's Signal search. -->
+    <string name="contacts_signal_hint">Search people on Signal</string>
+    <!-- The divider before the Signal entries in the new-message list. They come after the
+         address book, and on a long one that is the same as being hidden unless it is said. -->
+    <string name="compose_signal_header">On Signal</string>
+    <!-- The second line of a person in the new-message list who is reachable on Signal.
+         The same name can appear twice, once per rail, and this is what tells them apart. -->
+    <string name="compose_signal_person">Signal</string>
+    <!-- The same line where the number is known. %s is the number. -->
+    <string name="compose_signal_person_number">Signal · %s</string>
 
+    <!-- ============================================================ -->
+    <!-- Scheduled messages -->
 
-    <string name="message_status_sending">Sending…</string>
-    <string name="message_status_delivered">Delivered %s</string>
-    <string name="message_status_read">Read</string>
-    <string name="message_status_failed">Failed to send. Tap to try again</string>
-    <string name="message_body_too_long_to_display">⚠ Message is long. Copy or Save for the full text</string>
+    <string name="scheduled_menu_send_now">Send now</string>
+    <string name="scheduled_menu_edit_message">Edit message</string>
+    <!-- Top bar title on the scheduled messages. -->
+    <string name="scheduled_title">Scheduled</string>
+    <!-- Said in the middle of an empty scheduled list. -->
+    <string name="scheduled_empty_description">Automatically send a message, at the exact moment you\'d like</string>
+    <!-- One of three made-up messages on that empty screen. -->
+    <string name="scheduled_empty_message_1">Hey! When was your birthday again?</string>
+    <!-- The second of the three. -->
+    <string name="scheduled_empty_message_2">It\'s on December 23rd</string>
+    <!-- The third of the three. -->
+    <string name="scheduled_empty_message_3">Happy birthday! Look at what a great friend I am, remembering your birthday</string>
+    <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
+    <string name="scheduled_empty_message_3_timestamp">Sending on December 23rd&#x200A;</string>
+    <!-- Spoken description of the button that schedules a message. -->
+    <string name="scheduled_compose_cd">Schedule a message</string>
+    <!-- The same button on the scheduling screen. -->
+    <string name="scheduled_send_cd">Schedule this message</string>
+    <!-- %1$s is the time; the message goes over Signal. -->
+    <string name="scheduled_via_signal">%1$s (Signal)</string>
 
-    <string name="info_title">Details</string>
-    <string name="info_copied_address">Address copied</string>
-    <string name="info_name">Conversation title</string>
-    <string name="info_notifications">Notifications</string>
-    <string name="info_archive">Archive</string>
-    <string name="info_unarchive">Unarchive</string>
-    <string name="info_block">Block</string>
-    <string name="info_unblock">Unblock</string>
-    <string name="info_delete">Delete conversation</string>
-    <string name="info_delete_confirm">Delete conversation — tap again</string>
+    <!-- ============================================================ -->
+    <!-- Backup and restore -->
 
-    <string name="gallery_error">Couldn\'t load media</string>
-    <string name="gallery_toast_saved">Saved to gallery</string>
-
+    <!-- Top bar title on Backup and restore. -->
     <string name="backup_title">Backup and restore</string>
+    <!-- The line while a backup is written. -->
     <string name="backup_backing_up">Backing up messages</string>
+    <!-- The line while a backup is read back. -->
     <string name="backup_restoring">Restoring from backup</string>
+    <!-- The row that chooses where backups go. -->
     <string name="backup_location_title">Backup location</string>
+    <!-- The same row before a folder is chosen (verb). -->
     <string name="backup_location_summary">Set folder</string>
+    <!-- The row that restores (verb). -->
     <string name="backup_restore_title">Restore</string>
+    <!-- The same row's hint (verb). -->
     <string name="backup_restore_summary">Select a backup</string>
     <string name="backup_restore_error_backup">Backup in progress…</string>
     <string name="backup_restore_error_restore">Restore in progress…</string>
@@ -223,56 +447,80 @@
     <string name="backup_restore_dialog_summary" translatable="false">/Messaging/Backups</string>
     <string name="backup_restore_dialog_empty">No backups found</string>
     <string name="backup_disclaimer">A backup holds SMS only. It does not hold MMS, and there is no scheduled backup: you take one when you want one.</string>
+    <!-- Button (verb). -->
     <string name="backup_now">Backup now</string>
     <string name="backup_progress_parsing">Parsing backup…</string>
     <string name="backup_progress_running">%1$d/%2$d messages</string>
     <string name="backup_progress_saving">Saving backup…</string>
     <string name="backup_progress_syncing">Syncing messages…</string>
     <string name="backup_progress_finished">Finished!</string>
+    <!-- Name of the backup notification category in Android's settings. -->
     <string name="backup_notification_channel_name">Backup and restore</string>
 
-    <string name="clipboard_too_large_to_copy">Data size exceeds clipboard limit</string>
-    <string name="clipboard_unable_to_copy_to">Unable to copy to the clipboard</string>
+    <!-- ============================================================ -->
+    <!-- Settings -->
 
-    <string name="scheduled_title">Scheduled</string>
-    <string name="scheduled_empty_description">Automatically send a message, at the exact moment you\'d like</string>
-    <string name="scheduled_empty_message_1">Hey! When was your birthday again?</string>
-    <string name="scheduled_empty_message_2">It\'s on December 23rd</string>
-    <string name="scheduled_empty_message_3">Happy birthday! Look at what a great friend I am, remembering your birthday</string>
-    <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
-    <string name="scheduled_empty_message_3_timestamp">Sending on December 23rd&#x200A;</string>
-    <string name="scheduled_compose_cd">Schedule a message</string>
-    <string name="scheduled_send_cd">Schedule this message</string>
-    <string name="attachment_missing">Missing</string>
-
+    <!-- Top bar title on Settings, and the name of its root section. -->
+    <string name="title_settings">Settings</string>
+    <!-- Top bar title on the notification settings. -->
+    <string name="title_notification_prefs">Notifications</string>
+    <string name="drawer_archived">Archived</string>
+    <string name="drawer_scheduled">Scheduled</string>
+    <string name="drawer_blocking">Blocking</string>
+    <string name="drawer_settings">Settings</string>
     <string name="settings_category_general">Display</string>
     <string name="settings_category_qkreply">Quick reply</string>
-
+    <!-- Settings row: the size of the app's text. -->
     <string name="settings_text_size_title">Font size</string>
+    <!-- Settings row: the notification settings. -->
     <string name="settings_notifications_title">Notifications</string>
+    <!-- Its hint (verb). -->
     <string name="settings_notifications_o_summary">Tap to customize</string>
+    <!-- The heading over the three notification buttons. -->
     <string name="settings_notification_actions_title">Actions</string>
+    <!-- The first notification button's name. -->
     <string name="settings_notification_action_1">Button 1</string>
+    <!-- The second. -->
     <string name="settings_notification_action_2">Button 2</string>
+    <!-- The third. -->
     <string name="settings_notification_action_3">Button 3</string>
+    <!-- Settings row: how much a notification shows. -->
     <string name="settings_notification_previews_title">Notification previews</string>
+    <!-- Its hint. -->
     <string name="settings_notification_previews_summary">Show name and message</string>
+    <!-- Settings row: light the screen when a message arrives. -->
     <string name="settings_notification_wake_title">Wake screen</string>
+    <!-- Settings row: stay quiet for people not in the contacts. -->
     <string name="settings_notification_silent_title">Silent if not a contact</string>
+    <!-- Its hint. -->
     <string name="settings_notification_silent_summary">Silences notifications for messages without recipients in your contacts</string>
+    <!-- Settings row. -->
     <string name="settings_vibration_title">Vibration</string>
+    <!-- Settings row. -->
     <string name="settings_ringtone_title">Sound</string>
+    <!-- The choice that means no sound. -->
     <string name="settings_ringtone_none">None</string>
+    <!-- Settings row: the popup for a new message. -->
     <string name="settings_qkreply_title">Quick reply</string>
+    <!-- Its hint. -->
     <string name="settings_qkreply_summary">Popup for new messages</string>
+    <!-- Settings row. -->
     <string name="settings_qkreply_tap_dismiss_title">Tap to dismiss</string>
+    <!-- Its hint. -->
     <string name="settings_qkreply_tap_dismiss_summary">Tap outside of the popup to close it</string>
+    <!-- Settings row: a wait before a message goes, so it can be taken back. -->
     <string name="settings_delayed_title">Delayed sending</string>
+    <!-- Settings row: one group chat or separate chats. -->
     <string name="settings_group_messages_title">Group messages</string>
+    <!-- Settings row: what a swipe on a conversation does. -->
     <string name="settings_swipe_actions">Swipe actions</string>
+    <!-- The swipe's direction. -->
     <string name="settings_swipe_actions_right">Right swipe</string>
+    <!-- The other direction. -->
     <string name="settings_swipe_actions_left">Left swipe</string>
-    <string name="settings_swipe_actions_change">CHANGE</string>
+    <!-- The small label that opens the list of actions (verb). -->
+    <string name="settings_swipe_actions_change">Change</string>
+    <!-- The actions a swipe can be set to, in the order the dialog offers them. -->
     <string-array name="settings_swipe_actions">
         <item>None</item>
         <item>Archive</item>
@@ -283,9 +531,13 @@
         <item>Mark unread</item>
         <item>Speak</item>
     </string-array>
+    <!-- Settings row: ask the network for a delivery report. -->
     <string name="settings_delivery_title">Delivery confirmations</string>
+    <!-- Settings row: MMS read receipts. -->
     <string name="settings_read_receipts_title">Read receipts</string>
+    <!-- Its hint. -->
     <string name="settings_read_receipts_summary">MMS only. Tell a sender when you have read their message, and ask the same of the people you send to</string>
+    <!-- Settings row: keep conversations with something unread at the top. -->
     <string name="settings_unread_at_top_title">Unread at the top</string>
     <!-- Settings: groups and unknown senders appear only in their own tabs, and the first tab becomes "People" -->
     <string name="settings_all_only_people_title">Show People instead of All</string>
@@ -304,29 +556,40 @@
         <item quantity="one">%d Signal chat</item>
         <item quantity="other">%d Signal chats</item>
     </plurals>
+    <!-- Settings row. -->
     <string name="settings_signature_title">Signature</string>
+    <!-- Its hint. -->
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>
+    <!-- Settings row: strip accents so a message stays at 160 characters. -->
     <string name="settings_unicode_title">Strip accents from outgoing SMS</string>
-    <!-- Said on the compose screen the moment a draft re-encodes, because nothing else on
-         the phone says it and the sender is about to be cut off at 70 characters. Names the
-         setting that prevents it, in the words that setting uses. -->
-    <string name="compose_wide_characters">A character here is outside plain SMS text, so a message now holds 70 characters instead of 160. “Strip accents from outgoing SMS”, in settings, keeps it at 160.</string>
+    <!-- Settings row: only mobile numbers in the new-message list. -->
     <string name="settings_mobile_title">Mobile numbers only when composing</string>
+    <!-- Settings row: delete old messages after a number of days. -->
     <string name="settings_auto_delete">Delete old messages automatically</string>
+    <!-- The dialog that asks how many days. -->
     <string name="settings_auto_delete_dialog_message">Messages will be deleted after the specified number of days</string>
+    <!-- The field in that dialog. -->
     <string name="settings_auto_delete_dialog_hint">Number of days</string>
+    <!-- The choice that means the feature is off. -->
     <string name="settings_auto_delete_never">Never</string>
+    <!-- The dialog before messages are deleted now. -->
     <string name="settings_auto_delete_warning">Delete old messages automatically?</string>
+    <!-- %1$d is how many would go. -->
     <string name="settings_auto_delete_warning_message">If you proceed, %1$d messages will be deleted now</string>
     <plurals name="settings_auto_delete_summary">
         <item quantity="zero">Never</item>
         <item quantity="one">After 1 day</item>
         <item quantity="other">After %d days</item>
     </plurals>
+    <!-- Settings row: send long texts as MMS. -->
     <string name="settings_long_as_mms_title">Send long messages as MMS</string>
+    <!-- Its hint. -->
     <string name="settings_long_as_mms_summary">If your longer text messages are failing to send, or sending in the wrong order, you can send them as MMS messages instead. Additional charges may apply</string>
+    <!-- Settings row: shrink pictures before sending. -->
     <string name="settings_mms_size_title">Auto-compress MMS image attachments</string>
+    <!-- Settings row: what a tap on a link does. -->
     <string name="settings_mms_weblink_title">Link handling in messages</string>
+    <!-- Settings row: refuse screenshots of the app. -->
     <string name="settings_disable_screenshots_title">Disable screenshots</string>
     <string name="settings_crash_log_title">If it has closed itself</string>
     <string name="settings_crash_log_summary">What the app was doing the last few times it stopped. Kept on this phone only; nothing is sent anywhere unless you send it</string>
@@ -334,462 +597,354 @@
     <string name="settings_crash_log_send">Send this</string>
     <string name="settings_crash_log_clear">Clear</string>
     <string name="settings_crash_log_subject">Messaging crash report</string>
+    <!-- Settings row (verb): read the database again. -->
     <string name="settings_sync_title">Sync messages</string>
+    <!-- Its hint. -->
     <string name="settings_sync_summary">Re-sync your messages with the native Android SMS database</string>
+    <!-- The row's own line while it works. -->
     <string name="settings_syncing">Syncing…</string>
+    <!-- %1$d is how far it has got, %2$d how much there is. -->
     <string name="settings_syncing_count">Syncing… %1$d of %2$d</string>
+    <!-- Settings row: which file picker opens. -->
+    <string name="settings_file_picker_title">Choose files with</string>
+    <!-- The choice that means Android's own. -->
+    <string name="settings_file_picker_system">Android\'s own picker</string>
+    <!-- Settings categories: the loose options are grouped behind these.
+         general and desktop_sync already exist above and are reused. -->
+    <string name="settings_category_sending">Sending</string>
+    <string name="settings_category_storage">Storage and privacy</string>
+    <!-- Said when the debug log is switched on. -->
+    <string name="settings_logging_enabled">Debug logging enabled</string>
+    <!-- Said when it is switched off. -->
+    <string name="settings_logging_disabled">Debug logging disabled</string>
 
+    <!-- ============================================================ -->
+    <!-- Settings: Desktop Sync -->
+
+    <!-- Settings row: read and write messages from a computer. -->
     <string name="settings_desktop_sync_title">Desktop Sync</string>
+    <!-- Its hint while it is off. -->
     <string name="settings_desktop_sync_summary_off">Text from your computer in a browser</string>
     <string name="settings_category_desktop_sync">Desktop Sync</string>
+    <!-- Button (verb): put the link on the clipboard. -->
     <string name="settings_desktop_sync_link_copy">Copy link</string>
+    <!-- Said after that. -->
     <string name="settings_desktop_sync_link_copied">Link copied</string>
+    <!-- The pairing screen's first line. -->
+    <string name="settings_desktop_sync_code_intro">On the computer, open:</string>
+    <!-- The same screen. %1$s is the code. -->
+    <string name="settings_desktop_sync_code">and enter this code:\n\n    %1$s\n</string>
+    <!-- Under the code: how long it lasts. %1$s is how long. -->
+    <string name="settings_desktop_sync_code_left">Works once, for %1$s</string>
+    <!-- Said when too many tries were wrong. -->
+    <string name="settings_desktop_sync_code_locked">Too many wrong tries, so the code is cancelled. Close this and tap Show link again for a new one.</string>
+    <!-- The line above the full link. -->
+    <string name="settings_desktop_sync_link_full">Or use the full link, which needs no code:</string>
+    <!-- Settings row (verb): show the link to open on a computer. -->
+    <string name="settings_desktop_sync_link_title">Show link</string>
+    <!-- Its hint. -->
+    <string name="settings_desktop_sync_link_summary">Open this on your computer</string>
+    <!-- Under the link. -->
+    <string name="settings_desktop_sync_link_bookmark">Bookmark it — the address stays the same.</string>
+    <!-- Said when there is no address yet. -->
+    <string name="settings_desktop_sync_link_none">Desktop Sync is on, but this phone has no usable address yet.</string>
+    <!-- Said when VPN only is on and no VPN is up. -->
+    <string name="settings_desktop_sync_link_vpn_only">VPN only is on and no VPN is connected. Connect one, or switch VPN only off in Settings, Desktop Sync.</string>
+    <!-- Settings row: serve the page over HTTPS. -->
+    <string name="settings_desktop_sync_tls_title">Use HTTPS</string>
+    <!-- Its hint. -->
+    <string name="settings_desktop_sync_tls_summary">Needed before a browser will let the page use the microphone. The phone makes its own certificate, so every visit starts with a security warning you have to accept, and an already-paired browser needs the link again.</string>
+    <!-- Settings row: only connections through a VPN. -->
+    <string name="settings_desktop_sync_vpn_only_title">VPN only</string>
+    <!-- Its hint. -->
+    <string name="settings_desktop_sync_vpn_only_summary">Refuse connections that don\'t come through a VPN</string>
+    <!-- Settings row (verb): replace the link's token. -->
+    <string name="settings_desktop_sync_reset_title">Reset Desktop Sync link</string>
+    <!-- Its hint. -->
+    <string name="settings_desktop_sync_reset_summary">Replace the token in your link</string>
+    <!-- The same row, armed. -->
+    <string name="settings_desktop_sync_reset_armed">Reset link — tap again</string>
+    <!-- What the second tap does. -->
+    <string name="settings_desktop_sync_reset_armed_summary">Any bookmark or open tab on the old link stops working</string>
+    <!-- Said after resetting. -->
+    <string name="settings_desktop_sync_reset_done">New Desktop Sync link generated</string>
+    <!-- Desktop Sync's row while it is on. "On" alone means a computer can reach it. -->
+    <string name="settings_desktop_sync_summary_starting">Starting…</string>
+    <string name="settings_desktop_sync_summary_no_vpn">On, but no VPN is connected</string>
+    <string name="settings_desktop_sync_summary_no_network">On, but this phone has no network yet</string>
+    <string name="settings_desktop_sync_summary_on">On</string>
+
+    <!-- ============================================================ -->
+    <!-- Settings: Signal, and the account behind it -->
 
     <string name="settings_category_signal">Signal</string>
+    <!-- Settings row (verb): scan a code with Signal elsewhere. -->
     <string name="settings_signal_link_title">Link this phone to Signal</string>
+    <!-- Its hint. -->
     <string name="settings_signal_link_summary">Scan the code with Signal on your other phone</string>
+    <!-- Its hint once this phone is already linked. -->
     <string name="settings_signal_link_relinked">Already linked. Linking again replaces this device.</string>
+    <!-- Top bar title on the screen that makes this phone a Signal account. -->
     <string name="signal_register_title">Register this number</string>
+    <!-- The Settings row that opens it. -->
     <string name="signal_register_setting_title">Register this number instead</string>
+    <!-- Its hint. -->
     <string name="signal_register_setting_summary">Make this phone your only Signal, whether you are new to it or moving over from another phone</string>
+    <!-- The warning before the number is registered. -->
     <string name="signal_register_warning">This makes the phone your Signal, on its own. If this number is already on Signal anywhere else, that stops working and its linked devices are dropped. Messages already on the other phone stay there and do not come across.</string>
+    <!-- The number field. -->
     <string name="signal_register_number_hint">Your number, with the country code</string>
+    <!-- Button (verb): ask for the code. -->
     <string name="signal_register_send">Send me a code</string>
+    <!-- The code field. -->
     <string name="signal_register_code_hint">The code you were sent</string>
     <string name="signal_register_no_code">No code? Signal sends it from a short code, and numbers that forward texts — Google Voice and most other internet numbers — often cannot receive those, or the calls either. A number on a normal mobile plan will work.</string>
+    <!-- Button (verb). -->
     <string name="signal_register_verify">Register</string>
+    <!-- Button (verb): have the code read out instead. -->
     <string name="signal_register_call_instead">Call me with the code instead</string>
+    <!-- Said while a step runs. -->
     <string name="signal_register_working">Working…</string>
+    <!-- Said when Signal wants a puzzle solved. -->
     <string name="signal_register_captcha">Signal wants a puzzle solved first.</string>
+    <!-- Said after the code is sent. -->
     <string name="signal_register_code_sent">Code sent by text. It can take a minute.</string>
+    <!-- Said while Signal is calling with the code. -->
     <string name="signal_register_calling">Calling you with the code. Answer and write it down.</string>
-    <string name="signal_record_cd">Record a voice message</string>
-    <string name="signal_recording">Recording… tap the microphone to stop, or here to cancel</string>
-    <string name="signal_recorded">Voice message, %s — tap to remove</string>
-    <string name="signal_record_failed">The microphone would not start</string>
-    <string name="signal_record_needs_permission">Recording needs the microphone permission</string>
-    <string name="signal_record_permission_off">Recording needs the microphone permission, and Android won\'t ask for it again. Turn it on under Permissions in the app\'s settings.</string>
-    <string name="signal_record_permission_settings">Open settings</string>
-    <string name="signal_record_too_short">That was too short to send</string>
-    <string name="signal_attachment_open">Open</string>
-    <string name="signal_attachment_save">Save a copy…</string>
-    <string name="signal_attachment_saved">Saved.</string>
-    <string name="signal_attachment_save_failed">That could not be saved.</string>
-    <string name="signal_attachment_open_failed">That attachment could not be opened.</string>
-    <string name="contact_card_missing">This contact card is no longer on the phone, or never finished downloading.</string>
-    <string name="contact_card_empty">This contact card arrived empty, so there is nothing to show.</string>
-    <string name="contact_card_damaged">This file is not a readable contact card.</string>
-    <string name="signal_attachment_no_app">Nothing on this phone offers to open that kind of file.</string>
-    <string name="signal_voice_message">Voice message</string>
-    <string name="signal_voice_message_unavailable">Voice message — not downloaded</string>
-    <string name="signal_voice_message_failed">That voice message would not play</string>
-    <string name="signal_voice_play">Play</string>
-    <string name="signal_voice_pause">Pause</string>
-    <string name="signal_voice_stop">Stop</string>
-    <!-- Where a voice note is, and how long it is: "0:42 / 3:10". -->
-    <string name="signal_voice_time">%1$s / %2$s</string>
-    <string name="signal_voice_channel">Voice messages</string>
-    <string name="signal_gif_play">▶ GIF</string>
-    <string name="signal_play_video">Play video</string>
-    <string name="signal_gif_playing">■ GIF</string>
-    <string name="signal_gif_failed">That GIF would not play</string>
+    <!-- Said when registration finished. -->
     <string name="signal_register_done">Registered. Signal on this phone is yours now.</string>
     <string name="signal_register_staging">Use Signal\'s staging servers (test only — the app restarts)</string>
     <string name="signal_register_staging_on">Staging is on. Close and reopen the app, then register.</string>
+    <!-- Asks for the name people will see. -->
     <string name="signal_register_name_hint">What should people see when you write to them? Until this is set, they see a number and nothing else.</string>
+    <!-- The first-name field. -->
     <string name="signal_register_given_name">Name</string>
+    <!-- The last-name field. -->
     <string name="signal_register_family_name">Family name (optional)</string>
+    <!-- Button (verb). -->
     <string name="signal_register_save_name">Save</string>
+    <!-- Said while the name saves. -->
     <string name="signal_register_naming">Saving your name…</string>
+    <!-- Said when it saved. -->
     <string name="signal_register_named">Registered, and your name is set.</string>
+    <!-- Said when it did not. %s is why. -->
     <string name="signal_register_name_failed">Registered, but your name would not save: %s. You can try again; the account is already yours.</string>
     <string name="signal_register_failed">%s</string>
+    <!-- Top bar title on the linking screen. -->
     <string name="signal_link_title">Link this phone</string>
+    <!-- What to do on the other phone. -->
     <string name="signal_link_instructions">On your other phone, open Signal, then Settings \u2192 Linked devices \u2192 Link new device, and scan this code.</string>
+    <!-- Said while the code waits to be scanned. -->
     <string name="signal_link_waiting">Waiting for the code to be scanned\u2026</string>
+    <!-- Said when it was not scanned in time. -->
     <string name="signal_link_expired">The code expired. Close this and try again.</string>
+    <!-- Said when it was. -->
     <string name="signal_link_success">Linked. Your Signal conversations will start arriving.</string>
+    <!-- Said when it was not. %s is why. -->
     <string name="signal_link_failed">Could not link: %s</string>
     <!-- The answer to "Signal is already on this phone, so I cannot scan my own screen".
          The code goes on the page this phone serves to the reader's own computer, and the
          phone's own Signal reads it off the monitor. See SignalLinkOffer. -->
     <string name="signal_link_on_computer">Already running Signal on this phone? It cannot scan its own screen. Open\n\n%s\n\non your computer, then point this phone\u2019s Signal at the monitor.</string>
+    <!-- Settings row: hold the Signal connection open. -->
     <string name="settings_signal_keep_title">Keep Signal connected</string>
+    <!-- Its hint. -->
     <string name="settings_signal_keep_summary">Messages arrive as they are sent, at the cost of a permanent notification. Off, Signal catches up about every 15 minutes and when you open the app. On a Kompakt, switch Messaging on in DuraSpeed too, or it closes the app in the background; the setup guide has a button that opens it.</string>
+    <!-- Name of the Signal connection notification. -->
     <string name="signal_stream_channel">Signal connection</string>
+    <!-- That notification's title. -->
     <string name="signal_stream_title">Signal is connected</string>
+    <!-- Its one line. -->
     <string name="signal_stream_text">Messages arrive as they are sent</string>
+    <!-- Its button (verb). -->
     <string name="signal_stream_stop">Stop</string>
+    <!-- Settings row: show Signal conversations at all. -->
     <string name="settings_signal_enabled_title">Show Signal conversations</string>
+    <!-- Its hint. -->
     <string name="settings_signal_enabled_summary">Signal threads start empty and fill from today; older messages stay in Signal</string>
+    <!-- Settings row: the state of the Signal connection. -->
     <string name="settings_signal_status_title">Connection</string>
     <!-- Asked for, never automatic: it fetches the account's key material, and an account
          whose contacts arrive the ordinary way should never send it. -->
     <string name="settings_signal_fetch_contacts_title">Fetch contacts from Signal</string>
+    <!-- Said when Signal does not answer. -->
     <string name="settings_signal_fetch_contacts_failed">Signal would not answer. Nothing was changed.</string>
-    <string name="info_delete_summary">Removes it here and from your other Signal devices. Nothing can bring it back</string>
-    <string name="info_delete_armed_summary">This phone holds the only copy. Write a copy out first if you want to keep it</string>
-    <string name="info_delete_both">Their texts go too, since the two are one conversation here</string>
-    <string name="info_deleted_toast">Deleted %1$d message(s)</string>
-    <string name="info_delete_failed">Nothing was deleted</string>
-    <string name="signal_action_failed">That did not work</string>
-    <plurals name="main_block_signal_confirm">
-        <item quantity="one">Block this person on Signal? Their texts stop too, where the two are one conversation here.</item>
-        <item quantity="other">Block these %d people on Signal? Their texts stop too, where the two are one conversation here.</item>
-    </plurals>
-    <string name="info_block_both">Stops their texts as well, since the two are one conversation here</string>
-    <string name="info_link">Link to a text conversation</string>
-    <string name="info_link_linked">Linked to %s</string>
-    <string name="info_link_pick">Which conversation is the same person?</string>
-    <string name="info_link_unlink">Unlink</string>
-    <string name="info_link_none">No text conversations to link to</string>
+    <!-- The question asked once, after linking. -->
     <string name="settings_signal_fetch_contacts_offer_title">Names for these conversations?</string>
+    <!-- Why it is being asked. -->
     <string name="settings_signal_fetch_contacts_offer_body">Signal has not sent this phone anyone\'s name, so conversations will show a string of characters instead. Newer Signal keeps its contact list on its own servers, and reading it asks your Signal for the key that opens it. Nothing leaves this phone, and nobody is told. You can do this later instead, under Fetch contacts from Signal.</string>
+    <!-- Button (verb). -->
     <string name="settings_signal_fetch_contacts_offer_yes">Fetch them</string>
+    <!-- Button. -->
     <string name="settings_signal_fetch_contacts_offer_no">Not now</string>
+    <!-- Settings row (verb): ask Signal which contacts use it. -->
     <string name="settings_signal_discover_contacts_title">Find contacts on Signal</string>
+    <!-- Its hint. -->
     <string name="settings_signal_discover_contacts_summary">Asks Signal which of this phone\'s contacts are on it, so you can write to someone who has not written first</string>
+    <!-- The dialog before it runs. -->
     <string name="settings_signal_discover_contacts_confirm_title">Ask Signal about your contacts?</string>
+    <!-- What it sends, and to whom. -->
     <string name="settings_signal_discover_contacts_confirm_body">Your contacts\' phone numbers are sent to Signal\'s lookup service, scrambled so the service cannot read them. It is the same lookup Signal itself does, and it is the only way this phone can learn that someone is on Signal before they write to you.\n\nSignal limits how often an account may ask. This remembers what it has already asked about, so doing it again later is cheap.</string>
+    <!-- Button (verb). -->
     <string name="settings_signal_discover_contacts_confirm_yes">Look them up</string>
+    <!-- Button. -->
     <string name="settings_signal_discover_contacts_confirm_no">Not now</string>
+    <!-- Said when Signal does not answer. -->
     <string name="settings_signal_discover_contacts_failed">Signal would not answer. Nothing was changed.</string>
     <string name="settings_signal_fetch_contacts_summary">Where the people you know do not appear under On Signal in a new message. Newer Signal keeps its contact list on its own servers rather than sending it here, and this asks for the key that reads it</string>
     <string name="settings_signal_status_direct_offline">Not connected to Signal — reconnecting</string>
     <string name="settings_signal_status_direct_ok">Connected to Signal</string>
     <string name="settings_signal_status_outage">Signal is having technical problems — not this phone. Reconnecting</string>
-    <string name="signal_sms_taken">Another app is getting your text messages now. Tap to make this the text app again.</string>
     <string name="settings_signal_status_primary_idle">Open Signal on your other phone to keep this account active</string>
     <string name="settings_signal_status_stuck">%d message(s) could not be read</string>
     <string name="settings_signal_status_never">Not synced yet</string>
     <string name="settings_signal_status_last_synced">Last synced %s</string>
     <string name="settings_signal_status_last_received">Last message %s</string>
+    <!-- Settings row: delete every Signal message held here. -->
     <string name="settings_signal_unpair_title">Delete Signal data</string>
+    <!-- Its hint. -->
     <string name="settings_signal_unpair_summary">Removes every Signal message and conversation held on this phone. The phone stays linked to your account</string>
+    <!-- The same row, armed. -->
     <string name="settings_signal_unpair_armed">Delete Signal data — tap again</string>
+    <!-- What the second tap does. -->
     <string name="settings_signal_unpair_armed_summary">Every Signal message and thread on this phone goes. Nothing is removed from Signal itself, and this phone stays on the account.</string>
+    <!-- Settings row: read receipts, which belong to the account. -->
     <string name="settings_signal_receipts_title">Send read receipts</string>
+    <!-- Its hint. -->
     <string name="settings_signal_receipts_summary">Tell people when you have read their Signal message. One setting for the whole account, changed in Signal on your other phone</string>
+    <!-- Settings row: Android is not showing them. -->
     <string name="settings_signal_notifications_off_title">Signal notifications are off</string>
+    <!-- Its hint (verb). -->
     <string name="settings_signal_notifications_off_summary">Android is not showing them, so new messages arrive without a word. Tap to turn them on.</string>
+    <!-- Settings row: let a call fill the screen. -->
     <string name="settings_signal_fullscreen_title">Let calls wake the screen</string>
+    <!-- Its hint. -->
     <string name="settings_signal_fullscreen_summary">Android has stopped a Signal call from filling the screen, so it only rings as a notification. Tap to allow it.</string>
+    <!-- Settings row: keep the app running in the background. -->
     <string name="settings_signal_background_title">Let Messaging run in the background</string>
+    <!-- Its hint. -->
     <string name="settings_signal_background_summary">Android can pause Messaging to save battery, which delays Signal messages. Tap to let it keep running.</string>
+    <!-- Said where the row cannot be changed here. -->
     <string name="settings_signal_receipts_readonly">Read receipts are one setting for the whole Signal account. Change it in Signal on your other phone and this follows.</string>
+    <!-- Settings row: typing indicators, which belong to the account. -->
     <string name="settings_signal_typing_title">Typing indicators</string>
+    <!-- Settings row: the line under your name on Signal. -->
     <string name="settings_signal_about_title">About</string>
+    <!-- Its hint. -->
     <string name="settings_signal_about_summary">A line under your name on Signal. Start with an emoji to set your status emoji</string>
+    <!-- The field in its dialog. -->
     <string name="settings_signal_about_hint">About (empty clears it)</string>
+    <!-- Said when it saved. -->
     <string name="settings_signal_about_saved">About saved on Signal</string>
+    <!-- Said when it did not. %s is why. -->
     <string name="settings_signal_about_failed">Not saved: %s</string>
+    <!-- Its hint. -->
     <string name="settings_signal_typing_summary">Show when people are typing, and let them see when you are. One setting for the whole account, changed in Signal on your other phone</string>
+    <!-- Said where it cannot be changed here. -->
     <string name="settings_signal_typing_readonly">Typing indicators are one setting for the whole Signal account. Change it in Signal on your other phone and this follows.</string>
-    <string name="signal_typing_one">%s is typing…</string>
-    <string name="signal_typing_two">%1$s and %2$s are typing…</string>
-    <string name="signal_typing_many">Several people are typing…</string>
-    <string name="signal_typing_direct">Typing…</string>
-    <!-- The draft's selection menu. Signal's TextFormatting_* words. -->
-    <string name="signal_format">Format</string>
-    <string name="signal_forward">Forward</string>
-    <string name="signal_safety_mark_verified">Mark as verified</string>
-    <string name="signal_safety_clear_verified">Clear verification</string>
-    <string name="signal_safety_verify_summary">After comparing these numbers with theirs, in person or on a call</string>
-    <string name="signal_safety_verify_failed">Could not change it</string>
-    <string name="signal_edit_history">Edit history</string>
-    <!-- Polls: Signal's Poll__* and CreatePollFragment__* words. -->
-    <string name="signal_poll_new">Poll</string>
-    <string name="signal_poll_question">Question</string>
-    <string name="signal_poll_options">Options, one to a line (2 to 10)</string>
-    <string name="signal_poll_multiple">Allow more than one answer</string>
-    <string name="signal_poll_send">Send</string>
-    <string name="signal_poll_invalid">A poll needs a question and 2 to 10 options, each at most 100 characters.</string>
-    <string name="signal_poll_select_one">Poll · Select one</string>
-    <string name="signal_poll_select_many">Poll · Select one or more</string>
-    <string name="signal_poll_final">Poll · Final results</string>
-    <plurals name="signal_poll_votes">
-        <item quantity="one">%d vote</item>
-        <item quantity="other">%d votes</item>
-    </plurals>
-    <string name="signal_poll_end">End poll</string>
-    <string name="signal_poll_end_title">End poll?</string>
-    <string name="signal_poll_end_body">Members of this chat will no longer be able to vote in this poll.</string>
-    <!-- Pinned messages: Signal's PinnedMessage__* and ConversationFragment__keep_pinned words. -->
-    <string name="signal_pin">Pin</string>
-    <string name="signal_unpin">Unpin</string>
-    <string name="signal_pin_keep_for">Keep pinned for…</string>
-    <string name="signal_pin_24_hours">24 hours</string>
-    <string name="signal_pin_7_days">7 days</string>
-    <string name="signal_pin_30_days">30 days</string>
-    <string name="signal_pin_forever">Forever</string>
-    <string name="signal_pinned_one">Pinned: %s</string>
-    <string name="signal_pinned_many">Pinned %1$d of %2$d: %3$s</string>
-    <string name="signal_pinned_attachment">Attachment</string>
-    <string name="signal_pin_failed">Couldn\'t pin message: %s</string>
-    <string name="signal_unpin_failed">Couldn\'t unpin message: %s</string>
-    <!-- Message requests: Signal's MessageRequestBottomView wording. -->
-    <string name="signal_request_direct">%s wants to message you. Accept to reply. They won\'t know you\'ve seen their messages until you do.</string>
-    <string name="signal_request_group">You were added to %s. Accept to take part. Members won\'t know you\'ve seen their messages until you do.</string>
-    <string name="signal_request_accept">Accept</string>
-    <string name="sms_request_text">Not in your contacts, and you haven\'t replied. Accept to reply.</string>
-    <string name="signal_request_delete">Delete</string>
-    <string name="signal_request_block">Block</string>
-    <string name="signal_request_delete_confirm">Delete this conversation?</string>
-    <string name="signal_request_delete_confirm_group">Leave this group and delete it?</string>
-    <string name="signal_request_failed">Could not do that: %s</string>
-    <string name="signal_attach_file">Picture or file</string>
-    <string name="signal_attach_gif">GIF</string>
-    <string name="signal_gif">GIF</string>
-    <string name="signal_gif_title">GIF</string>
-    <string name="signal_gif_search_hint">Search GIPHY</string>
-    <string name="signal_gif_loading">Loading…</string>
-    <string name="signal_gif_none">No GIFs found</string>
-    <string name="signal_gif_search_failed">Could not reach GIPHY. Check the connection and try again.</string>
-    <string name="signal_gif_powered_by">Powered by GIPHY</string>
-    <string name="signal_attach_contact">Contact</string>
-    <plurals name="signal_attached_many">
-        <item quantity="one">Attached: %d picture. Tap to remove</item>
-        <item quantity="other">Attached: %d pictures. Tap to remove</item>
-    </plurals>
-    <string name="signal_forward_to">Forward to</string>
-    <string name="signal_forward_nowhere">No Signal conversations to forward to</string>
-    <string name="signal_forward_missing">the attachment is no longer on this phone</string>
-    <string name="signal_forwarded">Forwarded to %s</string>
-    <string name="signal_format_bold">Bold</string>
-    <string name="signal_format_italic">Italic</string>
-    <string name="signal_format_strikethrough">Strikethrough</string>
-    <string name="signal_format_monospace">Monospace</string>
-    <string name="signal_format_spoiler">Spoiler</string>
-    <string name="signal_format_clear">Clear formatting</string>
+    <!-- Settings row: the Signal conversation list. -->
     <string name="settings_signal_open_title">Signal conversations</string>
+    <!-- Its hint. -->
     <string name="settings_signal_open_summary">Read and reply on the Signal rail</string>
-
-    <string name="signal_title">Signal</string>
+    <!-- Settings row: Signal and texts in one list. -->
     <string name="settings_signal_weave_title">One conversation list</string>
+    <!-- Its hint. -->
     <string name="settings_signal_weave_summary">Signal threads sit alongside SMS, newest first. Turn this off to keep two separate lists; the badge in each list crosses to the other.</string>
+    <!-- Settings row: open on the Signal list. -->
     <string name="settings_signal_opens_first_title">Open on Signal</string>
+    <!-- Its hint. -->
     <string name="settings_signal_opens_first_summary">The app opens on the Signal list rather than the SMS one.</string>
-    <string name="signal_archived_shelf">Archived</string>
-    <string name="signal_inbox_shelf">Back to the inbox</string>
-    <string name="signal_title_archived">Signal · archived</string>
-    <string name="signal_archived_empty">No archived Signal conversations</string>
-    <string name="signal_message_copy">Copy text</string>
-    <string name="signal_message_share">Share</string>
-    <!-- Opens Translate on a message's text; offered only when Translate is installed. -->
-    <string name="message_translate">Translate</string>
-    <string name="signal_message_copied">Copied</string>
-    <string name="signal_info_title">Details</string>
-    <string name="signal_info_members">In this group</string>
-    <string name="signal_info_media">Pictures</string>
-    <string name="signal_info_media_none">No pictures in this conversation</string>
-    <!-- Signal's Nickname screen, as a row on Details and a dialog. Wording from upstream's NicknameActivity. -->
-    <string name="signal_nickname">Nickname</string>
-    <string name="signal_nickname_none">None</string>
-    <string name="signal_nickname_private">Nicknames &amp; notes are stored with Signal and end-to-end encrypted. They are only visible to you.</string>
-    <string name="signal_nickname_first">First name</string>
-    <string name="signal_nickname_last">Last name</string>
-    <string name="signal_nickname_note">Note</string>
-    <string name="signal_nickname_save">Save</string>
-    <string name="signal_nickname_delete">Delete</string>
-    <string name="signal_nickname_delete_armed">Delete — tap again</string>
-    <string name="signal_nickname_failed">The nickname could not be kept</string>
-    <plurals name="signal_info_counts">
-        <item quantity="one">%1$d message</item>
-        <item quantity="other">%1$d messages</item>
-    </plurals>
-    <string name="signal_info_since">%1$s, since %2$s</string>
-    <string name="signal_thread_empty">No messages yet. Anything you send goes out over Signal.</string>
-    <string name="signal_mute">Mute notifications</string>
-    <string name="signal_unmute">Unmute notifications</string>
-    <string name="signal_muted_toast">Muted. Messages still arrive.</string>
-    <!-- The same note for muting from the conversation list's selection, one or several. -->
-    <plurals name="main_muted_toast">
-        <item quantity="one">Muted. Messages still arrive.</item>
-        <item quantity="other">Muted %d chats. Messages still arrive.</item>
-    </plurals>
-    <string name="signal_block_armed">Block on Signal — tap again</string>
-    <string name="sms_blocked_toast">Blocked. Their texts no longer show in your chats.</string>
-    <string name="sms_block_failed">Not blocked — the change could not be saved</string>
-    <string name="signal_blocked_toast">Blocked on Signal, on every device</string>
-    <string name="signal_block_failed">Not blocked — Signal would not take the change</string>
-    <string name="signal_unblock_armed">Unblock on Signal — tap again</string>
-    <string name="signal_unblocked_toast">Unblocked on Signal, on every device</string>
-    <string name="signal_unblock_failed">Not unblocked — Signal would not take the change</string>
-    <string name="signal_find">Find in conversation</string>
-    <string name="signal_find_hint">Find</string>
-    <string name="signal_find_close">Close search</string>
-    <string name="signal_find_none">none</string>
+    <!-- Settings row: your name as others see it. -->
     <string name="settings_signal_profile_name_title">Your name on Signal</string>
+    <!-- Its hint. -->
     <string name="settings_signal_profile_name_summary">What people see when you write to them</string>
+    <!-- Said when it saved. -->
     <string name="signal_profile_name_saved">Your name is set.</string>
+    <!-- Said when it did not. %s is why. -->
     <string name="signal_profile_name_failed">The name would not save: %s</string>
+    <!-- Settings row: the number and its devices. -->
     <string name="settings_signal_account_title">Signal account</string>
+    <!-- Its hint. -->
     <string name="settings_signal_account_summary">The number, and the devices on it</string>
-    <string name="signal_account_unreachable">The account could not be read.</string>
-    <string name="signal_account_this_device_is">This phone is device %d on the account.</string>
-    <string name="signal_account_devices">Devices</string>
-    <string name="signal_account_device_line">%1$d · %2$s · last seen %3$s</string>
-    <string name="signal_account_device_primary">primary</string>
-    <string name="signal_account_device_unnamed">no name</string>
-    <string name="signal_account_devices_unread">The device list could not be read.</string>
-    <string name="signal_account_unlink_note">Devices are unlinked from the primary.</string>
-    <!-- The setup guide. One question to a page; every page can be skipped. -->
-    <string name="setup_title">Setting up</string>
-    <string name="setup_where">%1$d of %2$d</string>
-    <string name="setup_skip">Skip</string>
-    <string name="setup_skip_all">Skip all of this</string>
-    <string name="setup_continue">Continue</string>
-    <string name="setup_welcome_heading">Messaging</string>
-    <string name="setup_welcome_body">A few questions about how this phone sends messages. Every one can be skipped, and every answer can be changed later in Settings, where this guide is too.</string>
-    <string name="setup_welcome_start">Start</string>
-    <string name="setup_texting_heading">Texts</string>
-    <string name="setup_texting_body">To send and receive texts and picture messages, Messaging has to be this phone\'s texting app. Android asks you to confirm.</string>
-    <string name="setup_texting_make">Make it the texting app</string>
-    <string name="setup_kompakt_heading">Texts while the phone sleeps</string>
-    <string name="setup_kompakt_body">On a Kompakt, a service called DuraSpeed closes apps a few minutes after the screen goes dark, and will not let a text open Messaging again. A text that arrives then is lost, not late.\n\nTo stop it, open DuraSpeed below, tap Open, and switch Messaging on. On means allowed.</string>
-    <string name="setup_kompakt_how">Open DuraSpeed</string>
-    <string name="duraspeed_stopped_title">You may have missed a text</string>
-    <string name="duraspeed_stopped_body">From %1$s until you opened Messaging just now, the phone had it shut down, and any text sent to you in that time didn\'t arrive. There\'s no way to tell whether anyone did text then. If you were expecting something, ask them to send it again.\n\nThe phone\'s DuraSpeed setting does this. To stop it, open DuraSpeed, tap Open, and switch Messaging on.</string>
-    <string name="duraspeed_open">Open DuraSpeed</string>
-    <string name="duraspeed_later">Not now</string>
-    <string name="duraspeed_allowed">It\'s switched on</string>
-    <string name="duraspeed_channel">DuraSpeed</string>
-    <string name="duraspeed_ask_done">Is Messaging switched on in DuraSpeed now?</string>
-    <string name="duraspeed_not_yet">Not yet</string>
-    <string name="duraspeed_notification_title">Messaging can miss texts</string>
-    <string name="duraspeed_notification_text">The phone\'s DuraSpeed setting can shut Messaging down, and texts sent to you then never arrive. Open DuraSpeed, tap Open, and switch Messaging on.</string>
-    <string name="setup_signal_heading">Signal</string>
-    <string name="setup_signal_body">Signal can sit alongside your texts. If Signal is already on another phone or a computer, link this phone to it by scanning a code. If not, this phone\'s number can become a Signal account of its own. Skip this if you do not use Signal.</string>
-    <string name="setup_signal_link">Link to my Signal</string>
-    <string name="setup_signal_register">Register this phone</string>
-    <string name="setup_contacts_heading">Texts and Signal together</string>
-    <string name="setup_contacts_body">Signal can be asked which of your contacts use it. Each person\'s texts and Signal conversation are then paired, and the badge at the top of either crosses to the other.\n\nYour contacts\' numbers are sent to Signal\'s lookup service scrambled, so the service cannot read them. It is the same lookup Signal itself does.</string>
-    <string name="setup_contacts_look">Look them up</string>
-    <string name="setup_contacts_looking">Asking Signal…</string>
-    <string name="setup_lists_heading">One list or two</string>
-    <string name="setup_lists_body">Signal conversations can sit among your texts, newest first, or in a list of their own, with a badge to cross between the two.</string>
-    <string name="setup_lists_one">One list</string>
-    <string name="setup_lists_two">Two lists</string>
-    <string name="setup_connected_heading">When Signal messages arrive</string>
-    <string name="setup_connected_body">Kept connected, Signal messages arrive as they are sent, and a notification stays in the shade to say so. Otherwise Signal catches up about every 15 minutes and whenever you open the app, which uses less battery.</string>
-    <string name="setup_connected_keep">Keep Signal connected</string>
-    <string name="setup_connected_catch_up">Catch up now and then</string>
-    <string name="setup_desktop_heading">Desktop Sync</string>
-    <string name="setup_desktop_body">Read and send your messages from a computer\'s browser.\nVPN only needs a VPN such as Tailscale on the phone and the computer; on plain Wi-Fi there is no address.\nThis Wi-Fi too works without one, but anyone on the same Wi-Fi can reach the page, over plain HTTP, with the link\'s token as the only gate.</string>
-    <string name="setup_desktop_on_vpn">Turn it on (VPN only)</string>
-    <string name="setup_desktop_on_wifi">Turn it on for this Wi-Fi too</string>
-    <string name="setup_desktop_started_vpn">On, VPN only. Settings, under Desktop Sync, shows the address to open once a VPN such as Tailscale is connected on this phone and the computer.</string>
-    <string name="setup_desktop_started_wifi">On, for this Wi-Fi too (VPN only is off). Settings, under Desktop Sync, shows the address to open; you can switch VPN only back on there.</string>
-    <string name="setup_calls_heading">Signal calls</string>
-    <string name="setup_calls_body">Signal voice calls (never video) need the microphone permission. To ring and fill the screen while the phone is asleep they also need Android\'s full-screen notifications setting, which Android 14 and later can switch off.</string>
-    <string name="setup_calls_mic">Allow the microphone</string>
-    <string name="setup_calls_screen">Let calls wake the screen</string>
-    <string name="setup_calls_done">Nothing more is needed for calls.</string>
-    <string name="setup_done_heading">Done</string>
-    <string name="setup_done_body">Everything here is in Settings, and so is this guide, under Setup guide.</string>
-    <string name="setup_done_finish">Finish</string>
-    <string name="settings_ask_default_sms_title">Ask to be the texting app</string>
-    <string name="settings_ask_default_sms_summary">A line along the bottom of the SMS list while another app handles texts</string>
-    <string name="settings_setup_title">Setup guide</string>
-    <string name="setup_pair_title">Pair texts and Signal?</string>
-    <string name="setup_pair_body">Messaging can now pair each person\'s texts with their Signal conversation, so the badge at the top crosses between them. It asks Signal which of your contacts use it: their numbers go to Signal\'s lookup service scrambled, so the service cannot read them.</string>
-    <string name="setup_pair_yes">Look them up</string>
-    <string name="setup_pair_no">Not now</string>
-    <string name="settings_file_picker_title">Choose files with</string>
-    <string name="settings_file_picker_system">Android\'s own picker</string>
+    <!-- Settings row: a name people can find you by. -->
     <string name="settings_signal_username_title">Username</string>
+    <!-- Its hint. -->
     <string name="settings_signal_username_summary">A name people can find you by without your number</string>
+    <!-- The field in its dialog. -->
     <string name="settings_signal_username_hint">name or name.42</string>
+    <!-- Said when one is set. %s is the name. -->
     <string name="settings_signal_username_current">Now %s</string>
+    <!-- Said when it saved. %s is the name. -->
     <string name="settings_signal_username_set">Your username is %s</string>
+    <!-- Said when the name is in use. -->
     <string name="settings_signal_username_taken">That name is taken. Try another</string>
+    <!-- Said when the name does not fit Signal's rules. -->
     <string name="settings_signal_username_invalid">Use 3 to 32 letters, numbers or _, not starting with a number</string>
+    <!-- Said when it was taken away. -->
     <string name="settings_signal_username_removed">Username removed</string>
+    <!-- Said when it did not save. %s is why. -->
     <string name="settings_signal_username_failed">Not saved: %s</string>
+    <!-- Settings row: who sees your number. -->
     <string name="settings_signal_number_title">Phone number</string>
+    <!-- Its hint. -->
     <string name="settings_signal_number_summary">Who sees your number, and who can find you by it</string>
+    <!-- One of three choices. -->
     <string name="settings_signal_number_everybody">Everybody sees my number</string>
+    <!-- One of three choices. -->
     <string name="settings_signal_number_findable">Nobody sees it; people who have it can find me</string>
+    <!-- One of three choices. -->
     <string name="settings_signal_number_hidden">Nobody sees it, and it does not find me</string>
+    <!-- Said when it saved. -->
     <string name="settings_signal_number_saved">Saved</string>
+    <!-- Said when it did not. -->
     <string name="settings_signal_number_failed">Not saved</string>
-    <string name="signal_find_username">Find by username</string>
-    <string name="signal_find_username_hint">Username, with its number</string>
-    <string name="signal_find_username_none">Nobody has that username</string>
-    <string name="signal_find_username_invalid">A username is a name, a dot and a number, like sam.42</string>
-    <string name="signal_find_username_failed">Could not look it up: %s</string>
-    <!-- Said plainly, because it is the reason several settings people look for are not
-         here, and the reason losing the primary would take this device with it. -->
-    <string name="signal_account_linked_note">Registering the number, changing it, the registration-lock PIN and transferring the account all belong to the primary device. If the primary is unregistered, every other device on the account stops working.</string>
-    <string name="signal_message_delivered">Delivered</string>
-    <string name="signal_message_read">Read</string>
-    <string name="signal_message_viewed">Viewed</string>
-    <string name="signal_message_played">Played</string>
-    <string name="signal_message_edited">Edited</string>
-    <string name="signal_message_sending">Sending…</string>
-    <string name="signal_message_not_sent">Not sent · tap to send again</string>
-    <string name="signal_send_again">Send again</string>
-    <string name="signal_unsent_delete">Delete</string>
-    <string name="signal_delete_for_me">Delete for me</string>
-    <string name="signal_edit">Edit</string>
-    <string name="signal_mention_pick">Mention</string>
-    <string name="signal_info">Info</string>
-    <string name="signal_info_sent">Sent %1$s</string>
-    <string name="signal_info_received">Received %1$s</string>
-    <string name="signal_info_delivered">Delivered %1$s</string>
-    <string name="signal_info_read">Read %1$s</string>
-    <string name="signal_info_edited">Edited %1$s</string>
-    <string name="signal_editing">Editing your message · tap to cancel</string>
-    <string name="signal_edit_failed">Not edited: %1$s</string>
-    <string name="signal_delete_for_me_confirm">Delete this message from this phone and your other devices? The people in the conversation keep their copy.</string>
-    <plurals name="signal_delete_for_me_confirm_many">
-        <item quantity="one">Delete this message from this phone and your other devices? The people in the conversation keep their copy.</item>
-        <item quantity="other">Delete these %d messages from this phone and your other devices? The people in the conversation keep their copy.</item>
-    </plurals>
-    <string name="signal_safety_number">Safety number</string>
-    <string name="signal_safety_accept_title">Accept the new key</string>
-    <string name="signal_safety_accept_summary">Only after you have checked the digits with them another way. Until you do, messages to them will not send.</string>
-    <string name="signal_safety_changed_title">%1$s\'s safety number changed</string>
-    <string name="signal_safety_changed_title_unknown">Their safety number changed</string>
-    <string name="signal_safety_verify">Check the safety number</string>
-    <string name="signal_safety_send_anyway">Send anyway</string>
-    <string name="signal_safety_send_anyway_armed">Send anyway \u2014 you have not checked the new number; tap again</string>
-    <string name="signal_safety_accept_armed">Accept the new key \u2014 if you have not checked the digits, someone else could be reading what you send; tap again</string>
-    <string name="signal_safety_accepted">Key accepted. You can send to them again.</string>
-    <string name="signal_safety_accept_failed">Could not accept the key.</string>
-    <string name="signal_safety_verified">Verified. Compare these digits with theirs to confirm.</string>
-    <string name="signal_safety_unverified">Not verified yet. Compare these digits with theirs in person or over a call you trust.</string>
-    <string name="signal_safety_changed">⚠ Their key has changed since you last accepted it. This happens on a reinstall or a new phone, and it is also what interception would look like. Compare the digits before sending anything private.</string>
+    <!-- Settings row: the group holding import and export. -->
     <string name="settings_signal_history_title">Chat history</string>
     <!-- Two rows rather than one door with a dialog behind it. The dialog had to say which
          of the two you meant, and a body long enough to explain them both did not fit the
          screen: the buttons fell off the bottom of it. -->
     <string name="settings_signal_import_title">Bring history in</string>
+    <!-- Its hint. -->
     <string name="settings_signal_import_summary">From a Signal Desktop export copied onto this phone. Threads here start on the day this phone was linked; Signal gives a linked device nothing older</string>
+    <!-- Settings row (verb): write a copy out. -->
     <string name="settings_signal_export_title">Write a copy out</string>
+    <!-- Its hint. -->
     <string name="settings_signal_export_summary">Every Signal message held here, into a folder this can read back. Locked to your Signal account, so any phone signed in to it can open the copy</string>
+    <!-- The dialog that asks for the key to an older copy. -->
     <string name="settings_signal_backup_key_title">The key to this copy</string>
+    <!-- Why it is asked. -->
     <string name="settings_signal_backup_key_body">This copy was written before copies were locked to your account, and the thirty digits it was locked with are what open it.</string>
+    <!-- The field. -->
     <string name="settings_signal_backup_key_hint">The thirty digits</string>
+    <!-- Said when the digits do not open it. -->
     <string name="settings_signal_backup_key_wrong">Those digits do not open this copy. Check them against what you wrote down — six at a time, thirty in all.</string>
+    <!-- Button (verb). -->
     <string name="settings_signal_backup_key_again">Try again</string>
     <!-- Shown once and never again: it is not kept anywhere, which is the point of it. -->
     <string name="settings_signal_history_written_key">The key to this copy is\n\n%s\n\nWrite it down now. It is not kept on this phone, and without it nothing can read the copy — not this app, not anyone.</string>
     <string name="settings_signal_history_written_account">This copy is locked to your Signal account. Any phone signed in to it can read the copy back — there is nothing to write down.</string>
+    <!-- Said while the export is read. %d is how far it has got. -->
     <string name="settings_signal_history_working">Reading the export — %d message(s) so far</string>
+    <!-- Said while a copy is written. %d is how far it has got. -->
     <string name="settings_signal_history_writing">Writing a copy — %d message(s) so far</string>
+    <!-- Said when the folder holds no export. -->
     <string name="settings_signal_history_not_an_export">There is no Signal export in that folder. The folder to choose is the one holding main.jsonl.</string>
     <!-- Not the same as the folder being wrong. Said with the reason, because the folder is
          the one thing the reader would otherwise go and change. -->
     <string name="settings_signal_history_unreadable">That export could not be read, and nothing was brought in.\n\n%s</string>
+    <!-- Said when the copy cannot be written. -->
     <string name="settings_signal_history_not_written">The copy could not be written. Choose a folder this phone can write to.</string>
+    <!-- Said while the account's key is being fetched. -->
     <string name="settings_signal_history_key_asked">A copy is locked with a key that comes from your Signal, and this phone does not have it yet. It has just been asked for it. Try again in a moment.</string>
+    <!-- Said when that request could not be sent. -->
     <string name="settings_signal_history_key_unanswered">A copy is locked with a key that comes from your Signal, and this phone does not have it yet. The request could not be sent. Check this phone is connected to Signal, then try again.</string>
+    <!-- Said after writing. %s is the folder. -->
     <string name="settings_signal_history_written_where">Written to %s, in the folder you chose.</string>
     <plurals name="settings_signal_history_imported">
         <item quantity="one">%d message brought in.</item>
         <item quantity="other">%d messages brought in.</item>
     </plurals>
+    <!-- Said of messages that were already here. -->
     <string name="settings_signal_history_already">%d were already here and were left as they are.</string>
     <plurals name="settings_signal_history_skipped_events">
         <item quantity="one">%d was a note about a conversation rather than a message.</item>
@@ -819,37 +974,475 @@
         <item quantity="one">%d could not be placed: nothing in the export says who wrote it.</item>
         <item quantity="other">%d could not be placed: nothing in the export says who wrote them.</item>
     </plurals>
+    <!-- Said of group conversations that were skipped. %d is how many. -->
     <string name="settings_signal_history_groups">%d group conversations were skipped: this phone has no thread for them yet. Open the group here once and import again.</string>
-    <string name="settings_desktop_sync_code_intro">On the computer, open:</string>
-    <string name="settings_desktop_sync_code">and enter this code:\n\n    %1$s\n</string>
-    <string name="settings_desktop_sync_code_left">Works once, for %1$s</string>
-    <string name="settings_desktop_sync_code_locked">Too many wrong tries, so the code is cancelled. Close this and tap Show link again for a new one.</string>
-    <string name="settings_desktop_sync_link_full">Or use the full link, which needs no code:</string>
-    <string name="contacts_signal_hint">Search people on Signal</string>
+    <!-- Said when nothing on the phone opens the link. -->
+    <string name="signal_link_no_app">Nothing on this phone opens that kind of link</string>
+    <!-- Why a registration step failed, shown on its own line. Where a request was refused,
+         %1$s is the server's answer as it gave it. -->
+    <string name="signal_register_not_a_number">that is not a phone number this can register</string>
+    <string name="signal_register_no_code_yet">the server will not send a code yet</string>
+    <string name="signal_register_could_not_start">could not start registration: %1$s</string>
+    <string name="signal_register_captcha_no_code">the captcha was accepted but the server still will not send a code</string>
+    <string name="signal_register_captcha_refused">the captcha was not accepted: %1$s</string>
+    <string name="signal_register_code_not_sent">could not send a code: %1$s</string>
+    <string name="signal_register_code_refused_because">that code was not accepted: %1$s</string>
+    <string name="signal_register_code_refused">that code was not accepted</string>
+    <string name="signal_register_no_key_material">could not generate this account\'s key material</string>
+    <string name="signal_register_pin_hint">Your Signal PIN</string>
+    <string name="signal_register_unlock">Unlock</string>
+    <string name="signal_register_pin_needed">This number has a registration lock. Enter its Signal PIN to move it to this phone; your contacts and settings come with it.</string>
+    <string name="signal_register_pin_wrong">That PIN is not right. %1$s tries left. If they run out, Signal deletes the PIN\'s data and the number stays locked until the lock runs out.</string>
+    <string name="signal_register_pin_wrong_one">That PIN is not right. One try left. If it is wrong too, Signal deletes the PIN\'s data and the number stays locked until the lock runs out.</string>
+    <string name="signal_register_pin_missing">Signal has no PIN for this number, so the registration lock has to run out first. Link this phone to the account instead.</string>
+    <string name="signal_register_pin_check_failed">the PIN could not be checked: %1$s</string>
+    <string name="signal_register_locked">Signal kept this number locked even though its PIN was right. Link this phone to the account instead.</string>
+    <string name="signal_register_locked_day">Signal kept this number locked even though its PIN was right, with about a day left to run. Link this phone to the account instead.</string>
+    <string name="signal_register_locked_days">Signal kept this number locked even though its PIN was right, with about %1$s days left to run. Link this phone to the account instead.</string>
+    <string name="signal_register_refused">registration refused: %1$s</string>
+    <string name="signal_register_unexpected">unexpected registration state</string>
+    <!-- Why linking failed, shown after "Could not link: ". A refusal from the server
+         reuses signal_register_refused: linking registers this phone as a device. -->
+    <string name="signal_link_not_scanned">nobody scanned the code in time; ask for a new one</string>
+    <string name="signal_link_undecryptable">the provisioning message could not be decrypted</string>
+    <string name="signal_link_no_code">no provisioning code in the message</string>
+    <!-- Why this account's name did not save, shown after "The name would not save: " -->
+    <string name="signal_profile_no_account">this phone has no account yet</string>
+    <string name="signal_profile_no_service_id">this account has no service id yet</string>
+    <string name="signal_profile_no_key">this account has no profile key</string>
+    <string name="signal_profile_key_unreadable">this account\'s profile key will not load</string>
+    <string name="signal_profile_no_given_name">a profile needs a given name</string>
+    <string name="signal_profile_refused">the server would not take the name: %1$s</string>
+    <!-- What fetching contacts from Signal, or looking numbers up on it, did. The pieces of
+         a result are joined with " · ", and the skipped kinds with ", ". Every count is
+         said, because a fetch that understood a third of the account must not read like
+         one that understood all of it. -->
+    <string name="settings_signal_contacts_not_linked">This phone is not linked to Signal yet</string>
+    <string name="settings_signal_contacts_requested">Asked Signal for the contact list. It arrives in a moment, if your Signal answers</string>
+    <string name="settings_signal_contacts_no_numbers">There are no phone numbers in this phone\'s contacts to look up</string>
+    <string name="settings_signal_contacts_read">%1$s contact(s) from %2$s record(s)</string>
+    <string name="settings_signal_contacts_by_pni">%1$s by phone number</string>
+    <string name="settings_signal_contacts_skipped">skipped %1$s</string>
+    <string name="settings_signal_contacts_unreadable">%1$s the service would not hand over</string>
+    <string name="settings_signal_contacts_unopened">%1$s would not open</string>
+    <string name="settings_signal_contacts_not_contacts">%1$s not a contact</string>
+    <string name="settings_signal_contacts_anonymous">%1$s with no address at all</string>
+    <string name="settings_signal_contacts_anonymous_numbered">%1$s with no address at all, %2$s with a number</string>
+    <string name="settings_signal_contacts_no_key">the storage key is not here yet</string>
+    <string name="settings_signal_contacts_no_auth">the service would not give an auth token</string>
+    <string name="settings_signal_contacts_nothing_stored">this account has no stored records yet</string>
+    <string name="settings_signal_contacts_manifest_unreadable">the manifest could not be read</string>
+    <string name="settings_signal_contacts_wrong_key">the manifest would not open with this key</string>
+    <string name="settings_signal_lookup_all_done">Every number has been looked up already</string>
+    <string name="settings_signal_lookup_found">%1$s on Signal, from %2$s number(s)</string>
+    <string name="settings_signal_lookup_without_aci">%1$s known by phone number only</string>
+    <string name="settings_signal_lookup_no_numbers">There are no numbers to look up</string>
+    <string name="settings_signal_lookup_blocked">Signal will not answer more lookups for about %1$s more minute(s)</string>
+    <string name="settings_signal_lookup_too_many">too many new numbers to look up at once</string>
+    <string name="settings_signal_lookup_own_records">could not read this phone\'s own records to ask with</string>
+    <string name="settings_signal_lookup_exhausted">Signal will not answer more lookups for now. That is a limit on the account, not on this phone, and it lifts on its own.</string>
+    <string name="settings_signal_lookup_token">The record of what was looked up before is out of step. Try once more.</string>
+    <string name="settings_signal_lookup_refused">Signal refused the list of numbers</string>
+    <string name="settings_signal_lookup_unfinished">The lookup did not finish</string>
+    <!-- The contact store in numbers, on the Connection line. The last two are added only
+         when there are any, joined with ", ". -->
+    <string name="settings_signal_status_contacts">%1$s contact(s), %2$s with a profile key, %3$s named</string>
+    <string name="settings_signal_status_contacts_username">%1$s by username</string>
+    <string name="settings_signal_status_contacts_nameless">%1$s with nothing to show but an id</string>
+
+    <!-- ============================================================ -->
+    <!-- Signal conversations -->
+
+    <!-- Spoken description of the microphone button. -->
+    <string name="signal_record_cd">Record a voice message</string>
+    <!-- Said while a voice message records. -->
+    <string name="signal_recording">Recording… tap the microphone to stop, or here to cancel</string>
+    <!-- The attached voice message. %s is how long it is. -->
+    <string name="signal_recorded">Voice message, %s — tap to remove</string>
+    <!-- Said when the microphone will not start. -->
+    <string name="signal_record_failed">The microphone would not start</string>
+    <!-- Said when the microphone permission is missing. -->
+    <string name="signal_record_needs_permission">Recording needs the microphone permission</string>
+    <!-- Said when Android will not ask for it again. -->
+    <string name="signal_record_permission_off">Recording needs the microphone permission, and Android won\'t ask for it again. Turn it on under Permissions in the app\'s settings.</string>
+    <!-- Button (verb): open Android's app settings. -->
+    <string name="signal_record_permission_settings">Open settings</string>
+    <!-- Said when the recording is a fraction of a second. -->
+    <string name="signal_record_too_short">That was too short to send</string>
+    <!-- Menu on an attachment (verb). -->
+    <string name="signal_attachment_open">Open</string>
+    <!-- The same menu (verb). -->
+    <string name="signal_attachment_save">Save a copy…</string>
+    <!-- Said after saving. -->
+    <string name="signal_attachment_saved">Saved.</string>
+    <!-- Said when saving fails. -->
+    <string name="signal_attachment_save_failed">That could not be saved.</string>
+    <!-- Said when nothing on the phone opens the file. -->
+    <string name="signal_attachment_no_app">Nothing on this phone offers to open that kind of file.</string>
+    <!-- The label on a voice message. -->
+    <string name="signal_voice_message">Voice message</string>
+    <!-- The same label before it is downloaded. -->
+    <string name="signal_voice_message_unavailable">Voice message — not downloaded</string>
+    <!-- Said when it will not play. -->
+    <string name="signal_voice_message_failed">That voice message would not play</string>
+    <!-- Button (verb). -->
+    <string name="signal_voice_play">Play</string>
+    <!-- Button (verb). -->
+    <string name="signal_voice_pause">Pause</string>
+    <!-- Button (verb). -->
+    <string name="signal_voice_stop">Stop</string>
+    <!-- Where a voice note is, and how long it is: "0:42 / 3:10". -->
+    <string name="signal_voice_time">%1$s / %2$s</string>
+    <!-- Name of the voice-message notification category. -->
+    <string name="signal_voice_channel">Voice messages</string>
+    <!-- The GIF button while the picture is still. -->
+    <string name="signal_gif_play">▶ GIF</string>
+    <!-- Spoken description of a video. -->
+    <string name="signal_play_video">Play video</string>
+    <!-- The same button while the GIF plays. -->
+    <string name="signal_gif_playing">■ GIF</string>
+    <!-- Said when it will not play. -->
+    <string name="signal_gif_failed">That GIF would not play</string>
+    <!-- Said when a Signal action did not work. -->
+    <string name="signal_action_failed">That did not work</string>
+    <!-- %s is typing. Shown at the foot of a conversation. -->
+    <string name="signal_typing_one">%s is typing…</string>
+    <!-- %1$s and %2$s are typing. -->
+    <string name="signal_typing_two">%1$s and %2$s are typing…</string>
+    <!-- Three or more are typing. -->
+    <string name="signal_typing_many">Several people are typing…</string>
+    <!-- The same line in a one-to-one conversation. -->
+    <string name="signal_typing_direct">Typing…</string>
+    <!-- The draft's selection menu. Signal's TextFormatting_* words. -->
+    <string name="signal_format">Format</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_forward">Forward</string>
+    <!-- Row (verb): record that the digits were compared. -->
+    <string name="signal_safety_mark_verified">Mark as verified</string>
+    <!-- Row (verb): undo that. -->
+    <string name="signal_safety_clear_verified">Clear verification</string>
+    <!-- Its hint. -->
+    <string name="signal_safety_verify_summary">After comparing these numbers with theirs, in person or on a call</string>
+    <!-- Said when it did not save. -->
+    <string name="signal_safety_verify_failed">Could not change it</string>
+    <!-- Row: the earlier versions of an edited message. -->
+    <string name="signal_edit_history">Edit history</string>
+    <!-- Polls: Signal's Poll__* and CreatePollFragment__* words. -->
+    <string name="signal_poll_new">Poll</string>
+    <!-- The poll's question field. -->
+    <string name="signal_poll_question">Question</string>
+    <!-- The poll's answers, one to a line. -->
+    <string name="signal_poll_options">Options, one to a line (2 to 10)</string>
+    <!-- A switch on the poll screen. -->
+    <string name="signal_poll_multiple">Allow more than one answer</string>
+    <!-- Button (verb). -->
+    <string name="signal_poll_send">Send</string>
+    <!-- Said when the poll cannot be made. -->
+    <string name="signal_poll_invalid">A poll needs a question and 2 to 10 options, each at most 100 characters.</string>
+    <!-- On a poll: one answer may be picked. -->
+    <string name="signal_poll_select_one">Poll · Select one</string>
+    <!-- On a poll: more than one may be picked. -->
+    <string name="signal_poll_select_many">Poll · Select one or more</string>
+    <!-- On a poll that has ended. -->
+    <string name="signal_poll_final">Poll · Final results</string>
+    <plurals name="signal_poll_votes">
+        <item quantity="one">%d vote</item>
+        <item quantity="other">%d votes</item>
+    </plurals>
+    <!-- Row (verb). -->
+    <string name="signal_poll_end">End poll</string>
+    <!-- The dialog's question. -->
+    <string name="signal_poll_end_title">End poll?</string>
+    <!-- What ending it does. -->
+    <string name="signal_poll_end_body">Members of this chat will no longer be able to vote in this poll.</string>
+    <!-- Pinned messages: Signal's PinnedMessage__* and ConversationFragment__keep_pinned words. -->
+    <string name="signal_pin">Pin</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_unpin">Unpin</string>
+    <!-- The heading over the choices below. -->
+    <string name="signal_pin_keep_for">Keep pinned for…</string>
+    <!-- A pin's lifetime. -->
+    <string name="signal_pin_24_hours">24 hours</string>
+    <!-- A pin's lifetime. -->
+    <string name="signal_pin_7_days">7 days</string>
+    <!-- A pin's lifetime. -->
+    <string name="signal_pin_30_days">30 days</string>
+    <!-- A pin's lifetime. -->
+    <string name="signal_pin_forever">Forever</string>
+    <!-- The pinned line at the top of a conversation. %s is the message. -->
+    <string name="signal_pinned_one">Pinned: %s</string>
+    <!-- %1$d of %2$d pinned messages; %3$s is the newest. -->
+    <string name="signal_pinned_many">Pinned %1$d of %2$d: %3$s</string>
+    <!-- Stands in for a pinned message that is a file. -->
+    <string name="signal_pinned_attachment">Attachment</string>
+    <!-- Said when pinning failed. %s is why. -->
+    <string name="signal_pin_failed">Couldn\'t pin message: %s</string>
+    <!-- Said when unpinning failed. %s is why. -->
+    <string name="signal_unpin_failed">Couldn\'t unpin message: %s</string>
+    <!-- Message requests: Signal's MessageRequestBottomView wording. -->
+    <string name="signal_request_direct">%s wants to message you. Accept to reply. They won\'t know you\'ve seen their messages until you do.</string>
+    <string name="signal_request_group">You were added to %s. Accept to take part. Members won\'t know you\'ve seen their messages until you do.</string>
+    <!-- Button (verb). -->
+    <string name="signal_request_accept">Accept</string>
+    <!-- Shown instead of a message from a stranger, before a reply. -->
+    <string name="sms_request_text">Not in your contacts, and you haven\'t replied. Accept to reply.</string>
+    <!-- Button (verb). -->
+    <string name="signal_request_delete">Delete</string>
+    <!-- Button (verb). -->
+    <string name="signal_request_block">Block</string>
+    <!-- The dialog before deleting. -->
+    <string name="signal_request_delete_confirm">Delete this conversation?</string>
+    <!-- The same for a group. -->
+    <string name="signal_request_delete_confirm_group">Leave this group and delete it?</string>
+    <!-- Said when it did not work. %s is why. -->
+    <string name="signal_request_failed">Could not do that: %s</string>
+    <!-- The attach sheet: a picture or any file. -->
+    <string name="signal_attach_file">Picture or file</string>
+    <!-- The attach sheet: a GIF. -->
+    <string name="signal_attach_gif">GIF</string>
+    <!-- The word for a GIF in a conversation. -->
+    <string name="signal_gif">GIF</string>
+    <!-- Top bar title on the GIF search. -->
+    <string name="signal_gif_title">GIF</string>
+    <!-- The search field there. -->
+    <string name="signal_gif_search_hint">Search GIPHY</string>
+    <!-- Said while results load. -->
+    <string name="signal_gif_loading">Loading…</string>
+    <!-- Said when a search finds nothing. -->
+    <string name="signal_gif_none">No GIFs found</string>
+    <!-- Said when GIPHY cannot be reached. -->
+    <string name="signal_gif_search_failed">Could not reach GIPHY. Check the connection and try again.</string>
+    <!-- The line under the results, as GIPHY asks. -->
+    <string name="signal_gif_powered_by">Powered by GIPHY</string>
+    <!-- The attach sheet: a contact card. -->
+    <string name="signal_attach_contact">Contact</string>
+    <plurals name="signal_attached_many">
+        <item quantity="one">Attached: %d picture. Tap to remove</item>
+        <item quantity="other">Attached: %d pictures. Tap to remove</item>
+    </plurals>
+    <!-- Top bar title on the screen that picks who to forward to. -->
+    <string name="signal_forward_to">Forward to</string>
+    <!-- Said when there is nobody to forward to. -->
+    <string name="signal_forward_nowhere">No Signal conversations to forward to</string>
+    <!-- Stands in for an attachment that is gone. -->
+    <string name="signal_forward_missing">the attachment is no longer on this phone</string>
+    <!-- Said after forwarding. %s is where to. -->
+    <string name="signal_forwarded">Forwarded to %s</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_bold">Bold</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_italic">Italic</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_strikethrough">Strikethrough</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_monospace">Monospace</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_spoiler">Spoiler</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_clear">Clear formatting</string>
+    <!-- The Signal list's name, on its top bar. -->
+    <string name="signal_title">Signal</string>
+    <!-- The way to the archived Signal conversations. -->
+    <string name="signal_archived_shelf">Archived</string>
+    <!-- The way back. -->
+    <string name="signal_inbox_shelf">Back to the inbox</string>
+    <!-- Top bar title on the archived Signal list. -->
+    <string name="signal_title_archived">Signal · archived</string>
+    <!-- Said in the middle of that list when it is empty. -->
+    <string name="signal_archived_empty">No archived Signal conversations</string>
+    <!-- Menu on a message (verb). -->
+    <string name="signal_message_copy">Copy text</string>
+    <!-- The same menu (verb). -->
+    <string name="signal_message_share">Share</string>
+    <!-- Said after copying. -->
+    <string name="signal_message_copied">Copied</string>
+    <!-- Top bar title on a Signal conversation's details. -->
+    <string name="signal_info_title">Details</string>
+    <!-- The heading over a group's members. -->
+    <string name="signal_info_members">In this group</string>
+    <!-- The heading over the pictures. -->
+    <string name="signal_info_media">Pictures</string>
+    <!-- Said when there are none. -->
+    <string name="signal_info_media_none">No pictures in this conversation</string>
+    <!-- Signal's Nickname screen, as a row on Details and a dialog. Wording from upstream's NicknameActivity. -->
+    <string name="signal_nickname">Nickname</string>
+    <!-- Said when there is no nickname. -->
+    <string name="signal_nickname_none">None</string>
+    <!-- The note under the nickname fields. -->
+    <string name="signal_nickname_private">Nicknames &amp; notes are stored with Signal and end-to-end encrypted. They are only visible to you.</string>
+    <!-- The first-name field. -->
+    <string name="signal_nickname_first">First name</string>
+    <!-- The last-name field. -->
+    <string name="signal_nickname_last">Last name</string>
+    <!-- The note field. -->
+    <string name="signal_nickname_note">Note</string>
+    <!-- Button (verb). -->
+    <string name="signal_nickname_save">Save</string>
+    <!-- Button (verb). -->
+    <string name="signal_nickname_delete">Delete</string>
+    <!-- The same button, armed. -->
+    <string name="signal_nickname_delete_armed">Delete — tap again</string>
+    <!-- Said when it did not save. -->
+    <string name="signal_nickname_failed">The nickname could not be kept</string>
+    <plurals name="signal_info_counts">
+        <item quantity="one">%1$d message</item>
+        <item quantity="other">%1$d messages</item>
+    </plurals>
+    <!-- %1$s is who they are, %2$s since when. -->
+    <string name="signal_info_since">%1$s, since %2$s</string>
+    <!-- Said in a Signal conversation with nothing in it. -->
+    <string name="signal_thread_empty">No messages yet. Anything you send goes out over Signal.</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_mute">Mute notifications</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_unmute">Unmute notifications</string>
+    <!-- Said after muting. -->
+    <string name="signal_muted_toast">Muted. Messages still arrive.</string>
+    <!-- The block row, armed. -->
+    <string name="signal_block_armed">Block on Signal — tap again</string>
+    <!-- Said after blocking. -->
+    <string name="sms_blocked_toast">Blocked. Their texts no longer show in your chats.</string>
+    <!-- Said when the block did not save. -->
+    <string name="sms_block_failed">Not blocked — the change could not be saved</string>
+    <!-- Said after blocking on Signal. -->
+    <string name="signal_blocked_toast">Blocked on Signal, on every device</string>
+    <!-- Said when Signal would not take it. -->
+    <string name="signal_block_failed">Not blocked — Signal would not take the change</string>
+    <!-- The unblock row, armed. -->
+    <string name="signal_unblock_armed">Unblock on Signal — tap again</string>
+    <!-- Said after unblocking. -->
+    <string name="signal_unblocked_toast">Unblocked on Signal, on every device</string>
+    <!-- Said when Signal would not take it. -->
+    <string name="signal_unblock_failed">Not unblocked — Signal would not take the change</string>
+    <!-- Menu item (verb): search inside this conversation. -->
+    <string name="signal_find">Find in conversation</string>
+    <!-- The field's placeholder. -->
+    <string name="signal_find_hint">Find</string>
+    <!-- Button (verb). -->
+    <string name="signal_find_close">Close search</string>
+    <!-- Said when nothing matches. -->
+    <string name="signal_find_none">none</string>
+    <!-- Said when the account cannot be read. -->
+    <string name="signal_account_unreachable">The account could not be read.</string>
+    <!-- Said on the account screen. %d is this device's number. -->
+    <string name="signal_account_this_device_is">This phone is device %d on the account.</string>
+    <!-- The heading over the device list. -->
+    <string name="signal_account_devices">Devices</string>
+    <!-- %1$d is the device's number, %2$s its name, %3$s when it was last seen. -->
+    <string name="signal_account_device_line">%1$d · %2$s · last seen %3$s</string>
+    <!-- Said of the primary device. -->
+    <string name="signal_account_device_primary">primary</string>
+    <!-- Stands in for a device with no name. -->
+    <string name="signal_account_device_unnamed">no name</string>
+    <!-- Said when the device list cannot be read. -->
+    <string name="signal_account_devices_unread">The device list could not be read.</string>
+    <!-- The note under it. -->
+    <string name="signal_account_unlink_note">Devices are unlinked from the primary.</string>
+    <!-- Top bar title on the username search. -->
+    <string name="signal_find_username">Find by username</string>
+    <!-- The field there. -->
+    <string name="signal_find_username_hint">Username, with its number</string>
+    <!-- Said when nobody has it. -->
+    <string name="signal_find_username_none">Nobody has that username</string>
+    <!-- Said when what was typed is not a username. -->
+    <string name="signal_find_username_invalid">A username is a name, a dot and a number, like sam.42</string>
+    <!-- Said when the lookup failed. %s is why. -->
+    <string name="signal_find_username_failed">Could not look it up: %s</string>
+    <!-- Said plainly, because it is the reason several settings people look for are not
+         here, and the reason losing the primary would take this device with it. -->
+    <string name="signal_account_linked_note">Registering the number, changing it, the registration-lock PIN and transferring the account all belong to the primary device. If the primary is unregistered, every other device on the account stops working.</string>
+    <!-- Under a Signal message that arrived. -->
+    <string name="signal_message_delivered">Delivered</string>
+    <!-- Under one that was opened. -->
+    <string name="signal_message_read">Read</string>
+    <!-- Under a view-once picture that was seen. -->
+    <string name="signal_message_viewed">Viewed</string>
+    <!-- Under a voice message that was heard. -->
+    <string name="signal_message_played">Played</string>
+    <!-- Under a message that was changed. -->
+    <string name="signal_message_edited">Edited</string>
+    <!-- Under one that is on its way. -->
+    <string name="signal_message_sending">Sending…</string>
+    <!-- Under one that did not go; tapping sends it again. -->
+    <string name="signal_message_not_sent">Not sent · tap to send again</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_send_again">Send again</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_unsent_delete">Delete</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_delete_for_me">Delete for me</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_edit">Edit</string>
+    <!-- Menu item: mention somebody in a group. -->
+    <string name="signal_mention_pick">Mention</string>
+    <!-- Menu item: the message's details. -->
+    <string name="signal_info">Info</string>
+    <!-- A line in those details. %1$s is the time. -->
+    <string name="signal_info_sent">Sent %1$s</string>
+    <!-- A line in those details. -->
+    <string name="signal_info_received">Received %1$s</string>
+    <!-- A line in those details. -->
+    <string name="signal_info_delivered">Delivered %1$s</string>
+    <!-- A line in those details. -->
+    <string name="signal_info_read">Read %1$s</string>
+    <!-- A line in those details. -->
+    <string name="signal_info_edited">Edited %1$s</string>
+    <!-- Said above the composer while a message is being changed. -->
+    <string name="signal_editing">Editing your message · tap to cancel</string>
+    <!-- Said when the change did not go. %1$s is why. -->
+    <string name="signal_edit_failed">Not edited: %1$s</string>
+    <!-- The dialog before deleting for oneself. -->
+    <string name="signal_delete_for_me_confirm">Delete this message from this phone and your other devices? The people in the conversation keep their copy.</string>
+    <plurals name="signal_delete_for_me_confirm_many">
+        <item quantity="one">Delete this message from this phone and your other devices? The people in the conversation keep their copy.</item>
+        <item quantity="other">Delete these %d messages from this phone and your other devices? The people in the conversation keep their copy.</item>
+    </plurals>
+    <!-- Row: the digits two people compare. -->
+    <string name="signal_safety_number">Safety number</string>
+    <!-- The dialog when the other side's key changed. -->
+    <string name="signal_safety_accept_title">Accept the new key</string>
+    <!-- What accepting means. -->
+    <string name="signal_safety_accept_summary">Only after you have checked the digits with them another way. Until you do, messages to them will not send.</string>
+    <!-- The same dialog's title. %1$s is the person. -->
+    <string name="signal_safety_changed_title">%1$s\'s safety number changed</string>
+    <!-- The title where there is no name to show. -->
+    <string name="signal_safety_changed_title_unknown">Their safety number changed</string>
+    <!-- Row (verb). -->
+    <string name="signal_safety_verify">Check the safety number</string>
+    <!-- Button (verb). -->
+    <string name="signal_safety_send_anyway">Send anyway</string>
+    <!-- The same button, armed. -->
+    <string name="signal_safety_send_anyway_armed">Send anyway \u2014 you have not checked the new number; tap again</string>
+    <!-- The accept button, armed. -->
+    <string name="signal_safety_accept_armed">Accept the new key \u2014 if you have not checked the digits, someone else could be reading what you send; tap again</string>
+    <!-- Said after accepting. -->
+    <string name="signal_safety_accepted">Key accepted. You can send to them again.</string>
+    <!-- Said when it did not work. -->
+    <string name="signal_safety_accept_failed">Could not accept the key.</string>
+    <!-- Said when the digits were marked as compared. -->
+    <string name="signal_safety_verified">Verified. Compare these digits with theirs to confirm.</string>
+    <!-- Said before they are. -->
+    <string name="signal_safety_unverified">Not verified yet. Compare these digits with theirs in person or over a call you trust.</string>
+    <!-- The warning itself. -->
+    <string name="signal_safety_changed">⚠ Their key has changed since you last accepted it. This happens on a reinstall or a new phone, and it is also what interception would look like. Compare the digits before sending anything private.</string>
+    <!-- The badge that names the Signal list. -->
     <string name="signal_rail_label">Signal</string>
+    <!-- The same badge where it leads to the other list. -->
     <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;
          the ">" says it is a way across rather than a label. -->
     <string name="sms_rail_label_switch">SMS ></string>
+    <!-- Said in the middle of an empty Signal list. -->
     <string name="signal_empty">No Signal conversations yet.\n\nWrite to somebody, or wait for a message; anything older stays in Signal.</string>
+    <!-- Spoken description of the new-message button there. -->
     <string name="signal_new_conversation_cd">Write to somebody on Signal</string>
-    <string name="signal_group_title">New group</string>
-    <string name="signal_group_create">Create</string>
-    <string name="signal_group_name_hint">Group name</string>
-    <string name="signal_group_search_hint">Search</string>
-    <string name="signal_group_nobody">Nobody to add.\n\nFetch your contacts in Settings, or wait for somebody to write.</string>
-    <string name="signal_group_could_not_read">This phone could not read who is on Signal just now. Close this and open it again.</string>
-    <string name="signal_group_no_match">Nobody by that name.</string>
-    <string name="signal_group_needs_a_name">A group needs a name.</string>
-    <string name="signal_group_needs_somebody">A group needs somebody else in it.</string>
-    <string name="signal_group_not_made">The group was not made.</string>
-    <string name="signal_composer_hint">Message</string>
-    <string name="signal_send">Send</string>
+    <!-- Said above the composer while disconnected. -->
     <string name="signal_cannot_send_signal">Not connected to Signal — you can read, but not send</string>
     <!-- Shown instead of the line above while the socket is actually reaching for the
          server. Every launch begins disconnected; saying only that sending cannot happen
          made a phone that was about to work look like a phone that was broken. -->
     <string name="signal_connecting_signal">Connecting to Signal — you can read; sending works in a moment</string>
+    <!-- A toast after a failed send. %s is why. -->
     <string name="signal_send_failed">Not sent: %s</string>
     <!--
       Shown when the send itself worked and only the local record failed. Blunt about not
@@ -857,331 +1450,111 @@
       says the opposite.
     -->
     <string name="signal_sent_but_not_filed">It was sent, but this phone could not add it to the conversation. Do not send it again.</string>
+    <!-- The name on a message you sent. -->
     <string name="signal_you">You</string>
+    <!-- Menu item: open the text half of this conversation. -->
     <string name="signal_switch_to_sms">Switch to SMS</string>
+    <!-- Menu item (verb). -->
     <string name="signal_archive">Archive conversation</string>
+    <!-- Menu item (verb). -->
     <string name="signal_unarchive">Move back to inbox</string>
+    <!-- Said after archiving. -->
     <string name="signal_archived_toast">Archived — find it under Archived</string>
+    <!-- Said after unarchiving. -->
     <string name="signal_unarchived_toast">Back in the inbox</string>
+    <!-- Menu item: open the Signal half. -->
     <string name="signal_switch_to_signal">Switch to Signal</string>
-    <!-- The second line of a person in the new-message list who is reachable on Signal.
-         The same name can appear twice, once per rail, and this is what tells them apart. -->
-    <!-- The divider before the Signal entries in the new-message list. They come after the
-         address book, and on a long one that is the same as being hidden unless it is said. -->
-    <string name="compose_signal_header">On Signal</string>
-    <string name="compose_signal_person">Signal</string>
-    <string name="compose_signal_person_number">Signal · %s</string>
-    <string name="signal_attach">+</string>
+    <!-- Said of an attachment in the composer. %s is its name. -->
     <string name="signal_attached">Attached: %s — tap to remove</string>
+    <!-- Said when the file cannot be read. -->
     <string name="signal_attach_failed">Could not read that file</string>
+    <!-- Said when the file is too large to send. -->
     <string name="signal_attach_too_big">That file is too large to send</string>
+    <!-- Spoken description of a picture. -->
     <string name="signal_attachment_image">Image attachment</string>
+    <!-- Spoken description of a file. %s is its name. -->
     <string name="signal_attachment_other">Attachment: %s</string>
+    <!-- Said of an attachment not yet downloaded. -->
     <string name="signal_attachment_unavailable">Attachment (not downloaded)</string>
+    <!-- A view-once picture that was seen. -->
     <string name="signal_view_once_received">View-once photo. Viewed.</string>
+    <!-- A view-once picture waiting to be seen. -->
     <string name="signal_view_once_open">View-once photo. Tap to view.</string>
+    <!-- The same, still arriving. -->
     <string name="signal_view_once_downloading">View-once photo, still arriving.</string>
+    <!-- A view-once picture you sent. -->
     <string name="signal_view_once_sent">View-once photo.</string>
+    <!-- Said when it is no longer there. -->
     <string name="signal_view_once_gone">Already viewed.</string>
+    <!-- Said when it cannot be shown. -->
     <string name="signal_view_once_unshowable">This picture could not be shown.</string>
+    <!-- The attach sheet: a view-once picture. -->
     <string name="signal_attach_view_once">View-once picture</string>
+    <!-- Said of one in the composer. %s is its name. -->
     <string name="signal_attached_view_once">View once: %s</string>
-    <string name="signal_link_no_app">Nothing on this phone opens that kind of link</string>
+    <!-- Said when there is no browser and the address is copied. %s is it. -->
     <string name="web_link_no_browser_copied">No web browser on this phone. The address is copied: %s</string>
+    <!-- Menu item (verb). -->
     <string name="signal_react">React\u2026</string>
     <string name="signal_quote">\u21b3 %1$s: %2$s</string>
+    <!-- Stands in for your own name in a quote. -->
     <string name="signal_quote_you">You</string>
+    <!-- Stands in for a quoted message from before the thread synced. -->
     <string name="signal_quote_missing">\u21b3 Replying to a message from before this thread synced</string>
+    <!-- Stands in for a quoted picture. -->
     <string name="signal_quote_no_text">(a picture)</string>
+    <!-- Menu item (verb). -->
     <string name="signal_reply">Reply</string>
+    <!-- Said when a reply from a notification did not go. -->
     <string name="signal_notification_reply_failed">Your reply did not go. Open the conversation to send it again.</string>
+    <!-- Said above the composer. %1$s is who, %2$s the message. -->
     <string name="signal_replying">Replying to %1$s: %2$s — tap to cancel</string>
+    <!-- Menu item (verb). %1$s is the reaction. -->
     <string name="signal_reaction_remove_mine">Remove my %1$s</string>
     <!-- Signal's ReactionsRecipientAdapter_you and ReactionsBottomSheetDialogFragment_tap_to_remove, on one line. -->
     <string name="signal_reaction_you_remove">You \u00b7 Tap to remove</string>
+    <!-- Stands in for somebody's name on a reaction. -->
     <string name="signal_reaction_someone">Someone</string>
+    <!-- The label on a message that is scheduled. -->
     <string name="signal_scheduled">Scheduled</string>
+    <!-- Said when there is nothing to schedule. -->
     <string name="signal_schedule_needs_text">Write something first</string>
+    <!-- Said when a scheduled message carries a file. -->
     <string name="signal_schedule_no_attachments">A scheduled Signal message is text only. Send the picture now, or remove it.</string>
+    <!-- Said when the time has gone. -->
     <string name="signal_schedule_in_the_past">That time has gone</string>
+    <!-- Said when it could not be scheduled. -->
     <string name="signal_schedule_failed">Could not schedule that</string>
-    <string name="scheduled_via_signal">%1$s (Signal)</string>
+    <!-- Said when a reaction did not send. -->
     <string name="signal_reaction_failed">That reaction did not send</string>
+    <!-- Menu item (verb). -->
     <string name="signal_withdraw">Take back</string>
+    <!-- The same item, armed. -->
     <string name="signal_withdraw_armed">Take back \u2014 it goes from everyone\'s phone; tap again</string>
+    <!-- Said when it could not be taken back. -->
     <string name="signal_withdraw_failed">Could not take that message back</string>
     <plurals name="signal_unread">
         <item quantity="one">%d unread</item>
         <item quantity="other">%d unread</item>
     </plurals>
-    <string name="settings_desktop_sync_link_title">Show link</string>
-    <string name="settings_desktop_sync_link_summary">Open this on your computer</string>
-    <string name="settings_desktop_sync_link_bookmark">Bookmark it — the address stays the same.</string>
-    <string name="settings_desktop_sync_link_none">Desktop Sync is on, but this phone has no usable address yet.</string>
-    <string name="settings_desktop_sync_link_vpn_only">VPN only is on and no VPN is connected. Connect one, or switch VPN only off in Settings, Desktop Sync.</string>
-    <string name="settings_desktop_sync_tls_title">Use HTTPS</string>
-    <string name="settings_desktop_sync_tls_summary">Needed before a browser will let the page use the microphone. The phone makes its own certificate, so every visit starts with a security warning you have to accept, and an already-paired browser needs the link again.</string>
-    <string name="settings_desktop_sync_vpn_only_title">VPN only</string>
-    <string name="settings_desktop_sync_vpn_only_summary">Refuse connections that don\'t come through a VPN</string>
-    <string name="settings_desktop_sync_reset_title">Reset Desktop Sync link</string>
-    <string name="settings_desktop_sync_reset_summary">Replace the token in your link</string>
-    <string name="settings_desktop_sync_reset_armed">Reset link — tap again</string>
-    <string name="settings_desktop_sync_reset_armed_summary">Any bookmark or open tab on the old link stops working</string>
-    <string name="settings_desktop_sync_reset_done">New Desktop Sync link generated</string>
-    <!-- Settings categories: the loose options are grouped behind these.
-         general and desktop_sync already exist above and are reused. -->
-    <string name="settings_category_sending">Sending</string>
-    <string name="settings_category_storage">Storage and privacy</string>
+    <!-- Disappearing messages, on a Signal conversation's info screen. Upstream's choices. -->
+    <string name="info_timer">Disappearing messages</string>
+    <string name="info_timer_off">Off</string>
+    <string name="info_timer_4_weeks">4 weeks</string>
+    <string name="info_timer_1_week">1 week</string>
+    <string name="info_timer_1_day">1 day</string>
+    <string name="info_timer_8_hours">8 hours</string>
+    <string name="info_timer_1_hour">1 hour</string>
+    <string name="info_timer_5_minutes">5 minutes</string>
+    <string name="info_timer_30_seconds">30 seconds</string>
+    <string name="info_timer_other">%d seconds</string>
+    <string name="info_timer_setting">Setting…</string>
+    <string name="info_timer_not_allowed">Only the group\'s admins can change this</string>
+    <string name="info_timer_not_member">You are no longer in this group</string>
+    <string name="info_timer_failed">Could not change it. Try again when connected.</string>
 
-    <string name="settings_logging_enabled">Debug logging enabled</string>
-    <string name="settings_logging_disabled">Debug logging disabled</string>
-
-
-    <string name="blocking_title">Blocking</string>
-    <string name="blocking_drop_title">Drop messages</string>
-    <string name="blocking_drop_summary">Drop incoming messages from blocked senders instead of hiding them</string>
-
-    <string name="blocking_non_contacts_title">Only allow contacts</string>
-    <string name="blocking_non_contacts_summary">Block messages from anyone who is not in your contacts</string>
-    <string name="blocking_non_contacts_no_permission">Needs permission to read your contacts</string>
-    <string name="blocking_manager_title">Blocking manager</string>
-    <string name="blocking_manager_qksms_summary">Built-in blocking functionality in Messaging</string>
-    <string name="blocking_manager_call_blocker_title" translatable="false">Call Blocker - Incoming/Outgoing</string>
-    <string name="blocking_manager_call_blocker_summary">Block spam messages, numbers &amp; unknown calls with blacklist &amp; Schedule</string>
-    <string name="blocking_manager_call_control_title" translatable="false">Call Control</string>
-    <string name="blocking_manager_call_control_summary">Automatically filter your calls and messages in one convenient place! Community IQ™ allows you to prevent unwanted messages from community known spammers</string>
-    <string name="blocking_manager_sia_title" translatable="false">Should I Answer?</string>
-    <string name="blocking_manager_sia_summary">Automatically filter messages from unsolicited numbers by using the \"Should I Answer\" app</string>
-    <string name="blocking_manager_copy_title">Copy blocked numbers</string>
-    <string name="blocking_manager_copy_summary">Continue to %s and copy over your existing blocked numbers</string>
-
-    <string name="blocked_numbers_title">Blocked numbers</string>
-    <string name="blocked_numbers_empty">Your blocked numbers will appear here</string>
-    <string name="blocked_numbers_add_cd">Block a new number</string>
-    <string name="blocked_numbers_dialog_title">Block texts from</string>
-    <string name="blocked_numbers_dialog_hint">Phone number</string>
-    <string name="blocked_numbers_dialog_block">Block</string>
-
-    <string name="message_content_filters_title">Message content filters</string>
-    <string name="message_content_filters_empty">Your message content filters will appear here</string>
-    <string name="message_content_filters_add_cd">Create a new filter</string>
-    <string name="message_content_filters_dialog_title">Drop messages matching</string>
-    <string name="message_content_filters_dialog_hint">Word, phrase or regular expression</string>
-    <string name="message_content_filters_dialog_case_switch">Case sensitive</string>
-    <string name="message_content_filters_dialog_regex_switch">Regular expression</string>
-    <string name="message_content_filters_dialog_contacts_switch">Include contacts</string>
-    <string name="message_content_filters_dialog_create">Create</string>
-
-    <string name="blocked_messages_title">Blocked messages</string>
-    <string name="blocked_messages_empty">Your blocked messages will appear here</string>
-
-    <string name="blocking_block_title">Block</string>
-    <string name="blocking_unblock_title">Unblock</string>
-    <plurals name="blocking_block_external">
-        <item quantity="one">Continue to %s and block this number</item>
-        <item quantity="other">Continue to %s and block these numbers</item>
-    </plurals>
-    <plurals name="blocking_unblock_external">
-        <item quantity="one">Continue to %s and allow this number</item>
-        <item quantity="other">Continue to %s and allow these numbers</item>
-    </plurals>
-
-    <string name="setup_welcome_about">About, privacy and terms</string>
-    <string name="about_title">About</string>
-
-    <!-- Substitutions are for price and currency. Ex: Lifetime upgrade for $1.99 USD -->
-    <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
-
-    <string name="widget_loading">Loading…</string>
-    <string name="widget_more">View more conversations</string>
-    <string name="all_conversations_widget_title">All conversations</string>
-
-    <string name="qkreply_menu_read">Mark read</string>
-    <string name="qkreply_menu_call">Call</string>
-    <string name="qkreply_menu_delete">Delete</string>
-    <string name="qkreply_menu_expand">Show more</string>
-    <string name="qkreply_menu_collapse">Show less</string>
-    <string name="qkreply_menu_view">Open conversation</string>
-
-
-    <string name="about_name" translatable="false">Messaging %s</string>
-    <string name="about_llama">feed the llamas</string>
-    <string name="about_source" translatable="false">wanderthe.dev</string>
-    <!-- About: the short form of PRIVACY.md, then Terms. Never claim less than the app does. -->
-    <string name="about_privacy_heading">Privacy</string>
-    <string name="about_privacy_where">Your messages are kept on this phone. Texts and picture messages go through your carrier, as on any phone. If you link Signal, this phone becomes a linked device of your own Signal account: Signal messages and calls are end-to-end encrypted, and Signal\'s servers carry them. Desktop Sync, off until you switch it on, serves your messages from the phone to a browser on your own computer, over your VPN or your Wi-Fi, with no cloud service and no relay in between. Nothing is sent to the app\'s maker.</string>
-    <string name="about_privacy_permissions">Your contacts are read to put names to conversations; their numbers go to Signal\'s lookup only if you agree to Find contacts on Signal. The microphone is used only while you record a voice message or are on a Signal call. GIF search, through Signal\'s proxy, and Check for updates, from GitHub, go online only when you use them. Check for updates downloads a newer build of this app and hands it to Android\'s installer; it never runs by itself and nothing installs unless you agree.</string>
-    <string name="about_privacy_close">There are no ads, no analytics and no tracking. Backups, chat-history copies and saved attachments go only where you choose to save them. A debug log, off until you press and hold the version line in About, writes what the app does, including message text, to a file in the app\'s own storage; it leaves the phone only if you copy it out.</string>
-    <string name="about_terms_heading">Terms</string>
-    <string name="about_terms">This app is free software under the GNU Affero General Public License v3 or later. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
-    <string name="about_licences">Licences</string>
-    <string name="licences_source">Source code</string>
-    <string name="licences_licence">Licence</string>
-    <string name="licences_licence_words">GNU Affero General Public License v3 or later, held by wander wildwood. Free software with no warranty. It contains Signal\'s AGPL code, so the whole app is AGPL; the full text is below. Anyone who runs a modified version for others over a network must offer them its source.</string>
-    <string name="licences_built_with">Built with</string>
-    <string name="licences_agpl">GNU Affero General Public License v3</string>
-    <string name="licences_gpl">GNU General Public License v3 (QKSMS, QUIK, InkMessage)</string>
-    <string name="licences_apache">Apache License 2.0</string>
-    <string name="licences_mit">MIT licence</string>
-    <string name="licences_bsd">BSD licences</string>
-    <string name="licences_ofl">SIL Open Font License 1.1 (Lato)</string>
-    <string name="about_fork">Continues QKSMS by Moez Bhatti, by way of octoshrimpy\'s QUIK; the e-ink work began in lamdanAmiti\'s InkMessage. All under the same licence.</string>
-
-
-    <string-array name="notification_actions">
-        <item>None</item>
-        <item>Archive</item>
-        <item>Delete</item>
-        <item>Block</item>
-        <item>Call</item>
-        <item>Mark read</item>
-        <item>Reply</item>
-        <item>Speak</item>
-    </string-array>
-
-    <string name="button_yes">Yes</string>
-    <string name="button_continue">Continue</string>
-    <string name="button_cancel">Cancel</string>
-    <string name="button_close">Close</string>
-    <string name="button_delete">Delete</string>
-    <string name="button_save">Save</string>
-    <string name="button_stop">Stop</string>
-    <string name="button_undo">Undo</string>
-    <string name="button_clear">Clear</string>
-
-    <plurals name="toast_archived">
-        <item quantity="one">Archived conversation</item>
-        <item quantity="other">Archived %d conversations</item>
-    </plurals>
-    <plurals name="toast_unarchived">
-        <item quantity="one">Unarchived conversation</item>
-        <item quantity="other">Unarchived %d conversations</item>
-    </plurals>
-
-
-    <plurals name="notification_new_messages">
-        <item quantity="one">New message</item>
-        <item quantity="other">%s new messages</item>
-    </plurals>
-    <string name="notification_message_failed_title">Message not sent</string>
-    <string name="notification_message_failed_text">The message to %s failed to send</string>
-    <string name="notification_foreground_worker_title">Receiving message</string>
-    <string name="notification_foreground_worker_text">On Android 12 and older, a notification is required for the background work that enables receiving messages.</string>
-    <string name="notification_foreground_worker_channel_name">Message receiving worker notification</string>
-    <string name="notification_message_failed_action">Resend</string>
-
-    <string-array name="night_modes">
-        <item>System</item>
-        <item>Disabled</item>
-        <item>Always on</item>
-        <item>Automatic</item>
-    </string-array>
-
-    <string-array name="notification_preview_options">
-        <item>Show name and message</item>
-        <item>Show name</item>
-        <item>Hide contents</item>
-    </string-array>
-
-    <string-array name="text_sizes">
-        <item>Small</item>
-        <item>Normal</item>
-        <item>Large</item>
-        <item>Larger</item>
-        <item>Super</item>
-    </string-array>
-
-    <!-- Settings > Sending > Group messages. In this order: index 0 is the default. Texts
-         only: a Signal group is a group of its own and is never split. -->
-    <string-array name="group_messages_labels">
-        <item>One group chat</item>
-        <item>Separate chats</item>
-    </string-array>
-
-    <string-array name="delayed_sending_labels">
-        <item>No delay</item>
-        <item>3 seconds</item>
-        <item>5 seconds</item>
-        <item>10 seconds</item>
-    </string-array>
-
-    <string-array name="mms_sizes">
-        <item>Automatic</item>
-        <item>100KB</item>
-        <item>200KB</item>
-        <item>300KB</item>
-        <item>600KB</item>
-        <item>1000KB</item>
-        <item>2000KB</item>
-        <item>No compression</item>
-    </string-array>
-
-    <integer-array name="mms_sizes_ids">
-        <item>-1</item>
-        <item>100</item>
-        <item>200</item>
-        <item>300</item>
-        <item>600</item>
-        <item>1000</item>
-        <item>2000</item>
-        <item>0</item>
-    </integer-array>
-
-    <string-array name="messageLinkHandlings">
-        <item>Block</item>
-        <item>Allow</item>
-        <item>Ask before opening</item>
-    </string-array>
-
-    <integer-array name="messageLinkHandling_ids">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-    </integer-array>
-
-    <string-array name="qk_responses">
-        <item>Okay</item>
-        <item>Give me a moment</item>
-        <item>On my way</item>
-        <item>Thanks</item>
-        <item>Sounds good</item>
-        <item>What\'s up?</item>
-        <item>Agreed</item>
-        <item>No</item>
-        <item>Love you</item>
-        <item>Sorry</item>
-        <item>LOL</item>
-        <item>That\'s okay</item>
-    </string-array>
-    <string name="speak_no_messages">No messages</string>
-    <string name="speak_unseen_messages">Speak unseen messages</string>
-    <string name="messageLinkHandling_dialog_title">External link</string>
-    <string name="messageLinkHandling_dialog_body">Some links may be unsafe or redirect you unexpectedly. Review the link below before proceeding:\n\n%1$s\n\nDo you want to continue?</string>
-    <string name="messageLinkHandling_dialog_positive">Yes, open the link</string>
-    <string name="messageLinkHandling_dialog_negative">No</string>
-
-    <string name="messages_text_share_file_error">That file could not be shared</string>
-
-    <!-- The update row. One row with three faces: it offers a check, then an install, then
-         asks. Everything it has to report it reports in its own summary. -->
-    <string name="settings_update_title">Check for updates</string>
-    <string name="settings_update_checking">Checking</string>
-    <string name="settings_update_current">Nothing newer than %1$s</string>
-    <string name="settings_update_available_title">Install %1$s</string>
-    <string name="settings_update_available_summary">Replaces %1$s</string>
-    <string name="settings_update_armed_title">Install %1$s — tap again</string>
-    <string name="settings_update_downloading">Downloading</string>
-    <string name="settings_update_handed_over">Handed to the installer</string>
-    <string name="settings_update_unreachable">Could not reach the release page</string>
-    <string name="settings_update_wrong_contents">What arrived did not match its checksum, so it was discarded</string>
-    <string name="settings_update_not_permitted_title">Allow installing apps</string>
-    <string name="settings_update_not_permitted_summary">Android has to be told this app may install one. Tap to open that setting</string>
-    <!-- The background check. It only ever says a version is out; installing is the row's job. -->
-    <string name="notification_update_channel_name">App updates</string>
-    <string name="notification_update_title">%1$s is out</string>
-    <string name="notification_update_text">Open settings to install it</string>
-
-    <string name="settings_update_not_a_release">This build did not come from a release, so there is nothing to compare it against</string>
+    <!-- ============================================================ -->
+    <!-- Why a Signal message did not send -->
 
     <!-- Why a Signal message did not send, shown after "Not sent: ". The lower-case ones
          continue that line; the capitalised ones are whole sentences of their own. A name
@@ -1219,7 +1592,6 @@
     <string name="signal_send_admins_only">Only this group\'s admins can post in it. Your message was not sent.</string>
     <string name="signal_send_number_only">This conversation has only a phone number, not a Signal address. Write to them from a new message instead.</string>
     <string name="signal_send_no_group_key">no group key on this thread yet</string>
-
     <!-- How long Signal said to wait. The retry sentences follow straight on from
          "Nothing was sent." and so begin with a space of their own, which is why they are
          quoted. Rounded up, never to the second. -->
@@ -1231,101 +1603,8 @@
     <string name="signal_send_wait_minutes">%1$s minutes</string>
     <string name="signal_send_wait_hours">%1$s hours</string>
 
-    <!-- Why a new group was not made. Each means something different to the person making
-         it, so each is said on its own. -->
-    <string name="signal_group_not_linked">This phone is not linked to an account.</string>
-    <string name="signal_group_no_profile">This account has no profile on file, and a group cannot be made without one.</string>
-    <string name="signal_group_not_put_together">The group could not be put together.</string>
-    <string name="signal_group_not_authorized">The server would not authorize this account.</string>
-    <string name="signal_group_server_refused">The server would not take the new group.</string>
-    <string name="signal_group_unaddressable">The group was made but this phone cannot address it.</string>
-
-    <!-- Why a registration step failed, shown on its own line. Where a request was refused,
-         %1$s is the server's answer as it gave it. -->
-    <string name="signal_register_not_a_number">that is not a phone number this can register</string>
-    <string name="signal_register_no_code_yet">the server will not send a code yet</string>
-    <string name="signal_register_could_not_start">could not start registration: %1$s</string>
-    <string name="signal_register_captcha_no_code">the captcha was accepted but the server still will not send a code</string>
-    <string name="signal_register_captcha_refused">the captcha was not accepted: %1$s</string>
-    <string name="signal_register_code_not_sent">could not send a code: %1$s</string>
-    <string name="signal_register_code_refused_because">that code was not accepted: %1$s</string>
-    <string name="signal_register_code_refused">that code was not accepted</string>
-    <string name="signal_register_no_key_material">could not generate this account\'s key material</string>
-    <string name="signal_register_pin_hint">Your Signal PIN</string>
-    <string name="signal_register_unlock">Unlock</string>
-    <string name="signal_register_pin_needed">This number has a registration lock. Enter its Signal PIN to move it to this phone; your contacts and settings come with it.</string>
-    <string name="signal_register_pin_wrong">That PIN is not right. %1$s tries left. If they run out, Signal deletes the PIN\'s data and the number stays locked until the lock runs out.</string>
-    <string name="signal_register_pin_wrong_one">That PIN is not right. One try left. If it is wrong too, Signal deletes the PIN\'s data and the number stays locked until the lock runs out.</string>
-    <string name="signal_register_pin_missing">Signal has no PIN for this number, so the registration lock has to run out first. Link this phone to the account instead.</string>
-    <string name="signal_register_pin_check_failed">the PIN could not be checked: %1$s</string>
-    <string name="signal_register_locked">Signal kept this number locked even though its PIN was right. Link this phone to the account instead.</string>
-    <string name="signal_register_locked_day">Signal kept this number locked even though its PIN was right, with about a day left to run. Link this phone to the account instead.</string>
-    <string name="signal_register_locked_days">Signal kept this number locked even though its PIN was right, with about %1$s days left to run. Link this phone to the account instead.</string>
-    <string name="signal_register_refused">registration refused: %1$s</string>
-    <string name="signal_register_unexpected">unexpected registration state</string>
-
-    <!-- Why linking failed, shown after "Could not link: ". A refusal from the server
-         reuses signal_register_refused: linking registers this phone as a device. -->
-    <string name="signal_link_not_scanned">nobody scanned the code in time; ask for a new one</string>
-    <string name="signal_link_undecryptable">the provisioning message could not be decrypted</string>
-    <string name="signal_link_no_code">no provisioning code in the message</string>
-
-    <!-- Why this account's name did not save, shown after "The name would not save: " -->
-    <string name="signal_profile_no_account">this phone has no account yet</string>
-    <string name="signal_profile_no_service_id">this account has no service id yet</string>
-    <string name="signal_profile_no_key">this account has no profile key</string>
-    <string name="signal_profile_key_unreadable">this account\'s profile key will not load</string>
-    <string name="signal_profile_no_given_name">a profile needs a given name</string>
-    <string name="signal_profile_refused">the server would not take the name: %1$s</string>
-
-    <!-- What fetching contacts from Signal, or looking numbers up on it, did. The pieces of
-         a result are joined with " · ", and the skipped kinds with ", ". Every count is
-         said, because a fetch that understood a third of the account must not read like
-         one that understood all of it. -->
-    <string name="settings_signal_contacts_not_linked">This phone is not linked to Signal yet</string>
-    <string name="settings_signal_contacts_requested">Asked Signal for the contact list. It arrives in a moment, if your Signal answers</string>
-    <string name="settings_signal_contacts_no_numbers">There are no phone numbers in this phone\'s contacts to look up</string>
-    <string name="settings_signal_contacts_read">%1$s contact(s) from %2$s record(s)</string>
-    <string name="settings_signal_contacts_by_pni">%1$s by phone number</string>
-    <string name="settings_signal_contacts_skipped">skipped %1$s</string>
-    <string name="settings_signal_contacts_unreadable">%1$s the service would not hand over</string>
-    <string name="settings_signal_contacts_unopened">%1$s would not open</string>
-    <string name="settings_signal_contacts_not_contacts">%1$s not a contact</string>
-    <string name="settings_signal_contacts_anonymous">%1$s with no address at all</string>
-    <string name="settings_signal_contacts_anonymous_numbered">%1$s with no address at all, %2$s with a number</string>
-    <string name="settings_signal_contacts_no_key">the storage key is not here yet</string>
-    <string name="settings_signal_contacts_no_auth">the service would not give an auth token</string>
-    <string name="settings_signal_contacts_nothing_stored">this account has no stored records yet</string>
-    <string name="settings_signal_contacts_manifest_unreadable">the manifest could not be read</string>
-    <string name="settings_signal_contacts_wrong_key">the manifest would not open with this key</string>
-    <string name="settings_signal_lookup_all_done">Every number has been looked up already</string>
-    <string name="settings_signal_lookup_found">%1$s on Signal, from %2$s number(s)</string>
-    <string name="settings_signal_lookup_without_aci">%1$s known by phone number only</string>
-    <string name="settings_signal_lookup_no_numbers">There are no numbers to look up</string>
-    <string name="settings_signal_lookup_blocked">Signal will not answer more lookups for about %1$s more minute(s)</string>
-    <string name="settings_signal_lookup_too_many">too many new numbers to look up at once</string>
-    <string name="settings_signal_lookup_own_records">could not read this phone\'s own records to ask with</string>
-    <string name="settings_signal_lookup_exhausted">Signal will not answer more lookups for now. That is a limit on the account, not on this phone, and it lifts on its own.</string>
-    <string name="settings_signal_lookup_token">The record of what was looked up before is out of step. Try once more.</string>
-    <string name="settings_signal_lookup_refused">Signal refused the list of numbers</string>
-    <string name="settings_signal_lookup_unfinished">The lookup did not finish</string>
-
-    <!-- The contact store in numbers, on the Connection line. The last two are added only
-         when there are any, joined with ", ". -->
-    <string name="settings_signal_status_contacts">%1$s contact(s), %2$s with a profile key, %3$s named</string>
-    <string name="settings_signal_status_contacts_username">%1$s by username</string>
-    <string name="settings_signal_status_contacts_nameless">%1$s with nothing to show but an id</string>
-
-    <!-- Desktop Sync's row while it is on. "On" alone means a computer can reach it. -->
-    <string name="settings_desktop_sync_summary_starting">Starting…</string>
-    <string name="settings_desktop_sync_summary_no_vpn">On, but no VPN is connected</string>
-    <string name="settings_desktop_sync_summary_no_network">On, but this phone has no network yet</string>
-    <string name="settings_desktop_sync_summary_on">On</string>
-
-    <!-- The reader's own name on a message they sent, in a text notification, and the name of
-         the ordinary text notification channel in Android's settings. -->
-    <string name="notification_self_name">Me</string>
-    <string name="notification_channel_default">Default</string>
+    <!-- ============================================================ -->
+    <!-- Signal calls -->
 
     <!-- Signal voice calls. -->
     <string name="signal_call_channel">Signal calls</string>
@@ -1355,8 +1634,38 @@
     <string name="signal_call_remote_ringing">Ringing…</string>
     <string name="signal_call_ended_no_answer">No answer</string>
     <string name="signal_call_start">Call</string>
-    <!-- Disappearing messages, on a Signal conversation's info screen. Upstream's choices. -->
-    <string name="info_timer">Disappearing messages</string>
+
+    <!-- ============================================================ -->
+    <!-- Groups -->
+
+    <!-- Top bar title on the new-group screen. -->
+    <string name="signal_group_title">New group</string>
+    <!-- Button (verb). -->
+    <string name="signal_group_create">Create</string>
+    <!-- The group-name field. -->
+    <string name="signal_group_name_hint">Group name</string>
+    <!-- The field that filters the people to add. -->
+    <string name="signal_group_search_hint">Search</string>
+    <!-- Said when there is nobody to add. -->
+    <string name="signal_group_nobody">Nobody to add.\n\nFetch your contacts in Settings, or wait for somebody to write.</string>
+    <!-- Said when the people cannot be read. -->
+    <string name="signal_group_could_not_read">This phone could not read who is on Signal just now. Close this and open it again.</string>
+    <!-- Said when the filter matches nobody. -->
+    <string name="signal_group_no_match">Nobody by that name.</string>
+    <!-- Said when the group has no name. -->
+    <string name="signal_group_needs_a_name">A group needs a name.</string>
+    <!-- Said when the group has nobody else in it. -->
+    <string name="signal_group_needs_somebody">A group needs somebody else in it.</string>
+    <!-- Said when it could not be made. -->
+    <string name="signal_group_not_made">The group was not made.</string>
+    <!-- Why a new group was not made. Each means something different to the person making
+         it, so each is said on its own. -->
+    <string name="signal_group_not_linked">This phone is not linked to an account.</string>
+    <string name="signal_group_no_profile">This account has no profile on file, and a group cannot be made without one.</string>
+    <string name="signal_group_not_put_together">The group could not be put together.</string>
+    <string name="signal_group_not_authorized">The server would not authorize this account.</string>
+    <string name="signal_group_server_refused">The server would not take the new group.</string>
+    <string name="signal_group_unaddressable">The group was made but this phone cannot address it.</string>
     <!-- A group's details: Signal's ConversationSettingsFragment and ManageGroup words. -->
     <string name="group_name">Group name</string>
     <string name="group_description">Group description</string>
@@ -1402,29 +1711,472 @@
     <string name="group_decline_invite">Decline invitation</string>
     <string name="group_not_allowed">Only admins can do that in this group</string>
     <string name="group_failed">Could not change the group. Try again when connected.</string>
-    <string name="info_timer_off">Off</string>
-    <string name="info_timer_4_weeks">4 weeks</string>
-    <string name="info_timer_1_week">1 week</string>
-    <string name="info_timer_1_day">1 day</string>
-    <string name="info_timer_8_hours">8 hours</string>
-    <string name="info_timer_1_hour">1 hour</string>
-    <string name="info_timer_5_minutes">5 minutes</string>
-    <string name="info_timer_30_seconds">30 seconds</string>
-    <string name="info_timer_other">%d seconds</string>
-    <string name="info_timer_setting">Setting…</string>
-    <string name="info_timer_not_allowed">Only the group\'s admins can change this</string>
-    <string name="info_timer_not_member">You are no longer in this group</string>
-    <string name="info_timer_failed">Could not change it. Try again when connected.</string>
+
+    <!-- ============================================================ -->
+    <!-- The setup guide, and DuraSpeed -->
+
+    <!-- The setup guide. One question to a page; every page can be skipped. -->
+    <string name="setup_title">Setting up</string>
+    <!-- %1$d of %2$d pages. -->
+    <string name="setup_where">%1$d of %2$d</string>
+    <!-- Button (verb): skip this page. -->
+    <string name="setup_skip">Skip</string>
+    <!-- Button (verb): leave the guide. -->
+    <string name="setup_skip_all">Skip all of this</string>
+    <!-- Button (verb). -->
+    <string name="setup_continue">Continue</string>
+    <!-- The guide's first page. -->
+    <string name="setup_welcome_heading">Messaging</string>
+    <!-- What the guide is. -->
+    <string name="setup_welcome_body">A few questions about how this phone sends messages. Every one can be skipped, and every answer can be changed later in Settings, where this guide is too.</string>
+    <!-- Button (verb). -->
+    <string name="setup_welcome_start">Start</string>
+    <!-- The page about being the texting app. -->
+    <string name="setup_texting_heading">Texts</string>
+    <!-- Why it matters. -->
+    <string name="setup_texting_body">To send and receive texts and picture messages, Messaging has to be this phone\'s texting app. Android asks you to confirm.</string>
+    <!-- Button (verb). -->
+    <string name="setup_texting_make">Make it the texting app</string>
+    <!-- The page about DuraSpeed on a Kompakt. -->
+    <string name="setup_kompakt_heading">Texts while the phone sleeps</string>
+    <!-- What DuraSpeed does to this app. -->
+    <string name="setup_kompakt_body">On a Kompakt, a service called DuraSpeed closes apps a few minutes after the screen goes dark, and will not let a text open Messaging again. A text that arrives then is lost, not late.\n\nTo stop it, open DuraSpeed below, tap Open, and switch Messaging on. On means allowed.</string>
+    <!-- Button (verb): open DuraSpeed. -->
+    <string name="setup_kompakt_how">Open DuraSpeed</string>
+    <!-- Said at launch when the app was shut down and may have missed texts. -->
+    <string name="duraspeed_stopped_title">You may have missed a text</string>
+    <!-- %1$s is when it was shut down. -->
+    <string name="duraspeed_stopped_body">From %1$s until you opened Messaging just now, the phone had it shut down, and any text sent to you in that time didn\'t arrive. There\'s no way to tell whether anyone did text then. If you were expecting something, ask them to send it again.\n\nThe phone\'s DuraSpeed setting does this. To stop it, open DuraSpeed, tap Open, and switch Messaging on.</string>
+    <!-- Button (verb). -->
+    <string name="duraspeed_open">Open DuraSpeed</string>
+    <!-- Button: not now. -->
+    <string name="duraspeed_later">Not now</string>
+    <!-- Said when the app is switched on there. -->
+    <string name="duraspeed_allowed">It\'s switched on</string>
+    <!-- Name of the DuraSpeed notification category. -->
+    <string name="duraspeed_channel">DuraSpeed</string>
+    <!-- The question the dialog asks. -->
+    <string name="duraspeed_ask_done">Is Messaging switched on in DuraSpeed now?</string>
+    <!-- Button: not yet. -->
+    <string name="duraspeed_not_yet">Not yet</string>
+    <!-- The standing notification's title. -->
+    <string name="duraspeed_notification_title">Messaging can miss texts</string>
+    <!-- Its one line. -->
+    <string name="duraspeed_notification_text">The phone\'s DuraSpeed setting can shut Messaging down, and texts sent to you then never arrive. Open DuraSpeed, tap Open, and switch Messaging on.</string>
+    <!-- The page about Signal. -->
+    <string name="setup_signal_heading">Signal</string>
+    <!-- What can be done with it. -->
+    <string name="setup_signal_body">Signal can sit alongside your texts. If Signal is already on another phone or a computer, link this phone to it by scanning a code. If not, this phone\'s number can become a Signal account of its own. Skip this if you do not use Signal.</string>
+    <!-- Button (verb). -->
+    <string name="setup_signal_link">Link to my Signal</string>
+    <!-- Button (verb). -->
+    <string name="setup_signal_register">Register this phone</string>
+    <!-- The page about pairing texts with Signal. -->
+    <string name="setup_contacts_heading">Texts and Signal together</string>
+    <!-- What that does, and what it sends. -->
+    <string name="setup_contacts_body">Signal can be asked which of your contacts use it. Each person\'s texts and Signal conversation are then paired, and the badge at the top of either crosses to the other.\n\nYour contacts\' numbers are sent to Signal\'s lookup service scrambled, so the service cannot read them. It is the same lookup Signal itself does.</string>
+    <!-- Button (verb). -->
+    <string name="setup_contacts_look">Look them up</string>
+    <!-- Said while it runs. -->
+    <string name="setup_contacts_looking">Asking Signal…</string>
+    <!-- The page about one list or two. -->
+    <string name="setup_lists_heading">One list or two</string>
+    <!-- The choice. -->
+    <string name="setup_lists_body">Signal conversations can sit among your texts, newest first, or in a list of their own, with a badge to cross between the two.</string>
+    <!-- Button. -->
+    <string name="setup_lists_one">One list</string>
+    <!-- Button. -->
+    <string name="setup_lists_two">Two lists</string>
+    <!-- The page about keeping Signal connected. -->
+    <string name="setup_connected_heading">When Signal messages arrive</string>
+    <!-- What each choice costs. -->
+    <string name="setup_connected_body">Kept connected, Signal messages arrive as they are sent, and a notification stays in the shade to say so. Otherwise Signal catches up about every 15 minutes and whenever you open the app, which uses less battery.</string>
+    <!-- Button. -->
+    <string name="setup_connected_keep">Keep Signal connected</string>
+    <!-- Button. -->
+    <string name="setup_connected_catch_up">Catch up now and then</string>
+    <!-- The page about Desktop Sync. -->
+    <string name="setup_desktop_heading">Desktop Sync</string>
+    <!-- What it does and how it is reached. -->
+    <string name="setup_desktop_body">Read and send your messages from a computer\'s browser.\nVPN only needs a VPN such as Tailscale on the phone and the computer; on plain Wi-Fi there is no address.\nThis Wi-Fi too works without one, but anyone on the same Wi-Fi can reach the page, over plain HTTP, with the link\'s token as the only gate.</string>
+    <!-- Button (verb). -->
+    <string name="setup_desktop_on_vpn">Turn it on (VPN only)</string>
+    <!-- Button (verb). -->
+    <string name="setup_desktop_on_wifi">Turn it on for this Wi-Fi too</string>
+    <!-- Said after the first. -->
+    <string name="setup_desktop_started_vpn">On, VPN only. Settings, under Desktop Sync, shows the address to open once a VPN such as Tailscale is connected on this phone and the computer.</string>
+    <!-- Said after the second. -->
+    <string name="setup_desktop_started_wifi">On, for this Wi-Fi too (VPN only is off). Settings, under Desktop Sync, shows the address to open; you can switch VPN only back on there.</string>
+    <!-- The page about Signal calls. -->
+    <string name="setup_calls_heading">Signal calls</string>
+    <!-- What they need. -->
+    <string name="setup_calls_body">Signal voice calls (never video) need the microphone permission. To ring and fill the screen while the phone is asleep they also need Android\'s full-screen notifications setting, which Android 14 and later can switch off.</string>
+    <!-- Button (verb). -->
+    <string name="setup_calls_mic">Allow the microphone</string>
+    <!-- Button (verb). -->
+    <string name="setup_calls_screen">Let calls wake the screen</string>
+    <!-- Said when nothing is missing. -->
+    <string name="setup_calls_done">Nothing more is needed for calls.</string>
+    <!-- The last page. -->
+    <string name="setup_done_heading">Done</string>
+    <!-- Where everything is kept. -->
+    <string name="setup_done_body">Everything here is in Settings, and so is this guide, under Setup guide.</string>
+    <!-- Button (verb). -->
+    <string name="setup_done_finish">Finish</string>
+    <!-- Settings row: bring back the texting line after Hide. -->
+    <string name="settings_ask_default_sms_title">Ask to be the texting app</string>
+    <!-- Its hint. -->
+    <string name="settings_ask_default_sms_summary">A line along the bottom of the SMS list while another app handles texts</string>
+    <!-- Settings row: this guide. -->
+    <string name="settings_setup_title">Setup guide</string>
+    <!-- The question asked once, when Signal is first set up. -->
+    <string name="setup_pair_title">Pair texts and Signal?</string>
+    <!-- What pairing does. -->
+    <string name="setup_pair_body">Messaging can now pair each person\'s texts with their Signal conversation, so the badge at the top crosses between them. It asks Signal which of your contacts use it: their numbers go to Signal\'s lookup service scrambled, so the service cannot read them.</string>
+    <!-- Button (verb). -->
+    <string name="setup_pair_yes">Look them up</string>
+    <!-- Button. -->
+    <string name="setup_pair_no">Not now</string>
+
+    <!-- ============================================================ -->
+    <!-- Blocking -->
+
+    <!-- Top bar title on Blocking. -->
+    <string name="blocking_title">Blocking</string>
+    <!-- Settings row: throw blocked messages away rather than hide them. -->
+    <string name="blocking_drop_title">Drop messages</string>
+    <!-- Its hint. -->
+    <string name="blocking_drop_summary">Drop incoming messages from blocked senders instead of hiding them</string>
+    <!-- Settings row: only people in the contacts may write. -->
+    <string name="blocking_non_contacts_title">Only allow contacts</string>
+    <!-- Its hint. -->
+    <string name="blocking_non_contacts_summary">Block messages from anyone who is not in your contacts</string>
+    <!-- Said when the contacts cannot be read. -->
+    <string name="blocking_non_contacts_no_permission">Needs permission to read your contacts</string>
+    <!-- Settings row: other apps that can block. -->
+    <string name="blocking_manager_title">Blocking manager</string>
+    <!-- Said of this app's own blocking. -->
+    <string name="blocking_manager_qksms_summary">Built-in blocking functionality in Messaging</string>
+    <string name="blocking_manager_call_blocker_title" translatable="false">Call Blocker - Incoming/Outgoing</string>
+    <string name="blocking_manager_call_blocker_summary">Block spam messages, numbers &amp; unknown calls with blacklist &amp; Schedule</string>
+    <string name="blocking_manager_call_control_title" translatable="false">Call Control</string>
+    <string name="blocking_manager_call_control_summary">Automatically filter your calls and messages in one convenient place! Community IQ™ allows you to prevent unwanted messages from community known spammers</string>
+    <string name="blocking_manager_sia_title" translatable="false">Should I Answer?</string>
+    <string name="blocking_manager_sia_summary">Automatically filter messages from unsolicited numbers by using the \"Should I Answer\" app</string>
+    <!-- Settings row (verb): copy the blocked numbers into another app. -->
+    <string name="blocking_manager_copy_title">Copy blocked numbers</string>
+    <!-- Its hint. %s is the app's name. -->
+    <string name="blocking_manager_copy_summary">Continue to %s and copy over your existing blocked numbers</string>
+    <!-- Top bar title on the blocked numbers. -->
+    <string name="blocked_numbers_title">Blocked numbers</string>
+    <!-- Said in the middle of that list when it is empty. -->
+    <string name="blocked_numbers_empty">Your blocked numbers will appear here</string>
+    <!-- Spoken description of the add button. -->
+    <string name="blocked_numbers_add_cd">Block a new number</string>
+    <!-- The dialog that adds one. -->
+    <string name="blocked_numbers_dialog_title">Block texts from</string>
+    <!-- The number field. -->
+    <string name="blocked_numbers_dialog_hint">Phone number</string>
+    <!-- Button (verb). -->
+    <string name="blocked_numbers_dialog_block">Block</string>
+    <!-- Top bar title on the content filters. -->
+    <string name="message_content_filters_title">Message content filters</string>
+    <!-- Said in the middle of that list when it is empty. -->
+    <string name="message_content_filters_empty">Your message content filters will appear here</string>
+    <!-- Spoken description of the add button. -->
+    <string name="message_content_filters_add_cd">Create a new filter</string>
+    <!-- The dialog that adds one. -->
+    <string name="message_content_filters_dialog_title">Drop messages matching</string>
+    <!-- The field: a word, a phrase or a regular expression. -->
+    <string name="message_content_filters_dialog_hint">Word, phrase or regular expression</string>
+    <!-- A switch in that dialog. -->
+    <string name="message_content_filters_dialog_case_switch">Case sensitive</string>
+    <!-- A switch in that dialog. -->
+    <string name="message_content_filters_dialog_regex_switch">Regular expression</string>
+    <!-- A switch in that dialog. -->
+    <string name="message_content_filters_dialog_contacts_switch">Include contacts</string>
+    <!-- Button (verb). -->
+    <string name="message_content_filters_dialog_create">Create</string>
+    <!-- Top bar title on the messages that were dropped. -->
+    <string name="blocked_messages_title">Blocked messages</string>
+    <!-- Said in the middle of that list when it is empty. -->
+    <string name="blocked_messages_empty">Your blocked messages will appear here</string>
+    <!-- Menu item (verb). -->
+    <string name="blocking_block_title">Block</string>
+    <!-- Menu item (verb). -->
+    <string name="blocking_unblock_title">Unblock</string>
+    <plurals name="blocking_block_external">
+        <item quantity="one">Continue to %s and block this number</item>
+        <item quantity="other">Continue to %s and block these numbers</item>
+    </plurals>
+    <plurals name="blocking_unblock_external">
+        <item quantity="one">Continue to %s and allow this number</item>
+        <item quantity="other">Continue to %s and allow these numbers</item>
+    </plurals>
+
+    <!-- ============================================================ -->
+    <!-- The widget and quick reply -->
+
+    <string name="widget_loading">Loading…</string>
+    <!-- The widget's last row (verb). -->
+    <string name="widget_more">View more conversations</string>
+    <!-- The widget's own name in Android's widget picker. -->
+    <string name="all_conversations_widget_title">All conversations</string>
+    <!-- Quick reply menu item (verb). -->
+    <string name="qkreply_menu_read">Mark read</string>
+    <!-- Quick reply menu item (verb). -->
+    <string name="qkreply_menu_call">Call</string>
+    <!-- Quick reply menu item (verb). -->
+    <string name="qkreply_menu_delete">Delete</string>
+    <!-- Quick reply menu item: show the whole message. -->
+    <string name="qkreply_menu_expand">Show more</string>
+    <!-- Quick reply menu item: show only the start. -->
+    <string name="qkreply_menu_collapse">Show less</string>
+    <!-- Quick reply menu item: open the conversation. -->
+    <string name="qkreply_menu_view">Open conversation</string>
+    <!-- The stock replies offered by quick reply. -->
+    <string-array name="qk_responses">
+        <item>Okay</item>
+        <item>Give me a moment</item>
+        <item>On my way</item>
+        <item>Thanks</item>
+        <item>Sounds good</item>
+        <item>What\'s up?</item>
+        <item>Agreed</item>
+        <item>No</item>
+        <item>Love you</item>
+        <item>Sorry</item>
+        <item>LOL</item>
+        <item>That\'s okay</item>
+    </string-array>
+    <!-- Said when there is nothing to read aloud. -->
+    <string name="speak_no_messages">No messages</string>
+    <!-- Menu item (verb): read the unseen messages aloud. -->
+    <string name="speak_unseen_messages">Speak unseen messages</string>
+
+    <!-- ============================================================ -->
+    <!-- About, privacy, terms and licences -->
+
+    <string name="setup_welcome_about">About, privacy and terms</string>
+    <!-- Top bar title on About, and the menu item that opens it. -->
+    <string name="about_title">About</string>
+    <!-- The first line of About. %s is the version. -->
+    <string name="about_name" translatable="false">Messaging %s</string>
+    <!-- The link that goes to the donation page. -->
+    <string name="about_llama">feed the llamas</string>
+    <!-- The site's name, which opens it. -->
+    <string name="about_source" translatable="false">wanderthe.dev</string>
+    <!-- About: the short form of PRIVACY.md, then Terms. Never claim less than the app does. -->
+    <string name="about_privacy_heading">Privacy</string>
+    <!-- Where the messages are kept. -->
+    <string name="about_privacy_where">Your messages are kept on this phone. Texts and picture messages go through your carrier, as on any phone. If you link Signal, this phone becomes a linked device of your own Signal account: Signal messages and calls are end-to-end encrypted, and Signal\'s servers carry them. Desktop Sync, off until you switch it on, serves your messages from the phone to a browser on your own computer, over your VPN or your Wi-Fi, with no cloud service and no relay in between. Nothing is sent to the app\'s maker.</string>
+    <!-- What each permission is used for. -->
+    <string name="about_privacy_permissions">Your contacts are read to put names to conversations; their numbers go to Signal\'s lookup only if you agree to Find contacts on Signal. The microphone is used only while you record a voice message or are on a Signal call. GIF search, through Signal\'s proxy, and Check for updates, from GitHub, go online only when you use them. Check for updates downloads a newer build of this app and hands it to Android\'s installer; it never runs by itself and nothing installs unless you agree.</string>
+    <!-- What the app does not do. -->
+    <string name="about_privacy_close">There are no ads, no analytics and no tracking. Backups, chat-history copies and saved attachments go only where you choose to save them. A debug log, off until you press and hold the version line in About, writes what the app does, including message text, to a file in the app\'s own storage; it leaves the phone only if you copy it out.</string>
+    <!-- The heading over the terms. -->
+    <string name="about_terms_heading">Terms</string>
+    <!-- The licence and the lack of warranty. -->
+    <string name="about_terms">This app is free software under the GNU Affero General Public License v3 or later. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
+    <!-- The row that opens the licence texts. -->
+    <string name="about_licences">Licences</string>
+    <!-- A label in the licence panel. -->
+    <string name="licences_source">Source code</string>
+    <!-- A label in the licence panel. -->
+    <string name="licences_licence">Licence</string>
+    <!-- The licence, said in words. -->
+    <string name="licences_licence_words">GNU Affero General Public License v3 or later, held by wander wildwood. Free software with no warranty. It contains Signal\'s AGPL code, so the whole app is AGPL; the full text is below. Anyone who runs a modified version for others over a network must offer them its source.</string>
+    <!-- A label over the licences of what the app is built with. -->
+    <string name="licences_built_with">Built with</string>
+    <!-- A licence's name. -->
+    <string name="licences_agpl">GNU Affero General Public License v3</string>
+    <!-- A licence's name. -->
+    <string name="licences_gpl">GNU General Public License v3 (QKSMS, QUIK, InkMessage)</string>
+    <!-- A licence's name. -->
+    <string name="licences_apache">Apache License 2.0</string>
+    <!-- A licence's name. -->
+    <string name="licences_mit">MIT licence</string>
+    <!-- A licence's name. -->
+    <string name="licences_bsd">BSD licences</string>
+    <!-- A licence's name. -->
+    <string name="licences_ofl">SIL Open Font License 1.1 (Lato)</string>
+    <!-- What the app continues. -->
+    <string name="about_fork">Continues QKSMS by Moez Bhatti, by way of octoshrimpy\'s QUIK; the e-ink work began in lamdanAmiti\'s InkMessage. All under the same licence.</string>
+
+    <!-- ============================================================ -->
+    <!-- Notifications -->
+
+    <!-- A text notification's title. %s is how many. -->
+    <plurals name="notification_new_messages">
+        <item quantity="one">New message</item>
+        <item quantity="other">%s new messages</item>
+    </plurals>
+    <!-- A notification's title. -->
+    <string name="notification_message_failed_title">Message not sent</string>
+    <!-- Its one line. %s is who it was to. -->
+    <string name="notification_message_failed_text">The message to %s failed to send</string>
+    <!-- The title of the notification that keeps receiving alive. -->
+    <string name="notification_foreground_worker_title">Receiving message</string>
+    <!-- Why it is there. -->
+    <string name="notification_foreground_worker_text">On Android 12 and older, a notification is required for the background work that enables receiving messages.</string>
+    <!-- Name of that category in Android's settings. -->
+    <string name="notification_foreground_worker_channel_name">Message receiving worker notification</string>
+    <!-- The notification's button (verb). -->
+    <string name="notification_message_failed_action">Resend</string>
+    <!-- The reader's own name on a message they sent, in a text notification, and the name of
+         the ordinary text notification channel in Android's settings. -->
+    <string name="notification_self_name">Me</string>
+    <!-- Name of the ordinary notification category. -->
+    <string name="notification_channel_default">Default</string>
+
+    <!-- ============================================================ -->
+    <!-- App updates -->
+
+    <!-- The update row. One row with three faces: it offers a check, then an install, then
+         asks. Everything it has to report it reports in its own summary. -->
+    <string name="settings_update_title">Check for updates</string>
+    <!-- Its summary while it looks. -->
+    <string name="settings_update_checking">Checking</string>
+    <!-- Its summary when there is nothing newer. %1$s is the version. -->
+    <string name="settings_update_current">Nothing newer than %1$s</string>
+    <!-- Its summary when there is. %1$s is the new version. -->
+    <string name="settings_update_available_title">Install %1$s</string>
+    <!-- The same line's second half. %1$s is the version here. -->
+    <string name="settings_update_available_summary">Replaces %1$s</string>
+    <!-- The row, armed. -->
+    <string name="settings_update_armed_title">Install %1$s — tap again</string>
+    <!-- Its summary while it downloads. -->
+    <string name="settings_update_downloading">Downloading</string>
+    <!-- Its summary once Android has the file. -->
+    <string name="settings_update_handed_over">Handed to the installer</string>
+    <!-- Its summary when GitHub cannot be reached. -->
+    <string name="settings_update_unreachable">Could not reach the release page</string>
+    <!-- Its summary when the file did not match its checksum. -->
+    <string name="settings_update_wrong_contents">What arrived did not match its checksum, so it was discarded</string>
+    <!-- The row when Android has not allowed installs. -->
+    <string name="settings_update_not_permitted_title">Allow installing apps</string>
+    <!-- Its hint (verb). -->
+    <string name="settings_update_not_permitted_summary">Android has to be told this app may install one. Tap to open that setting</string>
+    <!-- The background check. It only ever says a version is out; installing is the row's job. -->
+    <string name="notification_update_channel_name">App updates</string>
+    <!-- That notification's title. %1$s is the version. -->
+    <string name="notification_update_title">%1$s is out</string>
+    <!-- Its one line. -->
+    <string name="notification_update_text">Open settings to install it</string>
+    <!-- Its summary on a build that came from nowhere. -->
+    <string name="settings_update_not_a_release">This build did not come from a release, so there is nothing to compare it against</string>
+
+    <!-- ============================================================ -->
+    <!-- The lists the settings dialogs draw from -->
+
+    <string-array name="notification_actions">
+        <item>None</item>
+        <item>Archive</item>
+        <item>Delete</item>
+        <item>Block</item>
+        <item>Call</item>
+        <item>Mark read</item>
+        <item>Reply</item>
+        <item>Speak</item>
+    </string-array>
+    <!-- The choices for how much a notification shows. -->
+    <string-array name="notification_preview_options">
+        <item>Show name and message</item>
+        <item>Show name</item>
+        <item>Hide contents</item>
+    </string-array>
+    <!-- The choices for the size of the app's text. -->
+    <string-array name="text_sizes">
+        <item>Small</item>
+        <item>Normal</item>
+        <item>Large</item>
+        <item>Larger</item>
+        <item>Super</item>
+    </string-array>
+    <!-- Settings > Sending > Group messages. In this order: index 0 is the default. Texts
+         only: a Signal group is a group of its own and is never split. -->
+    <string-array name="group_messages_labels">
+        <item>One group chat</item>
+        <item>Separate chats</item>
+    </string-array>
+    <!-- The choices for the wait before a message goes. -->
+    <string-array name="delayed_sending_labels">
+        <item>No delay</item>
+        <item>3 seconds</item>
+        <item>5 seconds</item>
+        <item>10 seconds</item>
+    </string-array>
+    <!-- The choices for how far a picture is shrunk before sending. -->
+    <string-array name="mms_sizes">
+        <item>Automatic</item>
+        <item>100KB</item>
+        <item>200KB</item>
+        <item>300KB</item>
+        <item>600KB</item>
+        <item>1000KB</item>
+        <item>2000KB</item>
+        <item>No compression</item>
+    </string-array>
+    <!-- The same choices as kilobytes; -1 means automatic, 0 means no compression. -->
+    <integer-array name="mms_sizes_ids">
+        <item>-1</item>
+        <item>100</item>
+        <item>200</item>
+        <item>300</item>
+        <item>600</item>
+        <item>1000</item>
+        <item>2000</item>
+        <item>0</item>
+    </integer-array>
+    <!-- The choices for what a tap on a link does. -->
+    <string-array name="messageLinkHandlings">
+        <item>Block</item>
+        <item>Allow</item>
+        <item>Ask before opening</item>
+    </string-array>
+    <!-- The same choices as the values the preference stores. -->
+    <integer-array name="messageLinkHandling_ids">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </integer-array>
+
+    <!-- ============================================================ -->
+    <!-- Send where I am -->
 
     <!-- Send where I am, through Whereabouts (Whereabouts.kt) -->
     <string name="whereabouts_send">Send where I am</string>
+    <!-- The message itself. %1$s is the place. -->
     <string name="whereabouts_message">Where I am: %1$s</string>
+    <!-- Added to it. %1$d is metres. -->
     <string name="whereabouts_message_accuracy">Within %1$d m</string>
+    <!-- Added to it. %1$s is when the fix was taken. -->
     <string name="whereabouts_message_as_of">As of %1$s</string>
+    <!-- Said when there is no location. -->
     <string name="whereabouts_no_fix">Whereabouts could not find where you are</string>
+    <!-- Said when location permission is missing. -->
     <string name="whereabouts_no_permission">Whereabouts needs location access first</string>
+
+    <!-- ============================================================ -->
+    <!-- Restricted settings -->
 
     <!-- Restricted settings (Android 13+, roles from 15), only after a request comes back blocked -->
     <string name="restricted_settings_hint">Android blocks this for apps installed from a file.\nOpen App info, tap ⋮, then Allow restricted settings, and try again.</string>
+    <!-- Button (verb): open App info. -->
     <string name="restricted_settings_app_info">App info</string>
+
+    <!-- ============================================================ -->
+    <!-- The page number under a paged panel -->
+
+    <!-- The page number under a paged panel (PagedColumn), and the dialog a tap on it opens -->
+    <string name="folio_of">%1$d / %2$d</string>
+    <!-- The dialog a tap on it opens. -->
+    <string name="folio_go_title">Go to page</string>
+    <!-- The dialog's question. %1$d is the page, %2$d how many. -->
+    <string name="folio_page">Page %1$d of %2$d</string>
+    <!-- Button (verb). -->
+    <string name="folio_go">Go</string>
+    <!-- Button (verb). -->
+    <string name="folio_cancel">Cancel</string>
+
 </resources>

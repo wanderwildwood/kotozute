@@ -1,239 +1,1900 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ~ Copyright (C) 2019 Moez Bhatti <moez.bhatti@gmail.com>
-  ~
-  ~ This file is part of Messaging.
-  ~
-  ~ Messaging is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ Messaging is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU General Public License
-  ~ along with Messaging.  If not, see <http://www.gnu.org/licenses/>.
-  --><resources>
+  German strings for Messaging (kotozute), key for key and in the same order as
+  res/values/strings.xml. Placeholders are kept exactly as they are there, and so are the
+  comments: they describe the place the string is used in, not the language.
+
+  Part of kotozute. Free software; see LICENSE for the licence and the warranty.
+-->
+<resources>
+
+    <!-- ============================================================ -->
+    <!-- App name and the launcher's shortcuts -->
+
+    <!-- The launcher's long press: the words under the shortcut. -->
     <string name="shortcut_compose_long_label">Neue Unterhaltung</string>
+    <!-- The same shortcut where Android has room for one word. -->
     <string name="shortcut_compose_short_label">Verfassen</string>
+    <!-- Said when the shortcut is switched off in Settings. -->
     <string name="shortcut_compose_disabled_message">Schnellzugriff deaktiviert</string>
+
+    <!-- ============================================================ -->
+    <!-- Main screen: the conversation list -->
+
+    <!-- Top bar title on the archived list. -->
     <string name="title_archived">Archiviert</string>
-    <string name="title_settings">Einstellungen</string>
-    <string name="title_notification_prefs">Benachrichtigungen</string>
-    <string name="title_conversations">In Posteingang suchen…</string>
-    <string name="title_compose">Verfassen</string>
-    <string name="menu_add_person">Person hinzufügen</string>
-    <string name="menu_call">Anrufen</string>
-    <string name="menu_info">Details</string>
-    <string name="menu_mms_part_save">In Galerie speichern</string>
-    <string name="compose_menu_share">Text teilen</string>
-    <string name="main_drawer_open_cd">Navigationsmenü öffnen</string>
-    <string name="main_title_selected">%d ausgewählt</string>
-    <string name="main_menu_archive">Archivieren</string>
-    <string name="main_menu_unarchive">Wiederherstellen</string>
-    <string name="main_menu_delete">Löschen</string>
-    <string name="main_menu_add_contact">Zu Kontakten hinzufügen</string>
-    <string name="main_menu_pin">Oben anheften</string>
-    <string name="main_menu_unpin">Loslösen</string>
-    <string name="main_menu_read">Als gelesen markieren</string>
-    <string name="main_menu_unread">Als ungelesen markieren</string>
-    <string name="main_menu_block">Blockieren</string>
+    <!-- The screen's name; the top bar shows the filter instead. -->
+    <string name="title_conversations">Unterhaltungen</string>
+    <!-- The first tab, when people, groups and unknown senders share one list. -->
+    <string name="filter_all">Alle</string>
+    <!-- The first tab when groups and unknown senders are kept to their own tabs: one-to-one conversations -->
+    <string name="filter_people">Personen</string>
+    <!-- The tab holding group conversations. -->
+    <string name="filter_groups">Gruppen</string>
+    <!-- The tab holding senders who are not in the contacts. -->
+    <string name="filter_unknown">Unbekannt</string>
+    <!-- A tab with something unread under it: a dot ahead of the tab's name. -->
+    <string name="filter_tab_unread">• %s</string>
+    <!-- The fourth item in the bottom bar: it opens the new-message screen, it is not a filter. -->
+    <string name="tab_compose">Nachricht</string>
+    <!-- Placeholder in the top bar's search field, and the magnifier's name. -->
+    <string name="main_search_hint">Suche</string>
+    <!-- The line along the bottom while the database is read again. -->
     <string name="main_syncing">Synchronisiere Nachrichten…</string>
+    <!-- %1$d is how far the sync has got, %2$d how much there is. -->
+    <string name="main_syncing_count">Synchronisiere Nachrichten… %1$d von %2$d</string>
+    <!-- The second line of a conversation whose last message is yours. -->
     <string name="main_sender_you">Du: %s</string>
+    <!-- The same line while a draft is waiting. %s is the draft. -->
+    <string name="main_sender_draft">Entwurf: %s</string>
+    <!-- The divider above the message hits in search results. -->
     <string name="main_message_results_title">Ergebnisse in Nachrichten</string>
-    <string name="main_message_results">%d Nachrichten</string>
+    <!-- Was a plain string, so a single hit read "1 messages". -->
+    <plurals name="main_message_results">
+        <item quantity="one">%d Nachricht</item>
+        <item quantity="other">%d Nachrichten</item>
+    </plurals>
+    <!-- Said in the middle of an empty conversation list. -->
     <string name="inbox_empty_text">Deine Unterhaltungen werden hier angezeigt</string>
+    <!-- Said when a search finds nothing. -->
     <string name="inbox_search_empty_text">Keine Ergebnisse</string>
+    <!-- Said in the middle of an empty archived list. -->
     <string name="archived_empty_text">Archivierte Unterhaltungen werden hier angezeigt</string>
-    <string name="main_fab_cd">Neue Unterhaltung starten</string>
-    <string name="main_default_sms_title">Liebe es, wieder SMS zu schreiben</string>
-    <string name="main_default_sms_message">Messaging als Standard-SMS-App festlegen</string>
+
+    <!-- ============================================================ -->
+    <!-- Main screen: the menu while rows are selected -->
+
+    <!-- Top bar title while rows are ticked. %d is how many. -->
+    <string name="main_title_selected">%d ausgewählt</string>
+    <!-- Menu item (verb) while rows are ticked. -->
+    <string name="main_menu_select_all">Alle auswählen</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_archive">Archivieren</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_unarchive">Wiederherstellen</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_delete">Löschen</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_add_contact">Zu Kontakten hinzufügen</string>
+    <!-- Menu item (verb): keep this conversation at the top of the list. -->
+    <string name="main_menu_pin">Oben anheften</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_unpin">Loslösen</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_mark_all_read">Alle als gelesen markieren</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_read">Als gelesen markieren</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_unread">Als ungelesen markieren</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_block">Blockieren</string>
+    <!-- Menu item (verb) on a scheduled message. -->
+    <string name="main_menu_send_now">Jetzt senden</string>
+    <!-- Menu item (verb). -->
+    <string name="main_menu_rename_conversation">Unterhaltung umbenennen</string>
+    <plurals name="main_block_signal_confirm">
+        <item quantity="one">Diese Person auf Signal blockieren? Ihre SMS hören ebenfalls auf, da beide hier eine Unterhaltung sind.</item>
+        <item quantity="other">Diese %d Personen auf Signal blockieren? Ihre SMS hören ebenfalls auf, da beide hier eine Unterhaltung sind.</item>
+    </plurals>
+    <!-- The same note for muting from the conversation list's selection, one or several. -->
+    <plurals name="main_muted_toast">
+        <item quantity="one">Stummgeschaltet. Nachrichten kommen weiterhin an.</item>
+        <item quantity="other">%d Chats stummgeschaltet. Nachrichten kommen weiterhin an.</item>
+    </plurals>
+    <plurals name="toast_archived">
+        <item quantity="one">Unterhaltung archiviert</item>
+        <item quantity="other">%d Unterhaltungen archiviert</item>
+    </plurals>
+    <plurals name="toast_unarchived">
+        <item quantity="one">Unterhaltung wiederhergestellt</item>
+        <item quantity="other">%d Unterhaltungen wiederhergestellt</item>
+    </plurals>
+
+    <!-- ============================================================ -->
+    <!-- Main screen: the hint along the bottom -->
+
+    <!-- The permission hint's title while another app handles texts. -->
+    <string name="main_default_sms_title">Als Standard festlegen</string>
+    <!-- The same hint's one sentence. -->
+    <string name="main_default_sms_message">Messaging muss deine Standard-SMS-App sein, um SMS senden und empfangen zu können</string>
+    <!-- The hint's button (verb): open Android's default-apps screen. -->
     <string name="main_default_sms_change">Ändern</string>
+    <!-- The hint's other button (verb): put the line away for good. -->
+    <string name="main_default_sms_hide">Ausblenden</string>
+    <!-- The hint's title when a permission is missing. -->
     <string name="main_permission_required">Berechtigung erforderlich</string>
+    <!-- The hint while SMS permission is refused. -->
     <string name="main_permission_sms">Messaging benötigt die Berechtigung zum Senden und Anzeigen von SMS-Nachrichten</string>
-    <string name="main_permission_contacts">Messaging benötigt die Berechtigung zum Zugreifen auf die Kontakte</string>
+    <!-- The hint while contacts permission is refused. -->
+    <string name="main_permission_contacts">Messaging benötigt die Berechtigung, um auf deine Kontakte zuzugreifen</string>
+    <!-- The hint while notification permission is refused. -->
     <string name="main_permission_notifications">Messaging benötigt die Berechtigung, um Benachrichtigungen anzuzeigen</string>
+    <!-- The hint's button (verb). -->
     <string name="main_permission_allow">Zulassen</string>
-    <string name="drawer_inbox">Posteingang</string>
-    <string name="drawer_archived">Archiviert</string>
-    <string name="drawer_scheduled">Geplant</string>
-    <string name="drawer_blocking">Blockiert</string>
-    <string name="drawer_more">Mehr</string>
-    <string name="drawer_settings">Einstellungen</string>
-    <string name="drawer_help">Hilfe &amp; Feedback</string>
-    <string name="drawer_invite">Freunde einladen</string>
+    <string name="signal_sms_taken">Eine andere App empfängt jetzt deine SMS. Tippe, um dieses Telefon wieder zur SMS-App zu machen.</string>
+
+    <!-- ============================================================ -->
+    <!-- A conversation: its messages, menus and details -->
+
+    <!-- Conversation menu item (verb): add somebody to the thread. -->
+    <string name="menu_add_person">Person hinzufügen</string>
+    <!-- Conversation menu item (verb). -->
+    <string name="menu_call">Anrufen</string>
+    <!-- Conversation menu item: the details screen. -->
+    <string name="menu_info">Details</string>
+    <!-- Menu on a picture or file in a conversation (verb). -->
+    <string name="menu_mms_part_save">In Galerie speichern</string>
+    <!-- The same menu (verb). -->
+    <string name="menu_mms_part_share">Teilen</string>
+    <!-- The same menu (verb). -->
+    <string name="menu_mms_part_forward">Weiterleiten</string>
+    <!-- The same menu (verb). -->
+    <string name="menu_mms_part_open">Extern öffnen</string>
+    <!-- Under a message that is on its way. -->
+    <string name="message_status_sending">Wird gesendet…</string>
+    <!-- Under a message that arrived. %s is the time. -->
+    <string name="message_status_delivered">Zugestellt %s</string>
+    <!-- Under a message the other side has opened. -->
+    <string name="message_status_read">Gelesen</string>
+    <!-- Under a message that did not go; tapping tries again. -->
+    <string name="message_status_failed">Fehler beim Senden. Tippen, um es erneut zu versuchen</string>
+    <string name="message_body_too_long_to_display">⚠ Die Nachricht ist lang. Kopieren oder speichern für den vollständigen Text</string>
+    <!-- Top bar title on a conversation's details. -->
+    <string name="info_title">Details</string>
+    <!-- Said when the address is put on the clipboard. -->
+    <string name="info_copied_address">Adresse kopiert</string>
+    <!-- The row that renames the conversation. -->
+    <string name="info_name">Unterhaltungstitel</string>
+    <!-- The row that opens this conversation's notification settings. -->
+    <string name="info_notifications">Benachrichtigungen</string>
+    <!-- Row (verb). -->
+    <string name="info_archive">Archivieren</string>
+    <!-- Row (verb). -->
+    <string name="info_unarchive">Wiederherstellen</string>
+    <!-- Row (verb). -->
+    <string name="info_block">Blockieren</string>
+    <!-- Row (verb). -->
+    <string name="info_unblock">Blockierung aufheben</string>
+    <!-- Row: deletes the conversation and everything in it. -->
+    <string name="info_delete">Unterhaltung löschen</string>
+    <!-- The same row, armed: a second tap does it. -->
+    <string name="info_delete_confirm">Unterhaltung löschen — zum Bestätigen erneut tippen</string>
+    <!-- Said when a picture cannot be read. -->
+    <string name="gallery_error">Mediendatei konnte nicht geladen werden</string>
+    <!-- Said when the clipboard refuses the text. -->
+    <string name="clipboard_too_large_to_copy">Datengröße überschreitet Zwischenablagegrenze</string>
+    <!-- Said when the clipboard cannot be reached at all. -->
+    <string name="clipboard_unable_to_copy_to">In Zwischenablage kopieren nicht möglich</string>
+    <!-- Said in place of an attachment that is no longer on the phone. -->
+    <string name="attachment_missing">Fehlt</string>
+    <string name="contact_card_missing">Diese Kontaktkarte ist nicht mehr auf dem Telefon oder wurde nie vollständig heruntergeladen.</string>
+    <string name="contact_card_empty">Diese Kontaktkarte kam leer an, es gibt also nichts anzuzeigen.</string>
+    <string name="contact_card_damaged">Diese Datei ist keine lesbare Kontaktkarte.</string>
+    <string name="info_delete_summary">Entfernt sie hier und auf deinen anderen Signal-Geräten. Nichts kann sie zurückbringen</string>
+    <string name="info_delete_armed_summary">Dieses Telefon hält die einzige Kopie. Schreibe zuerst eine Kopie heraus, wenn du sie behalten möchtest</string>
+    <string name="info_delete_both">Ihre SMS verschwinden ebenfalls, da beide hier eine Unterhaltung sind</string>
+    <string name="info_deleted_toast">%1$d Nachricht(en) gelöscht</string>
+    <string name="info_delete_failed">Es wurde nichts gelöscht</string>
+    <string name="info_block_both">Stoppt auch ihre SMS, da beide hier eine Unterhaltung sind</string>
+    <string name="info_link">Mit einer SMS-Unterhaltung verknüpfen</string>
+    <string name="info_link_linked">Mit %s verknüpft</string>
+    <string name="info_link_pick">Welche Unterhaltung gehört zur selben Person?</string>
+    <string name="info_link_unlink">Verknüpfung lösen</string>
+    <string name="info_link_none">Keine SMS-Unterhaltungen zum Verknüpfen</string>
+    <!-- Opens Translate on a message's text; offered only when Translate is installed. -->
+    <string name="message_translate">Übersetzen</string>
+    <string name="messageLinkHandling_dialog_title">Warnung vor externem Link</string>
+    <string name="messageLinkHandling_dialog_body">Einige Links können unsicher sein oder dich unerwartet weiterleiten. Überprüfe den untenstehenden Link, bevor du fortfährst:\n\n%1$s\n\nWillst du weitermachen?</string>
+    <string name="messageLinkHandling_dialog_positive">Ja, Link öffnen</string>
+    <string name="messageLinkHandling_dialog_negative">Nein</string>
+    <string name="messages_text_share_file_error">Die Datei konnte nicht geteilt werden</string>
+
+    <!-- ============================================================ -->
+    <!-- Dialogs and the buttons they share -->
+
+    <!-- The delete dialog's title. -->
     <string name="dialog_delete_title">Löschen</string>
     <plurals name="dialog_delete_message">
         <item quantity="one">Bist du sicher, dass du diese Unterhaltung löschen möchtest?</item>
         <item quantity="other">Bist du sicher, dass du %d Unterhaltungen löschen möchtest?</item>
     </plurals>
-    <string-array name="message_options">
-        <item>Text kopieren</item>
-        <item>Weiterleiten</item>
-        <item>Löschen</item>
-    </string-array>
+    <plurals name="dialog_delete_chat">
+        <item quantity="one">Bist du sicher, dass du diese Nachricht löschen möchtest?</item>
+        <item quantity="other">Bist du sicher, dass du %d Nachrichten löschen möchtest?</item>
+    </plurals>
+    <plurals name="dialog_send_now">
+        <item quantity="one">Bist du sicher, dass du diese Nachricht jetzt senden möchtest?</item>
+        <item quantity="other">Bist du sicher, dass du %d Nachrichten jetzt senden möchtest?</item>
+    </plurals>
+    <!-- The dialog before a scheduled message is edited. -->
+    <string name="dialog_edit_scheduled_message_title">Nachricht bearbeiten</string>
+    <!-- What editing costs. -->
+    <string name="dialog_edit_scheduled_message">Das Bearbeiten dieser Nachricht entfernt sie aus dem Zeitplan.\n\nStelle sicher, dass du sie auf dem nächsten Bildschirm erneut abschickst, sonst geht sie verloren.\n\nWillst du weitermachen?</string>
+    <!-- Button (verb). -->
+    <string name="dialog_edit_scheduled_message_positive_button">Ja, Nachricht bearbeiten</string>
+    <!-- The dialog before the composer is emptied. -->
+    <string name="dialog_clear_compose_title">Nachricht leeren</string>
+    <!-- Its question. -->
+    <string name="dialog_clear_compose">Die Nachricht leeren? Diese Aktion kann nicht rückgängig gemacht werden.</string>
+    <!-- A dialog button. -->
+    <string name="button_yes">Ja</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_continue">Fortsetzen</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_cancel">Abbrechen</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_close">Schließen</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_delete">Löschen</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_save">Speichern</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_stop">Stopp</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_undo">Rückgängig</string>
+    <!-- A dialog button (verb). -->
+    <string name="button_clear">Leeren</string>
+
+    <!-- ============================================================ -->
+    <!-- Writing a message -->
+
+    <string name="title_compose">Namen oder Nummer eingeben</string>
+    <!-- The dialog that picks which SIM sends. -->
     <string name="compose_number_picker_title">Telefonnummer auswählen</string>
-    <string name="compose_number_picker_default">%s - Standard</string>
+    <!-- A SIM's row. %s is its name. -->
+    <string name="compose_number_picker_default">%s ∙ Standard</string>
+    <!-- A SIM's row: only this once. -->
     <string name="compose_number_picker_once">Nur einmal</string>
+    <!-- A SIM's row: always for this conversation. -->
     <string name="compose_number_picker_always">Immer</string>
+    <!-- Top bar title while people are picked. %d is how many. -->
     <string name="compose_title_selected">%d ausgewählt</string>
+    <!-- %1$d of %2$d hits. -->
     <string name="compose_subtitle_results">%1$d von %2$d Ergebnissen</string>
+    <!-- A switch on the new-message screen. -->
     <string name="compose_send_group_title">Als Gruppennachricht senden</string>
-    <string name="compose_send_group_summary">Empfänger und Antworten werden für jeden sichtbar sein</string>
+    <!-- Its hint while on. -->
+    <string name="compose_send_group_summary_on">Empfänger und Antworten sind für alle sichtbar</string>
+    <!-- Its hint while off. -->
+    <string name="compose_send_group_summary_off">Jede Person erhält den Text in einem eigenen Chat, und Antworten kommen dort an</string>
+    <!-- Said while the contact list loads. -->
+    <string name="compose_loading">Lädt…</string>
+    <!-- The label on a contact card attachment. -->
     <string name="compose_vcard_label">Kontaktkarte</string>
+    <!-- A label on the scheduling screen. -->
     <string name="compose_scheduled_for">Geplante Zeit:</string>
+    <!-- Said when the chosen time has gone. -->
     <string name="compose_scheduled_future">Gewählte Zeit muss in der Zukunft liegen!</string>
-    <string name="compose_scheduled_plus">Du musst Messaging freischalten, um geplante Nachrichten nutzen zu können</string>
+    <!-- Said after scheduling. -->
     <string name="compose_scheduled_toast">Zu geplanten Nachrichten hinzugefügt</string>
+    <!-- Menu item: the scheduled messages for this conversation. -->
+    <string name="compose_scheduled_view">Geplante Nachrichten für diese Unterhaltung</string>
+    <!-- Placeholder in the composer. -->
     <string name="compose_hint">Schreibe eine Nachricht…</string>
+    <!-- Said when none of the picked people can be written to. -->
+    <string name="compose_no_valid_recipients">Kann sie nicht an andere Empfänger senden</string>
+    <!-- Selection menu item (verb). -->
     <string name="compose_menu_copy">Text kopieren</string>
+    <!-- Selection menu item (verb). -->
+    <string name="compose_menu_share">Text teilen</string>
+    <!-- Selection menu item (verb). -->
     <string name="compose_menu_forward">Weiterleiten</string>
+    <!-- Selection menu item: the message's details. -->
+    <string name="compose_menu_show_status">Status anzeigen</string>
+    <!-- Selection menu item (verb). -->
     <string name="compose_menu_delete">Löschen</string>
+    <!-- Selection menu item: the message before. -->
     <string name="compose_menu_previous">Vorherige</string>
+    <!-- Selection menu item: the message after. -->
     <string name="compose_menu_next">Nächste</string>
-    <string name="compose_menu_clear">Löschen</string>
+    <!-- Selection menu item (verb): empty the composer. -->
+    <string name="compose_menu_clear">Leeren</string>
+    <!-- Top bar title on a message's details. -->
     <string name="compose_details_title">Nachrichtendetails</string>
+    <!-- A line in them. %s is the type. -->
     <string name="compose_details_type">Typ: %s</string>
+    <!-- A line in them. %s is the sender. -->
     <string name="compose_details_from">Von: %s</string>
+    <!-- A line in them. %s is the recipient. -->
     <string name="compose_details_to">An: %s</string>
+    <!-- A line in them. %s is the time. -->
     <string name="compose_details_sent">Gesendet: %s</string>
+    <!-- A line in them. %s is the time. -->
     <string name="compose_details_received">Erhalten: %s</string>
+    <!-- A line in them. %s is the time. -->
     <string name="compose_details_delivered">Zugestellt: %s</string>
+    <!-- A line in them. %d is the code. -->
     <string name="compose_details_error_code">Fehlercode: %d</string>
+    <!-- Spoken description of the attach button. -->
     <string name="compose_attach_cd">Anhang hinzufügen</string>
+    <!-- The attach sheet: any file. -->
+    <string name="compose_attach_file_cd">Beliebige Datei anhängen</string>
+    <!-- The attach sheet: a photo. -->
     <string name="compose_gallery_cd">Foto anhängen</string>
+    <!-- The attach sheet: a recording. -->
+    <string name="compose_audio_message_cd">Audio-Nachricht aufnehmen</string>
+    <!-- The attach sheet: the camera. -->
     <string name="compose_camera_cd">Foto aufnehmen</string>
+    <!-- Spoken description of the schedule button. -->
     <string name="compose_schedule_cd">Nachricht planen</string>
+    <!-- The same button once a time is chosen. -->
+    <string name="compose_schedule_cancel_cd">Geplante Nachricht abbrechen</string>
+    <!-- The attach sheet: a contact card. -->
     <string name="compose_contact_cd">Kontakt anhängen</string>
+    <!-- Said when the card cannot be read. -->
     <string name="compose_contact_error">Fehler beim Lesen des Kontaktes</string>
+    <!-- Said when there is no room for the photo. -->
+    <string name="compose_camera_error">Konnte keinen Platz für das Foto schaffen</string>
+    <!-- Said when no camera app can hand a photo back. -->
+    <string name="compose_camera_unavailable">Auf diesem Telefon gibt es keine Kamera-App, die ein Foto zurückgeben kann</string>
     <!-- Example: SIM 1 (Verizon) selected-->
     <string name="compose_sim_changed_toast">SIM %1$d (%2$s) ausgewählt</string>
+    <!-- Spoken description of the SIM button. %s is the chosen SIM. -->
     <string name="compose_sim_cd">%s ausgewählt, SIM-Karte ändern</string>
+    <!-- Spoken description of the send button. -->
     <string name="compose_send_cd">Nachricht senden</string>
-    <string name="message_status_sending">Wird gesendet…</string>
-    <string name="message_status_delivered">Zugestellt %s</string>
-    <string name="message_status_failed">Fehler beim Senden. Tippen, um es erneut zu versuchen</string>
-    <string name="info_title">Details</string>
-    <string name="info_copied_address">Adresse kopiert</string>
-    <string name="info_name">Unterhaltungstitel</string>
-    <string name="info_notifications">Benachrichtigungen</string>
-    <string name="info_archive">Archivieren</string>
-    <string name="info_unarchive">Wiederherstellen</string>
-    <string name="info_block">Blockieren</string>
-    <string name="info_unblock">Entsperren</string>
-    <string name="info_delete">Unterhaltung löschen</string>
-    <string name="gallery_error">Mediendatei konnte nicht geladen werden</string>
-    <string name="gallery_toast_saved">In Galerie gespeichert</string>
+    <!-- Spoken description of the record button. -->
+    <string name="compose_record_audio_msg_cd">Audio-Nachricht aufnehmen</string>
+    <!-- Spoken description of the cancel button. -->
+    <string name="compose_record_audio_msg_abort_cd">Audio-Nachricht abbrechen</string>
+    <!-- Spoken description of the attach button. -->
+    <string name="compose_record_audio_msg_attach_cd">Audio-Nachricht anhängen</string>
+    <!-- Spoken description of play and pause. -->
+    <string name="compose_record_audio_msg_play_pause_cd">Audio-Nachricht abspielen oder pausieren</string>
+    <!-- Button (verb) on a message that is waiting. -->
+    <string name="compose_message_cancel">Abbrechen</string>
+    <!-- Button (verb). -->
+    <string name="compose_message_send_now">Jetzt senden</string>
+    <!-- Label on a message's SIM line. -->
+    <string name="compose_message_sim">SIM-Nummer</string>
+    <!-- Spoken description of one message in a list. -->
+    <string name="compose_message_item">Nachrichtenelement</string>
+    <!-- Label on an attachment. -->
+    <string name="compose_message_attachment">Anhang</string>
+    <!-- Said on the compose screen the moment a draft re-encodes, because nothing else on
+         the phone says it and the sender is about to be cut off at 70 characters. Names the
+         setting that prevents it, in the words that setting uses. -->
+    <string name="compose_wide_characters">Ein Zeichen hier liegt außerhalb von einfachem SMS-Text, daher passen jetzt 70 statt 160 Zeichen in eine Nachricht. „Akzente aus ausgehenden SMS entfernen“ in den Einstellungen hält sie bei 160.</string>
+    <!-- Placeholder in the new-message screen's Signal search. -->
+    <string name="contacts_signal_hint">Personen auf Signal suchen</string>
+    <!-- The divider before the Signal entries in the new-message list. They come after the
+         address book, and on a long one that is the same as being hidden unless it is said. -->
+    <string name="compose_signal_header">Auf Signal</string>
+    <!-- The second line of a person in the new-message list who is reachable on Signal.
+         The same name can appear twice, once per rail, and this is what tells them apart. -->
+    <string name="compose_signal_person">Signal</string>
+    <!-- The same line where the number is known. %s is the number. -->
+    <string name="compose_signal_person_number">Signal · %s</string>
+
+    <!-- ============================================================ -->
+    <!-- Scheduled messages -->
+
+    <string name="scheduled_menu_send_now">Jetzt senden</string>
+    <string name="scheduled_menu_edit_message">Nachricht bearbeiten</string>
+    <!-- Top bar title on the scheduled messages. -->
+    <string name="scheduled_title">Geplant</string>
+    <!-- Said in the middle of an empty scheduled list. -->
+    <string name="scheduled_empty_description">Nachricht genau dann senden, wenn du magst</string>
+    <!-- One of three made-up messages on that empty screen. -->
+    <string name="scheduled_empty_message_1">Hey! Wann war dein Geburtstag nochmal?</string>
+    <!-- The second of the three. -->
+    <string name="scheduled_empty_message_2">Er ist am 23. Dezember</string>
+    <!-- The third of the three. -->
+    <string name="scheduled_empty_message_3">Alles Gute zum Geburtstag! Schau was für ein großartiger Freund ich bin, dass ich an deinen Geburtstag denke</string>
+    <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
+    <string name="scheduled_empty_message_3_timestamp">Am 23. Dezember senden&#x200A;</string>
+    <!-- Spoken description of the button that schedules a message. -->
+    <string name="scheduled_compose_cd">Eine Nachricht planen</string>
+    <!-- The same button on the scheduling screen. -->
+    <string name="scheduled_send_cd">Diese Nachricht planen</string>
+    <!-- %1$s is the time; the message goes over Signal. -->
+    <string name="scheduled_via_signal">%1$s (Signal)</string>
+
+    <!-- ============================================================ -->
+    <!-- Backup and restore -->
+
+    <!-- Top bar title on Backup and restore. -->
     <string name="backup_title">Sichern und Wiederherstellen</string>
-    <string name="backup_backing_up">Sichere Nachrichten</string>
+    <!-- The line while a backup is written. -->
+    <string name="backup_backing_up">Nachrichten werden gesichert</string>
+    <!-- The line while a backup is read back. -->
     <string name="backup_restoring">Aus Sicherung wiederherstellen</string>
+    <!-- The row that chooses where backups go. -->
     <string name="backup_location_title">Sicherungsort</string>
+    <!-- The same row before a folder is chosen (verb). -->
     <string name="backup_location_summary">Ordner festlegen</string>
+    <!-- The row that restores (verb). -->
     <string name="backup_restore_title">Wiederherstellen</string>
+    <!-- The same row's hint (verb). -->
     <string name="backup_restore_summary">Sicherung auswählen</string>
-    <string name="backup_restore_error_plus">Bitte Messaging freischalten, um die Sicherung und Wiederherstellung zu nutzen</string>
     <string name="backup_restore_error_backup">Sicherung wird durchgeführt…</string>
     <string name="backup_restore_error_restore">Wiederherstellung wird durchgeführt…</string>
     <string name="backup_restore_stop_title">Wiederherstellung abbrechen</string>
     <string name="backup_restore_stop_message">Nachrichten, die bereits wiederhergestellt wurden, werden auf deinem Gerät bleiben</string>
     <string name="backup_select_location_rationale_title">Sicherungsort auswählen</string>
-    <string name="backup_select_location_rationale_message">Bitte wähle einen Ordner in dem du deine Sicherungen speichern möchtest</string>
+    <string name="backup_select_location_rationale_message">Bitte wähle einen Ordner, in dem du deine Sicherungen speichern möchtest</string>
     <string name="backup_details">%1$s\n%2$d Nachrichten</string>
     <string name="backup_selected_backup_error_title">Fehler</string>
     <string name="backup_selected_backup_error_message">Sicherungsdatei konnte nicht gelesen werden</string>
     <string name="backup_selected_backup_details_title">Sicherungsdetails</string>
     <string name="backup_restore_dialog_title">Sicherungen</string>
     <string name="backup_restore_dialog_empty">Keine Sicherungen gefunden</string>
-    <string name="backup_disclaimer">Derzeit wird nur das Sichern und Wiederherstellen von SMS unterstützt. Die Unterstützung für MMS und geplante Sicherungen folgen demnächst!</string>
+    <string name="backup_disclaimer">Eine Sicherung enthält nur SMS. Sie enthält keine MMS, und es gibt keine automatische Sicherung: Du erstellst eine, wenn du eine willst.</string>
+    <!-- Button (verb). -->
     <string name="backup_now">Jetzt sichern</string>
     <string name="backup_progress_parsing">Analysiere Sicherung…</string>
     <string name="backup_progress_running">%1$d/%2$d Nachrichten</string>
     <string name="backup_progress_saving">Sicherung wird gespeichert…</string>
     <string name="backup_progress_syncing">Synchronisiere Nachrichten…</string>
     <string name="backup_progress_finished">Fertig!</string>
+    <!-- Name of the backup notification category in Android's settings. -->
     <string name="backup_notification_channel_name">Sicherung und Wiederherstellung</string>
-    <string name="scheduled_title">Geplant</string>
-    <string name="scheduled_empty_description">Nachricht genau dann senden, wenn du magst</string>
-    <string name="scheduled_empty_message_1">Hey! Wann war dein Geburtstag nochmal?</string>
-    <string name="scheduled_empty_message_2">Er ist am 23. Dezember</string>
-    <string name="scheduled_empty_message_3">Alles Gute zum Geburtstag! Schau was für ein großartiger Freund ich bin, dass ich an deinen Geburtstag denke</string>
-    <!--&#x200A; is a special character required at the end of this string to fix it's formatting in the app -->
-    <string name="scheduled_empty_message_3_timestamp">Am 23. Dezember senden </string>
-    <string name="scheduled_compose_cd">Eine Nachricht planen</string>
-    <string-array name="scheduled_options">
-        <item>Sofort senden</item>
-        <item>Text kopieren</item>
-        <item>Löschen</item>
-    </string-array>
-    <string name="settings_category_general">Allgemein</string>
+
+    <!-- ============================================================ -->
+    <!-- Settings -->
+
+    <!-- Top bar title on Settings, and the name of its root section. -->
+    <string name="title_settings">Einstellungen</string>
+    <!-- Top bar title on the notification settings. -->
+    <string name="title_notification_prefs">Benachrichtigungen</string>
+    <string name="drawer_archived">Archiviert</string>
+    <string name="drawer_scheduled">Geplant</string>
+    <string name="drawer_blocking">Blockiert</string>
+    <string name="drawer_settings">Einstellungen</string>
+    <string name="settings_category_general">Anzeige</string>
     <string name="settings_category_qkreply">Schnellantwort</string>
+    <!-- Settings row: the size of the app's text. -->
     <string name="settings_text_size_title">Schriftgröße</string>
+    <!-- Settings row: the notification settings. -->
     <string name="settings_notifications_title">Benachrichtigungen</string>
+    <!-- Its hint (verb). -->
     <string name="settings_notifications_o_summary">Zum Anpassen antippen</string>
+    <!-- The heading over the three notification buttons. -->
     <string name="settings_notification_actions_title">Aktionen</string>
+    <!-- The first notification button's name. -->
     <string name="settings_notification_action_1">Taste 1</string>
+    <!-- The second. -->
     <string name="settings_notification_action_2">Taste 2</string>
+    <!-- The third. -->
     <string name="settings_notification_action_3">Taste 3</string>
+    <!-- Settings row: how much a notification shows. -->
     <string name="settings_notification_previews_title">Benachrichtigungsvorschau</string>
+    <!-- Its hint. -->
+    <string name="settings_notification_previews_summary">Name und Nachricht anzeigen</string>
+    <!-- Settings row: light the screen when a message arrives. -->
     <string name="settings_notification_wake_title">Bildschirm aufwecken</string>
+    <!-- Settings row: stay quiet for people not in the contacts. -->
+    <string name="settings_notification_silent_title">Stumm, wenn kein Kontakt</string>
+    <!-- Its hint. -->
+    <string name="settings_notification_silent_summary">Schaltet Benachrichtigungen für Nachrichten stumm, deren Absender nicht in deinen Kontakten sind</string>
+    <!-- Settings row. -->
     <string name="settings_vibration_title">Vibration</string>
+    <!-- Settings row. -->
     <string name="settings_ringtone_title">Ton</string>
+    <!-- The choice that means no sound. -->
     <string name="settings_ringtone_none">Keine</string>
+    <!-- Settings row: the popup for a new message. -->
     <string name="settings_qkreply_title">Schnellantwort</string>
+    <!-- Its hint. -->
     <string name="settings_qkreply_summary">Popup für neue Nachrichten</string>
+    <!-- Settings row. -->
     <string name="settings_qkreply_tap_dismiss_title">Zum Verwerfen tippen</string>
+    <!-- Its hint. -->
     <string name="settings_qkreply_tap_dismiss_summary">Tippe außerhalb des Popups, um es zu schließen</string>
+    <!-- Settings row: a wait before a message goes, so it can be taken back. -->
     <string name="settings_delayed_title">Verzögertes Senden</string>
+    <!-- Settings row: one group chat or separate chats. -->
+    <string name="settings_group_messages_title">Gruppennachrichten</string>
+    <!-- Settings row: what a swipe on a conversation does. -->
     <string name="settings_swipe_actions">Wischgesten</string>
+    <!-- The swipe's direction. -->
     <string name="settings_swipe_actions_right">Nach rechts wischen</string>
+    <!-- The other direction. -->
     <string name="settings_swipe_actions_left">Nach links wischen</string>
-    <string name="settings_swipe_actions_change">ÄNDERN</string>
+    <!-- The small label that opens the list of actions (verb). -->
+    <string name="settings_swipe_actions_change">Ändern</string>
+    <!-- The actions a swipe can be set to, in the order the dialog offers them. -->
+    <string-array name="settings_swipe_actions">
+        <item>Keine</item>
+        <item>Archivieren</item>
+        <item>Löschen</item>
+        <item>Blockieren</item>
+        <item>Anrufen</item>
+        <item>Als gelesen markieren</item>
+        <item>Als ungelesen markieren</item>
+        <item>Vorlesen</item>
+    </string-array>
+    <!-- Settings row: ask the network for a delivery report. -->
     <string name="settings_delivery_title">Zustellbestätigungen</string>
+    <!-- Settings row: MMS read receipts. -->
+    <string name="settings_read_receipts_title">Lesebestätigungen</string>
+    <!-- Its hint. -->
+    <string name="settings_read_receipts_summary">Nur MMS. Sage dem Absender, wenn du die Nachricht gelesen hast, und verlange dasselbe von den Personen, denen du schreibst</string>
+    <!-- Settings row: keep conversations with something unread at the top. -->
+    <string name="settings_unread_at_top_title">Ungelesene oben</string>
+    <!-- Settings: groups and unknown senders appear only in their own tabs, and the first tab becomes "People" -->
+    <string name="settings_all_only_people_title">Personen statt Alle anzeigen</string>
+    <!-- Signal's own wording, preferences__pref_keep_muted_chats_archived and its summary -->
+    <string name="settings_keep_muted_archived_title">Stummgeschaltete Chats archiviert lassen</string>
+    <string name="settings_keep_muted_archived_summary">Stummgeschaltete, archivierte Chats bleiben archiviert, wenn eine neue Nachricht ankommt.</string>
+    <string name="settings_all_only_people_summary">Der erste Tab zeigt nur Einzelchats. Gruppen und unbekannte Absender bleiben in ihren eigenen Tabs.</string>
+    <!-- Settings: whether the unread count shows on the lock screen, through the Glance app -->
+    <string name="settings_lock_screen_title">Ungelesene auf dem Sperrbildschirm</string>
+    <!-- On the lock screen, through Glance: conversations with something unread, not messages -->
+    <plurals name="lock_screen_unread_texts">
+        <item quantity="one">%d SMS-Unterhaltung</item>
+        <item quantity="other">%d SMS-Unterhaltungen</item>
+    </plurals>
+    <plurals name="lock_screen_unread_signal">
+        <item quantity="one">%d Signal-Unterhaltung</item>
+        <item quantity="other">%d Signal-Unterhaltungen</item>
+    </plurals>
+    <!-- Settings row. -->
     <string name="settings_signature_title">Signatur</string>
+    <!-- Its hint. -->
     <string name="settings_signature_summary">Füge eine Signatur am Ende deiner Nachrichten hinzu</string>
-    <string name="settings_unicode_title">Akzente entfernen</string>
-    <string name="settings_mobile_title">Nur Mobilfunknummern</string>
+    <!-- Settings row: strip accents so a message stays at 160 characters. -->
+    <string name="settings_unicode_title">Akzente aus ausgehenden SMS entfernen</string>
+    <!-- Settings row: only mobile numbers in the new-message list. -->
+    <string name="settings_mobile_title">Nur Mobilfunknummern beim Verfassen</string>
+    <!-- Settings row: delete old messages after a number of days. -->
     <string name="settings_auto_delete">Alte Nachrichten automatisch löschen</string>
+    <!-- The dialog that asks how many days. -->
     <string name="settings_auto_delete_dialog_message">Nachrichten werden nach der angegebenen Anzahl von Tagen gelöscht</string>
+    <!-- The field in that dialog. -->
     <string name="settings_auto_delete_dialog_hint">Anzahl der Tage</string>
+    <!-- The choice that means the feature is off. -->
     <string name="settings_auto_delete_never">Niemals</string>
+    <!-- The dialog before messages are deleted now. -->
     <string name="settings_auto_delete_warning">Alte Nachrichten automatisch löschen?</string>
+    <!-- %1$d is how many would go. -->
     <string name="settings_auto_delete_warning_message">Wenn du fortfährst, werden jetzt %1$d Nachrichten gelöscht</string>
     <plurals name="settings_auto_delete_summary">
+        <item quantity="zero">Niemals</item>
         <item quantity="one">Nach 1 Tag</item>
         <item quantity="other">Nach %d Tagen</item>
     </plurals>
+    <!-- Settings row: send long texts as MMS. -->
     <string name="settings_long_as_mms_title">Lange Nachrichten als MMS senden</string>
-    <string name="settings_long_as_mms_summary">Wenn deine längeren Textnachrichten nicht gesendet oder in der falsche Reihenfolge gesendet werden, kannst du sie stattdessen als MMS-Nachrichten senden. Dafür können zusätzliche Gebühren anfallen</string>
+    <!-- Its hint. -->
+    <string name="settings_long_as_mms_summary">Wenn deine längeren Textnachrichten nicht gesendet werden oder in der falschen Reihenfolge ankommen, kannst du sie stattdessen als MMS senden. Dafür können zusätzliche Gebühren anfallen</string>
+    <!-- Settings row: shrink pictures before sending. -->
     <string name="settings_mms_size_title">MMS-Anhänge automatisch komprimieren</string>
+    <!-- Settings row: what a tap on a link does. -->
+    <string name="settings_mms_weblink_title">Linkverarbeitung in Nachrichten</string>
+    <!-- Settings row: refuse screenshots of the app. -->
+    <string name="settings_disable_screenshots_title">Screenshots deaktivieren</string>
+    <string name="settings_crash_log_title">Falls es sich selbst geschlossen hat</string>
+    <string name="settings_crash_log_summary">Was die App zuletzt gemacht hat, als sie sich beendet hat. Nur auf diesem Telefon gespeichert; nichts wird gesendet, außer du sendest es</string>
+    <string name="settings_crash_log_none">Seit dem letzten Leeren hat es sich nicht selbst geschlossen.</string>
+    <string name="settings_crash_log_send">Dies senden</string>
+    <string name="settings_crash_log_clear">Leeren</string>
+    <string name="settings_crash_log_subject">Messaging-Absturzbericht</string>
+    <!-- Settings row (verb): read the database again. -->
     <string name="settings_sync_title">Nachrichten synchronisieren</string>
-    <string name="settings_sync_summary">Nachrichten mit der Android SMS-Datenbank abgleichen</string>
-    <string name="settings_about_title">Über Messaging</string>
+    <!-- Its hint. -->
+    <string name="settings_sync_summary">Synchronisiere deine Nachrichten erneut mit der nativen Android-SMS-Datenbank</string>
+    <!-- The row's own line while it works. -->
+    <string name="settings_syncing">Synchronisiere…</string>
+    <!-- %1$d is how far it has got, %2$d how much there is. -->
+    <string name="settings_syncing_count">Synchronisiere… %1$d von %2$d</string>
+    <!-- Settings row: which file picker opens. -->
+    <string name="settings_file_picker_title">Dateien auswählen mit</string>
+    <!-- The choice that means Android's own. -->
+    <string name="settings_file_picker_system">Androids eigener Dateiauswahl</string>
+    <!-- Settings categories: the loose options are grouped behind these.
+         general and desktop_sync already exist above and are reused. -->
+    <string name="settings_category_sending">Senden</string>
+    <string name="settings_category_storage">Speicher und Datenschutz</string>
+    <!-- Said when the debug log is switched on. -->
     <string name="settings_logging_enabled">Protokollierung zur Fehlerbehebung aktiviert</string>
+    <!-- Said when it is switched off. -->
     <string name="settings_logging_disabled">Protokollierung zur Fehlerbehebung deaktiviert</string>
+
+    <!-- ============================================================ -->
+    <!-- Settings: Desktop Sync -->
+
+    <!-- Settings row: read and write messages from a computer. -->
+    <string name="settings_desktop_sync_title">Desktop Sync</string>
+    <!-- Its hint while it is off. -->
+    <string name="settings_desktop_sync_summary_off">Nachrichten vom Computer im Browser</string>
+    <string name="settings_category_desktop_sync">Desktop Sync</string>
+    <!-- Button (verb): put the link on the clipboard. -->
+    <string name="settings_desktop_sync_link_copy">Link kopieren</string>
+    <!-- Said after that. -->
+    <string name="settings_desktop_sync_link_copied">Link kopiert</string>
+    <!-- The pairing screen's first line. -->
+    <string name="settings_desktop_sync_code_intro">Öffne auf dem Computer:</string>
+    <!-- The same screen. %1$s is the code. -->
+    <string name="settings_desktop_sync_code">und gib diesen Code ein:\n\n    %1$s\n</string>
+    <!-- Under the code: how long it lasts. %1$s is how long. -->
+    <string name="settings_desktop_sync_code_left">Funktioniert einmal, für %1$s</string>
+    <!-- Said when too many tries were wrong. -->
+    <string name="settings_desktop_sync_code_locked">Zu viele Fehlversuche, daher wurde der Code abgebrochen. Schließe dies und tippe erneut auf Link anzeigen, um einen neuen zu erhalten.</string>
+    <!-- The line above the full link. -->
+    <string name="settings_desktop_sync_link_full">Oder verwende den vollständigen Link, der keinen Code braucht:</string>
+    <!-- Settings row (verb): show the link to open on a computer. -->
+    <string name="settings_desktop_sync_link_title">Link anzeigen</string>
+    <!-- Its hint. -->
+    <string name="settings_desktop_sync_link_summary">Öffne dies auf deinem Computer</string>
+    <!-- Under the link. -->
+    <string name="settings_desktop_sync_link_bookmark">Als Lesezeichen speichern — die Adresse bleibt gleich.</string>
+    <!-- Said when there is no address yet. -->
+    <string name="settings_desktop_sync_link_none">Desktop Sync ist an, aber dieses Telefon hat noch keine nutzbare Adresse.</string>
+    <!-- Said when VPN only is on and no VPN is up. -->
+    <string name="settings_desktop_sync_link_vpn_only">Nur VPN ist an und kein VPN verbunden. Verbinde eines oder schalte Nur VPN in den Einstellungen unter Desktop Sync aus.</string>
+    <!-- Settings row: serve the page over HTTPS. -->
+    <string name="settings_desktop_sync_tls_title">HTTPS verwenden</string>
+    <!-- Its hint. -->
+    <string name="settings_desktop_sync_tls_summary">Nötig, bevor ein Browser der Seite das Mikrofon erlaubt. Das Telefon erstellt sein eigenes Zertifikat, daher beginnt jeder Besuch mit einer Sicherheitswarnung, die du akzeptieren musst, und ein bereits gepaarter Browser braucht den Link erneut.</string>
+    <!-- Settings row: only connections through a VPN. -->
+    <string name="settings_desktop_sync_vpn_only_title">Nur VPN</string>
+    <!-- Its hint. -->
+    <string name="settings_desktop_sync_vpn_only_summary">Verbindungen ablehnen, die nicht über ein VPN kommen</string>
+    <!-- Settings row (verb): replace the link's token. -->
+    <string name="settings_desktop_sync_reset_title">Desktop-Sync-Link zurücksetzen</string>
+    <!-- Its hint. -->
+    <string name="settings_desktop_sync_reset_summary">Das Token in deinem Link ersetzen</string>
+    <!-- The same row, armed. -->
+    <string name="settings_desktop_sync_reset_armed">Link zurücksetzen — zum Bestätigen erneut tippen</string>
+    <!-- What the second tap does. -->
+    <string name="settings_desktop_sync_reset_armed_summary">Jedes Lesezeichen und jeder offene Tab mit dem alten Link funktioniert nicht mehr</string>
+    <!-- Said after resetting. -->
+    <string name="settings_desktop_sync_reset_done">Neuer Desktop-Sync-Link erstellt</string>
+    <!-- Desktop Sync's row while it is on. "On" alone means a computer can reach it. -->
+    <string name="settings_desktop_sync_summary_starting">Starte…</string>
+    <string name="settings_desktop_sync_summary_no_vpn">An, aber kein VPN verbunden</string>
+    <string name="settings_desktop_sync_summary_no_network">An, aber dieses Telefon hat noch kein Netzwerk</string>
+    <string name="settings_desktop_sync_summary_on">An</string>
+
+    <!-- ============================================================ -->
+    <!-- Settings: Signal, and the account behind it -->
+
+    <string name="settings_category_signal">Signal</string>
+    <!-- Settings row (verb): scan a code with Signal elsewhere. -->
+    <string name="settings_signal_link_title">Dieses Telefon mit Signal verknüpfen</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_link_summary">Scanne den Code mit Signal auf deinem anderen Telefon</string>
+    <!-- Its hint once this phone is already linked. -->
+    <string name="settings_signal_link_relinked">Bereits verknüpft. Erneutes Verknüpfen ersetzt dieses Gerät.</string>
+    <!-- Top bar title on the screen that makes this phone a Signal account. -->
+    <string name="signal_register_title">Diese Nummer registrieren</string>
+    <!-- The Settings row that opens it. -->
+    <string name="signal_register_setting_title">Stattdessen diese Nummer registrieren</string>
+    <!-- Its hint. -->
+    <string name="signal_register_setting_summary">Mache dieses Telefon zu deinem einzigen Signal, ob du neu dabei bist oder von einem anderen Telefon umziehst</string>
+    <!-- The warning before the number is registered. -->
+    <string name="signal_register_warning">Damit wird dieses Telefon eigenständig zu deinem Signal. Wenn diese Nummer bereits anderswo bei Signal ist, funktioniert das dort nicht mehr und die verknüpften Geräte werden entfernt. Nachrichten auf dem anderen Telefon bleiben dort und werden nicht übertragen.</string>
+    <!-- The number field. -->
+    <string name="signal_register_number_hint">Deine Nummer mit Ländervorwahl</string>
+    <!-- Button (verb): ask for the code. -->
+    <string name="signal_register_send">Schick mir einen Code</string>
+    <!-- The code field. -->
+    <string name="signal_register_code_hint">Der Code, den du erhalten hast</string>
+    <string name="signal_register_no_code">Kein Code? Signal sendet ihn von einer Kurzwahl, und Nummern, die SMS weiterleiten — Google Voice und die meisten anderen Internetnummern — können solche oft nicht empfangen, Anrufe ebenso wenig. Eine Nummer mit normalem Mobilfunkvertrag funktioniert.</string>
+    <!-- Button (verb). -->
+    <string name="signal_register_verify">Registrieren</string>
+    <!-- Button (verb): have the code read out instead. -->
+    <string name="signal_register_call_instead">Ruf mich stattdessen mit dem Code an</string>
+    <!-- Said while a step runs. -->
+    <string name="signal_register_working">Einen Moment…</string>
+    <!-- Said when Signal wants a puzzle solved. -->
+    <string name="signal_register_captcha">Signal möchte zuerst ein Rätsel gelöst haben.</string>
+    <!-- Said after the code is sent. -->
+    <string name="signal_register_code_sent">Code per SMS gesendet. Es kann eine Minute dauern.</string>
+    <!-- Said while Signal is calling with the code. -->
+    <string name="signal_register_calling">Du wirst mit dem Code angerufen. Nimm ab und schreibe ihn auf.</string>
+    <!-- Said when registration finished. -->
+    <string name="signal_register_done">Registriert. Signal auf diesem Telefon gehört jetzt dir.</string>
+    <string name="signal_register_staging">Signals Staging-Server verwenden (nur zum Testen — die App startet neu)</string>
+    <string name="signal_register_staging_on">Staging ist an. Schließe die App und öffne sie neu, dann registriere.</string>
+    <!-- Asks for the name people will see. -->
+    <string name="signal_register_name_hint">Was sollen andere sehen, wenn du ihnen schreibst? Bis das festgelegt ist, sehen sie nur eine Nummer und sonst nichts.</string>
+    <!-- The first-name field. -->
+    <string name="signal_register_given_name">Vorname</string>
+    <!-- The last-name field. -->
+    <string name="signal_register_family_name">Nachname (optional)</string>
+    <!-- Button (verb). -->
+    <string name="signal_register_save_name">Speichern</string>
+    <!-- Said while the name saves. -->
+    <string name="signal_register_naming">Speichere deinen Namen…</string>
+    <!-- Said when it saved. -->
+    <string name="signal_register_named">Registriert, und dein Name ist festgelegt.</string>
+    <!-- Said when it did not. %s is why. -->
+    <string name="signal_register_name_failed">Registriert, aber dein Name ließ sich nicht speichern: %s. Du kannst es erneut versuchen; das Konto gehört dir bereits.</string>
+    <string name="signal_register_failed">%s</string>
+    <!-- Top bar title on the linking screen. -->
+    <string name="signal_link_title">Dieses Telefon verknüpfen</string>
+    <!-- What to do on the other phone. -->
+    <string name="signal_link_instructions">Öffne auf deinem anderen Telefon Signal, dann Einstellungen → Verknüpfte Geräte → Neues Gerät verknüpfen, und scanne diesen Code.</string>
+    <!-- Said while the code waits to be scanned. -->
+    <string name="signal_link_waiting">Warte, bis der Code gescannt wird…</string>
+    <!-- Said when it was not scanned in time. -->
+    <string name="signal_link_expired">Der Code ist abgelaufen. Schließe dies und versuche es erneut.</string>
+    <!-- Said when it was. -->
+    <string name="signal_link_success">Verknüpft. Deine Signal-Unterhaltungen werden bald eintreffen.</string>
+    <!-- Said when it was not. %s is why. -->
+    <string name="signal_link_failed">Verknüpfen nicht möglich: %s</string>
+    <!-- The answer to "Signal is already on this phone, so I cannot scan my own screen".
+         The code goes on the page this phone serves to the reader's own computer, and the
+         phone's own Signal reads it off the monitor. See SignalLinkOffer. -->
+    <string name="signal_link_on_computer">Läuft Signal bereits auf diesem Telefon? Es kann seinen eigenen Bildschirm nicht scannen. Öffne\n\n%s\n\nauf deinem Computer und richte dann Signals Kamera auf den Monitor.</string>
+    <!-- Settings row: hold the Signal connection open. -->
+    <string name="settings_signal_keep_title">Signal verbunden halten</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_keep_summary">Nachrichten kommen an, sobald sie gesendet werden, um den Preis einer dauerhaften Benachrichtigung. Ausgeschaltet holt Signal etwa alle 15 Minuten und beim Öffnen der App auf. Aktiviere auf einem Kompakt außerdem Messaging in DuraSpeed, sonst schließt es die App im Hintergrund; der Einrichtungsassistent hat einen Knopf, der es öffnet.</string>
+    <!-- Name of the Signal connection notification. -->
+    <string name="signal_stream_channel">Signal-Verbindung</string>
+    <!-- That notification's title. -->
+    <string name="signal_stream_title">Signal ist verbunden</string>
+    <!-- Its one line. -->
+    <string name="signal_stream_text">Nachrichten kommen an, sobald sie gesendet werden</string>
+    <!-- Its button (verb). -->
+    <string name="signal_stream_stop">Stopp</string>
+    <!-- Settings row: show Signal conversations at all. -->
+    <string name="settings_signal_enabled_title">Signal-Unterhaltungen anzeigen</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_enabled_summary">Signal-Unterhaltungen beginnen leer und füllen sich ab heute; ältere Nachrichten bleiben in Signal</string>
+    <!-- Settings row: the state of the Signal connection. -->
+    <string name="settings_signal_status_title">Verbindung</string>
+    <!-- Asked for, never automatic: it fetches the account's key material, and an account
+         whose contacts arrive the ordinary way should never send it. -->
+    <string name="settings_signal_fetch_contacts_title">Kontakte von Signal abrufen</string>
+    <!-- Said when Signal does not answer. -->
+    <string name="settings_signal_fetch_contacts_failed">Signal hat nicht geantwortet. Es wurde nichts geändert.</string>
+    <!-- The question asked once, after linking. -->
+    <string name="settings_signal_fetch_contacts_offer_title">Namen für diese Unterhaltungen?</string>
+    <!-- Why it is being asked. -->
+    <string name="settings_signal_fetch_contacts_offer_body">Signal hat diesem Telefon die Namen von niemandem gesendet, daher zeigen Unterhaltungen stattdessen eine Zeichenkette. Neueres Signal speichert seine Kontaktliste auf eigenen Servern, und sie zu lesen verlangt von deinem Signal den Schlüssel, der sie öffnet. Nichts verlässt dieses Telefon, und niemand wird benachrichtigt. Du kannst das stattdessen später unter „Kontakte von Signal abrufen“ erledigen.</string>
+    <!-- Button (verb). -->
+    <string name="settings_signal_fetch_contacts_offer_yes">Abrufen</string>
+    <!-- Button. -->
+    <string name="settings_signal_fetch_contacts_offer_no">Jetzt nicht</string>
+    <!-- Settings row (verb): ask Signal which contacts use it. -->
+    <string name="settings_signal_discover_contacts_title">Kontakte auf Signal finden</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_discover_contacts_summary">Fragt Signal, welche der Kontakte dieses Telefons dort sind, damit du jemandem schreiben kannst, der dir nicht zuerst geschrieben hat</string>
+    <!-- The dialog before it runs. -->
+    <string name="settings_signal_discover_contacts_confirm_title">Signal nach deinen Kontakten fragen?</string>
+    <!-- What it sends, and to whom. -->
+    <string name="settings_signal_discover_contacts_confirm_body">Die Telefonnummern deiner Kontakte werden an Signals Suchdienst gesendet, verschlüsselt, sodass der Dienst sie nicht lesen kann. Es ist dieselbe Suche, die Signal selbst durchführt, und der einzige Weg, wie dieses Telefon erfahren kann, dass jemand bei Signal ist, bevor er dir schreibt.\n\nSignal begrenzt, wie oft ein Konto fragen darf. Dies merkt sich, wonach bereits gefragt wurde, damit es später günstig ist, erneut zu fragen.</string>
+    <!-- Button (verb). -->
+    <string name="settings_signal_discover_contacts_confirm_yes">Suchen</string>
+    <!-- Button. -->
+    <string name="settings_signal_discover_contacts_confirm_no">Jetzt nicht</string>
+    <!-- Said when Signal does not answer. -->
+    <string name="settings_signal_discover_contacts_failed">Signal hat nicht geantwortet. Es wurde nichts geändert.</string>
+    <string name="settings_signal_fetch_contacts_summary">Für die Personen, die du kennst und die in einer neuen Nachricht nicht unter „Auf Signal“ erscheinen. Neueres Signal speichert seine Kontaktliste auf eigenen Servern statt sie hierher zu senden, und dies verlangt den Schlüssel, der sie liest</string>
+    <string name="settings_signal_status_direct_offline">Nicht mit Signal verbunden — verbindet erneut</string>
+    <string name="settings_signal_status_direct_ok">Mit Signal verbunden</string>
+    <string name="settings_signal_status_outage">Signal hat technische Probleme — nicht dieses Telefon. Verbindet erneut</string>
+    <string name="settings_signal_status_primary_idle">Öffne Signal auf deinem anderen Telefon, um dieses Konto aktiv zu halten</string>
+    <string name="settings_signal_status_stuck">%d Nachricht(en) konnten nicht gelesen werden</string>
+    <string name="settings_signal_status_never">Noch nicht synchronisiert</string>
+    <string name="settings_signal_status_last_synced">Zuletzt synchronisiert %s</string>
+    <string name="settings_signal_status_last_received">Letzte Nachricht %s</string>
+    <!-- Settings row: delete every Signal message held here. -->
+    <string name="settings_signal_unpair_title">Signal-Daten löschen</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_unpair_summary">Entfernt jede auf diesem Telefon gespeicherte Signal-Nachricht und -Unterhaltung. Das Telefon bleibt mit deinem Konto verknüpft</string>
+    <!-- The same row, armed. -->
+    <string name="settings_signal_unpair_armed">Signal-Daten löschen — zum Bestätigen erneut tippen</string>
+    <!-- What the second tap does. -->
+    <string name="settings_signal_unpair_armed_summary">Jede Signal-Nachricht und -Unterhaltung auf diesem Telefon verschwindet. Bei Signal selbst wird nichts entfernt, und dieses Telefon bleibt im Konto.</string>
+    <!-- Settings row: read receipts, which belong to the account. -->
+    <string name="settings_signal_receipts_title">Lesebestätigungen senden</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_receipts_summary">Sage anderen, wenn du ihre Signal-Nachricht gelesen hast. Eine Einstellung für das ganze Konto, geändert in Signal auf deinem anderen Telefon</string>
+    <!-- Settings row: Android is not showing them. -->
+    <string name="settings_signal_notifications_off_title">Signal-Benachrichtigungen sind aus</string>
+    <!-- Its hint (verb). -->
+    <string name="settings_signal_notifications_off_summary">Android zeigt sie nicht an, neue Nachrichten kommen also ohne Hinweis an. Tippe, um sie einzuschalten.</string>
+    <!-- Settings row: let a call fill the screen. -->
+    <string name="settings_signal_fullscreen_title">Anrufe dürfen den Bildschirm wecken</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_fullscreen_summary">Android hat verhindert, dass ein Signal-Anruf den Bildschirm füllt, daher klingelt er nur als Benachrichtigung. Tippe, um es zu erlauben.</string>
+    <!-- Settings row: keep the app running in the background. -->
+    <string name="settings_signal_background_title">Messaging im Hintergrund laufen lassen</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_background_summary">Android kann Messaging pausieren, um Akku zu sparen, was Signal-Nachrichten verzögert. Tippe, damit es weiterläuft.</string>
+    <!-- Said where the row cannot be changed here. -->
+    <string name="settings_signal_receipts_readonly">Lesebestätigungen sind eine Einstellung für das ganze Signal-Konto. Ändere sie in Signal auf deinem anderen Telefon, und dies folgt.</string>
+    <!-- Settings row: typing indicators, which belong to the account. -->
+    <string name="settings_signal_typing_title">Tippanzeigen</string>
+    <!-- Settings row: the line under your name on Signal. -->
+    <string name="settings_signal_about_title">Info</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_about_summary">Eine Zeile unter deinem Namen bei Signal. Beginne mit einem Emoji, um dein Status-Emoji festzulegen</string>
+    <!-- The field in its dialog. -->
+    <string name="settings_signal_about_hint">Info (leer lassen zum Entfernen)</string>
+    <!-- Said when it saved. -->
+    <string name="settings_signal_about_saved">Info bei Signal gespeichert</string>
+    <!-- Said when it did not. %s is why. -->
+    <string name="settings_signal_about_failed">Nicht gespeichert: %s</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_typing_summary">Zeige, wenn andere tippen, und lass sie sehen, wenn du tippst. Eine Einstellung für das ganze Konto, geändert in Signal auf deinem anderen Telefon</string>
+    <!-- Said where it cannot be changed here. -->
+    <string name="settings_signal_typing_readonly">Tippanzeigen sind eine Einstellung für das ganze Signal-Konto. Ändere sie in Signal auf deinem anderen Telefon, und dies folgt.</string>
+    <!-- Settings row: the Signal conversation list. -->
+    <string name="settings_signal_open_title">Signal-Unterhaltungen</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_open_summary">Auf der Signal-Seite lesen und antworten</string>
+    <!-- Settings row: Signal and texts in one list. -->
+    <string name="settings_signal_weave_title">Eine Unterhaltungsliste</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_weave_summary">Signal-Unterhaltungen stehen neben SMS, die neuesten zuerst. Schalte dies aus, um zwei getrennte Listen zu behalten; die Markierung in jeder Liste führt zur anderen.</string>
+    <!-- Settings row: open on the Signal list. -->
+    <string name="settings_signal_opens_first_title">Mit Signal öffnen</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_opens_first_summary">Die App öffnet sich auf der Signal-Liste statt auf der SMS-Liste.</string>
+    <!-- Settings row: your name as others see it. -->
+    <string name="settings_signal_profile_name_title">Dein Name bei Signal</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_profile_name_summary">Was andere sehen, wenn du ihnen schreibst</string>
+    <!-- Said when it saved. -->
+    <string name="signal_profile_name_saved">Dein Name ist festgelegt.</string>
+    <!-- Said when it did not. %s is why. -->
+    <string name="signal_profile_name_failed">Der Name ließ sich nicht speichern: %s</string>
+    <!-- Settings row: the number and its devices. -->
+    <string name="settings_signal_account_title">Signal-Konto</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_account_summary">Die Nummer und die Geräte darauf</string>
+    <!-- Settings row: a name people can find you by. -->
+    <string name="settings_signal_username_title">Benutzername</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_username_summary">Ein Name, unter dem man dich ohne deine Nummer finden kann</string>
+    <!-- The field in its dialog. -->
+    <string name="settings_signal_username_hint">name oder name.42</string>
+    <!-- Said when one is set. %s is the name. -->
+    <string name="settings_signal_username_current">Jetzt %s</string>
+    <!-- Said when it saved. %s is the name. -->
+    <string name="settings_signal_username_set">Dein Benutzername ist %s</string>
+    <!-- Said when the name is in use. -->
+    <string name="settings_signal_username_taken">Dieser Name ist vergeben. Versuche einen anderen</string>
+    <!-- Said when the name does not fit Signal's rules. -->
+    <string name="settings_signal_username_invalid">Verwende 3 bis 32 Buchstaben, Zahlen oder _, nicht mit einer Zahl beginnend</string>
+    <!-- Said when it was taken away. -->
+    <string name="settings_signal_username_removed">Benutzername entfernt</string>
+    <!-- Said when it did not save. %s is why. -->
+    <string name="settings_signal_username_failed">Nicht gespeichert: %s</string>
+    <!-- Settings row: who sees your number. -->
+    <string name="settings_signal_number_title">Telefonnummer</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_number_summary">Wer deine Nummer sieht und wer dich darüber finden kann</string>
+    <!-- One of three choices. -->
+    <string name="settings_signal_number_everybody">Alle sehen meine Nummer</string>
+    <!-- One of three choices. -->
+    <string name="settings_signal_number_findable">Niemand sieht sie; wer sie hat, kann mich finden</string>
+    <!-- One of three choices. -->
+    <string name="settings_signal_number_hidden">Niemand sieht sie, und sie findet mich nicht</string>
+    <!-- Said when it saved. -->
+    <string name="settings_signal_number_saved">Gespeichert</string>
+    <!-- Said when it did not. -->
+    <string name="settings_signal_number_failed">Nicht gespeichert</string>
+    <!-- Settings row: the group holding import and export. -->
+    <string name="settings_signal_history_title">Chatverlauf</string>
+    <!-- Two rows rather than one door with a dialog behind it. The dialog had to say which
+         of the two you meant, and a body long enough to explain them both did not fit the
+         screen: the buttons fell off the bottom of it. -->
+    <string name="settings_signal_import_title">Verlauf importieren</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_import_summary">Aus einem Signal-Desktop-Export, der auf dieses Telefon kopiert wurde. Unterhaltungen hier beginnen am Tag der Verknüpfung dieses Telefons; Signal gibt einem verknüpften Gerät nichts Älteres</string>
+    <!-- Settings row (verb): write a copy out. -->
+    <string name="settings_signal_export_title">Eine Kopie schreiben</string>
+    <!-- Its hint. -->
+    <string name="settings_signal_export_summary">Jede hier gespeicherte Signal-Nachricht in einen Ordner, den diese App wieder lesen kann. An dein Signal-Konto gebunden, sodass jedes dort angemeldete Telefon die Kopie öffnen kann</string>
+    <!-- The dialog that asks for the key to an older copy. -->
+    <string name="settings_signal_backup_key_title">Der Schlüssel zu dieser Kopie</string>
+    <!-- Why it is asked. -->
+    <string name="settings_signal_backup_key_body">Diese Kopie wurde geschrieben, bevor Kopien an dein Konto gebunden wurden, und die dreißig Ziffern, mit denen sie gesperrt wurde, öffnen sie.</string>
+    <!-- The field. -->
+    <string name="settings_signal_backup_key_hint">Die dreißig Ziffern</string>
+    <!-- Said when the digits do not open it. -->
+    <string name="settings_signal_backup_key_wrong">Diese Ziffern öffnen diese Kopie nicht. Prüfe sie anhand dessen, was du aufgeschrieben hast — sechs auf einmal, dreißig insgesamt.</string>
+    <!-- Button (verb). -->
+    <string name="settings_signal_backup_key_again">Erneut versuchen</string>
+    <!-- Shown once and never again: it is not kept anywhere, which is the point of it. -->
+    <string name="settings_signal_history_written_key">Der Schlüssel für diese Kopie ist\n\n%s\n\nSchreibe ihn jetzt auf. Er wird nicht auf diesem Telefon gespeichert, und ohne ihn kann niemand die Kopie lesen — weder diese App noch sonst wer.</string>
+    <string name="settings_signal_history_written_account">Diese Kopie ist an dein Signal-Konto gebunden. Jedes dort angemeldete Telefon kann sie wieder lesen — es gibt nichts aufzuschreiben.</string>
+    <!-- Said while the export is read. %d is how far it has got. -->
+    <string name="settings_signal_history_working">Lese den Export — bisher %d Nachricht(en)</string>
+    <!-- Said while a copy is written. %d is how far it has got. -->
+    <string name="settings_signal_history_writing">Schreibe eine Kopie — bisher %d Nachricht(en)</string>
+    <!-- Said when the folder holds no export. -->
+    <string name="settings_signal_history_not_an_export">In diesem Ordner gibt es keinen Signal-Export. Wähle den Ordner, der main.jsonl enthält.</string>
+    <!-- Not the same as the folder being wrong. Said with the reason, because the folder is
+         the one thing the reader would otherwise go and change. -->
+    <string name="settings_signal_history_unreadable">Dieser Export konnte nicht gelesen werden, und es wurde nichts importiert.\n\n%s</string>
+    <!-- Said when the copy cannot be written. -->
+    <string name="settings_signal_history_not_written">Die Kopie konnte nicht geschrieben werden. Wähle einen Ordner, in den dieses Telefon schreiben kann.</string>
+    <!-- Said while the account's key is being fetched. -->
+    <string name="settings_signal_history_key_asked">Eine Kopie ist mit einem Schlüssel gesperrt, der von deinem Signal kommt, und dieses Telefon hat ihn noch nicht. Er wurde gerade angefordert. Versuche es gleich noch einmal.</string>
+    <!-- Said when that request could not be sent. -->
+    <string name="settings_signal_history_key_unanswered">Eine Kopie ist mit einem Schlüssel gesperrt, der von deinem Signal kommt, und dieses Telefon hat ihn noch nicht. Die Anfrage konnte nicht gesendet werden. Prüfe, ob dieses Telefon mit Signal verbunden ist, und versuche es dann erneut.</string>
+    <!-- Said after writing. %s is the folder. -->
+    <string name="settings_signal_history_written_where">Geschrieben nach %s, in den von dir gewählten Ordner.</string>
+    <plurals name="settings_signal_history_imported">
+        <item quantity="one">%d Nachricht importiert.</item>
+        <item quantity="other">%d Nachrichten importiert.</item>
+    </plurals>
+    <!-- Said of messages that were already here. -->
+    <string name="settings_signal_history_already">%d waren bereits hier und wurden unverändert gelassen.</string>
+    <plurals name="settings_signal_history_skipped_events">
+        <item quantity="one">%d war ein Hinweis auf eine Unterhaltung statt eine Nachricht.</item>
+        <item quantity="other">%d waren Hinweise auf Unterhaltungen statt Nachrichten.</item>
+    </plurals>
+    <plurals name="settings_signal_history_skipped_deleted">
+        <item quantity="one">%d war für alle gelöscht worden und wurde nicht wiederhergestellt.</item>
+        <item quantity="other">%d waren für alle gelöscht worden und wurden nicht wiederhergestellt.</item>
+    </plurals>
+    <plurals name="settings_signal_history_attachments">
+        <item quantity="one">%d Anhang behalten.</item>
+        <item quantity="other">%d Anhänge behalten.</item>
+    </plurals>
+    <plurals name="settings_signal_history_attachments_lost">
+        <item quantity="one">%d verwies auf eine Datei, die der Export nicht enthielt.</item>
+        <item quantity="other">%d verwiesen auf Dateien, die der Export nicht enthielt.</item>
+    </plurals>
+    <plurals name="settings_signal_history_written">
+        <item quantity="one">%d Nachricht herausgeschrieben.</item>
+        <item quantity="other">%d Nachrichten herausgeschrieben.</item>
+    </plurals>
+    <plurals name="settings_signal_history_written_missing">
+        <item quantity="one">%d Anhang hatte keine Datei auf diesem Telefon und ist benannt, aber nicht enthalten.</item>
+        <item quantity="other">%d Anhänge hatten keine Datei auf diesem Telefon und sind benannt, aber nicht enthalten.</item>
+    </plurals>
+    <plurals name="settings_signal_history_no_author">
+        <item quantity="one">%d konnte nicht zugeordnet werden: Nichts im Export sagt, wer sie geschrieben hat.</item>
+        <item quantity="other">%d konnten nicht zugeordnet werden: Nichts im Export sagt, wer sie geschrieben hat.</item>
+    </plurals>
+    <!-- Said of group conversations that were skipped. %d is how many. -->
+    <string name="settings_signal_history_groups">%d Gruppenunterhaltungen wurden übersprungen: Dieses Telefon hat noch keine Unterhaltung für sie. Öffne die Gruppe hier einmal und importiere erneut.</string>
+    <!-- Said when nothing on the phone opens the link. -->
+    <string name="signal_link_no_app">Nichts auf diesem Telefon öffnet diese Art von Link</string>
+    <!-- Why a registration step failed, shown on its own line. Where a request was refused,
+         %1$s is the server's answer as it gave it. -->
+    <string name="signal_register_not_a_number">das ist keine Telefonnummer, die hier registriert werden kann</string>
+    <string name="signal_register_no_code_yet">der Server sendet noch keinen Code</string>
+    <string name="signal_register_could_not_start">Registrierung konnte nicht gestartet werden: %1$s</string>
+    <string name="signal_register_captcha_no_code">das Captcha wurde akzeptiert, aber der Server sendet weiterhin keinen Code</string>
+    <string name="signal_register_captcha_refused">das Captcha wurde nicht akzeptiert: %1$s</string>
+    <string name="signal_register_code_not_sent">Code konnte nicht gesendet werden: %1$s</string>
+    <string name="signal_register_code_refused_because">dieser Code wurde nicht akzeptiert: %1$s</string>
+    <string name="signal_register_code_refused">dieser Code wurde nicht akzeptiert</string>
+    <string name="signal_register_no_key_material">das Schlüsselmaterial dieses Kontos konnte nicht erzeugt werden</string>
+    <string name="signal_register_pin_hint">Deine Signal-PIN</string>
+    <string name="signal_register_unlock">Entsperren</string>
+    <string name="signal_register_pin_needed">Diese Nummer hat eine Registrierungssperre. Gib ihre Signal-PIN ein, um sie auf dieses Telefon zu übertragen; deine Kontakte und Einstellungen kommen mit.</string>
+    <string name="signal_register_pin_wrong">Diese PIN ist nicht richtig. Noch %1$s Versuche. Wenn sie aufgebraucht sind, löscht Signal die Daten der PIN und die Nummer bleibt gesperrt, bis die Sperre abläuft.</string>
+    <string name="signal_register_pin_wrong_one">Diese PIN ist nicht richtig. Noch ein Versuch. Wenn auch dieser falsch ist, löscht Signal die Daten der PIN und die Nummer bleibt gesperrt, bis die Sperre abläuft.</string>
+    <string name="signal_register_pin_missing">Signal hat keine PIN für diese Nummer, daher muss die Registrierungssperre erst ablaufen. Verknüpfe dieses Telefon stattdessen mit dem Konto.</string>
+    <string name="signal_register_pin_check_failed">die PIN konnte nicht geprüft werden: %1$s</string>
+    <string name="signal_register_locked">Signal hat diese Nummer trotz richtiger PIN gesperrt gelassen. Verknüpfe dieses Telefon stattdessen mit dem Konto.</string>
+    <string name="signal_register_locked_day">Signal hat diese Nummer trotz richtiger PIN gesperrt gelassen, mit etwa einem Tag Restlaufzeit. Verknüpfe dieses Telefon stattdessen mit dem Konto.</string>
+    <string name="signal_register_locked_days">Signal hat diese Nummer trotz richtiger PIN gesperrt gelassen, mit etwa %1$s Tagen Restlaufzeit. Verknüpfe dieses Telefon stattdessen mit dem Konto.</string>
+    <string name="signal_register_refused">Registrierung abgelehnt: %1$s</string>
+    <string name="signal_register_unexpected">unerwarteter Registrierungsstatus</string>
+    <!-- Why linking failed, shown after "Could not link: ". A refusal from the server
+         reuses signal_register_refused: linking registers this phone as a device. -->
+    <string name="signal_link_not_scanned">niemand hat den Code rechtzeitig gescannt; fordere einen neuen an</string>
+    <string name="signal_link_undecryptable">die Bereitstellungsnachricht konnte nicht entschlüsselt werden</string>
+    <string name="signal_link_no_code">kein Bereitstellungscode in der Nachricht</string>
+    <!-- Why this account's name did not save, shown after "The name would not save: " -->
+    <string name="signal_profile_no_account">dieses Telefon hat noch kein Konto</string>
+    <string name="signal_profile_no_service_id">dieses Konto hat noch keine Service-ID</string>
+    <string name="signal_profile_no_key">dieses Konto hat keinen Profilschlüssel</string>
+    <string name="signal_profile_key_unreadable">der Profilschlüssel dieses Kontos lässt sich nicht laden</string>
+    <string name="signal_profile_no_given_name">ein Profil braucht einen Vornamen</string>
+    <string name="signal_profile_refused">der Server hat den Namen nicht angenommen: %1$s</string>
+    <!-- What fetching contacts from Signal, or looking numbers up on it, did. The pieces of
+         a result are joined with " · ", and the skipped kinds with ", ". Every count is
+         said, because a fetch that understood a third of the account must not read like
+         one that understood all of it. -->
+    <string name="settings_signal_contacts_not_linked">Dieses Telefon ist noch nicht mit Signal verknüpft</string>
+    <string name="settings_signal_contacts_requested">Kontaktliste bei Signal angefordert. Sie kommt gleich an, wenn dein Signal antwortet</string>
+    <string name="settings_signal_contacts_no_numbers">In den Kontakten dieses Telefons gibt es keine Telefonnummern zum Suchen</string>
+    <string name="settings_signal_contacts_read">%1$s Kontakt(e) aus %2$s Datensatz/Datensätzen</string>
+    <string name="settings_signal_contacts_by_pni">%1$s über Telefonnummer</string>
+    <string name="settings_signal_contacts_skipped">%1$s übersprungen</string>
+    <string name="settings_signal_contacts_unreadable">%1$s hat der Dienst nicht herausgegeben</string>
+    <string name="settings_signal_contacts_unopened">%1$s ließ sich nicht öffnen</string>
+    <string name="settings_signal_contacts_not_contacts">%1$s kein Kontakt</string>
+    <string name="settings_signal_contacts_anonymous">%1$s ganz ohne Adresse</string>
+    <string name="settings_signal_contacts_anonymous_numbered">%1$s ganz ohne Adresse, %2$s mit einer Nummer</string>
+    <string name="settings_signal_contacts_no_key">der Speicherschlüssel ist noch nicht hier</string>
+    <string name="settings_signal_contacts_no_auth">der Dienst hat kein Authentifizierungstoken ausgegeben</string>
+    <string name="settings_signal_contacts_nothing_stored">dieses Konto hat noch keine gespeicherten Datensätze</string>
+    <string name="settings_signal_contacts_manifest_unreadable">das Manifest konnte nicht gelesen werden</string>
+    <string name="settings_signal_contacts_wrong_key">das Manifest ließ sich mit diesem Schlüssel nicht öffnen</string>
+    <string name="settings_signal_lookup_all_done">Jede Nummer wurde bereits gesucht</string>
+    <string name="settings_signal_lookup_found">%1$s bei Signal, aus %2$s Nummer(n)</string>
+    <string name="settings_signal_lookup_without_aci">%1$s nur über Telefonnummer bekannt</string>
+    <string name="settings_signal_lookup_no_numbers">Es gibt keine Nummern zum Suchen</string>
+    <string name="settings_signal_lookup_blocked">Signal beantwortet etwa %1$s weitere Minute(n) keine Suchanfragen</string>
+    <string name="settings_signal_lookup_too_many">zu viele neue Nummern auf einmal</string>
+    <string name="settings_signal_lookup_own_records">die eigenen Datensätze dieses Telefons konnten nicht gelesen werden, um damit zu fragen</string>
+    <string name="settings_signal_lookup_exhausted">Signal beantwortet vorerst keine Suchanfragen mehr. Das ist eine Grenze des Kontos, nicht dieses Telefons, und sie hebt sich von selbst auf.</string>
+    <string name="settings_signal_lookup_token">Der Datensatz der früheren Suchanfragen ist nicht mehr aktuell. Versuche es noch einmal.</string>
+    <string name="settings_signal_lookup_refused">Signal hat die Liste der Nummern abgelehnt</string>
+    <string name="settings_signal_lookup_unfinished">Die Suche wurde nicht abgeschlossen</string>
+    <!-- The contact store in numbers, on the Connection line. The last two are added only
+         when there are any, joined with ", ". -->
+    <string name="settings_signal_status_contacts">%1$s Kontakt(e), %2$s mit Profilschlüssel, %3$s benannt</string>
+    <string name="settings_signal_status_contacts_username">%1$s über Benutzername</string>
+    <string name="settings_signal_status_contacts_nameless">%1$s ohne etwas außer einer ID</string>
+
+    <!-- ============================================================ -->
+    <!-- Signal conversations -->
+
+    <!-- Spoken description of the microphone button. -->
+    <string name="signal_record_cd">Sprachnachricht aufnehmen</string>
+    <!-- Said while a voice message records. -->
+    <string name="signal_recording">Aufnahme… tippe auf das Mikrofon zum Beenden oder hier zum Abbrechen</string>
+    <!-- The attached voice message. %s is how long it is. -->
+    <string name="signal_recorded">Sprachnachricht, %s — zum Entfernen tippen</string>
+    <!-- Said when the microphone will not start. -->
+    <string name="signal_record_failed">Das Mikrofon ließ sich nicht starten</string>
+    <!-- Said when the microphone permission is missing. -->
+    <string name="signal_record_needs_permission">Für die Aufnahme wird die Mikrofonberechtigung benötigt</string>
+    <!-- Said when Android will not ask for it again. -->
+    <string name="signal_record_permission_off">Für die Aufnahme wird die Mikrofonberechtigung benötigt, und Android fragt nicht noch einmal. Aktiviere sie unter Berechtigungen in den App-Einstellungen.</string>
+    <!-- Button (verb): open Android's app settings. -->
+    <string name="signal_record_permission_settings">Einstellungen öffnen</string>
+    <!-- Said when the recording is a fraction of a second. -->
+    <string name="signal_record_too_short">Das war zu kurz zum Senden</string>
+    <!-- Menu on an attachment (verb). -->
+    <string name="signal_attachment_open">Öffnen</string>
+    <!-- The same menu (verb). -->
+    <string name="signal_attachment_save">Kopie speichern…</string>
+    <!-- Said after saving. -->
+    <string name="signal_attachment_saved">Gespeichert.</string>
+    <!-- Said when saving fails. -->
+    <string name="signal_attachment_save_failed">Das konnte nicht gespeichert werden.</string>
+    <!-- Said when nothing on the phone opens the file. -->
+    <string name="signal_attachment_no_app">Nichts auf diesem Telefon bietet an, diese Art von Datei zu öffnen.</string>
+    <!-- The label on a voice message. -->
+    <string name="signal_voice_message">Sprachnachricht</string>
+    <!-- The same label before it is downloaded. -->
+    <string name="signal_voice_message_unavailable">Sprachnachricht — nicht heruntergeladen</string>
+    <!-- Said when it will not play. -->
+    <string name="signal_voice_message_failed">Diese Sprachnachricht ließ sich nicht abspielen</string>
+    <!-- Button (verb). -->
+    <string name="signal_voice_play">Abspielen</string>
+    <!-- Button (verb). -->
+    <string name="signal_voice_pause">Pause</string>
+    <!-- Button (verb). -->
+    <string name="signal_voice_stop">Stopp</string>
+    <!-- Where a voice note is, and how long it is: "0:42 / 3:10". -->
+    <string name="signal_voice_time">%1$s / %2$s</string>
+    <!-- Name of the voice-message notification category. -->
+    <string name="signal_voice_channel">Sprachnachrichten</string>
+    <!-- The GIF button while the picture is still. -->
+    <string name="signal_gif_play">▶ GIF</string>
+    <!-- Spoken description of a video. -->
+    <string name="signal_play_video">Video abspielen</string>
+    <!-- The same button while the GIF plays. -->
+    <string name="signal_gif_playing">■ GIF</string>
+    <!-- Said when it will not play. -->
+    <string name="signal_gif_failed">Dieses GIF ließ sich nicht abspielen</string>
+    <!-- Said when a Signal action did not work. -->
+    <string name="signal_action_failed">Das hat nicht funktioniert</string>
+    <!-- %s is typing. Shown at the foot of a conversation. -->
+    <string name="signal_typing_one">%s tippt…</string>
+    <!-- %1$s and %2$s are typing. -->
+    <string name="signal_typing_two">%1$s und %2$s tippen…</string>
+    <!-- Three or more are typing. -->
+    <string name="signal_typing_many">Mehrere Personen tippen…</string>
+    <!-- The same line in a one-to-one conversation. -->
+    <string name="signal_typing_direct">Tippt…</string>
+    <!-- The draft's selection menu. Signal's TextFormatting_* words. -->
+    <string name="signal_format">Format</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_forward">Weiterleiten</string>
+    <!-- Row (verb): record that the digits were compared. -->
+    <string name="signal_safety_mark_verified">Als verifiziert markieren</string>
+    <!-- Row (verb): undo that. -->
+    <string name="signal_safety_clear_verified">Verifizierung aufheben</string>
+    <!-- Its hint. -->
+    <string name="signal_safety_verify_summary">Nachdem du diese Nummern mit ihren verglichen hast, persönlich oder in einem Anruf</string>
+    <!-- Said when it did not save. -->
+    <string name="signal_safety_verify_failed">Konnte nicht geändert werden</string>
+    <!-- Row: the earlier versions of an edited message. -->
+    <string name="signal_edit_history">Bearbeitungsverlauf</string>
+    <!-- Polls: Signal's Poll__* and CreatePollFragment__* words. -->
+    <string name="signal_poll_new">Umfrage</string>
+    <!-- The poll's question field. -->
+    <string name="signal_poll_question">Frage</string>
+    <!-- The poll's answers, one to a line. -->
+    <string name="signal_poll_options">Optionen, eine pro Zeile (2 bis 10)</string>
+    <!-- A switch on the poll screen. -->
+    <string name="signal_poll_multiple">Mehr als eine Antwort erlauben</string>
+    <!-- Button (verb). -->
+    <string name="signal_poll_send">Senden</string>
+    <!-- Said when the poll cannot be made. -->
+    <string name="signal_poll_invalid">Eine Umfrage braucht eine Frage und 2 bis 10 Optionen mit je höchstens 100 Zeichen.</string>
+    <!-- On a poll: one answer may be picked. -->
+    <string name="signal_poll_select_one">Umfrage · Eine auswählen</string>
+    <!-- On a poll: more than one may be picked. -->
+    <string name="signal_poll_select_many">Umfrage · Eine oder mehrere auswählen</string>
+    <!-- On a poll that has ended. -->
+    <string name="signal_poll_final">Umfrage · Endergebnis</string>
+    <plurals name="signal_poll_votes">
+        <item quantity="one">%d Stimme</item>
+        <item quantity="other">%d Stimmen</item>
+    </plurals>
+    <!-- Row (verb). -->
+    <string name="signal_poll_end">Umfrage beenden</string>
+    <!-- The dialog's question. -->
+    <string name="signal_poll_end_title">Umfrage beenden?</string>
+    <!-- What ending it does. -->
+    <string name="signal_poll_end_body">Mitglieder dieses Chats können dann nicht mehr in dieser Umfrage abstimmen.</string>
+    <!-- Pinned messages: Signal's PinnedMessage__* and ConversationFragment__keep_pinned words. -->
+    <string name="signal_pin">Anheften</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_unpin">Loslösen</string>
+    <!-- The heading over the choices below. -->
+    <string name="signal_pin_keep_for">Angeheftet lassen für…</string>
+    <!-- A pin's lifetime. -->
+    <string name="signal_pin_24_hours">24 Stunden</string>
+    <!-- A pin's lifetime. -->
+    <string name="signal_pin_7_days">7 Tage</string>
+    <!-- A pin's lifetime. -->
+    <string name="signal_pin_30_days">30 Tage</string>
+    <!-- A pin's lifetime. -->
+    <string name="signal_pin_forever">Für immer</string>
+    <!-- The pinned line at the top of a conversation. %s is the message. -->
+    <string name="signal_pinned_one">Angeheftet: %s</string>
+    <!-- %1$d of %2$d pinned messages; %3$s is the newest. -->
+    <string name="signal_pinned_many">%1$d von %2$d angeheftet: %3$s</string>
+    <!-- Stands in for a pinned message that is a file. -->
+    <string name="signal_pinned_attachment">Anhang</string>
+    <!-- Said when pinning failed. %s is why. -->
+    <string name="signal_pin_failed">Nachricht konnte nicht angeheftet werden: %s</string>
+    <!-- Said when unpinning failed. %s is why. -->
+    <string name="signal_unpin_failed">Nachricht konnte nicht losgelöst werden: %s</string>
+    <!-- Message requests: Signal's MessageRequestBottomView wording. -->
+    <string name="signal_request_direct">%s möchte dir schreiben. Nimm an, um zu antworten. Die Person erfährt erst dann, dass du ihre Nachrichten gesehen hast.</string>
+    <string name="signal_request_group">Du wurdest zu %s hinzugefügt. Nimm teil, um mitzumachen. Mitglieder erfahren erst dann, dass du ihre Nachrichten gesehen hast.</string>
+    <!-- Button (verb). -->
+    <string name="signal_request_accept">Annehmen</string>
+    <!-- Shown instead of a message from a stranger, before a reply. -->
+    <string name="sms_request_text">Nicht in deinen Kontakten, und du hast nicht geantwortet. Nimm an, um zu antworten.</string>
+    <!-- Button (verb). -->
+    <string name="signal_request_delete">Löschen</string>
+    <!-- Button (verb). -->
+    <string name="signal_request_block">Blockieren</string>
+    <!-- The dialog before deleting. -->
+    <string name="signal_request_delete_confirm">Diese Unterhaltung löschen?</string>
+    <!-- The same for a group. -->
+    <string name="signal_request_delete_confirm_group">Diese Gruppe verlassen und löschen?</string>
+    <!-- Said when it did not work. %s is why. -->
+    <string name="signal_request_failed">Das konnte nicht ausgeführt werden: %s</string>
+    <!-- The attach sheet: a picture or any file. -->
+    <string name="signal_attach_file">Bild oder Datei</string>
+    <!-- The attach sheet: a GIF. -->
+    <string name="signal_attach_gif">GIF</string>
+    <!-- The word for a GIF in a conversation. -->
+    <string name="signal_gif">GIF</string>
+    <!-- Top bar title on the GIF search. -->
+    <string name="signal_gif_title">GIF</string>
+    <!-- The search field there. -->
+    <string name="signal_gif_search_hint">GIPHY durchsuchen</string>
+    <!-- Said while results load. -->
+    <string name="signal_gif_loading">Lädt…</string>
+    <!-- Said when a search finds nothing. -->
+    <string name="signal_gif_none">Keine GIFs gefunden</string>
+    <!-- Said when GIPHY cannot be reached. -->
+    <string name="signal_gif_search_failed">GIPHY war nicht erreichbar. Prüfe die Verbindung und versuche es erneut.</string>
+    <!-- The line under the results, as GIPHY asks. -->
+    <string name="signal_gif_powered_by">Bereitgestellt von GIPHY</string>
+    <!-- The attach sheet: a contact card. -->
+    <string name="signal_attach_contact">Kontakt</string>
+    <plurals name="signal_attached_many">
+        <item quantity="one">Angehängt: %d Bild. Zum Entfernen tippen</item>
+        <item quantity="other">Angehängt: %d Bilder. Zum Entfernen tippen</item>
+    </plurals>
+    <!-- Top bar title on the screen that picks who to forward to. -->
+    <string name="signal_forward_to">Weiterleiten an</string>
+    <!-- Said when there is nobody to forward to. -->
+    <string name="signal_forward_nowhere">Keine Signal-Unterhaltungen zum Weiterleiten</string>
+    <!-- Stands in for an attachment that is gone. -->
+    <string name="signal_forward_missing">der Anhang ist nicht mehr auf diesem Telefon</string>
+    <!-- Said after forwarding. %s is where to. -->
+    <string name="signal_forwarded">Weitergeleitet an %s</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_bold">Fett</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_italic">Kursiv</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_strikethrough">Durchgestrichen</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_monospace">Monospace</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_spoiler">Spoiler</string>
+    <!-- The formatting menu (verb). -->
+    <string name="signal_format_clear">Formatierung entfernen</string>
+    <!-- The Signal list's name, on its top bar. -->
+    <string name="signal_title">Signal</string>
+    <!-- The way to the archived Signal conversations. -->
+    <string name="signal_archived_shelf">Archiviert</string>
+    <!-- The way back. -->
+    <string name="signal_inbox_shelf">Zurück zum Posteingang</string>
+    <!-- Top bar title on the archived Signal list. -->
+    <string name="signal_title_archived">Signal · archiviert</string>
+    <!-- Said in the middle of that list when it is empty. -->
+    <string name="signal_archived_empty">Keine archivierten Signal-Unterhaltungen</string>
+    <!-- Menu on a message (verb). -->
+    <string name="signal_message_copy">Text kopieren</string>
+    <!-- The same menu (verb). -->
+    <string name="signal_message_share">Teilen</string>
+    <!-- Said after copying. -->
+    <string name="signal_message_copied">Kopiert</string>
+    <!-- Top bar title on a Signal conversation's details. -->
+    <string name="signal_info_title">Details</string>
+    <!-- The heading over a group's members. -->
+    <string name="signal_info_members">In dieser Gruppe</string>
+    <!-- The heading over the pictures. -->
+    <string name="signal_info_media">Bilder</string>
+    <!-- Said when there are none. -->
+    <string name="signal_info_media_none">Keine Bilder in dieser Unterhaltung</string>
+    <!-- Signal's Nickname screen, as a row on Details and a dialog. Wording from upstream's NicknameActivity. -->
+    <string name="signal_nickname">Spitzname</string>
+    <!-- Said when there is no nickname. -->
+    <string name="signal_nickname_none">Keiner</string>
+    <!-- The note under the nickname fields. -->
+    <string name="signal_nickname_private">Spitznamen &amp; Notizen werden bei Signal gespeichert und Ende-zu-Ende verschlüsselt. Sie sind nur für dich sichtbar.</string>
+    <!-- The first-name field. -->
+    <string name="signal_nickname_first">Vorname</string>
+    <!-- The last-name field. -->
+    <string name="signal_nickname_last">Nachname</string>
+    <!-- The note field. -->
+    <string name="signal_nickname_note">Notiz</string>
+    <!-- Button (verb). -->
+    <string name="signal_nickname_save">Speichern</string>
+    <!-- Button (verb). -->
+    <string name="signal_nickname_delete">Löschen</string>
+    <!-- The same button, armed. -->
+    <string name="signal_nickname_delete_armed">Löschen — zum Bestätigen erneut tippen</string>
+    <!-- Said when it did not save. -->
+    <string name="signal_nickname_failed">Der Spitzname konnte nicht gespeichert werden</string>
+    <plurals name="signal_info_counts">
+        <item quantity="one">%1$d Nachricht</item>
+        <item quantity="other">%1$d Nachrichten</item>
+    </plurals>
+    <!-- %1$s is who they are, %2$s since when. -->
+    <string name="signal_info_since">%1$s, seit %2$s</string>
+    <!-- Said in a Signal conversation with nothing in it. -->
+    <string name="signal_thread_empty">Noch keine Nachrichten. Alles, was du sendest, geht über Signal.</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_mute">Benachrichtigungen stummschalten</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_unmute">Benachrichtigungen wieder einschalten</string>
+    <!-- Said after muting. -->
+    <string name="signal_muted_toast">Stummgeschaltet. Nachrichten kommen weiterhin an.</string>
+    <!-- The block row, armed. -->
+    <string name="signal_block_armed">Auf Signal blockieren — zum Bestätigen erneut tippen</string>
+    <!-- Said after blocking. -->
+    <string name="sms_blocked_toast">Blockiert. Ihre SMS erscheinen nicht mehr in deinen Chats.</string>
+    <!-- Said when the block did not save. -->
+    <string name="sms_block_failed">Nicht blockiert — die Änderung konnte nicht gespeichert werden</string>
+    <!-- Said after blocking on Signal. -->
+    <string name="signal_blocked_toast">Auf Signal blockiert, auf jedem Gerät</string>
+    <!-- Said when Signal would not take it. -->
+    <string name="signal_block_failed">Nicht blockiert — Signal hat die Änderung nicht angenommen</string>
+    <!-- The unblock row, armed. -->
+    <string name="signal_unblock_armed">Auf Signal die Blockierung aufheben — zum Bestätigen erneut tippen</string>
+    <!-- Said after unblocking. -->
+    <string name="signal_unblocked_toast">Auf Signal die Blockierung aufgehoben, auf jedem Gerät</string>
+    <!-- Said when Signal would not take it. -->
+    <string name="signal_unblock_failed">Blockierung nicht aufgehoben — Signal hat die Änderung nicht angenommen</string>
+    <!-- Menu item (verb): search inside this conversation. -->
+    <string name="signal_find">In Unterhaltung suchen</string>
+    <!-- The field's placeholder. -->
+    <string name="signal_find_hint">Suchen</string>
+    <!-- Button (verb). -->
+    <string name="signal_find_close">Suche schließen</string>
+    <!-- Said when nothing matches. -->
+    <string name="signal_find_none">keine</string>
+    <!-- Said when the account cannot be read. -->
+    <string name="signal_account_unreachable">Das Konto konnte nicht gelesen werden.</string>
+    <!-- Said on the account screen. %d is this device's number. -->
+    <string name="signal_account_this_device_is">Dieses Telefon ist Gerät %d des Kontos.</string>
+    <!-- The heading over the device list. -->
+    <string name="signal_account_devices">Geräte</string>
+    <!-- %1$d is the device's number, %2$s its name, %3$s when it was last seen. -->
+    <string name="signal_account_device_line">%1$d · %2$s · zuletzt gesehen %3$s</string>
+    <!-- Said of the primary device. -->
+    <string name="signal_account_device_primary">primär</string>
+    <!-- Stands in for a device with no name. -->
+    <string name="signal_account_device_unnamed">ohne Namen</string>
+    <!-- Said when the device list cannot be read. -->
+    <string name="signal_account_devices_unread">Die Geräteliste konnte nicht gelesen werden.</string>
+    <!-- The note under it. -->
+    <string name="signal_account_unlink_note">Geräte werden vom primären Gerät entkoppelt.</string>
+    <!-- Top bar title on the username search. -->
+    <string name="signal_find_username">Nach Benutzername suchen</string>
+    <!-- The field there. -->
+    <string name="signal_find_username_hint">Benutzername mit seiner Nummer</string>
+    <!-- Said when nobody has it. -->
+    <string name="signal_find_username_none">Niemand hat diesen Benutzernamen</string>
+    <!-- Said when what was typed is not a username. -->
+    <string name="signal_find_username_invalid">Ein Benutzername besteht aus einem Namen, einem Punkt und einer Zahl, wie sam.42</string>
+    <!-- Said when the lookup failed. %s is why. -->
+    <string name="signal_find_username_failed">Suche nicht möglich: %s</string>
+    <!-- Said plainly, because it is the reason several settings people look for are not
+         here, and the reason losing the primary would take this device with it. -->
+    <string name="signal_account_linked_note">Die Nummer registrieren, sie ändern, die PIN für die Registrierungssperre und das Übertragen des Kontos gehören alle zum primären Gerät. Wenn das primäre Gerät abgemeldet wird, funktioniert jedes andere Gerät des Kontos nicht mehr.</string>
+    <!-- Under a Signal message that arrived. -->
+    <string name="signal_message_delivered">Zugestellt</string>
+    <!-- Under one that was opened. -->
+    <string name="signal_message_read">Gelesen</string>
+    <!-- Under a view-once picture that was seen. -->
+    <string name="signal_message_viewed">Angesehen</string>
+    <!-- Under a voice message that was heard. -->
+    <string name="signal_message_played">Abgespielt</string>
+    <!-- Under a message that was changed. -->
+    <string name="signal_message_edited">Bearbeitet</string>
+    <!-- Under one that is on its way. -->
+    <string name="signal_message_sending">Wird gesendet…</string>
+    <!-- Under one that did not go; tapping sends it again. -->
+    <string name="signal_message_not_sent">Nicht gesendet · zum erneuten Senden tippen</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_send_again">Erneut senden</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_unsent_delete">Löschen</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_delete_for_me">Für mich löschen</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_edit">Bearbeiten</string>
+    <!-- Menu item: mention somebody in a group. -->
+    <string name="signal_mention_pick">Erwähnen</string>
+    <!-- Menu item: the message's details. -->
+    <string name="signal_info">Info</string>
+    <!-- A line in those details. %1$s is the time. -->
+    <string name="signal_info_sent">Gesendet %1$s</string>
+    <!-- A line in those details. -->
+    <string name="signal_info_received">Erhalten %1$s</string>
+    <!-- A line in those details. -->
+    <string name="signal_info_delivered">Zugestellt %1$s</string>
+    <!-- A line in those details. -->
+    <string name="signal_info_read">Gelesen %1$s</string>
+    <!-- A line in those details. -->
+    <string name="signal_info_edited">Bearbeitet %1$s</string>
+    <!-- Said above the composer while a message is being changed. -->
+    <string name="signal_editing">Du bearbeitest deine Nachricht · zum Abbrechen tippen</string>
+    <!-- Said when the change did not go. %1$s is why. -->
+    <string name="signal_edit_failed">Nicht bearbeitet: %1$s</string>
+    <!-- The dialog before deleting for oneself. -->
+    <string name="signal_delete_for_me_confirm">Diese Nachricht von diesem Telefon und deinen anderen Geräten löschen? Die Personen in der Unterhaltung behalten ihre Kopie.</string>
+    <plurals name="signal_delete_for_me_confirm_many">
+        <item quantity="one">Diese Nachricht von diesem Telefon und deinen anderen Geräten löschen? Die Personen in der Unterhaltung behalten ihre Kopie.</item>
+        <item quantity="other">Diese %d Nachrichten von diesem Telefon und deinen anderen Geräten löschen? Die Personen in der Unterhaltung behalten ihre Kopie.</item>
+    </plurals>
+    <!-- Row: the digits two people compare. -->
+    <string name="signal_safety_number">Sicherheitsnummer</string>
+    <!-- The dialog when the other side's key changed. -->
+    <string name="signal_safety_accept_title">Neuen Schlüssel akzeptieren</string>
+    <!-- What accepting means. -->
+    <string name="signal_safety_accept_summary">Erst nachdem du die Ziffern auf einem anderen Weg mit der Person abgeglichen hast. Bis dahin werden Nachrichten an sie nicht gesendet.</string>
+    <!-- The same dialog's title. %1$s is the person. -->
+    <string name="signal_safety_changed_title">Die Sicherheitsnummer von %1$s hat sich geändert</string>
+    <!-- The title where there is no name to show. -->
+    <string name="signal_safety_changed_title_unknown">Ihre Sicherheitsnummer hat sich geändert</string>
+    <!-- Row (verb). -->
+    <string name="signal_safety_verify">Sicherheitsnummer prüfen</string>
+    <!-- Button (verb). -->
+    <string name="signal_safety_send_anyway">Trotzdem senden</string>
+    <!-- The same button, armed. -->
+    <string name="signal_safety_send_anyway_armed">Trotzdem senden — du hast die neue Nummer nicht geprüft; zum Bestätigen erneut tippen</string>
+    <!-- The accept button, armed. -->
+    <string name="signal_safety_accept_armed">Neuen Schlüssel akzeptieren — wenn du die Ziffern nicht geprüft hast, könnte jemand anderes mitlesen; zum Bestätigen erneut tippen</string>
+    <!-- Said after accepting. -->
+    <string name="signal_safety_accepted">Schlüssel akzeptiert. Du kannst wieder an die Person senden.</string>
+    <!-- Said when it did not work. -->
+    <string name="signal_safety_accept_failed">Der Schlüssel konnte nicht akzeptiert werden.</string>
+    <!-- Said when the digits were marked as compared. -->
+    <string name="signal_safety_verified">Verifiziert. Vergleiche diese Ziffern mit ihren, um es zu bestätigen.</string>
+    <!-- Said before they are. -->
+    <string name="signal_safety_unverified">Noch nicht verifiziert. Vergleiche diese Ziffern persönlich oder über einen Anruf, dem du vertraust.</string>
+    <!-- The warning itself. -->
+    <string name="signal_safety_changed">⚠ Ihr Schlüssel hat sich geändert, seit du ihn zuletzt akzeptiert hast. Das passiert bei einer Neuinstallation oder einem neuen Telefon, und genauso sähe auch eine Überwachung aus. Vergleiche die Ziffern, bevor du etwas Privates sendest.</string>
+    <!-- The badge that names the Signal list. -->
+    <string name="signal_rail_label">Signal</string>
+    <!-- The same badge where it leads to the other list. -->
+    <string name="signal_rail_label_switch">Signal &gt;</string>
+    <!-- Shown in an SMS thread only when the same person is also reachable on Signal;
+         the ">" says it is a way across rather than a label. -->
+    <string name="sms_rail_label_switch">SMS &gt;</string>
+    <!-- Said in the middle of an empty Signal list. -->
+    <string name="signal_empty">Noch keine Signal-Unterhaltungen.\n\nSchreibe jemandem oder warte auf eine Nachricht; Älteres bleibt in Signal.</string>
+    <!-- Spoken description of the new-message button there. -->
+    <string name="signal_new_conversation_cd">Jemandem auf Signal schreiben</string>
+    <!-- Said above the composer while disconnected. -->
+    <string name="signal_cannot_send_signal">Nicht mit Signal verbunden — du kannst lesen, aber nicht senden</string>
+    <!-- Shown instead of the line above while the socket is actually reaching for the
+         server. Every launch begins disconnected; saying only that sending cannot happen
+         made a phone that was about to work look like a phone that was broken. -->
+    <string name="signal_connecting_signal">Verbinde mit Signal — du kannst lesen; Senden funktioniert gleich</string>
+    <!-- A toast after a failed send. %s is why. -->
+    <string name="signal_send_failed">Nicht gesendet: %s</string>
+    <!--
+      Shown when the send itself worked and only the local record failed. Blunt about not
+      repeating it on purpose: the composer still holds the text and every other failure here
+      says the opposite.
+    -->
+    <string name="signal_sent_but_not_filed">Sie wurde gesendet, aber dieses Telefon konnte sie nicht der Unterhaltung hinzufügen. Sende sie nicht erneut.</string>
+    <!-- The name on a message you sent. -->
+    <string name="signal_you">Du</string>
+    <!-- Menu item: open the text half of this conversation. -->
+    <string name="signal_switch_to_sms">Zu SMS wechseln</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_archive">Unterhaltung archivieren</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_unarchive">Zurück in den Posteingang</string>
+    <!-- Said after archiving. -->
+    <string name="signal_archived_toast">Archiviert — unter Archiviert zu finden</string>
+    <!-- Said after unarchiving. -->
+    <string name="signal_unarchived_toast">Wieder im Posteingang</string>
+    <!-- Menu item: open the Signal half. -->
+    <string name="signal_switch_to_signal">Zu Signal wechseln</string>
+    <!-- Said of an attachment in the composer. %s is its name. -->
+    <string name="signal_attached">Angehängt: %s — zum Entfernen tippen</string>
+    <!-- Said when the file cannot be read. -->
+    <string name="signal_attach_failed">Diese Datei konnte nicht gelesen werden</string>
+    <!-- Said when the file is too large to send. -->
+    <string name="signal_attach_too_big">Diese Datei ist zu groß zum Senden</string>
+    <!-- Spoken description of a picture. -->
+    <string name="signal_attachment_image">Bildanhang</string>
+    <!-- Spoken description of a file. %s is its name. -->
+    <string name="signal_attachment_other">Anhang: %s</string>
+    <!-- Said of an attachment not yet downloaded. -->
+    <string name="signal_attachment_unavailable">Anhang (nicht heruntergeladen)</string>
+    <!-- A view-once picture that was seen. -->
+    <string name="signal_view_once_received">Foto zum einmaligen Ansehen. Angesehen.</string>
+    <!-- A view-once picture waiting to be seen. -->
+    <string name="signal_view_once_open">Foto zum einmaligen Ansehen. Zum Ansehen tippen.</string>
+    <!-- The same, still arriving. -->
+    <string name="signal_view_once_downloading">Foto zum einmaligen Ansehen, kommt noch an.</string>
+    <!-- A view-once picture you sent. -->
+    <string name="signal_view_once_sent">Foto zum einmaligen Ansehen.</string>
+    <!-- Said when it is no longer there. -->
+    <string name="signal_view_once_gone">Bereits angesehen.</string>
+    <!-- Said when it cannot be shown. -->
+    <string name="signal_view_once_unshowable">Dieses Bild konnte nicht angezeigt werden.</string>
+    <!-- The attach sheet: a view-once picture. -->
+    <string name="signal_attach_view_once">Foto zum einmaligen Ansehen</string>
+    <!-- Said of one in the composer. %s is its name. -->
+    <string name="signal_attached_view_once">Einmal ansehen: %s</string>
+    <!-- Said when there is no browser and the address is copied. %s is it. -->
+    <string name="web_link_no_browser_copied">Kein Webbrowser auf diesem Telefon. Die Adresse wurde kopiert: %s</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_react">Reagieren…</string>
+    <string name="signal_quote">↳ %1$s: %2$s</string>
+    <!-- Stands in for your own name in a quote. -->
+    <string name="signal_quote_you">Du</string>
+    <!-- Stands in for a quoted message from before the thread synced. -->
+    <string name="signal_quote_missing">↳ Antwort auf eine Nachricht von vor der Synchronisierung dieser Unterhaltung</string>
+    <!-- Stands in for a quoted picture. -->
+    <string name="signal_quote_no_text">(ein Bild)</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_reply">Antworten</string>
+    <!-- Said when a reply from a notification did not go. -->
+    <string name="signal_notification_reply_failed">Deine Antwort wurde nicht gesendet. Öffne die Unterhaltung, um sie erneut zu senden.</string>
+    <!-- Said above the composer. %1$s is who, %2$s the message. -->
+    <string name="signal_replying">Antwort an %1$s: %2$s — zum Abbrechen tippen</string>
+    <!-- Menu item (verb). %1$s is the reaction. -->
+    <string name="signal_reaction_remove_mine">Mein %1$s entfernen</string>
+    <!-- Signal's ReactionsRecipientAdapter_you and ReactionsBottomSheetDialogFragment_tap_to_remove, on one line. -->
+    <string name="signal_reaction_you_remove">Du · zum Entfernen tippen</string>
+    <!-- Stands in for somebody's name on a reaction. -->
+    <string name="signal_reaction_someone">Jemand</string>
+    <!-- The label on a message that is scheduled. -->
+    <string name="signal_scheduled">Geplant</string>
+    <!-- Said when there is nothing to schedule. -->
+    <string name="signal_schedule_needs_text">Schreibe zuerst etwas</string>
+    <!-- Said when a scheduled message carries a file. -->
+    <string name="signal_schedule_no_attachments">Eine geplante Signal-Nachricht ist nur Text. Sende das Bild jetzt oder entferne es.</string>
+    <!-- Said when the time has gone. -->
+    <string name="signal_schedule_in_the_past">Diese Zeit ist vorbei</string>
+    <!-- Said when it could not be scheduled. -->
+    <string name="signal_schedule_failed">Das konnte nicht geplant werden</string>
+    <!-- Said when a reaction did not send. -->
+    <string name="signal_reaction_failed">Diese Reaktion wurde nicht gesendet</string>
+    <!-- Menu item (verb). -->
+    <string name="signal_withdraw">Zurücknehmen</string>
+    <!-- The same item, armed. -->
+    <string name="signal_withdraw_armed">Zurücknehmen — die Nachricht verschwindet von allen Telefonen; zum Bestätigen erneut tippen</string>
+    <!-- Said when it could not be taken back. -->
+    <string name="signal_withdraw_failed">Diese Nachricht konnte nicht zurückgenommen werden</string>
+    <plurals name="signal_unread">
+        <item quantity="one">%d ungelesen</item>
+        <item quantity="other">%d ungelesen</item>
+    </plurals>
+    <!-- Disappearing messages, on a Signal conversation's info screen. Upstream's choices. -->
+    <string name="info_timer">Selbstlöschende Nachrichten</string>
+    <string name="info_timer_off">Aus</string>
+    <string name="info_timer_4_weeks">4 Wochen</string>
+    <string name="info_timer_1_week">1 Woche</string>
+    <string name="info_timer_1_day">1 Tag</string>
+    <string name="info_timer_8_hours">8 Stunden</string>
+    <string name="info_timer_1_hour">1 Stunde</string>
+    <string name="info_timer_5_minutes">5 Minuten</string>
+    <string name="info_timer_30_seconds">30 Sekunden</string>
+    <string name="info_timer_other">%d Sekunden</string>
+    <string name="info_timer_setting">Wird festgelegt…</string>
+    <string name="info_timer_not_allowed">Nur die Admins der Gruppe können das ändern</string>
+    <string name="info_timer_not_member">Du bist nicht mehr in dieser Gruppe</string>
+    <string name="info_timer_failed">Konnte nicht geändert werden. Versuche es erneut, wenn du verbunden bist.</string>
+
+    <!-- ============================================================ -->
+    <!-- Why a Signal message did not send -->
+
+    <!-- Why a Signal message did not send, shown after "Not sent: ". The lower-case ones
+         continue that line; the capitalised ones are whole sentences of their own. A name
+         is the person's name as this phone holds it, or signal_send_them where it holds only
+         an id. -->
+    <string name="signal_send_proof_required">Signal hat dieses Konto gebeten zu beweisen, dass es ein Mensch ist, bevor es weitere Nachrichten annimmt. Das muss in Signal auf deinem anderen Telefon beantwortet werden. Es wurde nichts gesendet.%1$s</string>
+    <string name="signal_send_rate_limited">Signal begrenzt, wie schnell dieses Konto senden kann. Es wurde nichts gesendet.%1$s</string>
+    <string name="signal_send_unlinked">Dieses Telefon ist nicht mehr mit Signal verknüpft. Verknüpfe es erneut, um zu senden.</string>
+    <string name="signal_send_version_refused">Signal akzeptiert diese Version nicht mehr. Die App muss aktualisiert werden.</string>
+    <string name="signal_send_server_rejected">Signal hat diese Nachricht abgelehnt, und erneutes Senden wird nicht helfen.</string>
+    <string name="signal_send_they_left">Die Person ist nicht mehr bei Signal.</string>
+    <string name="signal_send_safety_number_changed">die Sicherheitsnummer hat sich für %1$s geändert</string>
+    <string name="signal_send_not_on_signal">%1$s ist nicht mehr bei Signal</string>
+    <!-- The same three, where this phone knows the person only by an id and has no name to show -->
+    <string name="signal_send_safety_number_changed_unnamed">die Sicherheitsnummer dieser Person hat sich geändert</string>
+    <string name="signal_send_not_on_signal_unnamed">die Person ist nicht mehr bei Signal</string>
+    <string name="signal_send_key_unusable_unnamed">die Person hat einen Schlüssel, den dieses Telefon nicht verwenden kann; möglicherweise muss sie neu installieren</string>
+    <string name="signal_send_unreachable">das Telefon konnte Signal nicht erreichen</string>
+    <string name="signal_send_key_unusable">%1$s hat einen Schlüssel, den dieses Telefon nicht verwenden kann; möglicherweise muss die Person neu installieren</string>
+    <string name="signal_send_too_fast_wait">zu schnell gesendet; versuche es in %1$s erneut</string>
+    <string name="signal_send_too_fast">zu schnell gesendet; versuche es gleich erneut</string>
+    <string name="signal_send_proof_needed">Signal möchte, dass dieses Telefon beweist, dass es ein Mensch ist, was es noch nicht kann</string>
+    <string name="signal_send_server_silent">es wurde nicht gesendet, und der Server hat nicht gesagt, warum</string>
+    <string name="signal_send_no_longer_held">diese Nachricht wird nicht mehr vorgehalten</string>
+    <string name="signal_send_no_reachable_members">die Gruppe hat keine Mitglieder, die dieses Gerät erreichen kann</string>
+    <string name="signal_send_nobody_reached">konnte keines der %1$s Gruppenmitglieder erreichen</string>
+    <string name="signal_send_primary_refused">das primäre Gerät hat die Kontaktanfrage abgelehnt</string>
+    <string name="signal_send_too_long">Diese Nachricht ist zu lang zum Senden. Signal nimmt etwa 2.000 Zeichen pro Nachricht; sie in zwei Nachrichten zu senden, funktioniert.</string>
+    <string name="signal_send_attachment_unprepared">der Anhang konnte nicht vorbereitet werden: %1$s</string>
+    <string name="signal_send_keys_stale">Die Sendeschlüssel dieses Telefons sind veraltet und konnten gerade nicht ersetzt werden, daher wurde nichts gesendet. Es wird es weiter versuchen.</string>
+    <string name="signal_send_no_certificate">Dieses Telefon hat gerade kein versiegeltes Sendezertifikat, daher wurde nichts gesendet. Es wird es von selbst erneut versuchen.</string>
+    <string name="signal_send_not_in_group">Du bist nicht mehr in dieser Gruppe, daher wurde nichts gesendet.</string>
+    <string name="signal_send_group_ended">Diese Gruppe wurde beendet, daher wurde nichts gesendet.</string>
+    <string name="signal_send_group_unreachable">Dieses Telefon konnte die Gruppe gerade nicht erreichen, daher wurde nichts gesendet. Es funktioniert, sobald die Verbindung wieder da ist.</string>
+    <string name="signal_send_admins_only">Nur die Admins dieser Gruppe dürfen dort schreiben. Deine Nachricht wurde nicht gesendet.</string>
+    <string name="signal_send_number_only">Diese Unterhaltung hat nur eine Telefonnummer, keine Signal-Adresse. Schreibe der Person stattdessen über eine neue Nachricht.</string>
+    <string name="signal_send_no_group_key">noch kein Gruppenschlüssel in dieser Unterhaltung</string>
+    <!-- How long Signal said to wait. The retry sentences follow straight on from
+         "Nothing was sent." and so begin with a space of their own, which is why they are
+         quoted. Rounded up, never to the second. -->
+    <string name="signal_send_retry_minute">" Versuche es in einer Minute erneut."</string>
+    <string name="signal_send_retry_minutes">" Versuche es in etwa %1$s Minuten erneut."</string>
+    <string name="signal_send_retry_hour">" Versuche es in etwa einer Stunde erneut."</string>
+    <string name="signal_send_retry_hours">" Versuche es in etwa %1$s Stunden erneut."</string>
+    <string name="signal_send_wait_seconds">%1$s Sekunden</string>
+    <string name="signal_send_wait_minutes">%1$s Minuten</string>
+    <string name="signal_send_wait_hours">%1$s Stunden</string>
+
+    <!-- ============================================================ -->
+    <!-- Signal calls -->
+
+    <!-- Signal voice calls. -->
+    <string name="signal_call_channel">Signal-Anrufe</string>
+    <string name="signal_call_incoming">Signal-Anruf</string>
+    <string name="signal_call_answer">Annehmen</string>
+    <string name="signal_call_decline">Ablehnen</string>
+    <string name="signal_call_ongoing">In einem Signal-Anruf</string>
+    <string name="signal_call_hang_up">Auflegen</string>
+    <string name="signal_call_connecting">Verbinde…</string>
+    <string name="signal_call_reconnecting">Suche die Verbindung wieder…</string>
+    <string name="signal_call_mute">Stumm</string>
+    <string name="signal_call_unmute">Ton an</string>
+    <!-- The audio button: where the call is heard now; a tap moves to the next. -->
+    <string name="signal_call_audio">Audio: %1$s</string>
+    <string name="signal_call_output_bluetooth">Bluetooth</string>
+    <string name="signal_call_output_headset">Headset</string>
+    <string name="signal_call_output_earpiece">Hörer</string>
+    <string name="signal_call_output_speaker">Lautsprecher</string>
+    <string name="signal_call_needs_microphone">Zum Annehmen wird das Mikrofon benötigt.</string>
+    <string name="signal_call_ended">Anruf beendet</string>
+    <string name="signal_call_ended_declined">Abgelehnt</string>
+    <string name="signal_call_ended_answered_elsewhere">Auf einem anderen Gerät angenommen</string>
+    <string name="signal_call_ended_declined_elsewhere">Auf einem anderen Gerät abgelehnt</string>
+    <string name="signal_call_ended_busy">Besetzt</string>
+    <string name="signal_call_ended_failed">Der Anruf konnte nicht verbunden werden</string>
+    <string name="signal_call_calling">Rufe an…</string>
+    <string name="signal_call_remote_ringing">Klingelt…</string>
+    <string name="signal_call_ended_no_answer">Keine Antwort</string>
+    <string name="signal_call_start">Anrufen</string>
+
+    <!-- ============================================================ -->
+    <!-- Groups -->
+
+    <!-- Top bar title on the new-group screen. -->
+    <string name="signal_group_title">Neue Gruppe</string>
+    <!-- Button (verb). -->
+    <string name="signal_group_create">Erstellen</string>
+    <!-- The group-name field. -->
+    <string name="signal_group_name_hint">Gruppenname</string>
+    <!-- The field that filters the people to add. -->
+    <string name="signal_group_search_hint">Suchen</string>
+    <!-- Said when there is nobody to add. -->
+    <string name="signal_group_nobody">Niemand zum Hinzufügen.\n\nRufe deine Kontakte in den Einstellungen ab oder warte, bis dir jemand schreibt.</string>
+    <!-- Said when the people cannot be read. -->
+    <string name="signal_group_could_not_read">Dieses Telefon konnte gerade nicht lesen, wer bei Signal ist. Schließe dies und öffne es erneut.</string>
+    <!-- Said when the filter matches nobody. -->
+    <string name="signal_group_no_match">Niemand mit diesem Namen.</string>
+    <!-- Said when the group has no name. -->
+    <string name="signal_group_needs_a_name">Eine Gruppe braucht einen Namen.</string>
+    <!-- Said when the group has nobody else in it. -->
+    <string name="signal_group_needs_somebody">Eine Gruppe braucht noch jemanden.</string>
+    <!-- Said when it could not be made. -->
+    <string name="signal_group_not_made">Die Gruppe wurde nicht erstellt.</string>
+    <!-- Why a new group was not made. Each means something different to the person making
+         it, so each is said on its own. -->
+    <string name="signal_group_not_linked">Dieses Telefon ist nicht mit einem Konto verknüpft.</string>
+    <string name="signal_group_no_profile">Dieses Konto hat kein gespeichertes Profil, und ohne eines kann keine Gruppe erstellt werden.</string>
+    <string name="signal_group_not_put_together">Die Gruppe konnte nicht zusammengestellt werden.</string>
+    <string name="signal_group_not_authorized">Der Server hat dieses Konto nicht autorisiert.</string>
+    <string name="signal_group_server_refused">Der Server hat die neue Gruppe nicht angenommen.</string>
+    <string name="signal_group_unaddressable">Die Gruppe wurde erstellt, aber dieses Telefon kann sie nicht adressieren.</string>
+    <!-- A group's details: Signal's ConversationSettingsFragment and ManageGroup words. -->
+    <string name="group_name">Gruppenname</string>
+    <string name="group_description">Gruppenbeschreibung</string>
+    <string name="group_description_none">Keine</string>
+    <plurals name="group_members">
+        <item quantity="one">%d Mitglied</item>
+        <item quantity="other">%d Mitglieder</item>
+    </plurals>
+    <plurals name="group_invited_count">
+        <item quantity="one">%d eingeladen</item>
+        <item quantity="other">%d eingeladen</item>
+    </plurals>
+    <string name="group_add_members">Mitglieder hinzufügen</string>
+    <string name="group_add">Hinzufügen</string>
+    <string name="group_nobody_to_add">Niemand weiter aus deinen Signal-Unterhaltungen hinzuzufügen</string>
+    <string name="group_admin">Admin</string>
+    <string name="group_make_admin">Zum Admin machen</string>
+    <string name="group_remove_admin">Admin-Rechte entziehen</string>
+    <string name="group_remove_member">Aus Gruppe entfernen</string>
+    <string name="group_remove_confirm">%s aus der Gruppe entfernen?</string>
+    <string name="group_requests">Beitrittsanfragen</string>
+    <string name="group_request_summary">Über den Gruppenlink um Beitritt gebeten</string>
+    <string name="group_request_question">Dürfen sie der Gruppe beitreten?</string>
+    <string name="group_approve">Genehmigen</string>
+    <string name="group_deny">Ablehnen</string>
+    <string name="group_permissions">Berechtigungen</string>
+    <string name="group_who_edits_info">Wer Gruppeninformationen bearbeiten darf</string>
+    <string name="group_who_adds_members">Wer Mitglieder hinzufügen darf</string>
+    <string name="group_who_sends">Wer Nachrichten senden darf</string>
+    <string name="group_all_members">Alle Mitglieder</string>
+    <string name="group_only_admins">Nur Admins</string>
+    <string name="group_link">Gruppenlink</string>
+    <string name="group_link_off">Aus</string>
+    <string name="group_link_on">An</string>
+    <string name="group_link_approval">An, Admins genehmigen neue Mitglieder</string>
+    <string name="group_link_share">Link teilen</string>
+    <string name="group_link_reset">Link zurücksetzen</string>
+    <string name="group_leave">Gruppe verlassen</string>
+    <string name="group_leave_confirm">Du kannst in dieser Gruppe keine Nachrichten mehr senden oder empfangen.</string>
+    <string name="group_choose_admin">Wähle vor dem Verlassen einen neuen Admin</string>
+    <string name="group_invited">Du wurdest zu dieser Gruppe eingeladen</string>
+    <string name="group_accept_invite">Einladung annehmen</string>
+    <string name="group_decline_invite">Einladung ablehnen</string>
+    <string name="group_not_allowed">Nur Admins können das in dieser Gruppe</string>
+    <string name="group_failed">Die Gruppe konnte nicht geändert werden. Versuche es erneut, wenn du verbunden bist.</string>
+
+    <!-- ============================================================ -->
+    <!-- The setup guide, and DuraSpeed -->
+
+    <!-- The setup guide. One question to a page; every page can be skipped. -->
+    <string name="setup_title">Einrichtung</string>
+    <!-- %1$d of %2$d pages. -->
+    <string name="setup_where">%1$d von %2$d</string>
+    <!-- Button (verb): skip this page. -->
+    <string name="setup_skip">Überspringen</string>
+    <!-- Button (verb): leave the guide. -->
+    <string name="setup_skip_all">Alles überspringen</string>
+    <!-- Button (verb). -->
+    <string name="setup_continue">Weiter</string>
+    <!-- The guide's first page. -->
+    <string name="setup_welcome_heading">Messaging</string>
+    <!-- What the guide is. -->
+    <string name="setup_welcome_body">Ein paar Fragen dazu, wie dieses Telefon Nachrichten sendet. Jede kann übersprungen werden, und jede Antwort lässt sich später in den Einstellungen ändern, wo auch diese Anleitung ist.</string>
+    <!-- Button (verb). -->
+    <string name="setup_welcome_start">Starten</string>
+    <!-- The page about being the texting app. -->
+    <string name="setup_texting_heading">SMS</string>
+    <!-- Why it matters. -->
+    <string name="setup_texting_body">Um SMS und Bildnachrichten zu senden und zu empfangen, muss Messaging die SMS-App dieses Telefons sein. Android bittet dich um Bestätigung.</string>
+    <!-- Button (verb). -->
+    <string name="setup_texting_make">Zur SMS-App machen</string>
+    <!-- The page about DuraSpeed on a Kompakt. -->
+    <string name="setup_kompakt_heading">SMS, während das Telefon schläft</string>
+    <!-- What DuraSpeed does to this app. -->
+    <string name="setup_kompakt_body">Auf einem Kompakt schließt ein Dienst namens DuraSpeed Apps einige Minuten nach dem Ausschalten des Bildschirms und lässt nicht zu, dass eine SMS Messaging wieder öffnet. Eine dann eintreffende SMS geht verloren, nicht nur verspätet.\n\nÖffne unten DuraSpeed, tippe auf Öffnen und schalte Messaging ein, um das zu verhindern. An bedeutet erlaubt.</string>
+    <!-- Button (verb): open DuraSpeed. -->
+    <string name="setup_kompakt_how">DuraSpeed öffnen</string>
+    <!-- Said at launch when the app was shut down and may have missed texts. -->
+    <string name="duraspeed_stopped_title">Du hast möglicherweise eine SMS verpasst</string>
+    <!-- %1$s is when it was shut down. -->
+    <string name="duraspeed_stopped_body">Von %1$s bis du Messaging gerade geöffnet hast, hatte das Telefon die App beendet, und jede in dieser Zeit an dich gesendete SMS kam nicht an. Ob jemand geschrieben hat, lässt sich nicht feststellen. Wenn du etwas erwartet hast, bitte um eine erneute Nachricht.\n\nDie DuraSpeed-Einstellung des Telefons verursacht das. Öffne DuraSpeed, tippe auf Öffnen und schalte Messaging ein, um es zu verhindern.</string>
+    <!-- Button (verb). -->
+    <string name="duraspeed_open">DuraSpeed öffnen</string>
+    <!-- Button: not now. -->
+    <string name="duraspeed_later">Jetzt nicht</string>
+    <!-- Said when the app is switched on there. -->
+    <string name="duraspeed_allowed">Es ist eingeschaltet</string>
+    <!-- Name of the DuraSpeed notification category. -->
+    <string name="duraspeed_channel">DuraSpeed</string>
+    <!-- The question the dialog asks. -->
+    <string name="duraspeed_ask_done">Ist Messaging jetzt in DuraSpeed eingeschaltet?</string>
+    <!-- Button: not yet. -->
+    <string name="duraspeed_not_yet">Noch nicht</string>
+    <!-- The standing notification's title. -->
+    <string name="duraspeed_notification_title">Messaging kann SMS verpassen</string>
+    <!-- Its one line. -->
+    <string name="duraspeed_notification_text">Die DuraSpeed-Einstellung des Telefons kann Messaging beenden, und dann an dich gesendete SMS kommen nie an. Öffne DuraSpeed, tippe auf Öffnen und schalte Messaging ein.</string>
+    <!-- The page about Signal. -->
+    <string name="setup_signal_heading">Signal</string>
+    <!-- What can be done with it. -->
+    <string name="setup_signal_body">Signal kann neben deinen SMS laufen. Wenn Signal bereits auf einem anderen Telefon oder Computer läuft, verknüpfe dieses Telefon per Code-Scan damit. Wenn nicht, kann die Nummer dieses Telefons ein eigenes Signal-Konto werden. Überspringe dies, wenn du Signal nicht nutzt.</string>
+    <!-- Button (verb). -->
+    <string name="setup_signal_link">Mit meinem Signal verknüpfen</string>
+    <!-- Button (verb). -->
+    <string name="setup_signal_register">Dieses Telefon registrieren</string>
+    <!-- The page about pairing texts with Signal. -->
+    <string name="setup_contacts_heading">SMS und Signal zusammen</string>
+    <!-- What that does, and what it sends. -->
+    <string name="setup_contacts_body">Signal kann gefragt werden, welche deiner Kontakte es nutzen. Die SMS und die Signal-Unterhaltung jeder Person werden dann gepaart, und die Markierung oben in einer von beiden führt zur anderen.\n\nDie Nummern deiner Kontakte werden verschlüsselt an Signals Suchdienst gesendet, sodass der Dienst sie nicht lesen kann. Es ist dieselbe Suche, die Signal selbst durchführt.</string>
+    <!-- Button (verb). -->
+    <string name="setup_contacts_look">Suchen</string>
+    <!-- Said while it runs. -->
+    <string name="setup_contacts_looking">Frage Signal…</string>
+    <!-- The page about one list or two. -->
+    <string name="setup_lists_heading">Eine Liste oder zwei</string>
+    <!-- The choice. -->
+    <string name="setup_lists_body">Signal-Unterhaltungen können zwischen deinen SMS stehen, die neuesten zuerst, oder in einer eigenen Liste mit einer Markierung zum Wechseln.</string>
+    <!-- Button. -->
+    <string name="setup_lists_one">Eine Liste</string>
+    <!-- Button. -->
+    <string name="setup_lists_two">Zwei Listen</string>
+    <!-- The page about keeping Signal connected. -->
+    <string name="setup_connected_heading">Wenn Signal-Nachrichten ankommen</string>
+    <!-- What each choice costs. -->
+    <string name="setup_connected_body">Verbunden bleiben: Signal-Nachrichten kommen an, sobald sie gesendet werden, und eine Benachrichtigung bleibt in der Leiste, um das zu zeigen. Andernfalls holt Signal etwa alle 15 Minuten und beim Öffnen der App auf, was weniger Akku verbraucht.</string>
+    <!-- Button. -->
+    <string name="setup_connected_keep">Signal verbunden halten</string>
+    <!-- Button. -->
+    <string name="setup_connected_catch_up">Gelegentlich aufholen</string>
+    <!-- The page about Desktop Sync. -->
+    <string name="setup_desktop_heading">Desktop Sync</string>
+    <!-- What it does and how it is reached. -->
+    <string name="setup_desktop_body">Lies und sende deine Nachrichten im Browser eines Computers.\nNur VPN braucht ein VPN wie Tailscale auf Telefon und Computer; in einfachem WLAN gibt es keine Adresse.\nDieses WLAN funktioniert auch ohne, aber jeder im selben WLAN kann die Seite über einfaches HTTP erreichen, wobei das Token im Link das einzige Tor ist.</string>
+    <!-- Button (verb). -->
+    <string name="setup_desktop_on_vpn">Einschalten (nur VPN)</string>
+    <!-- Button (verb). -->
+    <string name="setup_desktop_on_wifi">Auch für dieses WLAN einschalten</string>
+    <!-- Said after the first. -->
+    <string name="setup_desktop_started_vpn">An, nur VPN. In den Einstellungen unter Desktop Sync wird die Adresse angezeigt, sobald ein VPN wie Tailscale auf diesem Telefon und dem Computer verbunden ist.</string>
+    <!-- Said after the second. -->
+    <string name="setup_desktop_started_wifi">An, auch für dieses WLAN (Nur VPN ist aus). In den Einstellungen unter Desktop Sync wird die Adresse angezeigt; dort kannst du Nur VPN wieder einschalten.</string>
+    <!-- The page about Signal calls. -->
+    <string name="setup_calls_heading">Signal-Anrufe</string>
+    <!-- What they need. -->
+    <string name="setup_calls_body">Signal-Sprachanrufe (nie Video) brauchen die Mikrofonberechtigung. Um zu klingeln und den Bildschirm zu füllen, während das Telefon schläft, brauchen sie außerdem Androids Einstellung für Vollbild-Benachrichtigungen, die Android 14 und neuer ausschalten kann.</string>
+    <!-- Button (verb). -->
+    <string name="setup_calls_mic">Mikrofon erlauben</string>
+    <!-- Button (verb). -->
+    <string name="setup_calls_screen">Anrufe dürfen den Bildschirm wecken</string>
+    <!-- Said when nothing is missing. -->
+    <string name="setup_calls_done">Für Anrufe ist nichts weiter nötig.</string>
+    <!-- The last page. -->
+    <string name="setup_done_heading">Fertig</string>
+    <!-- Where everything is kept. -->
+    <string name="setup_done_body">Alles hier ist in den Einstellungen zu finden, und diese Anleitung auch, unter Einrichtungshilfe.</string>
+    <!-- Button (verb). -->
+    <string name="setup_done_finish">Abschließen</string>
+    <!-- Settings row: bring back the texting line after Hide. -->
+    <string name="settings_ask_default_sms_title">Fragen, ob Messaging die SMS-App werden soll</string>
+    <!-- Its hint. -->
+    <string name="settings_ask_default_sms_summary">Eine Zeile am unteren Rand der SMS-Liste, während eine andere App SMS verarbeitet</string>
+    <!-- Settings row: this guide. -->
+    <string name="settings_setup_title">Einrichtungshilfe</string>
+    <!-- The question asked once, when Signal is first set up. -->
+    <string name="setup_pair_title">SMS und Signal paaren?</string>
+    <!-- What pairing does. -->
+    <string name="setup_pair_body">Messaging kann jetzt die SMS jeder Person mit ihrer Signal-Unterhaltung paaren, sodass die Markierung oben zwischen beiden wechselt. Es fragt Signal, welche deiner Kontakte es nutzen: Ihre Nummern gehen verschlüsselt an Signals Suchdienst, sodass der Dienst sie nicht lesen kann.</string>
+    <!-- Button (verb). -->
+    <string name="setup_pair_yes">Suchen</string>
+    <!-- Button. -->
+    <string name="setup_pair_no">Jetzt nicht</string>
+
+    <!-- ============================================================ -->
+    <!-- Blocking -->
+
+    <!-- Top bar title on Blocking. -->
     <string name="blocking_title">Blockieren</string>
+    <!-- Settings row: throw blocked messages away rather than hide them. -->
     <string name="blocking_drop_title">Nachrichten verwerfen</string>
-    <string name="blocking_drop_summary">Eingehende Nachrichten von blockierten Absendern verwefen, anstatt sie auszublenden</string>
+    <!-- Its hint. -->
+    <string name="blocking_drop_summary">Eingehende Nachrichten von blockierten Absendern verwerfen, anstatt sie auszublenden</string>
+    <!-- Settings row: only people in the contacts may write. -->
+    <string name="blocking_non_contacts_title">Nur Kontakte zulassen</string>
+    <!-- Its hint. -->
+    <string name="blocking_non_contacts_summary">Nachrichten von Personen blockieren, die nicht in deinen Kontakten sind</string>
+    <!-- Said when the contacts cannot be read. -->
+    <string name="blocking_non_contacts_no_permission">Benötigt die Berechtigung, deine Kontakte zu lesen</string>
+    <!-- Settings row: other apps that can block. -->
     <string name="blocking_manager_title">Blockiermanager</string>
+    <!-- Said of this app's own blocking. -->
     <string name="blocking_manager_qksms_summary">In Messaging integrierte Blockierfunktion</string>
-    <string name="blocking_manager_call_blocker_summary">Spam-Nachrichten und Nummern &amp; unbekannte Anrufe mit Sperrliste &amp; Zeitplan blockieren</string>
+    <string name="blocking_manager_call_blocker_summary">Spam-Nachrichten, Nummern und unbekannte Anrufe mit Sperrliste und Zeitplan blockieren</string>
     <string name="blocking_manager_call_control_summary">Filtere deine Anrufe und Nachrichten automatisch an einem praktischen Ort! Mit Community IQ™ kannst du unerwünschte Nachrichten von bekannten Community-Spammern verhindern</string>
-    <string name="blocking_manager_sia_summary">Nachrichten von unerwünschten Nummern automatisch mit Hilfe der App \"Should I Answer?\" filtern</string>
+    <string name="blocking_manager_sia_summary">Nachrichten von unerwünschten Nummern automatisch mit Hilfe der App „Should I Answer?“ filtern</string>
+    <!-- Settings row (verb): copy the blocked numbers into another app. -->
     <string name="blocking_manager_copy_title">Blockierte Nummern kopieren</string>
-    <string name="blocking_manager_copy_summary">Zu %s wechseln und zu den existierenden blockierten Nummern kopieren</string>
+    <!-- Its hint. %s is the app's name. -->
+    <string name="blocking_manager_copy_summary">Zu %s wechseln und deine vorhandenen blockierten Nummern kopieren</string>
+    <!-- Top bar title on the blocked numbers. -->
     <string name="blocked_numbers_title">Blockierte Nummern</string>
-    <string name="blocked_numbers_empty">Deine blockierte Nummern werden hier angezeigt</string>
+    <!-- Said in the middle of that list when it is empty. -->
+    <string name="blocked_numbers_empty">Deine blockierten Nummern werden hier angezeigt</string>
+    <!-- Spoken description of the add button. -->
     <string name="blocked_numbers_add_cd">Eine neue Nummer blockieren</string>
-    <string name="blocked_numbers_dialog_title">Blockiere Texte von</string>
+    <!-- The dialog that adds one. -->
+    <string name="blocked_numbers_dialog_title">SMS blockieren von</string>
+    <!-- The number field. -->
     <string name="blocked_numbers_dialog_hint">Telefonnummer</string>
+    <!-- Button (verb). -->
     <string name="blocked_numbers_dialog_block">Blockieren</string>
+    <!-- Top bar title on the content filters. -->
+    <string name="message_content_filters_title">Nachrichteninhaltsfilter</string>
+    <!-- Said in the middle of that list when it is empty. -->
+    <string name="message_content_filters_empty">Hier werden deine Nachrichteninhaltsfilter angezeigt</string>
+    <!-- Spoken description of the add button. -->
+    <string name="message_content_filters_add_cd">Neuen Filter erstellen</string>
+    <!-- The dialog that adds one. -->
+    <string name="message_content_filters_dialog_title">Nachrichten verwerfen, die übereinstimmen</string>
+    <!-- The field: a word, a phrase or a regular expression. -->
+    <string name="message_content_filters_dialog_hint">Wort, Phrase oder regulärer Ausdruck</string>
+    <!-- A switch in that dialog. -->
+    <string name="message_content_filters_dialog_case_switch">Groß- und Kleinschreibung</string>
+    <!-- A switch in that dialog. -->
+    <string name="message_content_filters_dialog_regex_switch">Regulärer Ausdruck</string>
+    <!-- A switch in that dialog. -->
+    <string name="message_content_filters_dialog_contacts_switch">Inklusive Kontakte</string>
+    <!-- Button (verb). -->
+    <string name="message_content_filters_dialog_create">Erstellen</string>
+    <!-- Top bar title on the messages that were dropped. -->
     <string name="blocked_messages_title">Blockierte Nachrichten</string>
-    <string name="blocked_messages_empty">Deine blockierte Nachrichten werden hier angezeigt</string>
+    <!-- Said in the middle of that list when it is empty. -->
+    <string name="blocked_messages_empty">Deine blockierten Nachrichten werden hier angezeigt</string>
+    <!-- Menu item (verb). -->
     <string name="blocking_block_title">Blockieren</string>
-    <string name="blocking_unblock_title">Freigeben</string>
+    <!-- Menu item (verb). -->
+    <string name="blocking_unblock_title">Blockierung aufheben</string>
     <plurals name="blocking_block_external">
         <item quantity="one">Wechseln zu %s und diese Nummer blockieren</item>
         <item quantity="other">Wechseln zu %s und diese Nummern blockieren</item>
@@ -242,65 +1903,28 @@
         <item quantity="one">Wechseln zu %s und diese Nummer erlauben</item>
         <item quantity="other">Wechseln zu %s und diese Nummern erlauben</item>
     </plurals>
-    <string name="about_title">Über</string>
-    <string name="about_version_title">Version</string>
-    <string name="about_developer_title">Entwickler</string>
-    <string name="about_source_title">Quelltext</string>
-    <string name="about_changelog_title">Änderungsprotokoll</string>
-    <string name="about_contact_title">Kontakt</string>
-    <string name="about_license_title">Lizenz</string>
-    <string name="about_copyright_title">Urheberrecht</string>
-    <!-- Substitutions are for price and currency. Ex: Lifetime upgrade for $1.99 USD -->
-    <!-- Substitutions are for price and currency. Ex: Unlock + donate for $4.99 USD -->
-    <string name="qksms_plus_donate">Spenden per PayPal</string>
+
+    <!-- ============================================================ -->
+    <!-- The widget and quick reply -->
+
     <string name="widget_loading">Lädt…</string>
+    <!-- The widget's last row (verb). -->
     <string name="widget_more">Weitere Unterhaltungen anzeigen</string>
+    <!-- The widget's own name in Android's widget picker. -->
+    <string name="all_conversations_widget_title">Alle Unterhaltungen</string>
+    <!-- Quick reply menu item (verb). -->
     <string name="qkreply_menu_read">Als gelesen markieren</string>
+    <!-- Quick reply menu item (verb). -->
     <string name="qkreply_menu_call">Anrufen</string>
+    <!-- Quick reply menu item (verb). -->
     <string name="qkreply_menu_delete">Löschen</string>
+    <!-- Quick reply menu item: show the whole message. -->
     <string name="qkreply_menu_expand">Mehr anzeigen</string>
+    <!-- Quick reply menu item: show only the start. -->
     <string name="qkreply_menu_collapse">Weniger anzeigen</string>
+    <!-- Quick reply menu item: open the conversation. -->
     <string name="qkreply_menu_view">Unterhaltung öffnen</string>
-    <string name="button_yes">Ja</string>
-    <string name="button_continue">Fortsetzen</string>
-    <string name="button_cancel">Abbrechen</string>
-    <string name="button_delete">Löschen</string>
-    <string name="button_save">Speichern</string>
-    <string name="button_stop">Stop</string>
-    <string name="button_undo">Rückgängig</string>
-    <plurals name="notification_new_messages">
-        <item quantity="one">Neue Nachricht</item>
-        <item quantity="other">%s neue Nachrichten</item>
-    </plurals>
-    <string name="notification_message_failed_title">Nachricht wurde nicht gesendet</string>
-    <string name="notification_message_failed_text">Die Nachricht konnte nicht an %s gesendet werden</string>
-    <string-array name="night_modes">
-        <item>System</item>
-        <item>Deaktiviert</item>
-        <item>Immer an</item>
-        <item>Automatisch</item>
-    </string-array>
-    <string-array name="notification_preview_options">
-        <item>Name und Nachricht anzeigen</item>
-        <item>Name anzeigen</item>
-        <item>Inhalt ausblenden</item>
-    </string-array>
-    <string-array name="delayed_sending_labels">
-        <item>Keine Verzögerung</item>
-        <item>3 Sekunden</item>
-        <item>5 Sekunden</item>
-        <item>10 Sekunden</item>
-    </string-array>
-    <string-array name="mms_sizes">
-        <item>Automatisch</item>
-        <item>100KB</item>
-        <item>200KB</item>
-        <item>300KB</item>
-        <item>600KB</item>
-        <item>1000KB</item>
-        <item>2000KB</item>
-        <item>Keine Komprimierung</item>
-    </string-array>
+    <!-- The stock replies offered by quick reply. -->
     <string-array name="qk_responses">
         <item>Okay</item>
         <item>Gib mir einen Moment</item>
@@ -315,81 +1939,213 @@
         <item>LOL</item>
         <item>Das ist OK</item>
     </string-array>
-    <string name="menu_mms_part_share">Teilen</string>
-    <string name="menu_mms_part_forward">Weiterleiten</string>
-    <string name="menu_mms_part_open">Extern öffnen</string>
-    <string name="main_menu_select_all">Alle auswählen</string>
-    <string name="main_menu_send_now">Jetzt senden</string>
-    <string name="main_menu_rename_conversation">Unterhaltung umbenennen</string>
-    <string name="main_sender_draft">Entwurf: %s</string>
-    <string name="scheduled_menu_send_now">Jetzt senden</string>
-    <string name="scheduled_menu_edit_message">Nachricht bearbeiten</string>
-    <plurals name="dialog_delete_chat">
-        <item quantity="one">Bist du sicher, dass du diese Nachricht löschen möchtest?</item>
-        <item quantity="other">Bist du sicher, dass du %d Nachrichten löschen möchtest?</item>
-    </plurals>
-    <plurals name="dialog_send_now">
-        <item quantity="one">Bist du sicher, dass du diese Nachricht jetzt senden möchtest?</item>
-        <item quantity="other">Bist du sicher, dass du %d Nachrichten jetzt senden möchtest?</item>
-    </plurals>
-    <string name="dialog_edit_scheduled_message_title">Nachricht bearbeiten</string>
-    <string name="dialog_edit_scheduled_message">Das Bearbeiten dieser Nachricht entfernt sie aus dem Zeitplan.\n\nStelle sicher, dass du sie auf dem nächsten Bildschirm erneut abschickst, sonst geht sie verloren.\n\nWillst du weitermachen?</string>
-    <string name="dialog_edit_scheduled_message_positive_button">Ja, Nachricht bearbeiten</string>
-    <string name="dialog_clear_compose_title">Nachricht löschen</string>
-    <string name="dialog_clear_compose">Die Nachricht löschen? Diese Aktion kann nicht rückgängig gemacht werden.</string>
-    <string name="compose_scheduled_view">Geplante Nachrichten für diese Unterhaltung</string>
-    <string name="compose_no_valid_recipients">Kann sie nicht an andere Empfänger senden</string>
-    <string name="compose_menu_show_status">Status anzeigen</string>
-    <string name="compose_attach_file_cd">Beliebige Datei anhängen</string>
-    <string name="compose_audio_message_cd">Audio-Nachricht aufnehmen</string>
-    <string name="compose_schedule_cancel_cd">Geplante Nachricht abbrechen</string>
-    <string name="compose_record_audio_msg_cd">Audio-Nachricht aufnehmen</string>
-    <string name="compose_record_audio_msg_abort_cd">Audio-Nachricht abbrechen</string>
-    <string name="compose_record_audio_msg_attach_cd">Audio-Nachricht anhängen</string>
-    <string name="compose_record_audio_msg_play_pause_cd">Audio-Nachricht abspielen oder pausieren</string>
-    <string name="compose_message_cancel">Abbrechen</string>
-    <string name="compose_message_send_now">Jetzt senden</string>
-    <string name="compose_message_sim">SIM-Nummer</string>
-    <string name="compose_message_item">Nachrichtenelement</string>
-    <string name="compose_message_attachment">Anhang</string>
-    <string name="compose_toast_drag_stt">Verschiebe den Sprache-zu-Text-Knopf an eine beliebige Stelle</string>
-    <string name="message_body_too_long_to_display">⚠ Die Nachricht ist lang. Kopieren oder speichern für den vollständigen Text</string>
-    <string name="clipboard_too_large_to_copy">Datengröße überschreitet Zwischenablagegrenze</string>
-    <string name="clipboard_unable_to_copy_to">In Zwischenablage kopieren nicht möglich</string>
-    <string name="scheduled_send_cd">Diese Nachricht planen</string>
-    <string name="attachment_missing">Fehlt</string>
-    <string name="settings_notification_previews_summary">Name und Nachricht anzeigen</string>
-    <string name="settings_notification_silent_title">Stumm, wenn kein Kontakt</string>
-    <string name="settings_notification_silent_summary">Stummschalten von Benachrichtigungen für Nachrichten ohne Empfänger in deinen Kontakten</string>
-    <string name="settings_unread_at_top_title">Ungelesene oben</string>
-    <string name="settings_mms_weblink_title">Linkverarbeitung in Nachrichten</string>
-    <string name="settings_disable_screenshots_title">Screenshots deaktivieren</string>
-    <string name="message_content_filters_title">Nachrichteninhaltsfilter</string>
-    <string name="message_content_filters_empty">Hier werden deine Nachrichteninhaltsfilter angezeigt</string>
-    <string name="message_content_filters_add_cd">Neuen Filter erstellen</string>
-    <string name="message_content_filters_dialog_title">Nachrichten löschen, die übereinstimmen</string>
-    <string name="message_content_filters_dialog_hint">Wort, Phrase oder regulärer Ausdruck</string>
-    <string name="message_content_filters_dialog_case_switch">Groß- und Kleinschreibung</string>
-    <string name="message_content_filters_dialog_regex_switch">Regulärer Ausdruck</string>
-    <string name="message_content_filters_dialog_contacts_switch">Inklusive Kontakte</string>
-    <string name="message_content_filters_dialog_create">Erstellen</string>
-    <string name="all_conversations_widget_title">Alle Unterhaltungen</string>
-    <string name="button_clear">Leeren</string>
-    <plurals name="toast_archived">
-        <item quantity="one">Unterhaltung archiviert</item>
-        <item quantity="other">%d Unterhaltungen archiviert</item>
-    </plurals>
-    <plurals name="toast_unarchived">
-        <item quantity="one">Unterhaltung wiederhergestellt</item>
-        <item quantity="other">%d Unterhaltungen wiederhergestellt</item>
-    </plurals>
-    <string name="notification_message_failed_action">Erneut senden</string>
+    <!-- Said when there is nothing to read aloud. -->
     <string name="speak_no_messages">Keine Nachrichten</string>
+    <!-- Menu item (verb): read the unseen messages aloud. -->
     <string name="speak_unseen_messages">Ungesehene Nachrichten vorlesen</string>
-    <string name="messageLinkHandling_dialog_title">Warnung vor externem Link</string>
-    <string name="messageLinkHandling_dialog_body">Einige Links können unsicher sein oder dich unerwartet weiterleiten. Überprüfe den untenstehenden Link, bevor du fortfährst:\n\n%1$s\n\nWillst du weitermachen?</string>
-    <string name="messageLinkHandling_dialog_positive">Ja, Link öffnen</string>
-    <string name="messageLinkHandling_dialog_negative">Nein</string>
-    <string name="error_stt_toast">Leider ist beim Laden des Sprache-zu-Text-Anbieters ein Fehler aufgetreten.</string>
-    <string name="messages_text_share_file_error">Ups! Beim Teilen ist etwas schief gelaufen</string>
+
+    <!-- ============================================================ -->
+    <!-- About, privacy, terms and licences -->
+
+    <string name="setup_welcome_about">Über, Datenschutz und Bedingungen</string>
+    <!-- Top bar title on About, and the menu item that opens it. -->
+    <string name="about_title">Über</string>
+    <!-- The link that goes to the donation page. -->
+    <string name="about_llama">fütter die Lamas</string>
+    <!-- About: the short form of PRIVACY.md, then Terms. Never claim less than the app does. -->
+    <string name="about_privacy_heading">Datenschutz</string>
+    <!-- Where the messages are kept. -->
+    <string name="about_privacy_where">Deine Nachrichten bleiben auf diesem Telefon. SMS und Bildnachrichten laufen wie bei jedem Telefon über deinen Mobilfunkanbieter. Wenn du Signal verknüpfst, wird dieses Telefon ein verknüpftes Gerät deines eigenen Signal-Kontos: Signal-Nachrichten und -Anrufe sind Ende-zu-Ende verschlüsselt, und Signals Server übertragen sie. Desktop Sync ist aus, bis du es einschaltest, und liefert deine Nachrichten vom Telefon an einen Browser auf deinem eigenen Computer, über dein VPN oder dein WLAN, ohne Cloud-Dienst und ohne Vermittlung dazwischen. An den Hersteller der App wird nichts gesendet.</string>
+    <!-- What each permission is used for. -->
+    <string name="about_privacy_permissions">Deine Kontakte werden gelesen, um Unterhaltungen Namen zuzuordnen; ihre Nummern gehen nur dann an Signals Suche, wenn du Kontakte auf Signal finden zustimmst. Das Mikrofon wird nur verwendet, während du eine Sprachnachricht aufnimmst oder an einem Signal-Anruf teilnimmst. Die GIF-Suche über Signals Proxy und Nach Updates suchen von GitHub gehen nur online, wenn du sie verwendest. Nach Updates suchen lädt einen neueren Build dieser App herunter und übergibt ihn an Androids Installer; es läuft nie von selbst, und nichts wird installiert, ohne dass du zustimmst.</string>
+    <!-- What the app does not do. -->
+    <string name="about_privacy_close">Es gibt keine Werbung, keine Analysen und kein Tracking. Sicherungen, Chatverlauf-Kopien und gespeicherte Anhänge gehen nur dorthin, wo du sie speichern möchtest. Ein Debug-Protokoll, aus, bis du die Versionszeile in „Über“ gedrückt hältst, schreibt, was die App tut, einschließlich Nachrichtentexten, in eine Datei im eigenen Speicher der App; es verlässt das Telefon nur, wenn du es herauskopierst.</string>
+    <!-- The heading over the terms. -->
+    <string name="about_terms_heading">Bedingungen</string>
+    <!-- The licence and the lack of warranty. -->
+    <string name="about_terms">Diese App ist freie Software unter der GNU Affero General Public License v3 oder später. Sie kommt ohne Gewährleistung: Nutzung auf eigene Gefahr. Sie ist ein inoffizieller Signal-Client, nicht von Signal hergestellt oder unterstützt.</string>
+    <!-- The row that opens the licence texts. -->
+    <string name="about_licences">Lizenzen</string>
+    <!-- A label in the licence panel. -->
+    <string name="licences_source">Quellcode</string>
+    <!-- A label in the licence panel. -->
+    <string name="licences_licence">Lizenz</string>
+    <!-- The licence, said in words. -->
+    <string name="licences_licence_words">GNU Affero General Public License v3 oder später, gehalten von wander wildwood. Freie Software ohne Gewährleistung. Sie enthält Signals AGPL-Code, daher steht die gesamte App unter AGPL; der vollständige Text steht unten. Wer eine geänderte Version für andere über ein Netzwerk betreibt, muss ihnen den Quellcode anbieten.</string>
+    <!-- A label over the licences of what the app is built with. -->
+    <string name="licences_built_with">Erstellt mit</string>
+    <!-- A licence's name. -->
+    <string name="licences_agpl">GNU Affero General Public License v3</string>
+    <!-- A licence's name. -->
+    <string name="licences_gpl">GNU General Public License v3 (QKSMS, QUIK, InkMessage)</string>
+    <!-- A licence's name. -->
+    <string name="licences_apache">Apache License 2.0</string>
+    <!-- A licence's name. -->
+    <string name="licences_mit">MIT-Lizenz</string>
+    <!-- A licence's name. -->
+    <string name="licences_bsd">BSD-Lizenzen</string>
+    <!-- A licence's name. -->
+    <string name="licences_ofl">SIL Open Font License 1.1 (Lato)</string>
+    <!-- What the app continues. -->
+    <string name="about_fork">Setzt QKSMS von Moez Bhatti fort, über QUIK von octoshrimpy; die E-Ink-Arbeit begann in InkMessage von lamdanAmiti. Alles unter derselben Lizenz.</string>
+
+    <!-- ============================================================ -->
+    <!-- Notifications -->
+
+    <!-- A text notification's title. %s is how many. -->
+    <plurals name="notification_new_messages">
+        <item quantity="one">Neue Nachricht</item>
+        <item quantity="other">%s neue Nachrichten</item>
+    </plurals>
+    <!-- A notification's title. -->
+    <string name="notification_message_failed_title">Nachricht wurde nicht gesendet</string>
+    <!-- Its one line. %s is who it was to. -->
+    <string name="notification_message_failed_text">Die Nachricht konnte nicht an %s gesendet werden</string>
+    <!-- The title of the notification that keeps receiving alive. -->
+    <string name="notification_foreground_worker_title">Nachricht wird empfangen</string>
+    <!-- Why it is there. -->
+    <string name="notification_foreground_worker_text">Unter Android 12 und älter ist für die Hintergrundarbeit, die den Empfang von Nachrichten ermöglicht, eine Benachrichtigung erforderlich.</string>
+    <!-- Name of that category in Android's settings. -->
+    <string name="notification_foreground_worker_channel_name">Benachrichtigung des Nachrichtenempfangs</string>
+    <!-- The notification's button (verb). -->
+    <string name="notification_message_failed_action">Erneut senden</string>
+    <!-- The reader's own name on a message they sent, in a text notification, and the name of
+         the ordinary text notification channel in Android's settings. -->
+    <string name="notification_self_name">Ich</string>
+    <!-- Name of the ordinary notification category. -->
+    <string name="notification_channel_default">Standard</string>
+
+    <!-- ============================================================ -->
+    <!-- App updates -->
+
+    <!-- The update row. One row with three faces: it offers a check, then an install, then
+         asks. Everything it has to report it reports in its own summary. -->
+    <string name="settings_update_title">Nach Updates suchen</string>
+    <!-- Its summary while it looks. -->
+    <string name="settings_update_checking">Wird geprüft</string>
+    <!-- Its summary when there is nothing newer. %1$s is the version. -->
+    <string name="settings_update_current">Nichts Neueres als %1$s</string>
+    <!-- Its summary when there is. %1$s is the new version. -->
+    <string name="settings_update_available_title">%1$s installieren</string>
+    <!-- The same line's second half. %1$s is the version here. -->
+    <string name="settings_update_available_summary">Ersetzt %1$s</string>
+    <!-- The row, armed. -->
+    <string name="settings_update_armed_title">%1$s installieren — zum Bestätigen erneut tippen</string>
+    <!-- Its summary while it downloads. -->
+    <string name="settings_update_downloading">Wird heruntergeladen</string>
+    <!-- Its summary once Android has the file. -->
+    <string name="settings_update_handed_over">An den Installer übergeben</string>
+    <!-- Its summary when GitHub cannot be reached. -->
+    <string name="settings_update_unreachable">Die Release-Seite war nicht erreichbar</string>
+    <!-- Its summary when the file did not match its checksum. -->
+    <string name="settings_update_wrong_contents">Das Empfangene stimmte nicht mit seiner Prüfsumme überein und wurde verworfen</string>
+    <!-- The row when Android has not allowed installs. -->
+    <string name="settings_update_not_permitted_title">App-Installation erlauben</string>
+    <!-- Its hint (verb). -->
+    <string name="settings_update_not_permitted_summary">Android muss gesagt werden, dass diese App eine installieren darf. Tippe, um diese Einstellung zu öffnen</string>
+    <!-- The background check. It only ever says a version is out; installing is the row's job. -->
+    <string name="notification_update_channel_name">App-Updates</string>
+    <!-- That notification's title. %1$s is the version. -->
+    <string name="notification_update_title">%1$s ist verfügbar</string>
+    <!-- Its one line. -->
+    <string name="notification_update_text">Öffne die Einstellungen, um es zu installieren</string>
+    <!-- Its summary on a build that came from nowhere. -->
+    <string name="settings_update_not_a_release">Dieser Build stammt nicht aus einem Release, daher gibt es nichts zum Vergleichen</string>
+
+    <!-- ============================================================ -->
+    <!-- The lists the settings dialogs draw from -->
+
+    <string-array name="notification_actions">
+        <item>Keine</item>
+        <item>Archivieren</item>
+        <item>Löschen</item>
+        <item>Blockieren</item>
+        <item>Anrufen</item>
+        <item>Als gelesen markieren</item>
+        <item>Antworten</item>
+        <item>Vorlesen</item>
+    </string-array>
+    <!-- The choices for how much a notification shows. -->
+    <string-array name="notification_preview_options">
+        <item>Name und Nachricht anzeigen</item>
+        <item>Name anzeigen</item>
+        <item>Inhalt ausblenden</item>
+    </string-array>
+    <!-- The choices for the size of the app's text. -->
+    <string-array name="text_sizes">
+        <item>Klein</item>
+        <item>Normal</item>
+        <item>Groß</item>
+        <item>Größer</item>
+        <item>Sehr groß</item>
+    </string-array>
+    <!-- Settings > Sending > Group messages. In this order: index 0 is the default. Texts
+         only: a Signal group is a group of its own and is never split. -->
+    <string-array name="group_messages_labels">
+        <item>Ein Gruppenchat</item>
+        <item>Getrennte Chats</item>
+    </string-array>
+    <!-- The choices for the wait before a message goes. -->
+    <string-array name="delayed_sending_labels">
+        <item>Keine Verzögerung</item>
+        <item>3 Sekunden</item>
+        <item>5 Sekunden</item>
+        <item>10 Sekunden</item>
+    </string-array>
+    <!-- The choices for how far a picture is shrunk before sending. -->
+    <string-array name="mms_sizes">
+        <item>Automatisch</item>
+        <item>100KB</item>
+        <item>200KB</item>
+        <item>300KB</item>
+        <item>600KB</item>
+        <item>1000KB</item>
+        <item>2000KB</item>
+        <item>Keine Komprimierung</item>
+    </string-array>
+    <!-- The choices for what a tap on a link does. -->
+    <string-array name="messageLinkHandlings">
+        <item>Blockieren</item>
+        <item>Erlauben</item>
+        <item>Vor dem Öffnen fragen</item>
+    </string-array>
+
+    <!-- ============================================================ -->
+    <!-- Send where I am -->
+
+    <!-- Send where I am, through Whereabouts (Whereabouts.kt) -->
+    <string name="whereabouts_send">Sende, wo ich bin</string>
+    <!-- The message itself. %1$s is the place. -->
+    <string name="whereabouts_message">Wo ich bin: %1$s</string>
+    <!-- Added to it. %1$d is metres. -->
+    <string name="whereabouts_message_accuracy">Auf %1$d m genau</string>
+    <!-- Added to it. %1$s is when the fix was taken. -->
+    <string name="whereabouts_message_as_of">Stand %1$s</string>
+    <!-- Said when there is no location. -->
+    <string name="whereabouts_no_fix">Whereabouts konnte nicht feststellen, wo du bist</string>
+    <!-- Said when location permission is missing. -->
+    <string name="whereabouts_no_permission">Whereabouts braucht zuerst Standortzugriff</string>
+
+    <!-- ============================================================ -->
+    <!-- Restricted settings -->
+
+    <!-- Restricted settings (Android 13+, roles from 15), only after a request comes back blocked -->
+    <string name="restricted_settings_hint">Android blockiert dies für Apps, die aus einer Datei installiert wurden.\nÖffne App-Info, tippe auf ⋮, dann auf Eingeschränkte Einstellungen zulassen, und versuche es erneut.</string>
+    <!-- Button (verb): open App info. -->
+    <string name="restricted_settings_app_info">App-Info</string>
+
+    <!-- ============================================================ -->
+    <!-- The page number under a paged panel -->
+
+    <!-- The page number under a paged panel (PagedColumn), and the dialog a tap on it opens -->
+    <string name="folio_of">%1$d / %2$d</string>
+    <!-- The dialog a tap on it opens. -->
+    <string name="folio_go_title">Zu Seite springen</string>
+    <!-- The dialog's question. %1$d is the page, %2$d how many. -->
+    <string name="folio_page">Seite %1$d von %2$d</string>
+    <!-- Button (verb). -->
+    <string name="folio_go">Los</string>
+    <!-- Button (verb). -->
+    <string name="folio_cancel">Abbrechen</string>
+
 </resources>

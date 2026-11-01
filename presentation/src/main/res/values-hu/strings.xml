@@ -49,7 +49,6 @@
     <string name="inbox_search_empty_text">Nincs találat</string>
     <string name="archived_empty_text">Az archivált beszélgetései itt jelennek meg</string>
     <string name="main_fab_cd">Új beszélgetés kezdeményezése</string>
-    <string name="main_default_sms_title">Szeresse meg újból az SMS-ezést</string>
     <string name="main_default_sms_message">A Messaging beállítása alapértelmezett SMS-alkalmazásként</string>
     <string name="main_default_sms_change">Módosítás</string>
     <string name="main_permission_required">Engedély szükséges</string>

@@ -126,9 +126,17 @@ class Navigator @Inject constructor(
         }
     }
 
+    /**
+     * The inbox, brought forward rather than stacked again: CLEAR_TOP finishes whatever sits
+     * above it in the task. Without it, backing out of the contact picker (which asks for this
+     * from a composer two screens deep) started a MainActivity the task already held, and
+     * nothing moved -- the back arrow did nothing at all.
+     */
     fun showMainActivity() {
-        val intent = Intent(context, MainActivity::class.java)
-        startActivity(intent)
+        startActivity(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        )
     }
 
     /** [asHome]: the Signal list is the first screen, with nothing under it to go up to. */

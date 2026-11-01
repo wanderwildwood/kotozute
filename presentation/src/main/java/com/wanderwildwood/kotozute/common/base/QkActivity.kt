@@ -107,6 +107,10 @@ abstract class QkActivity : AppCompatActivity() {
 
     protected open fun showBackButton(show: Boolean) {
         supportActionBar?.setDisplayHomeAsUpEnabled(show)
+        // The arrow calls onBackPressed directly rather than travelling as the home menu item.
+        // Every screen with its own onOptionsItemSelected (Main, Scheduled, Compose, ...) was
+        // swallowing android.R.id.home, so the arrow did nothing at all on those screens.
+        toolbar?.setNavigationOnClickListener(if (show) { _ -> onBackPressed() } else null)
     }
 
     private fun disableScreenshots(disableScreenshots: Boolean) {

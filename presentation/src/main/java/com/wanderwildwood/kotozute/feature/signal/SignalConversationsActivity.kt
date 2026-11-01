@@ -11,7 +11,12 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.mudita.mmd.ThemeMMD
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.compose.monochrome
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.extensions.resolveThemeColor
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
@@ -50,6 +55,16 @@ class SignalConversationsActivity : QkThemedActivity() {
 
     /** Which shelf is on screen. Archiving with no way back to the thread would lose it. */
     private var showingArchived = false
+
+    // What the bottom bar draws. Written from the render path, read inside the composition.
+    private var selectedFilter by mutableStateOf(0)
+    private var firstTabLabel by mutableStateOf(R.string.filter_all)
+    private var unreadTabs by mutableStateOf(setOf<Int>())
+    private var showComposeTab by mutableStateOf(true)
+
+    /** The tabs apply only while the two lists are kept apart and this is the inbox shelf. */
+    private val tabsShown: Boolean
+        get() = !prefs.signalWeave.get() && !showingArchived
     private val openedAsHome by lazy { intent.getBooleanExtra(EXTRA_AS_HOME, false) }
 
     /**
@@ -87,9 +102,18 @@ class SignalConversationsActivity : QkThemedActivity() {
             navigator.crossToSmsList()
             finish()
         }
-        binding.filterTabs.textSizePref = prefs.textSize.get()
-        binding.filterAll.setOnClickListener { chooseFilter(FILTER_ALL) }
-        binding.filterGroups.setOnClickListener { chooseFilter(FILTER_GROUPS) }
+        binding.tabsCompose.setContent {
+            ThemeMMD(colorScheme = monochrome) {
+                SignalTabsBar(
+                    selectedIndex = selectedFilter,
+                    unread = unreadTabs,
+                    firstLabel = firstTabLabel,
+                    showCompose = showComposeTab,
+                    onTabSelected = ::chooseFilter,
+                    onCompose = { openNewConversation() },
+                )
+            }
+        }
 
         adapter = ThreadAdapter()
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
@@ -111,16 +135,6 @@ class SignalConversationsActivity : QkThemedActivity() {
         // Only does anything while it is the text-message warning that is showing.
         binding.status.setOnClickListener {
             if (smsTaken) navigator.showDefaultSmsDialog(this)
-        }
-
-        // Writing to somebody there is no conversation with yet. The address book this
-        // opens is the Signal one; reaching it used to mean crossing to the SMS inbox,
-        // opening its composer, and crossing back.
-        binding.compose.setOnClickListener {
-            newConversation.launch(
-                Intent(this, ContactsActivity::class.java)
-                    .putExtra(ContactsActivity.SIGNAL_KEY, true)
-            )
         }
 
         // Catch up on anything missed while the app was closed.
@@ -147,29 +161,26 @@ class SignalConversationsActivity : QkThemedActivity() {
         // toggle, not a jump to another rail's inbox.
         val separate = !prefs.signalWeave.get() && !showingArchived
         binding.railBadge.setVisible(separate)
-        binding.filterTabs.setVisible(separate)
+        binding.tabsCompose.setVisible(separate)
         binding.toolbarTitle.setVisible(!separate)
-        selectFilterTab()
+        refreshTabs()
         // Opened as the first screen there is nothing to go up to; the archive shelf still
         // has its way back to the inbox.
         supportActionBar?.setDisplayHomeAsUpEnabled(showingArchived || !openedAsHome)
         // After the tabs are shown or hidden: whether the tab applies depends on it.
         results.addChangeListener { data, _ -> show(data) }
         show(results)
-        // Nothing is started from the archive shelf: a new conversation would appear on the
-        // inbox shelf, behind the screen that was showing.
-        binding.compose.setVisible(!showingArchived)
         invalidateOptionsMenu()
     }
 
     /** The tab applies only where the tabs are showing, so the archive shelf is never short. */
     private fun show(data: List<SignalThread>) {
-        val filtered = binding.filterTabs.visibility == View.VISIBLE &&
+        val filtered = tabsShown &&
             prefs.signalConversationFilter.get() == FILTER_GROUPS
         val kind = when {
             filtered -> data.filter { it.kind == "group" }
             // Groups kept to their own tab, as on the text list, and the first tab is People. Requests stay, since this list has no tab of their own to hold them.
-            binding.filterTabs.visibility == View.VISIBLE && prefs.allOnlyPeople.get() ->
+            tabsShown && prefs.allOnlyPeople.get() ->
                 data.filterNot { it.kind == "group" }
             else -> data
         }
@@ -181,7 +192,7 @@ class SignalConversationsActivity : QkThemedActivity() {
             kind
         }
         adapter.submit(shown)
-        selectFilterTab()
+        refreshTabs()
         val empty = shown.isEmpty()
         binding.empty.setVisible(empty)
         binding.recyclerView.setVisible(!empty)
@@ -189,29 +200,35 @@ class SignalConversationsActivity : QkThemedActivity() {
 
     private fun chooseFilter(filter: Int) {
         prefs.signalConversationFilter.set(filter)
-        selectFilterTab()
+        refreshTabs()
         threads?.let(::show)
     }
 
-    private fun selectFilterTab() {
-        // A dot ahead of the name for a tab with something unread, as on the text list.
+    /** What the bar draws: the names, the unread dots, which tab is selected, the action. */
+    private fun refreshTabs() {
         val unread = threads.orEmpty().filter { it.isValid && it.unread > 0 }
-        fun label(name: Int, marked: Boolean) =
-            if (marked) getString(R.string.filter_tab_unread, getString(name)) else getString(name)
-        binding.filterAll.text = if (prefs.allOnlyPeople.get()) {
-            label(R.string.filter_people, unread.any { it.kind != "group" })
+        val peopleOnly = prefs.allOnlyPeople.get()
+        firstTabLabel = if (peopleOnly) R.string.filter_people else R.string.filter_all
+        selectedFilter = if (prefs.signalConversationFilter.get() == FILTER_GROUPS) {
+            FILTER_GROUPS
         } else {
-            label(R.string.filter_all, unread.isNotEmpty())
+            FILTER_ALL
         }
-        binding.filterGroups.text = label(R.string.filter_groups, unread.any { it.kind == "group" })
-        val groups = prefs.signalConversationFilter.get() == FILTER_GROUPS
-        listOf(binding.filterAll to !groups, binding.filterGroups to groups)
-            .forEach { (tab, selected) ->
-                tab.setBackgroundResource(
-                    if (selected) R.drawable.filter_tab_selected else android.R.color.transparent
-                )
-                tab.setTextColor(if (selected) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
-            }
+        showComposeTab = !showingArchived
+        unreadTabs = buildSet {
+            val firstMarked =
+                if (peopleOnly) unread.any { it.kind != "group" } else unread.isNotEmpty()
+            if (firstMarked) add(0)
+            if (unread.any { it.kind == "group" }) add(1)
+        }
+    }
+
+    /** Writing to somebody there is no conversation with yet, from the bar's action tab. */
+    private fun openNewConversation() {
+        newConversation.launch(
+            Intent(this, ContactsActivity::class.java)
+                .putExtra(ContactsActivity.SIGNAL_KEY, true)
+        )
     }
 
     override fun onResume() {

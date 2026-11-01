@@ -22,54 +22,6 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1" />
 
-            <!-- In the title's place while the lists are kept apart, as the SMS list has
-                 them: the same tabs, less Unknown, which a Signal thread never is. -->
-            <com.wanderwildwood.kotozute.common.widget.StoneTabRow
-                android:id="@+id/filterTabs"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="48dp"
-                android:layout_marginStart="4dp"
-                android:layout_marginEnd="4dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:visibility="gone">
-
-            <com.wanderwildwood.kotozute.common.widget.QkTextView
-                android:id="@+id/filterAll"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:minWidth="48dp"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:gravity="center"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:text="@string/filter_all"
-                android:textStyle="bold"
-                android:fontFamily="@font/lato"
-                android:background="@android:color/transparent"
-                android:textColor="#000000" />
-
-            <com.wanderwildwood.kotozute.common.widget.QkTextView
-                android:id="@+id/filterGroups"
-                android:layout_width="wrap_content"
-                android:layout_marginStart="6dp"
-                android:layout_height="40dp"
-                android:minWidth="48dp"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:gravity="center"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:text="@string/filter_groups"
-                android:textStyle="bold"
-                android:fontFamily="@font/lato"
-                android:background="@android:color/transparent"
-                android:textColor="#000000" />
-
-            </com.wanderwildwood.kotozute.common.widget.StoneTabRow>
-
             <!-- Crosses back to the SMS list. Present only while the two lists are being
                  kept apart; woven, this screen is not reached from a list at all. -->
             <com.wanderwildwood.kotozute.common.widget.QkTextView
@@ -113,9 +65,8 @@
         tools:text="Cannot reach the bridge"
         xmlns:tools="http://schemas.android.com/tools" />
 
-    <!-- The list and the compose button share this space so the button floats over the
-         list in the corner, the same place and the same size as the SMS inbox's. Both rails
-         are the same app on the same panel; a conversation is started the same way in each. -->
+    <!-- The list takes everything above the bar. The new-message action used to float here
+         in the corner; it is a tab in the bar below now, as on the text list. -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -136,26 +87,13 @@
             android:layout_height="match_parent"
             android:scrollbars="none" />
 
-        <FrameLayout
-            android:id="@+id/compose"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:layout_gravity="bottom|end"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="16dp"
-            android:background="@drawable/compose_button_background">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_edit_black_24dp"
-                android:contentDescription="@string/signal_new_conversation_cd"
-                app:tint="#FFFFFF"
-                xmlns:app="http://schemas.android.com/apk/res-auto" />
-
-        </FrameLayout>
-
     </FrameLayout>
+
+    <!-- The filters and the new-message action, in the same bar as the text list's. They
+         were pills in the top bar and a floating button; one app navigates one way. -->
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/tabsCompose"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 
 </LinearLayout>

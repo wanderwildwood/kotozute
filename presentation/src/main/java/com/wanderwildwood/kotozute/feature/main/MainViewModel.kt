@@ -362,7 +362,6 @@ class MainViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .subscribe { syncing -> newState { copy(syncing = syncing) } }
 
-        // Show the rating UI
         // Migrate the preferences from 2.7.3
         migratePreferences.execute(Unit)
 

@@ -21,12 +21,9 @@ package com.wanderwildwood.kotozute.feature.main
 import androidx.core.content.ContextCompat
 import android.graphics.Color
 import android.Manifest
-import android.animation.ObjectAnimator
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
@@ -36,18 +33,19 @@ import androidx.appcompat.view.menu.MenuItemImpl
 import android.view.View
 import android.widget.Toast
 import android.view.ViewStub
-import androidx.appcompat.app.ActionBarDrawerToggle
-import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
-import androidx.core.view.GravityCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.google.android.material.snackbar.Snackbar
 import com.jakewharton.rxbinding2.view.clicks
-import com.jakewharton.rxbinding2.widget.textChanges
+import com.mudita.mmd.ThemeMMD
+import com.wanderwildwood.kotozute.common.compose.monochrome
 import com.uber.autodispose.android.lifecycle.scope
 import com.uber.autodispose.autoDisposable
 import dagger.android.AndroidInjection
@@ -72,7 +70,6 @@ import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.MainActivityBinding
-import android.widget.ProgressBar
 import com.wanderwildwood.kotozute.common.widget.QkTextView
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.common.util.einkDialog
@@ -92,9 +89,13 @@ class MainActivity : QkThemedActivity(), MainView {
 
     override val onNewIntentIntent: Subject<Intent> = PublishSubject.create()
     override val activityResumedIntent: Subject<Boolean> = PublishSubject.create()
-    override val queryChangedIntent by lazy { binding.toolbarSearch.textChanges() }
-    override val composeIntent by lazy { binding.compose.clicks() }
-    override val settingsIntent by lazy { binding.settingsIcon.clicks() }
+    // Fed by the Compose toolbar's onQueryChange. The rxbinding listener on the removed
+    // EditText is gone; the view model still hears the same intent.
+    override val queryChangedIntent: Subject<CharSequence> = PublishSubject.create()
+    // Fired by the compose tab in the bottom bar, which replaced the floating button.
+    override val composeIntent: Subject<Unit> = PublishSubject.create()
+    // Fired by the Compose toolbar's cog, in place of the removed settingsIcon view.
+    override val settingsIntent: Subject<Unit> = PublishSubject.create()
     override val homeIntent: Subject<Unit> = PublishSubject.create()
     // Only the back press now. Archived, Backup, Scheduled, Blocking and Settings are
     // reached from the Settings screen, which the toolbar opens directly.
@@ -115,6 +116,19 @@ class MainActivity : QkThemedActivity(), MainView {
     private val itemTouchHelper by lazy { ItemTouchHelper(itemTouchCallback) }
     private val backPressedSubject: Subject<NavItem> = PublishSubject.create()
 
+    // The three pieces of state the Compose parts of the screen draw from. Written from the
+    // render pass and from touch handlers, read inside the compositions.
+    private var toolbarTitleText by mutableStateOf("")
+    private var searchMode by mutableStateOf(false)
+    private var searchQuery by mutableStateOf("")
+    private var selectedFilter by mutableStateOf(0)
+    // Which name the first tab carries: "All" unless groups and unknown senders are kept to
+    // their own tabs, when it holds people only and says so.
+    private var firstTabLabel by mutableStateOf(R.string.filter_all)
+    private var unreadTabs by mutableStateOf(setOf<Int>())
+    // The crossing to the Signal list, drawn in the toolbar while the two lists are apart.
+    private var railLabel by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
@@ -126,6 +140,45 @@ class MainActivity : QkThemedActivity(), MainView {
         setContentView(binding.root)
         viewModel.bindView(this)
         onNewIntentIntent.onNext(intent)
+
+        // The platform toolbar draws only its menu now; the title and the controls beside it
+        // are Compose (MainToolbarContent). Its own display title is switched back on while
+        // rows are selected, when the bar belongs to the menu alone.
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+
+        binding.toolbarCompose.setContent {
+            ThemeMMD(colorScheme = monochrome) {
+                MainToolbarContent(
+                    title = toolbarTitleText,
+                    searchMode = searchMode,
+                    query = searchQuery,
+                    onSearchClick = { showSearchMode() },
+                    onSettingsClick = { settingsIntent.onNext(Unit) },
+                    onBackClick = { hideSearchMode() },
+                    onQueryChange = { query ->
+                        searchQuery = query
+                        queryChangedIntent.onNext(query)
+                    },
+                    railLabel = railLabel,
+                    onRailClick = { navigator.showSignalConversations() },
+                )
+            }
+        }
+
+        binding.tabsCompose.setContent {
+            ThemeMMD(colorScheme = monochrome) {
+                MainTabsBar(
+                    selectedIndex = selectedFilter,
+                    unread = unreadTabs,
+                    firstLabel = firstTabLabel,
+                    onTabSelected = { index ->
+                        selectedFilter = index
+                        filterChangedIntent.onNext(index)
+                    },
+                    onCompose = { composeIntent.onNext(Unit) },
+                )
+            }
+        }
 
         // The setup guide, once: see SetupGuide.
         if (savedInstanceState == null) {
@@ -147,23 +200,6 @@ class MainActivity : QkThemedActivity(), MainView {
             homeIntent.onNext(Unit)
         }
 
-        // Handle search icon click to show search input
-        binding.searchIcon.setOnClickListener {
-            showSearchMode()
-        }
-
-        binding.railBadge.setOnClickListener { navigator.showSignalConversations() }
-
-        // Handle search back button click
-        binding.searchBack.setOnClickListener {
-            hideSearchMode()
-        }
-
-        // Handle search input focus to show/hide cursor
-        binding.toolbarSearch.setOnFocusChangeListener { _, hasFocus ->
-            binding.toolbarSearch.isCursorVisible = hasFocus
-        }
-
         itemTouchCallback.adapter = conversationsAdapter
         conversationsAdapter.autoScrollToStart(binding.recyclerView)
 
@@ -177,9 +213,6 @@ class MainActivity : QkThemedActivity(), MainView {
                     // Removed compose background tint to show white with black outline
                     // Compose icon tint is set in XML
                 }
-
-        // Setup filter tabs
-        setupFilterTabs()
     }
 
     /**
@@ -194,70 +227,17 @@ class MainActivity : QkThemedActivity(), MainView {
             !prefs.signalWeave.get() &&
             prefs.signalOpensFirst.get()
 
-    private fun setupFilterTabs() {
-        binding.filterTabs.textSizePref = prefs.textSize.get()
-        binding.filterAll.setOnClickListener {
-            selectFilterTab(0)
-            filterChangedIntent.onNext(0)
-        }
-        binding.filterGroups.setOnClickListener {
-            selectFilterTab(1)
-            filterChangedIntent.onNext(1)
-        }
-        binding.filterUnknown.setOnClickListener {
-            selectFilterTab(2)
-            filterChangedIntent.onNext(2)
-        }
+    /** The tabs a dot in front of the name: the ones holding something unread. */
+    private fun refreshUnreadTabs() {
+        unreadTabs = (0..2).filter { conversationsAdapter.hasUnread(it) }.toSet()
     }
 
-    private fun selectFilterTab(filter: Int) {
-        // With groups and unknown senders kept to their own tabs the first one is not "all",
-        // and says so.
-        binding.filterAll.text = tabLabel(
-            if (prefs.allOnlyPeople.get()) R.string.filter_people else R.string.filter_all, 0)
-        binding.filterGroups.text = tabLabel(R.string.filter_groups, 1)
-        binding.filterUnknown.text = tabLabel(R.string.filter_unknown, 2)
-        // Reset all tabs
-        binding.filterAll.setBackgroundResource(android.R.color.transparent)
-        binding.filterAll.setTextColor(android.graphics.Color.BLACK)
-        binding.filterGroups.setBackgroundResource(android.R.color.transparent)
-        binding.filterGroups.setTextColor(android.graphics.Color.BLACK)
-        binding.filterUnknown.setBackgroundResource(android.R.color.transparent)
-        binding.filterUnknown.setTextColor(android.graphics.Color.BLACK)
-
-        // Select the active tab
-        when (filter) {
-            0 -> {
-                binding.filterAll.setBackgroundResource(R.drawable.filter_tab_selected)
-                binding.filterAll.setTextColor(android.graphics.Color.WHITE)
-            }
-            1 -> {
-                binding.filterGroups.setBackgroundResource(R.drawable.filter_tab_selected)
-                binding.filterGroups.setTextColor(android.graphics.Color.WHITE)
-            }
-            2 -> {
-                binding.filterUnknown.setBackgroundResource(R.drawable.filter_tab_selected)
-                binding.filterUnknown.setTextColor(android.graphics.Color.WHITE)
-            }
-        }
+    // API 36 made the Intent non-null; see SignalCallActivity, which already takes it so.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (DuraSpeed.isFixIntent(intent)) DuraSpeed.showFix(this, prefs)
+        intent.run(onNewIntentIntent::onNext)
     }
-
-    /** A tab holding something unread is marked with a dot ahead of its name, where an
-     *  ellipsis on a narrow tab cannot cut it off. */
-    private fun tabLabel(name: Int, tab: Int): String =
-        if (conversationsAdapter.hasUnread(tab)) getString(R.string.filter_tab_unread, getString(name))
-        else getString(name)
-
-    fun updateFilterTabSelection(filter: Int) {
-        selectFilterTab(filter)
-    }
-
-    override fun onNewIntent(intent: Intent?) =
-        intent?.let {
-            super.onNewIntent(intent)
-            if (DuraSpeed.isFixIntent(it)) DuraSpeed.showFix(this, prefs)
-            it.run(onNewIntentIntent::onNext)
-        } ?: Unit
 
     override fun render(state: MainState) {
         if (state.hasError) {
@@ -265,11 +245,16 @@ class MainActivity : QkThemedActivity(), MainView {
             return
         }
 
+        firstTabLabel = if (prefs.allOnlyPeople.get()) R.string.filter_people else R.string.filter_all
+
         // The crossing to the Signal list, offered only when there is a separate one to
         // cross to. Woven, a Signal thread is already in this list and the badge is on its
         // row instead.
-        binding.railBadge.setVisible(state.separateSignalList && state.page is Inbox)
-
+        railLabel = if (state.separateSignalList && state.page is Inbox) {
+            getString(R.string.sms_rail_label_switch)
+        } else {
+            null
+        }
         val addContact = when (state.page) {
             is Inbox -> state.page.addContact
             is Archived -> state.page.addContact
@@ -309,12 +294,6 @@ class MainActivity : QkThemedActivity(), MainView {
         // Only show search when in Searching state
         val searchVisible = state.page is Searching
 
-        binding.searchContainer.setVisible(searchVisible)
-        binding.toolbarContent.setVisible(!searchVisible)
-
-        // toolbarTitle's visibility is decided after the `when (state.page)` block below,
-        // which is what actually populates the title.
-
         // Show/hide filter tabs - only visible on Inbox page when not searching and no selection
         // Only while something is selected. It used to be the one item outside selection
         // mode, which meant a whole overflow button — and the width it costs the filter
@@ -323,17 +302,17 @@ class MainActivity : QkThemedActivity(), MainView {
         binding.toolbar.menu.findItem(R.id.markAllRead)?.isVisible =
             state.hasUnread && state.page is Inbox && selectedConversations != 0
 
-        val showFilterTabs = state.page is Inbox && !searchVisible && selectedConversations == 0
-        binding.filterTabs.setVisible(showFilterTabs)
+        val showFilterTabs = (state.page is Inbox || state.page is Archived) &&
+            !searchVisible && selectedConversations == 0
+        binding.tabsCompose.setVisible(showFilterTabs)
 
-        // Hide compose button when search is active
-        if (searchVisible) {
-            binding.compose.visibility = View.GONE
-        } else if (state.page is Inbox || state.page is Archived) {
-            binding.compose.visibility = View.VISIBLE
-        } else {
-            binding.compose.visibility = View.GONE
-        }
+        // While rows are selected the bar belongs to the menu: the Compose row stands down
+        // and the toolbar's own title names the count, so the action items have the room.
+        val selecting = selectedConversations != 0
+        binding.toolbarCompose.setVisible(!selecting)
+        supportActionBar?.setDisplayShowTitleEnabled(selecting)
+        if (selecting) title = getString(R.string.main_title_selected, selectedConversations)
+        else title = ""
 
         binding.toolbar.menu.apply {
             findItem(R.id.select_all)?.isVisible =
@@ -364,10 +343,20 @@ class MainActivity : QkThemedActivity(), MainView {
         when (state.page) {
             is Inbox -> {
                 showBackButton(state.page.selected > 0)
-                // Only show title when items are selected, otherwise no title
-                title = when (state.page.selected != 0) {
+                // The toolbar's title is the filter's name; the count of selected rows takes
+                // its place while rows are selected.
+                toolbarTitleText = when (state.page.selected != 0) {
                     true -> getString(R.string.main_title_selected, state.page.selected)
-                    false -> ""
+                    // The name of the tab that is showing, as the bar names it: the title and
+                    // the selected tab are two views of the same state and must not disagree.
+                    false -> getString(
+                        when (state.page.filter) {
+                            1 -> R.string.filter_groups
+                            2 -> R.string.filter_unknown
+                            else -> if (prefs.allOnlyPeople.get()) R.string.filter_people
+                            else R.string.filter_all
+                        }
+                    )
                 }
                 if (binding.recyclerView.adapter !== conversationsAdapter)
                     binding.recyclerView.adapter = conversationsAdapter
@@ -376,8 +365,8 @@ class MainActivity : QkThemedActivity(), MainView {
                 conversationsAdapter.updateData(state.page.data)
                 itemTouchHelper.attachToRecyclerView(binding.recyclerView)
                 binding.empty.setText(R.string.inbox_empty_text)
-                // Update filter tab selection
-                selectFilterTab(state.page.filter)
+                selectedFilter = state.page.filter
+                refreshUnreadTabs()
             }
 
             is Searching -> {
@@ -385,7 +374,7 @@ class MainActivity : QkThemedActivity(), MainView {
                 if (binding.recyclerView.adapter !== searchAdapter) binding.recyclerView.adapter = searchAdapter
                 // Signal hits do not carry the query on themselves; the adapter needs it
                 // to highlight a thread title the same way it highlights a contact's name.
-                searchAdapter.lastQuery = binding.toolbarSearch.text?.toString()?.trim().orEmpty()
+                searchAdapter.lastQuery = searchQuery.trim()
                 searchAdapter.data = state.page.data ?: listOf()
                 itemTouchHelper.attachToRecyclerView(null)
                 binding.empty.setText(R.string.inbox_search_empty_text)
@@ -393,9 +382,9 @@ class MainActivity : QkThemedActivity(), MainView {
 
             is Archived -> {
                 showBackButton(state.page.selected > 0)
-                // Unlike Inbox, Archived has no filter pill of its own, so it keeps a
-                // title when nothing is selected to say where you are.
-                title = when (state.page.selected != 0) {
+                // Unlike Inbox, Archived has no filter of its own, so it keeps a title when
+                // nothing is selected to say where you are.
+                toolbarTitleText = when (state.page.selected != 0) {
                     true -> getString(R.string.main_title_selected, state.page.selected)
                     false -> getString(R.string.title_archived)
                 }
@@ -405,16 +394,13 @@ class MainActivity : QkThemedActivity(), MainView {
                 conversationsAdapter.updateData(state.page.data)
                 itemTouchHelper.attachToRecyclerView(null)
                 binding.empty.setText(R.string.archived_empty_text)
+                // The archive has no filter of its own: no tab is marked while it is showing.
+                selectedFilter = -1
+                refreshUnreadTabs()
             }
 
             else -> {}
         }
-
-        // Only take up toolbar space when there's actually a title to show — the view is
-        // weighted, so leaving it VISIBLE-but-empty would shove the filter pills rightwards.
-        // Never write toolbarTitle.text directly: QkActivity owns that view and mirrors the
-        // Activity `title` into it, re-applying on layout, so direct writes get clobbered.
-        binding.toolbarTitle.setVisible(!searchVisible && !title.isNullOrEmpty())
 
         // Archived gets a back arrow, and it goes to the messages. It had one that went to
         // Settings instead, on the reasoning that Settings is where Archived is reached
@@ -426,15 +412,15 @@ class MainActivity : QkThemedActivity(), MainView {
                 ?.apply { setTint(Color.BLACK) }
             else -> null
         }
+        // Setting the icon replaces the navigation button, so its listener is set here with
+        // it. Without this the archive's arrow was drawn and did nothing.
+        binding.toolbar.setNavigationOnClickListener(
+            if (archived) { _ -> onBackPressed() } else null
+        )
 
         // Nothing that acts on the whole inbox belongs in the toolbar while rows are
-        // selected. The filter tabs already stand down for this; search and the cog did
-        // not, so a selection left six controls fighting for a 480px bar and put a route
-        // out of the screen next to the actions that operate on what is selected. What
-        // stays is only what acts on the selection.
-        val selecting = selectedConversations > 0
-        binding.settingsIcon.setVisible(!archived && !selecting)
-        binding.searchIcon.setVisible(!selecting)
+        // selected: the Compose row stands down entirely (see the `selecting` block above),
+        // leaving the bar to the selection's own menu items.
 
         when (state.syncing) {
             is SyncRepository.SyncProgress.Idle -> {
@@ -538,11 +524,6 @@ class MainActivity : QkThemedActivity(), MainView {
         ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 0)
     }
 
-    override fun clearSearch() {
-        dismissKeyboard()
-        binding.toolbarSearch.text = null
-    }
-
     override fun clearSelection() = conversationsAdapter.clearSelection()
 
     override fun toggleSelectAll() = conversationsAdapter.toggleSelectAll()
@@ -638,37 +619,33 @@ class MainActivity : QkThemedActivity(), MainView {
     }
 
     private fun showSearchMode() {
-        binding.toolbarContent.visibility = View.GONE
-        binding.searchContainer.visibility = View.VISIBLE
-        binding.toolbarSearch.requestFocus()
-        binding.toolbarSearch.isCursorVisible = true
-        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-        imm.showSoftInput(binding.toolbarSearch, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        searchMode = true
+        searchQuery = ""
     }
 
     private fun hideSearchMode() {
-        // Take the keyboard down FIRST, while the field that raised it is still focused and on
-        // screen. Afterwards is too late: setting the container GONE moves focus off the
-        // now-invisible field, so window.currentFocus is null by then -- and dismissKeyboard()
-        // is `currentFocus?.let { ... }`, which silently does nothing rather than failing. The
-        // search closed, the filters came back, and the keyboard just stayed up.
-        //
-        // Asking the view for its own window token avoids the question entirely: it stays valid
-        // whether or not the view still holds focus.
-        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
-                as android.view.inputmethod.InputMethodManager
-        imm.hideSoftInputFromWindow(binding.toolbarSearch.windowToken, 0)
-        binding.toolbarSearch.clearFocus()
+        // The Compose toolbar hides the keyboard itself when searchMode falls back to false
+        // (see MainToolbarContent's LaunchedEffect), so there is no window token to hold on
+        // to here and no ordering to get wrong.
+        searchMode = false
+        searchQuery = ""
+        dismissKeyboard()
+        // The view model still wants to hear that the query emptied, or the list stays on
+        // the search page with nothing in it.
+        queryChangedIntent.onNext("")
+    }
 
-        binding.searchContainer.visibility = View.GONE
-        binding.toolbarContent.visibility = View.VISIBLE
-        binding.toolbarSearch.text = null
-        binding.toolbarSearch.isCursorVisible = false
+    override fun clearSearch() {
+        // Called by the view model when the search page goes away (Back, or a conversation
+        // opened from a hit): put the toolbar back into its ordinary state.
+        searchQuery = ""
+        searchMode = false
+        dismissKeyboard()
     }
 
     override fun onBackPressed() {
-        // If search is visible, hide it and show the toolbar content
-        if (binding.searchContainer.visibility == View.VISIBLE) {
+        // If search is showing, the first Back closes it; the second leaves the screen.
+        if (searchMode) {
             hideSearchMode()
         } else {
             backPressedSubject.onNext(NavItem.BACK)

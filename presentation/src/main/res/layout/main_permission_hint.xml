@@ -36,7 +36,7 @@
         app:layout_constraintHorizontal_bias="0"
         app:layout_constraintStart_toStartOf="parent"
         app:textSize="primary"
-        tools:text="Love texting again" />
+        tools:text="Set as default" />
 
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/snackbarMessage"
@@ -63,7 +63,6 @@
         android:paddingEnd="8dp"
         android:paddingBottom="16dp"
         android:text="@string/main_default_sms_hide"
-        android:textAllCaps="true"
         android:textColor="@android:color/black"
         android:textStyle="bold"
         android:visibility="gone"
@@ -80,7 +79,6 @@
         android:layout_marginEnd="8dp"
         android:background="?attr/selectableItemBackground"
         android:padding="16dp"
-        android:textAllCaps="true"
         android:textColor="@android:color/black"
         android:textStyle="bold"
         app:layout_constraintBottom_toBottomOf="@id/snackbarMessage"

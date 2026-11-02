@@ -36,7 +36,8 @@
         android:layout_height="56dp"
         android:background="@color/toolbarTranslucent"
         android:gravity="center_vertical"
-        android:minHeight="56dp">
+        android:minHeight="56dp"
+        app:popupTheme="@style/PopupTheme">
 
         <LinearLayout
             android:layout_width="match_parent"

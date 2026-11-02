@@ -71,9 +71,12 @@
         <item name="colorControlActivated">@color/white</item>
     </style>
 
-    <style name="PopupTheme" parent="ThemeOverlay.AppCompat">
-        <item name="android:colorBackground">@color/backgroundDark</item>
-        <item name="android:textColor">@color/textPrimaryDark</item>
+    <!-- Menus are white with a black rim in every mode (popup_eink is a fixed white drawable).
+         The gallery forces night mode, so a dark overlay here put white item text on that white
+         box: a blank menu. Keep the light overlay, black on white. -->
+    <style name="PopupTheme" parent="ThemeOverlay.AppCompat.Light">
+        <item name="android:colorBackground">@color/white</item>
+        <item name="android:textColor">@color/black</item>
     </style>
 
     <!-- Black theme -->
@@ -96,7 +99,6 @@
     </style>
 
     <style name="PopupTheme.Black">
-        <item name="android:colorBackground">@color/black</item>
         <item name="bubbleColor">@color/bubbleBlack</item>
     </style>
 

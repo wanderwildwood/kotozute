@@ -1034,7 +1034,8 @@
 
 
     <string name="about_name" translatable="false">Messaging %s</string>
-    <string name="about_llama">feed the llamas</string>
+    <string name="about_name_plain" translatable="false">Messaging</string>
+    <string name="about_llama">Feed the llamas</string>
     <string name="about_source" translatable="false">wanderthe.dev</string>
     <!-- About: the short form of PRIVACY.md, then Terms. Never claim less than the app does. -->
     <string name="about_privacy_heading">Privacy</string>
@@ -1045,9 +1046,9 @@
     <string name="about_terms">This app is free software under the GNU Affero General Public License v3 or later. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
     <string name="about_licences">Licences</string>
     <string name="licences_source">Source code</string>
-    <string name="licences_licence">Licence</string>
-    <string name="licences_licence_words">GNU Affero General Public License v3 or later, held by wander wildwood. Free software with no warranty. It contains Signal\'s AGPL code, so the whole app is AGPL; the full text is below. Anyone who runs a modified version for others over a network must offer them its source.</string>
-    <string name="licences_built_with">Built with</string>
+    <string name="licences_licence_words">AGPL-3.0-or-later, copyright wander wildwood. Free software with no warranty. It contains Signal\'s AGPL code, so the whole app is AGPL; the full text is on this page. Anyone who runs a modified version for others over a network must offer them its source.</string>
+    <string name="licences_back">Back</string>
+    <string name="licences_no_text">The full text of %s is at the address above.</string>
     <string name="licences_agpl">GNU Affero General Public License v3</string>
     <string name="licences_gpl">GNU General Public License v3 (QKSMS, QUIK, InkMessage)</string>
     <string name="licences_apache">Apache License 2.0</string>

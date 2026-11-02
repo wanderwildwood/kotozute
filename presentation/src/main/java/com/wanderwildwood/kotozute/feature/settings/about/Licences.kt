@@ -1,6 +1,7 @@
 package com.wanderwildwood.kotozute.feature.settings.about
 
 import android.net.Uri
+import com.wanderwildwood.kotozute.R
 
 /**
  * Everything third-party that the APK holds: code linked from Gradle, code copied into this
@@ -52,6 +53,38 @@ object Licences {
         Part("jdk9-deps", Kind.MIT, "https://github.com/pengrad/jdk9-deps"),
         Part("javax.annotation-api", Kind.CDDL, "https://github.com/javaee/javax.annotation")
     )
+
+
+    /** One row of the Licences list, and the page behind it. [raw] is the licence's bundled full text, if there is one. */
+    class Row(
+        val title: String,
+        val author: String,
+        val licence: String,
+        val url: String,
+        val raw: Int?,
+        val isApp: Boolean = false,
+    )
+
+    /** The raw full text of a kind of licence, or null where none is bundled (CDDL, named on its page). */
+    fun rawFor(kind: Kind): Int? = when (kind) {
+        Kind.AGPL -> R.raw.licence_agpl3
+        Kind.GPL -> R.raw.licence_gpl3
+        Kind.APACHE -> R.raw.licence_apache2
+        Kind.MIT -> R.raw.licence_mit
+        Kind.BSD, Kind.SQLCIPHER -> R.raw.licence_bsd
+        Kind.OFL -> R.raw.licence_ofl
+        Kind.CDDL -> null
+    }
+
+    /** "QKSMS, by Moez Bhatti" is the library QKSMS by Moez Bhatti. */
+    fun titleOf(part: Part): String = part.name.substringBefore(", by ")
+    fun authorOf(part: Part): String = part.name.substringAfter(", by ", "")
+
+    /** The list: the app itself first, then one row per library, alphabetical. */
+    fun rows(appName: String): List<Row> =
+        listOf(Row(appName, "", Kind.AGPL.label + "-or-later", SOURCE_URL, rawFor(Kind.AGPL), isApp = true)) +
+            parts.map { Row(titleOf(it), authorOf(it), it.kind.label, it.url, rawFor(it.kind)) }
+                .sortedBy { it.title.lowercase() }
 
     /** One line per component, as the screen draws it. */
     fun line(part: Part): String = "${part.name}\n${part.kind.label}  ${part.url}"

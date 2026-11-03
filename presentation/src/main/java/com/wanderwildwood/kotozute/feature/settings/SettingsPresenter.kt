@@ -132,7 +132,7 @@ class SettingsPresenter @Inject constructor(
                 val count = DesktopSyncService.browsers(context, prefs).list().size
                 val summary = if (count == 0) context.getString(R.string.settings_desktop_sync_browsers_summary_none)
                     else context.resources.getQuantityString(R.plurals.settings_desktop_sync_browsers_summary, count, count)
-                newState { copy(desktopSyncBrowsersSummary = summary) }
+                newState { copy(desktopSyncBrowsersSummary = summary, desktopSyncBrowsersCount = count) }
             }
 
         disposables += prefs.desktopSyncTls.asObservable()

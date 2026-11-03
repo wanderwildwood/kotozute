@@ -307,8 +307,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.desktopSyncTls.checkbox.isChecked = state.desktopSyncTls
         binding.desktopSyncVpnOnly.setVisible(state.desktopSyncEnabled)
         binding.desktopSyncVpnOnly.checkbox.isChecked = state.desktopSyncVpnOnly
-        binding.desktopSyncReset.setVisible(state.desktopSyncEnabled)
-        binding.desktopSyncBrowsers.setVisible(state.desktopSyncEnabled)
+        // A paired browser can be forgotten, one or all, with the server off too.
+        val browserRows = desktopSyncBrowserRowsShown(state.desktopSyncEnabled, state.desktopSyncBrowsersCount)
+        binding.desktopSyncReset.setVisible(browserRows)
+        binding.desktopSyncBrowsers.setVisible(browserRows)
         binding.desktopSyncBrowsers.summary = state.desktopSyncBrowsersSummary
 
         // Linking again is not additive -- it registers a new device and abandons the old

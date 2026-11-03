@@ -53,6 +53,8 @@ data class SettingsState(
     val desktopSyncEnabled: Boolean = false,
     /** "2 browsers", "None yet": how many browsers are paired. */
     val desktopSyncBrowsersSummary: String = "",
+    /** How many browsers are paired; with Desktop Sync off, the rows to forget them show only when some are. */
+    val desktopSyncBrowsersCount: Int = 0,
     val desktopSyncVpnOnly: Boolean = true,
     val signalPaired: Boolean = false,
     val signalEnabled: Boolean = false,

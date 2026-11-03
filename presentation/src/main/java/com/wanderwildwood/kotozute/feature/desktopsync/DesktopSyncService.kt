@@ -1,8 +1,9 @@
 /*
  * Foreground service hosting the Desktop Sync relay (DesktopSyncServer).
- * Manual start/stop only, from the Settings screen — never auto-starts. A reboot, an
- * update or the system stopping the app leaves it off, as in Memo: a server that reads every
- * message should only be listening when somebody switched it on and has not walked away.
+ * Started only by its switch in Settings. An update, or the system stopping the app, brings it
+ * back as it was, as long as the phone has not restarted since; a reboot turns it off and
+ * nothing starts it after one (no boot receiver, not sticky), as in Memo: a server that reads
+ * every message should only be listening when somebody switched it on in this boot.
  */
 package com.wanderwildwood.kotozute.feature.desktopsync
 
@@ -68,8 +69,8 @@ class DesktopSyncService : Service() {
          * Whether the relay is actually serving right now. Runtime-only on purpose:
          * the server never survives process death, so persisting this would let the
          * UI claim "Running" with nothing behind it. prefs.desktopSyncEnabled is what the
-         * switch shows; a new process sets it back to off ([offAfterRestart]), because nothing
-         * brings the relay back by itself.
+         * switch shows; a new process keeps it on only in the boot it was switched on in, and
+         * starts the relay again ([afterProcessStart]).
          */
         @Volatile
         var isRunning: Boolean = false
@@ -82,11 +83,29 @@ class DesktopSyncService : Service() {
         }
 
         /**
-         * Called when the app's process starts. The relay cannot have survived the old process,
-         * and it does not come back by itself, so the switch is set to say so.
+         * Called when the app's process starts. The relay cannot have survived the old process.
+         * After a reboot the switch goes off and stays off. In the same boot (an update, or the
+         * system stopping the app) it stays on and the relay starts again: here if Android lets a
+         * process in the background start it, otherwise on the update's own broadcast
+         * ([DesktopSyncUpdateReceiver]) or when the app is next opened ([resumeIfOn]).
          */
-        fun offAfterRestart(prefs: Preferences) {
-            if (!isRunning) prefs.desktopSyncEnabled.set(false)
+        fun afterProcessStart(context: Context, prefs: Preferences) = resumeIfOn(context, prefs)
+
+        /**
+         * Starts the relay again if the switch is on and the phone has not restarted since it was
+         * switched on; turns the switch off if it has. Does nothing when the switch is off.
+         */
+        fun resumeIfOn(context: Context, prefs: Preferences) {
+            val saved = BootMark.decode(prefs.desktopSyncBootMark.get())
+            when (DesktopSyncBoot.decide(prefs.desktopSyncEnabled.get(), isRunning, saved, BootMark.now(context))) {
+                DesktopSyncBoot.Decision.NOTHING -> Unit
+                DesktopSyncBoot.Decision.OFF -> prefs.desktopSyncEnabled.set(false)
+                // Android 12 refuses a foreground service started from the background, except on
+                // an update's broadcast or with the app open; the switch stays on either way, and
+                // the next of those starts it.
+                DesktopSyncBoot.Decision.START -> runCatching { start(context) }
+                    .onFailure { Timber.i("Desktop Sync: not started from the background (${it.javaClass.simpleName}); it starts when the app opens") }
+            }
         }
 
         @Volatile private var pairedBrowsers: PairedBrowsers? = null
@@ -567,6 +586,8 @@ class DesktopSyncService : Service() {
         server = newServer
         isRunning = true
         prefs.desktopSyncEnabled.set(true)
+        // The boot it went on in: an update in this boot brings it back, a reboot does not.
+        prefs.desktopSyncBootMark.set(BootMark.now(applicationContext).encode())
         // Refresh the notification now that the port is bound and the address is known —
         // but only if that actually changed the text.
         postNotification()
@@ -618,8 +639,9 @@ class DesktopSyncService : Service() {
         disposables.clear()
         server?.stop()
         server = null
-        // The switch follows the server: when the service goes, Desktop Sync is off, and
-        // nothing brings it back by itself.
+        // The switch follows the server: when the service is stopped, Desktop Sync is off. (A
+        // process that is killed, by an update or the system, never gets here; its switch is
+        // dealt with when the next process starts.)
         isRunning = false
         prefs.desktopSyncEnabled.set(false)
         super.onDestroy()

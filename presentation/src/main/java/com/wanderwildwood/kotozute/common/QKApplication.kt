@@ -215,10 +215,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         qkMigration.performMigration()
 
-        // The relay can't survive process death and never comes back by itself (as in Memo):
-        // after a reboot, an update or the system stopping the app, Desktop Sync is off until
-        // someone switches it on again, and the switch says so.
-        com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService.offAfterRestart(prefs)
+        // The relay can't survive process death. After an update, or the system stopping the
+        // app, it comes back as it was if the phone has not restarted since it was switched on;
+        // after a reboot the switch goes off and nothing starts it (as in Memo).
+        runCatching { com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService.afterProcessStart(this, prefs) }
+            .onFailure { Timber.w(it, "Desktop Sync: could not check the switch at start") }
 
         // Without this the Signal stream only ran while its screen was open, so a
         // message arriving with the app closed was not picked up until the next time
@@ -412,6 +413,10 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
             override fun onActivityStarted(activity: Activity) {
                 started++
                 SignalForeground.set(true)
+                // Opening the app brings Desktop Sync back if a background start was refused.
+                if (started == 1) {
+                    runCatching { com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService.resumeIfOn(this@QKApplication, prefs) }
+                }
             }
 
             override fun onActivityStopped(activity: Activity) {

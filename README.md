@@ -58,7 +58,7 @@ whole layout down to fit rather than breaking, but it will be small.
 
 1. In the app: **Settings → Desktop Sync**, and switch it on.
 2. Tap **Show link**. It gives you the address to open on your computer and a six-digit code to type in. The code lasts three minutes and works once. The browser then keeps a token of its own, so the bookmark is just the address; no token is ever put in a link.
-3. Switch it off again with the same row, or **Stop** on the notification. It is off by default and never starts on its own: a reboot, an update or Android stopping the app leaves it off.
+3. Switch it off again with the same row, or **Stop** on the notification. It is off by default. An app update, or Android stopping the app, leaves it as it was: if it was on, it comes back (at once after an update, otherwise when you next open the app). A reboot turns it off, and it never starts by itself after one.
 4. **Paired browsers** lists every browser that has entered a code, with when it was last used; tap one to forget it. **Forget all browsers** forgets every one. A forgotten browser stops working at once, open tabs included, and a browser unused for 30 days is forgotten by itself.
 
 ### Access control
@@ -71,7 +71,7 @@ Any VPN that gives the phone its own address works: [Tailscale](https://tailscal
 
 Turn the switch off and it also accepts connections from private networks (your LAN, link-local and unique-local IPv6, Tailscale's range), never from a public address, which is worth knowing about for one case: **a VPN does not start by itself after a reboot** on MuditaOS, which has no always-on VPN toggle. Until you open the VPN app, a restricted relay refuses everyone — Settings says so plainly when that happens.
 
-The restriction is enforced per request rather than by binding only the VPN address, deliberately: binding it would mean the server cannot start at all while the VPN is down, so a reboot could leave the relay dead. This way the socket always binds and simply turns everyone else away.
+The restriction is enforced per request rather than by binding only the VPN address, deliberately: binding it would mean the server cannot start at all while the VPN is down, so a VPN that comes up late could leave the relay dead. This way the socket always binds and simply turns everyone else away.
 
 *Who you are.* Every request also needs the token of a paired browser: 256 random bits, made when that browser entered its code, of which the phone keeps only a SHA-256. The page sends it in a header; pictures, sound, video and the live connection use a cookie the page's own script cannot read. Being on the VPN isn't enough by itself — useful if your VPN network has devices you don't fully control. The page is served with a strict Content-Security-Policy, and every answer says not to cache, sniff, frame or send a referrer.
 

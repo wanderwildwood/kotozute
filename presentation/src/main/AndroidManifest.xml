@@ -188,6 +188,15 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <!-- Desktop Sync after an update: started again if it was on in this boot. Not on
+             BOOT_COMPLETED: a reboot leaves it off. -->
+        <receiver
+            android:name=".feature.desktopsync.DesktopSyncUpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <receiver
             android:name=".receiver.DefaultSmsChangedReceiver"
             android:exported="true">

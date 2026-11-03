@@ -48,7 +48,7 @@ An HTTP + WebSocket server runs *inside the app on the phone* and serves its own
   or not the browser is still open — and see what is waiting, and cancel it
 - Reading a thread in the browser marks it read on the phone and clears its notification
 - Live updates over a WebSocket, with polling as a fallback
-- The access link can be reset if it leaks
+- Each paired browser is listed on the phone and can be forgotten on its own
 
 It is a page for a computer. There are no responsive breakpoints and none are planned: the
 phone that serves this already has the app on it. Opened on a phone anyway it scales the
@@ -57,9 +57,9 @@ whole layout down to fit rather than breaking, but it will be small.
 ### Setup
 
 1. In the app: **Settings → Desktop Sync**, and switch it on.
-2. Tap **Show link**. It gives you the address to open on your computer and a six-digit code to type in, which saves reading a long token off an e-ink screen. The code lasts three minutes and works once. The full link is there too if you would rather paste that; either way the browser remembers, so the bookmark is just the address.
-3. Switch it off again with the same row, or **Stop** on the notification. It is off by default and never starts on its own.
-4. If the link is ever shared or seen by someone else, **Reset Desktop Sync link** mints a new token. Existing bookmarks and open tabs stop working immediately.
+2. Tap **Show link**. It gives you the address to open on your computer and a six-digit code to type in. The code lasts three minutes and works once. The browser then keeps a token of its own, so the bookmark is just the address; no token is ever put in a link.
+3. Switch it off again with the same row, or **Stop** on the notification. It is off by default and never starts on its own: a reboot, an update or Android stopping the app leaves it off.
+4. **Paired browsers** lists every browser that has entered a code, with when it was last used; tap one to forget it. **Forget all browsers** forgets every one. A forgotten browser stops working at once, open tabs included, and a browser unused for 30 days is forgotten by itself.
 
 ### Access control
 
@@ -69,11 +69,11 @@ Two independent gates.
 
 Any VPN that gives the phone its own address works: [Tailscale](https://tailscale.com/), ZeroTier, a WireGuard or Nebula network of your own. Tailscale is recognised by its fixed address ranges; for any other VPN the relay accepts peers on the network of the phone's VPN address, and **Show link** lists that address under *VPN*. A VPN whose network overlaps the Wi-Fi's is not trusted, since that would let the house in too. A VPN that only carries the phone's traffic out to the internet, like a commercial privacy VPN, has no computer of yours on the far side and so lets nothing in.
 
-Turn the switch off and it also accepts LAN connections, which is worth knowing about for one case: **a VPN does not start by itself after a reboot** on MuditaOS, which has no always-on VPN toggle. Until you open the VPN app, a restricted relay refuses everyone — Settings says so plainly when that happens.
+Turn the switch off and it also accepts connections from private networks (your LAN, link-local and unique-local IPv6, Tailscale's range), never from a public address, which is worth knowing about for one case: **a VPN does not start by itself after a reboot** on MuditaOS, which has no always-on VPN toggle. Until you open the VPN app, a restricted relay refuses everyone — Settings says so plainly when that happens.
 
 The restriction is enforced per request rather than by binding only the VPN address, deliberately: binding it would mean the server cannot start at all while the VPN is down, so a reboot could leave the relay dead. This way the socket always binds and simply turns everyone else away.
 
-*Who you are.* Every request also needs a random 120-bit token generated on first run, so being on the VPN isn't enough by itself — useful if your VPN network has devices you don't fully control.
+*Who you are.* Every request also needs the token of a paired browser: 256 random bits, made when that browser entered its code, of which the phone keeps only a SHA-256. The page sends it in a header; pictures, sound, video and the live connection use a cookie the page's own script cannot read. Being on the VPN isn't enough by itself — useful if your VPN network has devices you don't fully control. The page is served with a strict Content-Security-Policy, and every answer says not to cache, sniff, frame or send a referrer.
 
 Don't port-forward the port, and don't expose it with Tailscale Funnel or anything like it.
 

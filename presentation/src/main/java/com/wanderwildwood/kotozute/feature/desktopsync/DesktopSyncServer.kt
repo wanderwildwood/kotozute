@@ -938,6 +938,13 @@ class DesktopSyncServer(
         val threadForConversation = buildMap {
             allSignal.forEach { t -> joinedConversationId(t)?.let { put(it, t) } }
         }
+        // The text half of each joined row, as the inbox list passes it. Without it a result
+        // carried only its Signal half: dated at the last Signal message, so somebody being
+        // texted today sank under people from last month, and opened on the Signal side.
+        fun joinedFor(t: SignalThread) = threadForConversation.entries
+            .firstOrNull { it.value.threadKey == t.threadKey }?.key
+            ?.let { id -> runCatching { conversationRepository.getConversation(id) }.getOrNull() }
+            ?.takeIf { it.isValid }
         // Matches found on the text side, counted against the conversation they belong to.
         val textMatches = mutableMapOf<String, Pair<Int, String>>()
 
@@ -960,22 +967,25 @@ class DesktopSyncServer(
         val matchedKeys = hits.mapTo(mutableSetOf()) { it.thread.threadKey }
         hits.forEach { hit ->
             val extra = textMatches[hit.thread.threadKey]
-            rows += hit.thread.lastTs to signalThreadJson(hit.thread).apply {
+            val row = signalThreadJson(hit.thread, joinedFor(hit.thread)).apply {
                 put("matches", hit.messages + (extra?.first ?: 0))
                 // The matching line, so a hit inside a long conversation says what it
                 // found rather than only that it found something.
                 if (hit.snippet.isNotBlank()) put("snippet", hit.snippet)
             }
+            // Sorted on the date the row shows, as the inbox list is.
+            rows += row.optLong("date", hit.thread.lastTs) to row
         }
         // A person whose text half matched and whose Signal half did not is still a result:
         // the conversation contains what was searched for.
         textMatches.forEach { (key, found) ->
             if (key in matchedKeys) return@forEach
             val thread = allSignal.firstOrNull { it.threadKey == key } ?: return@forEach
-            rows += thread.lastTs to signalThreadJson(thread).apply {
+            val row = signalThreadJson(thread, joinedFor(thread)).apply {
                 put("matches", found.first)
                 if (found.second.isNotBlank()) put("snippet", found.second)
             }
+            rows += row.optLong("date", thread.lastTs) to row
         }
 
         val array = JSONArray()
@@ -983,10 +993,20 @@ class DesktopSyncServer(
         // uses, so the same search does not read differently in the two places. Capped: a
         // two-letter query can match most of an inbox, and nobody scrolls a thousand rows
         // looking for one -- they type another letter.
-        rows.sortedWith(
-            compareBy<Pair<Long, JSONObject>> { it.second.optInt("matches") > 0 }
-                .thenByDescending { it.second.optInt("matches") }
-                .thenByDescending { it.first }
+        //
+        // Except that anyone whose *name* is what was searched comes first, newest first,
+        // whether or not their messages also matched. Counting matches put a person below
+        // group chats that mention them more often, however recently they were texted --
+        // and searching a name is looking for that person.
+        val (named, rest) = rows.partition {
+            it.second.optString("title").contains(query, ignoreCase = true)
+        }
+        (named.sortedByDescending { it.first } +
+            rest.sortedWith(
+                compareBy<Pair<Long, JSONObject>> { it.second.optInt("matches") > 0 }
+                    .thenByDescending { it.second.optInt("matches") }
+                    .thenByDescending { it.first }
+            )
         ).take(SEARCH_MAX_RESULTS).forEach { array.put(it.second) }
         return jsonResponse(Response.Status.OK, JSONObject().put("results", array))
     }

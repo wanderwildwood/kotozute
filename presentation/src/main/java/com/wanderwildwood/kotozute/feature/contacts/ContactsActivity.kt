@@ -140,14 +140,15 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
         binding.search.setHint(
             if (state.showingSignal) R.string.contacts_signal_hint else R.string.title_compose
         )
-        // The badge sits in front of the search field rather than over it; without this the
-        // hint starts underneath the badge on the one screen that has one.
-        (binding.search.layoutParams as? android.widget.FrameLayout.LayoutParams)?.let { params ->
-            val start = if (state.canCrossRails) railBadgeInset else 0
-            if (params.marginStart != start) {
-                params.marginStart = start
-                binding.search.layoutParams = params
-            }
+        // The badge has its own place in the row, in front of the field. The clear button
+        // sits over the field's end, so while it shows the text stops short of it, and a
+        // long query scrolls inside what is left rather than running underneath.
+        val end = if (binding.cancel.isVisible) cancelInset else searchEndPadding
+        if (binding.search.paddingEnd != end) {
+            binding.search.setPaddingRelative(
+                binding.search.paddingStart, binding.search.paddingTop,
+                end, binding.search.paddingBottom
+            )
         }
 
         contactsAdapter.data = state.composeItems
@@ -161,9 +162,14 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
         }
     }
 
-    /** Room for the badge, so the search field's hint does not begin underneath it. */
-    private val railBadgeInset by lazy {
-        (56 * resources.displayMetrics.density).toInt()
+    /** The field's own end padding, as in the layout. */
+    private val searchEndPadding by lazy {
+        (12 * resources.displayMetrics.density).toInt()
+    }
+
+    /** Room for the clear button (48dp, 8dp from the end) over the field's end. */
+    private val cancelInset by lazy {
+        (48 * resources.displayMetrics.density).toInt()
     }
 
     override fun clearQuery() {

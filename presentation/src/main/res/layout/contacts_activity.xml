@@ -50,10 +50,14 @@
         app:contentInsetStartWithNavigation="0dp"
         app:layout_constraintTop_toTopOf="parent">
 
-        <FrameLayout
+        <!-- A row, so the badge takes its own room and the search field starts after it,
+             whatever the badge says and however wide the font draws it. -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:animateLayoutChanges="false">
+            android:animateLayoutChanges="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <!-- Crosses to the other address book: the phone's contacts, or the people on
                  Signal. Gone when there is no second book to cross to. The same badge the
@@ -62,8 +66,8 @@
                 android:id="@+id/railBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical|start"
                 android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
                 android:background="@drawable/rail_badge_touch"
                 android:minHeight="48dp"
                 android:gravity="center"
@@ -78,58 +82,65 @@
                 android:textStyle="bold"
                 android:visibility="gone" />
 
-            <com.wanderwildwood.kotozute.common.widget.QkEditText
-                android:id="@+id/search"
-                style="@style/ToolbarText"
-                android:layout_marginTop="8dp"
-                android:layout_marginEnd="8dp"
-                android:layout_marginBottom="8dp"
-                android:minHeight="40dp"
-                android:background="@drawable/rounded_rectangle_24dp"
-                android:backgroundTint="?attr/bubbleColor"
-                android:hint="@string/title_compose"
-                android:inputType="textFilter|textNoSuggestions"
-                android:privateImeOptions="nm"
-                android:maxLines="1"
-                android:paddingStart="0dp"
-                android:paddingEnd="12dp"
-                android:textColorHint="?android:attr/textColorTertiary"
-                app:textSize="primary"
-                tools:textSize="16sp" />
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
 
-<!--            <com.wanderwildwood.kotozute.common.widget.QkEditText-->
-<!--                android:id="@+id/search"-->
-<!--                android:layout_width="match_parent"-->
-<!--                android:layout_height="match_parent"-->
-<!--                android:layout_marginTop="8dp"-->
-<!--                android:layout_marginEnd="8dp"-->
-<!--                android:layout_marginBottom="8dp"-->
-<!--                android:background="@drawable/rounded_rectangle_24dp"-->
-<!--                android:backgroundTint="?attr/bubbleColor"-->
-<!--                android:hint="@string/title_compose"-->
-<!--                android:imeOptions="flagNoExtractUi"-->
-<!--                android:inputType="textFilter|textNoSuggestions"-->
-<!--                android:padding="8dp"-->
-<!--                android:paddingStart="16dp"-->
-<!--                android:paddingEnd="40dp"-->
-<!--                android:privateImeOptions="nm"-->
-<!--                android:textColor="?android:attr/textColorPrimary"-->
-<!--                android:textColorHint="?android:attr/textColorTertiary"-->
-<!--                app:textSize="primary" />-->
+                <com.wanderwildwood.kotozute.common.widget.QkEditText
+                    android:id="@+id/search"
+                    style="@style/ToolbarText"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:minHeight="40dp"
+                    android:background="@drawable/rounded_rectangle_24dp"
+                    android:backgroundTint="?attr/bubbleColor"
+                    android:hint="@string/title_compose"
+                    android:inputType="textFilter|textNoSuggestions"
+                    android:privateImeOptions="nm"
+                    android:maxLines="1"
+                    android:paddingStart="0dp"
+                    android:paddingEnd="12dp"
+                    android:textColorHint="?android:attr/textColorTertiary"
+                    app:textSize="primary"
+                    tools:textSize="16sp" />
 
-            <ImageView
-                android:id="@+id/cancel"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_gravity="center_vertical|end"
-                android:layout_marginEnd="8dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:padding="12dp"
-                android:src="@drawable/ic_cancel_black_24dp"
-                android:visibility="gone"
-                app:tint="?android:attr/textColorSecondary" />
+    <!--            <com.wanderwildwood.kotozute.common.widget.QkEditText-->
+    <!--                android:id="@+id/search"-->
+    <!--                android:layout_width="match_parent"-->
+    <!--                android:layout_height="match_parent"-->
+    <!--                android:layout_marginTop="8dp"-->
+    <!--                android:layout_marginEnd="8dp"-->
+    <!--                android:layout_marginBottom="8dp"-->
+    <!--                android:background="@drawable/rounded_rectangle_24dp"-->
+    <!--                android:backgroundTint="?attr/bubbleColor"-->
+    <!--                android:hint="@string/title_compose"-->
+    <!--                android:imeOptions="flagNoExtractUi"-->
+    <!--                android:inputType="textFilter|textNoSuggestions"-->
+    <!--                android:padding="8dp"-->
+    <!--                android:paddingStart="16dp"-->
+    <!--                android:paddingEnd="40dp"-->
+    <!--                android:privateImeOptions="nm"-->
+    <!--                android:textColor="?android:attr/textColorPrimary"-->
+    <!--                android:textColorHint="?android:attr/textColorTertiary"-->
+    <!--                app:textSize="primary" />-->
 
-        </FrameLayout>
+                <ImageView
+                    android:id="@+id/cancel"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_gravity="center_vertical|end"
+                    android:layout_marginEnd="8dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_cancel_black_24dp"
+                    android:visibility="gone"
+                    app:tint="?android:attr/textColorSecondary" />
+
+            </FrameLayout>
+
+        </LinearLayout>
 
     </androidx.appcompat.widget.Toolbar>
 

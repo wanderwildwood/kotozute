@@ -152,5 +152,15 @@
         app:layout_constraintHorizontal_bias="100"
         tools:text="Oct 11" />
 
+    <!-- The rule between the rows, dotted, from where the name starts (house style, Feeds' DottedRule). -->
+    <View
+        android:id="@+id/rule"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layerType="software"
+        android:background="@drawable/dotted_rule"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/title" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

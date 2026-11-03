@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The rule between the rows of an ordinary list: the thin dotted line the house style draws
+     (Feeds' DottedRule.kt): 1 dp thick, 2.3 dp of ink, 1.5 dp of gap. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="line">
+    <stroke
+        android:width="1dp"
+        android:color="#000000"
+        android:dashWidth="2.3dp"
+        android:dashGap="1.5dp"/>
+</shape>

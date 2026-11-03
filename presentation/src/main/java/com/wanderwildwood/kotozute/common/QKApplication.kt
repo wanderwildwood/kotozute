@@ -236,9 +236,18 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         //
         // Off the main thread, and never able to stop the app starting, for the same reason
         // everything below is guarded.
+        //
+        // Then once more, when the youngest of those has had its full wait. A send cut off
+        // seconds before this process started -- an update installed while a message was
+        // going, say -- is too young for the first look to call stuck, and without a second
+        // one it says "Sending…" until the app next starts, which may be days.
         Thread {
             runCatching { messageRepo.failStuckSends() }
                 .onFailure { Timber.w(it, "could not check for messages stuck sending") }
+            runCatching {
+                Thread.sleep(com.wanderwildwood.kotozute.repository.MessageRepository.STUCK_SEND_AFTER_MS + STUCK_SEND_RECHECK_SLACK_MS)
+                messageRepo.failStuckSends()
+            }.onFailure { Timber.w(it, "could not check again for messages stuck sending") }
         }.also { it.isDaemon = true }.start()
 
         // Signal is a feature of this app; SMS is the app. Nothing in here may be allowed to
@@ -431,3 +440,6 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     }
 
 }
+
+/** Past the stuck-send wait by this much on the second look, so a send cut off just before start is old enough by then. */
+private const val STUCK_SEND_RECHECK_SLACK_MS = 30_000L

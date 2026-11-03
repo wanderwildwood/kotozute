@@ -25,6 +25,12 @@ import com.wanderwildwood.kotozute.model.MmsPart
 import io.realm.RealmResults
 
 interface MessageRepository {
+
+    companion object {
+        /** How long a message may say "sending" before [failStuckSends] marks it failed. */
+        val STUCK_SEND_AFTER_MS: Long = java.util.concurrent.TimeUnit.MINUTES.toMillis(5)
+    }
+
     fun getMessages(threadId: Long, query: String = ""): RealmResults<Message>
 
     fun getMessages(threadId: Long, query: String = "", limit: Long): RealmResults<Message>

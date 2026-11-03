@@ -113,7 +113,7 @@ open class MessageRepositoryImpl @Inject constructor(
          * reported nothing in five minutes is not about to; the one measured on this phone took
          * 1.4 seconds end to end.
          */
-        internal val STUCK_SEND_AFTER_MS = TimeUnit.MINUTES.toMillis(5)
+        internal val STUCK_SEND_AFTER_MS = MessageRepository.STUCK_SEND_AFTER_MS
 
         /**
          * Whether a message dated [sentAt] and still marked sending has waited too long.

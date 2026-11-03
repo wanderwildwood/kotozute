@@ -852,7 +852,7 @@
     <string name="settings_desktop_sync_code_intro">On the computer, open:</string>
     <string name="settings_desktop_sync_code">and enter this code:\n\n    %1$s\n</string>
     <string name="settings_desktop_sync_code_left">Works once, for %1$s</string>
-    <string name="settings_desktop_sync_code_locked">Too many wrong tries, so the code is cancelled. Close this and tap Show link again for a new one.</string>
+    <string name="settings_desktop_sync_code_locked">Too many wrong tries, so the code is canceled. Close this and tap Show link again for a new one.</string>
     <string name="contacts_signal_hint">Search people on Signal</string>
     <string name="signal_rail_label">Signal</string>
     <string name="signal_rail_label_switch">Signal ></string>
@@ -1055,7 +1055,7 @@
     <string name="about_privacy_close">There are no ads, no analytics and no tracking. Backups, chat-history copies and saved attachments go only where you choose to save them. A debug log, off until you press and hold the version line in About, writes what the app does, including message text, to a file in the app\'s own storage; it leaves the phone only if you copy it out.</string>
     <string name="about_terms_heading">Terms</string>
     <string name="about_terms">This app is free software under the GNU Affero General Public License v3 or later. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
-    <string name="about_licences">Licences</string>
+    <string name="about_licences">Licenses</string>
     <string name="licences_source">Source code</string>
     <string name="licences_licence_words">AGPL-3.0-or-later, copyright wander wildwood. Free software with no warranty. It contains Signal\'s AGPL code, so the whole app is AGPL; the full text is on this page. Anyone who runs a modified version for others over a network must offer them its source.</string>
     <string name="licences_back">Back</string>
@@ -1063,10 +1063,10 @@
     <string name="licences_agpl">GNU Affero General Public License v3</string>
     <string name="licences_gpl">GNU General Public License v3 (QKSMS, QUIK, InkMessage)</string>
     <string name="licences_apache">Apache License 2.0</string>
-    <string name="licences_mit">MIT licence</string>
-    <string name="licences_bsd">BSD licences</string>
+    <string name="licences_mit">MIT license</string>
+    <string name="licences_bsd">BSD licenses</string>
     <string name="licences_ofl">SIL Open Font License 1.1 (Lato)</string>
-    <string name="about_fork">Continues QKSMS by Moez Bhatti, by way of octoshrimpy\'s QUIK; the e-ink work began in lamdanAmiti\'s InkMessage. All under the same licence.</string>
+    <string name="about_fork">Continues QKSMS by Moez Bhatti, by way of octoshrimpy\'s QUIK; the e-ink work began in lamdanAmiti\'s InkMessage. All under the same license.</string>
 
 
     <string-array name="notification_actions">

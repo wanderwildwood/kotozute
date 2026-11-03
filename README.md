@@ -28,7 +28,7 @@ Measured against the stock app rather than guessed at:
 - Bubble borders: thin solid incoming, thick solid outgoing (upstream had these reversed, with a dashed outgoing border)
 - Sender names always bold; message previews bold only when unread
 - Lato is bundled statically. Upstream loaded it through Google Play Services' downloadable-fonts provider, which silently does nothing on a degoogled phone, so the font never rendered on a Kompakt
-- Black and white only. E-ink dithers colour to muddy grey, so the accent-colour system always resolves to black
+- Black and white only. E-ink dithers color to muddy gray, so the accent-color system always resolves to black
 - Consistent icon weights, and chevrons on navigable settings rows
 
 ## Desktop Sync
@@ -67,7 +67,7 @@ Two independent gates.
 
 *Where you can connect from.* **VPN only** is on by default: any request that does not come through a VPN is refused before the token is even looked at, so another device on your café or home Wi-Fi cannot reach the dashboard even if it somehow had your link. This also means your messages are never in the clear on a network — the relay speaks plain HTTP, but the VPN encrypts the connection end to end.
 
-Any VPN that gives the phone its own address works: [Tailscale](https://tailscale.com/), ZeroTier, a WireGuard or Nebula network of your own. Tailscale is recognised by its fixed address ranges; for any other VPN the relay accepts peers on the network of the phone's VPN address, and **Show link** lists that address under *VPN*. A VPN whose network overlaps the Wi-Fi's is not trusted, since that would let the house in too. A VPN that only carries the phone's traffic out to the internet, like a commercial privacy VPN, has no computer of yours on the far side and so lets nothing in.
+Any VPN that gives the phone its own address works: [Tailscale](https://tailscale.com/), ZeroTier, a WireGuard or Nebula network of your own. Tailscale is recognized by its fixed address ranges; for any other VPN the relay accepts peers on the network of the phone's VPN address, and **Show link** lists that address under *VPN*. A VPN whose network overlaps the Wi-Fi's is not trusted, since that would let the house in too. A VPN that only carries the phone's traffic out to the internet, like a commercial privacy VPN, has no computer of yours on the far side and so lets nothing in.
 
 Turn the switch off and it also accepts connections from private networks (your LAN, link-local and unique-local IPv6, Tailscale's range), never from a public address, which is worth knowing about for one case: **a VPN does not start by itself after a reboot** on MuditaOS, which has no always-on VPN toggle. Until you open the VPN app, a restricted relay refuses everyone — Settings says so plainly when that happens.
 
@@ -83,7 +83,7 @@ Desktop Sync needs the `INTERNET` permission, which InkMessage deliberately left
 
 Desktop Sync runs as a foreground service, which means Android keeps a notification in the shade for as long as the relay is up — that's how the platform works, and it's also your only visible sign the relay is running. Some minimalist launchers count *every* notification a package has posted when deciding whether to badge its icon, without checking whether the notification asked to be badged. On those launchers the relay's notification will light up an unread marker on Messaging that never clears.
 
-The notification lives on its own channel (`desktop_sync_v2`) and declares `setShowBadge(false)` plus `CATEGORY_SERVICE`, so a launcher that honours either one will behave. If yours doesn't, open the notification's channel settings — the cog next to it in the shade — and switch that one channel off. Real messages badge from a different channel and are unaffected. The cost is that you lose the shade indicator telling you the relay is running.
+The notification lives on its own channel (`desktop_sync_v2`) and declares `setShowBadge(false)` plus `CATEGORY_SERVICE`, so a launcher that honors either one will behave. If yours doesn't, open the notification's channel settings — the cog next to it in the shade — and switch that one channel off. Real messages badge from a different channel and are unaffected. The cost is that you lose the shade indicator telling you the relay is running.
 
 ## Signal
 
@@ -296,7 +296,7 @@ libsignal, and a fork of Signal's service layer. Before the bridge was removed i
 project.
 
 "Signal" is used here to name the service being reached, and for nothing else. Whether a
-third-party client suits you is your judgement to make, and worth making deliberately — an
+third-party client suits you is your judgment to make, and worth making deliberately — an
 account reached this way is still your account, with everything that implies, and none of this
 code has been reviewed by anyone at Signal.
 
@@ -304,7 +304,7 @@ code has been reviewed by anyone at Signal.
 
 Privacy: what the app stores and what it sends is set out in [PRIVACY.md](PRIVACY.md).
 
-## Licence
+## License
 
 **AGPL-3.0-or-later** — see [LICENSE](LICENSE) for the full text.
 

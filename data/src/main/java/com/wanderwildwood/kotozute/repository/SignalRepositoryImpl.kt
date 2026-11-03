@@ -2217,7 +2217,10 @@ class SignalRepositoryImpl @Inject constructor(
         }
         // A read sync that came in the same batch, before these rows existed, is applied now
         // and its messages are not announced: they were read on another device already.
-        val readAlready = readSyncs.filed(fresh.filter { !it.outgoing }.map { it.id })
+        // An edit is filed too, under its original, and a sync for it names the edit.
+        val readAlready = readSyncs.filed(
+            com.wanderwildwood.kotozute.signalstore.ReadSince.filedKeys(fresh, messages)
+        )
         flushUnarchivedByArrival()
         announce(if (readAlready.isEmpty()) fresh else fresh.filter { it.id !in readAlready })
         // A contacts sync can have landed in the same batch as the messages it names.
@@ -4252,9 +4255,12 @@ class SignalRepositoryImpl @Inject constructor(
         val cleared = mutableSetOf<String>()
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
-                ids.forEach { id ->
+                // Which rows: the ones named, and everything unread before them in their
+                // conversation, as Signal reads a sync. See [ReadSince].
+                val plan = com.wanderwildwood.kotozute.signalstore.ReadSince.plan(ids, readSinceTable(r))
+                present += plan.present
+                plan.toMark.forEach { id ->
                     val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
-                    if (row != null) present += id
                     if (row != null && !row.read) {
                         row.read = true
                         // Read elsewhere is still read, so the clock starts here too --
@@ -4293,6 +4299,32 @@ class SignalRepositoryImpl @Inject constructor(
             cleared.forEach { readElsewhere.onNext(it) }
         }
         return present
+    }
+
+    /** The message table as [com.wanderwildwood.kotozute.signalstore.ReadSince] reads it, inside [r]'s transaction. */
+    private fun readSinceTable(r: Realm) = object : com.wanderwildwood.kotozute.signalstore.ReadSince.Table {
+        private fun SignalMessage.asRow() = com.wanderwildwood.kotozute.signalstore.ReadSince.Row(
+            id = id, threadKey = threadKey, date = date, senderUuid = senderUuid,
+            revisionTs = revisionTs, outgoing = outgoing, read = read
+        )
+
+        override fun byId(id: String) =
+            r.where(SignalMessage::class.java).equalTo("id", id).findFirst()?.asRow()
+
+        override fun byRevision(author: String, revisionTs: Long) =
+            r.where(SignalMessage::class.java)
+                .equalTo("senderUuid", author)
+                .equalTo("revisionTs", revisionTs)
+                .findFirst()?.asRow()
+
+        override fun unreadIncoming(threadKey: String, upTo: Long) =
+            r.where(SignalMessage::class.java)
+                .equalTo("threadKey", threadKey)
+                .equalTo("outgoing", false)
+                .equalTo("read", false)
+                .lessThanOrEqualTo("date", upTo)
+                .findAll()
+                .map { it.asRow() }
     }
 
     /**

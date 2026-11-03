@@ -66,10 +66,6 @@ abstract class BroadcastReceiverBuilderModule {
 
     @ActivityScope
     @ContributesAndroidInjector
-    abstract fun bindDesktopSyncBootReceiver(): com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncBootReceiver
-
-    @ActivityScope
-    @ContributesAndroidInjector
     abstract fun bindDefaultSmsChangedReceiver(): DefaultSmsChangedReceiver
 
     @ActivityScope

@@ -215,10 +215,10 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         qkMigration.performMigration()
 
-        // The relay can't survive process death, so bring it back if it was left on.
-        // This is what makes the desktop URL keep working across reboots and app
-        // updates without having to re-toggle anything.
-        com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService.restoreIfEnabled(this, prefs)
+        // The relay can't survive process death and never comes back by itself (as in Memo):
+        // after a reboot, an update or the system stopping the app, Desktop Sync is off until
+        // someone switches it on again, and the switch says so.
+        com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService.offAfterRestart(prefs)
 
         // Without this the Signal stream only ran while its screen was open, so a
         // message arriving with the app closed was not picked up until the next time

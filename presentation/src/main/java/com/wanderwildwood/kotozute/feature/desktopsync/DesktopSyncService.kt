@@ -1,9 +1,10 @@
 /*
  * Foreground service hosting the Desktop Sync relay (DesktopSyncServer).
- * Started only by its switch in Settings. An update, or the system stopping the app, brings it
- * back as it was, as long as the phone has not restarted since; a reboot turns it off and
- * nothing starts it after one (no boot receiver, not sticky), as in Memo: a server that reads
- * every message should only be listening when somebody switched it on in this boot.
+ * Switched on and off only by its switch in Settings (or Stop on its notification). Once on it
+ * stays on until then: a reboot, an update or the system stopping the app brings it back, by the
+ * boot and update broadcasts ([DesktopSyncRestartReceiver]), START_STICKY, the next process start
+ * or opening the app, whichever Android allows first. Only a start that really fails (the port
+ * cannot be bound) turns the switch off, and Settings says why.
  */
 package com.wanderwildwood.kotozute.feature.desktopsync
 
@@ -69,8 +70,8 @@ class DesktopSyncService : Service() {
          * Whether the relay is actually serving right now. Runtime-only on purpose:
          * the server never survives process death, so persisting this would let the
          * UI claim "Running" with nothing behind it. prefs.desktopSyncEnabled is what the
-         * switch shows; a new process keeps it on only in the boot it was switched on in, and
-         * starts the relay again ([afterProcessStart]).
+         * switch shows, the user's own choice; a new process starts the relay again from it
+         * ([resumeIfOn]).
          */
         @Volatile
         var isRunning: Boolean = false
@@ -83,29 +84,16 @@ class DesktopSyncService : Service() {
         }
 
         /**
-         * Called when the app's process starts. The relay cannot have survived the old process.
-         * After a reboot the switch goes off and stays off. In the same boot (an update, or the
-         * system stopping the app) it stays on and the relay starts again: here if Android lets a
-         * process in the background start it, otherwise on the update's own broadcast
-         * ([DesktopSyncUpdateReceiver]) or when the app is next opened ([resumeIfOn]).
-         */
-        fun afterProcessStart(context: Context, prefs: Preferences) = resumeIfOn(context, prefs)
-
-        /**
-         * Starts the relay again if the switch is on and the phone has not restarted since it was
-         * switched on; turns the switch off if it has. Does nothing when the switch is off.
+         * Starts the relay if the switch is on and it is not already up. Called when the app's
+         * process starts, when the app is opened, and on the boot and update broadcasts. Android 12
+         * refuses a foreground service started from the background except on those broadcasts,
+         * with the app open, or for an app left out of battery optimization; a refusal leaves the
+         * switch on, and the next of those starts it.
          */
         fun resumeIfOn(context: Context, prefs: Preferences) {
-            val saved = BootMark.decode(prefs.desktopSyncBootMark.get())
-            when (DesktopSyncBoot.decide(prefs.desktopSyncEnabled.get(), isRunning, saved, BootMark.now(context))) {
-                DesktopSyncBoot.Decision.NOTHING -> Unit
-                DesktopSyncBoot.Decision.OFF -> prefs.desktopSyncEnabled.set(false)
-                // Android 12 refuses a foreground service started from the background, except on
-                // an update's broadcast or with the app open; the switch stays on either way, and
-                // the next of those starts it.
-                DesktopSyncBoot.Decision.START -> runCatching { start(context) }
-                    .onFailure { Timber.i("Desktop Sync: not started from the background (${it.javaClass.simpleName}); it starts when the app opens") }
-            }
+            if (!prefs.desktopSyncEnabled.get() || isRunning) return
+            runCatching { start(context) }
+                .onFailure { Timber.i("Desktop Sync: not started from the background (${it.javaClass.simpleName}); the next allowed start brings it back") }
         }
 
         @Volatile private var pairedBrowsers: PairedBrowsers? = null
@@ -532,11 +520,12 @@ class DesktopSyncService : Service() {
             "$packageName.$ACTION_START" -> startRelay()
             "$packageName.$ACTION_STOP" -> stopRelay()
             "$packageName.$ACTION_REBIND" -> rebindRelay()
-            // Anything else, a stray or empty intent included, ends it: the relay never comes
-            // back by itself.
-            else -> stopRelay()
+            // Anything else is the system restarting the service (START_STICKY, empty intent) or a
+            // stray intent: the relay comes back if the switch is on. Neither turns the switch off.
+            else -> if (prefs.desktopSyncEnabled.get()) startRelay() else stopSelf()
         }
-        return START_NOT_STICKY
+        // Sticky: if the system ends the process, it starts the service again by itself.
+        return START_STICKY
     }
 
     private fun startRelay() {
@@ -545,7 +534,13 @@ class DesktopSyncService : Service() {
         // fail — or the platform kills us with
         // ForegroundServiceDidNotStartInTimeException. This one is unconditional:
         // the platform requires the call, whatever the notification already says.
-        postNotification(force = true)
+        // A sticky restart in the background can be refused it on Android 12: the switch stays
+        // on, and the next allowed start (opening the app, the next boot or update) brings it up.
+        if (runCatching { postNotification(force = true) }.isFailure) {
+            Timber.i("Desktop Sync: the system would not let it run in the foreground now")
+            stopSelf()
+            return
+        }
 
         if (server != null) return // already running
 
@@ -575,7 +570,10 @@ class DesktopSyncService : Service() {
         // and the default 5s timeout tears it down with a SocketTimeoutException.
         val started = runCatching { newServer.start(0, false) }
         if (started.isFailure) {
-            Timber.e(started.exceptionOrNull(), "Desktop Sync failed to start")
+            val failure = started.exceptionOrNull()
+            Timber.e(failure, "Desktop Sync failed to start")
+            // The one time the switch goes off without the user: shown in Settings, with why.
+            prefs.desktopSyncFailure.set(failure?.message?.takeIf { it.isNotBlank() } ?: failure?.javaClass?.simpleName ?: "")
             prefs.desktopSyncEnabled.set(false)
             stopForeground(STOP_FOREGROUND_REMOVE)
             postedNotificationText = null
@@ -586,8 +584,7 @@ class DesktopSyncService : Service() {
         server = newServer
         isRunning = true
         prefs.desktopSyncEnabled.set(true)
-        // The boot it went on in: an update in this boot brings it back, a reboot does not.
-        prefs.desktopSyncBootMark.set(BootMark.now(applicationContext).encode())
+        prefs.desktopSyncFailure.set("")
         // Refresh the notification now that the port is bound and the address is known —
         // but only if that actually changed the text.
         postNotification()
@@ -639,11 +636,9 @@ class DesktopSyncService : Service() {
         disposables.clear()
         server?.stop()
         server = null
-        // The switch follows the server: when the service is stopped, Desktop Sync is off. (A
-        // process that is killed, by an update or the system, never gets here; its switch is
-        // dealt with when the next process starts.)
+        // The switch is left as it is: only the user's Stop (stopRelay) turns it off. The system
+        // ending the service is not the user saying no, and the next allowed start brings it back.
         isRunning = false
-        prefs.desktopSyncEnabled.set(false)
         super.onDestroy()
     }
 

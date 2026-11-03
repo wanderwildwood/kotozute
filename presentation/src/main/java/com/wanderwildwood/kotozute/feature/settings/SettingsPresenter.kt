@@ -267,6 +267,7 @@ class SettingsPresenter @Inject constructor(
                             if (prefs.desktopSyncEnabled.get()) {
                                 DesktopSyncService.stop(context)
                             } else {
+                                prefs.desktopSyncFailure.set("")
                                 DesktopSyncService.start(context)
                             }
                         }
@@ -724,10 +725,13 @@ class SettingsPresenter @Inject constructor(
      */
     private fun desktopSyncSummary(enabled: Boolean): String {
         if (!enabled) {
+            // Off without the user: a start that failed. Say so, and why, until the next start.
+            val failure = prefs.desktopSyncFailure.get()
+            if (failure.isNotEmpty()) return context.getString(R.string.settings_desktop_sync_summary_failed, failure)
             return context.getString(R.string.settings_desktop_sync_summary_off)
         }
         // "enabled" is the persisted intent; isRunning is whether a server is really
-        // bound. They differ briefly during auto-restore, so report honestly.
+        // bound. They differ while a restart is on its way, so report honestly.
         if (!DesktopSyncService.isRunning) {
             return context.getString(R.string.settings_desktop_sync_summary_starting)
         }

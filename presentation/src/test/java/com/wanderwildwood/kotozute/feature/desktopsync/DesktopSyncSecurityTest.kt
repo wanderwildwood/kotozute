@@ -258,13 +258,34 @@ class DesktopSyncSecurityTest {
         assertFalse("an inline script would be refused", Regex("<script(?![^>]*\\bsrc=)").containsMatchIn(html))
     }
 
-    // -------------------------------------------------------------------------- after a reboot
+    // ------------------------------------------------- once on, on until the user switches it off
 
     @Test
-    fun `nothing brings Desktop Sync back after a reboot`() {
+    fun `a reboot and an update both bring Desktop Sync back`() {
         val manifest = File("src/main/AndroidManifest.xml").readText()
-        assertFalse("a boot receiver still restarts Desktop Sync", manifest.contains("DesktopSyncBootReceiver"))
-        val receiver = runCatching { Class.forName("com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncBootReceiver") }
-        assertTrue(receiver.isFailure)
+        val receiver = Regex("""<receiver\s+android:name="\.feature\.desktopsync\.DesktopSyncRestartReceiver"[\s\S]*?</receiver>""")
+            .find(manifest)?.value
+        assertTrue("no restart receiver for Desktop Sync", receiver != null)
+        assertTrue(receiver!!.contains("android.intent.action.BOOT_COMPLETED"))
+        assertTrue(receiver.contains("android.intent.action.MY_PACKAGE_REPLACED"))
+    }
+
+    @Test
+    fun `the service is sticky and only the user's stop turns the switch off`() {
+        val source = File("src/main/java/com/wanderwildwood/kotozute/feature/desktopsync/DesktopSyncService.kt").readText()
+        assertTrue(source.contains("return START_STICKY"))
+        assertFalse(source.contains("START_NOT_STICKY"))
+        fun body(name: String): String {
+            val start = source.indexOf("fun $name(")
+            assertTrue("no $name", start >= 0)
+            return source.substring(start, source.indexOf("\n    }\n", start))
+        }
+        val off = "desktopSyncEnabled.set(false)"
+        assertFalse("the system ending the service turns the switch off", body("onDestroy").contains(off))
+        assertFalse("a sticky restart turns the switch off", body("onStartCommand").contains(off))
+        assertTrue("Stop no longer turns the switch off", body("stopRelay").contains(off))
+        // The one other place: a start that could not bind, with the reason kept for Settings.
+        assertEquals(2, Regex(Regex.escape(off)).findAll(source).count())
+        assertTrue(source.contains("desktopSyncFailure.set(failure"))
     }
 }

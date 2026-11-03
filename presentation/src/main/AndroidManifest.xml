@@ -188,12 +188,13 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
-        <!-- Desktop Sync after an update: started again if it was on in this boot. Not on
-             BOOT_COMPLETED: a reboot leaves it off. -->
+        <!-- Desktop Sync after a reboot or an update: started again if it was left on. Both
+             broadcasts may start a foreground service from the background on Android 12. -->
         <receiver
-            android:name=".feature.desktopsync.DesktopSyncUpdateReceiver"
+            android:name=".feature.desktopsync.DesktopSyncRestartReceiver"
             android:exported="false">
             <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>

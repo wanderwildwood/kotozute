@@ -215,10 +215,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         qkMigration.performMigration()
 
-        // The relay can't survive process death. After an update, or the system stopping the
-        // app, it comes back as it was if the phone has not restarted since it was switched on;
-        // after a reboot the switch goes off and nothing starts it (as in Memo).
-        runCatching { com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService.afterProcessStart(this, prefs) }
+        // The relay can't survive process death, so bring it back if it was left on: the switch
+        // stays on across reboots, updates and the system stopping the app until the user
+        // switches it off. Android 12 may refuse this start from the background; the boot and
+        // update receivers, START_STICKY and opening the app are the other ways back.
+        runCatching { com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService.resumeIfOn(this, prefs) }
             .onFailure { Timber.w(it, "Desktop Sync: could not check the switch at start") }
 
         // Without this the Signal stream only ran while its screen was open, so a

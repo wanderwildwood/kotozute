@@ -147,7 +147,6 @@
     <string name="backup_selected_backup_details_title">Backup details</string>
     <string name="backup_restore_dialog_title">बैकअप</string>
     <string name="backup_restore_dialog_empty">कोई बैकअप नहीं मिला</string>
-    <string name="backup_disclaimer">वर्तमान में, केवल एसएमएस बैकअप और बहाल द्वारा समर्थित है| एमएमएस समर्थन और अनुसूचित बैकअप जल्द ही आ रहा है!</string>
     <string name="backup_now">अभी बैकअप लें</string>
     <string name="backup_progress_parsing">बैकअप पदच्छेद हो रहा है...</string>
     <string name="backup_progress_running">%1$d/%2$d संदेशें</string>

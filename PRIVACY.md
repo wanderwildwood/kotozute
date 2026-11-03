@@ -32,7 +32,7 @@ The manifest sets `allowBackup="false"`, so Android does not copy the app into a
 
 Five things leave the app's storage only when you ask:
 
-- **Backup and restore** writes your texts to a file in a place you choose.
+- **Backup and restore** writes your SMS texts (not MMS, settings or Signal) to a plain, unencrypted file in a place you choose. A restore skips messages already on the phone.
 - **Save**, on a picture, video or file in a conversation, writes a copy where you choose, through Android's own save screen.
 - **Write a copy out** (Settings, Signal, Chat history) writes your Signal messages to a folder you pick, encrypted. Import reads a Signal Desktop export or such a copy from a folder you pick.
 - **Desktop Sync**, below.

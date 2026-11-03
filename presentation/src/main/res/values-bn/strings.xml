@@ -147,7 +147,6 @@
     <string name="backup_selected_backup_details_title">Backup details</string>
     <string name="backup_restore_dialog_title">ব্যাকআপ গুলো</string>
     <string name="backup_restore_dialog_empty">কোন ব্যাকআপ পাওয়া যায়নি</string>
-    <string name="backup_disclaimer">এইমুহুর্তে, ব্যাকআপ এবং পুনরুদ্ধার শুধুমাত্র এসএমএস এ করতে পারবেন । এমএমএস সাপর্ট  ও  শিডিউল  ব্যাকআপ শীঘ্রই আসছে!</string>
     <string name="backup_now">ব্যাকআপ করুন </string>
     <string name="backup_progress_parsing">ব্যাক-আপ পার্স করা হচ্ছে…</string>
     <string name="backup_progress_running">%1$d/%2$d বার্তা</string>

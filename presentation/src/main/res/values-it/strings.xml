@@ -148,7 +148,6 @@
     <string name="backup_selected_backup_details_title">Dettagli del backup</string>
     <string name="backup_restore_dialog_title">Backup</string>
     <string name="backup_restore_dialog_empty">Nessun backup trovato</string>
-    <string name="backup_disclaimer">Attualmente Backup e Restore supportano solo gli SMS. Il supporto per gli MMS ed i backup schedulati arriverà presto!</string>
     <string name="backup_now">Backup adesso</string>
     <string name="backup_progress_parsing">L\'analisi del backup…</string>
     <string name="backup_progress_running">%1$d/%2$d messaggi</string>

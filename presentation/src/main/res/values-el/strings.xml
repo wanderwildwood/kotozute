@@ -147,7 +147,6 @@
     <string name="backup_selected_backup_details_title">Backup details</string>
     <string name="backup_restore_dialog_title">Αντίγραφα ασφαλείας</string>
     <string name="backup_restore_dialog_empty">Δεν βρέθηκαν αντίγραφα ασφαλείας</string>
-    <string name="backup_disclaimer">Προς το παρόν, μπορούν να δημιουργηθούν αντίγραφα ασφαλείας μόνο για SMS. Η υποστήριξη MMS και ο προγραμματισμός αντιγράφων ασφαλείας θα προστεθούν σύντομα!</string>
     <string name="backup_now">Δημιουργία αντιγράφου τώρα</string>
     <string name="backup_progress_parsing">Ανάγνωση αντιγράφου ασφαλείας…</string>
     <string name="backup_progress_running">%1$d/%2$d μηνύματα</string>

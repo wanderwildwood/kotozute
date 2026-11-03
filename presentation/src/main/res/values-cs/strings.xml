@@ -149,7 +149,6 @@
     <string name="backup_selected_backup_details_title">Backup details</string>
     <string name="backup_restore_dialog_title">Zálohy</string>
     <string name="backup_restore_dialog_empty">Nenalezeny žádné zálohy</string>
-    <string name="backup_disclaimer">Momentálně jsou pro zálohování a obnovení podporovány pouze SMS. MMS podpora a plánované zálohy budou přidány již brzy!</string>
     <string name="backup_now">Zálohovat nyní</string>
     <string name="backup_progress_parsing">Analyzování zálohy…</string>
     <string name="backup_progress_running">%1$d/%2$d zpráv</string>

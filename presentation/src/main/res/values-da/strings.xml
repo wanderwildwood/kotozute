@@ -147,7 +147,6 @@
     <string name="backup_selected_backup_details_title">Sikkerhedskopioplysninger</string>
     <string name="backup_restore_dialog_title">Sikkerhedskopier</string>
     <string name="backup_restore_dialog_empty">Ingen sikkerhedskopier fundet</string>
-    <string name="backup_disclaimer">I øjeblikket understøtter Sikkerhedskopiering og Gendannelse kun SMS. MMS-understøttelse og planlagte sikkerhedskopieringer kommer snart!</string>
     <string name="backup_now">Sikkerhedskopiér nu</string>
     <string name="backup_progress_parsing">Analyserer sikkerhedskopi…</string>
     <string name="backup_progress_running">%1$d/%2$d beskeder</string>

@@ -147,7 +147,6 @@
     <string name="backup_selected_backup_details_title">Sicherungsdetails</string>
     <string name="backup_restore_dialog_title">Sicherungen</string>
     <string name="backup_restore_dialog_empty">Keine Sicherungen gefunden</string>
-    <string name="backup_disclaimer">Derzeit wird nur das Sichern und Wiederherstellen von SMS unterstützt. Die Unterstützung für MMS und geplante Sicherungen folgen demnächst!</string>
     <string name="backup_now">Jetzt sichern</string>
     <string name="backup_progress_parsing">Analysiere Sicherung…</string>
     <string name="backup_progress_running">%1$d/%2$d Nachrichten</string>

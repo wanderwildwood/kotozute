@@ -51,6 +51,8 @@ data class SettingsState(
     val syncProgress: SyncRepository.SyncProgress = SyncRepository.SyncProgress.Idle,
     val desktopSyncSummary: String = "",
     val desktopSyncEnabled: Boolean = false,
+    /** "2 browsers", "None yet": how many browsers are paired. */
+    val desktopSyncBrowsersSummary: String = "",
     val desktopSyncVpnOnly: Boolean = true,
     val signalPaired: Boolean = false,
     val signalEnabled: Boolean = false,

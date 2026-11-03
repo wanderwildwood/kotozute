@@ -36,6 +36,9 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun mmsSizeSelected(): Observable<Int>
     fun messageLinkHandlingSelected(): Observable<Int>
     fun desktopSyncResetConfirmed(): Observable<*>
+
+    /** A paired browser's id, after "Forget" was confirmed for it. */
+    fun desktopSyncForgetConfirmed(): Observable<String>
     fun signalUnpairConfirmed(): Observable<*>
 
     /** The one-off offer to read the account's contact list, answered yes. */
@@ -66,6 +69,9 @@ interface SettingsView : QkViewContract<SettingsState> {
     fun showMessageLinkHandlingDialogPicker()
     fun showDesktopSyncLinkDialog(urls: List<Pair<String, String>>, hiddenByVpnOnly: Boolean = false)
     fun askDesktopSyncReset()
+
+    /** The paired browsers, each with its label and when it was last used; tap one to forget it. */
+    fun showDesktopSyncBrowsers(browsers: List<com.wanderwildwood.kotozute.feature.desktopsync.PairedBrowsers.Browser>)
     fun showSignalAccountDialog(account: com.wanderwildwood.kotozute.repository.SignalAccount?)
     fun chooseSignalExportFolder()
     fun chooseSignalBackupFolder()

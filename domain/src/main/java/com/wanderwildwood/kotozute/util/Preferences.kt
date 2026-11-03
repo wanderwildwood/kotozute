@@ -119,7 +119,10 @@ class Preferences @Inject constructor(
     val autoColor = rxPrefs.getBoolean("autoColor", true)
     val systemFont = rxPrefs.getBoolean("systemFont", true)
     val desktopSyncEnabled = rxPrefs.getBoolean("desktopSyncEnabled", false)
+    /** The one token every browser shared before 1.36; read once, carried over and erased. */
     val desktopSyncToken = rxPrefs.getString("desktopSyncToken", "")
+    /** The paired browsers, one line each: id, SHA-256 of its token, made, last used, label. */
+    val desktopSyncBrowsers = rxPrefs.getString("desktopSyncBrowsers", "")
     // Was "Tailscale only"; the key keeps its old name so nobody's setting resets.
     val desktopSyncVpnOnly = rxPrefs.getBoolean("desktopSyncTailscaleOnly", true)
 

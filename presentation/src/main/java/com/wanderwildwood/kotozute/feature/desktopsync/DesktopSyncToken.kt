@@ -1,42 +1,6 @@
 package com.wanderwildwood.kotozute.feature.desktopsync
 
 /**
- * Whether a caller presented the right Desktop Sync token.
- *
- * A free function rather than a method on the server so it can be tested without standing up
- * a web server, an HTTP session and a Realm. What it decides is who may read every message on
- * the phone, which is the last thing that should only be exercised by hand.
- *
- * Tokens issued since the move to Crockford's alphabet carry no lowercase, and those match
- * case-insensitively: the string is typed by a person, and a browser or a keyboard that
- * helpfully capitalises should not lock them out. Older mixed-case tokens still have to match
- * exactly, because for those the case is information.
- */
-internal fun tokenMatches(supplied: String?, token: String): Boolean {
-    if (supplied == null) return false
-    if (constantTimeEquals(supplied, token)) return true
-    if (token.any { it.isLowerCase() }) return false
-    return constantTimeEquals(supplied.uppercase(), token.uppercase())
-}
-
-/**
- * Whether a caller presented the right token in an `Authorization: Bearer` header.
- *
- * Alongside [tokenMatches] for the reason that one is here: this decides who may read every
- * message on the phone, and it should not be the one gate that is only ever exercised by hand.
- *
- * The header is sent by a program rather than typed by a person, so unlike a query-string token
- * it has to match exactly -- there is no keyboard to forgive. The scheme name is public, so only
- * the token itself is compared without stopping at the first difference.
- */
-internal fun bearerMatches(header: String?, token: String): Boolean {
-    if (header == null) return false
-    val prefix = "Bearer "
-    if (!header.startsWith(prefix)) return false
-    return constantTimeEquals(header.substring(prefix.length), token)
-}
-
-/**
  * Compares without stopping at the first character that differs.
  *
  * `==` returns as soon as it finds a mismatch, so how long the answer takes says how much of

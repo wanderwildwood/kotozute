@@ -102,6 +102,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val signatureSubject: Subject<String> = PublishSubject.create()
     private val autoDeleteSubject: Subject<Int> = PublishSubject.create()
     private val desktopSyncResetSubject: Subject<Unit> = PublishSubject.create()
+    private val desktopSyncForgetSubject: Subject<String> = PublishSubject.create()
     private val signalExportFolderSubject: Subject<String> = PublishSubject.create()
     private val signalBackupFolderSubject: Subject<String> = PublishSubject.create()
     private val signalBackupKeySubject: Subject<Pair<String, String>> = PublishSubject.create()
@@ -226,6 +227,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun desktopSyncResetConfirmed(): Observable<*> = desktopSyncResetSubject
 
+    override fun desktopSyncForgetConfirmed(): Observable<String> = desktopSyncForgetSubject
+
     override fun signalExportFolderChosen(): Observable<String> = signalExportFolderSubject
 
     override fun signalBackupFolderChosen(): Observable<String> = signalBackupFolderSubject
@@ -305,6 +308,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.desktopSyncVpnOnly.setVisible(state.desktopSyncEnabled)
         binding.desktopSyncVpnOnly.checkbox.isChecked = state.desktopSyncVpnOnly
         binding.desktopSyncReset.setVisible(state.desktopSyncEnabled)
+        binding.desktopSyncBrowsers.setVisible(state.desktopSyncEnabled)
+        binding.desktopSyncBrowsers.summary = state.desktopSyncBrowsersSummary
 
         // Linking again is not additive -- it registers a new device and abandons the old
         // one's keys -- so a device that already has a link is told that before it taps.
@@ -967,12 +972,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             return
         }
 
-        // A short code first, because typing the full link is the part people complain
-        // about: a host and six digits beats a host, a port and a 24-character token.
+        // The address and a six-digit code: the only way in. A link with a token in it was
+        // a secret sitting in history, bookmarks and the clipboard, so there is none now.
         val code = com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncPairing.issue()
-        val hosts = urls.map { (label, url) ->
-            label to url.substringBefore("?token=")
-        }
+        val hosts = urls
 
         // All of them, labelled. The relay listens on every interface, so on a phone with
         // both Wi-Fi and a VPN up there is more than one right answer and no way from
@@ -1000,8 +1003,6 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 append(activity!!.getString(R.string.settings_desktop_sync_code_locked))
             }
             append("\n\n")
-            append(activity!!.getString(R.string.settings_desktop_sync_link_full)).append("\n\n")
-            urls.forEach { (label, url) -> append(label).append('\n').append(url).append("\n\n") }
             append(activity!!.getString(R.string.settings_desktop_sync_link_bookmark))
         }
         val message = render(code)
@@ -1010,10 +1011,9 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
 
-        // The link carries a long random token and is read off a phone to be entered on a
-        // computer. Without this it can only be copied out by hand, one character at a time.
         // With more than one address the copy button takes the first, which is the VPN
-        // address when there is one; the rest are selectable in the dialog.
+        // address when there is one; the rest are selectable in the dialog. The address
+        // carries no token; the code is still typed.
         builder.setNeutralButton(R.string.settings_desktop_sync_link_copy) { _, _ ->
             val clipboard = activity!!
                 .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -1062,6 +1062,43 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.desktopSyncReset.title = activity?.getString(R.string.settings_desktop_sync_reset_armed).orEmpty()
         binding.desktopSyncReset.summary = activity?.getString(R.string.settings_desktop_sync_reset_armed_summary)
         binding.desktopSyncReset.postDelayed(disarmRunnable, ARM_TIMEOUT_MS)
+    }
+
+    override fun showDesktopSyncBrowsers(
+        browsers: List<com.wanderwildwood.kotozute.feature.desktopsync.PairedBrowsers.Browser>
+    ) {
+        val activity = activity ?: return
+        if (browsers.isEmpty()) {
+            activity.einkDialog()
+                .setTitle(R.string.settings_desktop_sync_browsers_title)
+                .setMessage(R.string.settings_desktop_sync_browsers_none)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+        // At most eight, so the list fits without paging. A row says what the browser told us
+        // about itself and when it was last used; tapping one asks before forgetting it.
+        val dateFormat = android.text.format.DateFormat.getMediumDateFormat(activity)
+        val rows = browsers.map { b ->
+            activity.getString(
+                R.string.settings_desktop_sync_browser_row, b.label, dateFormat.format(java.util.Date(b.lastUsed))
+            )
+        }.toTypedArray<CharSequence>()
+        activity.einkDialog()
+            .setTitle(R.string.settings_desktop_sync_browsers_title)
+            .setItems(rows) { _, which ->
+                val browser = browsers[which]
+                activity.einkDialog()
+                    .setTitle(activity.getString(R.string.settings_desktop_sync_forget_title, browser.label))
+                    .setMessage(R.string.settings_desktop_sync_forget_message)
+                    .setPositiveButton(R.string.settings_desktop_sync_forget) { _, _ ->
+                        desktopSyncForgetSubject.onNext(browser.id)
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     override fun showSignalLink() {

@@ -1,6 +1,8 @@
 /*
  * Foreground service hosting the Desktop Sync relay (DesktopSyncServer).
- * Manual start/stop only, from the Settings screen — never auto-starts.
+ * Manual start/stop only, from the Settings screen — never auto-starts. A reboot, an
+ * update or the system stopping the app leaves it off, as in Memo: a server that reads every
+ * message should only be listening when somebody switched it on and has not walked away.
  */
 package com.wanderwildwood.kotozute.feature.desktopsync
 
@@ -35,7 +37,6 @@ import android.net.NetworkCapabilities
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
-import java.security.SecureRandom
 import javax.inject.Inject
 
 class DesktopSyncService : Service() {
@@ -61,15 +62,14 @@ class DesktopSyncService : Service() {
         private const val LEGACY_CHANNEL_ID = "desktop_sync"
         private const val ACTION_START = "ACTION_START"
         private const val ACTION_STOP = "ACTION_STOP"
-        private const val ACTION_RESET_TOKEN = "ACTION_RESET_TOKEN"
         private const val ACTION_REBIND = "ACTION_REBIND"
 
         /**
          * Whether the relay is actually serving right now. Runtime-only on purpose:
          * the server never survives process death, so persisting this would let the
-         * UI claim "Running" with nothing behind it. The **persisted*_ flag
-         * (prefs.desktopSyncEnabled) means "the user wants this on" and is what drives
-         * auto-restore after a reboot, an app update, or an Android process kill.
+         * UI claim "Running" with nothing behind it. prefs.desktopSyncEnabled is what the
+         * switch shows; a new process sets it back to off ([offAfterRestart]), because nothing
+         * brings the relay back by itself.
          */
         @Volatile
         var isRunning: Boolean = false
@@ -81,12 +81,37 @@ class DesktopSyncService : Service() {
             ContextCompat.startForegroundService(context, intent)
         }
 
-        /** Bring the relay back up if it was left switched on. Safe to call spuriously. */
-        fun restoreIfEnabled(context: Context, prefs: Preferences) {
-            if (prefs.desktopSyncEnabled.get() && !isRunning) {
-                runCatching { start(context) }
-            }
+        /**
+         * Called when the app's process starts. The relay cannot have survived the old process,
+         * and it does not come back by itself, so the switch is set to say so.
+         */
+        fun offAfterRestart(prefs: Preferences) {
+            if (!isRunning) prefs.desktopSyncEnabled.set(false)
         }
+
+        @Volatile private var pairedBrowsers: PairedBrowsers? = null
+
+        /**
+         * The browsers paired with this phone, made on first use from the list kept (as
+         * hashes) in the app's private preferences. The one token every browser shared before
+         * is carried over once, as an entry that can only be traded for a browser's own token,
+         * and erased from the preferences.
+         */
+        fun browsers(context: Context, prefs: Preferences): PairedBrowsers =
+            pairedBrowsers ?: synchronized(this) {
+                pairedBrowsers ?: PairedBrowsers(
+                    now = { System.currentTimeMillis() },
+                    initial = prefs.desktopSyncBrowsers.get(),
+                    save = { prefs.desktopSyncBrowsers.set(it) },
+                ).also { browsers ->
+                    val shared = prefs.desktopSyncToken.get()
+                    if (shared.isNotEmpty()) {
+                        browsers.importLegacy(shared, context.getString(R.string.settings_desktop_sync_browser_legacy))
+                        prefs.desktopSyncToken.delete()
+                    }
+                    pairedBrowsers = browsers
+                }
+            }
 
         /**
          * Bind the relay again, so a setting that shapes the socket takes effect.
@@ -98,12 +123,12 @@ class DesktopSyncService : Service() {
          * written: `adbd: failed to connect to socket 'tcp:8421': Connection refused`.
          *
          * One action instead, torn down and brought back up in order inside the service --
-         * the same shape [resetToken] already used for the same reason.
+         * the same shape the old token reset used for the same reason.
          */
         fun rebind(context: Context) {
             val intent = Intent(context, DesktopSyncService::class.java)
                 .setAction("${context.packageName}.$ACTION_REBIND")
-            // Plain startService, like resetToken: if the relay is running it is already
+            // Plain startService: if the relay is running it is already
             // foreground, and if it is not this just shuts back down.
             runCatching { context.startService(intent) }
         }
@@ -117,18 +142,10 @@ class DesktopSyncService : Service() {
             runCatching { context.startService(intent) }
         }
 
-        /**
-         * Throw away the current token and mint a new one, rebinding the relay so the
-         * new token takes effect immediately. Every existing bookmark and open browser
-         * tab stops working until it is reopened on the new URL — which is the point.
-         */
-        fun resetToken(context: Context) {
-            val intent = Intent(context, DesktopSyncService::class.java)
-                .setAction("${context.packageName}.$ACTION_RESET_TOKEN")
-            // Plain startService: this never promises a startForeground() we don't make.
-            // If the relay is running it is already foreground; if it isn't, the handler
-            // just rewrites the token and shuts back down.
-            runCatching { context.startService(intent) }
+        /** Every paired browser is forgotten: its token stops working and open pages are closed. */
+        fun forgetAllBrowsers(context: Context, prefs: Preferences) {
+            DesktopSyncPairing.clear()
+            browsers(context, prefs).removeAll()
         }
 
         private fun ipv4Addresses(): List<String> = runCatching {
@@ -141,8 +158,6 @@ class DesktopSyncService : Service() {
         }.getOrNull().orEmpty()
 
         /** True for Tailscale's CGNAT range, 100.64.0.0/10. */
-        const val TOKEN_LENGTH = 24
-
         fun isTailscale(ip: String): Boolean {
             val parts = ip.split('.')
             if (parts.size != 4 || parts[0] != "100") return false
@@ -393,9 +408,12 @@ class DesktopSyncService : Service() {
         /** The one place the scheme is decided: the socket is TLS exactly when "Use HTTPS" is on. */
         fun scheme(tls: Boolean): String = if (tls) "https" else "http"
 
-        /** A link to this phone's relay. [path] is empty or starts with a slash. */
-        fun linkUrl(tls: Boolean, host: String, port: Int, token: String, path: String = ""): String =
-            "${scheme(tls)}://$host:$port$path?token=$token"
+        /**
+         * A link to this phone's relay. [path] is empty or starts with a slash. It carries no
+         * token: a browser proves itself with the six-digit code once, and keeps its own.
+         */
+        fun linkUrl(tls: Boolean, host: String, port: Int, path: String = ""): String =
+            "${scheme(tls)}://$host:$port$path"
 
         const val LABEL_TAILSCALE = "Tailscale"
         const val LABEL_VPN = "VPN"
@@ -494,13 +512,12 @@ class DesktopSyncService : Service() {
         when (intent?.action) {
             "$packageName.$ACTION_START" -> startRelay()
             "$packageName.$ACTION_STOP" -> stopRelay()
-            "$packageName.$ACTION_RESET_TOKEN" -> resetToken()
             "$packageName.$ACTION_REBIND" -> rebindRelay()
-            // A null intent means Android restarted us itself after a process kill
-            // (START_STICKY). Come back up only if the relay was left switched on.
-            null -> if (prefs.desktopSyncEnabled.get()) startRelay() else stopRelay()
+            // Anything else, a stray or empty intent included, ends it: the relay never comes
+            // back by itself.
+            else -> stopRelay()
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun startRelay() {
@@ -513,16 +530,10 @@ class DesktopSyncService : Service() {
 
         if (server != null) return // already running
 
-        var token = prefs.desktopSyncToken.get()
-        if (token.isEmpty()) {
-            token = generateToken()
-            prefs.desktopSyncToken.set(token)
-        }
-
         val newServer = DesktopSyncServer(
             port = PORT,
             context = applicationContext,
-            token = token,
+            browsers = browsers(applicationContext, prefs),
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
             contactRepository = contactRepository,
@@ -570,11 +581,6 @@ class DesktopSyncService : Service() {
             }, Timber::w)
     }
 
-    private fun resetToken() {
-        prefs.desktopSyncToken.set(generateToken())
-        rebindRelay()
-    }
-
     /**
      * Tear the server down and bring it straight back up, in that order and in one place.
      *
@@ -612,23 +618,11 @@ class DesktopSyncService : Service() {
         disposables.clear()
         server?.stop()
         server = null
-        // Note: deliberately does NOT clear prefs.desktopSyncEnabled — if the process
-        // is being killed while the relay was on, that persisted intent is exactly
-        // what brings it back on next launch/boot.
+        // The switch follows the server: when the service goes, Desktop Sync is off, and
+        // nothing brings it back by itself.
         isRunning = false
+        prefs.desktopSyncEnabled.set(false)
         super.onDestroy()
-    }
-
-    private fun generateToken(): String {
-        // Crockford's alphabet: no I, L, O or U, so nothing in a token can be mistaken for
-        // anything else in it. Base64 put lI1 and O0 in the same string and this link gets
-        // read off a phone screen and typed into a computer, which made telling them apart
-        // somebody else's problem. 24 characters of it is 120 bits, which is ample.
-        val alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-        val random = SecureRandom()
-        return buildString(TOKEN_LENGTH) {
-            repeat(TOKEN_LENGTH) { append(alphabet[random.nextInt(alphabet.length)]) }
-        }
     }
 
     /**

@@ -853,7 +853,6 @@
     <string name="settings_desktop_sync_code">and enter this code:\n\n    %1$s\n</string>
     <string name="settings_desktop_sync_code_left">Works once, for %1$s</string>
     <string name="settings_desktop_sync_code_locked">Too many wrong tries, so the code is cancelled. Close this and tap Show link again for a new one.</string>
-    <string name="settings_desktop_sync_link_full">Or use the full link, which needs no code:</string>
     <string name="contacts_signal_hint">Search people on Signal</string>
     <string name="signal_rail_label">Signal</string>
     <string name="signal_rail_label_switch">Signal ></string>
@@ -945,18 +944,30 @@
     </plurals>
     <string name="settings_desktop_sync_link_title">Show link</string>
     <string name="settings_desktop_sync_link_summary">Open this on your computer</string>
-    <string name="settings_desktop_sync_link_bookmark">Bookmark it — the address stays the same.</string>
+    <string name="settings_desktop_sync_link_bookmark">Each browser enters a code once and is then paired. Bookmark the address; it stays the same.</string>
     <string name="settings_desktop_sync_link_none">Desktop Sync is on, but this phone has no usable address yet.</string>
     <string name="settings_desktop_sync_link_vpn_only">VPN only is on and no VPN is connected. Connect one, or switch VPN only off in Settings, Desktop Sync.</string>
     <string name="settings_desktop_sync_tls_title">Use HTTPS</string>
     <string name="settings_desktop_sync_tls_summary">Needed before a browser will let the page use the microphone. The phone makes its own certificate, so every visit starts with a security warning you have to accept, and an already-paired browser needs the link again.</string>
     <string name="settings_desktop_sync_vpn_only_title">VPN only</string>
     <string name="settings_desktop_sync_vpn_only_summary">Refuse connections that don\'t come through a VPN</string>
-    <string name="settings_desktop_sync_reset_title">Reset Desktop Sync link</string>
-    <string name="settings_desktop_sync_reset_summary">Replace the token in your link</string>
-    <string name="settings_desktop_sync_reset_armed">Reset link — tap again</string>
-    <string name="settings_desktop_sync_reset_armed_summary">Any bookmark or open tab on the old link stops working</string>
-    <string name="settings_desktop_sync_reset_done">New Desktop Sync link generated</string>
+    <string name="settings_desktop_sync_reset_title">Forget all browsers</string>
+    <string name="settings_desktop_sync_reset_summary">Every browser will need a new code</string>
+    <string name="settings_desktop_sync_reset_armed">Forget all — tap again</string>
+    <string name="settings_desktop_sync_reset_armed_summary">Every paired browser stops working at once</string>
+    <string name="settings_desktop_sync_reset_done">All browsers forgotten</string>
+    <string name="settings_desktop_sync_browsers_title">Paired browsers</string>
+    <string name="settings_desktop_sync_browsers_summary_none">None yet</string>
+    <plurals name="settings_desktop_sync_browsers_summary">
+        <item quantity="one">%d browser</item>
+        <item quantity="other">%d browsers</item>
+    </plurals>
+    <string name="settings_desktop_sync_browsers_none">No browser is paired. Open Show link, then enter the code on the computer.</string>
+    <string name="settings_desktop_sync_browser_row">%1$s\nLast used %2$s</string>
+    <string name="settings_desktop_sync_browser_legacy">Paired before this update</string>
+    <string name="settings_desktop_sync_forget_title">Forget %1$s?</string>
+    <string name="settings_desktop_sync_forget_message">It stops working at once. To use it again, enter a new code from Show link.</string>
+    <string name="settings_desktop_sync_forget">Forget</string>
     <!-- Settings categories: the loose options are grouped behind these.
          general and desktop_sync already exist above and are reused. -->
     <string name="settings_category_sending">Sending</string>

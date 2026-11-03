@@ -339,6 +339,13 @@
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/desktopSyncBrowsers"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:title="@string/settings_desktop_sync_browsers_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/desktopSyncReset"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

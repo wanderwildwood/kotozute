@@ -4,9 +4,11 @@
  * ZeroTier, ...). No relay server involved — the desktop client talks
  * directly to this port on the phone's VPN address.
  *
- * Every request (HTTP and the WebSocket upgrade) must carry the pairing
- * token, since the VPN restricts *who* can reach this port but not what
- * they can do once they're on its network.
+ * Every request (HTTP and the WebSocket upgrade) must carry the token of a
+ * paired browser, since the VPN restricts *who* can reach this port but not
+ * what they can do once they're on its network. Each browser has its own
+ * token (PairedBrowsers), sent in a header or a cookie and never in a URL;
+ * the rules are in DesktopSyncSecurity.kt, where they are tested.
  */
 package com.wanderwildwood.kotozute.feature.desktopsync
 
@@ -56,7 +58,8 @@ import java.util.Collections
 class DesktopSyncServer(
     port: Int,
     private val context: Context,
-    private val token: String,
+    /** The paired browsers: each its own token, removable one by one from Settings. */
+    private val browsers: PairedBrowsers,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
     private val contactRepository: ContactRepository,
@@ -86,9 +89,15 @@ class DesktopSyncServer(
      * Whether this peer is allowed to talk to us at all, before the token is even looked at.
      * With "VPN only" on, anything that doesn't come through a VPN is refused outright,
      * so a device sharing the home Wi-Fi cannot reach the dashboard even holding the token.
+     * With it off, still only private addresses: never a global IPv6 or a public address.
      */
-    private fun peerAllowed(ip: String?): Boolean =
-        !vpnOnly() || DesktopSyncService.isAllowedPeer(ip, context)
+    private fun peerAllowed(ip: String?): Boolean {
+        val vpn = vpnOnly()
+        return com.wanderwildwood.kotozute.feature.desktopsync.peerAllowed(ip, vpn, if (vpn) DesktopSyncService.vpnSubnets(context) else emptyList())
+    }
+
+    /** Whether the socket is TLS, for the cookie's Secure flag. */
+    private val secure: Boolean get() = prefs.desktopSyncTls.get()
 
     private companion object {
         /**
@@ -172,6 +181,15 @@ class DesktopSyncServer(
         // them in java.io.tmpdir -- which on Android is not reliably writable by an app. Point
         // it at our own cache directory instead of finding out per device.
         setTempFileManagerFactory { CacheDirTempFileManager(context) }
+
+        // A browser that is forgotten (or has gone unused for 30 days) is cut off at once,
+        // open page included.
+        browsers.onRemoved = { gone ->
+            openSockets.toList().filter { it.browserId in gone }.forEach { socket ->
+                runCatching { socket.close(CloseCode.PolicyViolation, "forgotten", false) }
+                openSockets.remove(socket)
+            }
+        }
     }
 
     /**
@@ -249,6 +267,7 @@ class DesktopSyncServer(
     }
 
     override fun stop() {
+        browsers.onRemoved = null
         keepAlive.shutdownNow()
         super.stop()
     }
@@ -262,18 +281,30 @@ class DesktopSyncServer(
         /** Last time this peer proved it's still there. Read from the keep-alive thread. */
         @Volatile var lastPongAt = System.currentTimeMillis()
 
+        /** Which paired browser opened this, so forgetting it closes this too. */
+        @Volatile var browserId: String? = null
+
         override fun onOpen() {
             if (!peerAllowed(handshakeRequest.remoteIpAddress)) {
                 Timber.w("Desktop Sync: WebSocket rejected (peer not on a VPN)")
                 runCatching { close(CloseCode.PolicyViolation, "not on a VPN", false) }
                 return
             }
-            val authed = tokenMatches(handshakeRequest.parameters["token"]?.firstOrNull())
-            if (!authed) {
+            // Only from this server's own page, and only with the cookie that page was given:
+            // never a token in the address.
+            val headers = handshakeRequest.headers
+            if (!sameOrigin(headers["origin"], headers["host"])) {
+                Timber.w("Desktop Sync: WebSocket rejected (not from the page)")
+                runCatching { close(CloseCode.PolicyViolation, "no", false) }
+                return
+            }
+            val id = browsers.check(presentedToken("GET", headers, handshakeRequest.parameters, listeningPort))
+            if (id == null) {
                 Timber.w("Desktop Sync: WebSocket rejected (bad/missing token)")
                 runCatching { close(CloseCode.PolicyViolation, "bad token", false) }
                 return
             }
+            browserId = id
             lastPongAt = System.currentTimeMillis()
             openSockets.add(this)
             Timber.i("Desktop Sync: WebSocket connected (${openSockets.size} total)")
@@ -310,7 +341,19 @@ class DesktopSyncServer(
         }
     }
 
-    override fun serveHttp(session: IHTTPSession): Response {
+    override fun serveHttp(session: IHTTPSession): Response = headed(route(session))
+
+    /**
+     * No caching unless a route asked for it (the emoji font, a picture), nothing sniffed, no
+     * referrer, no framing, on every answer. No CORS header is ever added.
+     */
+    private fun headed(response: Response): Response = response.apply {
+        SECURITY_HEADERS.forEach { (name, value) ->
+            if (getHeader(name) == null) addHeader(name, value)
+        }
+    }
+
+    private fun route(session: IHTTPSession): Response {
         val uri = session.uri.trimEnd('/')
 
         // Ahead of everything, including the two unauthenticated static assets: an
@@ -330,7 +373,7 @@ class DesktopSyncServer(
         // from a plain <script src> with no way to attach the token — so serve those
         // two unauthenticated. Everything touching actual messages is gated below.
         when (uri) {
-            "", "/index.html" -> return serveAsset("index.html", "text/html")
+            "", "/index.html" -> return servePage(session)
             "/app.js" -> return serveAsset("app.js", "application/javascript")
             "/emoji.json" -> return serveAsset("emoji.json", "application/json")
             // Served unauthenticated for the same reason as app.js: a stylesheet's @font-face
@@ -340,7 +383,7 @@ class DesktopSyncServer(
             // What makes the dashboard installable: a browser reading these will offer to
             // put it in the menu with its own window and icon, which is a great deal
             // friendlier than "bookmark this URL with a token in it".
-            "/manifest.webmanifest" -> return serveManifest(session)
+            "/manifest.webmanifest" -> return serveManifest()
             "/icon.png" -> return serveAsset("icon.png", "image/png")
         }
 
@@ -351,11 +394,22 @@ class DesktopSyncServer(
         if (uri == "/api/pair-code" && session.method == Method.POST) {
             return handlePairCode(session)
         }
+        // How the page, on load, gets the cookie its pictures and socket need -- and how a
+        // browser still holding an earlier version's shared token trades it for its own.
+        if (uri == "/api/session" && session.method == Method.POST) {
+            return handleSession(session)
+        }
 
-        val authed = bearerMatches(session.headers["authorization"], token) ||
-                tokenMatches(session.parameters["token"]?.firstOrNull())
-        if (!authed) {
+        // A header or the cookie, never the address: see presentedToken.
+        val browser = browsers.check(presentedToken(session.method.name, session.headers, session.parameters, listeningPort))
+        if (browser == null) {
             return jsonResponse(Response.Status.UNAUTHORIZED, JSONObject().put("error", "bad token"))
+                .apply { addHeader("Set-Cookie", clearedSessionCookie(listeningPort, secure)) }
+        }
+        // A change is only ever asked for by the page's own script, which says so. A page
+        // elsewhere cannot add this header without a preflight that is never answered.
+        if (session.method != Method.GET && session.headers[PAGE_HEADER] != "1") {
+            return jsonResponse(Response.Status.FORBIDDEN, JSONObject().put("error", "not from the page"))
         }
 
         // Realm only auto-refreshes on threads with a Looper. NanoHTTPD serves each
@@ -490,7 +544,37 @@ class DesktopSyncServer(
             )
         }
         Timber.i("Desktop Sync: a pairing code was redeemed")
-        return jsonResponse(Response.Status.OK, JSONObject().put("token", token))
+        // This browser's own token; the phone keeps only a hash of it. Never logged.
+        val issued = browsers.issue(browserLabel(session.headers["user-agent"]))
+        return jsonResponse(Response.Status.OK, JSONObject().put("token", issued))
+            .apply { addHeader("Set-Cookie", sessionCookie(listeningPort, issued, secure)) }
+    }
+
+    /**
+     * The page asks this once on load, with its token in the header. The answer sets the
+     * cookie (which the page's own script cannot read) that lets pictures, voice notes, videos,
+     * downloads and the WebSocket prove themselves without a token in their address.
+     *
+     * A browser that still holds the one token every browser shared before this version gets
+     * a token of its own in exchange, and the page keeps that from then on.
+     */
+    private fun handleSession(session: IHTTPSession): Response {
+        if (session.headers[PAGE_HEADER] != "1") {
+            return jsonResponse(Response.Status.FORBIDDEN, JSONObject().put("error", "not from the page"))
+        }
+        val presented = bearerToken(session.headers["authorization"])
+        if (browsers.check(presented) != null) {
+            return jsonResponse(Response.Status.OK, JSONObject())
+                .apply { addHeader("Set-Cookie", sessionCookie(listeningPort, presented!!, secure)) }
+        }
+        val exchanged = browsers.exchangeLegacy(presented, browserLabel(session.headers["user-agent"]))
+        if (exchanged != null) {
+            Timber.i("Desktop Sync: a browser traded the old shared token for its own")
+            return jsonResponse(Response.Status.OK, JSONObject().put("token", exchanged))
+                .apply { addHeader("Set-Cookie", sessionCookie(listeningPort, exchanged, secure)) }
+        }
+        return jsonResponse(Response.Status.UNAUTHORIZED, JSONObject().put("error", "bad token"))
+            .apply { addHeader("Set-Cookie", clearedSessionCookie(listeningPort, secure)) }
     }
 
     /**
@@ -549,22 +633,11 @@ class DesktopSyncServer(
     }
 
     /**
-     * Exact, or case-insensitive when the token holds no lowercase of its own.
-     *
-     * Tokens are generated from an uppercase alphabet, so case carries no information and
-     * a link typed by hand should not fail on it. Tokens issued before that change are
-     * mixed-case base64, where case does carry information, so those are compared exactly.
+     * The web app manifest. [start_url] is the bare page: an installed window shares the
+     * browser's storage, so it opens already paired, and no token is ever put in an address.
      */
-    private fun tokenMatches(supplied: String?): Boolean = tokenMatches(supplied, token)
-
-    /**
-     * The web app manifest, built here rather than shipped as a file because [start_url] has
-     * to carry the pairing token: an installed window opens straight into the dashboard, and
-     * without the token it would open to a refusal.
-     */
-    private fun serveManifest(session: IHTTPSession): Response {
-        val supplied = session.parameters["token"]?.firstOrNull()
-        val start = if (tokenMatches(supplied)) "/?token=$token" else "/"
+    private fun serveManifest(): Response {
+        val start = "/"
         val manifest = JSONObject().apply {
             put("name", "Messaging")
             put("short_name", "Messaging")
@@ -587,7 +660,8 @@ class DesktopSyncServer(
     }
 
     /**
-     * A Linux desktop entry with this phone's address and token already in it, so the
+     * A Linux desktop entry with this phone's address in it (and no token: the browser it
+     * opens is already paired, and a token in a file is a token anyone can copy), so the
      * dashboard can be started from an applications menu like anything else. The browser
      * saves it; where it has to go afterwards is in the page's own instructions, because no
      * web page is allowed to write to ~/.local/share.
@@ -598,7 +672,7 @@ class DesktopSyncServer(
             ?: "127.0.0.1"
         // The scheme has to follow the socket, or the link hands somebody a page that will
         // not load at all.
-        val url = DesktopSyncService.linkUrl(prefs.desktopSyncTls.get(), address, listeningPort, token)
+        val url = DesktopSyncService.linkUrl(prefs.desktopSyncTls.get(), address, listeningPort)
         val entry = desktopEntryFor(url)
         return newFixedLengthResponse(Response.Status.OK, "application/x-desktop", entry).apply {
             addHeader("Content-Disposition", "attachment; filename=\"messaging.desktop\"")
@@ -630,13 +704,36 @@ class DesktopSyncServer(
         // No refresh, no script, no styling beyond what a camera needs. The code lives about
         // ninety seconds, and a page that reloaded itself would go blank in front of someone
         // holding a phone up to it.
+        val nonce = newNonce()
         val html = "<!doctype html><html><head><meta charset=\"utf-8\">" +
-            "<title>Link this phone to Signal</title><style>" +
+            "<title>Link this phone to Signal</title><style nonce=\"" + nonce + "\">" +
             "body{background:#fff;color:#000;font:16px/1.4 sans-serif;text-align:center;margin:2rem}" +
             "img{width:min(80vw,80vh);height:auto;image-rendering:pixelated}" +
             ".none{max-width:32rem;margin:4rem auto}" +
             "</style></head><body>" + body + "</body></html>"
         return newFixedLengthResponse(Response.Status.OK, "text/html", html)
+            .apply { addHeader("Content-Security-Policy", linkPageCsp(nonce)) }
+    }
+
+    private val random = java.security.SecureRandom()
+
+    /** A fresh value for each page served, so a style block the page did not bring cannot run. */
+    private fun newNonce(): String = android.util.Base64.encodeToString(
+        ByteArray(16).also(random::nextBytes),
+        android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
+    )
+
+    /**
+     * The dashboard, with this answer's nonce on its one style block and the
+     * Content-Security-Policy that names it: the page's own script file and nothing inline.
+     */
+    private fun servePage(session: IHTTPSession): Response {
+        val html = runCatching {
+            context.assets.open("desktopsync/index.html").use { String(it.readBytes(), Charsets.UTF_8) }
+        }.getOrNull() ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "asset missing"))
+        val nonce = newNonce()
+        return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html.replace("__NONCE__", nonce))
+            .apply { addHeader("Content-Security-Policy", pageCsp(nonce, session.headers["host"])) }
     }
 
     /**

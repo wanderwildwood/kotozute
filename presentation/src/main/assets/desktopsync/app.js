@@ -1,6 +1,8 @@
 // Desktop Sync dashboard. Talks to the DesktopSyncServer running on the
-// Kompakt; the pairing token comes in via ?token= on the page URL and is
-// reused for every API call and the WebSocket upgrade.
+// Kompakt. A browser pairs once with the six-digit code the phone shows and keeps its own
+// token: in an Authorization header for every API call, and in a cookie the phone sets
+// (which this script cannot read) for pictures, sound, video, downloads and the WebSocket.
+// No token ever goes in an address.
 
 /* ── Theme ─────────────────────────────────────────────────────────────────────
  * auto | light | dark, persisted per browser. "auto" is resolved to a concrete
@@ -34,9 +36,8 @@ darkQuery.addEventListener('change', () => { if (themePref === 'auto') applyThem
 applyTheme();
 
 /*
- * The token, from the URL if it is there, otherwise from whatever a pairing code got us
- * last time. Storing it means the bookmark is just the host -- no 24-character token to
- * copy, and no token sitting in browser history either.
+ * This browser's own token, from whatever a pairing code got us last time. The bookmark is
+ * just the host, and no token sits in browser history.
  */
 const STORED_TOKEN_KEY = 'kotozute.token';
 function storedToken() {
@@ -45,28 +46,40 @@ function storedToken() {
 function rememberToken(t) {
   try { localStorage.setItem(STORED_TOKEN_KEY, t); } catch { /* private window: this session only */ }
 }
-let token = new URLSearchParams(location.search).get('token') || storedToken();
-if (new URLSearchParams(location.search).get('token')) {
-  rememberToken(token);
-  // Take it back out of the address bar: a token in a URL ends up in history, and the
-  // whole point of the code is not having to carry one around.
+let token = storedToken();
+// An old bookmark or launcher may still carry ?token=. It is not used (the phone no longer
+// takes a token from an address), only taken out of the address bar and history.
+if (new URLSearchParams(location.search).has('token')) {
   try { history.replaceState(null, '', location.pathname); } catch { /* not fatal */ }
 }
 
+/*
+ * Once per load, before anything else asks the phone: the phone sets the cookie that lets
+ * pictures, sound, video, downloads and the WebSocket in. A browser that still holds the one
+ * token every browser shared before gets a token of its own here, and keeps that instead.
+ */
+async function startSession() {
+  if (!token) return;
+  try {
+    const res = await api('/api/session', { method: 'POST' });
+    if (!res.ok) return;
+    const body = await res.json().catch(() => ({}));
+    if (body && body.token) {
+      token = body.token;
+      rememberToken(token);
+    }
+  } catch { /* offline: the polls and the socket try again */ }
+}
+// Asked once; everything that talks to the phone at load waits for it.
+const sessionReady = startSession();
+
 /* ── Installing this as an app ─────────────────────────────────────────────────
- * The manifest has to carry the token: an installed window opens at start_url with
- * no query string of its own, and without the token that is a refusal rather than a
- * dashboard. So the link is rewritten here, where the token is known.
+ * The manifest carries no token: an installed window shares this browser's storage.
  *
  * The Install button appears only when the browser offers it — Chromium fires
  * beforeinstallprompt, Firefox has no equivalent and installs through its own menu,
  * so there is nothing to show there rather than a button that lies. */
 (function setUpInstall() {
-  if (token) {
-    const link = document.getElementById('manifest');
-    if (link) link.href = '/manifest.webmanifest?token=' + encodeURIComponent(token);
-  }
-
   let deferred = null;
   const installBtn = document.getElementById('installBtn');
   window.addEventListener('beforeinstallprompt', e => {
@@ -107,7 +120,7 @@ if (new URLSearchParams(location.search).get('token')) {
       return '<h2>Keep this in your applications menu</h2>' +
         '<p>The launcher below has this phone\'s address in it. It opens a window of its own ' +
         'where it can, and your usual browser where it cannot.</p>' +
-        '<p><a class="dl" href="/desktop-entry?token=' + encodeURIComponent(token) + '" ' +
+        '<p><a class="dl" href="/desktop-entry" ' +
         'download="messaging.desktop">Download launcher</a></p>' +
         '<p>Save it to <code>~/.local/share/applications/</code> and it appears with your ' +
         'other apps.</p>';
@@ -127,7 +140,7 @@ if (new URLSearchParams(location.search).get('token')) {
         'icon in the Dock.</p>';
     }
     return '<h2>Keep this to hand</h2>' +
-      '<p>Bookmark this page — the address stays the same, token and all. Chrome, Edge and ' +
+      '<p>Bookmark this page — the address stays the same. Chrome, Edge and ' +
       'Brave can go further: <b>Create shortcut… → Open as window</b> gives it a window ' +
       'and a menu entry of its own.</p>';
   }
@@ -1027,16 +1040,18 @@ function toBase64Utf8(text) {
 
 function api(path, options) {
   const opts = options || {};
-  opts.headers = Object.assign({ 'Authorization': 'Bearer ' + token }, opts.headers || {});
+  // The header says the request comes from this page's own script; the phone refuses a
+  // change without it, so another page cannot make one.
+  opts.headers = Object.assign({ 'Authorization': 'Bearer ' + token, 'X-Kotozute': '1' }, opts.headers || {});
   return fetch(path, opts).then(res => {
-    // A stored token stops working when the phone mints a new one -- "Reset Desktop Sync
-    // link" is there precisely so it can. Without this the browser holds a token that will
-    // never be accepted again and every request 401s for ever, with no prompt, because the
-    // code gate only appears when there is NO token at all.
+    // A stored token stops working when this browser is forgotten on the phone (or goes 30
+    // days unused). Without this the browser holds a token that will never be accepted again
+    // and every request 401s for ever, with no prompt, because the code gate only appears
+    // when there is NO token at all.
     if (res.status === 401 && token) {
       try { localStorage.removeItem(STORED_TOKEN_KEY); } catch { /* nothing to clear */ }
       token = '';
-      showPairCodePrompt('This link is no longer valid — the phone has issued a new one. ' +
+      showPairCodePrompt('This browser is no longer paired with the phone. ' +
         'Open Settings &rarr; Desktop Sync &rarr; Show link and enter the code.');
     }
     return res;
@@ -2488,14 +2503,14 @@ async function loadMessages() {
           bubble.append(note);
           return;
         }
-        const src = att.url + '?token=' + encodeURIComponent(token);
+        // No token in the address: the cookie the phone set at startSession() proves it.
+        const src = att.url;
         if (att.isImage) {
           const img = document.createElement('img');
           img.className = 'attach';
           // Deliberately NOT loading="lazy": the bubble starts at zero height, so the
           // lazy heuristic never fires and the image sits at complete=false forever.
           img.alt = att.label || 'Picture';
-          // Token goes in the query string: <img src> can't send an auth header.
           img.src = src;
           // If it genuinely fails, fall back to a link rather than showing nothing
           img.addEventListener('error', () => {
@@ -2770,7 +2785,8 @@ let socketLive = false;
 
 function connectSocket() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const ws = new WebSocket(proto + '//' + location.host + '/?token=' + encodeURIComponent(token));
+  // The cookie proves who this is; the address carries nothing secret.
+  const ws = new WebSocket(proto + '//' + location.host + '/');
 
   ws.addEventListener('open', () => {
     socketLive = true;
@@ -2815,9 +2831,11 @@ async function refresh() {
   }
 }
 
-loadThreads();
-loadSims();
-connectSocket();
+sessionReady.then(() => {
+  loadThreads();
+  loadSims();
+  connectSocket();
+});
 
 // Belt-and-braces polling alongside the WebSocket. The socket makes updates
 // near-instant when it's healthy, but it can go quiet after laptop sleep, a
@@ -2859,7 +2877,9 @@ async function refreshSignalSetup() {
 // the bridge (db2bad263). The name no longer existed, so the script threw at this line on
 // every load -- and everything after it never ran, which included asking a browser with no
 // token for the pairing code. Desktop Sync could only be opened by its full link.
-refreshSignalSetup();
+// After the session, like the first loads: a browser trading the old shared token must not
+// be asked anything with it first, or the refusal would clear it before the trade.
+sessionReady.then(refreshSignalSetup);
 
 /*
  * With no token, ask for the six digits the phone is showing rather than a long link.

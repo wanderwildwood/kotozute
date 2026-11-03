@@ -11,13 +11,13 @@
      desktop window, so nothing is scaled there. -->
 <meta name="viewport" content="width=1024">
 <title>Messaging — Desktop Sync</title>
-<!-- Written by the phone with the token in start_url, so an installed window opens straight
-     into the conversations instead of a refusal. app.js points this at the token it holds. -->
+<!-- An installed window shares this browser's storage, so it opens already paired; the
+     manifest carries no token. -->
 <link id="manifest" rel="manifest" href="/manifest.webmanifest">
 <!-- Favicon mirrors the app's launcher icon (speech bubble + pencil). Inlined as a
      data URI so it needs no extra server route and no unauthenticated /favicon.ico. -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='3' width='28' height='20' rx='5' fill='%23000'/><path d='M20 22h6l-5 7z' fill='%23000'/><path d='M20.5 7l3.5 3.5-9 9-4.6 1.1 1.1-4.6z' fill='%23fff'/></svg>">
-<style>
+<style nonce="__NONCE__">
   /* The phone is strictly black-on-white because e-ink can't do anything else, but this
      dashboard is viewed on a real display — so it gets a proper dark theme. Every colour
      goes through a variable; `data-theme` on <html> is always resolved to a concrete

@@ -126,10 +126,13 @@ class SettingsPresenter @Inject constructor(
                 }
             }
 
-        // The URL embeds the token, so a new token means a new summary to display.
-        disposables += prefs.desktopSyncToken.asObservable()
+        // The list is kept as one string; any change to it (a pairing, a Forget) recounts.
+        disposables += prefs.desktopSyncBrowsers.asObservable()
             .subscribe {
-                newState { copy(desktopSyncSummary = desktopSyncSummary(prefs.desktopSyncEnabled.get())) }
+                val count = DesktopSyncService.browsers(context, prefs).list().size
+                val summary = if (count == 0) context.getString(R.string.settings_desktop_sync_browsers_summary_none)
+                    else context.resources.getQuantityString(R.plurals.settings_desktop_sync_browsers_summary, count, count)
+                newState { copy(desktopSyncBrowsersSummary = summary) }
             }
 
         disposables += prefs.desktopSyncTls.asObservable()
@@ -281,6 +284,9 @@ class SettingsPresenter @Inject constructor(
                             prefs.desktopSyncVpnOnly.set(!prefs.desktopSyncVpnOnly.get())
 
                         R.id.desktopSyncReset -> view.askDesktopSyncReset()
+
+                        R.id.desktopSyncBrowsers ->
+                            view.showDesktopSyncBrowsers(DesktopSyncService.browsers(context, prefs).list())
 
                         R.id.signalLink -> view.showSignalLink()
                         R.id.signalRegister -> view.showSignalRegister()
@@ -495,7 +501,11 @@ class SettingsPresenter @Inject constructor(
 
         view.desktopSyncResetConfirmed()
             .autoDisposable(view.scope())
-            .subscribe { DesktopSyncService.resetToken(context) }
+            .subscribe { DesktopSyncService.forgetAllBrowsers(context, prefs) }
+
+        view.desktopSyncForgetConfirmed()
+            .autoDisposable(view.scope())
+            .subscribe { id -> DesktopSyncService.browsers(context, prefs).remove(id) }
 
         // Reading an export is thousands of rows and their pictures, so it runs on a thread
         // of its own and reports as it goes. Not a worker: it needs the folder the picker
@@ -738,14 +748,13 @@ class SettingsPresenter @Inject constructor(
      * restriction only VPN addresses are offered, because the others answer 403.
      */
     private fun desktopSyncUrls(): List<Pair<String, String>> {
-        val token = prefs.desktopSyncToken.get()
         return DesktopSyncService.reachableAddresses(context)
             .filter {
                 !prefs.desktopSyncVpnOnly.get() ||
                     it.first in DesktopSyncService.VPN_LABELS
             }
             .map { (label, host) ->
-                label to DesktopSyncService.linkUrl(prefs.desktopSyncTls.get(), host, DesktopSyncService.PORT, token)
+                label to DesktopSyncService.linkUrl(prefs.desktopSyncTls.get(), host, DesktopSyncService.PORT)
             }
     }
 

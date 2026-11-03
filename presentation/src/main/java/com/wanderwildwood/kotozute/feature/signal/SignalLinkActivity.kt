@@ -94,15 +94,15 @@ class SignalLinkActivity : QkThemedActivity() {
      */
     private fun showComputerRoute() {
         if (!prefs.desktopSyncEnabled.get()) return
-        val token = prefs.desktopSyncToken.get()
-        if (token.isBlank()) return
+        // Only where a browser is paired to open it; the address carries no token.
+        if (DesktopSyncService.browsers(this, prefs).list().isEmpty()) return
         val address = DesktopSyncService.reachableAddresses(this)
             .filter {
                 !prefs.desktopSyncVpnOnly.get() ||
                     it.first in DesktopSyncService.VPN_LABELS
             }
             .map { (_, host) ->
-                DesktopSyncService.linkUrl(prefs.desktopSyncTls.get(), host, DesktopSyncService.PORT, token, "/signal-link")
+                DesktopSyncService.linkUrl(prefs.desktopSyncTls.get(), host, DesktopSyncService.PORT, "/signal-link")
             }
             .firstOrNull() ?: return
         binding.onComputer.text = getString(R.string.signal_link_on_computer, address)

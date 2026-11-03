@@ -147,7 +147,6 @@
     <string name="backup_selected_backup_details_title">Biztonsági mentés részletei</string>
     <string name="backup_restore_dialog_title">Biztonsági mentések</string>
     <string name="backup_restore_dialog_empty">Nincsenek mentések</string>
-    <string name="backup_disclaimer">Jelenleg a biztonsági mentés és visszaállítás funkció csak SMS-eket támogat. Az MMS-ek támogatása és az ütemezett biztonsági mentések hamarosan elérhetőek lesznek!</string>
     <string name="backup_now">Mentés most</string>
     <string name="backup_progress_parsing">Mentés elemzése…</string>
     <string name="backup_progress_running">%1$d/%2$d üzenet</string>

@@ -222,7 +222,7 @@
     <string name="backup_restore_dialog_title">Backups</string>
     <string name="backup_restore_dialog_summary" translatable="false">/Messaging/Backups</string>
     <string name="backup_restore_dialog_empty">No backups found</string>
-    <string name="backup_disclaimer">A backup holds SMS only. It does not hold MMS, and there is no scheduled backup: you take one when you want one.</string>
+    <string name="backup_leaves_out">A backup holds your SMS text messages and nothing else. It leaves out picture and group messages (MMS), this app\'s settings, blocked numbers and scheduled messages, and everything in Signal: Signal history has its own copy under Settings, and a Signal account has to be linked again on a new phone. Restoring skips any message already on this phone, so nothing is doubled. There is no scheduled backup: you take one when you want one.</string>
     <string name="backup_now">Backup now</string>
     <string name="backup_progress_parsing">Parsing backup…</string>
     <string name="backup_progress_running">%1$d/%2$d messages</string>

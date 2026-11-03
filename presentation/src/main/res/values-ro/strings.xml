@@ -185,7 +185,6 @@
     <string name="backup_selected_backup_details_title">Detalii copie de rezervă</string>
     <string name="backup_restore_dialog_title">Copii de rezervă</string>
     <string name="backup_restore_dialog_empty">Nu a fost găsită nici o copie de rezervă</string>
-    <string name="backup_disclaimer">Momentan, doar SMS este acceptat prin Backup și Restaurare. Suportul MMS și backup-urile programate vor fi disponibile în curând!</string>
     <string name="backup_now">Fă o copie acum</string>
     <string name="backup_progress_parsing">Se analizează copia de rezervă…</string>
     <string name="backup_progress_running">%1$d/%2$d mesaje</string>

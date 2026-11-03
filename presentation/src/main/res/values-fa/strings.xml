@@ -145,7 +145,6 @@
     <string name="backup_selected_backup_details_title">گوکان پشتیبان</string>
     <string name="backup_restore_dialog_title">پشتیبان‌ها</string>
     <string name="backup_restore_dialog_empty">پشتیبانی یافت نشد</string>
-    <string name="backup_disclaimer">اووامیک، تنها پشتیبان‌گیری و بازگردانی پیامک پشتیبانی می شود. پشتیبان‌گیری و برنامه‌ریزی برای پشتیبان‌گیری از MMS به زودی خواهد آمد!</string>
     <string name="backup_now">اکنون پشتیبان‌گیری کن</string>
     <string name="backup_progress_parsing">تجزیه پشتیبان…</string>
     <string name="backup_progress_running">%1$d/%2$d پیام</string>

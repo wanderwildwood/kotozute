@@ -146,7 +146,6 @@
     <string name="backup_selected_backup_details_title">バックアップの詳細</string>
     <string name="backup_restore_dialog_title">バックアップ</string>
     <string name="backup_restore_dialog_empty">バックアップが見つかりません</string>
-    <string name="backup_disclaimer">現在、SMS のみバックアップと復元に対応しています。 MMS 対応と定期バックアップは近日中に公開されます！</string>
     <string name="backup_now">今すぐバックアップ</string>
     <string name="backup_progress_parsing">バックアップを解析中...</string>
     <string name="backup_progress_running">%1$d 件/%2$d 件のメッセージ</string>

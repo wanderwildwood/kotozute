@@ -128,7 +128,12 @@ class BackupRepositoryImpl @Inject constructor(
         // Map all the messages into our object we'll use for the Json mapping
         val backupMessages = Realm.getDefaultInstance().use { realm ->
             // Get the messages from realm
-            val messages = realm.where(Message::class.java).sort("date").findAll().createSnapshot()
+            // SMS only. A picture message (MMS) has its text and pictures in parts this format
+            // cannot carry, and an older backup that took them anyway brought each one back as an
+            // empty text message.
+            val messages = realm.where(Message::class.java)
+                    .equalTo("type", Message.TYPE_SMS)
+                    .sort("date").findAll().createSnapshot()
             messageCount = messages.size
 
             // Map the messages to the new format
@@ -210,10 +215,22 @@ class BackupRepositoryImpl @Inject constructor(
                 ?.buffer()
                 ?.use(adapter::fromJson)
 
-        val messageCount = backup?.messages?.size ?: 0
+        // Only what the phone does not already hold, so restoring over messages still here, or
+        // restoring one file twice, doubles nothing.
+        // If the phone's messages cannot be read, nothing is written: without them there is no
+        // telling which messages are already here.
+        val existing = try {
+            existingSms()
+        } catch (e: Exception) {
+            Timber.w(e)
+            restoreProgress.onNext(BackupRepository.Progress.Idle())
+            return
+        }
+        val toWrite = backup?.messages?.let { SmsRestore.toWrite(it, existing) }.orEmpty()
+        val messageCount = toWrite.size
         var errorCount = 0
 
-        backup?.messages?.forEachIndexed { index, message ->
+        toWrite.forEachIndexed { index, message ->
             if (stopFlag) {
                 stopFlag = false
                 restoreProgress.onNext(BackupRepository.Progress.Idle())
@@ -260,6 +277,20 @@ class BackupRepositoryImpl @Inject constructor(
         // Mark the task finished, and set it as Idle a second later
         restoreProgress.onNext(BackupRepository.Progress.Finished())
         Timer().schedule(1000) { restoreProgress.onNext(BackupRepository.Progress.Idle()) }
+    }
+
+    /** Every SMS on the phone now, as [SmsRestore] compares them. Throws if they cannot be read. */
+    private fun existingSms(): Set<SmsRestore.Key> {
+        val keys = HashSet<SmsRestore.Key>()
+        val projection = arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.TYPE, Telephony.Sms.BODY)
+        val cursor = context.contentResolver.query(Telephony.Sms.CONTENT_URI, projection, null, null, null)
+                ?: throw IllegalStateException("The SMS provider gave no cursor")
+        cursor.use { c ->
+            while (c.moveToNext()) {
+                keys += SmsRestore.key(c.getString(0), c.getLong(1), c.getInt(2), c.getString(3))
+            }
+        }
+        return keys
     }
 
     override fun getRestoreProgress(): Observable<BackupRepository.Progress> = restoreProgress

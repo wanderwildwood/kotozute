@@ -19,6 +19,8 @@
 package com.wanderwildwood.kotozute.feature.settings.about
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
@@ -26,6 +28,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.BuildConfig
@@ -36,8 +39,9 @@ import com.wanderwildwood.kotozute.databinding.AboutDialogBinding
 /**
  * What this app is, what it does with what you give it, and where the source is.
  *
- * The same About as every app of this shop, in the same order: the name and version, what it sends
- * and its terms, Licences, the source address, the llama; under it one full-width Close button.
+ * The same About as every app of this shop, in the same order: the name and version, what it sends,
+ * who we are / how to contact us / your rights, its terms, Licenses, the contact address, the
+ * source address, the llama; under it one full-width Close button.
  * Licences open inside this same dialog (a list, the app first, then one row per library, each
  * with its own page and full text). A dialog rather than a screen of rows: About is not a setting.
  */
@@ -70,6 +74,10 @@ class AboutDialog(private val context: Activity, onVersionLongClick: () -> Unit)
             onVersionLongClick()
             dismiss()
             true
+        }
+        layout.contact.text = context.getString(R.string.about_write_to, AboutContact.EMAIL)
+        layout.contact.setOnClickListener {
+            openMail(context.getString(R.string.about_name, BuildConfig.VERSION_NAME))
         }
         layout.source.text = Licences.SOURCE_URL.removePrefix("https://")
         layout.source.setOnClickListener { WebLinks.open(context, Uri.parse(Licences.SOURCE_URL)) }
@@ -109,6 +117,23 @@ class AboutDialog(private val context: Activity, onVersionLongClick: () -> Unit)
         licences = view
         frame.removeAllViews()
         frame.addView(view.root, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    /**
+     * The email app, addressed and with the app's name and version as the subject, the way
+     * the shared About (shared-about HouseAbout.kt) does it; with no email app, a toast that
+     * gives the address.
+     */
+    private fun openMail(subject: String) {
+        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse(AboutContact.mailUri(AboutContact.EMAIL, subject)))
+            .putExtra(Intent.EXTRA_SUBJECT, subject)
+        try {
+            context.startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, context.getString(R.string.about_no_mail_app, AboutContact.EMAIL), Toast.LENGTH_LONG).show()
+        } catch (_: SecurityException) {
+            Toast.makeText(context, context.getString(R.string.about_no_mail_app, AboutContact.EMAIL), Toast.LENGTH_LONG).show()
+        }
     }
 
     /** The one button under the About: Close, an outline the width of the dialog. */

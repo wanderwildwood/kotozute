@@ -1053,6 +1053,16 @@
     <string name="about_privacy_where">Your messages are kept on this phone. Texts and picture messages go through your carrier, as on any phone. If you link Signal, this phone becomes a linked device of your own Signal account: Signal messages and calls are end-to-end encrypted, and Signal\'s servers carry them. Desktop Sync, off until you switch it on, serves your messages from the phone to a browser on your own computer, over your VPN or your Wi-Fi, with no cloud service and no relay in between. Nothing is sent to the app\'s maker.</string>
     <string name="about_privacy_permissions">Your contacts are read to put names to conversations; their numbers go to Signal\'s lookup only if you agree to Find contacts on Signal. The microphone is used only while you record a voice message or are on a Signal call. GIF search, through Signal\'s proxy, goes online only when you use it. Messaging never updates itself: it is updated through GitHub (Obtainium) or the InkApps store.</string>
     <string name="about_privacy_close">There are no ads, no analytics and no tracking. Backups, chat-history copies and saved attachments go only where you choose to save them. A debug log, off until you press and hold the version line in About, writes what the app does, including message text, to a file in the app\'s own storage; it leaves the phone only if you copy it out.</string>
+    <!-- shared-about: contact row + privacy section (edit in /opt/projects/shared-about) -->
+    <string name="about_write_to">Write to %1$s</string>
+    <string name="about_no_mail_app">No email app is installed. The address is %1$s.</string>
+    <string name="privacy_who_title">Who we are</string>
+    <string name="privacy_who">This app is made by wander wildwood, an independent developer: one person, not a company. That makes wander wildwood the data controller for anything the app itself handles, and that is very little: what you put in stays on this phone unless you send it somewhere yourself, or the app sends it to your carrier, Signal and GIPHY as described above, and nothing comes to the developer.</string>
+    <string name="privacy_contact_title">How to contact us</string>
+    <string name="privacy_contact">Write to email@wanderthe.dev, about your data or anything else.</string>
+    <string name="privacy_rights_title">Your rights</string>
+    <string name="privacy_rights">Under the GDPR you can ask to see the data held about you, to have it corrected or deleted, to limit or object to its use, to take a copy with you, to withdraw consent, and to complain to a data protection authority. Since the app keeps what it stores only on your phone, you can do most of this yourself: delete messages in the app, clear the app\'s data in Android\'s settings, or uninstall the app. What your carrier, Signal and GIPHY receive is covered by their own privacy policies.</string>
+    <!-- /shared-about -->
     <string name="about_terms_heading">Terms</string>
     <string name="about_terms">This app is free software under the GNU Affero General Public License v3 or later. It comes with no warranty: use it at your own risk. It is an unofficial Signal client, not made or endorsed by Signal.</string>
     <string name="about_licences">Licenses</string>

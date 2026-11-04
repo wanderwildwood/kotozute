@@ -1,6 +1,6 @@
 # Messaging — Privacy Policy
 
-Version 1.35.0. Last reviewed 27 October 2026.
+Version 1.35.0. Last reviewed 4 November 2026.
 
 This is the policy for Messaging (kotozute, 言伝), the app published from this repository.
 
@@ -8,13 +8,11 @@ This is the policy for Messaging (kotozute, 言伝), the app published from this
 
 The developer collects nothing about you. There is no account, no sign-up, no analytics, no advertising and no crash reporting, and no server belonging to the developer that the app talks to. It is a messaging app, so it necessarily reads and stores your messages and contacts on your phone, and it sends them where you tell it to: texts and picture messages go through your carrier, and Signal messages go to Signal's servers, end-to-end encrypted. Everything else the app contacts is listed below, and each happens because you used the feature.
 
-## Who is responsible
-
-wander wildwood, the author of this version of the app. Contact: email@wanderthe.dev
+## Where it comes from
 
 Messaging continues QKSMS (Moez Bhatti) by way of QUIK (Marcos Jones) and InkMessage (lamdanAmiti). The Signal half uses libsignal, RingRTC and Signal's service layer, all by Signal Messenger, LLC, which the source includes or links. It is an unofficial third-party Signal client and has no connection to the Signal Foundation or Signal Messenger.
 
-Because no personal data is transmitted to or held by the developer, there is no data controller relationship for the developer to administer. Where the app processes personal data, that processing happens on your own device, under your control. Signal and your carrier are independent controllers for what they receive.
+Where the app processes personal data, that processing happens on your own device, under your control.
 
 ## What the app stores, and where
 
@@ -60,6 +58,8 @@ The store lists more entries than these because the app is built with ShortcutBa
 
 ## Who else receives anything
 
+Signal and your carrier are independent controllers for what they receive.
+
 **Your carrier**, for texts and picture messages. SMS is not encrypted. A picture message is fetched from, and sent to, your carrier's MMS server.
 
 **Signal's servers**, for Signal messages and calls, once you link or register the phone. Messages are end-to-end encrypted, and use sealed sender where the recipient's profile allows it. The app talks to Signal directly, with nothing in between. Hosts: `chat.signal.org` (messages, account, keys, receipts), `cdn.signal.org`, `cdn2.signal.org` and `cdn3.signal.org` (attachments, encrypted), `storage.signal.org` (your account's encrypted contact and settings records), `svr2.signal.org` (Signal's secure value recovery), `cdsi.signal.org` (contact discovery, below) and `signalcaptchas.org` (the captcha page, shown only when you register a number). Signal sees your IP address, your phone number, who you message and when, as any Signal client does; for what it keeps, see Signal's own policy. Voice calls go through Signal's relay servers rather than between the two phones, so the person you call does not learn your IP address. Pictures sent over Signal are decoded and saved again as JPEG, which drops their EXIF data, including location. Read receipts and typing indicators are Signal account-wide settings, which the app follows and shows in Settings. The app fetches no link previews.
@@ -82,15 +82,37 @@ No analytics, advertising or crash-reporting service is contacted. No data is so
 
 Processing on the device is carried out for your own purposes and at your own direction. Where the app contacts an outside service, that request is made at your request and is necessary to provide the feature you asked for (Article 6(1)(b) GDPR); that operator is an independent controller for what it then does, under its own policy.
 
-## Your rights
-
-Under the GDPR and UK GDPR you have rights of access, rectification, erasure, restriction, portability and objection. Under the CCPA/CPRA and comparable North American laws you have rights to know, delete, correct and opt out of sale or sharing.
-
-The developer holds no data about you, so there is nothing to request from them, and nothing has ever been sold or shared. You can exercise every one of these rights directly: the data is on your phone. Delete messages in the app, clear the app's data in Android's settings, or uninstall to remove the app's own copy at once (your texts also stay in Android's message store until you delete them there). For what Signal or your carrier keeps, ask them.
-
 ## Children
 
 The app is suitable for all ages and does not knowingly collect anything from anyone, of any age, because the developer does not collect anything.
+
+<!-- shared-about privacy section -->
+## Who we are
+
+Messaging is made by wander wildwood, an independent developer: one person, not a company. wander wildwood is the data controller for anything the app itself handles, and that is very little. Messaging keeps what you put in it on your phone, apart from what it sends to your carrier, Signal and GIPHY as described above, and sends nothing to the developer, so the developer holds no data about you.
+
+## How to contact us
+
+Write to email@wanderthe.dev about your data, this policy or anything else. The same address is in the app, under About.
+
+## Your rights
+
+If you are in the EU, the EEA or the UK, the GDPR gives you the right to:
+
+- see the personal data held about you (access)
+- have it corrected (rectification) or deleted (erasure)
+- limit how it is used (restriction)
+- object to its use (objection)
+- get a copy to take elsewhere (portability)
+- withdraw your consent at any time, where something rests on it
+- complain to a data protection supervisory authority, for example the one where you live
+
+Similar laws elsewhere, such as the CCPA in California, give you the right to know, delete and correct, and to opt out of the sale or sharing of your data. Nothing from Messaging is sold or shared.
+
+Since Messaging keeps what it stores only on your phone, you can exercise most of these rights yourself: delete messages in the app (your texts also stay in Android's message store until you delete them there), clear the app's data in Android's settings, or uninstall the app, which deletes all of it. For anything you cannot do yourself, write to the address above.
+
+Messaging connects to your carrier, Signal and GIPHY. They are separate from this app and from its developer, and what they receive is covered by their own privacy policies; ask them about what they hold.
+<!-- /shared-about privacy section -->
 
 ## Changes
 

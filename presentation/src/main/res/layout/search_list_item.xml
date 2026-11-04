@@ -107,7 +107,7 @@
         android:paddingBottom="1dp"
         android:text="@string/signal_rail_label"
         android:textColor="@android:color/white"
-        android:textSize="14sp"
+        android:textSize="16sp"
         android:textStyle="bold"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="@id/title"

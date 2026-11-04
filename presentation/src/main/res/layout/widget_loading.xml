@@ -29,7 +29,7 @@
         android:layout_height="match_parent"
         android:gravity="center"
         android:textColor="?android:attr/textColorSecondary"
-        android:textSize="14sp"
+        android:textSize="16sp"
         tools:text="Loading..." />
 
 </FrameLayout>

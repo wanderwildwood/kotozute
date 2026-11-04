@@ -58,7 +58,7 @@ class LicencesView(private val activity: Activity, private val close: () -> Unit
             val v = QkTextView(activity)
             v.setPadding(0, dp(top), 0, dp(top / 2))
             v.text = value
-            v.textSize = 15f
+            v.textSize = 16f
             if (bold) v.setTypeface(v.typeface, Typeface.BOLD)
             if (onClick != null) {
                 v.minHeight = dp(48)
@@ -104,7 +104,7 @@ class LicencesView(private val activity: Activity, private val close: () -> Unit
         val name = QkTextView(activity).apply { text = row.title; textSize = 16f; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
         val sub = QkTextView(activity).apply {
             text = if (row.isApp) row.licence else row.author
-            textSize = 14f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+            textSize = 16f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
             visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
         }
         box.addView(name)

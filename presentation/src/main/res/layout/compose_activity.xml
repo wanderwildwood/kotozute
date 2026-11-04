@@ -39,7 +39,7 @@
         android:paddingTop="8dp"
         android:paddingEnd="12dp"
         android:paddingBottom="8dp"
-        android:textSize="14sp"
+        android:textSize="16sp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -304,6 +304,8 @@
         app:layout_constraintEnd_toEndOf="@id/messageBackground"
         app:tint="?android:attr/textColorPrimary" />
 
+    <!-- Under the 16sp floor on purpose: the SIM's number is a figure drawn inside the
+         24dp SIM-card icon (like an icon's glyph), not text to read; 16 would overflow it. -->
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/simIndex"
         android:layout_width="0dp"
@@ -413,7 +415,7 @@
                     android:paddingBottom="4dp"
                     android:text="@string/sms_rail_label_switch"
                     android:textColor="@android:color/white"
-                    android:textSize="14sp"
+                    android:textSize="16sp"
                     android:textStyle="bold"
                     android:visibility="gone"
                     tools:visibility="visible" />
@@ -898,7 +900,7 @@
             android:layout_height="wrap_content"
             android:paddingBottom="8dp"
             android:text="@string/sms_request_text"
-            android:textSize="14sp" />
+            android:textSize="16sp" />
 
         <LinearLayout
             android:layout_width="match_parent"

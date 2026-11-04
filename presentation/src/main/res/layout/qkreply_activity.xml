@@ -112,6 +112,8 @@
         app:layout_constraintBottom_toBottomOf="@id/message"
         app:layout_constraintEnd_toEndOf="@id/messageBackground" />
 
+    <!-- Under the 16sp floor on purpose: the SIM's number is a figure drawn inside the
+         24dp SIM-card icon (like an icon's glyph), not text to read; 16 would overflow it. -->
     <com.wanderwildwood.kotozute.common.widget.QkTextView
         android:id="@+id/simIndex"
         android:layout_width="0dp"

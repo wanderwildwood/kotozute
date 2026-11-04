@@ -100,7 +100,7 @@
             android:layout_alignParentEnd="true"
             android:layout_marginStart="16dp"
             android:clickable="false"
-            android:textSize="14sp"
+            android:textSize="16sp"
             tools:text="@tools:sample/date/day_of_week" />
 
         <TextView
@@ -112,7 +112,7 @@
             android:clickable="false"
             android:lines="1"
             android:singleLine="true"
-            android:textSize="14sp"
+            android:textSize="16sp"
             tools:text="@tools:sample/lorem" />
 
     </RelativeLayout>

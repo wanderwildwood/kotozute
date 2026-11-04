@@ -55,6 +55,71 @@ class TextViewStyler @Inject constructor(
         const val SIZE_DIALOG = 4
         const val SIZE_EMOJI = 5
 
+        /**
+         * Nothing smaller than 16 sp anywhere (STYLE.md, Mudita's review of 4 Nov 2026): a
+         * 14 sp line is 22 px tall on the Kompakt, under the 24 px they ask for; 16 sp is 25.6.
+         * The same floor as shared-housetype's houseTypography in the Compose apps.
+         */
+        const val HOUSE_TYPE_FLOOR_SP = 16f
+
+        /**
+         * The size in sp for one of the [SIZE_PRIMARY]... roles at the reader's text size
+         * setting, or null for a role this does not size. Small makes the primary text
+         * smaller; the two below it stop at the floor.
+         */
+        fun sizeFor(textSizeAttr: Int, textSizePref: Int): Float? = when (textSizeAttr) {
+            SIZE_PRIMARY -> when (textSizePref) {
+                Preferences.TEXT_SIZE_SMALL -> 16f
+                Preferences.TEXT_SIZE_NORMAL -> 18f
+                Preferences.TEXT_SIZE_LARGE -> 20f
+                Preferences.TEXT_SIZE_LARGER -> 22f
+                Preferences.TEXT_SIZE_SUPER -> 44f
+                else -> 18f
+            }
+
+            SIZE_SECONDARY -> when (textSizePref) {
+                Preferences.TEXT_SIZE_SMALL -> HOUSE_TYPE_FLOOR_SP
+                Preferences.TEXT_SIZE_NORMAL -> HOUSE_TYPE_FLOOR_SP
+                Preferences.TEXT_SIZE_LARGE -> 17f
+                Preferences.TEXT_SIZE_LARGER -> 19f
+                Preferences.TEXT_SIZE_SUPER -> 37f
+                else -> HOUSE_TYPE_FLOOR_SP
+            }
+
+            SIZE_TERTIARY -> when (textSizePref) {
+                Preferences.TEXT_SIZE_LARGER -> 18f
+                Preferences.TEXT_SIZE_SUPER -> 34f
+                else -> HOUSE_TYPE_FLOOR_SP
+            }
+
+            // A top bar's title is MMD's titleLarge, 24sp, as in every other app here. Only
+            // the largest setting, which is for reading at a distance, makes it bigger.
+            SIZE_TOOLBAR -> when (textSizePref) {
+                Preferences.TEXT_SIZE_SUPER -> 48f
+                else -> 24f
+            }
+
+            SIZE_DIALOG -> when (textSizePref) {
+                Preferences.TEXT_SIZE_SMALL -> 16f
+                Preferences.TEXT_SIZE_NORMAL -> 18f
+                Preferences.TEXT_SIZE_LARGE -> 20f
+                Preferences.TEXT_SIZE_LARGER -> 24f
+                Preferences.TEXT_SIZE_SUPER -> 48f
+                else -> 18f
+            }
+
+            SIZE_EMOJI -> when (textSizePref) {
+                Preferences.TEXT_SIZE_SMALL -> 28f
+                Preferences.TEXT_SIZE_NORMAL -> 32f
+                Preferences.TEXT_SIZE_LARGE -> 36f
+                Preferences.TEXT_SIZE_LARGER -> 40f
+                Preferences.TEXT_SIZE_SUPER -> 80f
+                else -> 32f
+            }
+
+            else -> null
+        }
+
         fun applyEditModeAttributes(textView: TextView, attrs: AttributeSet?) {
             textView.run {
                 var colorAttr = 0
@@ -85,8 +150,8 @@ class TextViewStyler @Inject constructor(
 
                 textSize = when (textSizeAttr) {
                     SIZE_PRIMARY -> 18f
-                    SIZE_SECONDARY -> 15f
-                    SIZE_TERTIARY -> 14f
+                    SIZE_SECONDARY -> HOUSE_TYPE_FLOOR_SP
+                    SIZE_TERTIARY -> HOUSE_TYPE_FLOOR_SP
                     SIZE_TOOLBAR -> 24f
                     SIZE_DIALOG -> 18f
                     SIZE_EMOJI -> 32f
@@ -146,62 +211,7 @@ class TextViewStyler @Inject constructor(
      * @see SIZE_TOOLBAR
      */
     fun setTextSize(textView: TextView, textSizeAttr: Int) {
-        val textSizePref = prefs.textSize.get()
-        when (textSizeAttr) {
-            SIZE_PRIMARY -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 16f
-                Preferences.TEXT_SIZE_NORMAL -> 18f
-                Preferences.TEXT_SIZE_LARGE -> 20f
-                Preferences.TEXT_SIZE_LARGER -> 22f
-                Preferences.TEXT_SIZE_SUPER -> 44f
-                else -> 18f
-            }
-
-            // Never under 14sp, the house minimum: Small makes the primary text smaller, and
-            // the two below it stop at 14.
-            SIZE_SECONDARY -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 14f
-                Preferences.TEXT_SIZE_NORMAL -> 15f
-                Preferences.TEXT_SIZE_LARGE -> 17f
-                Preferences.TEXT_SIZE_LARGER -> 19f
-                Preferences.TEXT_SIZE_SUPER -> 37f
-                else -> 15f
-            }
-
-            SIZE_TERTIARY -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 14f
-                Preferences.TEXT_SIZE_NORMAL -> 14f
-                Preferences.TEXT_SIZE_LARGE -> 16f
-                Preferences.TEXT_SIZE_LARGER -> 18f
-                Preferences.TEXT_SIZE_SUPER -> 34f
-                else -> 14f
-            }
-
-            // A top bar's title is MMD's titleLarge, 24sp, as in every other app here. Only
-            // the largest setting, which is for reading at a distance, makes it bigger.
-            SIZE_TOOLBAR -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SUPER -> 48f
-                else -> 24f
-            }
-
-            SIZE_DIALOG -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 16f
-                Preferences.TEXT_SIZE_NORMAL -> 18f
-                Preferences.TEXT_SIZE_LARGE -> 20f
-                Preferences.TEXT_SIZE_LARGER -> 24f
-                Preferences.TEXT_SIZE_SUPER -> 48f
-                else -> 18f
-            }
-
-            SIZE_EMOJI -> textView.textSize = when (textSizePref) {
-                Preferences.TEXT_SIZE_SMALL -> 28f
-                Preferences.TEXT_SIZE_NORMAL -> 32f
-                Preferences.TEXT_SIZE_LARGE -> 36f
-                Preferences.TEXT_SIZE_LARGER -> 40f
-                Preferences.TEXT_SIZE_SUPER -> 80f
-                else -> 32f
-            }
-        }
+        sizeFor(textSizeAttr, prefs.textSize.get())?.let { textView.textSize = it }
     }
 
 }

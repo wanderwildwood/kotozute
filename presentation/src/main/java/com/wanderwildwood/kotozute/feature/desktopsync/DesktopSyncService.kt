@@ -583,6 +583,9 @@ class DesktopSyncService : Service() {
 
         server = newServer
         isRunning = true
+        // Started by itself (a reboot, an update, the system stopping the app), nothing else may
+        // be running: Signal is asked for what it holds, as opening its screen would.
+        newServer.catchUpSignal()
         prefs.desktopSyncEnabled.set(true)
         prefs.desktopSyncFailure.set("")
         // Refresh the notification now that the port is bound and the address is known —

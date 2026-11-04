@@ -254,6 +254,22 @@ class DesktopSyncServer(
     /** How many browsers are currently listening for push updates. */
     fun socketCount(): Int = openSockets.size
 
+    /**
+     * Signal's catch-up, as the app's Signal screen runs it when it opens: whatever the server is
+     * holding is asked for, then the socket is held open. Nothing on the phone runs it while
+     * Desktop Sync is all that is running, so the page did not see Signal messages until the
+     * stream or the periodic worker drained the queue on its own.
+     */
+    private val signalCatchUp = SignalCatchUp {
+        signalRepository.syncNow()
+        signalRepository.startStream()
+    }
+
+    /** Starts Signal's catch-up, when Signal is on: a browser opened the page, or the service started. */
+    fun catchUpSignal() {
+        if (signalEnabled()) signalCatchUp.start()
+    }
+
     /** Called whenever a conversation's data changes, to nudge connected browsers to refetch. */
     fun notifyChanged() {
         val payload = JSONObject().put("type", "changed").toString()
@@ -564,12 +580,14 @@ class DesktopSyncServer(
         }
         val presented = bearerToken(session.headers["authorization"])
         if (browsers.check(presented) != null) {
+            catchUpSignal()
             return jsonResponse(Response.Status.OK, JSONObject())
                 .apply { addHeader("Set-Cookie", sessionCookie(listeningPort, presented!!, secure)) }
         }
         val exchanged = browsers.exchangeLegacy(presented, browserLabel(session.headers["user-agent"]))
         if (exchanged != null) {
             Timber.i("Desktop Sync: a browser traded the old shared token for its own")
+            catchUpSignal()
             return jsonResponse(Response.Status.OK, JSONObject().put("token", exchanged))
                 .apply { addHeader("Set-Cookie", sessionCookie(listeningPort, exchanged, secure)) }
         }
@@ -1974,6 +1992,10 @@ class DesktopSyncServer(
      */
     private fun handleGetThreads(session: IHTTPSession): Response {
         val archived = session.parameters["archived"]?.firstOrNull() == "1"
+        // A page just opened asked Signal for what it is holding: its first list waits for that,
+        // a few seconds at most, and then reads what it brought.
+        if (signalEnabled() && !signalCatchUp.awaitDone()) Timber.i("Desktop Sync: Signal's catch-up is slow; listing what is here")
+        runCatching { Realm.getDefaultInstance().use { it.refresh() } }
         val conversations = conversationRepository
             .getConversationsSnapshot(unreadAtTop = !archived, archived = archived)
         val array = JSONArray()

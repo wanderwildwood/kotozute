@@ -22,10 +22,32 @@ internal fun lastShownMessage(realm: Realm, threadId: Long): Message? =
         .sort("date", Sort.DESCENDING)
         .findAll()
         .firstOrNull { message ->
-            !message.isEmojiReaction || (
-                !message.isMe() &&
+            isShownAsNews(
+                isReaction = message.isEmojiReaction,
+                fromMe = message.isEmojiReaction && message.isMe(),
+                stillStands = message.isEmojiReaction &&
                     realm.where(EmojiReaction::class.java)
                         .equalTo("reactionMessageId", message.id)
                         .count() > 0
-                )
+            )
         }
+
+/**
+ * The one rule for whether a message is news, shared by the list and the notification so the
+ * two cannot disagree: a message always is; a reaction only when someone else sent it and it
+ * still stands. See [lastShownMessage].
+ */
+internal fun isShownAsNews(isReaction: Boolean, fromMe: Boolean, stillStands: Boolean): Boolean =
+    !isReaction || (!fromMe && stillStands)
+
+/**
+ * The reaction texts in [threadId] that still stand, by message id: the reactions that are
+ * news, the others being removals and reactions since replaced.
+ */
+internal fun standingReactionIds(realm: Realm, threadId: Long): Array<Long> =
+    realm.where(EmojiReaction::class.java)
+        .equalTo("threadId", threadId)
+        .findAll()
+        .map { it.reactionMessageId }
+        .distinct()
+        .toTypedArray()

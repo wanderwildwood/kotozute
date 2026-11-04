@@ -247,15 +247,33 @@ open class MessageRepositoryImpl @Inject constructor(
             .sort("id", Sort.DESCENDING)
             .findAllAsync()
 
-    override fun getUnreadUnseenMessages(threadId: Long): RealmResults<Message> =
-        Realm.getDefaultInstance()
-            .also { it.refresh() }
-            .where(Message::class.java)
+    /**
+     * What the conversation's notification shows. A reaction is in it only where the list
+     * would show it too ([isShownAsNews]): a removal ("Removed a heart from …") used to be
+     * announced while the conversation, which goes by [lastShownMessage], stayed read -- a
+     * notification, and the launcher's mark, for something the list said was not there, and
+     * that only opening that very conversation could clear. A reaction this phone sent is
+     * outgoing and never unread, so it never gets this far.
+     */
+    override fun getUnreadUnseenMessages(threadId: Long): RealmResults<Message> {
+        val realm = Realm.getDefaultInstance().also { it.refresh() }
+        val standing = standingReactionIds(realm, threadId)
+        return realm.where(Message::class.java)
             .equalTo("seen", false)
             .equalTo("read", false)
             .equalTo("threadId", threadId)
+            .let { query ->
+                // `in` with nothing in it is refused, so no standing reactions is said plainly.
+                if (standing.isEmpty()) query.equalTo("isEmojiReaction", false)
+                else query.beginGroup()
+                    .equalTo("isEmojiReaction", false)
+                    .or()
+                    .`in`("id", standing)
+                    .endGroup()
+            }
             .sort("date")
             .findAll()
+    }
 
     override fun getUnreadMessages(threadId: Long): RealmResults<Message> =
         Realm.getDefaultInstance()

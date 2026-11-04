@@ -191,6 +191,20 @@ object SignalVoicePlayer {
         announce()
     }
 
+    /**
+     * Put a paused note away: unloaded, its place kept for the next play, exactly as when
+     * another note replaces it. The service does this to a note left paused for a while, so
+     * its notification does not stay behind for good; see [VoiceNotePlaybackService].
+     */
+    fun park() {
+        if (currentId == null || isPlaying) return
+        // Remembered and unloaded first: unloading moves the generation on, so the completion
+        // callback the reset below sets off is ignored rather than taken for the note's end.
+        replaceCurrent()
+        runCatching { QkMediaPlayer.reset() }
+        announce()
+    }
+
     /** A different note is starting: remember where this one was, unless it was nearly done. */
     private fun replaceCurrent() {
         val id = currentId ?: return

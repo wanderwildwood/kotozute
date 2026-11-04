@@ -4377,6 +4377,7 @@ class SignalRepositoryImpl @Inject constructor(
         val now = System.currentTimeMillis()
         var liftedMark = false
         var callsSeen = false
+        var nothingLeft = false
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
                 val unread = r.where(SignalMessage::class.java)
@@ -4417,8 +4418,22 @@ class SignalRepositoryImpl @Inject constructor(
                             liftedMark = true
                         }
                     }
+                // Asked after the change, of every incoming message, so a message newer than
+                // [upToTs] -- one that arrived while this was on its way -- keeps its notification.
+                nothingLeft = r.where(SignalMessage::class.java)
+                    .equalTo("threadKey", threadKey)
+                    .equalTo("outgoing", false)
+                    .equalTo("read", false)
+                    .count() == 0L
             }
         }
+        // ⚠ Read here, from anywhere, takes the notification with it -- not only from the
+        // conversation screen. "Mark all read", the selection's Read and Desktop Sync
+        // all come through here and left the notification in the shade: every row in the list
+        // read, the launcher's mark still on the icon, and nothing in the app to clear it but
+        // opening each conversation in turn. Upstream's `MarkReadReceiver.process` ends in
+        // `MessageNotifier.updateNotification` whichever screen did the reading.
+        if (nothingLeft) readElsewhere.onNext(threadKey)
         if (liftedMark) {
             markNeedsSync(threadKey)
             pushStorageNow()

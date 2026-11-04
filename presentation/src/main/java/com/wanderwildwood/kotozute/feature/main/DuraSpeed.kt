@@ -72,7 +72,13 @@ object DuraSpeed {
             .maxOfOrNull { it.timestamp }
     }
 
-    private const val CHANNEL = "duraspeed"
+    /**
+     * `_v2` for the badge: a channel's settings are fixed once it exists. This notice is
+     * about the phone's settings, not a message, and marking the icon for it read as
+     * "something new" with nothing new in any conversation.
+     */
+    private const val CHANNEL = "duraspeed_v2"
+    private const val LEGACY_CHANNEL = "duraspeed"
     private const val NOTIFICATION_ID = 20261001
     private const val EXTRA_FIX = "duraspeedFix"
 
@@ -108,7 +114,9 @@ object DuraSpeed {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL,
-                context.getString(R.string.duraspeed_channel), NotificationManager.IMPORTANCE_LOW))
+                context.getString(R.string.duraspeed_channel), NotificationManager.IMPORTANCE_LOW)
+                .apply { setShowBadge(false) })
+            nm.deleteNotificationChannel(LEGACY_CHANNEL)
         }
         val immutable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
         val open = PendingIntent.getActivity(context, NOTIFICATION_ID, appInfo(), immutable)

@@ -216,7 +216,13 @@ class SignalCallService : Service() {
     }
 
     companion object {
-        private const val CHANNEL_ID = "signal_calls"
+        /**
+         * `_v2` for the badge: a channel's settings are fixed once it exists. A call in
+         * progress, or ringing, is not something unread, and upstream's calls channel does
+         * not mark the icon either (`calls.setShowBadge(false)` in `NotificationChannels`).
+         */
+        private const val CHANNEL_ID = "signal_calls_v2"
+        private const val LEGACY_CHANNEL_ID = "signal_calls"
         private const val NOTIFICATION_ID = 7201
         private const val RING_WAKE_MS = 2 * 60 * 1000L
         private const val WAIT_FOR_CALL_MS = 10_000L
@@ -249,8 +255,11 @@ class SignalCallService : Service() {
                 setSound(null, null)
                 enableVibration(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(false)
             }
-            context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            val manager = context.getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+            manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
         }
 
         /** The conversation's name for somebody, or plain "Signal" when there is none yet. */

@@ -265,13 +265,27 @@ class SignalRepositoryImpl @Inject constructor(
      * that never comes cannot strand the loop -- [NO_NETWORK_RECHECK_MS] without a network.
      */
     private fun waitToReconnect(backoff: Long) {
-        synchronized(networkWake) {
-            if (!networkAvailable) {
-                Timber.i("signal: no network; waiting for one rather than retrying")
-                networkWake.wait(NO_NETWORK_RECHECK_MS)
-            } else if (backoff > 0) {
-                networkWake.wait(backoff)
+        val wait = when {
+            !networkAvailable -> NO_NETWORK_RECHECK_MS
+            backoff > 0 -> backoff
+            else -> return
+        }
+        // ⚠ An alarm as well as the wait. `Object.wait` counts on a clock that stops while the
+        // phone dozes, so a socket that dropped with the screen off could sit out its backoff
+        // until the screen came on -- read syncs from her other devices waited with it, and the
+        // light kept pulsing for messages already read (issue 9). Signal sleeps this backoff
+        // on `AlarmSleepTimer` when it has no push (`IncomingMessageObserver`), which is this
+        // app always. The wait stays so a network appearing still cuts it short.
+        val disarm = com.wanderwildwood.kotozute.signalstore.AlarmSleepTimer.wakeAfter(context, wait) {
+            synchronized(networkWake) { networkWake.notifyAll() }
+        }
+        try {
+            synchronized(networkWake) {
+                if (!networkAvailable) Timber.i("signal: no network; waiting for one rather than retrying")
+                networkWake.wait(wait)
             }
+        } finally {
+            disarm()
         }
     }
 
@@ -2222,7 +2236,13 @@ class SignalRepositoryImpl @Inject constructor(
             com.wanderwildwood.kotozute.signalstore.ReadSince.filedKeys(fresh, messages)
         )
         flushUnarchivedByArrival()
-        announce(if (readAlready.isEmpty()) fresh else fresh.filter { it.id !in readAlready })
+        // ⚠ Not only what the ledger names. A sync marks the conversation read up to the
+        // newest message it names (see [ReadSince]), so a message in the same batch that it
+        // never named was set read too, and was still announced -- after the "conversation
+        // read" cancel had already gone, so its notification stayed for good (issue 9, third
+        // report). Asked of the database: whatever is read by now is not announced.
+        val readNow = readOnFile(fresh.map { it.id })
+        announce(fresh.filter { it.id !in readAlready && it.id !in readNow })
         // A contacts sync can have landed in the same batch as the messages it names.
         renameThreadsFromContacts()
         // Cosmetic and self-healing: a group whose name did not land shows its identifier
@@ -2989,6 +3009,18 @@ class SignalRepositoryImpl @Inject constructor(
         attachments = m.attachmentsJson
         styles = m.stylesJson
         update = m.update
+    }
+
+    /** Which of [ids] are on file and already read. */
+    private fun readOnFile(ids: List<String>): Set<String> {
+        if (ids.isEmpty()) return emptySet()
+        return Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java)
+                .`in`("id", ids.toTypedArray())
+                .equalTo("read", true)
+                .findAll()
+                .mapTo(mutableSetOf()) { it.id }
+        }
     }
 
     private fun announce(msgs: List<BridgeMessage>) {

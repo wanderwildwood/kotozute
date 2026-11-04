@@ -126,6 +126,11 @@ class SignalNotifications @Inject constructor(
 
         // Nothing to announce about a conversation the user is already reading.
         if (SignalThreadActivity.isVisible(message.threadKey)) return
+        // Nor about a message read by now, on another device. Signal builds its notifications
+        // from unread rows only, so a read one can never show; this is posted from a message
+        // instead, and one read after it was announced -- a read sync on another thread --
+        // would otherwise sit in the shade after its conversation's cancel had gone (issue 9).
+        if (readOnFile(message.id)) return
         // Muted means no notification, not no message: it still arrives and still counts
         // as unread, exactly as muting an SMS conversation behaves.
         if (signalRepo.isMuted(message.threadKey)) return
@@ -179,6 +184,15 @@ class SignalNotifications @Inject constructor(
 
         manager.notify(idFor(message.threadKey), notification)
     }
+
+    private fun readOnFile(id: String): Boolean = runCatching {
+        Realm.getDefaultInstance().use { realm ->
+            realm.where(SignalMessage::class.java)
+                .equalTo("id", id)
+                .equalTo("read", true)
+                .count() > 0
+        }
+    }.getOrDefault(false)
 
     /** Reads the thread's own title so the notification says who, not a uuid. */
     private fun titleFor(threadKey: String): String = runCatching {

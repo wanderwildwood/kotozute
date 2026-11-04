@@ -49,7 +49,7 @@ internal class AlarmSleepTimer(private val context: Context) : SleepTimer {
             )
 
             val startTime = System.currentTimeMillis()
-            setAlarm(sleepDuration, actionName)
+            setAlarm(context, sleepDuration, actionName)
 
             // Waits for the alarm, but re-checks the wall clock: a spurious wake-up must not
             // be allowed to cut the sleep short, or the keepalive would fire early and the
@@ -78,33 +78,6 @@ internal class AlarmSleepTimer(private val context: Context) : SleepTimer {
         }
     }
 
-    private fun setAlarm(millis: Long, action: String) {
-        val intent = Intent(action).setPackage(context.packageName)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context, 0, intent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-        // From Android 12 an exact alarm is a permission, and this app does not ask for one:
-        // it is granted to calendars and alarm clocks, not to us. The inexact alarm still
-        // fires during Doze, just later than asked -- which is worse than exact and much
-        // better than a thread that is not running at all.
-        if (Build.VERSION.SDK_INT < 31 || alarmManager.canScheduleExactAlarms()) {
-            AlarmManagerCompat.setExactAndAllowWhileIdle(
-                alarmManager,
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + millis,
-                pendingIntent
-            )
-        } else {
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + millis,
-                pendingIntent
-            )
-        }
-    }
-
     private inner class AlarmReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             synchronized(this@AlarmSleepTimer) {
@@ -113,11 +86,71 @@ internal class AlarmSleepTimer(private val context: Context) : SleepTimer {
         }
     }
 
-    private companion object {
+    companion object {
         private const val WAKE_UP_ACTION =
             "com.wanderwildwood.kotozute.signalstore.AlarmSleepTimer.WAKE_UP"
 
         /** Action ids in use, so two concurrent sleeps cannot share an alarm. */
         private val inFlight = ConcurrentSkipListSet<Int>()
+
+        /**
+         * Runs [onWake] once after [millis], on an alarm that fires in Doze, for a wait that
+         * also has other ways to end (the reconnect wait, which a network change cuts short).
+         * Returns the disarm, to be called once the wait is over however it ended.
+         */
+        fun wakeAfter(context: Context, millis: Long, onWake: () -> Unit): () -> Unit {
+            var actionId = 0
+            while (!inFlight.add(actionId)) actionId++
+            val actionName = "$WAKE_UP_ACTION.$actionId"
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) = onWake()
+            }
+            return try {
+                ContextCompat.registerReceiver(
+                    context, receiver, IntentFilter(actionName), ContextCompat.RECEIVER_NOT_EXPORTED
+                )
+                val pending = setAlarm(context, millis, actionName)
+                val disarm: () -> Unit = {
+                    runCatching { (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pending) }
+                    runCatching { context.unregisterReceiver(receiver) }
+                    inFlight.remove(actionId)
+                }
+                disarm
+            } catch (t: Throwable) {
+                // Never fatal: without the alarm the wait is what it was before.
+                Timber.w(t, "signal timer: could not set a wake-up alarm")
+                runCatching { context.unregisterReceiver(receiver) }
+                inFlight.remove(actionId)
+                ({})
+            }
+        }
+
+        private fun setAlarm(context: Context, millis: Long, action: String): PendingIntent {
+            val intent = Intent(action).setPackage(context.packageName)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, 0, intent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+            // From Android 12 an exact alarm is a permission, and this app does not ask for one:
+            // it is granted to calendars and alarm clocks, not to us. The inexact alarm still
+            // fires during Doze, just later than asked -- which is worse than exact and much
+            // better than a thread that is not running at all.
+            if (Build.VERSION.SDK_INT < 31 || alarmManager.canScheduleExactAlarms()) {
+                AlarmManagerCompat.setExactAndAllowWhileIdle(
+                    alarmManager,
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    SystemClock.elapsedRealtime() + millis,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    SystemClock.elapsedRealtime() + millis,
+                    pendingIntent
+                )
+            }
+            return pendingIntent
+        }
     }
 }

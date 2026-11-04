@@ -21,6 +21,7 @@ apply plugin: 'base'
 apply plugin: 'realm-android' // Realm needs to be before Kotlin or the build will fail
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
+apply plugin: 'com.mikepenz.aboutlibraries.plugin.android'
 
 // Signing comes from a real keystore in signing/, which is gitignored and written by the
 // release workflow from repository secrets. There is no fallback: a clone without it builds
@@ -343,3 +344,74 @@ dependencies {
 //        throw new GradleException("Keystore properties file not found")
 //    }
 //}
+
+// The Licenses page lists what the build actually packs: this plugin walks each variant's runtime
+// dependencies and writes res/raw/aboutlibraries.json (one entry per artifact, with its POM's
+// licence). What Gradle cannot see (fonts, data sets, native code, desugaring) and licence texts
+// of our own choosing are in config/libraries and config/licenses. Offline: the build fetches
+// nothing; the full texts come from res/raw and config/licenses. The app reads the file with
+// shared-licences' LicencesJson.kt (no AboutLibraries runtime library).
+aboutLibraries {
+    // getCollect() etc., not collect { }: Groovy reads that as its own Object.collect.
+    offlineMode.set(true)
+    getCollect().configPath.set(rootProject.file("config"))
+    getCollect().fetchRemoteLicense.set(false)
+    getCollect().fetchRemoteFunding.set(false)
+    getCollect().includePlatform.set(false)
+    getExport().excludeFields.addAll("funding")
+    getLibrary().mergePlatformArtifacts.set(true)
+}
+
+// The build fails when a bundled library has no license, or a license with no full text to show
+// (neither its own text from config/licenses nor a family text in res/raw). Mudita review, 4 Nov 2026.
+def licenceRawTexts = (file("src/main/res/raw").listFiles() ?: []).collect { it.name.toLowerCase() }
+tasks.matching { it.name.startsWith("prepareLibraryDefinitions") }.configureEach { t ->
+    def raw = licenceRawTexts
+    inputs.property("licenceRawTexts", raw) // so the check reruns when a text is added or removed
+    t.doLast {
+        def family = { String n ->
+            def l = n.toLowerCase()
+            if (l.contains("classpath")) return "classpath"
+            if (l.contains("lgpl") || l.contains("lesser general")) return "lgpl"
+            if (l.contains("gpl") || l.contains("general public licen")) return "gpl"
+            if (l.contains("unicode")) return "unicode"
+            if (l.contains("apache")) return "apache"
+            if (l.contains("mpl") || l.contains("mozilla")) return "mpl"
+            if (l.split(/[^a-z]+/).contains("mit")) return "mit"
+            if (l.contains("bsd")) return "bsd"
+            if (l.contains("ofl") || l.contains("open font")) return "ofl"
+            if (l.contains("cc-by") || l.contains("cc by") || l.contains("cc0") || l.contains("public domain")) return "none"
+            return null
+        }
+        def bad = []
+        t.outputs.files.asFileTree.matching { include("**/aboutlibraries.json") }.each { f ->
+            def root = new groovy.json.JsonSlurper().parse(f)
+            def lics = root.licenses ?: [:]
+            // A library's own license file (config/licenses, with its copyright line) stands in for
+            // the bare family entry its POM names: the plugin merges config entries in, it never
+            // takes one out, so a library would otherwise list "MIT" twice, once with no text.
+            def hasText = { k -> lics[k]?.content ? true : false }
+            def famOf = { k -> family((lics[k]?.spdxId ?: lics[k]?.name ?: k).toString()) }
+            def changed = false
+            (root.libraries ?: []).each { lib ->
+                def keys = lib.licenses ?: []
+                def own = keys.findAll { hasText(it) }.collect { famOf(it) }.findAll { it != null } as Set
+                def kept = keys.findAll { hasText(it) || !(famOf(it) in own) }
+                if (kept != keys) { lib.licenses = kept; changed = true }
+            }
+            if (changed) f.text = groovy.json.JsonOutput.toJson(root)
+            (root.libraries ?: []).each { lib ->
+                def keys = lib.licenses ?: []
+                if (keys.isEmpty()) bad << "${lib.uniqueId}: no license"
+                keys.each { k ->
+                    def e = lics[k] ?: [:]
+                    if (!e.content) {
+                        def fam = family((e.spdxId ?: e.name ?: k).toString())
+                        if (fam == null || (fam != "none" && !raw.any { it.contains(fam) })) bad << "${lib.uniqueId}: no text for ${e.name ?: k}"
+                    }
+                }
+            }
+        }
+        if (bad) throw new GradleException("Licenses page: add the text in config/licenses or res/raw:\n  " + bad.unique().join("\n  "))
+    }
+}

@@ -1,0 +1,8 @@
+{
+  "uniqueId": "lato-font",
+  "name": "Lato typeface",
+  "description": "The typeface the screens are set in, bundled in the app (res/font).",
+  "developers": [{ "name": "Łukasz Dziedzic" }],
+  "website": "https://www.latofonts.com/",
+  "licenses": ["OFL-1.1"]
+}

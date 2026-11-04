@@ -60,6 +60,9 @@ buildscript {
         // dependencies really do live here (ExoPlayer r2.9.0, realm-android-adapters, and
         // a 961-byte annotation shim), so it stays; it just no longer gets asked first.
         maven { url "https://jitpack.io" }
+        // The AboutLibraries Gradle plugin is published only on the plugin portal. Narrowed
+        // to its group, so the portal is never asked about anything else.
+        gradlePluginPortal() { content { includeGroupByRegex 'com\\.mikepenz.*' } }
     }
 
     dependencies {
@@ -82,6 +85,9 @@ buildscript {
         // this is the same code, built from source by the included build in
         // signal-service/wire-handler and substituted in by settings.gradle.
         classpath 'org.signal:wire-handler:1.0.0'
+        // Builds the Licenses list from the dependency graph (res/raw/aboutlibraries.json);
+        // see presentation/build.gradle. Gradle plugin only: nothing of it is in the APK.
+        classpath "com.mikepenz.aboutlibraries.plugin:aboutlibraries-plugin:15.3.0"
     }
 }
 

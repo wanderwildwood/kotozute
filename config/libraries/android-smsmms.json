@@ -1,0 +1,8 @@
+{
+  "uniqueId": "android-smsmms",
+  "name": "android-smsmms",
+  "description": "Sending and receiving picture messages: Jacob Klinker's library, carried in this repository as the android-smsmms module, not taken from Gradle.",
+  "developers": [{ "name": "Jacob Klinker" }],
+  "website": "https://github.com/klinker41/android-smsmms",
+  "licenses": ["Apache-2.0"]
+}

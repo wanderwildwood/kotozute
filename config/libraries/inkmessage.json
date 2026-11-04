@@ -1,0 +1,8 @@
+{
+  "uniqueId": "inkmessage",
+  "name": "InkMessage",
+  "description": "Where the e-ink work on this app began.",
+  "developers": [{ "name": "lamdanAmiti" }],
+  "website": "https://github.com/lamdanAmiti/InkMessage",
+  "licenses": ["GPL-3.0-or-later"]
+}

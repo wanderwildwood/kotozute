@@ -31,6 +31,15 @@ class LicencesView(private val activity: Activity, private val close: () -> Unit
 
     private var onPage = false
 
+    /** The build's list of what the APK holds (res/raw/aboutlibraries.json), read once. */
+    private val components: List<LicenceComponent> by lazy {
+        runCatching {
+            licenceComponentsFromJson(
+                activity.resources.openRawResource(R.raw.aboutlibraries).bufferedReader().use { it.readText() }
+            )
+        }.getOrDefault(emptyList())
+    }
+
     init {
         showList()
     }
@@ -45,7 +54,7 @@ class LicencesView(private val activity: Activity, private val close: () -> Unit
     private fun showList() {
         onPage = false
         val column = column()
-        Licences.rows(activity.getString(R.string.about_name_plain)).forEach { row ->
+        Licences.rows(activity.getString(R.string.about_name_plain), components).forEach { row ->
             column.addView(listRow(row))
         }
         show(column, activity.getString(R.string.licences_back)) { close() }
@@ -71,17 +80,20 @@ class LicencesView(private val activity: Activity, private val close: () -> Unit
         text(row.title, bold = true, top = 0)
         if (row.author.isNotEmpty()) text(row.author)
         text(row.licence)
-        text(
+        if (row.url.isNotBlank()) text(
             if (row.isApp) activity.getString(R.string.licences_source) else row.url.removePrefix("https://"),
             onClick = { WebLinks.open(activity, Uri.parse(row.url)) },
         )
+        // A Gradle library's coordinates and version, or a hand-listed entry's description.
+        row.note?.let { text(it) }
         if (row.isApp) text(activity.getString(R.string.licences_licence_words))
-        val raw = row.raw
-        if (raw == null) {
+        // Its own license file first (with its copyright line); else the bundled family text.
+        val fulls = row.texts.mapNotNull { it.content } +
+            row.raws.map { raw -> activity.resources.openRawResource(raw).bufferedReader().use { it.readText() } }
+        if (fulls.isEmpty()) {
             text(activity.getString(R.string.licences_no_text, row.licence))
         } else {
-            val full = activity.resources.openRawResource(raw).bufferedReader().use { it.readText() }
-            Licences.paragraphs(full).forEach { text(it) }
+            fulls.forEach { full -> Licences.paragraphs(full).forEach { text(it) } }
         }
         show(column, activity.getString(R.string.licences_back)) { showList() }
     }

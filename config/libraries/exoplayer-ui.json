@@ -1,0 +1,12 @@
+{
+  "uniqueId": "com.github.google.ExoPlayer:exoplayer-ui",
+  "name": "ExoPlayer (exoplayer-ui)",
+  "organization": {
+    "name": "Google",
+    "url": "https://developer.android.com"
+  },
+  "website": "https://github.com/google/ExoPlayer",
+  "licenses": [
+    "Apache-2.0"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "uniqueId": "org.reactivestreams:reactive-streams",
+  "licenses": [
+    "reactive-streams-mit0"
+  ]
+}

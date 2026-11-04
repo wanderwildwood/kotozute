@@ -1,0 +1,8 @@
+{
+  "uniqueId": "signal-android-service-layer",
+  "name": "Signal Android service layer",
+  "description": "Signal-Android's service code (libsignal-service and the modules under it), built from source copied into this repository (signal-service/), not taken from Gradle.",
+  "organization": { "name": "Signal Messenger, LLC", "url": "https://signal.org" },
+  "website": "https://github.com/signalapp/Signal-Android",
+  "licenses": ["AGPL-3.0-only"]
+}

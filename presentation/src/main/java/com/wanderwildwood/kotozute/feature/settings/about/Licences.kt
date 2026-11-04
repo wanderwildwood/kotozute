@@ -4,90 +4,70 @@ import android.net.Uri
 import com.wanderwildwood.kotozute.R
 
 /**
- * Everything third-party that the APK holds: code linked from Gradle, code copied into this
- * repository, and the font. Kept as plain data so a test can check the list is whole.
+ * Everything third-party that the APK holds. The list is made by the build, not by hand: the
+ * AboutLibraries Gradle plugin walks the release runtime dependencies and writes
+ * res/raw/aboutlibraries.json, one entry per artifact (each AndroidX artifact on its own), and
+ * merges in config/libraries for what Gradle cannot see (the Signal service layer copied into
+ * this repository, the forks this app continues, android-smsmms, the Lato font, desugaring).
+ * Libraries under MIT or BSD carry their own license file, with its copyright line, from
+ * config/licenses, so no generic MIT or BSD text is bundled. [LicencesJson.kt] (shared-licences) reads the file; nothing is fetched.
  */
 object Licences {
 
     const val SOURCE_URL = "https://github.com/wanderwildwood/kotozute"
 
-    /** The licences whose full text the screen carries, besides this app's own. */
-    enum class Kind(val label: String) {
-        AGPL("AGPL-3.0"), GPL("GPL-3.0"), APACHE("Apache-2.0"), MIT("MIT"), BSD("BSD"), OFL("SIL OFL 1.1"),
-        CDDL("CDDL 1.1 + GPLv2 with classpath exception"), SQLCIPHER("BSD-style (Zetetic)")
-    }
+    /** The app's own licence, as its row names it. */
+    const val APP_LICENCE = "AGPL-3.0-or-later"
 
-    class Part(val name: String, val kind: Kind, val url: String)
-
-    val parts: List<Part> = listOf(
-        // Signal: AGPL, which is why the whole app is AGPL.
-        Part("libsignal", Kind.AGPL, "https://github.com/signalapp/libsignal"),
-        Part("RingRTC", Kind.AGPL, "https://github.com/signalapp/ringrtc"),
-        Part("Signal Android service layer (copied in)", Kind.AGPL, "https://github.com/signalapp/Signal-Android"),
-        // The SMS app this continues, and the forks between.
-        Part("QKSMS, by Moez Bhatti", Kind.GPL, "https://github.com/moezbhatti/qksms"),
-        Part("QUIK, by octoshrimpy", Kind.GPL, "https://github.com/octoshrimpy/quik"),
-        Part("InkMessage, by lamdanAmiti", Kind.GPL, "https://github.com/lamdanAmiti/InkMessage"),
-        Part("android-smsmms, by Jacob Klinker", Kind.APACHE, "https://github.com/klinker41/android-smsmms"),
-        Part("Lato font, by tyPoland Lukasz Dziedzic", Kind.OFL, "https://www.latofonts.com"),
-        Part("AndroidX, Material Components, ExoPlayer", Kind.APACHE, "https://developer.android.com/jetpack/androidx"),
-        Part("Kotlin and kotlinx.coroutines", Kind.APACHE, "https://kotlinlang.org"),
-        Part("Dagger", Kind.APACHE, "https://github.com/google/dagger"),
-        Part("RxJava, RxAndroid, RxKotlin, RxBinding, RxDogTag", Kind.APACHE, "https://github.com/ReactiveX/RxJava"),
-        Part("AutoDispose", Kind.APACHE, "https://github.com/uber/AutoDispose"),
-        Part("Conductor", Kind.APACHE, "https://github.com/bluelinelabs/Conductor"),
-        Part("Realm and realm-android-adapters", Kind.APACHE, "https://github.com/realm/realm-java"),
-        Part("Moshi and OkHttp", Kind.APACHE, "https://github.com/square/moshi"),
-        Part("Timber", Kind.APACHE, "https://github.com/JakeWharton/timber"),
-        Part("Glide", Kind.APACHE, "https://github.com/bumptech/glide"),
-        Part("PhotoView", Kind.APACHE, "https://github.com/Baseflow/PhotoView"),
-        Part("FlexboxLayout", Kind.APACHE, "https://github.com/google/flexbox-layout"),
-        Part("ShortcutBadger", Kind.APACHE, "https://github.com/leolin310148/ShortcutBadger"),
-        Part("ZXing and zxing-android-embedded", Kind.APACHE, "https://github.com/zxing/zxing"),
-        Part("libphonenumber-android", Kind.APACHE, "https://github.com/MichaelRocks/libphonenumber-android"),
-        Part("RxPreferences", Kind.APACHE, "https://github.com/f2prateek/rx-preferences"),
-        Part("SQLCipher for Android", Kind.SQLCIPHER, "https://github.com/sqlcipher/sqlcipher-android"),
-        Part("NanoHTTPD", Kind.BSD, "https://github.com/NanoHttpd/nanohttpd"),
-        Part("ez-vcard", Kind.BSD, "https://github.com/mangstadt/ez-vcard"),
-        Part("datashare (Call Control)", Kind.MIT, "https://github.com/callcontrol"),
-        Part("jdk9-deps", Kind.MIT, "https://github.com/pengrad/jdk9-deps"),
-        Part("javax.annotation-api", Kind.CDDL, "https://github.com/javaee/javax.annotation")
-    )
-
-
-    /** One row of the Licences list, and the page behind it. [raw] is the licence's bundled full text, if there is one. */
+    /**
+     * One row of the Licenses list, and the page behind it. [texts] are the component's own full
+     * texts from the generated list; where it has none, [raws] are the bundled family texts.
+     */
     class Row(
         val title: String,
         val author: String,
         val licence: String,
         val url: String,
-        val raw: Int?,
+        val note: String?,
+        val texts: List<LicenceText>,
+        val raws: List<Int>,
         val isApp: Boolean = false,
     )
 
-    /** The raw full text of a kind of licence, or null where none is bundled (CDDL, named on its page). */
-    fun rawFor(kind: Kind): Int? = when (kind) {
-        Kind.AGPL -> R.raw.licence_agpl3
-        Kind.GPL -> R.raw.licence_gpl3
-        Kind.APACHE -> R.raw.licence_apache2
-        Kind.MIT -> R.raw.licence_mit
-        Kind.BSD, Kind.SQLCIPHER -> R.raw.licence_bsd
-        Kind.OFL -> R.raw.licence_ofl
-        Kind.CDDL -> null
-    }
+    /** The bundled full texts, by family, for a licence with no text of its own. */
+    val RAW_TEXTS: List<Pair<String, Int>> = listOf(
+        "agpl" to R.raw.licence_agpl3,
+        "gpl" to R.raw.licence_gpl3,
+        "gpl2-cpe" to R.raw.licence_gpl2_classpath,
+        "apache" to R.raw.licence_apache2,
+        "ofl" to R.raw.licence_ofl,
+    )
 
-    /** "QKSMS, by Moez Bhatti" is the library QKSMS by Moez Bhatti. */
-    fun titleOf(part: Part): String = part.name.substringBefore(", by ")
-    fun authorOf(part: Part): String = part.name.substringAfter(", by ", "")
+    /**
+     * The families a licence string names, AGPL told apart from GPL (the shared [licenceFamily]
+     * puts both under "gpl", and this app carries the two texts).
+     */
+    fun families(licence: String): List<String> =
+        licence.split(Regex("\\s+(?:and|or|\\+|/)\\s+|,|;")).mapNotNull { part ->
+            val p = part.trim().lowercase()
+            if ("agpl" in p || "affero" in p) "agpl" else licenceFamily(p)
+        }.distinct()
 
-    /** The list: the app itself first, then one row per library, alphabetical. */
-    fun rows(appName: String): List<Row> =
-        listOf(Row(appName, "", Kind.AGPL.label + "-or-later", SOURCE_URL, rawFor(Kind.AGPL), isApp = true)) +
-            parts.map { Row(titleOf(it), authorOf(it), it.kind.label, it.url, rawFor(it.kind)) }
-                .sortedBy { it.title.lowercase() }
+    /** The bundled texts for a licence string, in the order its families are named. */
+    fun rawsFor(licence: String): List<Int> =
+        families(licence).mapNotNull { f -> RAW_TEXTS.firstOrNull { it.first == f }?.second }
 
-    /** One line per component, as the screen draws it. */
-    fun line(part: Part): String = "${part.name}\n${part.kind.label}  ${part.url}"
+    /** The list: the app itself first, then one row per component, alphabetical. */
+    fun rows(appName: String, components: List<LicenceComponent>): List<Row> =
+        listOf(Row(appName, "", APP_LICENCE, SOURCE_URL, null, emptyList(), rawsFor(APP_LICENCE), isApp = true)) +
+            components.map { c ->
+                // Its own texts, then the bundled text of each family it names that they leave out
+                // (emoji2-bundled: its own Unicode text, and the Apache and OFL texts).
+                val own = c.texts.map { it.id }.toSet()
+                val rest = families(c.licence).filter { it !in own }
+                val raws = rest.mapNotNull { f -> RAW_TEXTS.firstOrNull { it.first == f }?.second }
+                Row(c.name, c.author, c.licence, c.url, c.note, c.texts, raws)
+            }.sortedWith(compareBy<Row> { it.title.lowercase() }.thenBy { it.title })
 
     /** Valid web address for the source link. */
     fun sourceUri(): Uri = Uri.parse(SOURCE_URL)

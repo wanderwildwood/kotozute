@@ -1,0 +1,8 @@
+{
+  "uniqueId": "qksms",
+  "name": "QKSMS",
+  "description": "The SMS app this one continues: its code is the base of this repository.",
+  "developers": [{ "name": "Moez Bhatti" }],
+  "website": "https://github.com/moezbhatti/qksms",
+  "licenses": ["GPL-3.0-or-later"]
+}

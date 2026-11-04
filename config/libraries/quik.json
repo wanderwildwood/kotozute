@@ -1,0 +1,8 @@
+{
+  "uniqueId": "quik",
+  "name": "QUIK",
+  "description": "The fork of QKSMS this app continues, by way of InkMessage.",
+  "developers": [{ "name": "octoshrimpy" }],
+  "website": "https://github.com/octoshrimpy/quik",
+  "licenses": ["GPL-3.0-or-later"]
+}

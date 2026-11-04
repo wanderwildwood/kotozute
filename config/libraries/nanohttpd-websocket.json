@@ -1,0 +1,6 @@
+{
+  "uniqueId": "org.nanohttpd:nanohttpd-websocket",
+  "licenses": [
+    "nanohttpd-bsd"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "uniqueId": "com.android.tools:desugar_jdk_libs",
+  "name": "Java library desugaring (desugar_jdk_libs)",
+  "description": "Parts of the Java library for older Android versions, compiled into the app (coreLibraryDesugaring, which the dependency list does not see).",
+  "developers": [{ "name": "Google" }],
+  "website": "https://github.com/google/desugar_jdk_libs",
+  "licenses": ["GPL-2.0-with-classpath-exception"]
+}

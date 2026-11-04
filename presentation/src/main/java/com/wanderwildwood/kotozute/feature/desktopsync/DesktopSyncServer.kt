@@ -1512,7 +1512,10 @@ class DesktopSyncServer(
             val ids = conversationRepository.getConversationsSnapshot(unreadAtTop = false)
                 .filter { it.unread }
                 .map { it.id }
-            if (ids.isNotEmpty()) messageRepository.markRead(ids)
+            // Through the interactor, as the per-conversation read and the phone's own menu
+            // item go: the repository alone set the flags and left every text notification,
+            // and the launcher's mark, behind a list that read as all done.
+            if (ids.isNotEmpty()) markRead.execute(ids)
             if (signalEnabled()) {
                 signalRepository.getThreadsSnapshot(archived = false)
                     .filter { it.unread > 0 }

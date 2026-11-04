@@ -1070,7 +1070,8 @@ interface SignalRepository {
     fun messagesRemoved(): Observable<String>
 
     /**
-     * Thread keys the account has finished reading somewhere else.
+     * Thread keys the account has finished reading: somewhere else, or here by any route other
+     * than opening the conversation (mark all read, a selection, Desktop Sync).
      *
      * A linked device is one of several, and the person reading on another one has already
      * seen the message. Marking it read here was only half of it: the notification stayed on

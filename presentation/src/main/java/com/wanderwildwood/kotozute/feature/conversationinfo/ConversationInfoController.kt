@@ -86,6 +86,15 @@ class ConversationInfoController(
                 ?.subscribe { binding.recyclerView.scrapViews() }
     }
 
+    /** Back with the delete row armed only disarms it; the next Back leaves. */
+    override fun handleBack(): Boolean = adapter.disarm() || super.handleBack()
+
+    /** Another screen in the same activity is not a pause: the armed row must not wait for it. */
+    override fun onDetach(view: View) {
+        adapter.disarm()
+        super.onDetach(view)
+    }
+
     override fun onAttach(view: View) {
         super.onAttach(view)
         presenter.bindIntents(this)

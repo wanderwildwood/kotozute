@@ -9,6 +9,7 @@ import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkAdapter
 import com.wanderwildwood.kotozute.common.base.QkViewHolder
 import com.wanderwildwood.kotozute.common.util.Colors
+import com.wanderwildwood.kotozute.common.util.armedWatch
 import com.wanderwildwood.kotozute.common.widget.PreferenceView
 import com.wanderwildwood.kotozute.common.util.extensions.setTint
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
@@ -43,28 +44,41 @@ class ConversationInfoAdapter @Inject constructor(
      * full-panel repaints to ask one question; this is one row changing what it says, in
      * the place the answer belongs. It is the same shape the other five apps use.
      *
-     * The question withdraws itself after a few seconds, so a row armed by a stray tap is
-     * not left live for whoever picks the phone up next.
+     * No timer: the question stays until the next other touch, Back or leaving the screen
+     * (the activity's ArmedWatch, and [disarm] from the controller).
      */
     private fun armDelete(row: PreferenceView) {
         val ready = row.context.getString(R.string.info_delete)
         val asking = row.context.getString(R.string.info_delete_confirm)
-        var armed = false
-        val disarm = Runnable {
-            armed = false
+        val disarm: () -> Unit = {
+            deleteArmed = null
             row.title = ready
         }
         row.setOnClickListener {
-            row.removeCallbacks(disarm)
-            if (armed) {
-                disarm.run()
+            val watch = row.context.armedWatch()
+            if (deleteArmed != null) {
+                watch?.done(deleteArmed!!)
+                disarm()
                 deleteClicks.onNext(Unit)
             } else {
-                armed = true
+                deleteArmed = disarm
+                deleteWatch = watch
                 row.title = asking
-                row.postDelayed(disarm, ARMED_MS)
+                watch?.arm(disarm)
             }
         }
+    }
+
+    /** The armed delete row's way back, while it is armed, and its activity's watch. */
+    private var deleteArmed: (() -> Unit)? = null
+    private var deleteWatch: com.wanderwildwood.kotozute.common.util.ArmedWatch? = null
+
+    /** Puts an armed delete row back; true if there was one (Back then only does this). */
+    fun disarm(): Boolean {
+        val row = deleteArmed ?: return false
+        deleteWatch?.done(row)
+        row()
+        return true
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QkViewHolder {
@@ -180,11 +194,5 @@ class ConversationInfoAdapter @Inject constructor(
 
             else -> false
         }
-    }
-
-
-    private companion object {
-        /** How long a tap on the delete row stays armed before it forgets it was asked. */
-        const val ARMED_MS = 6000L
     }
 }

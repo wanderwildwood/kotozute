@@ -19,6 +19,9 @@ import android.view.ViewGroup
 import android.widget.Toast
 import com.wanderwildwood.kotozute.common.util.ClosedByBlock
 import com.wanderwildwood.kotozute.common.util.Whereabouts
+import com.wanderwildwood.kotozute.common.util.ArmedWatch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -1947,7 +1950,8 @@ class SignalThreadActivity : QkThemedActivity() {
     /** The last send in this screen was refused for a changed safety number. */
     private var identityRefused = false
     private var identityArmed = false
-    private val disarmIdentity = Runnable {
+    /** The accept row's way back to its plain face; the activity's [ArmedWatch] calls it. */
+    private val disarmIdentity: () -> Unit = {
         identityArmed = false
         binding.identityAccept.setText(R.string.signal_identity_accept)
     }
@@ -1995,10 +1999,10 @@ class SignalThreadActivity : QkThemedActivity() {
             if (!identityArmed) {
                 identityArmed = true
                 binding.identityAccept.setText(R.string.signal_identity_accept_armed)
-                binding.identityAccept.postDelayed(disarmIdentity, ARM_TIMEOUT_MS)
+                ArmedWatch.of(this).arm(disarmIdentity)
             } else {
-                binding.identityAccept.removeCallbacks(disarmIdentity)
-                disarmIdentity.run()
+                ArmedWatch.of(this).done(disarmIdentity)
+                disarmIdentity()
                 acceptAndRetry()
             }
         }
@@ -2264,18 +2268,20 @@ class SignalThreadActivity : QkThemedActivity() {
 
     /**
      * Take back, asked twice. A dialog of one entry that names what a second tap will do and
-     * what it costs, and disarms itself after a few seconds so a stray tap leaves no live
-     * trigger for whoever picks the phone up next.
+     * what it costs. No timer: it stays until the person chooses it, taps outside it, presses
+     * Back, or leaves the screen (the screen going off included).
      */
     private fun armWithdraw(messageId: String) {
         val dialog = einkDialog()
             .setItems(arrayOf(getString(R.string.signal_withdraw_armed))) { _, _ -> withdraw(messageId) }
             .show()
-        val decor = dialog.window?.decorView
-        val disarm = Runnable { if (!isFinishing && dialog.isShowing) dialog.dismiss() }
-        decor?.postDelayed(disarm, ARM_TIMEOUT_MS)
+        dialog.setCanceledOnTouchOutside(true)
+        val leaving = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE && dialog.isShowing) dialog.dismiss()
+        }
+        lifecycle.addObserver(leaving)
         // Choosing it, or backing out, takes the trigger with it.
-        dialog.setOnDismissListener { decor?.removeCallbacks(disarm) }
+        dialog.setOnDismissListener { lifecycle.removeObserver(leaving) }
     }
 
     private fun copyText(text: String) {
@@ -2652,9 +2658,6 @@ class SignalThreadActivity : QkThemedActivity() {
 
         /** A spoiler in the draft: shown, on a light grey, so the writer can see what it hides. */
         private const val SPOILER_SHADE = 0xFFD0D0D0.toInt()
-
-        /** How long an armed destructive row stays armed, as everywhere else in the app. */
-        private const val ARM_TIMEOUT_MS = 6000L
 
         /** The chosen message's own entries, added under ⋮ by [prepareSelectionMenu]. */
         private const val SINGLE_ENTRY_GROUP = 0x51

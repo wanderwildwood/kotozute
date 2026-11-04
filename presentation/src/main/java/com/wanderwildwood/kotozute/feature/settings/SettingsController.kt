@@ -48,6 +48,7 @@ import com.wanderwildwood.kotozute.common.QkChangeHandler
 import com.wanderwildwood.kotozute.common.QkDialog
 import com.wanderwildwood.kotozute.common.base.QkController
 import com.wanderwildwood.kotozute.common.util.Colors
+import com.wanderwildwood.kotozute.common.util.armedWatch
 import com.wanderwildwood.kotozute.common.util.extensions.animateLayoutChanges
 import com.wanderwildwood.kotozute.common.util.extensions.setBackgroundTint
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
@@ -151,6 +152,13 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     }
 
+    override fun onDetach(view: View) {
+        // Leaving this screen for another one in the same activity is not a pause, so the
+        // watch would not see it: an armed row must not be waiting when the screen comes back.
+        if (resetArmed || unpairArmed) activity?.armedWatch()?.disarm()
+        super.onDetach(view)
+    }
+
     override fun onAttach(view: View) {
         super.onAttach(view)
         presenter.bindIntents(this)
@@ -216,6 +224,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             binding.sectionSignal)
 
     override fun handleBack(): Boolean {
+        // Back with a row armed only disarms it; the next Back leaves (STYLE.md).
+        if (resetArmed || unpairArmed) {
+            activity?.armedWatch()?.disarm()
+            return true
+        }
         if (openSection != 0 && openSection != binding.sectionRoot.id) {
             showSection(binding.sectionRoot.id, R.string.title_settings)
             return true
@@ -243,28 +256,27 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun signalDiscoverContactsConfirmed(): Observable<*> = signalDiscoverContactsSubject
 
-    private companion object {
-        /** How long an armed row stays armed. Six seconds, as every armed row here. */
-        const val ARM_TIMEOUT_MS = 6000L
-    }
-
-    /** Whether the reset row is armed, and the callback that stands it back down. */
+    /**
+     * Whether the reset row is armed, and the callback that stands it back down. The
+     * activity's [com.wanderwildwood.kotozute.common.util.ArmedWatch] calls it: no timer, the
+     * next other touch, Back or leaving disarms.
+     */
     private var resetArmed = false
-    private val disarmRunnable = Runnable { disarmReset() }
+    private val disarmRunnable: () -> Unit = { disarmReset() }
 
     private var unpairArmed = false
-    private val disarmUnpairRunnable = Runnable { disarmUnpair() }
+    private val disarmUnpairRunnable: () -> Unit = { disarmUnpair() }
 
     private fun disarmUnpair() {
         unpairArmed = false
-        binding.signalUnpair.removeCallbacks(disarmUnpairRunnable)
+        activity?.armedWatch()?.done(disarmUnpairRunnable)
         binding.signalUnpair.title = activity?.getString(R.string.settings_signal_unpair_title).orEmpty()
         binding.signalUnpair.summary = activity?.getString(R.string.settings_signal_unpair_summary)
     }
 
     private fun disarmReset() {
         resetArmed = false
-        binding.desktopSyncReset.removeCallbacks(disarmRunnable)
+        activity?.armedWatch()?.done(disarmRunnable)
         binding.desktopSyncReset.title = activity?.getString(R.string.settings_desktop_sync_reset_title).orEmpty()
         binding.desktopSyncReset.summary = activity?.getString(R.string.settings_desktop_sync_reset_summary)
     }
@@ -1050,8 +1062,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * second tap does it. A dialog is two full-panel repaints to ask one question, and on
      * e-ink that is the expensive way to ask.
      *
-     * It disarms itself after a few seconds, so a stray tap does not leave a live trigger
-     * sitting there for whoever picks the phone up next.
+     * It stays armed, with no timer, until the next other touch, Back or leaving the screen.
      */
     override fun askDesktopSyncReset() {
         if (resetArmed) {
@@ -1063,7 +1074,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         resetArmed = true
         binding.desktopSyncReset.title = activity?.getString(R.string.settings_desktop_sync_reset_armed).orEmpty()
         binding.desktopSyncReset.summary = activity?.getString(R.string.settings_desktop_sync_reset_armed_summary)
-        binding.desktopSyncReset.postDelayed(disarmRunnable, ARM_TIMEOUT_MS)
+        activity?.armedWatch()?.arm(disarmRunnable)
     }
 
     override fun showDesktopSyncBrowsers(
@@ -1201,7 +1212,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         unpairArmed = true
         binding.signalUnpair.title = activity?.getString(R.string.settings_signal_unpair_armed).orEmpty()
         binding.signalUnpair.summary = activity?.getString(R.string.settings_signal_unpair_armed_summary)
-        binding.signalUnpair.postDelayed(disarmUnpairRunnable, ARM_TIMEOUT_MS)
+        activity?.armedWatch()?.arm(disarmUnpairRunnable)
     }
 
     override fun showSwipeActions() {

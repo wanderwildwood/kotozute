@@ -16,6 +16,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.DateFormatter
+import com.wanderwildwood.kotozute.common.util.ArmedWatch
+import com.wanderwildwood.kotozute.common.util.DialogArmed
 import com.wanderwildwood.kotozute.common.util.einkDialog
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.databinding.SignalMediaGridItemBinding
@@ -53,9 +55,12 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     private lateinit var binding: SignalThreadInfoActivityBinding
     private lateinit var threadKey: String
     private var isArchived = false
+    /** The armed rows' one watch: no timer, any other touch, Back or leaving disarms. */
+    private lateinit var watch: ArmedWatch
     private var blockArmed = false
     private var deleteArmed = false
-    private val disarmDelete = Runnable {
+    /** Each armed row's way back to its plain face; [watch] calls it when something else happens. */
+    private val disarmDelete: () -> Unit = {
         deleteArmed = false
         binding.deleteThread.title = getString(R.string.info_delete)
         binding.deleteThread.summary = deleteSummary()
@@ -64,12 +69,12 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     private var blocked = false
     private var safetyArmed = false
 
-    private val disarmSafety = Runnable {
+    private val disarmSafety: () -> Unit = {
         safetyArmed = false
         binding.safetyAccept.title = getString(R.string.signal_safety_accept_title)
     }
 
-    private val disarmBlock = Runnable {
+    private val disarmBlock: () -> Unit = {
         blockArmed = false
         binding.block.title = getString(blockRowTitle())
     }
@@ -81,6 +86,7 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         super.onCreate(savedInstanceState)
         binding = SignalThreadInfoActivityBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        watch = ArmedWatch.of(this)
 
         threadKey = intent.getStringExtra(EXTRA_KEY).orEmpty()
         if (threadKey.isBlank()) { finish(); return }
@@ -127,18 +133,18 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         }
 
         // Blocking reaches the Signal account, so it arms and confirms rather than acting
-        // on one tap: the row says what a second tap will do, and disarms itself after a
-        // few seconds so a stray tap does not leave a live trigger sitting there.
+        // on one tap: the row says what a second tap will do, and stays armed until the
+        // next other touch, Back or leaving the screen.
         binding.block.setOnClickListener {
             if (!blockArmed) {
                 blockArmed = true
                 binding.block.title = getString(
                     if (blocked) R.string.signal_unblock_armed else R.string.signal_block_armed
                 )
-                binding.block.postDelayed(disarmBlock, ARM_TIMEOUT_MS)
+                watch.arm(disarmBlock)
                 return@setOnClickListener
             }
-            binding.block.removeCallbacks(disarmBlock)
+            watch.done(disarmBlock)
             blockArmed = false
             binding.block.title = getString(blockRowTitle())
             val wanted = !blocked
@@ -258,16 +264,16 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             .show()
         if (hasOne) {
             val delete = dialog.getButton(android.content.DialogInterface.BUTTON_NEUTRAL)
-            var armed = false
-            val disarm = Runnable { armed = false; delete.setText(R.string.signal_nickname_delete) }
+            // Inside the dialog's own window: any other touch there disarms it, and so does
+            // the dialog closing.
+            val armed = DialogArmed(dialog) { delete.setText(R.string.signal_nickname_delete) }
             delete.setOnClickListener {
-                if (!armed) {
-                    armed = true
+                if (!armed.armed) {
+                    armed.arm()
                     delete.setText(R.string.signal_nickname_delete_armed)
-                    delete.postDelayed(disarm, ARM_TIMEOUT_MS)
                     return@setOnClickListener
                 }
-                delete.removeCallbacks(disarm)
+                armed.done()
                 dialog.dismiss()
                 saveNickname(SignalRepository.Nickname("", "", ""))
             }
@@ -381,10 +387,10 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                 deleteArmed = true
                 binding.deleteThread.title = getString(R.string.info_delete_confirm)
                 binding.deleteThread.summary = getString(R.string.info_delete_armed_summary)
-                binding.deleteThread.postDelayed(disarmDelete, ARM_TIMEOUT_MS)
+                watch.arm(disarmDelete)
                 return@setOnClickListener
             }
-            binding.deleteThread.removeCallbacks(disarmDelete)
+            watch.done(disarmDelete)
             deleteArmed = false
             thread {
                 val result = runCatching {
@@ -561,9 +567,8 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                 }
             }
             // Disarmed whenever the screen re-reads itself, so a row left armed cannot come
-            // back armed after a refresh. The four-second timer would catch it anyway; this
-            // makes it true rather than merely likely, which is the point of the timeout.
-            binding.safetyAccept.removeCallbacks(disarmSafety)
+            // back armed after a refresh.
+            watch.done(disarmSafety)
             safetyArmed = false
             binding.safetyAccept.title = getString(R.string.signal_safety_accept_title)
             if (identity.changed) {
@@ -595,10 +600,10 @@ class SignalThreadInfoActivity : QkThemedActivity() {
         if (!safetyArmed) {
             safetyArmed = true
             binding.safetyAccept.title = getString(R.string.signal_safety_accept_armed)
-            binding.safetyAccept.postDelayed(disarmSafety, ARM_TIMEOUT_MS)
+            watch.arm(disarmSafety)
             return
         }
-        binding.safetyAccept.removeCallbacks(disarmSafety)
+        watch.done(disarmSafety)
         safetyArmed = false
         binding.safetyAccept.title = getString(R.string.signal_safety_accept_title)
         thread(isDaemon = true) {
@@ -909,8 +914,6 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     }
 
     companion object {
-        /** Long enough to read the armed label, short enough not to stay live. */
-        private const val ARM_TIMEOUT_MS = 6000L
         private const val EXTRA_KEY = "threadKey"
         private const val MEDIA_COLUMNS = 3
 

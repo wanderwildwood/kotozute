@@ -89,7 +89,7 @@ The app is suitable for all ages and does not knowingly collect anything from an
 <!-- shared-about privacy section -->
 ## Who we are
 
-Messaging is made by wander wildwood, an independent developer: one person, not a company. wander wildwood is the data controller for anything the app itself handles, and that is very little. Messaging keeps what you put in it on your phone, apart from what it sends to your carrier, Signal and GIPHY as described above, and sends nothing to the developer, so the developer holds no data about you.
+Messaging is made by wander wildwood, an independent developer: one person, not a company. wander wildwood is the data controller for anything the app itself handles, and that is very little. What you put in Messaging stays on your phone unless you send it somewhere yourself. The only things that go out are the ones described above: the texts and picture messages you send, with the numbers they go to, to your carrier; your Signal messages, attachments, receipts and calls, end-to-end encrypted, to Signal's servers, and your contacts' numbers, scrambled, to Signal's lookup only if you agree to Find contacts on Signal; the words of a GIF search, to GIPHY through Signal's content proxy; and, only while Desktop Sync is on, your messages to the browsers you pair. The developer receives nothing, so the developer holds no data about you.
 
 ## How to contact us
 

@@ -1057,7 +1057,7 @@
     <string name="about_write_to">Write to %1$s</string>
     <string name="about_no_mail_app">No email app is installed. The address is %1$s.</string>
     <string name="privacy_who_title">Who we are</string>
-    <string name="privacy_who">This app is made by wander wildwood, an independent developer: one person, not a company. That makes wander wildwood the data controller for anything the app itself handles, and that is very little: what you put in stays on this phone unless you send it somewhere yourself, or the app sends it to your carrier, Signal and GIPHY as described above, and nothing comes to the developer.</string>
+    <string name="privacy_who">This app is made by wander wildwood, an independent developer: one person, not a company. That makes wander wildwood the data controller for anything the app itself handles, and that is very little: what you put in stays on this phone unless you send it somewhere yourself. The only things that go out are the texts and picture messages you send, with their numbers, to your carrier; your Signal messages and calls, end-to-end encrypted, to Signal\'s servers, and your contacts\' numbers, scrambled, only if you agree to Find contacts on Signal; the words of a GIF search, to GIPHY through Signal\'s proxy; and, while Desktop Sync is on, your messages to the browsers you pair. Nothing comes to the developer.</string>
     <string name="privacy_contact_title">How to contact us</string>
     <string name="privacy_contact">Write to email@wanderthe.dev, about your data or anything else.</string>
     <string name="privacy_rights_title">Your rights</string>

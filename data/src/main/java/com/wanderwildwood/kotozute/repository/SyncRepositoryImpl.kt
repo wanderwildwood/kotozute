@@ -257,7 +257,13 @@ class SyncRepositoryImpl @Inject constructor(
         // If we don't have a valid id, return null
         val contentId = tryOrNull(false) { ContentUris.parseId(uri) } ?: return null
 
-        // Check if the message already exists, so we can reuse the id
+        // Check if the message already exists, so we can reuse the id -- and whether it is
+        // already filed as a reaction. The row below is rebuilt from the provider, which knows
+        // nothing of reactions, and the reaction is parsed again only after it is written: in
+        // between, a reaction read as a message of its own. A text notification built in that
+        // moment announced a taken-back reaction ("Removed a heart from …") that the list
+        // never showed. Seen on the emulator: the receive worker landed in exactly that gap.
+        var wasReaction = false
         val existingId = Realm.getDefaultInstance().use { realm ->
             realm.refresh()
             realm.where(Message::class.java)
@@ -270,6 +276,7 @@ class SyncRepositoryImpl @Inject constructor(
                 .equalTo("contentId", 0L)
                 .endGroup()
                 .findFirst()
+                ?.also { wasReaction = it.isEmojiReaction }
                 ?.id
         }
 
@@ -288,6 +295,7 @@ class SyncRepositoryImpl @Inject constructor(
             val columnsMap = CursorToMessage.MessageColumns(cursor)
             cursorToMessage.map(Pair(cursor, columnsMap)).apply {
                 existingId?.let { this.id = it }
+                isEmojiReaction = wasReaction
 
                 if (isMms()) {
                     parts = RealmList<MmsPart>().apply {

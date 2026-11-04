@@ -15,7 +15,9 @@ import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import com.wanderwildwood.kotozute.R
 import timber.log.Timber
@@ -39,11 +41,22 @@ import timber.log.Timber
  *
  * It owns no playback state. It listens to [SignalVoicePlayer] and stops itself, notification
  * and all, the moment nothing is loaded.
+ *
+ * One departure from upstream: a note left paused is put away after [PARK_AFTER_MS], and the
+ * notification goes with it. Upstream keeps a paused note's notification until it is swiped
+ * away, and so did this. But a note paused by another player taking the sound, or simply
+ * forgotten, then sat in the shade for days, and a launcher that marks an app's icon for any
+ * notification it has (Katapult on the Kompakt does) showed Messaging as having something new
+ * when every conversation was read. The place in the note is kept, so playing it again picks
+ * up where it stopped.
  */
 class VoiceNotePlaybackService : Service(), SignalVoicePlayer.Listener {
 
     private var session: MediaSession? = null
     private var inForeground = false
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val park = Runnable { SignalVoicePlayer.park() }
 
     private val noisy = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -100,9 +113,12 @@ class VoiceNotePlaybackService : Service(), SignalVoicePlayer.Listener {
         }
         updateSession()
         val notification = buildNotification()
+        // Any change starts the wait again: a seek while paused is somebody still using it.
+        handler.removeCallbacks(park)
         if (SignalVoicePlayer.isPlaying) {
             foreground(notification)
         } else {
+            handler.postDelayed(park, PARK_AFTER_MS)
             // Paused: out of the foreground, notification kept -- upstream's stopForeground(false).
             if (inForeground) stopForeground(STOP_FOREGROUND_DETACH)
             inForeground = false
@@ -133,6 +149,7 @@ class VoiceNotePlaybackService : Service(), SignalVoicePlayer.Listener {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(park)
         SignalVoicePlayer.removeListener(this)
         runCatching { unregisterReceiver(noisy) }
         session?.release()
@@ -153,6 +170,7 @@ class VoiceNotePlaybackService : Service(), SignalVoicePlayer.Listener {
     private var stoppedSelf = false
 
     private fun finish() {
+        handler.removeCallbacks(park)
         stoppedSelf = true
         if (inForeground) stopForeground(STOP_FOREGROUND_REMOVE)
         inForeground = false
@@ -247,6 +265,14 @@ class VoiceNotePlaybackService : Service(), SignalVoicePlayer.Listener {
     companion object {
         private const val CHANNEL_ID = "signal_voice_notes"
         private const val NOTIFICATION_ID = 7202
+
+        /**
+         * How long a paused note keeps its notification. Media3's own figure for when a paused
+         * session stops counting as in use (`MediaSessionService.DEFAULT_FOREGROUND_SERVICE_TIMEOUT_MS`).
+         * ⚠ A Handler delay, so it counts time the phone is awake: a phone left asleep keeps the
+         * note until it has been awake this long, which is when somebody would see the mark.
+         */
+        internal const val PARK_AFTER_MS = 10 * 60 * 1000L
 
         private const val ACTION_PLAY = "com.wanderwildwood.kotozute.signalvoice.PLAY"
         private const val ACTION_PAUSE = "com.wanderwildwood.kotozute.signalvoice.PAUSE"

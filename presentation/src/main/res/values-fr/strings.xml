@@ -326,7 +326,6 @@
     <string name="qkreply_menu_view">Ouvrir la conversation</string>
     <string name="theme_plus" translatable="false">Custom Color</string>
     <string name="about_developer" translatable="false">Marcos Jones</string>
-    <string name="about_source" translatable="false">https://github.com/octoshrimpy/quik</string>
     <string name="about_changelog" translatable="false">https://github.com/octoshrimpy/quik/releases</string>
     <string name="about_license" translatable="false">GNU General Public License v3.0</string>
     <string name="about_copyright" translatable="false">© 2014–2024</string>

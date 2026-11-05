@@ -74,6 +74,7 @@ import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.MainActivityBinding
 import android.widget.ProgressBar
 import com.wanderwildwood.kotozute.common.widget.QkTextView
+import com.wanderwildwood.kotozute.common.util.extensions.liftsLastRowClearOf
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.common.util.einkDialog
 
@@ -168,6 +169,7 @@ class MainActivity : QkThemedActivity(), MainView {
         conversationsAdapter.autoScrollToStart(binding.recyclerView)
 
         binding.recyclerView.turnsAPageOnSwipe()
+        binding.recyclerView.liftsLastRowClearOf(binding.compose)
 
         // Set the theme color tint to the recyclerView, progressbar, and FAB
         theme

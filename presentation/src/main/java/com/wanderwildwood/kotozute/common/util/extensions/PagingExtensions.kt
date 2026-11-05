@@ -1,7 +1,10 @@
 package com.wanderwildwood.kotozute.common.util.extensions
 
+import android.graphics.Rect
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import kotlin.math.abs
 
@@ -148,3 +151,41 @@ private fun RecyclerView.turnPageBack(page: Int) {
     if (cut in 1..overlap && first.height <= page) scrollBy(0, -cut)
 }
 
+
+/**
+ * The last row comes to rest above [button], which floats over the list's bottom end corner,
+ * rather than with its end under it for good (the compose button over a conversation's unread
+ * mark). Room is added under the last row only, so a page turn is a page as before, and the
+ * row cut at the foot of a page still shows there and opens the next one (5 Nov 2026). While the
+ * button is not shown (the archive, a search) the last row ends at the foot again.
+ */
+fun RecyclerView.liftsLastRowClearOf(button: View) {
+    val gap = (8 * resources.displayMetrics.density).toInt()
+    addItemDecoration(object : RecyclerView.ItemDecoration() {
+        override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
+            val position = parent.getChildAdapterPosition(view)
+            val count = parent.adapter?.itemCount ?: 0
+            if (position == RecyclerView.NO_POSITION || position != count - 1) return
+            val margin = (button.layoutParams as? ViewGroup.MarginLayoutParams)?.bottomMargin ?: 0
+            outRect.bottom = lastRowLift(button.visibility == View.VISIBLE, button.height, margin, gap, parent.paddingBottom)
+        }
+    })
+    // The button comes and goes with a search and with the archive: the room under the last row
+    // goes with it.
+    var seen = button.visibility to button.height
+    viewTreeObserver.addOnGlobalLayoutListener {
+        val now = button.visibility to button.height
+        if (now != seen) {
+            seen = now
+            invalidateItemDecorations()
+        }
+    }
+}
+
+/**
+ * How far the last row is lifted: clear of a button [buttonHeight] tall sitting [buttonMargin]
+ * above the list's foot, with [gap] between, less the [listPaddingBottom] the list already ends
+ * with. Nothing while the button is not [shown].
+ */
+internal fun lastRowLift(shown: Boolean, buttonHeight: Int, buttonMargin: Int, gap: Int, listPaddingBottom: Int): Int =
+    if (!shown || buttonHeight <= 0) 0 else (buttonHeight + buttonMargin + gap - listPaddingBottom).coerceAtLeast(0)

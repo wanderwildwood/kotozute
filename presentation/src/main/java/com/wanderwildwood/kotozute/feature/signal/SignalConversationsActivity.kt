@@ -27,6 +27,7 @@ import io.realm.RealmResults
 import javax.inject.Inject
 import android.view.Menu
 import android.view.MenuItem
+import com.wanderwildwood.kotozute.common.util.extensions.liftsLastRowClearOf
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
 
@@ -98,6 +99,7 @@ class SignalConversationsActivity : QkThemedActivity() {
         // same panel, and a list that scrolls freely next to one that does not is the kind of
         // difference a person feels without being able to name.
         binding.recyclerView.turnsAPageOnSwipe()
+        binding.recyclerView.liftsLastRowClearOf(binding.compose)
 
         bindShelf()
 

@@ -61,7 +61,7 @@ abstract class GlanceProvider : ContentProvider() {
      * and nothing else. A name alone is not enough - an app can take Glance's name on a phone where
      * Glance is not installed. A debuggable build of this app answers any Glance, for testing.
      */
-    private fun fromGlance(context: Context): Boolean {
+    protected fun fromGlance(context: Context): Boolean {
         if (callingPackage != READER) return false
         if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) return true
         return runCatching {

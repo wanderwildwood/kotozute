@@ -368,6 +368,8 @@
         <package android:name="com.mediatek.duraspeed" />
         <!-- Cabinet, so a file or folder request can be addressed to it. See FilesPicker. -->
         <package android:name="com.wanderwildwood.tana" />
+        <!-- Glance, so the unread count can check who is asking for it. See GlanceProvider. -->
+        <package android:name="com.wanderwildwood.hitome" />
         <!-- Whereabouts, for "Send where I am": one location, asked of it once. -->
         <intent>
             <action android:name="com.wanderwildwood.ibasho.action.SHARE_LOCATION_ONCE" />

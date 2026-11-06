@@ -3,7 +3,6 @@ package com.wanderwildwood.kotozute.common.util
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.model.MmsPart
 import timber.log.Timber
@@ -24,7 +23,7 @@ class PartSaver(private val activity: ComponentActivity) {
     private var pending: MmsPart? = null
 
     private val launcher = activity.registerForActivityResult(
-        ActivityResultContracts.CreateDocument("*/*")
+        FilesCreateDocument("*/*")
     ) { destination: Uri? ->
         val part = pending
         pending = null

@@ -24,13 +24,13 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.view.View
 import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.children
 import androidx.core.view.isVisible
 import com.jakewharton.rxbinding2.view.clicks
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkController
+import com.wanderwildwood.kotozute.common.util.FilesOpenTree
 import com.wanderwildwood.kotozute.common.util.QkActivityResultContracts
 import com.wanderwildwood.kotozute.common.util.extensions.getLabel
 import com.wanderwildwood.kotozute.common.util.extensions.setBackgroundTint
@@ -117,7 +117,7 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
     override fun onContextAvailable(context: Context) {
         // Init activity result contracts
         openDirectory = themedActivity!!
-            .registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            .registerForActivityResult(FilesOpenTree()) { uri ->
                 uri?.let(documentTreeSelectedSubject::onNext)
             }
 

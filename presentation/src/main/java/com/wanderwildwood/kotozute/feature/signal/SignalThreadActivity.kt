@@ -284,7 +284,7 @@ class SignalThreadActivity : QkThemedActivity() {
      * this answers: an epub is wanted **in a reader**, not in here.
      */
     private val saveLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("*/*")
+        com.wanderwildwood.kotozute.common.util.FilesCreateDocument("*/*")
     ) { destination: Uri? ->
         val pending = pendingSave
         pendingSave = null

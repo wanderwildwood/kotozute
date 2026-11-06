@@ -25,7 +25,7 @@ class QkActivityResultContracts {
                 intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, input.initialUri)
             }
 
-            return intent
+            return FilesPicker.aim(context, intent)
         }
 
         override fun parseResult(resultCode: Int, intent: Intent?): Uri {

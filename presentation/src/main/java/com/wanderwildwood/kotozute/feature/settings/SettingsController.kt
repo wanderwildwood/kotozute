@@ -617,12 +617,14 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun chooseSignalExportFolder() {
         // A folder, not a file: an export is main.jsonl beside the pictures it names, and
         // picking the file alone would import a history with every attachment missing.
-        val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
+        val intent = com.wanderwildwood.kotozute.common.util.FilesPicker.aim(
+            activity ?: return, android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE))
         startActivityForResult(intent, PICK_EXPORT_FOLDER)
     }
 
     override fun chooseSignalBackupFolder() {
-        val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
+        val intent = com.wanderwildwood.kotozute.common.util.FilesPicker.aim(
+            activity ?: return, android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE))
         startActivityForResult(intent, PICK_BACKUP_FOLDER)
     }
 

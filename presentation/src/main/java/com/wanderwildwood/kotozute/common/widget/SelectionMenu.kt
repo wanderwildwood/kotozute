@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
@@ -212,20 +213,43 @@ object SelectionMenu {
                 })
             }
         }
-        popup = PopupWindow(list, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, false).apply {
-            isOutsideTouchable = true
-            elevation = 0f
+        // The frame and its border go on the scrolling box, so they stay put when the list scrolls.
+        val box = ScrollView(context).apply {
+            background = list.background
+            isVerticalScrollBarEnabled = true
+            isScrollbarFadingEnabled = false
+            addView(list)
         }
+        list.background = null
         // Under the selection, clear of its drag handles; above it, clear of the bar, when there
-        // is no room below. Never over the bar, which stays up while this is open.
+        // is no room below. Never over the bar, which stays up while this is open and is drawn
+        // above this list: where neither side holds the whole list, it takes the side with more
+        // room, only as tall as that room, and scrolls.
         list.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val at = IntArray(2).also { view.getLocationOnScreen(it) }
         val root = view.rootView
+        val screenTop = Rect().also { root.getWindowVisibleDisplayFrame(it) }.top
         val below = at[1] + selection.bottom + (36 * dp).toInt()
-        val y = if (below + list.measuredHeight <= root.height) below
-            else (at[1] + selection.top - (72 * dp).toInt() - list.measuredHeight).coerceAtLeast(0)
+        val aboveEnd = at[1] + selection.top - (72 * dp).toInt()
+        val place = placeRest(list.measuredHeight, below, root.height - below, aboveEnd, aboveEnd - screenTop)
         val x = (at[0] + selection.centerX() - list.measuredWidth / 2).coerceIn(0, (root.width - list.measuredWidth).coerceAtLeast(0))
-        popup.showAtLocation(root, Gravity.TOP or Gravity.START, x, y)
+        popup = PopupWindow(box, ViewGroup.LayoutParams.WRAP_CONTENT, place.second, false).apply {
+            isOutsideTouchable = true
+            elevation = 0f
+        }
+        popup.showAtLocation(root, Gravity.TOP or Gravity.START, x, place.first)
+    }
+
+    /**
+     * Where the rest list goes, as (top, height): under the selection from [below] when [roomBelow]
+     * holds it, else ending at [aboveEnd] when [roomAbove] does, else on the roomier side cut to
+     * fit (it scrolls then). Never past either end, so never under the selection bar.
+     */
+    internal fun placeRest(height: Int, below: Int, roomBelow: Int, aboveEnd: Int, roomAbove: Int): Pair<Int, Int> = when {
+        height <= roomBelow -> below to height
+        height <= roomAbove -> (aboveEnd - height) to height
+        roomBelow >= roomAbove -> below to roomBelow.coerceAtLeast(0)
+        else -> (aboveEnd - roomAbove) to roomAbove.coerceAtLeast(0)
     }
 
     /**

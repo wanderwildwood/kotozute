@@ -2783,30 +2783,68 @@ composerEl.addEventListener('submit', async e => {
 
 let socketLive = false;
 
+/*
+ * ⚠ A socket can die without the page hearing of it. A laptop that slept, a phone that changed
+ * networks or dozed off its VPN: the far end is gone, no close ever arrives, and the page goes
+ * on saying "live" and polling every 30 seconds -- so the list on screen was whatever it was
+ * when the pushes stopped, and coming back to the window showed the older rows until the next
+ * slow poll brought the new ones in. The phone now says it is there with every ping pass
+ * (DesktopSyncServer, every 30 s); a socket silent for longer than [SOCKET_SILENT_MS] is
+ * treated as gone and replaced.
+ */
+const SOCKET_SILENT_MS = 75000;
+let socket = null;
+let lastHeardAt = 0;
+let reconnectTimer = null;
+
 function connectSocket() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   // The cookie proves who this is; the address carries nothing secret.
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
   const ws = new WebSocket(proto + '//' + location.host + '/');
+  socket = ws;
 
   ws.addEventListener('open', () => {
+    if (socket !== ws) return;
     socketLive = true;
+    lastHeardAt = Date.now();
     statusEl.textContent = 'live';
     statusEl.classList.add('live');
+    // Whatever changed while there was no socket was pushed to nobody.
+    refresh();
   });
 
   // MUST catch: loadThreads/loadMessages reject if the phone is briefly
   // unreachable, and an uncaught rejection inside an async listener is silent —
   // which made pushes look like they were being ignored entirely.
-  ws.addEventListener('message', () => { refresh(); });
+  ws.addEventListener('message', e => {
+    if (socket !== ws) return;
+    lastHeardAt = Date.now();
+    // The phone saying it is still there is not news.
+    if (typeof e.data === 'string' && e.data.indexOf('"alive"') >= 0) return;
+    refresh();
+  });
 
   ws.addEventListener('close', () => {
+    // A socket already replaced (see restartSocket) has nothing left to do.
+    if (socket !== ws) return;
     socketLive = false;
     statusEl.textContent = 'reconnecting…';
     statusEl.classList.remove('live');
-    setTimeout(connectSocket, 3000);
+    reconnectTimer = setTimeout(connectSocket, 3000);
   });
 
   ws.addEventListener('error', () => ws.close());
+}
+
+/** Drops the socket, live or not, and opens a fresh one; the fresh one's open refreshes. */
+function restartSocket() {
+  const old = socket;
+  socket = null;
+  socketLive = false;
+  if (old) { try { old.close(); } catch { /* already gone */ } }
+  connectSocket();
 }
 
 /** Pull the latest view. Safe to call any time; no-ops the message pane if nothing is open. */
@@ -2831,7 +2869,9 @@ async function refresh() {
   }
 }
 
+let sessionStarted = false;
 sessionReady.then(() => {
+  sessionStarted = true;
   loadThreads();
   loadSims();
   connectSocket();
@@ -2847,11 +2887,37 @@ sessionReady.then(() => {
 // so nothing is polled at all, and coming back to it catches up at once. Each poll wakes the
 // phone's radio, so a tab left open on a desk all day was a steady drain on its battery.
 let lastRefreshAt = 0;
+let lastTickAt = Date.now();
 setInterval(() => {
+  const now = Date.now();
+  // Ticks this far apart while the page is showing mean the computer slept in between.
+  const slept = now - lastTickAt > 20000;
+  lastTickAt = now;
   if (document.hidden) return;
-  if (Date.now() - lastRefreshAt < (socketLive ? 30000 : 4500)) return;
+  // After a sleep, or a socket gone quiet, the socket is not trusted: a fresh one, and a fresh
+  // look, rather than up to 30 s of the list as it stood before.
+  if (socket && (slept || (socketLive && now - lastHeardAt > SOCKET_SILENT_MS))) {
+    restartSocket();
+    refresh();
+    return;
+  }
+  if (now - lastRefreshAt < (socketLive ? 30000 : 4500)) return;
   refresh();
 }, 5000);
+
+// Coming back to the window, or the network coming back, is when someone looks: the list they
+// see first should be the phone's list now. The answer is a few bytes when nothing changed.
+function refreshOnReturn() {
+  if (!sessionStarted || document.hidden || Date.now() - lastRefreshAt < 1000) return;
+  refresh();
+}
+window.addEventListener('focus', refreshOnReturn);
+window.addEventListener('pageshow', refreshOnReturn);
+window.addEventListener('online', () => {
+  if (!sessionStarted) return;
+  if (socket) restartSocket();
+  refreshOnReturn();
+});
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refresh();
 });

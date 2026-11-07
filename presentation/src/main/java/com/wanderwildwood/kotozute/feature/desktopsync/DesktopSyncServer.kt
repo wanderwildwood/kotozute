@@ -247,6 +247,10 @@ class DesktopSyncServer(
                     return@forEach
                 }
                 runCatching { socket.ping(byteArrayOf()) }.onFailure { openSockets.remove(socket) }
+                // The page never sees a ping (the browser answers it underneath), so it is told
+                // in words too. A socket that has heard nothing for a while is how the page knows
+                // it is talking to nobody, rather than showing "live" over an old list.
+                runCatching { socket.send(ALIVE_PAYLOAD) }.onFailure { openSockets.remove(socket) }
             }
         }, PING_INTERVAL_SECONDS, PING_INTERVAL_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
     }
@@ -2808,6 +2812,13 @@ class DesktopSyncServer(
         return newFixedLengthResponse(status, "application/json", text)
     }
 }
+
+/**
+ * Sent to every open socket with each ping pass. The page treats a socket that has heard nothing
+ * for longer than its SOCKET_SILENT_MS (app.js) as dead and opens another, and does not refetch
+ * on this message. File-scope so its test can see it.
+ */
+internal const val ALIVE_PAYLOAD = "{\"type\":\"alive\"}"
 
 /**
  * Whether a WebSocket exception is the far end going away rather than something being wrong.

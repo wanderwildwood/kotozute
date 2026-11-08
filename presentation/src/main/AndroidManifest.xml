@@ -125,6 +125,17 @@
                 android:value=".common.util.QkChooserTargetService" />
         </activity>
         <activity android:name=".feature.settings.SettingsActivity" />
+        <!-- Glance's door to "Unread on the lock screen": opens Settings at that row and takes
+             nothing from the intent but its action. -->
+        <activity-alias
+            android:name=".feature.settings.LockScreenSetting"
+            android:exported="true"
+            android:targetActivity=".feature.settings.SettingsActivity">
+            <intent-filter>
+                <action android:name="com.wanderwildwood.kotozute.action.LOCK_SCREEN_SETTING" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
         <activity android:name=".feature.plus.PlusActivity" />
         <activity
             android:name=".feature.gallery.GalleryActivity"

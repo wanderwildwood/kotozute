@@ -180,6 +180,35 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         // the view is retained across detach, so restore whichever section was open
         setTitle(openTitle)
         showBackButton(true)
+        openAtLockScreenOnce()
+    }
+
+    /** Opened from Glance's door: Back from the section it opened goes back there. */
+    private var cameForLockScreen = false
+    private var lockScreenEntryHandled = false
+
+    /**
+     * Glance's door ([ACTION_LOCK_SCREEN_SETTING]) opens the section holding "Unread on the
+     * lock screen", turned to the page that row is on. Only the action is read.
+     */
+    private fun openAtLockScreenOnce() {
+        if (lockScreenEntryHandled) return
+        lockScreenEntryHandled = true
+        if (activity?.intent?.action != ACTION_LOCK_SCREEN_SETTING) return
+        showSection(R.id.sectionDisplay, R.string.settings_category_general)
+        cameForLockScreen = true
+        val scroll = binding.contentView
+        scroll.post {
+            val row = containerView?.findViewById<View>(R.id.lockScreen) ?: return@post
+            var top = 0
+            var v: View = row
+            while (v !== scroll) {
+                top += v.top
+                v = v.parent as? View ?: return@post
+            }
+            // Only when the row is below the first page; it then heads its page, on a row edge.
+            if (top + row.height > scroll.height - scroll.paddingTop) scroll.scrollTo(0, top)
+        }
     }
 
     /**
@@ -210,6 +239,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
      * push animation, which this app deliberately does not want on e-ink.
      */
     override fun showSection(container: Int, title: Int) {
+        cameForLockScreen = false
         openSection = container
         openTitle = title
         // Sections swap in place, so this controller outlives any one of them and the
@@ -229,6 +259,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             activity?.armedWatch()?.disarm()
             return true
         }
+        if (cameForLockScreen) return super.handleBack()
         if (openSection != 0 && openSection != binding.sectionRoot.id) {
             showSection(binding.sectionRoot.id, R.string.title_settings)
             return true
@@ -1244,6 +1275,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private fun setAboutVisible(menu: Menu?) {
         menu?.findItem(R.id.about)?.isVisible =
                 openSection == 0 || openSection == binding.sectionRoot.id
+    }
+
+    companion object {
+        /** Glance's door, through the exported alias LockScreenSetting in the manifest. */
+        const val ACTION_LOCK_SCREEN_SETTING = "com.wanderwildwood.kotozute.action.LOCK_SCREEN_SETTING"
     }
 
 }

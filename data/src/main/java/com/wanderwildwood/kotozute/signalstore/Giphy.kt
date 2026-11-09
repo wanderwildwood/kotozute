@@ -6,12 +6,16 @@ import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import org.signal.network.util.Tls12SocketFactory
+import org.whispersystems.signalservice.internal.util.BlacklistingTrustManager
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.ProxySelector
 import java.net.SocketAddress
 import java.net.URI
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
 
 /**
  * GIF search, as Signal's GIF keyboard does it (forum #108).
@@ -93,8 +97,15 @@ object Giphy {
             url != null && url.scheme == "https" && url.topPrivateDomain() == ALLOWED_DOMAIN
     }
 
+    // The platform's trust store with Signal's blocked intermediates refused, as upstream's
+    // GIF client has used since a1c18d30c7, the same list the Signal service connections use.
     private val client: OkHttpClient by lazy {
+        val trustManager = BlacklistingTrustManager.createForDefaultTrustStore()
+        val sslContext = SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf<TrustManager>(trustManager), null)
+        }
         OkHttpClient.Builder()
+            .sslSocketFactory(Tls12SocketFactory(sslContext.socketFactory), trustManager)
             .proxySelector(ContentProxySelector)
             .addNetworkInterceptor(SafetyInterceptor)
             .build()

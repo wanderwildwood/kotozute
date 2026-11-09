@@ -60,6 +60,35 @@ internal object SignalCalls {
     }
 
     /**
+     * Whether a call's line may be rewritten from [existing] to [next].
+     *
+     * Upstream's `CallTable.canUpdateOneToOneCall` (8e818e52e5): a call answered is final, and
+     * only deleting it changes it. Here that covers a call answered on this phone or on another
+     * of the account's devices, and a call placed. Without it, whatever reported last won: a
+     * call answered on the other phone, then a late "nobody answered here", read as a missed
+     * call, which sends somebody to call back a person they have just spoken to.
+     *
+     * A call also never changes direction. Upstream's sync processor drops an event whose
+     * direction does not match the call it names.
+     *
+     * Deletion does not come through here: it removes the line (see `callDeleted`).
+     */
+    fun mayReplace(existing: CallOutcome?, next: CallOutcome): Boolean = when {
+        existing == null -> true
+        existing in ANSWERED_OR_PLACED -> false
+        isOutgoing(existing) != isOutgoing(next) -> false
+        else -> true
+    }
+
+    /** A call this account placed, here or on another device. */
+    fun isOutgoing(outcome: CallOutcome): Boolean =
+        outcome == CallOutcome.OUTGOING || outcome == CallOutcome.PLACED || outcome == CallOutcome.PLACED_UNANSWERED
+
+    private val ANSWERED_OR_PLACED = setOf(
+        CallOutcome.ANSWERED, CallOutcome.ANSWERED_ELSEWHERE, CallOutcome.OUTGOING, CallOutcome.PLACED
+    )
+
+    /**
      * Whether another device says a one-to-one call was deleted from its history.
      *
      * Upstream's `handleSynchronizeOneToOneCallEvent`: a DELETE takes the call's line out of the

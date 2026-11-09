@@ -113,4 +113,39 @@ class SignalCallsTest {
         assertNull(SignalCalls.threadKeyOf(null))
         assertNull(SignalCalls.conversationIdOf("not an id"))
     }
+
+    @Test
+    fun `a call answered anywhere is never rewritten as missed or declined`() {
+        // The race upstream 8e818e52e5 fixed: answered on the other phone, then this phone's
+        // own "nobody answered" arrives last.
+        for (answered in listOf(CallOutcome.ANSWERED, CallOutcome.ANSWERED_ELSEWHERE)) {
+            for (late in listOf(CallOutcome.MISSED, CallOutcome.DECLINED, CallOutcome.DECLINED_ELSEWHERE)) {
+                assertFalse("$answered -> $late", SignalCalls.mayReplace(answered, late))
+            }
+        }
+    }
+
+    @Test
+    fun `a call placed is never rewritten as anything else`() {
+        for (placed in listOf(CallOutcome.PLACED, CallOutcome.OUTGOING)) {
+            for (late in CallOutcome.values()) {
+                assertFalse("$placed -> $late", SignalCalls.mayReplace(placed, late))
+            }
+        }
+    }
+
+    @Test
+    fun `a call not yet answered can still be corrected`() {
+        assertTrue(SignalCalls.mayReplace(null, CallOutcome.MISSED))
+        assertTrue(SignalCalls.mayReplace(CallOutcome.MISSED, CallOutcome.ANSWERED_ELSEWHERE))
+        assertTrue(SignalCalls.mayReplace(CallOutcome.MISSED, CallOutcome.DECLINED_ELSEWHERE))
+        assertTrue(SignalCalls.mayReplace(CallOutcome.DECLINED_ELSEWHERE, CallOutcome.ANSWERED_ELSEWHERE))
+        assertTrue(SignalCalls.mayReplace(CallOutcome.PLACED_UNANSWERED, CallOutcome.PLACED))
+    }
+
+    @Test
+    fun `a call never changes direction`() {
+        assertFalse(SignalCalls.mayReplace(CallOutcome.PLACED_UNANSWERED, CallOutcome.MISSED))
+        assertFalse(SignalCalls.mayReplace(CallOutcome.MISSED, CallOutcome.OUTGOING))
+    }
 }

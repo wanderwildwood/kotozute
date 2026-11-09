@@ -842,6 +842,47 @@ class SignalRepositoryImpl @Inject constructor(
         )
     )
 
+    /** The words for a call line, as Signal words it. */
+    private fun callLineText(outcome: com.wanderwildwood.kotozute.signalstore.CallOutcome, video: Boolean): Int =
+        when (outcome) {
+            com.wanderwildwood.kotozute.signalstore.CallOutcome.MISSED ->
+                if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_missed_video
+                else com.wanderwildwood.kotozute.data.R.string.signal_call_missed_voice
+            com.wanderwildwood.kotozute.signalstore.CallOutcome.ANSWERED_ELSEWHERE ->
+                if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_answered_video
+                else com.wanderwildwood.kotozute.data.R.string.signal_call_answered_voice
+            com.wanderwildwood.kotozute.signalstore.CallOutcome.DECLINED_ELSEWHERE ->
+                if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_declined_video
+                else com.wanderwildwood.kotozute.data.R.string.signal_call_declined_voice
+            com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING ->
+                if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_outgoing_video
+                else com.wanderwildwood.kotozute.data.R.string.signal_call_outgoing_voice
+            // Answered or declined on this phone. Said without "on another device", which is
+            // the whole difference from the two above.
+            com.wanderwildwood.kotozute.signalstore.CallOutcome.ANSWERED ->
+                if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_here_video
+                else com.wanderwildwood.kotozute.data.R.string.signal_call_here_voice
+            com.wanderwildwood.kotozute.signalstore.CallOutcome.DECLINED ->
+                if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_declined_here_video
+                else com.wanderwildwood.kotozute.data.R.string.signal_call_declined_here_voice
+            com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED ->
+                com.wanderwildwood.kotozute.data.R.string.signal_call_placed
+            com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED_UNANSWERED ->
+                com.wanderwildwood.kotozute.data.R.string.signal_call_placed_unanswered
+        }
+
+    /**
+     * Which outcome a call line already says, read back from its words; null when it says
+     * none of them (a line written in another language, say), which leaves it replaceable.
+     */
+    private fun outcomeOfCallLine(body: String): com.wanderwildwood.kotozute.signalstore.CallOutcome? =
+        com.wanderwildwood.kotozute.signalstore.CallOutcome.values().firstOrNull { outcome ->
+            listOf(false, true).any { video -> context.getString(callLineText(outcome, video)) == body }
+        }
+
+    /** Held while a call line is read and rewritten, so two reports of one call take turns. */
+    private val callLineLock = Any()
+
     /**
      * Writes a call into the conversation, as Signal does: "Missed voice call", or a call
      * answered, declined or placed on another device.
@@ -858,58 +899,47 @@ class SignalRepositoryImpl @Inject constructor(
         video: Boolean,
         outcome: com.wanderwildwood.kotozute.signalstore.CallOutcome
     ) {
-        val body = context.getString(
-            when (outcome) {
-                com.wanderwildwood.kotozute.signalstore.CallOutcome.MISSED ->
-                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_missed_video
-                    else com.wanderwildwood.kotozute.data.R.string.signal_call_missed_voice
-                com.wanderwildwood.kotozute.signalstore.CallOutcome.ANSWERED_ELSEWHERE ->
-                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_answered_video
-                    else com.wanderwildwood.kotozute.data.R.string.signal_call_answered_voice
-                com.wanderwildwood.kotozute.signalstore.CallOutcome.DECLINED_ELSEWHERE ->
-                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_declined_video
-                    else com.wanderwildwood.kotozute.data.R.string.signal_call_declined_voice
-                com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING ->
-                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_outgoing_video
-                    else com.wanderwildwood.kotozute.data.R.string.signal_call_outgoing_voice
-                // Answered or declined on this phone. Said without "on another device", which is
-                // the whole difference from the two above.
-                com.wanderwildwood.kotozute.signalstore.CallOutcome.ANSWERED ->
-                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_here_video
-                    else com.wanderwildwood.kotozute.data.R.string.signal_call_here_voice
-                com.wanderwildwood.kotozute.signalstore.CallOutcome.DECLINED ->
-                    if (video) com.wanderwildwood.kotozute.data.R.string.signal_call_declined_here_video
-                    else com.wanderwildwood.kotozute.data.R.string.signal_call_declined_here_voice
-                com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED ->
-                    com.wanderwildwood.kotozute.data.R.string.signal_call_placed
-                com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED_UNANSWERED ->
-                    com.wanderwildwood.kotozute.data.R.string.signal_call_placed_unanswered
+        val body = context.getString(callLineText(outcome, video))
+        synchronized(callLineLock) {
+            // ⚠ A call answered or placed is never rewritten as missed or declined: see
+            // [SignalCalls.mayReplace]. Read under the lock, so a late "missed" from this phone and
+            // "answered" from another cannot both pass the check.
+            val held = Realm.getDefaultInstance().use { realm ->
+                realm.where(SignalMessage::class.java).equalTo("id", "call:$callId").findFirst()?.let { line ->
+                    outcomeOfCallLine(line.body)
+                        // Words not recognized, but a line this account placed is still outgoing.
+                        ?: if (line.outgoing) com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED_UNANSWERED else null
+                }
             }
-        )
-        val outgoing = outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING ||
-            outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED ||
-            outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED_UNANSWERED
-        val selfAci = signalStore.selfAciOrNull().orEmpty()
-        ingest(
-            listOf(
-                com.wanderwildwood.kotozute.signal.BridgeMessage(
-                    id = "call:$callId",
-                    // A call is history, not words: upstream's call-log row is an update row.
-                    update = true,
-                    threadKey = "direct:$peer",
-                    ts = at,
-                    senderUuid = if (outgoing) selfAci else peer,
-                    senderNumber = "",
-                    outgoing = outgoing,
-                    body = body,
-                    groupId = "",
-                    quoteTs = 0,
-                    read = outcome != com.wanderwildwood.kotozute.signalstore.CallOutcome.MISSED,
-                    source = "live",
-                    attachmentsJson = ""
+            if (!com.wanderwildwood.kotozute.signalstore.SignalCalls.mayReplace(held, outcome)) {
+                Timber.i("signal calls: call already %s; not rewriting it as %s", held, outcome)
+                return@synchronized
+            }
+            val outgoing = outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.OUTGOING ||
+                outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED ||
+                outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED_UNANSWERED
+            val selfAci = signalStore.selfAciOrNull().orEmpty()
+            ingest(
+                listOf(
+                    com.wanderwildwood.kotozute.signal.BridgeMessage(
+                        id = "call:$callId",
+                        // A call is history, not words: upstream's call-log row is an update row.
+                        update = true,
+                        threadKey = "direct:$peer",
+                        ts = at,
+                        senderUuid = if (outgoing) selfAci else peer,
+                        senderNumber = "",
+                        outgoing = outgoing,
+                        body = body,
+                        groupId = "",
+                        quoteTs = 0,
+                        read = outcome != com.wanderwildwood.kotozute.signalstore.CallOutcome.MISSED,
+                        source = "live",
+                        attachmentsJson = ""
+                    )
                 )
             )
-        )
+        }
     }
 
     /**

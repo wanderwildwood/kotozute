@@ -315,7 +315,8 @@ class SignalStore(private val context: Context) {
             val result = SignalReceiver(
                 database, account, SignalDataStore(database, account), connection,
                 SignalNetworkConfig.currentCertificateValidator(), attachmentsFor(connection),
-                contacts, blocks, keys, StoreEvents(events, onNamesLearned)
+                contacts, blocks, keys, StoreEvents(events, onNamesLearned),
+                context.getString(com.wanderwildwood.kotozute.data.R.string.signal_sticker)
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -2006,7 +2007,8 @@ class SignalStore(private val context: Context) {
         SignalReceiver(
             database, account, SignalDataStore(database, account), connection,
             SignalNetworkConfig.currentCertificateValidator(), attachmentsFor(connection),
-            contacts, blocks, keys, StoreEvents(events, onNamesLearned)
+            contacts, blocks, keys, StoreEvents(events, onNamesLearned),
+            context.getString(com.wanderwildwood.kotozute.data.R.string.signal_sticker)
         ).listen(keepGoing) { r ->
             onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
         }

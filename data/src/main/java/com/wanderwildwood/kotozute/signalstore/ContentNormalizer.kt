@@ -74,7 +74,12 @@ internal object ContentNormalizer {
          * time, by the given author, or null when no message here has that edit. See
          * `SignalMessage.revisionTs`.
          */
-        originalOf: (author: String, revisionSentAt: Long) -> Long? = { _, _ -> null }
+        originalOf: (author: String, revisionSentAt: Long) -> Long? = { _, _ -> null },
+        /**
+         * What a sticker says when its emoji is not one emoji. The app passes
+         * `R.string.signal_sticker` from strings.xml; this object has no resources of its own.
+         */
+        stickerPlaceholder: String = "(sticker)"
     ): BridgeMessage? {
         var authorUuid = metadata.sourceServiceId.toString()
         var authorNumber = metadata.sourceE164.orEmpty()
@@ -245,8 +250,12 @@ internal object ContentNormalizer {
         // A sticker with no caption. The image lives in a pack this app cannot draw, but a
         // bubble saying which one it was is the truth and a hole in the thread is not. The
         // emoji the pack assigns is what Signal falls back to in its own notifications.
+        //
+        // ⚠ Only when it is one emoji (upstream 0ab9936dec). The field is whatever the sender's
+        // client wrote, and a sentence in it would stand in the thread and the notification as
+        // if it were what they said.
         if (body.isEmpty() && dataMessage.sticker != null) {
-            body = dataMessage.sticker?.emoji?.takeIf { it.isNotBlank() } ?: "(sticker)"
+            body = dataMessage.sticker?.emoji?.takeIf { SingleEmoji.isSingleEmoji(it) } ?: stickerPlaceholder
         }
         // ⚠ At most 250, which is upstream's `BODY_RANGE_PROCESSING_LIMIT` and applied at
         // every path that touches body ranges. Ranges may overlap and are only bounds-checked,

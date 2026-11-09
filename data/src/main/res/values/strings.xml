@@ -8,6 +8,8 @@
     -->
     <string name="signal_note_to_self">Note to Self</string>
     <string name="signal_typing_someone">Someone</string>
+    <!-- A sticker, in the conversation and its notification, when it carries no single emoji to show instead. -->
+    <string name="signal_sticker">(sticker)</string>
 
     <!--
       The first line of a group this phone just made.

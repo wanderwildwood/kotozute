@@ -49,7 +49,9 @@ internal class SignalReceiver(
      * One object rather than the ten lambdas this used to take, because six of them arrived in
      * one evening and each cost an edit in four files.
      */
-    private val events: SignalEvents
+    private val events: SignalEvents,
+    /** What a sticker says when it carries no usable emoji, from strings.xml. */
+    private val stickerPlaceholder: String
 ) {
 
     /**
@@ -1532,7 +1534,8 @@ internal class SignalReceiver(
                         runCatching { contacts.nameFor(aci) }.getOrNull()
                     },
                     // A second edit names the first edit, not the original.
-                    originalOf = { author, at -> runCatching { events.originalSentAt(author, at) }.getOrNull() }
+                    originalOf = { author, at -> runCatching { events.originalSentAt(author, at) }.getOrNull() },
+                    stickerPlaceholder = stickerPlaceholder
                 )
                 // A group change is a row of its own, "Updated the group." until now: given what
                 // it actually did, and read, as upstream's update rows are -- history, not news.

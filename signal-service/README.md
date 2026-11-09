@@ -87,6 +87,17 @@ Two dependency versions are **deliberately not** upstream's, and are commented i
 - **libsignal-client 0.102.0**, not upstream's 0.102.1, to match the `libsignal-android` the app
   declares. The Java API and the native library ship together; moving them is its own change.
 
+## Files taken from a later upstream commit
+
+Single fixes are ported by copying the whole file at the upstream commit that made them, so
+each file still matches upstream byte for byte, only at a newer commit than the base:
+
+| file | upstream commit | why |
+|---|---|---|
+| `libsignal-service/.../multidevice/DeviceContactsInputStream.java` | `bc7a984923` (2026-10-23) | an avatar closed by its reader no longer closes the whole contacts sync; an unread avatar is skipped; a contact with only a number is read |
+| `libsignal-service/.../multidevice/DeviceContactsInputStreamTest.java` | `bc7a984923` | the tests for the above |
+| `util-jvm/.../stream/NonClosingInputStream.kt` | `bc7a984923` | new with the above |
+
 ## The wire handler is built, not vendored
 
 Upstream generates its protobuf code with a custom schema handler and ships it **compiled**, as

@@ -766,17 +766,22 @@ internal class SignalContactStore(
      * old name here for ever.
      *
      * Bounded per pass, because this is a network round trip each and it runs after a batch.
+     *
+     * ⚠ Nobody without a name is asked again before [namelessBefore]. They go first in every
+     * pass, so somebody whose profile never yields a name -- or who has left Signal -- was asked
+     * after every batch and took the budget from everybody behind them. Upstream gates the
+     * same people on the time of their last fetch (`getRecordsForProfileFetch`, 0f1b09ce47).
      */
-    fun needingProfile(staleBefore: Long, limit: Int): List<Pair<String, ByteArray>> = withStoreLock(db) {
+    fun needingProfile(staleBefore: Long, namelessBefore: Long, limit: Int): List<Pair<String, ByteArray>> = withStoreLock(db) {
         db.readableDatabase.rawQuery(
             """
             SELECT COALESCE(aci, pni), profile_key FROM recipient
             WHERE profile_key IS NOT NULL
-              AND (name IS NULL OR name = '' OR last_profile_fetch < ?)
+              AND (((name IS NULL OR name = '') AND last_profile_fetch < ?) OR last_profile_fetch < ?)
             ORDER BY (name IS NULL OR name = '') DESC, last_profile_fetch ASC
             LIMIT ?
             """.trimIndent(),
-            arrayOf(staleBefore.toString(), limit.toString())
+            arrayOf(namelessBefore.toString(), staleBefore.toString(), limit.toString())
         ).use { c ->
             generateSequence { if (c.moveToNext()) c.getString(0) to c.getBlob(1) else null }.toList()
         }

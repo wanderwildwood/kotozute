@@ -79,8 +79,10 @@ internal class SignalProfiles(
             return 0
         }
 
-        val staleBefore = System.currentTimeMillis() - PROFILE_MAX_AGE_MS
-        val pending = contacts.needingProfile(staleBefore, PROFILES_PER_PASS)
+        val now = System.currentTimeMillis()
+        val staleBefore = now - PROFILE_MAX_AGE_MS
+        val namelessBefore = now - NAMELESS_RETRY_MS
+        val pending = contacts.needingProfile(staleBefore, namelessBefore, PROFILES_PER_PASS)
         if (pending.isEmpty()) return 0
 
         val learned = mutableListOf<SignalContactStore.Contact>()
@@ -103,6 +105,15 @@ internal class SignalProfiles(
             val key = ProfileKey(keyBytes)
             val profile = try {
                 fetch(serviceId, key, sealedSender.accessFor(aci))
+            } catch (e: NotFound) {
+                // Asked, and the server has nothing for them -- most often somebody who has left
+                // Signal. Noted as fetched, as upstream does since 0f1b09ce47
+                // (`markProfilesFetched(successIds + response.unregistered)`): without it they
+                // stayed at the front of every pass, asked again after every batch, spending the
+                // budget on an answer that does not change.
+                runCatching { contacts.markProfileFetched(aci) }
+                    .onFailure { Timber.w(it, "signal profile: could not note the fetch") }
+                null
             } catch (e: RateLimited) {
                 // Terminal for the whole pass, not for this one contact: the limit is on the
                 // account, so the next twenty-four requests would be refused too. Whatever was
@@ -186,6 +197,9 @@ internal class SignalProfiles(
      * request in the pass would get the same one.
      */
     private class RateLimited(val waitMs: Long) : Exception("rate limited")
+
+    /** The server has no profile for this person: a 404, settled rather than failed. */
+    private class NotFound : Exception("no profile")
 
     /** A fetched profile, as much of it as this app uses. */
     private data class Profile(
@@ -391,6 +405,7 @@ internal class SignalProfiles(
             val wait = result.retryAfter()?.inWholeMilliseconds ?: DEFAULT_RATE_LIMIT_WAIT_MS
             throw RateLimited(wait.coerceIn(MIN_RATE_LIMIT_WAIT_MS, MAX_RATE_LIMIT_WAIT_MS))
         }
+        if (isNotFound(result)) throw NotFound()
         if (result !is NetworkResult.Success) {
             Timber.d("signal profile: %s", result)
             return null
@@ -469,6 +484,24 @@ internal class SignalProfiles(
          * to update, against a day on their own phone.
          */
         private val PROFILE_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(1)
+
+        /**
+         * How long somebody with no name waits before being asked again.
+         *
+         * Nameless people go first in every pass, so without a wait the same few -- a profile
+         * with no readable name, somebody who has left Signal -- were asked after every single
+         * batch and nobody behind them was reached. Six hours is upstream's wait for an
+         * unregistered contact (`UNREGISTERED_PROFILE_FETCH_DEBOUNCE_TIME`, 0f1b09ce47).
+         */
+        internal val NAMELESS_RETRY_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6)
+
+        /**
+         * Whether the server's answer is that it has no profile for this person.
+         *
+         * A 404, which upstream counts among `response.unregistered` and marks as fetched.
+         */
+        internal fun isNotFound(result: NetworkResult<*>): Boolean =
+            result is NetworkResult.StatusCodeError && result.code == 404
 
         /** At most this many round trips after any one batch. */
         private const val PROFILES_PER_PASS = 25

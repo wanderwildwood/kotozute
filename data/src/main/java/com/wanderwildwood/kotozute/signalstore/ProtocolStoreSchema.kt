@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 40
+    const val VERSION = 41
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -569,6 +569,10 @@ internal object ProtocolStoreSchema {
           -- (`RecipientTable.LAST_PROFILE_FETCH`), and conflating them here meant profiles
           -- were never refreshed at all -- see the v18 note below.
           last_profile_fetch INTEGER NOT NULL DEFAULT 0,
+          -- Whether the primary's contacts sync named this person: they are in the account
+          -- holder's address book. Signal's SYSTEM_JOINED_NAME, as far as the question "is
+          -- this somebody I know" goes. See v41.
+          system_contact INTEGER NOT NULL DEFAULT 0,
           updated_timestamp INTEGER NOT NULL
         );
     """
@@ -1002,6 +1006,18 @@ internal object ProtocolStoreSchema {
          * its own row field by field; this app writes a read over the row, so it needs to know
          * which nickname is a local change still waiting to go up.
          */
+        /**
+         * Somebody the account holder knows, as against somebody merely seen.
+         *
+         * Every member of every group gets a row here (their profile key arrives with the
+         * group), and a profile fetch then gives them a name. Without this the people to start
+         * a conversation with were all of them -- a whole large group of strangers listed as
+         * contacts. Signal offers only `SIGNAL_CONTACT`: a system contact or somebody the
+         * account shares its profile with. Starts at 0 for everyone; the next contacts sync
+         * marks the address book again, and the storage record answers for the rest meanwhile.
+         */
+        41 to listOf("ALTER TABLE recipient ADD COLUMN system_contact INTEGER NOT NULL DEFAULT 0;"),
+
         40 to listOf(
             "ALTER TABLE recipient ADD COLUMN nickname_given TEXT DEFAULT NULL;",
             "ALTER TABLE recipient ADD COLUMN nickname_family TEXT DEFAULT NULL;",

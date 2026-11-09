@@ -5321,7 +5321,29 @@ class SignalRepositoryImpl @Inject constructor(
                 }
         }
 
-        val contacts = signalStore.contactDirectory().map { contact ->
+        // Only people the account holder knows: their own contacts, the primary's address
+        // book, or somebody the account shares its profile with -- Signal's SIGNAL_CONTACT.
+        // Everyone met in a group is in the store too, and listing them all read as a
+        // contact list full of strangers. Anyone already written to comes in from the threads
+        // above whether offered or not.
+        val directory = signalStore.contactDirectory()
+        // Read once, and only if anybody needs it: one Realm pass for the whole list rather
+        // than one per person.
+        val bookNumbers by lazy {
+            runCatching {
+                Realm.getDefaultInstance().use { realm ->
+                    realm.where(com.wanderwildwood.kotozute.model.Contact::class.java)
+                        .findAll()
+                        .flatMap { contact -> contact.numbers.map { it.address } }
+                        .filter { it.isNotBlank() }
+                }
+            }.getOrDefault(emptyList())
+        }
+        val contacts = directory.filter { contact ->
+            contact.offered || contact.e164.orEmpty().let { number ->
+                number.isNotBlank() && bookNumbers.any { phoneNumberUtils.compare(it, number) }
+            }
+        }.map { contact ->
             SignalDirectory.Row(
                 uuid = contact.serviceId,
                 name = contact.name.orEmpty(),

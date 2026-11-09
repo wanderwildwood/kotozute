@@ -102,7 +102,12 @@ internal class SignalContactStore(
          * What they would be called with no nickname -- the address book's name, else their
          * profile's -- so taking a nickname away here has something to fall back to.
          */
-        val nameBelowNickname: String? = null
+        val nameBelowNickname: String? = null,
+        /**
+         * Read-only, from [everyone]: whether this is somebody to offer when a conversation is
+         * started. Ignored by [store]. See [ContactOffer].
+         */
+        val offered: Boolean = true
     )
 
     /** Signal's nickname and note for one person: `Recipient.nickname` and `Recipient.note`. */
@@ -906,12 +911,17 @@ internal class SignalContactStore(
      * person this account can write to, and on an account where no profile key has ever
      * arrived that is most of them.
      *
+     * Each carries [Contact.offered]: whether to list them when a conversation is started.
+     * Everybody is returned all the same, because a person not offered can still turn up by
+     * number or have a conversation already; see [ContactOffer].
+     *
      * One row is one person now, so the duplicate that the old table could produce -- somebody
      * listed once by account and once by phone-number identity -- cannot occur here.
      */
     fun everyone(): List<Contact> = withStoreLock(db) {
         db.readableDatabase.rawQuery(
-            "SELECT COALESCE(aci, pni), e164, name, pni, username FROM recipient " +
+            "SELECT COALESCE(aci, pni), e164, name, pni, username, system_contact, " +
+                "storage_record, whitelisted FROM recipient " +
                 "WHERE (aci IS NOT NULL OR pni IS NOT NULL) " +
                 // ⚠ The account said twice that these people should not be offered, and both
                 // were ignored. Signal's contact search does the same two exclusions --
@@ -930,7 +940,12 @@ internal class SignalContactStore(
                         e164 = c.getString(1),
                         name = c.getString(2),
                         pni = c.getString(3),
-                        username = c.getString(4)
+                        username = c.getString(4),
+                        offered = ContactOffer.offered(
+                            systemContact = c.getInt(5) != 0,
+                            storageRecord = c.getBlob(6),
+                            whitelisted = c.getInt(7) != 0
+                        )
                     )
                 } else {
                     null
@@ -1326,6 +1341,28 @@ internal class SignalContactStore(
             """.trimIndent(),
             arrayOf<Any?>(groupId, record, remoteStorageId, System.currentTimeMillis())
         )
+    }
+
+    /**
+     * Marks the people a contacts sync named as the account holder's own contacts.
+     *
+     * Upstream's `MultiDeviceContactSyncJob` sets a system contact name for exactly these:
+     * a contact in the sync that carries a name. Only ever set, never cleared, as there.
+     */
+    fun markSystemContacts(serviceIds: Collection<String>) = withStoreLock(db) {
+        val database = db.writableDatabase
+        database.beginTransaction()
+        try {
+            serviceIds.filter { it.isNotBlank() }.forEach { id ->
+                database.execSQL(
+                    "UPDATE recipient SET system_contact = 1 WHERE aci = ? OR pni = ?",
+                    arrayOf<Any?>(id, id)
+                )
+            }
+            database.setTransactionSuccessful()
+        } finally {
+            database.endTransaction()
+        }
     }
 
     /**

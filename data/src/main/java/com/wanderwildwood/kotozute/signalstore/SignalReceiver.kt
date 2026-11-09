@@ -2514,7 +2514,11 @@ internal class SignalReceiver(
         val pointer = contactsMessage.blob ?: return
         // The walk over the stream is [ContactsSyncReader], where it can be tested.
         val parsed = attachments.streamOnce(pointer) { input -> ContactsSyncReader.read(input) }
-        parsed?.takeIf { it.isNotEmpty() }?.let { contacts.store(it) }
+        parsed?.takeIf { it.isNotEmpty() }?.let { found ->
+            contacts.store(found)
+            // Named in the account holder's address book, so somebody to offer. See schema v41.
+            contacts.markSystemContacts(found.filter { !it.name.isNullOrBlank() }.map { it.serviceId })
+        }
     }
 
     /**

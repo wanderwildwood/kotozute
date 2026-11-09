@@ -2095,11 +2095,25 @@ internal class SignalReceiver(
             val address = SignalProtocolAddress(sender, deviceId)
             val store = protocol.aci()
             val session = store.loadSession(address)
-            if (session != null && session.currentRatchetKeyMatches(ratchetKey)) {
+            val archived = session != null && session.currentRatchetKeyMatches(ratchetKey)
+            if (archived) {
                 store.archiveSession(address)
                 Timber.i("signal retry: archived the session they could not read, so the next send is fresh")
             } else {
                 Timber.i("signal retry: the session has already moved on; leaving it alone")
+            }
+
+            // Nothing kept to send again: a null message instead, when the session was just
+            // archived. Upstream's `handleIndividualRetryReceipt` does the same
+            // (`NullMessageSendJob`): the reset is only finished by a message going out on the
+            // fresh session, and without one their side keeps the broken one until this
+            // account next writes to them. No archive, no null message -- nothing to finish.
+            val held = runCatching { SignalMessageLog(db).recall(sender, error.timestamp) != null }
+                .getOrDefault(true)
+            if (!held) {
+                if (archived) completeResetWith(sender) else
+                    Timber.i("signal retry: nothing kept to send again and no session archived; skipping")
+                return
             }
 
             // And send them the message again. Archiving only fixes the next one; this is the
@@ -2136,6 +2150,23 @@ internal class SignalReceiver(
             // than passing as routine.
             Timber.w(it, "signal retry: could not act on a retry receipt; the next receipt returns here")
         }
+    }
+
+    /**
+     * A null message to [recipient], to finish a session reset that has nothing to resend.
+     * Best effort, as one attempt: the next retry receipt they send returns here.
+     */
+    private fun completeResetWith(recipient: String) {
+        val sent = runCatching {
+            SignalSender(
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT,
+                accounts, db, protocol, connection, contacts
+            ).sendNullMessage(org.signal.core.models.ServiceId.parseOrThrow(recipient))
+        }.onFailure {
+            Timber.w(it, "signal retry: the null message threw")
+        }.getOrNull() is SignalSender.Result.Sent
+        if (sent) Timber.i("signal retry: nothing to resend; sent a null message to finish the reset")
+        else Timber.w("signal retry: nothing to resend, and the null message did not go")
     }
 
     /**

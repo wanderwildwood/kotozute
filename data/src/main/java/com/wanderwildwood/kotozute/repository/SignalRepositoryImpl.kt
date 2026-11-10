@@ -174,6 +174,12 @@ class SignalRepositoryImpl @Inject constructor(
         // -- Android re-sends them every ~30s with new bandwidth estimates -- is not a network
         // change. Upstream keys its own on the same three flags (`logCapabilitiesIfChanged`).
         var lastSeen: String? = null
+        // The default network's addresses as last reported, for the same network. A new address
+        // on a network that never went away (Wi-Fi roaming to another access point, DHCP renewal
+        // with a new lease) leaves the connection open but stale; upstream 2b7ca24796 treats it
+        // as a network change so libsignal retries on the new address.
+        var linkNetwork: android.net.Network? = null
+        var linkAddresses: Set<android.net.LinkAddress>? = null
         // The real (non-VPN) networks up right now; see the second callback below.
         val physical = java.util.Collections.synchronizedSet(mutableSetOf<android.net.Network>())
         fun changed(available: Boolean, why: String) {
@@ -185,12 +191,29 @@ class SignalRepositoryImpl @Inject constructor(
         val callback = object : android.net.ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: android.net.Network) {
                 lastSeen = null
+                linkNetwork = null
+                linkAddresses = null
                 changed(physical.isNotEmpty(), "default network available")
             }
 
             override fun onLost(network: android.net.Network) {
                 lastSeen = null
+                linkNetwork = null
+                linkAddresses = null
                 changed(false, "default network lost")
+            }
+
+            override fun onLinkPropertiesChanged(
+                network: android.net.Network,
+                linkProperties: android.net.LinkProperties
+            ) {
+                val addresses = linkProperties.linkAddresses.toSet()
+                val previous = if (linkNetwork == network) linkAddresses else null
+                linkNetwork = network
+                linkAddresses = addresses
+                if (previous != null && previous != addresses) {
+                    changed(physical.isNotEmpty(), "link addresses changed")
+                }
             }
 
             override fun onBlockedStatusChanged(network: android.net.Network, blocked: Boolean) {

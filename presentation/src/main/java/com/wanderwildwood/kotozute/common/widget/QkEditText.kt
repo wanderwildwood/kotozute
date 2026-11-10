@@ -62,6 +62,23 @@ class QkEditText @JvmOverloads constructor(context: Context, attrs: AttributeSet
         }
     }
 
+    /**
+     * Keeps the line being typed in view once the box is full (six lines) and scrolls inside.
+     *
+     * The message boxes hide the cursor (`cursorVisible="false"`) so the panel is not redrawn
+     * for a blink. With no visible cursor Android does not scroll the box to follow the typing,
+     * so a long message ran on below the box's edge where it could not be seen (forum report).
+     * Posted, so the layout has taken the new text before the box scrolls to it.
+     */
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+        super.onSelectionChanged(selStart, selEnd)
+        if (selEnd < 0) return
+        post {
+            val end = selectionEnd
+            if (end >= 0 && layout != null) bringPointIntoView(end)
+        }
+    }
+
     override fun onCreateInputConnection(editorInfo: EditorInfo): InputConnection {
 
         val inputConnection = object : InputConnectionWrapper(super.onCreateInputConnection(editorInfo), true) {

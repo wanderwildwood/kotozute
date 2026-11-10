@@ -244,6 +244,10 @@ internal object ContentNormalizer {
         if (!outgoing && !selfAci.isNullOrBlank() && authorUuid == selfAci) outgoing = true
 
         val reaction = dataMessage.reaction
+        // ⚠ A reaction is one emoji (upstream DataMessageProcessor and SyncMessageProcessor drop
+        // the rest). Whatever else the sender put there would be stored and shown as the reaction.
+        // Dropped whole, not stripped to a reaction-less row, which would read as a blank message.
+        if (reaction != null && !SingleEmoji.isSingleEmoji(reaction.emoji)) return null
         val viewOnce = dataMessage.isViewOnce == true
 
         var body = dataMessage.body.orEmpty()

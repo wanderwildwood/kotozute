@@ -1342,7 +1342,9 @@ function openMessageMenu(m, x, y, selected) {
   // A highlight is what the person meant to copy; the whole message stays one item below.
   if (selected && selected.trim()) items.push(['Copy selection', () => copyText(selected)]);
   if (text) items.push(['Copy text', () => copyText(text)]);
-  if (text) items.push(['Forward\u2026', () => forwardText(text)]);
+  // A picture is half of what some messages say; forwarding only the words dropped it.
+  const files = (m.attachments || []).filter(att => att.url);
+  if (text || files.length) items.push(['Forward\u2026', () => forwardMessage(text, files)]);
   // The thread's rail, not the message's: an SMS message carries no rail field at all, so
   // testing the message would rely on an absence rather than a fact.
   if (text && activeThreadRail !== 'signal') {
@@ -1482,12 +1484,45 @@ async function copyText(text) {
   }
 }
 
-/** Forwarding is composing a new message that already says the thing. */
-function forwardText(text) {
+/**
+ * Forwarding is composing a new message that already says the thing, pictures and all. Each
+ * attachment is fetched back from the phone the way the bubble drew it (the session cookie
+ * proves it) and queued like a file picked by hand, so the send path is the ordinary one.
+ */
+async function forwardMessage(text, files) {
   enterComposeMode();
   bodyEl.value = text;
   autoGrow();
   bodyEl.focus();
+  if (!files.length) return;
+  statusEl.textContent = 'fetching the attachment\u2026';
+  const fetched = [];
+  let missed = 0;
+  for (const [i, att] of files.entries()) {
+    try {
+      const res = await fetch(att.url, { credentials: 'same-origin' });
+      if (!res.ok) { missed++; continue; }
+      const blob = await res.blob();
+      const type = blob.type || att.type || 'application/octet-stream';
+      // The label is a file name for some parts and only the type ("image/jpeg") for others.
+      const label = att.label || '';
+      const name = /^[^/]+\.[A-Za-z0-9]{2,5}$/.test(label) ? label : ('attachment' + i + extensionFor(type));
+      fetched.push(new File([blob], name, { type: type }));
+    } catch (e) {
+      missed++;
+    }
+  }
+  // The person may have moved on to another thread while the bytes came in.
+  if (!composeMode) return;
+  statusEl.textContent = '';
+  addFiles(fetched);
+  if (missed) statusEl.textContent = 'could not fetch ' + missed + ' attachment(s)';
+}
+
+function extensionFor(type) {
+  const ext = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp',
+    'video/mp4': '.mp4', 'audio/mpeg': '.mp3', 'audio/mp4': '.m4a', 'audio/amr': '.amr' }[type];
+  return ext || '';
 }
 
 async function deleteMessage(m) {

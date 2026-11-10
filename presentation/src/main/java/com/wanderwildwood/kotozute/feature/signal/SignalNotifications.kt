@@ -73,8 +73,12 @@ class SignalNotifications @Inject constructor(
     private fun createChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         // A channel's settings are frozen once created, so a change of behaviour needs a
-        // new id rather than an edit to this one.
-        manager.createNotificationChannel(
+        // new id rather than an edit to this one. The first one never asked for the
+        // notification light, so a phone with a light stayed dark for a Signal message while
+        // an SMS blinked it; LightChannel moves it over with what was set on it.
+        LightChannel.ensure(
+            manager,
+            CHANNEL_ID_NO_LIGHT,
             NotificationChannel(
                 CHANNEL_ID,
                 context.getString(R.string.signal_title),
@@ -276,7 +280,8 @@ class SignalNotifications @Inject constructor(
     private fun idFor(threadKey: String) = NOTIFICATION_ID_BASE + threadKey.hashCode()
 
     companion object {
-        const val CHANNEL_ID = "notifications_signal"
+        const val CHANNEL_ID = "notifications_signal_light"
+        private const val CHANNEL_ID_NO_LIGHT = "notifications_signal"
         private const val NOTIFICATION_ID_BASE = 0x5167 // keeps clear of the SMS ids
     }
 

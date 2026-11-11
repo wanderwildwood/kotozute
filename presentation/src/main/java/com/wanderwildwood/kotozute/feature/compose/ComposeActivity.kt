@@ -1013,6 +1013,9 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         // toolbar's React never appears for one. Offered here as well, first, as on Signal.
         menu?.add(Menu.NONE, R.id.react, Menu.NONE, R.string.signal_react)
         menuInflater.inflate(R.menu.mms_part_menu, menu)
+        // A message that is only a picture has no bubble to hold, so the toolbar's trash can
+        // never be reached for it. Last, away from the items that are safe to hit.
+        menu?.add(Menu.NONE, R.id.delete, Menu.NONE, R.string.compose_menu_delete)
     }
 
     override fun onContextItemSelected(item: MenuItem): Boolean {

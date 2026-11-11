@@ -850,6 +850,18 @@ class ComposeViewModel @Inject constructor(
             .autoDisposable(view.scope())
             .subscribe { (id, mine) -> view.showReactionPicker(id, mine) }
 
+        // message part context menu item selected - delete the message the part is in.
+        // Same question and same default-app check as the toolbar's trash.
+        view.contextItemIntent
+            .filter { it.itemId == R.id.delete }
+            .mapNotNull { item ->
+                val menuInfo = item.menuInfo as QkContextMenuRecyclerView.ContextMenuInfo<Long, MmsPart>
+                menuInfo.viewHolderValue?.messages?.firstOrNull()?.id
+            }
+            .filter { permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() } }
+            .autoDisposable(view.scope())
+            .subscribe { id -> view.showDeleteDialog(listOf(id)) }
+
         // message part context menu item selected - open externally
         view.contextItemIntent
             .filter { it.itemId == R.id.openExternally }
@@ -1532,7 +1544,9 @@ class ComposeViewModel @Inject constructor(
 
         // Delete the message
         view.confirmDeleteIntent
-                .withLatestFrom(view.messagesSelectedIntent, conversation) { _, messages, conversation ->
+                // The messages the dialog asked about: the selection, or the one whose picture
+                // menu was used (nothing is selected then).
+                .withLatestFrom(conversation) { messages, conversation ->
                     deleteMessages.execute(DeleteMessages.Params(messages.toList(), conversation.id))
                 }
                 .autoDisposable(view.scope())

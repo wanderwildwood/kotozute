@@ -332,6 +332,12 @@ class Preferences @Inject constructor(
      */
     val filePicker = rxPrefs.getString("filePicker", "")
 
+    /**
+     * Whether that choice has been made, here or in Settings. Until it has, the first press of
+     * an attach button on a phone with another files app offers the choice once.
+     */
+    val filePickerAsked = rxPrefs.getBoolean("filePickerAsked", false)
+
     /** When the account's discoverability was last told to the server again. See SignalStore.refreshDiscoverability. */
     val signalDiscoverabilityRefreshedAt = rxPrefs.getLong("signalDiscoverabilityRefreshedAt", 0L)
 

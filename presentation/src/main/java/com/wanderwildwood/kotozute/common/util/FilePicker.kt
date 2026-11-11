@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContract
+import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.util.Preferences
 
 /**
  * Asking for files, from whichever app the reader chose in Settings.
@@ -46,6 +48,53 @@ object FilePicker {
             .map { Choice(it.activityInfo.packageName, it.loadLabel(pm).toString()) }
             .distinctBy { it.packageName }
             .filter { it.packageName != context.packageName }
+    }
+
+    /** [choices] without Android's own picker, which is the empty choice and has its own row. */
+    fun others(context: Context): List<Choice> =
+        choices(context).filterNot {
+            it.packageName == "com.android.documentsui" || it.packageName == "com.google.android.documentsui"
+        }
+
+    /**
+     * Whether an attach button should offer the choice before it opens anything: only while
+     * no choice was ever made, and only when there is something besides Android's own to choose.
+     */
+    fun shouldAsk(chosen: String, asked: Boolean, others: Int): Boolean =
+        chosen.isBlank() && !asked && others > 0
+
+    /**
+     * The choice itself, as Settings shows it: Android's own picker first, then the others.
+     * [then] runs after a row is chosen, not when the list is dismissed.
+     */
+    fun choose(activity: Activity, prefs: Preferences, then: () -> Unit = {}) {
+        val others = others(activity)
+        val labels = listOf(activity.getString(R.string.settings_file_picker_system)) + others.map { it.label }
+        val current = others.indexOfFirst { it.packageName == prefs.filePicker.get() } + 1
+        activity.einkDialog()
+            .setTitle(R.string.settings_file_picker_title)
+            .setSingleChoiceItems(labels.toTypedArray(), current) { dialog, which ->
+                prefs.filePicker.set(if (which == 0) "" else others[which - 1].packageName)
+                prefs.filePickerAsked.set(true)
+                dialog.dismiss()
+                then()
+            }
+            .setNegativeButton(R.string.button_cancel, null)
+            .show()
+    }
+
+    /**
+     * Runs [then], which opens a picker -- after offering the choice, the first time, on a
+     * phone that has another files app. The setting sits at the foot of a long page, and a
+     * reader with Cabinet installed had no way to know it was there. Dismissing the list
+     * attaches nothing and leaves the question for the next press.
+     */
+    fun askOnce(activity: Activity, prefs: Preferences, then: () -> Unit) {
+        if (shouldAsk(prefs.filePicker.get(), prefs.filePickerAsked.get(), others(activity).size)) {
+            choose(activity, prefs, then)
+        } else {
+            then()
+        }
     }
 
     /** Pictures and files: input is the kinds wanted and whether several may be chosen. */

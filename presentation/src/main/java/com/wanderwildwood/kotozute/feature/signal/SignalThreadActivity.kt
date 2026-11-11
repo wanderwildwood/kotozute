@@ -61,6 +61,7 @@ import com.wanderwildwood.kotozute.common.util.TextViewStyler
 import com.wanderwildwood.kotozute.common.util.extensions.turnsAPageOnSwipe
 import com.wanderwildwood.kotozute.feature.extensions.isEmojiOnly
 import com.wanderwildwood.kotozute.common.util.extensions.stopAnimatingItems
+import com.wanderwildwood.kotozute.common.util.FilePicker
 import com.wanderwildwood.kotozute.common.util.einkDialog
 
 class SignalThreadActivity : QkThemedActivity() {
@@ -542,9 +543,9 @@ class SignalThreadActivity : QkThemedActivity() {
             einkDialog()
                 .setItems(items.toTypedArray()) { _, which ->
                     when (which) {
-                        0 -> picker.launch("*/*" to true)
+                        0 -> FilePicker.askOnce(this, prefs) { picker.launch("*/*" to true) }
                         1 -> gifPicker.launch(Unit)
-                        2 -> viewOncePicker.launch("image/*" to false)
+                        2 -> FilePicker.askOnce(this, prefs) { viewOncePicker.launch("image/*" to false) }
                         3 -> contactPicker.launch(null)
                         4 -> askForPoll()
                         else -> askWhereabouts.launch(Unit)

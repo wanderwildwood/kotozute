@@ -881,20 +881,25 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override fun requestGallery() {
         // A files app chosen in Settings is asked for pictures too; otherwise Android's own
         // photo picker, which only Android can provide.
-        if (prefs.filePicker.get().isNotBlank()) {
-            pickFilesWithDocsUI.launch("image/*,video/*" to true)
-            return
+        // The first press, on a phone with another files app, asks which of them it is to be.
+        com.wanderwildwood.kotozute.common.util.FilePicker.askOnce(this, prefs) {
+            if (prefs.filePicker.get().isNotBlank()) {
+                pickFilesWithDocsUI.launch("image/*,video/*" to true)
+            } else {
+                pickMedia.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                )
+            }
         }
-        pickMedia.launch(
-            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-        )
     }
 
     override fun requestFilePicker() {
         // Whichever app Settings names -- Android's own picker unless another is chosen. The
         // chooser this used to open is what the setting replaced: it left Android's picker
         // out, and offered the gallery and the music player as ways to attach "any file".
-        pickFilesWithDocsUI.launch("*/*" to true)
+        com.wanderwildwood.kotozute.common.util.FilePicker.askOnce(this, prefs) {
+            pickFilesWithDocsUI.launch("*/*" to true)
+        }
     }
 
     override fun setDraft(draft: String) {

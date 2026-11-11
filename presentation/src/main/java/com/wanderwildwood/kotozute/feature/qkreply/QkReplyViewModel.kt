@@ -37,6 +37,8 @@ import com.wanderwildwood.kotozute.util.ActiveSubscriptionObservable
 import io.reactivex.rxkotlin.Observables
 import io.reactivex.rxkotlin.plusAssign
 import io.reactivex.rxkotlin.withLatestFrom
+import com.wanderwildwood.kotozute.util.Preferences
+import com.wanderwildwood.kotozute.util.Signature
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
@@ -52,6 +54,7 @@ class QkReplyViewModel @Inject constructor(
     private val markRead: MarkRead,
     private val messageRepo: MessageRepository,
     private val navigator: Navigator,
+    private val prefs: Preferences,
     private val sendNewMessage: SendNewMessage,
     private val subscriptionManager: SubscriptionManagerCompat
 ) : QkViewModel<QkReplyView, QkReplyState>(QkReplyState(threadId = threadId)) {
@@ -182,7 +185,11 @@ class QkReplyViewModel @Inject constructor(
         // Show the remaining character counter when necessary
         view.textChangedIntent
                 .observeOn(Schedulers.computation())
-                .map { draft -> SmsMessage.calculateLength(draft, false) }
+                .map { draft ->
+                    SmsMessage.calculateLength(
+                        Signature.counted(draft.toString(), prefs.activeSignature()), false
+                    )
+                }
                 .map { array ->
                     val messages = array[0]
                     val remaining = array[2]

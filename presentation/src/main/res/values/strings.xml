@@ -306,6 +306,7 @@
     </plurals>
     <string name="settings_signature_title">Signature</string>
     <string name="settings_signature_summary">Add a signature to the end of your messages</string>
+    <string name="settings_signature_enabled_title">Add the signature</string>
     <string name="settings_unicode_title">Strip accents from outgoing SMS</string>
     <!-- Said on the compose screen the moment a draft re-encodes, because nothing else on
          the phone says it and the sender is about to be cut off at 70 characters. Names the

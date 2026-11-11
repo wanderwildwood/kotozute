@@ -163,6 +163,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.signature.asObservable()
                 .subscribe { signature -> newState { copy(signature = signature) } }
 
+        disposables += prefs.signatureEnabled.asObservable()
+                .subscribe { enabled -> newState { copy(signatureEnabled = enabled) } }
+
         val textSizeLabels = context.resources.getStringArray(R.array.text_sizes)
         disposables += prefs.textSize.asObservable()
                 .subscribe { textSize ->
@@ -258,6 +261,9 @@ class SettingsPresenter @Inject constructor(
                         R.id.delayed -> view.showDelayDurationDialog()
 
                         R.id.groupMessages -> view.showGroupMessagesDialog()
+
+                        R.id.signatureEnabled ->
+                            prefs.signatureEnabled.set(!prefs.signatureEnabled.get())
 
                         R.id.delivery -> prefs.delivery.set(!prefs.delivery.get())
 

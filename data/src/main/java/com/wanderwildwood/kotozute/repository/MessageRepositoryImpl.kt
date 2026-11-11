@@ -810,7 +810,7 @@ open class MessageRepositoryImpl @Inject constructor(
         // 3 stage sending process - stage 1, create records in os provider
         val group = (sendAsGroup && (toAddresses.size > 1))
         val messageUri = QkTransaction.createMessage(
-            context, subId, body, prefs.signature.get(),
+            context, subId, body, prefs.activeSignature(),
             toAddresses.map(phoneNumberUtils::normalizeNumber).toTypedArray(),
             parts, group, prefs.longAsMms.get(), prefs.unicode.get(),
             prefs.delivery.get(), prefs.readReceipts.get()

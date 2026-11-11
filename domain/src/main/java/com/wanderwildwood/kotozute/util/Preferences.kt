@@ -417,6 +417,11 @@ class Preferences @Inject constructor(
     val delivery = rxPrefs.getBoolean("delivery", false)
     val readReceipts = rxPrefs.getBoolean("readReceipts", false)
     val signature = rxPrefs.getString("signature", "")
+    // Off keeps the wording for later; clearing the signature was the only way to stop it.
+    val signatureEnabled = rxPrefs.getBoolean("signatureEnabled", true)
+
+    /** The signature messages go out with now: empty while it is switched off. */
+    fun activeSignature(): String = if (signatureEnabled.get()) signature.get() else ""
     val unicode = rxPrefs.getBoolean("unicode", false)
     val mobileOnly = rxPrefs.getBoolean("mobileOnly", false)
     val autoDelete = rxPrefs.getInteger("autoDelete", 0)

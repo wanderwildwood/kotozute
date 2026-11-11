@@ -433,6 +433,9 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
         binding.signature.summary = state.signature.takeIf { it.isNotBlank() }
                 ?: context.getString(R.string.settings_signature_summary)
+        // The switch is there once there is a signature to switch.
+        binding.signatureEnabled.setVisible(state.signature.isNotBlank())
+        binding.signatureEnabled.checkbox.isChecked = state.signatureEnabled
 
         binding.textSize.summary = state.textSizeSummary
         textSizeDialog.adapter.selectedItem = state.textSizeId

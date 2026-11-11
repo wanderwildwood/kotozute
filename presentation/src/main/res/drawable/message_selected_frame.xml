@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A chosen message, drawn over the row: the grey behind it is faint on an e-ink screen and
+     a picture hides most of it, so a chosen row also gets a frame in the text color. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_activated="true">
+        <shape android:shape="rectangle">
+            <stroke android:width="2dp" android:color="?android:attr/textColorPrimary" />
+        </shape>
+    </item>
+    <item>
+        <color android:color="@android:color/transparent" />
+    </item>
+</selector>

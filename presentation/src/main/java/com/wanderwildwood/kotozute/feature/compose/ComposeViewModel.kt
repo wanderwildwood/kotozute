@@ -74,6 +74,7 @@ import com.wanderwildwood.kotozute.util.ActiveSubscriptionObservable
 import com.wanderwildwood.kotozute.util.FileUtils
 import com.wanderwildwood.kotozute.util.PhoneNumberUtils
 import com.wanderwildwood.kotozute.util.Preferences
+import com.wanderwildwood.kotozute.util.Signature
 import com.wanderwildwood.kotozute.extensions.getResourceBytes
 import com.wanderwildwood.kotozute.util.Constants.Companion.DELAY_CANCELLED_CACHED_ATTACHMENTS_FILE_PREFIX
 import com.wanderwildwood.kotozute.util.Constants.Companion.SAVED_MESSAGE_TEXT_FILE_PREFIX
@@ -1209,7 +1210,15 @@ class ComposeViewModel @Inject constructor(
         // Show the remaining character counter when necessary
         view.textChangedIntent
                 .observeOn(Schedulers.computation())
-                .mapNotNull { draft -> tryOrNull { SmsMessage.calculateLength(draft, prefs.unicode.get()) } }
+                // The signature is sent too, so it is counted too.
+                .mapNotNull { draft ->
+                    tryOrNull {
+                        SmsMessage.calculateLength(
+                            Signature.counted(draft.toString(), prefs.activeSignature()),
+                            prefs.unicode.get()
+                        )
+                    }
+                }
                 .map { array ->
                     val messages = array[0]
                     val remaining = array[2]

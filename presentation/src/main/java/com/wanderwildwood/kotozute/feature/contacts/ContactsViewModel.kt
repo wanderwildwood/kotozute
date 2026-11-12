@@ -29,6 +29,9 @@ import com.wanderwildwood.kotozute.feature.compose.editing.PhoneNumberAction
 import com.wanderwildwood.kotozute.filter.ContactFilter
 import com.wanderwildwood.kotozute.filter.ContactGroupFilter
 import com.wanderwildwood.kotozute.interactor.SetDefaultPhoneNumber
+import com.wanderwildwood.kotozute.interactor.SyncContacts
+import com.wanderwildwood.kotozute.listener.ContactAddedListener
+import com.wanderwildwood.kotozute.manager.PermissionManager
 import com.wanderwildwood.kotozute.model.Contact
 import com.wanderwildwood.kotozute.model.ContactGroup
 import com.wanderwildwood.kotozute.model.Conversation
@@ -42,6 +45,7 @@ import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.Observables
+import io.reactivex.rxkotlin.plusAssign
 import io.reactivex.schedulers.Schedulers
 import timber.log.Timber
 import io.realm.RealmList
@@ -50,11 +54,13 @@ import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.rx2.awaitFirst
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class ContactsViewModel @Inject constructor(
     private val launch: ContactsLaunch,
     serializedChips: HashMap<String, String?>,
+    contactAddedListener: ContactAddedListener,
     private val contactFilter: ContactFilter,
     private val contactGroupFilter: ContactGroupFilter,
     private val contactsRepo: ContactRepository,
@@ -62,8 +68,23 @@ class ContactsViewModel @Inject constructor(
     private val phoneNumberUtils: PhoneNumberUtils,
     private val prefs: Preferences,
     private val setDefaultPhoneNumber: SetDefaultPhoneNumber,
-    private val signalRepo: SignalRepository
+    private val signalRepo: SignalRepository,
+    private val permissionManager: PermissionManager,
+    private val syncContacts: SyncContacts
 ) : QkViewModel<ContactsContract, ContactsState>(ContactsState(showingSignal = launch.signal)) {
+
+    init {
+        // Someone added in the contacts app while Messaging was open in the background is in
+        // the picker as soon as it opens, and anyone added while it is open shows up too.
+        disposables += syncContacts
+
+        if (permissionManager.hasContacts()) {
+            disposables += contactAddedListener.listen()
+                    .debounce(1, TimeUnit.SECONDS)
+                    .subscribeOn(Schedulers.io())
+                    .subscribe { syncContacts.execute(Unit) }
+        }
+    }
 
     /** Text is being shared in; see [ContactsLaunch]. */
     private val sharing: Boolean get() = launch.sharing

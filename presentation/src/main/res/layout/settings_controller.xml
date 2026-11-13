@@ -143,6 +143,14 @@
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/silenceUnknownSenders"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_silence_unknown_summary"
+                app:title="@string/settings_silence_unknown_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/keepMutedArchived"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

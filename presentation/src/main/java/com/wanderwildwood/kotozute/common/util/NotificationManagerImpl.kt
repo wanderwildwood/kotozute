@@ -169,6 +169,18 @@ class NotificationManagerImpl @Inject constructor(
         }
 
         val conversation = conversationRepo.getConversation(threadId) ?: return
+
+        // "Silence unknown senders": a text that is still a message request raises nothing,
+        // and takes down anything raised before the switch was turned on. The moment the
+        // number is a contact, or is answered or accepted, it is no longer a request.
+        if (prefs.silenceUnknownSenders.get() &&
+            com.wanderwildwood.kotozute.feature.compose.SmsRequests.isRequest(prefs, conversation)
+        ) {
+            notificationManager.cancel(threadId.toInt())
+            notificationManager.cancel(threadId.toInt() + 100000)
+            return
+        }
+
         val lastRecipient = conversation.lastMessage?.let { lastMessage ->
             conversation.recipients.find { recipient ->
                 phoneNumberUtils.compare(recipient.address, lastMessage.address)

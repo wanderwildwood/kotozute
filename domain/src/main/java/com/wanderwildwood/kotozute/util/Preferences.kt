@@ -438,6 +438,12 @@ class Preferences @Inject constructor(
     val keepMutedArchived = rxPrefs.getBoolean("keepMutedArchived", false)
     /** Groups and message requests only in their own tabs; the first tab is then "People". */
     val allOnlyPeople = rxPrefs.getBoolean("allOnlyPeople", false)
+    /**
+     * No notification for a text that is a message request (see SmsRequests): somebody not in
+     * the address book, in a conversation this phone has never written into. The text is still
+     * kept, under Unknown.
+     */
+    val silenceUnknownSenders = rxPrefs.getBoolean("silenceUnknownSenders", false)
     /** Whether the unread count is handed to Glance for the lock screen. */
     val lockScreen = rxPrefs.getBoolean("lockScreen", true)
     val conversationFilter = rxPrefs.getInteger("conversationFilter", CONVERSATION_FILTER_ALL)

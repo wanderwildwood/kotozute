@@ -157,6 +157,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.allOnlyPeople.asObservable()
             .subscribe { enabled -> newState { copy(allOnlyPeopleEnabled = enabled) } }
 
+        disposables += prefs.silenceUnknownSenders.asObservable()
+            .subscribe { on -> newState { copy(silenceUnknownSenders = on) } }
+
         disposables += prefs.lockScreen.asObservable()
             .subscribe { enabled -> newState { copy(lockScreenEnabled = enabled) } }
 
@@ -405,6 +408,9 @@ class SettingsPresenter @Inject constructor(
                         R.id.keepMutedArchived -> signalRepo.setKeepMutedArchived(!prefs.keepMutedArchived.get())
 
                         R.id.allOnlyPeople -> prefs.allOnlyPeople.set(!prefs.allOnlyPeople.get())
+
+                        R.id.silenceUnknownSenders ->
+                            prefs.silenceUnknownSenders.set(!prefs.silenceUnknownSenders.get())
 
                         R.id.lockScreen -> {
                             prefs.lockScreen.set(!prefs.lockScreen.get())

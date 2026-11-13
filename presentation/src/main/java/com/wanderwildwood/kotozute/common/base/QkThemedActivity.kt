@@ -131,7 +131,11 @@ abstract class QkThemedActivity : QkActivity() {
 
         // Set the color for the overflow and navigation icon
         val textSecondary = resolveThemeColor(android.R.attr.textColorSecondary)
-        toolbar?.overflowIcon = toolbar?.overflowIcon?.apply { setTint(textSecondary) }
+        // A nullable lookup, not the `toolbar` property: that one throws on a screen without
+        // a top bar, which is how the Linked devices screen closed as it opened.
+        findViewById<androidx.appcompat.widget.Toolbar?>(R.id.toolbar)?.let { bar ->
+            bar.overflowIcon = bar.overflowIcon?.apply { setTint(textSecondary) }
+        }
 
         // Update the colours of the menu items
         Observables.combineLatest(menu, theme) { menu, theme ->

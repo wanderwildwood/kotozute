@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Linked devices: the shared top bar over one column. The rows in the column are added in
+    code, since there is one per device.
+
+    The top bar is not optional. QkThemedActivity reaches for R.id.toolbar once the screen is
+    made, and a screen without one closed as it opened.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        style="@style/Toolbar">
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/toolbarTitle"
+            style="@style/ToolbarText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/signal_devices_title" />
+
+    </androidx.appcompat.widget.Toolbar>
+
+    <include layout="@layout/top_bar_rule" />
+
+    <com.wanderwildwood.kotozute.common.widget.PagingScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/column"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp" />
+
+    </com.wanderwildwood.kotozute.common.widget.PagingScrollView>
+
+</LinearLayout>

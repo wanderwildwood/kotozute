@@ -119,6 +119,11 @@ abstract class ActivityBuilderModule {
     @ContributesAndroidInjector
     abstract fun bindSignalRegisterActivity(): SignalRegisterActivity
 
+    // Without this the Linked devices screen closed as it opened: AndroidInjection.inject
+    // throws for a screen that is not listed here.
+    @ContributesAndroidInjector
+    abstract fun bindSignalDevicesActivity(): com.wanderwildwood.kotozute.feature.signal.SignalDevicesActivity
+
 
     @ActivityScope
     @ContributesAndroidInjector(modules = [])

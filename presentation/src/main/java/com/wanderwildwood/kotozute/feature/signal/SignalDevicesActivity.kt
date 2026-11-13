@@ -44,14 +44,13 @@ class SignalDevicesActivity : QkThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
+        // The layout carries the shared top bar, which the base class needs: built without
+        // one, this screen closed the moment it opened.
+        setContentView(R.layout.signal_devices_activity)
         title = getString(R.string.signal_devices_title)
         showBackButton(true)
 
-        val pad = (16 * resources.displayMetrics.density).toInt()
-        val column = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-        }
+        val column = findViewById<LinearLayout>(R.id.column)
         TextView(this).apply {
             setText(R.string.signal_devices_intro)
             column.addView(this)
@@ -66,10 +65,6 @@ class SignalDevicesActivity : QkThemedActivity() {
             orientation = LinearLayout.VERTICAL
             column.addView(this)
         }
-        setContentView(android.widget.ScrollView(this).apply {
-            isVerticalScrollBarEnabled = false
-            addView(column)
-        })
     }
 
     override fun onResume() {

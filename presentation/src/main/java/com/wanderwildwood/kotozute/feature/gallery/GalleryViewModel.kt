@@ -25,6 +25,7 @@ import com.uber.autodispose.autoDisposable
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.Navigator
 import com.wanderwildwood.kotozute.common.base.QkViewModel
+import com.wanderwildwood.kotozute.common.util.ClipboardUtils
 import com.wanderwildwood.kotozute.common.util.extensions.makeToast
 import com.wanderwildwood.kotozute.extensions.mapNotNull
 import com.wanderwildwood.kotozute.manager.PermissionManager
@@ -73,6 +74,20 @@ class GalleryViewModel @Inject constructor(
                 .withLatestFrom(view.pageChanged()) { _, part -> part }
                 .autoDisposable(view.scope())
                 .subscribe { part -> view.saveAttachment(part) }
+
+        // Copy the picture, to paste into another chat
+        view.optionsItemSelected()
+                .filter { it == R.id.copyPicture }
+                .withLatestFrom(view.pageChanged()) { _, part -> part }
+                .autoDisposable(view.scope())
+                .subscribe { part ->
+                    val copied = ClipboardUtils.copyPicture(
+                        context, MmsPartProvider().getUriForMmsPartId(context, part.id, part.getBestFilename())
+                    )
+                    context.makeToast(
+                        if (copied) R.string.signal_message_copied else R.string.clipboard_unable_to_copy_to
+                    )
+                }
 
         // Share image externally
         view.optionsItemSelected()

@@ -88,6 +88,8 @@ import com.wanderwildwood.kotozute.feature.compose.editing.ChipsAdapter
 import com.wanderwildwood.kotozute.feature.contacts.ContactsActivity
 import com.wanderwildwood.kotozute.model.Attachment
 import com.wanderwildwood.kotozute.model.MmsPart
+import com.wanderwildwood.kotozute.common.util.ClipboardUtils
+import com.wanderwildwood.kotozute.common.widget.QkContextMenuRecyclerView
 import com.wanderwildwood.kotozute.model.Recipient
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -286,6 +288,21 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
             binding.messageAttachments.adapter = composeAttachmentAdapter
 
             binding.message.supportsInputContent = true
+
+            // A picture copied in a Signal chat, another SMS chat or another app, pasted
+            // here, is attached the way a picked one is.
+            binding.message.onPasteContent = { uris ->
+                kotlin.concurrent.thread(isDaemon = true) {
+                    val kept = uris.map { ClipboardUtils.keepPasted(applicationContext, it) }
+                    runOnUiThread {
+                        kept.filterNotNull().forEach(attachAnyFileSelectedIntent::onNext)
+                        if (kept.any { it == null }) {
+                            Toast.makeText(this, R.string.message_picture_pasted_unreadable, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+                true
+            }
 
             binding.message.showCursorWhenWriting()
 
@@ -1018,6 +1035,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         // toolbar's React never appears for one. Offered here as well, first, as on Signal.
         menu?.add(Menu.NONE, R.id.react, Menu.NONE, R.string.signal_react)
         menuInflater.inflate(R.menu.mms_part_menu, menu)
+        // Copy is for pictures: a held voice note or contact card has nothing a chat box
+        // would know as a picture.
+        val held = (menuInfo as? QkContextMenuRecyclerView.ContextMenuInfo<*, *>)?.viewHolderValue as? MmsPart
+        menu?.findItem(R.id.copyPicture)?.isVisible = held?.type?.startsWith("image/") == true
         // A message that is only a picture has no bubble to hold, so the toolbar's trash can
         // never be reached for it. Last, away from the items that are safe to hit.
         menu?.add(Menu.NONE, R.id.delete, Menu.NONE, R.string.compose_menu_delete)

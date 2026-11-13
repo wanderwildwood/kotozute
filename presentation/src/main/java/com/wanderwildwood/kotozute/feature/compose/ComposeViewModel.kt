@@ -813,6 +813,21 @@ class ComposeViewModel @Inject constructor(
                 if (menuInfo.viewHolderValue != null) view.saveAttachment(menuInfo.viewHolderValue)
             }
 
+        // message part context menu item selected - copy the picture
+        view.contextItemIntent
+            .filter { it.itemId == R.id.copyPicture }
+            .autoDisposable(view.scope())
+            .subscribe {
+                val menuInfo = it.menuInfo as QkContextMenuRecyclerView.ContextMenuInfo<Long, MmsPart>
+                val part = menuInfo.viewHolderValue ?: return@subscribe
+                val copied = ClipboardUtils.copyPicture(
+                    context, MmsPartProvider().getUriForMmsPartId(context, part.id, part.getBestFilename())
+                )
+                context.makeToast(
+                    if (copied) R.string.signal_message_copied else R.string.clipboard_unable_to_copy_to
+                )
+            }
+
         // message part context menu item selected - share
         view.contextItemIntent
             .filter { it.itemId == R.id.share }

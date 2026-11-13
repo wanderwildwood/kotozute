@@ -42,6 +42,8 @@
     <string name="menu_call">Call</string>
     <string name="menu_info">Details</string>
 
+    <string name="message_picture_copy">Copy picture</string>
+    <string name="message_picture_pasted_unreadable">That picture could not be pasted</string>
     <string name="menu_mms_part_save">Save to gallery</string>
     <string name="menu_mms_part_share">Share</string>
     <string name="menu_mms_part_forward">Forward</string>

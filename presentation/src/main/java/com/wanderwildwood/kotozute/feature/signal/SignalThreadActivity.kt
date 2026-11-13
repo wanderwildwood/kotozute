@@ -17,6 +17,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import com.wanderwildwood.kotozute.common.util.ClipboardUtils
 import com.wanderwildwood.kotozute.common.util.ClosedByBlock
 import com.wanderwildwood.kotozute.common.util.Whereabouts
 import com.wanderwildwood.kotozute.common.util.ArmedWatch
@@ -513,6 +514,14 @@ class SignalThreadActivity : QkThemedActivity() {
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
         })
 
+        // A picture copied in an SMS chat, another Signal chat or another app, pasted here.
+        // Not while a sent message is being edited: an edit changes the words only, and the
+        // paste is swallowed rather than typed in as the picture's address.
+        binding.message.onPasteContent = { uris ->
+            if (editing == null) attachPasted(uris)
+            true
+        }
+
         // "@" at the start of a word in a group offers the members, as Signal's composer does.
         // What is chosen is written as "@Name"; the send turns that into a real mention.
         if (threadKey.startsWith("group:")) {
@@ -928,6 +937,40 @@ class SignalThreadActivity : QkThemedActivity() {
                 this, "$packageName.messagesText", file
             )
         }.onFailure { Timber.w(it, "signal attachment: could not stage a copy") }.getOrNull()
+    }
+
+    /**
+     * Puts a picture on the clipboard, to be pasted into an SMS chat or another Signal one.
+     * It is the staged copy [shareableUri] makes that is copied, never the private store.
+     */
+    private fun copyPicture(attachment: SavedAttachment) {
+        thread(isDaemon = true) {
+            val uri = shareableUri(attachment)
+            runOnUiThread {
+                val said = when {
+                    uri == null -> R.string.signal_attachment_unavailable
+                    ClipboardUtils.copyPicture(this, uri) -> R.string.signal_message_copied
+                    else -> R.string.clipboard_unable_to_copy_to
+                }
+                Toast.makeText(this, said, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * A pasted picture, attached as a picked one is: the first where nothing is attached
+     * yet, any others riding with it as an album.
+     */
+    private fun attachPasted(uris: List<Uri>) {
+        var rest = uris
+        if (pendingAttachment == null) {
+            attach(rest.first())
+            rest = rest.drop(1)
+        }
+        rest = rest.take((MAX_ALBUM - 1 - pendingMore.size).coerceAtLeast(0))
+        pendingLoads += rest.size
+        showSendOrRecord()
+        rest.forEach { attachMore(it) }
     }
 
     /** Opens an attachment in whatever app on the phone handles it. */
@@ -2167,7 +2210,7 @@ class SignalThreadActivity : QkThemedActivity() {
 
     /** What one entry of a message's actions is, so the selection bar can lift some onto it. */
     private enum class Act {
-        REPLY, FORWARD, END_POLL, PIN, REACT, OPEN, SAVE, UNREACT, COPY, SHARE, TRANSLATE,
+        REPLY, FORWARD, END_POLL, PIN, REACT, OPEN, SAVE, COPY_PICTURE, UNREACT, COPY, SHARE, TRANSLATE,
         EDIT, HISTORY, INFO, DELETE, WITHDRAW, SEND_AGAIN
     }
 
@@ -2214,6 +2257,11 @@ class SignalThreadActivity : QkThemedActivity() {
         attachment?.let { saved ->
             actions += Entry(Act.OPEN, getString(R.string.signal_attachment_open)) { openAttachment(saved) }
             actions += Entry(Act.SAVE, getString(R.string.signal_attachment_save)) { saveAttachment(saved) }
+            // Pictures only: what an SMS chat's box, or this one's, takes as a picture. A
+            // GIF here is a short film, and a voice note is not for pasting.
+            if (saved.type.startsWith("image/", ignoreCase = true)) {
+                actions += Entry(Act.COPY_PICTURE, getString(R.string.message_picture_copy)) { copyPicture(saved) }
+            }
         }
         if (mine.isNotEmpty()) {
             actions += Entry(Act.UNREACT, getString(R.string.signal_reaction_remove_mine, mine)) {

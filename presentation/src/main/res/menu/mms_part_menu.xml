@@ -20,6 +20,10 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
+        android:id="@+id/copyPicture"
+        android:title="@string/message_picture_copy" />
+
+    <item
         android:id="@+id/save"
         android:title="@string/menu_mms_part_save" />
 

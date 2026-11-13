@@ -102,6 +102,12 @@ fun Uri.getName(context: Context): String? {
         }
     } catch (e: Exception) { /* nothing */ }
 
+    // One of this app's own MMS parts (a copied picture, pasted): the part table has no
+    // name column to ask, and the address ends in the name it was given.
+    if (retVal == null && scheme == ContentResolver.SCHEME_CONTENT && authority?.endsWith(".mmspart") == true) {
+        retVal = lastPathSegment
+    }
+
     return retVal
 }
 

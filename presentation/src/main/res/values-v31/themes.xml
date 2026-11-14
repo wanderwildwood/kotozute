@@ -11,6 +11,8 @@
         <!-- Android 12+ splash screen - use transparent icon -->
         <item name="android:windowSplashScreenBackground">@color/white</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_transparent</item>
+        <!-- No start-up window: in dark mode it would flash white before the first frame. -->
+        <item name="android:windowDisablePreview">true</item>
     </style>
 
 </resources>

@@ -32,6 +32,8 @@
         <item name="android:navigationBarColor">@color/white</item>
         <item name="android:statusBarColor">@color/white</item>
         <item name="android:windowBackground">@color/white</item>
+        <!-- No start-up window: in dark mode it would flash white before the first frame. -->
+        <item name="android:windowDisablePreview">true</item>
     </style>
 
     <style name="AppTheme" parent="AppBaseTheme">

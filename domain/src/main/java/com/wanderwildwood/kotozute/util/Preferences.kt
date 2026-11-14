@@ -326,6 +326,14 @@ class Preferences @Inject constructor(
     val signalOpensFirst = rxPrefs.getBoolean("signalOpensFirst", false)
 
     /**
+     * In the one list, whether the rail marker goes on SMS rows instead of Signal ones. Off
+     * marks Signal, which suits an inbox that is mostly texts; on suits one that is mostly
+     * Signal, where a marker on nearly every row says nothing. Only read while [signalWeave]
+     * is on: kept apart, each list is one rail and nothing in it needs marking.
+     */
+    val markSmsRows = rxPrefs.getBoolean("markSmsRows", false)
+
+    /**
      * The app every attach button asks for files, by package; empty for Android's own picker.
      * Chosen here because Android offers no "always" for it: its own picker outranks every
      * other app that can answer. See `FilePicker`.

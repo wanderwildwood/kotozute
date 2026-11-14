@@ -91,7 +91,8 @@ The notification lives on its own channel (`desktop_sync_v2`) and declares `setS
 
 Signal threads sit in the same conversation list as your texts, newest first, with a badge on
 the rows that came over Signal. Nothing is marked SMS: unmarked means SMS, which keeps the badge
-off nearly every row.
+off nearly every row. If most of your conversations are on Signal, Settings > Signal > Mark SMS
+instead of Signal turns that around.
 
 - Send and receive, one-to-one and in groups, with pictures
 - React to a message: hold it and pick an emoji, or hold it again to take yours back

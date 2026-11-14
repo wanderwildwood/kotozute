@@ -577,6 +577,8 @@
     <string name="settings_signal_weave_title">One conversation list</string>
     <string name="settings_signal_weave_summary">Signal threads sit alongside SMS, newest first. Turn this off to keep two separate lists; the badge in each list crosses to the other.</string>
     <string name="settings_signal_opens_first_title">Open on Signal</string>
+    <string name="settings_mark_sms_rows_title">Mark SMS instead of Signal</string>
+    <string name="settings_mark_sms_rows_summary">In the one list, SMS conversations carry the label and Signal ones go without. Suits a list that is mostly Signal.</string>
     <string name="settings_signal_opens_first_summary">The app opens on the Signal list rather than the SMS one.</string>
     <string name="signal_archived_shelf">Archived</string>
     <string name="signal_inbox_shelf">Back to the inbox</string>
@@ -863,6 +865,7 @@
     <string name="settings_desktop_sync_code_locked">Too many wrong tries, so the code is canceled. Close this and tap Show link again for a new one.</string>
     <string name="contacts_signal_hint">Search people on Signal</string>
     <string name="signal_rail_label">Signal</string>
+    <string name="sms_rail_label">SMS</string>
     <string name="signal_rail_label_switch">Signal ></string>
     <!-- Shown in an SMS thread only when the same person is also reachable on Signal;
          the ">" says it is a way across rather than a label. -->

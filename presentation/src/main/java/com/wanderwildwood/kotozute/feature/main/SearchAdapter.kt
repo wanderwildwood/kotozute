@@ -41,7 +41,8 @@ class SearchAdapter @Inject constructor(
     colors: Colors,
     private val context: Context,
     private val dateFormatter: DateFormatter,
-    private val navigator: Navigator
+    private val navigator: Navigator,
+    private val prefs: com.wanderwildwood.kotozute.util.Preferences
 ) : QkAdapter<InboxSearchResult, QkBindingViewHolder<SearchListItemBinding>>() {
 
     private val highlightColor: Int by lazy { colors.theme().highlight }
@@ -121,7 +122,10 @@ class SearchAdapter @Inject constructor(
 
         // Which rail the hit is on. Without it a result list drawn from both rails does not
         // say which conversation you are about to open, and the two can share a name.
-        holder.binding.rail.setVisible(result is InboxSearchResult.Signal)
+        // Marked the same way as the list it searches: SMS rows instead, when that is chosen.
+        val marksSms = prefs.markSmsRows.get() && prefs.signalEnabled.get() && prefs.signalWeave.get()
+        holder.binding.rail.setVisible((result is InboxSearchResult.Signal) != marksSms)
+        holder.binding.rail.setText(if (marksSms) R.string.sms_rail_label else R.string.signal_rail_label)
     }
 
     private fun queryOf(result: InboxSearchResult): String = when (result) {

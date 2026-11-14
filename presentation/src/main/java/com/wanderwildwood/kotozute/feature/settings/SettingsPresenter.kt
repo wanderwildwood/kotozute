@@ -78,6 +78,8 @@ class SettingsPresenter @Inject constructor(
 
         disposables += prefs.signalOpensFirst.asObservable()
                 .subscribe { on -> newState { copy(signalOpensFirst = on) } }
+        disposables += prefs.markSmsRows.asObservable()
+                .subscribe { on -> newState { copy(markSmsRows = on) } }
 
         disposables += prefs.askDefaultSms.asObservable()
                 .subscribe { on -> newState { copy(askDefaultSms = on) } }
@@ -357,6 +359,8 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.signalOpensFirst ->
                             prefs.signalOpensFirst.set(!prefs.signalOpensFirst.get())
+
+                        R.id.markSmsRows -> prefs.markSmsRows.set(!prefs.markSmsRows.get())
 
                         R.id.askDefaultSms -> prefs.askDefaultSms.set(!prefs.askDefaultSms.get())
 

@@ -309,6 +309,13 @@ class ConversationsAdapter @Inject constructor(
         }
     }
 
+    /**
+     * Whether the marker goes on SMS rows rather than Signal ones: only by choice, and only
+     * in the one list, where the rails are mixed. See Preferences.markSmsRows.
+     */
+    private fun marksSms(): Boolean =
+        prefs.markSmsRows.get() && prefs.signalEnabled.get() && prefs.signalWeave.get()
+
     private fun blank(holder: QkBindingViewHolder<ConversationListItemBinding>) {
         holder.containerView.isActivated = false
         holder.binding.rail.isVisible = false
@@ -336,7 +343,8 @@ class ConversationsAdapter @Inject constructor(
         colors.theme(recipient)
 
         holder.containerView.isActivated = isSelected(conversation.id)
-        holder.binding.rail.isVisible = false
+        holder.binding.rail.isVisible = marksSms()
+        holder.binding.rail.setText(R.string.sms_rail_label)
 
         // The avatar is gone from the row, so there is nothing to fill.
         holder.binding.title.collapseEnabled = conversation.recipients.size > 1
@@ -374,7 +382,9 @@ class ConversationsAdapter @Inject constructor(
         val thread = item.thread
 
         holder.containerView.isActivated = isSelected(item.stableId)
-        holder.binding.rail.isVisible = true
+        // A row joined to its texts opens in Signal, so it counts as Signal here too.
+        holder.binding.rail.isVisible = !marksSms()
+        holder.binding.rail.setText(R.string.signal_rail_label)
 
         holder.binding.title.collapseEnabled = false
         holder.binding.title.text = buildSpannedString { append(signalTitle(item)) }

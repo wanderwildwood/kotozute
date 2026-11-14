@@ -180,6 +180,12 @@ class MainActivity : QkThemedActivity(), MainView {
                     // Compose icon tint is set in XML
                 }
 
+        // The rows read the marker choice as they are drawn; redraw them when it changes.
+        prefs.markSmsRows.asObservable()
+                .skip(1)
+                .autoDisposable(scope())
+                .subscribe { conversationsAdapter.notifyDataSetChanged() }
+
         // Setup filter tabs
         setupFilterTabs()
     }

@@ -399,6 +399,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
             state.signalPaired && state.signalEnabled && !state.signalWeave
         )
         binding.signalOpensFirst.checkbox.isChecked = state.signalOpensFirst
+        // Only with one list, where the rails are mixed and a marker tells them apart.
+        binding.markSmsRows.setVisible(
+            state.signalPaired && state.signalEnabled && state.signalWeave
+        )
+        binding.markSmsRows.checkbox.isChecked = state.markSmsRows
         binding.askDefaultSms.checkbox.isChecked = state.askDefaultSms
         binding.signalReceipts.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalReceipts.checkbox.isChecked = state.signalReadReceipts

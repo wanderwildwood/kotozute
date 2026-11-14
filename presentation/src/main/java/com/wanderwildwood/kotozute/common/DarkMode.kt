@@ -158,6 +158,13 @@ object DarkMode {
                 if (turnsLight(window.statusBarColor)) want = want or WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                 if (turnsLight(window.navigationBarColor)) want = want or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
                 if (controller.systemBarsAppearance and both != want) controller.setSystemBarsAppearance(want, both)
+                // The older flags count as well when an app (or androidx for it) has set them.
+                val decor = window.decorView
+                val old = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                var oldWant = 0
+                if (want and WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS != 0) oldWant = oldWant or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                if (want and WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS != 0) oldWant = oldWant or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                if (decor.systemUiVisibility and old != oldWant) decor.systemUiVisibility = (decor.systemUiVisibility and old.inv()) or oldWant
             } else {
                 windows[window]?.let { controller.setSystemBarsAppearance(it, both) }
                 windows[window] = null

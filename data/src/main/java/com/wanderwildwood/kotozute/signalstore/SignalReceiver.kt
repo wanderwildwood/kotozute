@@ -1372,6 +1372,41 @@ internal class SignalReceiver(
                     }
                 }
 
+                // Nothing from somebody the account has blocked.
+                //
+                // The list was being kept and not used: a blocked person's messages were
+                // decrypted, filed, shown and announced -- and then answered with a delivery
+                // receipt, which told the person who had been blocked that the phone was on
+                // and had received them. Blocking is the one feature where doing half of it is
+                // worse than not having it.
+                //
+                // Dropped whole, before anything is stored, which is where Signal drops it.
+                // The envelope is still acked and deleted: it has been dealt with.
+                // By account id, by number, and by group -- the account blocks in all three
+                // ways and only the first was being consulted. A blocked group's messages come
+                // from members who are not themselves blocked, so the per-person check never
+                // sees them at all.
+                val fromGroup = (result.content.dataMessage?.groupV2
+                    ?: result.content.syncMessage?.sent?.message?.groupV2)
+                    ?.masterKey?.toByteArray()
+                    ?.let { runCatching { groupIdFrom(it) }.getOrNull() }
+                // ⚠ **A group change from somebody blocked is dropped too** (upstream 7cbeccbe7c,
+                // 2026-11-11, "Do not accept group updates from blocked users"). This used to
+                // follow upstream's old rule, `senderRecipient.isBlocked && !isGv2Update`, and
+                // keep the change so this phone's idea of the group stayed right. Upstream has
+                // since dropped the carve-out: a blocked person does not get to put anything in
+                // front of you, a group change included. A blocked group was already dropped
+                // whole upstream (`threadRecipient.isGroup && threadRecipient.isBlocked`), and
+                // now is here as well.
+                //
+                // The gate sits before the revision is noted and the change is put into
+                // words, so nothing of a dropped message is read or kept, as upstream's
+                // `shouldIgnore` runs before its group pre-processing.
+                if (senderBlocked || (!fromSelf && blocks.isGroupBlocked(fromGroup))) {
+                    Timber.i("signal receive: dropped a message from somebody or somewhere blocked")
+                    return@let null
+                }
+
                 // What a group change said, in words, for the row the normalizer makes of it.
                 var groupChangeWords: String? = null
 
@@ -1395,50 +1430,6 @@ internal class SignalReceiver(
                             groupChangeWords = describeGroupChange(master, signed.toByteArray(), credentials.aci.orEmpty())
                         }
                     }
-
-                // Nothing from somebody the account has blocked.
-                //
-                // The list was being kept and not used: a blocked person's messages were
-                // decrypted, filed, shown and announced -- and then answered with a delivery
-                // receipt, which told the person who had been blocked that the phone was on
-                // and had received them. Blocking is the one feature where doing half of it is
-                // worse than not having it.
-                //
-                // Dropped whole, before anything is stored, which is where Signal drops it.
-                // The envelope is still acked and deleted: it has been dealt with.
-                // By account id, by number, and by group -- the account blocks in all three
-                // ways and only the first was being consulted. A blocked group's messages come
-                // from members who are not themselves blocked, so the per-person check never
-                // sees them at all.
-                val fromGroup = (result.content.dataMessage?.groupV2
-                    ?: result.content.syncMessage?.sent?.message?.groupV2)
-                    ?.masterKey?.toByteArray()
-                    ?.let { runCatching { groupIdFrom(it) }.getOrNull() }
-                // ⚠ **Except a group change, which still applies.** Upstream's rule is
-                // `senderRecipient.isBlocked && !isGv2Update`, and the carve-out is the point:
-                // a blocked person does not get to put anything in front of you, but the
-                // change they made to a group you are both in is not a line, it is a fact.
-                // Dropping it leaves this phone's idea of the group quietly wrong -- still
-                // showing a group it has been removed from, or the name it used to have -- and
-                // nothing would ever say so.
-                //
-                // `isGroupV2Update` is narrow by construction: `hasSignedGroupChange &&
-                // !hasRenderableContent`. A message that carries a change *and* something to
-                // draw is content, and is dropped like any other.
-                val isGroupUpdate = result.content.dataMessage?.let { m ->
-                    m.groupV2?.groupChange != null && !hasRenderableContent(m)
-                } ?: false
-                // The self exemption is why a note to self survives this; it is decided once,
-                // with the rest of the reasoning, where `senderBlocked` is worked out above.
-                if ((senderBlocked && !isGroupUpdate) ||
-                    (!fromSelf && blocks.isGroupBlocked(fromGroup) && !isGroupUpdate)
-                ) {
-                    Timber.i("signal receive: dropped a message from somebody or somewhere blocked")
-                    return@let null
-                }
-                if ((senderBlocked || blocks.isGroupBlocked(fromGroup)) && isGroupUpdate) {
-                    Timber.i("signal receive: keeping a group change from somebody blocked; the group state is still theirs to change")
-                }
 
                 // Somebody outside the group does not get to reach back into it.
                 //

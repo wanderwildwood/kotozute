@@ -30,7 +30,8 @@ import java.util.concurrent.Executors
  * layer, and the layer goes to the screen through a filter that turns every colour into its
  * opposite. Nothing in the app's own drawing changes, so a screen cannot be half dark. The
  * status bar and the navigation bar are drawn by Android over the window, so their icons are
- * asked for in the light colour while dark mode is on.
+ * asked for in the light colour while dark mode is on (the dark one over a bar the app paints dark,
+ * which the filter turns light).
  *
  * What must keep its own colours (a photograph, a map, a barcode or QR code that a scanner
  * has to read) is marked: [keep] on a view. It is turned twice,
@@ -153,7 +154,10 @@ object DarkMode {
             val both = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
             if (dark) {
                 if (windows[window] == null) windows[window] = asked(window, controller.systemBarsAppearance and both)
-                controller.setSystemBarsAppearance(0, both)
+                var want = 0
+                if (turnsLight(window.statusBarColor)) want = want or WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                if (turnsLight(window.navigationBarColor)) want = want or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                if (controller.systemBarsAppearance and both != want) controller.setSystemBarsAppearance(want, both)
             } else {
                 windows[window]?.let { controller.setSystemBarsAppearance(it, both) }
                 windows[window] = null
@@ -163,12 +167,25 @@ object DarkMode {
             val both = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
             if (dark) {
                 if (windows[window] == null) windows[window] = decor.systemUiVisibility and both
-                decor.systemUiVisibility = decor.systemUiVisibility and both.inv()
+                var want = 0
+                if (turnsLight(window.statusBarColor)) want = want or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                if (turnsLight(window.navigationBarColor)) want = want or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                if (decor.systemUiVisibility and both != want) decor.systemUiVisibility = (decor.systemUiVisibility and both.inv()) or want
             } else {
                 windows[window]?.let { decor.systemUiVisibility = (decor.systemUiVisibility and both.inv()) or it }
                 windows[window] = null
             }
         }
+    }
+
+    /**
+     * A bar the app paints dark is painted in the window, so the filter turns it light, and its
+     * icons then have to be the dark ones. A clear bar shows the page under it, which is dark.
+     */
+    private fun turnsLight(barColor: Int): Boolean {
+        if (barColor ushr 24 < 0x80) return false
+        val r = barColor shr 16 and 0xff; val g = barColor shr 8 and 0xff; val b = barColor and 0xff
+        return (r * 299 + g * 587 + b * 114) / 1000 < 128
     }
 
     /**

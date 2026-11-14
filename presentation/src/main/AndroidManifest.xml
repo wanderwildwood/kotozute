@@ -69,6 +69,12 @@
         android:supportsRtl="true"
         android:theme="@style/AppLaunchTheme">
 
+        <!-- Starts dark mode before the first screen is drawn. Holds no data. -->
+        <provider
+            android:name="com.wanderwildwood.kotozute.common.DarkModeInit"
+            android:authorities="${applicationId}.darkmodeinit"
+            android:exported="false" />
+
         <activity
             android:name=".feature.main.MainActivity"
             android:exported="true"
@@ -379,6 +385,8 @@
         <package android:name="com.mediatek.duraspeed" />
         <!-- Cabinet, so a file or folder request can be addressed to it. See FilesPicker. -->
         <package android:name="com.wanderwildwood.tana" />
+        <!-- Home, whose dark mode switch this app follows when Home is installed. -->
+        <package android:name="com.wanderwildwood.iori" />
         <!-- Glance, so the unread count can check who is asking for it. See GlanceProvider. -->
         <package android:name="com.wanderwildwood.hitome" />
         <!-- Whereabouts, for "Send where I am": one location, asked of it once. -->

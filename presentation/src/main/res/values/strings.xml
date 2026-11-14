@@ -298,6 +298,8 @@
     <!-- Settings: texts from numbers that are not contacts, and were never answered, arrive without a notification -->
     <string name="settings_silence_unknown_title">Silence unknown senders</string>
     <string name="settings_silence_unknown_summary">No notification for a text from a number that is not in your contacts. It waits under Unknown.</string>
+    <string name="settings_dark">Dark mode</string>
+    <string name="settings_dark_note">White on black, in this app. Home has one switch for every app.</string>
     <!-- Settings: whether the unread count shows on the lock screen, through the Glance app -->
     <string name="settings_lock_screen_title">Unread on the lock screen</string>
     <!-- On the lock screen, through Glance: conversations with something unread, not messages -->

@@ -23,6 +23,7 @@ import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.FrameLayout
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.Navigator
 import com.wanderwildwood.kotozute.common.util.Colors
 import com.wanderwildwood.kotozute.common.util.extensions.setBackgroundTint
@@ -55,6 +56,8 @@ class AvatarView @JvmOverloads constructor(
         theme = colors.theme()
 
         layout = AvatarViewBinding.inflate(LayoutInflater.from(context), this)
+        // Only the photo keeps its colours; the initials under it turn with the page.
+        DarkMode.keep(layout.photo)
         setBackgroundResource(R.drawable.circle)
         clipToOutline = true
     }

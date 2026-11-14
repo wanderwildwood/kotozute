@@ -13,6 +13,7 @@ import android.widget.Toast
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.feature.gallery.ZoomPhotoView
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import dagger.android.AndroidInjection
@@ -88,6 +89,7 @@ class ViewOnceActivity : AppCompatActivity() {
         }
         // Zooms like the gallery; a single tap still closes it.
         frame.addView(ZoomPhotoView(this).apply {
+            DarkMode.keep(this)
             setImageBitmap(bitmap)
             setOnClickListener { finish() }
         }, fill)

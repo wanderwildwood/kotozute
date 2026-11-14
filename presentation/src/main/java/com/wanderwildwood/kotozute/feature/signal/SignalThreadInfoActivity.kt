@@ -14,6 +14,7 @@ import com.wanderwildwood.kotozute.common.util.ClosedByBlock
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.DateFormatter
 import com.wanderwildwood.kotozute.common.util.ArmedWatch
@@ -667,6 +668,8 @@ class SignalThreadInfoActivity : QkThemedActivity() {
     private inner class MediaHolder(
         private val b: SignalMediaGridItemBinding
     ) : RecyclerView.ViewHolder(b.root) {
+        init { DarkMode.keep(b.image) }
+
         fun bind(id: String) {
             cache.get(id)?.let { b.image.setImageBitmap(it); return }
             // Tagged so a recycled holder that has scrolled on does not take someone else's

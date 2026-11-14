@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
 import com.wanderwildwood.kotozute.databinding.SignalGifActivityBinding
@@ -141,7 +142,8 @@ class SignalGifActivity : QkThemedActivity() {
         override fun getItemCount() = gifs.size
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = GifHolder(
-            LayoutInflater.from(parent.context).inflate(R.layout.signal_gif_item, parent, false) as ImageView
+            (LayoutInflater.from(parent.context).inflate(R.layout.signal_gif_item, parent, false) as ImageView)
+                .also { DarkMode.keep(it) }
         )
 
         override fun onBindViewHolder(holder: GifHolder, position: Int) {

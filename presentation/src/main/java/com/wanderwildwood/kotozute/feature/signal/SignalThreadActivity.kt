@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.feature.signal
 
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.widget.SelectionMenu
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
@@ -2814,6 +2815,12 @@ class SignalThreadActivity : QkThemedActivity() {
         /** The message this holder is showing, as the selection would take it. */
         var current: Chosen? = null
 
+        init {
+            // Pictures and the playing GIF/video keep their colours in dark mode.
+            DarkMode.keep(b.image)
+            DarkMode.keep(b.gifPlayer)
+        }
+
         fun bind(m: SignalMessage, previous: SignalMessage?, next: SignalMessage?) {
             // A view-once message has no body and no attachment on purpose -- the picture
             // is gone, which is the whole promise. The row is kept so the thread does not
@@ -3362,6 +3369,7 @@ class SignalThreadActivity : QkThemedActivity() {
                 val entry = all.optJSONObject(i) ?: continue
                 val tile = inflater.inflate(R.layout.signal_album_tile, b.album, false)
                 val image = tile.findViewById<android.widget.ImageView>(R.id.image)
+                DarkMode.keep(image)
                 val label = tile.findViewById<android.widget.TextView>(R.id.label)
                 val id = entry.optString("id")
                 val type = entry.optString("type")

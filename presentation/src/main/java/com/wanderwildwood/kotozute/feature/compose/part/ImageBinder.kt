@@ -20,6 +20,7 @@ package com.wanderwildwood.kotozute.feature.compose.part
 
 import android.content.Context
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.base.QkViewHolder
 import com.wanderwildwood.kotozute.common.util.Colors
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
@@ -49,6 +50,7 @@ class ImageBinder @Inject constructor(colors: Colors, private val context: Conte
     ) {
         val binding = MmsImagePreviewListItemBinding.bind(holder.itemView)
         binding.video.setVisible(part.isVideo())
+        DarkMode.keep(binding.thumbnail)
         holder.containerView.setOnClickListener { clicks.onNext(part.id) }
 
         binding.thumbnail.bubbleStyle = when {

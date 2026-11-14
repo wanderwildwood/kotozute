@@ -22,6 +22,7 @@ import android.content.Context
 import com.uber.autodispose.android.lifecycle.scope
 import com.uber.autodispose.autoDisposable
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.Navigator
 import com.wanderwildwood.kotozute.common.base.QkPresenter
 import com.wanderwildwood.kotozute.common.util.extensions.makeToast
@@ -224,6 +225,9 @@ class SettingsPresenter @Inject constructor(
     override fun bindIntents(view: SettingsView) {
         super.bindIntents(view)
 
+        // Home's switch may have changed it while this screen was away.
+        newState { copy(darkMode = DarkMode.on) }
+
         view.preferenceClicks()
                 .autoDisposable(view.scope())
                 .subscribe {
@@ -411,6 +415,12 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.silenceUnknownSenders ->
                             prefs.silenceUnknownSenders.set(!prefs.silenceUnknownSenders.get())
+
+                        R.id.darkMode -> {
+                            val dark = !DarkMode.on
+                            DarkMode.set(context, dark)
+                            newState { copy(darkMode = dark) }
+                        }
 
                         R.id.lockScreen -> {
                             prefs.lockScreen.set(!prefs.lockScreen.get())

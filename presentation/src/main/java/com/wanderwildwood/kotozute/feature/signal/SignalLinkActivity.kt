@@ -10,6 +10,7 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.base.QkThemedActivity
 import com.wanderwildwood.kotozute.databinding.SignalLinkActivityBinding
 import com.wanderwildwood.kotozute.repository.SignalRepository
@@ -45,6 +46,8 @@ class SignalLinkActivity : QkThemedActivity() {
         super.onCreate(savedInstanceState)
         binding = SignalLinkActivityBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // An inverted code may not scan: it keeps black on white in dark mode.
+        DarkMode.keep(binding.qr)
         title = getString(R.string.signal_link_title)
         showBackButton(true)
 

@@ -7,6 +7,7 @@ import androidx.core.view.isVisible
 import com.jakewharton.rxbinding2.view.clicks
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.base.QkAdapter
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.base.QkViewHolder
 import com.wanderwildwood.kotozute.common.util.Colors
 import com.wanderwildwood.kotozute.common.util.armedWatch
@@ -111,7 +112,10 @@ class ConversationInfoAdapter @Inject constructor(
                 }
             }
 
-            2 -> QkViewHolder(ConversationMediaListItemBinding.inflate(inflater, parent, false).root).apply {
+            2 -> QkViewHolder(ConversationMediaListItemBinding.inflate(inflater, parent, false).let { media ->
+                DarkMode.keep(media.thumbnail)
+                media.root
+            }).apply {
                 itemView.setOnClickListener {
                     val item = getItem(adapterPosition) as? ConversationInfoMedia
                     item?.value?.id?.run(mediaClicks::onNext)

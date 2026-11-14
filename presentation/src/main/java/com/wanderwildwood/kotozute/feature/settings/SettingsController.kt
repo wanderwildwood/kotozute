@@ -430,6 +430,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.keepMutedArchived.checkbox.isChecked = state.keepMutedArchived
         binding.allOnlyPeople.checkbox.isChecked = state.allOnlyPeopleEnabled
         binding.silenceUnknownSenders.checkbox.isChecked = state.silenceUnknownSenders
+        binding.darkMode.checkbox.isChecked = state.darkMode
         binding.lockScreen.checkbox.isChecked = state.lockScreenEnabled
 
         binding.signature.summary = state.signature.takeIf { it.isNotBlank() }

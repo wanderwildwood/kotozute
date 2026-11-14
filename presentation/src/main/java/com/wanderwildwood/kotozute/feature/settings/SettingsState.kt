@@ -36,6 +36,7 @@ data class SettingsState(
     val keepMutedArchived: Boolean = false,
     val allOnlyPeopleEnabled: Boolean = false,
     val silenceUnknownSenders: Boolean = false,
+    val darkMode: Boolean = false,
     val lockScreenEnabled: Boolean = true,
     val signature: String = "",
     val textSizeSummary: String = "",

@@ -31,6 +31,7 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
 import com.google.android.exoplayer2.util.Util
 import com.google.android.mms.ContentType
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.base.QkRealmAdapter
 import com.wanderwildwood.kotozute.common.base.QkViewHolder
 import com.wanderwildwood.kotozute.extensions.isImage
@@ -62,6 +63,7 @@ class GalleryPagerAdapter @Inject constructor(private val context: Context) : Qk
         val inflater = LayoutInflater.from(parent.context)
         return QkViewHolder(when (viewType) {
             VIEW_TYPE_IMAGE -> GalleryImagePageBinding.inflate(inflater, parent, false).let { page ->
+                DarkMode.keep(page.image)
                 page.root
             }
 

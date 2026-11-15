@@ -24,6 +24,7 @@ import android.view.LayoutInflater
 import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.databinding.SettingsAutoDeleteDialogBinding
+import com.wanderwildwood.kotozute.common.util.extensions.showKeyboard
 
 class AutoDeleteDialog(context: Activity, listener: (Int) -> Unit) : AlertDialog(context, R.style.EInkDialog) {
 
@@ -31,6 +32,14 @@ class AutoDeleteDialog(context: Activity, listener: (Int) -> Unit) : AlertDialog
 
     init {
         setView(layout.root)
+        // The field is what the dialog is for: once the dialog is up, the cursor goes into it,
+        // after what is already there, and the keyboard comes up.
+        setOnShowListener {
+            layout.field.post {
+                layout.field.setSelection(layout.field.text?.length ?: 0)
+                layout.field.showKeyboard()
+            }
+        }
         setTitle(R.string.settings_auto_delete)
         setMessage(context.getString(R.string.settings_auto_delete_dialog_message))
         setButton(DialogInterface.BUTTON_NEUTRAL, context.getString(R.string.button_cancel)) { _, _ -> }

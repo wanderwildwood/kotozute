@@ -40,6 +40,7 @@ import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.MessageContentFiltersControllerBinding
 import com.wanderwildwood.kotozute.databinding.MessageContentFiltersAddDialogBinding
 import com.wanderwildwood.kotozute.common.util.einkDialog
+import com.wanderwildwood.kotozute.common.util.extensions.showKeyboard
 
 class MessageContentFiltersController : QkController<MessageContentFiltersView, MessageContentFiltersState,
         MessageContentFiltersPresenter>(), MessageContentFiltersView {
@@ -115,6 +116,9 @@ class MessageContentFiltersController : QkController<MessageContentFiltersView, 
                 }
                 .setNegativeButton(R.string.button_cancel) { _, _ -> }
         dialog.show()
+        // The words are what the dialog is for: once it is up, the cursor goes in and the
+        // keyboard comes up.
+        dialogBinding.input.post { dialogBinding.input.showKeyboard() }
     }
 
 }

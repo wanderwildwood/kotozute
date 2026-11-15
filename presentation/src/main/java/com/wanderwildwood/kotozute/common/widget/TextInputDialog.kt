@@ -24,6 +24,7 @@ import android.view.LayoutInflater
 import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.databinding.TextInputDialogBinding
+import com.wanderwildwood.kotozute.common.util.extensions.showKeyboard
 
 class TextInputDialog(context: Activity, hint: String, listener: (String) -> Unit) : AlertDialog(context, R.style.EInkDialog) {
 
@@ -33,6 +34,14 @@ class TextInputDialog(context: Activity, hint: String, listener: (String) -> Uni
         layout.field.hint = hint
 
         setView(layout.root)
+        // The field is what the dialog is for: once the dialog is up, the cursor goes into it,
+        // after what is already there, and the keyboard comes up.
+        setOnShowListener {
+            layout.field.post {
+                layout.field.setSelection(layout.field.text?.length ?: 0)
+                layout.field.showKeyboard()
+            }
+        }
         setButton(DialogInterface.BUTTON_NEUTRAL, context.getString(R.string.button_cancel)) { _, _ -> }
         setButton(DialogInterface.BUTTON_NEGATIVE, context.getString(R.string.button_delete)) { _, _ -> listener("") }
         setButton(DialogInterface.BUTTON_POSITIVE, context.getString(R.string.button_save)) { _, _ ->

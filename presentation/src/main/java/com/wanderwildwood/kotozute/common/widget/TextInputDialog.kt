@@ -25,6 +25,7 @@ import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.databinding.TextInputDialogBinding
 import com.wanderwildwood.kotozute.common.util.extensions.showKeyboard
+import android.view.WindowManager
 
 class TextInputDialog(context: Activity, hint: String, listener: (String) -> Unit) : AlertDialog(context, R.style.EInkDialog) {
 
@@ -35,7 +36,9 @@ class TextInputDialog(context: Activity, hint: String, listener: (String) -> Uni
 
         setView(layout.root)
         // The field is what the dialog is for: once the dialog is up, the cursor goes into it,
-        // after what is already there, and the keyboard comes up.
+        // after what is already there, and the keyboard comes up. The window asks for the
+        // keyboard itself: a request from the field alone is dropped while the window is new.
+        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
         setOnShowListener {
             layout.field.post {
                 layout.field.setSelection(layout.field.text?.length ?: 0)

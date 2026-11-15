@@ -40,7 +40,7 @@ import javax.inject.Inject
 import com.wanderwildwood.kotozute.databinding.MessageContentFiltersControllerBinding
 import com.wanderwildwood.kotozute.databinding.MessageContentFiltersAddDialogBinding
 import com.wanderwildwood.kotozute.common.util.einkDialog
-import com.wanderwildwood.kotozute.common.util.extensions.showKeyboard
+import android.view.WindowManager
 
 class MessageContentFiltersController : QkController<MessageContentFiltersView, MessageContentFiltersState,
         MessageContentFiltersPresenter>(), MessageContentFiltersView {
@@ -115,10 +115,12 @@ class MessageContentFiltersController : QkController<MessageContentFiltersView, 
                     }
                 }
                 .setNegativeButton(R.string.button_cancel) { _, _ -> }
-        dialog.show()
-        // The words are what the dialog is for: once it is up, the cursor goes in and the
-        // keyboard comes up.
-        dialogBinding.input.post { dialogBinding.input.showKeyboard() }
+        // The words are what the dialog is for: the cursor goes in and the keyboard comes up, asked
+        // by the window itself (a request from the field alone is dropped while the window is new).
+        val alert = dialog.create()
+        alert.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        alert.show()
+        dialogBinding.input.requestFocus()
     }
 
 }

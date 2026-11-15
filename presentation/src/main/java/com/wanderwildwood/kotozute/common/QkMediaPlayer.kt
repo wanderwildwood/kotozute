@@ -30,6 +30,9 @@ object QkMediaPlayer : MediaPlayer() {
         if (playingState != PlayingState.Stopped)
             stop()
         onCompletionListener = null
+        // An error listener belongs to whoever set it up for the sound before; the next user
+        // sets its own.
+        super.setOnErrorListener(null)
         super.reset()
     }
 

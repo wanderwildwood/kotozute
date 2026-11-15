@@ -184,6 +184,8 @@
     <string name="backup_restore_stop_message">Les messages qui ont déjà été restaurés resteront sur votre appareil</string>
     <string name="backup_select_location_rationale_title">Sélectionnez l’emplacement de sauvegarde</string>
     <string name="backup_select_location_rationale_message">Veuillez sélectionner un dossier dans lequel enregistrer vos sauvegardes</string>
+    <string name="backup_location_gone_title">Choisissez à nouveau le dossier</string>
+    <string name="backup_location_gone_message">Le dossier de sauvegarde est introuvable ou ne peut plus être ouvert. Il a peut-être été supprimé ou déplacé, ou la carte mémoire retirée. Choisissez à nouveau le dossier pour sauvegarder.</string>
     <string name="backup_details">%1$s\n%2$d messages</string>
     <string name="backup_selected_backup_error_title">Erreur</string>
     <string name="backup_selected_backup_error_message">Impossible de lire le fichier de sauvegarde</string>

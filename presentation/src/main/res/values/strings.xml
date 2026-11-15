@@ -217,6 +217,8 @@
     <string name="backup_restore_stop_message">Messages that have already been restored will remain on your device</string>
     <string name="backup_select_location_rationale_title">Select backup location</string>
     <string name="backup_select_location_rationale_message">Please select a folder to save your backups to</string>
+    <string name="backup_location_gone_title">Choose the folder again</string>
+    <string name="backup_location_gone_message">The backup folder can no longer be found or opened. It may have been deleted or moved, or the memory card taken out. Choose the folder again to back up.</string>
     <string name="backup_details">%1$s\n%2$d messages</string>
     <string name="backup_selected_backup_error_title">Error</string>
     <string name="backup_selected_backup_error_message">Couldn\'t read backup file</string>
@@ -391,6 +393,8 @@
     <string name="signal_voice_message">Voice message</string>
     <string name="signal_voice_message_unavailable">Voice message — not downloaded</string>
     <string name="signal_voice_message_failed">That voice message would not play</string>
+    <string name="compose_audio_failed">That recording would not play</string>
+    <string name="gallery_video_failed">That video would not play</string>
     <string name="signal_voice_play">Play</string>
     <string name="signal_voice_pause">Pause</string>
     <string name="signal_voice_stop">Stop</string>

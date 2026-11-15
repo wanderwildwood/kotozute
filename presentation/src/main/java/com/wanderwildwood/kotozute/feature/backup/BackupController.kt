@@ -178,6 +178,14 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
             }
         }
 
+        if (state.showLocationRationale && !selectLocationRationaleDialog.isShowing) {
+            selectLocationRationaleDialog.setTitle(
+                if (state.locationGone) R.string.backup_location_gone_title
+                else R.string.backup_select_location_rationale_title)
+            selectLocationRationaleDialog.setMessage(activity!!.getString(
+                if (state.locationGone) R.string.backup_location_gone_message
+                else R.string.backup_select_location_rationale_message))
+        }
         selectLocationRationaleDialog.setShowing(state.showLocationRationale)
 
         selectedBackupErrorDialog.setShowing(state.showSelectedBackupError)

@@ -27,6 +27,7 @@ import com.wanderwildwood.kotozute.R
 import com.wanderwildwood.kotozute.common.Navigator
 import com.wanderwildwood.kotozute.common.base.QkViewHolder
 import com.wanderwildwood.kotozute.common.util.Colors
+import com.wanderwildwood.kotozute.common.util.einkDialog
 import com.wanderwildwood.kotozute.extensions.isAudio
 import com.wanderwildwood.kotozute.extensions.resourceExists
 import com.wanderwildwood.kotozute.feature.compose.MessagesAdapter
@@ -82,6 +83,15 @@ class AudioBinder @Inject constructor(colors: Colors, private val context: Conte
         binding.playPause.tag = QkMediaPlayer.PlayingState.Paused
     }
 
+    private fun cannotPlay(viewHolder: QkViewHolder) {
+        val context = viewHolder.itemView.context
+        if ((context as? android.app.Activity)?.isFinishing == true) return
+        context.einkDialog()
+            .setMessage(R.string.compose_audio_failed)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
     private fun uiToStopped(viewHolder: QkViewHolder) {
         val binding = MmsAudioPreviewListItemBinding.bind(viewHolder.itemView)
         binding.seekBar.progress = 0
@@ -124,8 +134,25 @@ class AudioBinder @Inject constructor(colors: Colors, private val context: Conte
                     }
                 }
                 else -> {
-                    if (part.getUri().resourceExists(context)) {
+                    if (!part.getUri().resourceExists(context)) {
+                        cannotPlay(holder)
+                    } else {
                         QkMediaPlayer.reset() // make sure reset before trying to (re-)use
+
+                        // A sound that cannot be played says so, in a dialog that stays until
+                        // pressed, rather than the button going back to Play with nothing said.
+                        QkMediaPlayer.setOnErrorListener { _, _, _ ->
+                            QkMediaPlayer.setOnCompletionListener(null)
+                            uiToStopped(holder)
+                            audioState.apply {
+                                seekBarUpdater?.dispose()
+                                state = QkMediaPlayer.PlayingState.Stopped
+                                partId = -1
+                                viewHolder = null
+                            }
+                            cannotPlay(holder)
+                            true
+                        }
 
                         QkMediaPlayer.setOnPreparedListener {
                             // start media playing
@@ -164,9 +191,15 @@ class AudioBinder @Inject constructor(colors: Colors, private val context: Conte
                                 .build()
                         )
 
-                        QkMediaPlayer.setDataSource(context, part.getUri())
-
-                        QkMediaPlayer.prepareAsync()
+                        val prepared = runCatching {
+                            QkMediaPlayer.setDataSource(context, part.getUri())
+                            QkMediaPlayer.prepareAsync()
+                        }.isSuccess
+                        if (!prepared) {
+                            QkMediaPlayer.setOnCompletionListener(null)
+                            runCatching { QkMediaPlayer.reset() }
+                            cannotPlay(holder)
+                        }
                     }
                 }
             }

@@ -28,6 +28,7 @@ import com.wanderwildwood.kotozute.common.util.DateFormatter
 import com.wanderwildwood.kotozute.common.util.extensions.makeToast
 import com.wanderwildwood.kotozute.interactor.PerformBackup
 import com.wanderwildwood.kotozute.repository.BackupRepository
+import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.plusAssign
 import io.reactivex.schedulers.Schedulers
@@ -39,7 +40,8 @@ class BackupPresenter @Inject constructor(
     private val context: Context,
     private val dateFormatter: DateFormatter,
     private val navigator: Navigator,
-    private val performBackup: PerformBackup
+    private val performBackup: PerformBackup,
+    private val prefs: Preferences
 ) : QkPresenter<BackupView, BackupState>(BackupState()) {
 
     init {
@@ -80,7 +82,13 @@ class BackupPresenter @Inject constructor(
                 .autoDisposable(view.scope())
                 .subscribe {
                     when (backupRepo.getBackupDocumentTree()) {
-                        null -> newState { copy(showLocationRationale = true) }
+                        // A folder chosen before that cannot be reached now (deleted, the card
+                        // out, or the permission gone) is named as such: choose it again. The
+                        // choice is kept until a new folder is picked.
+                        null -> {
+                            val gone = prefs.backupDirectory.get() != android.net.Uri.EMPTY
+                            newState { copy(showLocationRationale = true, locationGone = gone) }
+                        }
                         else -> performBackup.execute(Unit)
                     }
                 }

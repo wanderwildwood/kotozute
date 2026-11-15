@@ -141,6 +141,8 @@
     <string name="backup_restore_stop_message">Nachrichten, die bereits wiederhergestellt wurden, werden auf deinem Gerät bleiben</string>
     <string name="backup_select_location_rationale_title">Sicherungsort auswählen</string>
     <string name="backup_select_location_rationale_message">Bitte wähle einen Ordner in dem du deine Sicherungen speichern möchtest</string>
+    <string name="backup_location_gone_title">Ordner erneut wählen</string>
+    <string name="backup_location_gone_message">Der Sicherungsordner ist nicht mehr zu finden oder zu öffnen. Vielleicht wurde er gelöscht oder verschoben, oder die Speicherkarte ist nicht mehr im Telefon. Wähle den Ordner erneut, um zu sichern.</string>
     <string name="backup_details">%1$s\n%2$d Nachrichten</string>
     <string name="backup_selected_backup_error_title">Fehler</string>
     <string name="backup_selected_backup_error_message">Sicherungsdatei konnte nicht gelesen werden</string>

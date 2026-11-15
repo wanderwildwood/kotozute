@@ -1300,6 +1300,15 @@ class SignalThreadActivity : QkThemedActivity() {
      *
      * @param onStarted called once the note is playing from cold, not on a resume.
      */
+    /** Said in a dialog that stays until pressed: a toast is gone before the panel has shown it. */
+    private fun voiceNoteFailed() {
+        if (isFinishing || isDestroyed) return
+        einkDialog()
+            .setMessage(R.string.signal_voice_message_failed)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
     private fun toggleVoiceNote(id: String, onStarted: () -> Unit) {
         if (SignalVoicePlayer.isCurrent(id)) {
             if (SignalVoicePlayer.isPlaying) SignalVoicePlayer.pause()
@@ -1311,7 +1320,7 @@ class SignalThreadActivity : QkThemedActivity() {
             val bytes = signalRepo.loadAttachment(id)
             if (bytes == null || bytes.isEmpty()) {
                 runOnUiThread {
-                    Toast.makeText(this, R.string.signal_voice_message_failed, Toast.LENGTH_SHORT).show()
+                    voiceNoteFailed()
                 }
                 return@thread
             }
@@ -1326,7 +1335,7 @@ class SignalThreadActivity : QkThemedActivity() {
                     onStarted()
                 } else {
                     file.delete()
-                    Toast.makeText(this, R.string.signal_voice_message_failed, Toast.LENGTH_SHORT).show()
+                    voiceNoteFailed()
                 }
             }
         }

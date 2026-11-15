@@ -25,6 +25,8 @@ data class BackupState(
     val restoreProgress: BackupRepository.Progress = BackupRepository.Progress.Idle(),
 
     val showLocationRationale: Boolean = false,
+    /** The folder chosen before is gone or no longer allowed: the dialog says so. */
+    val locationGone: Boolean = false,
     val showSelectedBackupError: Boolean = false,
     val selectedBackupDetails: String? = null,
     val showStopRestoreDialog: Boolean = false

@@ -31,6 +31,7 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
 import com.google.android.exoplayer2.util.Util
 import com.google.android.mms.ContentType
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.util.einkDialog
 import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.base.QkRealmAdapter
 import com.wanderwildwood.kotozute.common.base.QkViewHolder
@@ -98,7 +99,20 @@ class GalleryPagerAdapter @Inject constructor(private val context: Context) : Qk
                 val videoTrackSelectionFactory = AdaptiveTrackSelection.Factory(null)
                 val trackSelector = DefaultTrackSelector(videoTrackSelectionFactory)
                 val exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector)
-                GalleryVideoPageBinding.bind(holder.itemView).video.player = exoPlayer
+                val video = GalleryVideoPageBinding.bind(holder.itemView).video
+                video.player = exoPlayer
+                // A video that cannot be played says so, in a dialog that stays until pressed,
+                // rather than a blank page.
+                exoPlayer?.addListener(object : com.google.android.exoplayer2.Player.EventListener {
+                    override fun onPlayerError(error: com.google.android.exoplayer2.ExoPlaybackException?) {
+                        val page = video.context
+                        if ((page as? android.app.Activity)?.isFinishing == true) return
+                        page.einkDialog()
+                            .setMessage(R.string.gallery_video_failed)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
+                })
                 exoPlayers.add(exoPlayer)
 
                 val dataSourceFactory = DefaultDataSourceFactory(context, Util.getUserAgent(context, "Messaging"))

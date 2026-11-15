@@ -79,6 +79,7 @@
 
     <ImageView
         android:id="@+id/delete"
+        android:contentDescription="@string/cd_remove"
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:background="?attr/selectableItemBackground"

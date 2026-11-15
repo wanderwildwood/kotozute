@@ -71,12 +71,14 @@ class AudioBinder @Inject constructor(colors: Colors, private val context: Conte
         binding.seekBar.isEnabled = true
         binding.seekBar.progress = QkMediaPlayer.currentPosition
         binding.playPause.setImageResource(R.drawable.exo_icon_pause)
+        binding.playPause.contentDescription = binding.playPause.context.getString(R.string.signal_voice_pause)
         binding.playPause.tag = QkMediaPlayer.PlayingState.Playing
     }
 
     private fun uiToPaused(viewHolder: QkViewHolder) {
         val binding = MmsAudioPreviewListItemBinding.bind(viewHolder.itemView)
         binding.playPause.setImageResource(R.drawable.exo_icon_play)
+        binding.playPause.contentDescription = binding.playPause.context.getString(R.string.signal_voice_play)
         binding.playPause.tag = QkMediaPlayer.PlayingState.Paused
     }
 
@@ -86,6 +88,7 @@ class AudioBinder @Inject constructor(colors: Colors, private val context: Conte
         binding.seekBar.max = 0
         binding.seekBar.isEnabled = false
         binding.playPause.setImageResource(R.drawable.exo_icon_play)
+        binding.playPause.contentDescription = binding.playPause.context.getString(R.string.signal_voice_play)
         binding.playPause.tag = QkMediaPlayer.PlayingState.Stopped
     }
 

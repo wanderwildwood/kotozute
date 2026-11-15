@@ -1110,6 +1110,8 @@
     <string name="button_stop">Stop</string>
     <string name="button_undo">Undo</string>
     <string name="button_clear">Clear</string>
+    <!-- What a screen reader says for the small x that takes a recipient or a filter away -->
+    <string name="cd_remove">Remove</string>
 
     <plurals name="toast_archived">
         <item quantity="one">Archived conversation</item>

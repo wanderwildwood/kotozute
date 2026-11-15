@@ -32,6 +32,7 @@
 
     <ImageView
         android:id="@+id/playPause"
+        android:contentDescription="@string/signal_voice_play"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:background="@drawable/circle"

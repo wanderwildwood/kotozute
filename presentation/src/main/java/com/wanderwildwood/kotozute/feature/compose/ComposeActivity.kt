@@ -372,8 +372,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 // Update icon based on state
                 if (isRecording) {
                     binding.audioMsgRecord.setImageResource(R.drawable.exo_icon_stop)
+                    binding.audioMsgRecord.contentDescription = getString(R.string.signal_voice_stop)
                 } else {
                     binding.audioMsgRecord.setImageResource(android.R.drawable.ic_btn_speak_now)
+                    binding.audioMsgRecord.contentDescription = getString(R.string.compose_record_audio_msg_cd)
                 }
             }
 

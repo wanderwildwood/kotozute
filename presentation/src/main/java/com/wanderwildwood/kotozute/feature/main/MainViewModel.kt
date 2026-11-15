@@ -618,6 +618,15 @@ class MainViewModel @Inject constructor(
                         // screen whose two backs disagree is a defect, and one whose two backs
                         // agree on somewhere you cannot leave is a worse one.
                         state.page !is Inbox -> showInbox()
+                        // From Groups or Unknown, back goes to the first tab; only back from
+                        // the first tab leaves the app.
+                        state.page is Inbox && state.page.filter != 0 -> {
+                            prefs.conversationFilter.set(0)
+                            newState {
+                                val page = (page as? Inbox) ?: Inbox()
+                                copy(page = page.copy(filter = 0, data = mergedInbox()))
+                            }
+                        }
                         // Already at the root with nothing to dismiss: let the system have it.
                         else -> newState { copy(hasError = true) }
                     }

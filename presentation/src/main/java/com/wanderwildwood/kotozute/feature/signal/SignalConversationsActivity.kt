@@ -316,6 +316,13 @@ class SignalConversationsActivity : QkThemedActivity() {
             bindShelf()
             return
         }
+        // From Groups, back goes to the first tab; only back from the first tab leaves.
+        if (binding.filterTabs.visibility == View.VISIBLE &&
+            prefs.signalConversationFilter.get() == FILTER_GROUPS
+        ) {
+            chooseFilter(FILTER_ALL)
+            return
+        }
         @Suppress("DEPRECATION")
         super.onBackPressed()
     }

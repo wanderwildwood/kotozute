@@ -32,9 +32,8 @@ import java.util.concurrent.Executors
  * layer, and the layer goes to the screen through a filter that turns every colour into its
  * opposite. Nothing in the app's own drawing changes, so a screen cannot be half dark. The
  * status bar and the navigation bar are drawn by Android over the window, so their icons are
- * asked for in the light colour while dark mode is on. A bar the app paints dark is painted in
- * its opposite, which the filter turns back, so every bar is dark in dark mode; a see-through bar
- * over something the filter does not reach (a map, a camera) keeps the icons the app asked for.
+ * asked for in the light colour while dark mode is on (the dark one over a bar the app paints dark,
+ * which the filter turns light).
  *
  * What must keep its own colours (a photograph, a map, a barcode or QR code that a scanner
  * has to read) is marked: [keep] on a view. It is turned twice,
@@ -201,17 +200,14 @@ object DarkMode {
      */
     @Suppress("DEPRECATION")
     private fun bars(window: Window, dark: Boolean) {
-        scrims(window, dark)
-        paint(window, dark)
         if (Build.VERSION.SDK_INT >= 30) {
             val controller = window.decorView.windowInsetsController ?: window.insetsController ?: return
             val both = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
             if (dark) {
                 if (windows[window] == null) windows[window] = asked(window, controller.systemBarsAppearance and both)
-                val was = windows[window] ?: 0
                 var want = 0
-                if (lightBar(window, true, was and WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS != 0)) want = want or WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                if (lightBar(window, false, was and WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS != 0)) want = want or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                if (turnsLight(window.statusBarColor)) want = want or WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                if (turnsLight(window.navigationBarColor)) want = want or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
                 if (controller.systemBarsAppearance and both != want) controller.setSystemBarsAppearance(want, both)
                 // The older flags count as well when an app (or androidx for it) has set them.
                 val decor = window.decorView
@@ -229,10 +225,9 @@ object DarkMode {
             val both = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
             if (dark) {
                 if (windows[window] == null) windows[window] = decor.systemUiVisibility and both
-                val was = windows[window] ?: 0
                 var want = 0
-                if (lightBar(window, true, was and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR != 0)) want = want or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                if (lightBar(window, false, was and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR != 0)) want = want or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                if (turnsLight(window.statusBarColor)) want = want or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                if (turnsLight(window.navigationBarColor)) want = want or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
                 if (decor.systemUiVisibility and both != want) decor.systemUiVisibility = (decor.systemUiVisibility and both.inv()) or want
             } else {
                 windows[window]?.let { decor.systemUiVisibility = (decor.systemUiVisibility and both.inv()) or it }
@@ -242,127 +237,13 @@ object DarkMode {
     }
 
     /**
-     * Whether a bar colour is opaque and dark, so the filter would turn it light. A clear bar
-     * shows the page under it, which is dark.
+     * A bar the app paints dark is painted in the window, so the filter turns it light, and its
+     * icons then have to be the dark ones. A clear bar shows the page under it, which is dark.
      */
     private fun turnsLight(barColor: Int): Boolean {
         if (barColor ushr 24 < 0x80) return false
         val r = barColor shr 16 and 0xff; val g = barColor shr 8 and 0xff; val b = barColor and 0xff
         return (r * 299 + g * 587 + b * 114) / 1000 < 128
-    }
-
-    /**
-     * Whether a bar takes the dark icons (Android's "light bar") while dark mode is on. A bar
-     * the app paints goes by its colour, turned (after [paint], always dark: the light icons). A see-through bar shows what is under it: the
-     * page, which the filter has turned dark, unless what is there is drawn outside the filter
-     * (a SurfaceView, as a map or a camera draws in, or a view kept in its own colours). Then
-     * the bar is as the app asked for it without dark mode ([asked]).
-     */
-    private fun lightBar(window: Window, status: Boolean, asked: Boolean): Boolean {
-        val color = if (status) window.statusBarColor else window.navigationBarColor
-        if (color ushr 24 >= 0x80) return turnsLight(color)
-        val decor = window.decorView
-        val bar = barRect(decor, status) ?: return false
-        return walk(decor, bar, android.graphics.Rect()) == true && asked
-    }
-
-    /** Where the bar lies on the window, or null while it is hidden or not laid out yet. */
-    @Suppress("DEPRECATION")
-    private fun barRect(decor: View, status: Boolean): android.graphics.Rect? {
-        val insets = decor.rootWindowInsets ?: return null
-        val w = decor.width; val h = decor.height
-        if (w <= 0 || h <= 0) return null
-        var l: Int; var t: Int; var r: Int; var b: Int
-        if (Build.VERSION.SDK_INT >= 30) {
-            val i = insets.getInsets(if (status) android.view.WindowInsets.Type.statusBars() else android.view.WindowInsets.Type.navigationBars())
-            l = i.left; t = i.top; r = i.right; b = i.bottom
-        } else if (status) {
-            l = 0; t = insets.stableInsetTop; r = 0; b = 0
-        } else {
-            l = insets.stableInsetLeft; t = 0; r = insets.stableInsetRight; b = insets.stableInsetBottom
-        }
-        return when {
-            status && t > 0 -> android.graphics.Rect(0, 0, w, t)
-            !status && b > 0 -> android.graphics.Rect(0, h - b, w, h)
-            !status && r > 0 -> android.graphics.Rect(w - r, 0, w, h)
-            !status && l > 0 -> android.graphics.Rect(0, 0, l, h)
-            else -> null
-        }
-    }
-
-    /**
-     * What is on top under [bar], in drawing order: true for something drawn outside the filter
-     * (a SurfaceView, a kept view), false for an opaque view of the page, null for nothing that
-     * covers the bar. Something covers it when it holds at least half of the bar.
-     */
-    private fun walk(view: View, bar: android.graphics.Rect, r: android.graphics.Rect): Boolean? {
-        if (view.visibility != View.VISIBLE || view.alpha == 0f) return null
-        var top: Boolean? = null
-        if (view.getGlobalVisibleRect(r) && r.intersect(bar) && r.width().toLong() * r.height() * 2 >= bar.width().toLong() * bar.height()) {
-            if (view is android.view.SurfaceView || kept.containsKey(view)) return true
-            if (view.background?.opacity == android.graphics.PixelFormat.OPAQUE) top = false
-        }
-        if (view is android.view.ViewGroup) {
-            for (i in 0 until view.childCount) walk(view.getChildAt(i), bar, r)?.let { top = it }
-        }
-        return top
-    }
-
-    /**
-     * The bar colours, per window: the app's status bar colour, what dark mode put there, and
-     * the same two for the navigation bar.
-     */
-    private val painted = WeakHashMap<Window, IntArray>()
-    private const val UNSET = 0x00_12_34_56
-
-    /**
-     * A bar the app paints dark is painted in the window, so the filter would turn it into a
-     * light band at the top or foot of a dark screen. While dark mode is on it is painted in its
-     * opposite, which the filter turns back to the app's own dark; when dark mode goes off it
-     * gets the app's colour back. A colour the app sets meanwhile is taken as its new one.
-     */
-    private fun paint(window: Window, dark: Boolean) {
-        val p = painted[window]
-        if (dark) {
-            val q = p ?: intArrayOf(UNSET, UNSET, UNSET, UNSET).also { painted[window] = it }
-            val s = window.statusBarColor
-            if (s != q[1]) {
-                q[0] = s; q[1] = if (turnsLight(s)) turned(s) else s
-                if (q[1] != s) window.statusBarColor = q[1]
-            }
-            val n = window.navigationBarColor
-            if (n != q[3]) {
-                q[2] = n; q[3] = if (turnsLight(n)) turned(n) else n
-                if (q[3] != n) window.navigationBarColor = q[3]
-            }
-        } else if (p != null) {
-            painted.remove(window)
-            if (p[1] != p[0] && window.statusBarColor == p[1]) window.statusBarColor = p[0]
-            if (p[3] != p[2] && window.navigationBarColor == p[3]) window.navigationBarColor = p[2]
-        }
-    }
-
-    private fun turned(color: Int): Int = (color and 0xff000000.toInt()) or (color.inv() and 0xffffff)
-
-    /**
-     * Android lays a scrim over a see-through bar for its icons' sake. It is drawn in the window,
-     * so the filter turns it to a grey band over the dark page; it is put away while dark mode
-     * is on, and back as the app had it when dark mode goes off.
-     */
-    private val contrast = WeakHashMap<Window, BooleanArray>()
-
-    private fun scrims(window: Window, dark: Boolean) {
-        if (Build.VERSION.SDK_INT < 29) return
-        if (dark) {
-            if (contrast[window] == null) contrast[window] = booleanArrayOf(window.isStatusBarContrastEnforced, window.isNavigationBarContrastEnforced)
-            if (window.isStatusBarContrastEnforced) window.isStatusBarContrastEnforced = false
-            if (window.isNavigationBarContrastEnforced) window.isNavigationBarContrastEnforced = false
-        } else {
-            contrast.remove(window)?.let {
-                window.isStatusBarContrastEnforced = it[0]
-                window.isNavigationBarContrastEnforced = it[1]
-            }
-        }
     }
 
     /**

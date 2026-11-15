@@ -40,6 +40,13 @@ class NightModeManager @Inject constructor(
 ) {
 
     fun updateCurrentTheme() {
+        // kotozute: the page is always drawn in the light theme. Dark mode turns the whole window
+        // (DarkMode.kt) and follows the phone's dark setting by itself; a night theme under it
+        // would be turned back to light.
+        if (ALWAYS_LIGHT) {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+            return
+        }
         when (prefs.nightMode.get()) {
             Preferences.NIGHT_MODE_SYSTEM -> {
                 AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
@@ -68,6 +75,8 @@ class NightModeManager @Inject constructor(
             }
         }
     }
+
+    private val ALWAYS_LIGHT = true
 
     fun updateNightMode(mode: Int) {
         prefs.nightMode.set(mode)

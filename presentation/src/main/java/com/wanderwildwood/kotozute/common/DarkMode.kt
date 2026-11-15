@@ -2,9 +2,11 @@ package com.wanderwildwood.kotozute.common
 
 import android.app.Activity
 import android.app.Application
+import android.content.ComponentCallbacks
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
+import android.content.res.Configuration
 import android.database.ContentObserver
 import android.database.Cursor
 import android.graphics.ColorMatrixColorFilter
@@ -37,10 +39,11 @@ import java.util.concurrent.Executors
  * has to read) is marked: [keep] on a view. It is turned twice,
  * which is where it started.
  *
- * Each app has its own switch ([set]). Home (iori), when it is installed, has one switch for
- * all of them: an app asks Home each time it comes to the front, and takes Home's answer when
- * Home's switch has been pressed since the app last looked. So the last press wins, whichever
- * app it was made in, and an app without Home is simply its own switch.
+ * What decides, in this order: the app's own switch ([set]), once it has been pressed to say
+ * something else than the phone does; then the phone's dark setting, where the system has one
+ * (KompaktOS); then Home (iori), which has one switch for every app where the system has none
+ * (MuditaOS). An app asks Home each time it comes to the front. Pressing the app's switch back
+ * to what the phone or Home says lets go of it, and the app follows them again.
  *
  * Started by [DarkModeInit], a provider in the manifest, before any screen is drawn.
  */
@@ -52,6 +55,10 @@ object DarkMode {
     private const val PREFS = "dark_mode"
     private const val KEY_ON = "on"
     private const val KEY_STAMP = "home_stamp"
+    /** True while the app's own switch holds against the phone and Home. */
+    private const val KEY_OWN = "own"
+    /** Home's switch as last heard. */
+    private const val KEY_HOME = "home_dark"
 
     /** Whether dark mode is on. */
     @Volatile
@@ -79,7 +86,13 @@ object DarkMode {
     fun init(application: Application) {
         if (app != null) return
         app = application
-        on = prefs(application).getBoolean(KEY_ON, false)
+        carryOver(application)
+        on = decide(application)
+        application.registerComponentCallbacks(object : ComponentCallbacks {
+            // The phone's dark setting was changed while the app was up.
+            override fun onConfigurationChanged(config: Configuration) = follow()
+            override fun onLowMemory() {}
+        })
         application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, state: Bundle?) {
                 windows[activity.window] = null
@@ -88,6 +101,7 @@ object DarkMode {
             override fun onActivityStarted(activity: Activity) = apply(activity.window)
             override fun onActivityResumed(activity: Activity) {
                 resumed++
+                follow()
                 apply(activity.window)
                 askHome()
                 watchHome(true)
@@ -103,10 +117,47 @@ object DarkMode {
         })
     }
 
-    /** This app's own switch. */
+    /**
+     * This app's own switch. Pressed to something else than the phone and Home say, it holds
+     * until it is pressed back; pressed back, the app follows them again.
+     */
     fun set(context: Context, dark: Boolean) {
-        prefs(context).edit().putBoolean(KEY_ON, dark).apply()
+        prefs(context).edit().putBoolean(KEY_ON, dark).putBoolean(KEY_OWN, dark != followed(context)).apply()
         if (Looper.myLooper() == Looper.getMainLooper()) change(dark) else main.post { change(dark) }
+    }
+
+    /** What the phone's dark setting or Home's switch asks for. */
+    private fun followed(context: Context): Boolean =
+        systemDark(context) || prefs(context).getBoolean(KEY_HOME, false)
+
+    /** The phone's own dark setting. A system without one never says yes. */
+    private fun systemDark(context: Context): Boolean =
+        context.applicationContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
+    private fun decide(context: Context): Boolean {
+        val p = prefs(context)
+        return if (p.getBoolean(KEY_OWN, false)) p.getBoolean(KEY_ON, false) else followed(context)
+    }
+
+    /** Takes up what the phone and Home say now, unless the app's own switch holds. */
+    private fun follow() {
+        val context = app ?: return
+        val dark = decide(context)
+        if (dark != prefs(context).getBoolean(KEY_ON, false)) prefs(context).edit().putBoolean(KEY_ON, dark).apply()
+        change(dark)
+    }
+
+    /**
+     * From before the phone's setting was followed, when the last press won: a switch left on
+     * in an app that never heard from Home was pressed in the app, and holds; one that heard
+     * from Home is taken as Home's.
+     */
+    private fun carryOver(context: Context) {
+        val p = prefs(context)
+        if (p.contains(KEY_OWN)) return
+        val was = p.getBoolean(KEY_ON, false)
+        val heardHome = p.getLong(KEY_STAMP, 0L) != 0L
+        p.edit().putBoolean(KEY_OWN, was && !heardHome).putBoolean(KEY_HOME, was && heardHome).apply()
     }
 
     private fun change(dark: Boolean) {
@@ -276,7 +327,7 @@ object DarkMode {
         }
     }
 
-    /** Asks Home what its switch says, and takes it if the switch was pressed since last asked. */
+    /** Asks Home what its switch says. */
     private fun askHome() {
         val context = app ?: return
         asker.execute {
@@ -286,9 +337,9 @@ object DarkMode {
                     val dark = c.getInt(c.getColumnIndexOrThrow("dark")) != 0
                     val stamp = c.getLong(c.getColumnIndexOrThrow("stamp"))
                     val p = prefs(context)
-                    if (stamp != p.getLong(KEY_STAMP, 0L)) {
-                        p.edit().putLong(KEY_STAMP, stamp).putBoolean(KEY_ON, dark).apply()
-                        main.post { change(dark) }
+                    if (stamp != p.getLong(KEY_STAMP, 0L) || dark != p.getBoolean(KEY_HOME, false)) {
+                        p.edit().putLong(KEY_STAMP, stamp).putBoolean(KEY_HOME, dark).apply()
+                        main.post { follow() }
                     }
                 }
             }

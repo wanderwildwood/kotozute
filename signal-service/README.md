@@ -66,26 +66,48 @@ here is presented as this project's own work.
 
 ## What was changed, and it is a short list
 
-**643 of the 644 files copied from upstream are byte-identical to it** — measured with `cmp`,
-every file, every time this changes. Two edits to Signal's code, both forced, both commented at
-the site:
+**630 of the 645 files in the six modules are byte-identical to upstream at `d555580a46`**, and
+so are both files of `wire-handler/` — measured with `cmp`, every file, every time this changes
+(last measured 2026-11-16). Of the other fifteen, nine are whole files taken from a later
+upstream commit and match upstream at that commit byte for byte, and six carry an edit made
+here. Both lists are below. The first edit was forced by the build; the rest are ports of
+single upstream fixes, each named here with the upstream commit it follows (the first two are
+also commented at the line; the others are named in the commit message that made them):
 
 1. **`network/src/main/java/org/signal/network/util/JsonUtil.java`** — `new KotlinModule()` is a
    constructor jackson removed after 2.12. Replaced with
    `ExtensionsKt.registerKotlinModule(objectMapper)`, which is what upstream's *other* JSON helper
    (`core/util/.../JsonUtils.java:25`) already does in the same tree.
-2. **Nothing else.** The seven `build.gradle` files are ours — this repo has no version catalogue,
-   so upstream's `libs.versions.toml` references are spelled out — and the publishing, ktlint,
-   test-fixture and javadoc blocks are dropped because nothing here publishes or lints them.
+2. **`libsignal-service/.../api/SignalServiceMessageSender.java`** — upstream `f627988255`: a
+   transport failure to one recipient of a group send is a network failure for that one, not a
+   throw that loses everybody else's result. Five lines.
+3. **`libsignal-service/.../api/messages/EnvelopeContentValidator.kt`** and its test — upstream
+   `f8ba4ae848`: poll question and option limits counted in graphemes.
+4. **`libsignal-service/.../internal/push/PushServiceSocket.java`** — upstream `ba5ce0c411`:
+   `sendRemoteManifestOnConflict=false` on the storage write. One line.
+5. **`libsignal-service/src/test/.../internal/util/BlacklistingTrustManagerTest.kt`** — upstream's
+   test from `c0c10dde4e`, reading its JSON resource with Jackson where upstream uses
+   kotlinx.serialization, which this module does not build with.
 
-Two dependency versions are **deliberately not** upstream's, and are commented in the root
+The seven `build.gradle` files are ours — this repo has no version catalogue, so upstream's
+`libs.versions.toml` references are spelled out — and the publishing, ktlint, test-fixture and
+javadoc blocks are dropped because nothing here publishes or lints them. They were first written
+from upstream's files at `b92917acdb` (2026-09-10) and say so; the source beside them is at
+`d555580a46`.
+
+One dependency version is **deliberately not** upstream's, and is commented in the root
 `build.gradle`:
 
-- **jackson 2.22.1**, not upstream's 2.12.0. The app already resolved 2.22.1 through the old fork,
+- **jackson 2.22.x**, not upstream's 2.12.0. The app already resolved 2.22.1 through the old fork,
   and jackson-databind is what a Signal envelope's JSON goes through. Taking upstream's number
   would have been a downgrade of a deserialiser.
-- **libsignal-client 0.102.0**, not upstream's 0.102.1, to match the `libsignal-android` the app
-  declares. The Java API and the native library ship together; moving them is its own change.
+
+**libsignal is upstream's pin**: 0.107.0, the `libsignal-client` version in Signal-Android's
+`gradle/libs.versions.toml` at `90a6ddce46` (2026-11-15), for both `libsignal-client` here and
+`libsignal-android` in the app. The source here is older than that pin (2026-09-16), so the one
+source change upstream made for a libsignal bump in between is taken with it: the two cipher
+wrappers in the table below, from the commit that moved upstream to 0.107.0. Checksums for both
+artifacts in `gradle/verification-metadata.xml` are the ones Signal-Android pins.
 
 ## Files taken from a later upstream commit
 
@@ -97,6 +119,12 @@ each file still matches upstream byte for byte, only at a newer commit than the 
 | `libsignal-service/.../multidevice/DeviceContactsInputStream.java` | `bc7a984923` (2026-10-23) | an avatar closed by its reader no longer closes the whole contacts sync; an unread avatar is skipped; a contact with only a number is read |
 | `libsignal-service/.../multidevice/DeviceContactsInputStreamTest.java` | `bc7a984923` | the tests for the above |
 | `util-jvm/.../stream/NonClosingInputStream.kt` | `bc7a984923` | new with the above |
+| `libsignal-service/.../api/storage/StorageServiceApi.kt` | `ba5ce0c411` (2026-10-05) | no manifest sent back on a storage conflict the app ignores |
+| `libsignal-service/.../api/websocket/SignalWebSocket.kt` | `d86d875c1e` (2026-09-17) | chat requests are time-limited |
+| `libsignal-service/.../internal/util/BlacklistingTrustManager.java` | `a1c18d30c7` (2026-10-22) | refuses the known compromised TLS intermediates |
+| `libsignal-service/src/test/resources/emudhra-impacted-intermediates.json` | `c0c10dde4e` (2026-10-21) | the list the test for the above reads |
+| `libsignal-service/.../api/crypto/SignalGroupCipher.java` | `daaae6be0e` (2026-11-11) | libsignal 0.107.0: `GroupCipher.decrypt` declares `InvalidVersionException` and `InvalidKeyException` instead of wrapping them in an `AssertionError` |
+| `libsignal-service/.../api/crypto/SignalSessionCipher.java` | `daaae6be0e` | libsignal 0.107.0: the same for `SessionCipher.decrypt(PreKeySignalMessage)` and `InvalidVersionException` |
 
 ## The wire handler is built, not vendored
 

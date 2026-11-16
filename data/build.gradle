@@ -109,7 +109,7 @@ dependencies {
     // The protocol stores are here, so libsignal is here. `api`, not `implementation`: the
     // stores' own types are libsignal's, so anything consuming them needs it on its classpath
     // too -- hiding it would only force the layer above to re-declare it.
-    api 'org.signal:libsignal-android:0.102.0'
+    api "org.signal:libsignal-android:$libsignal_version"
     // Signal's calling library: WebRTC and the call state machine underneath Signal's own voice
     // and video calls. The version is upstream's (`signal-ringrtc` in Signal-Android's
     // libs.versions.toml), because the call code ported into SignalCallEngine was written

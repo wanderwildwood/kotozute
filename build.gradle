@@ -18,16 +18,17 @@ buildscript {
     ext.glide_version = "4.16.0"
     ext.junit_version = '4.12'
     ext.kotlin_version = '2.2.20'
-    // The self-built Signal service layer (signal-service/) -- see its build files. Both of
-    // these are OURS, not the value Signal's libs.versions.toml carries, and deliberately:
-    //   jackson    upstream pins 2.12.0; the app already resolves 2.22.1 through the old
-    //              prebuilt fork, and jackson-databind is the deserialiser a Signal envelope
-    //              goes through. Taking upstream's number here would be a downgrade.
-    //   libsignal  upstream pins 0.102.1; this is the version of `libsignal-android` the app
-    //              already declares, and the native library and the Java API ship together.
-    //              Moving it is a separate change from moving the service source.
+    // The self-built Signal service layer (signal-service/) -- see its build files.
+    //   jackson    OURS, not upstream's: upstream pins 2.12.0; the app already resolved 2.22.x
+    //              through the old prebuilt fork, and jackson-databind is the deserialiser a
+    //              Signal envelope goes through. Taking upstream's number would be a downgrade.
+    //   libsignal  upstream's pin (`libsignal-client` in Signal-Android's libs.versions.toml,
+    //              0.107.0 at 90a6ddce46, 2026-11-15). One number for `libsignal-client` in
+    //              the service modules and `libsignal-android` in :data, because the Java API
+    //              and the native library ship together. Do not move it past upstream's pin:
+    //              the service source beside it is only known to work up to there.
     ext.jackson_version = '2.22.1'
-    ext.libsignal_version = '0.102.0'
+    ext.libsignal_version = '0.107.0'
     ext.lifecycle_version = '2.1.0'
     ext.material_version = '1.0.0'
     ext.mockito_version = '2.18.3'

@@ -31,6 +31,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import dagger.android.AndroidInjection
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.base.QkActivity
 import com.wanderwildwood.kotozute.common.util.DateFormatter
 import com.wanderwildwood.kotozute.common.util.extensions.setVisible
@@ -60,6 +61,8 @@ class GalleryActivity : QkActivity(), GalleryView {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        // The viewer is black in light and dark alike: its bar stays white on black over the picture.
+        DarkMode.keep(binding.toolbar)
         showBackButton(true)
         viewModel.bindView(this)
 

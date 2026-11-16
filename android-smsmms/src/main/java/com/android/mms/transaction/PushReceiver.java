@@ -202,32 +202,13 @@ public class PushReceiver extends BroadcastReceiver {
                                 downloadedUrls.add(location);
                             }
 
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                Timber.v("receiving on a lollipop+ device");
-                                // Always the system's own download. This could also fetch the
-                                // message itself over an HTTP client of its own, when the
-                                // "system_mms_sending" preference was false; nothing set it, and
-                                // that path is removed.
-                                DownloadManager.getInstance().downloadMultimediaMessage(mContext, location, uri, true, subId);
-                            } else {
-                                if (NotificationTransaction.allowAutoDownload(mContext)) {
-                                    // Start service to finish the notification transaction.
-                                    Intent svc = new Intent(mContext, TransactionService.class);
-                                    svc.putExtra(TransactionBundle.URI, uri.toString());
-                                    svc.putExtra(TransactionBundle.TRANSACTION_TYPE,
-                                            Transaction.NOTIFICATION_TRANSACTION);
-                                    svc.putExtra(TransactionBundle.LOLLIPOP_RECEIVING,
-                                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP);
-                                    mContext.startService(svc);
-                                } else {
-                                    Intent notificationBroadcast = new Intent(com.klinker.android.send_message.Transaction.NOTIFY_OF_MMS);
-                                    notificationBroadcast.putExtra("receive_through_stock", true);
-                                    BroadcastUtils.sendExplicitBroadcast(
-                                            mContext,
-                                            notificationBroadcast,
-                                            com.klinker.android.send_message.Transaction.NOTIFY_OF_MMS);
-                                }
-                            }
+                            // Always the system's own download. This could also fetch the
+                            // message itself over an HTTP client of its own, when the
+                            // "system_mms_sending" preference was false, and on Android 4 it
+                            // handed the message to TransactionService instead; nothing set
+                            // the first and this app does not install on the second, so both
+                            // are removed.
+                            DownloadManager.getInstance().downloadMultimediaMessage(mContext, location, uri, true, subId);
                         } else if (LOCAL_LOGV) {
                             Timber.v("Skip downloading duplicate message: "
                                     + new String(nInd.getContentLocation()));

@@ -37,7 +37,6 @@ public class Settings {
     private String uaProfUrl;
     private String uaProfTagName;
     private boolean group;
-    private boolean useSystemSending;
 
     // SMS options
     private boolean deliveryReports;
@@ -56,7 +55,7 @@ public class Settings {
      * Default constructor to set everything to default values
      */
     public Settings() {
-        this("", "", "0", true, false, false, false, false, "", "", true, 3, true, DEFAULT_SUBSCRIPTION_ID);
+        this("", "", "0", true, false, false, false, false, "", "", true, 3, DEFAULT_SUBSCRIPTION_ID);
     }
 
     /**
@@ -99,7 +98,7 @@ public class Settings {
     public Settings(String mmsc, String proxy, String port, boolean group,
                     boolean deliveryReports, boolean split, boolean splitCounter,
                     boolean stripUnicode, String signature, String preText, boolean sendLongAsMms,
-                    int sendLongAsMmsAfter, boolean useSystemSending, Integer subscriptionId) {
+                    int sendLongAsMmsAfter, Integer subscriptionId) {
         this.mmsc = mmsc;
         this.proxy = proxy;
         this.port = port;
@@ -115,7 +114,6 @@ public class Settings {
         this.preText = preText;
         this.sendLongAsMms = sendLongAsMms;
         this.sendLongAsMmsAfter = sendLongAsMmsAfter;
-        setUseSystemSending(useSystemSending);
 
         this.subscriptionId = subscriptionId != null ? subscriptionId : DEFAULT_SUBSCRIPTION_ID;
     }
@@ -250,18 +248,6 @@ public class Settings {
     }
 
     /**
-     * @param useSystemSending whether or not to use the system sending method on Lollipop+ devices
-     */
-    public void setUseSystemSending(boolean useSystemSending) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            this.useSystemSending = useSystemSending;
-        } else {
-            this.useSystemSending = false;
-            Timber.e("Settings", "System sending only available on Lollipop+ devices");
-        }
-    }
-
-    /**
      * Set the subscription ID that should be used for sending. It isn't applied to receiving at this time.
      *
      * @param subscriptionId null if you do not want to use one.
@@ -372,13 +358,6 @@ public class Settings {
      */
     public int getSendLongAsMmsAfter() {
         return this.sendLongAsMmsAfter;
-    }
-
-    /**
-     * @return whether or not to use the system sending method on Lollipop+ devices
-     */
-    public boolean getUseSystemSending() {
-        return useSystemSending;
     }
 
     /**

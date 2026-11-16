@@ -46,8 +46,8 @@ public class JsonUtil {
     objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     // OURS, and the only edit to this file. Upstream is `objectMapper.registerModule(new
     // KotlinModule())`, which needs the no-argument constructor jackson removed after 2.12 --
-    // and this repo builds against jackson 2.22.1, not the 2.12.0 upstream's catalogue pins,
-    // because the app already resolves 2.22.1 and a Signal envelope is deserialised through it.
+    // and this repo builds against jackson 2.22.x, not the 2.12.0 upstream's catalogue pins,
+    // because the app already resolves 2.22.x and a Signal envelope is deserialised through it.
     // This is Signal's own replacement, not an invention: `core/util/.../JsonUtils.java:25`
     // registers the module exactly this way, in the same tree, for the same mapper.
     com.fasterxml.jackson.module.kotlin.ExtensionsKt.registerKotlinModule(objectMapper);

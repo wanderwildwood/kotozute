@@ -16,10 +16,9 @@ import assertk.assertions.isNotNull
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.junit.Test
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
@@ -97,8 +96,7 @@ class BlacklistingTrustManagerTest {
       .bufferedReader()
       .use { it.readText() }
 
-    // Upstream reads this with kotlinx.serialization; this build has Jackson, not the plugin.
-    return jacksonObjectMapper().readValue(json)
+    return Json { ignoreUnknownKeys = true }.decodeFromString(json)
   }
 
   private fun readCertificate(resource: String): X509Certificate {
@@ -107,12 +105,12 @@ class BlacklistingTrustManagerTest {
   }
 
   /** One entry of the upstream impacted-intermediates.json. Fields we do not need are ignored. */
-  @JsonIgnoreProperties(ignoreUnknown = true)
+  @Serializable
   private data class ImpactedIntermediate(
-    @JsonProperty("name") val name: String,
-    @JsonProperty("issuer_operator") val issuerOperator: String,
-    @JsonProperty("spki_sha256") val spkiSha256: String,
-    @JsonProperty("pem") val pem: String
+    val name: String,
+    @SerialName("issuer_operator") val issuerOperator: String,
+    @SerialName("spki_sha256") val spkiSha256: String,
+    val pem: String
   ) {
     fun certificate(): X509Certificate {
       return CertificateFactory.getInstance("X.509").generateCertificate(pem.byteInputStream()) as X509Certificate

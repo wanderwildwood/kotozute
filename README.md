@@ -335,7 +335,7 @@ the details, and the details are where a hand-rolled version silently differs.
 
 - **libsignal** (`org.signal:libsignal-android`) — AGPL-3.0, unmodified, linked. The protocol
   primitives, published by Signal as a binary. Nothing here reimplements any of it.
-- **RingRTC** (`org.signal:ringrtc-android` 2.72.0) — AGPL-3.0, unmodified, linked. Signal's
+- **RingRTC** (`org.signal:ringrtc-android` 2.74.0) — AGPL-3.0, unmodified, linked. Signal's
   calling library, WebRTC underneath it, published by Signal as a binary; its checksum is pinned
   to the one Signal Android pins. The call handling around it (`SignalCallEngine`) is a trimmed
   port of Signal Android's call manager, and the ringer and ringback are Signal's, sounds

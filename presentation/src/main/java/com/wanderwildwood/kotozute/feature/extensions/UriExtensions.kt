@@ -8,6 +8,7 @@ import android.widget.ImageView
 import androidx.appcompat.content.res.AppCompatResources
 import com.bumptech.glide.Glide
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.extensions.getDefaultActivityIconForMimeType
 import com.wanderwildwood.kotozute.extensions.isAudio
 import com.wanderwildwood.kotozute.extensions.isImage
@@ -37,6 +38,8 @@ fun Uri.loadBestIconIntoImageView(context: Context, imageView: ImageView)
 
     // if attachment is image or video use image or video frame for icon
     if (isImage(context) || isVideo(context)) {
+        // A picture keeps its colors in dark mode.
+        DarkMode.keep(imageView)
         Glide
             .with(context)
             .load(this)
@@ -54,6 +57,7 @@ fun Uri.loadBestIconIntoImageView(context: Context, imageView: ImageView)
             setDataSource(context, this@loadBestIconIntoImageView)
             val embeddedPicture = embeddedPicture
             if (embeddedPicture != null) {
+                DarkMode.keep(imageView)
                 Glide
                     .with(context)
                     .load(embeddedPicture)

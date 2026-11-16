@@ -148,7 +148,16 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         //
         // The console tree needs nothing, so it goes first and the migration has somewhere to
         // land. The file tree still needs `fileLoggingTree` injected, so it follows below.
-        Timber.plant(Timber.DebugTree())
+        //
+        // ⛔ Debug builds only. This was planted in every build, which sent every Timber line
+        // to the system log on a release build too -- and Signal's own service code logs
+        // through Timber here (SignalServiceLog), so that was the service layer's whole
+        // commentary, readable by anything allowed to read the system log. A release build
+        // now writes to the system log only a crash and a few fixed lines that carry no message,
+        // number or key (the e-ink display mode, MMS parse errors). The log somebody switches on
+        // in Settings is the file tree below and works as before; the cost is that it starts
+        // after injection, so the protocol store's migration lines are not in it.
+        if (BuildConfig.DEBUG) Timber.plant(Timber.DebugTree())
 
         // ⚠ Before `appComponent.inject`, for the same reason the tree above is: Dagger builds
         // the Signal repository while injecting, and the stores it builds take a network
@@ -194,8 +203,8 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // explained away as an R8 artefact instead.
         //
         // It needs `appComponent.inject` above it for `fileLoggingTree`, and nothing else --
-        // the console half is already planted above, before injection, so that the protocol
-        // store's migration has somewhere to log.
+        // in a debug build the console half is already planted above, before injection, so
+        // that the protocol store's migration has somewhere to log.
         Timber.plant(fileLoggingTree)
 
         Realm.init(this)

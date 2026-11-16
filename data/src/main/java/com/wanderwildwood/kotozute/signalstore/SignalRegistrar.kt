@@ -3,7 +3,7 @@ package com.wanderwildwood.kotozute.signalstore
 import com.wanderwildwood.kotozute.repository.SignalRepository.RegistrationFailure
 import org.signal.core.models.ServiceId
 import org.signal.libsignal.zkgroup.profiles.ProfileKey
-import org.whispersystems.signalservice.api.crypto.UnidentifiedAccess
+import org.signal.network.crypto.UnidentifiedAccess
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.signal.libsignal.protocol.util.KeyHelper
 import org.signal.network.api.RegistrationApiV2

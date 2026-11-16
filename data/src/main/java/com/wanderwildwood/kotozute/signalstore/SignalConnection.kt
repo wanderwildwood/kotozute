@@ -111,7 +111,7 @@ internal class SignalConnection(
 
     val authenticated: SignalWebSocket.AuthenticatedWebSocket by lazy {
         val timer = AlarmSleepTimer(context)
-        val monitor = SignalSocketHealthMonitor(timer, onRejected, onPrimaryIdle, onConnecting)
+        val monitor = SignalSocketHealthMonitor(onRejected, onPrimaryIdle, onConnecting)
         SignalWebSocket.AuthenticatedWebSocket(
             { LibSignalChatConnection("normal", network, credentials, ALLOW_STORIES, monitor) },
             { true },
@@ -122,9 +122,7 @@ internal class SignalConnection(
 
     val unauthenticated: SignalWebSocket.UnauthenticatedWebSocket by lazy {
         val timer = AlarmSleepTimer(context)
-        // No keepalive sender on this one: see [SignalSocketHealthMonitor.sendKeepAlives].
-        // Upstream passes false here and true for the authenticated socket.
-        val monitor = SignalSocketHealthMonitor(timer, onRejected, sendKeepAlives = false)
+        val monitor = SignalSocketHealthMonitor(onRejected)
         SignalWebSocket.UnauthenticatedWebSocket(
             { LibSignalChatConnection("unidentified", network, null, ALLOW_STORIES, monitor) },
             { true },
@@ -134,6 +132,15 @@ internal class SignalConnection(
     }
 
     val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
+
+    /**
+     * This device's own prekeys: counts, the consistency check and uploads. Upstream moved
+     * those off [keys] onto libsignal's typed chat services (4af8108670); [keys] is still what
+     * the message sender fetches other people's bundles through.
+     */
+    val keysV2: org.signal.network.api.KeysApiV2 by lazy {
+        org.signal.network.api.KeysApiV2(authenticated, unauthenticated)
+    }
 
     /** Adding, listing and removing other devices on the account: only a primary may. */
     val linkDevice: org.signal.network.api.LinkDeviceApi by lazy {
@@ -180,15 +187,17 @@ internal class SignalConnection(
         org.signal.network.rest.SignalRestClient(configuration, userAgent, credentials)
     }
 
+    /**
+     * Attachment uploads. Upstream moved them out of `PushServiceSocket` into this service
+     * (4bd15366c2, "Convert CDN uploads to lib/network format"): the upload form still comes
+     * over the authenticated socket, the bytes go to the CDN through [restClient]. It is also
+     * the `AttachmentUploader` the message sender is built with, as in Signal's
+     * `NetworkDependenciesModule`.
+     */
     val cdn: org.signal.network.service.CdnService by lazy {
         org.signal.network.service.CdnService(
-            restClient,
-            org.signal.network.api.AttachmentApi(
-                authenticated,
-                org.whispersystems.signalservice.internal.push.PushServiceSocket(
-                    configuration, credentials, userAgent, true
-                )
-            )
+            org.signal.network.api.CdnApi(restClient),
+            org.signal.network.api.AttachmentApi(authenticated)
         )
     }
 
@@ -228,16 +237,14 @@ internal class SignalConnection(
         Timber.i("signal socket: connecting as device %d", credentials.deviceId)
         // Registered BEFORE connecting, and the order is the whole point.
         //
-        // Two separate things depend on this token. The health monitor will not send
-        // keepalives without one -- `shouldSendKeepAlives()` is false while the set is empty,
-        // so the keepalive thread never starts. And `connect()` itself schedules a *delayed
-        // disconnect* if no token is registered at the moment it runs, on the reasoning that
-        // a socket nobody is holding open is a socket nobody wants.
+        // `connect()` schedules a *delayed disconnect* if no token is registered at the moment
+        // it runs, on the reasoning that a socket nobody is holding open is a socket nobody
+        // wants (`hasKeepAliveTokens()` in SignalWebSocket).
         //
-        // Registering afterwards leaves both: no keepalives for the first pass, and a
-        // teardown already scheduled. The symptom is a connection that drops every thirty to
-        // forty seconds and reconnects on backoff -- messages still arrive, late, and it
-        // reads as a flaky network rather than as an ordering mistake here.
+        // Registering afterwards leaves a teardown already scheduled. The symptom is a
+        // connection that drops every thirty to forty seconds and reconnects on backoff --
+        // messages still arrive, late, and it reads as a flaky network rather than as an
+        // ordering mistake here.
         authenticated.registerKeepAliveToken(SignalWebSocket.FOREGROUND_KEEPALIVE)
         unauthenticated.registerKeepAliveToken(SignalWebSocket.FOREGROUND_KEEPALIVE)
         // registerKeepAliveToken() connects on its own -- registering a token *is* saying the

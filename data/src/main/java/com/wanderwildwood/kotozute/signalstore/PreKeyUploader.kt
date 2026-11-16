@@ -1,11 +1,13 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import kotlinx.coroutines.runBlocking
+import org.signal.libsignal.net.RequestResult
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.signal.libsignal.protocol.state.KyberPreKeyRecord
 import org.signal.libsignal.protocol.state.PreKeyRecord
+import org.signal.libsignal.protocol.state.SignedPreKeyRecord
 import org.signal.libsignal.protocol.ecc.ECKeyPair
-import org.signal.network.NetworkResult
-import org.whispersystems.signalservice.api.account.PreKeyUpload
+import org.signal.network.api.KeysApiV2
 import org.whispersystems.signalservice.api.push.ServiceIdType
 import timber.log.Timber
 
@@ -50,7 +52,7 @@ internal class PreKeyUploader(
      * The repeated-use keys have the same problem from the other end: generated once at
      * linking and never rotated, so one signed prekey signs for the life of the install.
      *
-     * `upload` already replaces all of it in one request, so the work here is deciding *when*,
+     * `upload` already replaces all of it, so the work here is deciding *when*,
      * which is the part that did not exist. That decision is now Signal's: every
      * [REFRESH_INTERVAL_MS], the same gate `PreKeysSyncJob.enqueueIfNeeded` puts in front of its
      * whole job, and nothing is asked of the server in between.
@@ -124,30 +126,80 @@ internal class PreKeyUploader(
         val kyberId = accounts.activeLastResortKyberPreKeyId(accountIdType)
         if (signedId < 0 || kyberId < 0) return false
 
-        val result = runCatching {
-            connection.keys.checkRepeatedUseKeysSync(
-                serviceIdType,
-                identity.publicKey,
-                signedId,
-                signedPreKeys(accountIdType).loadSignedPreKey(signedId).keyPair.publicKey,
-                kyberId,
+        val (signedKey, kyberKey) = runCatching {
+            signedPreKeys(accountIdType).loadSignedPreKey(signedId).keyPair.publicKey to
                 kyberPreKeys(accountIdType).loadKyberPreKey(kyberId).keyPair.publicKey
-            )
         }.getOrElse {
             Timber.w(it, "signal keys: %s could not load its own keys to check them", serviceIdType)
             return false
         }
+        // `KeysApiV2`, where upstream moved this call (4af8108670, "Migrate PreKey operations
+        // to libsignal-net"); `KeysApi.checkRepeatedUseKeysSync` no longer exists. Same request,
+        // same digest; the answer is a `RequestResult` now rather than a status code.
+        val result = runBlocking {
+            connection.keysV2.checkRepeatedUseKeysConsistency(
+                kindOf(serviceIdType), identity.publicKey, signedId, signedKey, kyberId, kyberKey
+            )
+        }
         return when {
-            result is NetworkResult.Success -> true
-            // Explicitly the disagreement the check exists to find.
-            result is NetworkResult.StatusCodeError<*> && result.code == 409 -> false
-            // Anything else -- no network, a server having a moment -- says nothing about the
-            // keys. Treated as agreement so a bad minute cannot become a rotation.
+            result is RequestResult.Success -> true
+            // Explicitly the disagreement the check exists to find: the server's 409.
+            result is RequestResult.NonSuccess &&
+                result.error is KeysApiV2.CheckRepeatedUseKeysError.Mismatch -> false
+            // Anything else -- no network, a server having a moment, a status that is not 409
+            // -- says nothing about the keys. Treated as agreement so a bad minute cannot
+            // become a rotation.
             else -> {
                 Timber.w("signal keys: %s could not be checked against the server: %s", serviceIdType, result)
                 true
             }
         }
+    }
+
+    private fun kindOf(serviceIdType: ServiceIdType): org.signal.libsignal.protocol.ServiceId.Kind =
+        when (serviceIdType) {
+            ServiceIdType.ACI -> org.signal.libsignal.protocol.ServiceId.Kind.ACI
+            ServiceIdType.PNI -> org.signal.libsignal.protocol.ServiceId.Kind.PNI
+        }
+
+    /**
+     * Sends keys to the server, each kind in its own request, in upstream's order.
+     *
+     * Upstream's `PreKeysSyncJob` stopped sending one `PUT /v2/keys` with everything in it
+     * (`KeysApi.setPreKeysSync`) and sends up to four requests through `KeysApiV2` instead
+     * (4af8108670): one-time EC, one-time Kyber, then the signed prekey, then the last-resort
+     * Kyber key. Its comment on the order: *"Repeated-use keys go last: until both land, the
+     * consistency check keeps failing, so a retry after a partial failure is still forced."*
+     * That holds here for the same reason -- the active ids are recorded only after this
+     * returns null, so a part that did not land leaves [keysAgreeWithServer] disagreeing.
+     *
+     * @return null when every part given was accepted, otherwise what was refused.
+     */
+    private fun send(
+        serviceIdType: ServiceIdType,
+        signed: SignedPreKeyRecord?,
+        ecKeys: List<PreKeyRecord>?,
+        lastResort: KyberPreKeyRecord?,
+        kyberKeys: List<KyberPreKeyRecord>?
+    ): String? {
+        val kind = kindOf(serviceIdType)
+        val api = connection.keysV2
+        fun refused(what: String, result: RequestResult<Unit, Nothing>): String? =
+            if (result is RequestResult.Success) null else "$what: $result"
+
+        if (ecKeys != null) {
+            refused("one-time EC keys", runBlocking { api.setOneTimeEcPreKeys(kind, ecKeys) })?.let { return it }
+        }
+        if (kyberKeys != null) {
+            refused("one-time Kyber keys", runBlocking { api.setOneTimeKemPreKeys(kind, kyberKeys) })?.let { return it }
+        }
+        if (signed != null) {
+            refused("signed prekey", runBlocking { api.setSignedEcPreKey(kind, signed) })?.let { return it }
+        }
+        if (lastResort != null) {
+            refused("last-resort Kyber key", runBlocking { api.setLastResortKemPreKey(kind, lastResort) })?.let { return it }
+        }
+        return null
     }
 
     /**
@@ -223,8 +275,8 @@ internal class PreKeyUploader(
      * the one event that says the pile is shrinking.
      *
      * ⚠ One-time keys only. The signed prekey and the last-resort Kyber key are left alone --
-     * `PreKeyUpload` takes each part as null for exactly this, and rotating the repeated-use
-     * keys on somebody else's schedule is not what upstream does here.
+     * [send] takes each part as null for exactly this, and rotating the repeated-use keys on
+     * somebody else's schedule is not what upstream does here.
      */
     fun refillOneTimeIfShort(): Result {
         val aci = refillOne(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, ServiceIdType.ACI)
@@ -242,30 +294,36 @@ internal class PreKeyUploader(
 
         val ecKeys = generateEcPreKeys(accountIdType)
         val kyberKeys = generateKyberPreKeys(accountIdType, identity)
-        val result = connection.keys.setPreKeysSync(
-            PreKeyUpload(serviceIdType, null, ecKeys, null, kyberKeys)
-        )
-        if (result !is NetworkResult.Success) {
-            return Result.Failed("one-time pre key refill refused for $serviceIdType: $result")
-        }
-        return try {
+        // Written before they are sent, as [upload] does and for its reason. It matters more
+        // now that the two batches go in separate requests: if the first is accepted and the
+        // second refused, the server is already handing out keys from the first, and a key
+        // advertised but not held breaks every session that asks for it.
+        try {
             ecKeys.forEach { preKeys(accountIdType).storePreKey(it.id, it) }
             kyberKeys.forEach { kyberPreKeys(accountIdType).storeKyberPreKey(it.id, it) }
-            Timber.i(
-                "signal keys: %s refilled one-time keys (server was ec=%d kyber=%d, sent %d+%d)",
-                serviceIdType, counts.first, counts.second, ecKeys.size, kyberKeys.size
-            )
-            Result.Uploaded
         } catch (t: Throwable) {
-            Timber.w(t, "signal keys: refilled but could not store")
-            Result.Failed("one-time pre keys uploaded but not stored: ${t.message}")
+            Timber.w(t, "signal keys: could not write the refill; not uploading it")
+            return Result.Failed("one-time pre keys could not be stored: ${t.message}")
         }
+        send(serviceIdType, null, ecKeys, null, kyberKeys)?.let { refused ->
+            return Result.Failed("one-time pre key refill refused for $serviceIdType: $refused")
+        }
+        Timber.i(
+            "signal keys: %s refilled one-time keys (server was ec=%d kyber=%d, sent %d+%d)",
+            serviceIdType, counts.first, counts.second, ecKeys.size, kyberKeys.size
+        )
+        return Result.Uploaded
     }
 
     /** What the server holds, as numbers rather than a log line. Null when it will not say. */
     private fun countsFor(serviceIdType: ServiceIdType): Pair<Int, Int>? =
-        when (val r = connection.keys.getAvailablePreKeyCountsSync(serviceIdType)) {
-            is NetworkResult.Success -> r.result.ecCount to r.result.kyberCount
+        // One request answers for both identities now (`KeysApiV2.getPreKeyCounts`, which
+        // replaced `KeysApi.getAvailablePreKeyCountsSync(serviceIdType)` upstream).
+        when (val r = runBlocking { connection.keysV2.getPreKeyCounts() }) {
+            is RequestResult.Success -> when (serviceIdType) {
+                ServiceIdType.ACI -> r.result.aciEcPreKeyCount to r.result.aciKemPreKeyCount
+                ServiceIdType.PNI -> r.result.pniEcPreKeyCount to r.result.pniKemPreKeyCount
+            }
             else -> null
         }
 
@@ -348,10 +406,7 @@ internal class PreKeyUploader(
      * is the thing that matters and the only claim that survives being wrong about the first.
      */
     fun serverCounts(): String = listOf(ServiceIdType.ACI, ServiceIdType.PNI).joinToString(" ") { type ->
-        when (val r = connection.keys.getAvailablePreKeyCountsSync(type)) {
-            is NetworkResult.Success -> "$type=ec:${r.result.ecCount},kyber:${r.result.kyberCount}"
-            else -> "$type=?($r)"
-        }
+        countsFor(type)?.let { "$type=ec:${it.first},kyber:${it.second}" } ?: "$type=?"
     }
 
     /**
@@ -371,7 +426,7 @@ internal class PreKeyUploader(
      * Signal's order instead: persist every generated record and advance the counter first,
      * upload second, and record which key is *active* only once the upload is accepted
      * (`PreKeyUtil.generateAndStoreOneTimeEcPreKeys` stores before returning;
-     * `PreKeysSyncJob` sets the active ids after `setPreKeysSync` succeeds). Then the only
+     * `PreKeysSyncJob` sets the active ids after the uploads succeed). Then the only
      * inconsistency possible is a key this device holds that the server does not advertise --
      * which costs nothing, because nobody can ask for a key the server will not hand out.
      */
@@ -416,16 +471,14 @@ internal class PreKeyUploader(
             return Result.Failed("pre keys could not be stored: ${t.message}")
         }
 
-        val result = connection.keys.setPreKeysSync(
-            PreKeyUpload(serviceIdType, signed, ecKeys, lastResort, kyberKeys)
-        )
-        if (result !is NetworkResult.Success) {
+        val refused = send(serviceIdType, signed, ecKeys, lastResort, kyberKeys)
+        if (refused != null) {
             // The keys are on disk and the server does not know about them, which is the
             // harmless direction: nobody can ask for a key the server will not hand out, and
             // the sweep below clears them once they are old. The active ids are deliberately
             // NOT advanced -- the old signed prekey is still the one the server advertises,
             // and it must stay the one this device calls active.
-            return Result.Failed("pre key upload refused for $serviceIdType: $result")
+            return Result.Failed("pre key upload refused for $serviceIdType: $refused")
         }
 
         // Only now. This is the line that says "the server is handing this one out".

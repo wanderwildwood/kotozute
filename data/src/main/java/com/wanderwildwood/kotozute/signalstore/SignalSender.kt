@@ -305,7 +305,10 @@ internal class SignalSender(
                 // updates -- while a batch of sessions is built. This app has none of that
                 // bookkeeping, so there is nothing to defer. signal-cli passes the equivalent.
                 PreKeyRepository.BatchHelper { it.run() }
-            )
+            ),
+            // What uploads an attachment that has a resumable upload spec. Upstream took the
+            // upload out of `PushServiceSocket` and hands the sender its `CdnService`.
+            connection.cdn
         )
     }
 

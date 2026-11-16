@@ -5,7 +5,6 @@ import android.os.SystemClock
 // and the service library's socket state is a v3 Observable, so a v2 Scheduler here is
 // a type error rather than a subtle bug -- but only because they differ in package.
 import io.reactivex.rxjava3.schedulers.Schedulers
-import org.signal.core.util.SleepTimer
 import org.whispersystems.signalservice.api.websocket.HealthMonitor
 import org.whispersystems.signalservice.api.websocket.WebSocketConnectionState
 import org.whispersystems.signalservice.api.websocket.SignalWebSocket
@@ -15,26 +14,23 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 /**
- * Keeps the websocket alive, and notices when it is only pretending to be.
+ * Watches the websocket: a connection that never completes, a device the server no longer
+ * accepts, the server's alerts, and the clock.
  *
- * Ported from signal-cli's `SignalWebSocketHealthMonitor` (GPL-3.0, as is this app). It is not
- * in the service library -- the library defines the [HealthMonitor] interface and expects the
- * client to bring one -- so every client writes this, and writing a worse one is easy.
+ * First ported from signal-cli's `SignalWebSocketHealthMonitor` (GPL-3.0, as is this app). It is
+ * not in the service library -- the library defines the [HealthMonitor] interface and expects
+ * the client to bring one.
  *
- * The part that earns its keep is not sending the keepalive; it is **waiting for the reply**.
- * A TCP connection to a server that has stopped answering looks open indefinitely, so a socket
- * that only sends is a socket that can be dead for hours while every layer above believes it is
- * connected. So each round does two waits: send at 30s, then check at +20s that something came
- * back, and force a new socket if nothing did.
- *
- * The timer is [AlarmSleepTimer], and it has to be. A thread-sleeping timer is not running at
- * all during Doze, so the 30-second cadence was 30 seconds only while the device was awake --
- * which is to say the check written to notice a dead connection was itself asleep for exactly
- * as long as the connection was dead. Signal uses an alarm-backed timer wherever it has no
- * push to fall back on, which here is always.
+ * ⚠ **It no longer sends keepalives, because Signal no longer does** (upstream 37f8b149dd,
+ * "Remove now-unnecessary manual keepalives", 2026-11-06). `SignalWebSocket.sendKeepAlive`,
+ * `HealthMonitor.onKeepAliveResponse` and `WebSocketConnection.sendKeepAlive` are gone from the
+ * service layer, and Signal's own monitor lost its `KeepAliveSender` and its `SleepTimer` in the
+ * same commit; this follows it. Until then this class ran an alarm-backed sender on the
+ * authenticated socket (30 s on screen, 180 s off, measured on a Kompakt 2026-10-01) and forced
+ * a new socket when a keepalive went unanswered for 20 s. What keeps the connection alive, and
+ * notices a dead one, is now libsignal's chat connection alone.
  */
 internal class SignalSocketHealthMonitor(
-    private val sleepTimer: SleepTimer,
     /**
      * Called when the server says this device is no longer welcome.
      *
@@ -62,21 +58,7 @@ internal class SignalSocketHealthMonitor(
      * cannot happen -- without saying it is about to be able to -- reads as broken on every
      * single launch. Somebody reported exactly that.
      */
-    private val onConnecting: (Boolean) -> Unit = {},
-    /**
-     * Whether this socket should send keepalives at all.
-     *
-     * ⚠ Only one of the two sockets should. Both were given a keepalive sender, so the phone
-     * ran **two** alarm-backed threads waking it on their own timers -- twice upstream's
-     * exact-alarm wakeup rate, on a device whose whole point is to sit still, for a socket
-     * that only carries outbound sealed-sender sends and profile fetches.
-     *
-     * Signal's monitor takes the same flag and its dependency provider passes true for the
-     * authenticated socket and false for the unauthenticated one. The flag gates the keepalive
-     * listener, so no sender thread is ever created for the second socket -- the rest of the
-     * monitoring, the state watchdog and the alerts, still runs.
-     */
-    private val sendKeepAlives: Boolean = true
+    private val onConnecting: (Boolean) -> Unit = {}
 ) : HealthMonitor {
 
     // Scheduled rather than plain, because the connecting watchdog needs to fire later on the
@@ -105,14 +87,6 @@ internal class SignalSocketHealthMonitor(
     @Volatile private var clockWasOff = false
     @Volatile private var webSocket: SignalWebSocket? = null
 
-    @Volatile private var keepAliveSender: KeepAliveSender? = null
-    @Volatile private var needsKeepAlive = false
-    /**
-     * Written on the executor, read from the keepalive thread. Volatile because those are
-     * different threads: a stale read here means the sender concludes every keepalive went
-     * unanswered and tears down a healthy socket.
-     */
-    @Volatile private var lastKeepAliveReceived = 0L
 
     fun monitor(webSocket: SignalWebSocket) {
         check(this.webSocket == null) { "monitor can only be called once" }
@@ -123,27 +97,18 @@ internal class SignalSocketHealthMonitor(
                 .observeOn(Schedulers.computation())
                 .distinctUntilChanged()
                 .subscribe(::onStateChanged)
-            if (sendKeepAlives) {
-                webSocket.addKeepAliveChangeListener { executor.execute(::updateKeepAliveSenderStatus) }
-            }
         }
     }
 
     private fun onStateChanged(connectionState: WebSocketConnectionState) {
         Timber.d("signal socket: state -> %s", connectionState)
         executor.execute {
-            // ⚠ `&& sendKeepAlives` is the gate that actually works. Gating only the
-            // keepalive *listener* leaves this line starting a sender on CONNECTED anyway,
-            // which is how the second thread survived a first attempt at this. Upstream puts
-            // the flag right here: `connectionState == CONNECTED && sendKeepAlives`.
-            needsKeepAlive = connectionState == WebSocketConnectionState.CONNECTED && sendKeepAlives
-            updateKeepAliveSenderStatus()
+            recheckClock()
             when (connectionState) {
                 // ⚠ A socket can sit in CONNECTING for ever, and nothing was watching it.
                 //
                 // A half-open TCP connection, a captive portal, a TLS handshake that stalls:
-                // the connection never reaches CONNECTED, so keepalives never start and the
-                // one thing that notices a dead socket never runs. The listen loop does not
+                // the connection never reaches CONNECTED. The listen loop does not
                 // help either -- its read timeout is deliberately treated as "carry on",
                 // because a quiet account is the ordinary case. So the phone sits there
                 // looking connected and receiving nothing, until something else disturbs it.
@@ -192,11 +157,6 @@ internal class SignalSocketHealthMonitor(
                 }
             }
         }
-    }
-
-    override fun onKeepAliveResponse(sentTimestamp: Long, isIdentifiedWebSocket: Boolean) {
-        val received = System.currentTimeMillis()
-        executor.execute { lastKeepAliveReceived = received }
     }
 
     override fun onMessageError(status: Int, isIdentifiedWebSocket: Boolean) {
@@ -263,9 +223,11 @@ internal class SignalSocketHealthMonitor(
     /**
      * Re-checks the clock against the last server time, without asking the server again.
      *
-     * Called once per keepalive, so a clock changed *while connected* is noticed within a
-     * minute rather than waiting for whenever the server next volunteers its time. Upstream's
-     * `recheck` does the same arithmetic and clears the state when the clock looks right again.
+     * Called on every socket state change. It used to ride the keepalive loop, once per
+     * keepalive; that loop is gone (see the class comment), so a clock changed *while
+     * connected* is now noticed at the next reconnect or the next time the server volunteers
+     * its time, whichever is first. Upstream's `recheck` does the same arithmetic and clears
+     * the state when the clock looks right again.
      */
     private fun recheckClock() {
         val takenAt = lastServerTimeAt
@@ -282,9 +244,8 @@ internal class SignalSocketHealthMonitor(
 
     private fun reportSkew(skew: Long) {
         val bad = skew > ALLOWED_SKEW
-        // Only the changes, because this runs every thirty seconds: a wrong clock stays wrong
-        // for as long as it takes somebody to fix it, and saying so once a minute until then
-        // buries everything else in the log.
+        // Only the changes: a wrong clock stays wrong for as long as it takes somebody to fix
+        // it, and saying so at every check until then buries everything else in the log.
         if (bad == clockWasOff) return
         clockWasOff = bad
         if (bad) {
@@ -294,100 +255,9 @@ internal class SignalSocketHealthMonitor(
         }
     }
 
-    private fun updateKeepAliveSenderStatus() {
-        val wanted = needsKeepAlive && webSocket?.shouldSendKeepAlives() == true
-        when {
-            keepAliveSender == null && wanted -> keepAliveSender = KeepAliveSender().also { it.start() }
-            keepAliveSender != null && !wanted -> {
-                keepAliveSender?.shutdown()
-                keepAliveSender = null
-            }
-        }
-    }
-
-    private fun sendKeepAlives(): Boolean = needsKeepAlive && webSocket?.shouldSendKeepAlives() == true
-
-    private inner class KeepAliveSender : Thread("signal-keepalive") {
-
-        @Volatile private var shouldKeepRunning = true
-
-        override fun run() {
-            lastKeepAliveReceived = System.currentTimeMillis()
-            var sentAt = System.currentTimeMillis()
-            while (shouldKeepRunning && sendKeepAlives()) {
-                try {
-                    // Chosen each time round, as upstream chooses it: thirty seconds while
-                    // somebody is looking at the app, sixty when nobody is. A keepalive is a
-                    // radio wake, and on this phone nobody is looking most of the day -- there
-                    // is no push, so the socket is the only way a message arrives, and it was
-                    // paying the foreground rate around the clock.
-                    // Upstream rechecks when the app is foregrounded, because it wants to
-                    // take its blocking screen down promptly. This one only reports, so it
-                    // rides the loop that is already running: two longs subtracted every
-                    // thirty to sixty seconds, and no lifecycle wiring across modules for it.
-                    recheckClock()
-                    val cadence =
-                        if (SignalForeground.onScreen()) KEEP_ALIVE_SEND_CADENCE
-                        else KEEP_ALIVE_SEND_CADENCE_BACKGROUND
-                    sleepUntil(sentAt + cadence)
-                    if (shouldKeepRunning && sendKeepAlives()) {
-                        sentAt = System.currentTimeMillis()
-                        webSocket?.sendKeepAlive()
-                    }
-                    // The second wait is the whole point: an unanswered keepalive is the only
-                    // evidence that an open-looking socket is dead.
-                    sleepUntil(sentAt + KEEP_ALIVE_TIMEOUT)
-                    if (shouldKeepRunning && sendKeepAlives() && lastKeepAliveReceived < sentAt) {
-                        Timber.i("signal socket: missed keepalive; forcing a new socket")
-                        webSocket?.forceNewWebSocket()
-                    }
-                } catch (t: Throwable) {
-                    Timber.w(t, "signal socket: keepalive sender failed")
-                }
-            }
-        }
-
-        private fun sleepUntil(timeMillis: Long) {
-            // ⚠ `shouldKeepRunning` in the condition, which it was not. Without it the loop
-            // only ever looked at the wall clock, so a shutdown while parked here waited out
-            // the full cadence -- and `sleepTimer` is an alarm, so the thread stayed parked
-            // with an exact alarm armed against a socket that had already gone. Upstream's
-            // loop tests the same flag.
-            while (shouldKeepRunning && System.currentTimeMillis() < timeMillis) {
-                val wait = timeMillis - System.currentTimeMillis()
-                if (wait > 0) {
-                    try {
-                        sleepTimer.sleep(wait)
-                    } catch (e: InterruptedException) {
-                        Timber.w(e, "signal socket: health monitor interrupted")
-                    }
-                }
-            }
-        }
-
-        fun shutdown() {
-            shouldKeepRunning = false
-            // ⚠ And wake it, which nothing did. The flag alone is only read between sleeps;
-            // the interrupt is what ends the sleep this instant. `sleepUntil` catches
-            // InterruptedException and the loop condition above then stops it.
-            interrupt()
-        }
-    }
-
     companion object {
         /** The status the server answers with when the client is too old to talk to. */
         private const val DEPRECATED_STATUS = 499
-
-        /** Must be greater than [KEEP_ALIVE_TIMEOUT], or the check races the send. */
-        private val KEEP_ALIVE_SEND_CADENCE = TimeUnit.SECONDS.toMillis(30)
-
-        /**
-         * For when nobody is looking. Signal's own `KEEP_ALIVE_SEND_CADENCE_BACKGROUND` is 60 s;
-         * this is three times that, because each keepalive wakes the phone. Measured on a Kompakt
-         * on a US carrier for seven hours on 2026-10-01: not one keepalive went unanswered, and
-         * the app's wakeups fell from about 44 an hour to 25.
-         */
-        private val KEEP_ALIVE_SEND_CADENCE_BACKGROUND = TimeUnit.SECONDS.toMillis(180)
 
         /** Signal's `ALERT_IDLE_PRIMARY_DEVICE`: the account's primary has not been seen. */
         private const val ALERT_IDLE_PRIMARY_DEVICE = "idle-primary-device"
@@ -395,7 +265,6 @@ internal class SignalSocketHealthMonitor(
         /** How long a socket may sit in CONNECTING, and how long after it has already failed. */
         private val CONNECTING_TIMEOUT = TimeUnit.SECONDS.toMillis(30)
         private val CONNECTING_TIMEOUT_AGAIN = TimeUnit.SECONDS.toMillis(60)
-        private val KEEP_ALIVE_TIMEOUT = TimeUnit.SECONDS.toMillis(20)
 
         /**
          * How far the clock may be out before it is worth saying so.

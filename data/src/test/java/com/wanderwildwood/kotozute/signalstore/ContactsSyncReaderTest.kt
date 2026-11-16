@@ -5,14 +5,13 @@ import org.junit.Test
 import org.signal.core.models.ServiceId.ACI
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactAvatar
-import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream
-import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsOutputStream
+import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsReader
+import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsWriter
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
-import java.util.Optional
 import java.util.UUID
 
 /**
@@ -49,27 +48,24 @@ class ContactsSyncReaderTest {
             contact(tomas, "Tomas Reyes", null, avatar = null)
         )
 
-        val input = DeviceContactsInputStream(ClosesForGood(ByteArrayInputStream(blob)))
-        input.read()
-        val second = input.read()
+        val contacts = DeviceContactsReader(ClosesForGood(ByteArrayInputStream(blob))).contacts().iterator()
+        contacts.next()
+        val second = contacts.next()
 
-        assertEquals(Optional.of(ACI.from(tomas)), second.aci)
-        assertEquals(Optional.of("Tomas Reyes"), second.name)
+        assertEquals(ACI.from(tomas), second.aci)
+        assertEquals("Tomas Reyes", second.name)
     }
 
     private fun contact(id: UUID, name: String, e164: String?, avatar: ByteArray?) = DeviceContact(
-        Optional.of(ACI.from(id)),
-        Optional.ofNullable(e164),
-        Optional.of(name),
-        Optional.ofNullable(avatar?.let { DeviceContactAvatar(ByteArrayInputStream(it), it.size.toLong(), "image/jpeg") }),
-        Optional.empty(),
-        Optional.empty(),
-        Optional.empty()
+        aci = ACI.from(id),
+        e164 = e164,
+        name = name,
+        avatar = avatar?.let { DeviceContactAvatar(ByteArrayInputStream(it), it.size.toLong(), "image/jpeg") }
     )
 
     private fun blobOf(vararg contacts: DeviceContact): ByteArray {
         val bytes = ByteArrayOutputStream()
-        val out = DeviceContactsOutputStream(bytes)
+        val out = DeviceContactsWriter(bytes)
         contacts.forEach { out.write(it) }
         out.close()
         return bytes.toByteArray()

@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 41
+    const val VERSION = 42
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -418,7 +418,12 @@ internal object ProtocolStoreSchema {
           -- copy be locked with a key derived from the account rather than thirty digits
           -- somebody has to copy onto paper and never lose.
           entropy_pool TEXT,
-          updated_timestamp INTEGER NOT NULL
+          updated_timestamp INTEGER NOT NULL,
+          -- The media root backup key: one random key for the life of the account, handed to
+          -- each device this phone links. Signal keeps it in its encrypted key-value store
+          -- (`BackupValues.mediaRootBackupKey`). It was in a plain preferences file here
+          -- until v42; see [MediaRootKeyMove].
+          media_root_key BLOB
         ) STRICT;
     """
 
@@ -1016,6 +1021,13 @@ internal object ProtocolStoreSchema {
          * account shares its profile with. Starts at 0 for everyone; the next contacts sync
          * marks the address book again, and the storage record answers for the rest meanwhile.
          */
+        /**
+         * The media root backup key, moved in from a plain preferences file. The column only;
+         * the value is carried over by [MediaRootKeyMove], which needs the old file and so
+         * cannot be SQL.
+         */
+        42 to listOf("ALTER TABLE account_keys ADD COLUMN media_root_key BLOB;"),
+
         41 to listOf("ALTER TABLE recipient ADD COLUMN system_contact INTEGER NOT NULL DEFAULT 0;"),
 
         40 to listOf(

@@ -170,6 +170,39 @@ internal class SignalKeyStore(private val db: ProtocolDatabase) {
         org.signal.libsignal.messagebackup.MessageBackupKey(pool, account).aesKey
     }.onFailure { Timber.w(it, "signal keys: the backup key would not derive") }.getOrNull()
 
+    /**
+     * The media root backup key, or null if none has been made or moved in yet.
+     *
+     * Throws rather than answering null when the store cannot be read: a caller that took
+     * "could not read" for "there is none" would make a second key and hand new devices a
+     * different one from the last.
+     */
+    fun mediaRootKey(): ByteArray? = withStoreLock(db) {
+        db.readableDatabase.rawQuery(
+            "SELECT media_root_key FROM account_keys WHERE _id = 1", null
+        ).use { c -> if (c.moveToFirst()) c.getBlob(0)?.takeIf { it.isNotEmpty() } else null }
+    }
+
+    /**
+     * Keeps the media root backup key. Touches no other column: the row may not exist yet on
+     * a phone that has registered nothing, and may hold the account's other keys on one that
+     * has.
+     */
+    fun storeMediaRootKey(key: ByteArray) {
+        withStoreLock(db) {
+            db.writableDatabase.execSQL(
+                """
+                INSERT INTO account_keys (_id, media_root_key, updated_timestamp)
+                VALUES (1, ?, ?)
+                ON CONFLICT(_id) DO UPDATE SET media_root_key = excluded.media_root_key
+                """.trimIndent(),
+                arrayOf<Any?>(key, System.currentTimeMillis())
+            )
+        }
+        // That it happened, and nothing of the key.
+        Timber.i("signal keys: the media root key is kept in the protocol store")
+    }
+
     /** The account entropy pool, or null while it is not held. Needed to hand a new device its keys. */
     fun entropyPool(): String? = runCatching { pool() }.getOrNull()
 

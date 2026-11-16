@@ -1317,6 +1317,7 @@
     <string name="signal_link_not_scanned">nobody scanned the code in time; ask for a new one</string>
     <string name="signal_link_undecryptable">the provisioning message could not be decrypted</string>
     <string name="signal_link_no_code">no provisioning code in the message</string>
+    <string name="signal_link_no_phone_number">that Signal account has no phone number, and this app cannot be linked to one without</string>
 
     <!-- Why this account's name did not save, shown after "The name would not save: " -->
     <string name="signal_profile_no_account">this phone has no account yet</string>

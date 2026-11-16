@@ -116,6 +116,9 @@ interface SignalRepository {
         /** The message named no provisioning code, so the server has no reason to trust it. */
         data object NoProvisioningCode : LinkFailure
 
+        /** The account has no phone number, and this app cannot be linked to one like that. */
+        data object NoPhoneNumber : LinkFailure
+
         /** The server refused the device; [detail] is its answer, as it gave it. */
         data class Refused(val detail: String) : LinkFailure
 

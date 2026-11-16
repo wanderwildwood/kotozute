@@ -343,9 +343,9 @@ the details, and the details are where a hand-rolled version silently differs.
 - **Signal's service layer** — AGPL-3.0, **copied into this repository and compiled here**, under
   `signal-service/`. Six of Signal Android's own modules (`lib/libsignal-service`, `lib/network`,
   `core/network`, `core/util-jvm`, `core/models-jvm`, `core/serialization`) taken at commit
-  `d555580a46`, 2026-09-16. **630 of the 645 files are byte-identical to upstream at that
-  commit**; nine more are whole files taken from a later upstream commit, and six carry an edit
-  made here. Every one of the fifteen, and the reason for it, is recorded in
+  `d555580a46`, 2026-09-16. **628 of the 647 files are byte-identical to upstream at that
+  commit**; thirteen more are whole files taken from a later upstream commit, and six carry an
+  edit made here. Every one of the nineteen, and the reason for it, is recorded in
   `signal-service/README.md`. Every file
   keeps its upstream copyright header and `SPDX-License-Identifier`.
 

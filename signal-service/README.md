@@ -66,9 +66,9 @@ here is presented as this project's own work.
 
 ## What was changed, and it is a short list
 
-**630 of the 645 files in the six modules are byte-identical to upstream at `d555580a46`**, and
+**628 of the 647 files in the six modules are byte-identical to upstream at `d555580a46`**, and
 so are both files of `wire-handler/` — measured with `cmp`, every file, every time this changes
-(last measured 2026-11-16). Of the other fifteen, nine are whole files taken from a later
+(last measured 2026-11-16). Of the other nineteen, thirteen are whole files taken from a later
 upstream commit and match upstream at that commit byte for byte, and six carry an edit made
 here. Both lists are below. The first edit was forced by the build; the rest are ports of
 single upstream fixes, each named here with the upstream commit it follows (the first two are
@@ -123,6 +123,10 @@ each file still matches upstream byte for byte, only at a newer commit than the 
 | `libsignal-service/.../api/websocket/SignalWebSocket.kt` | `d86d875c1e` (2026-09-17) | chat requests are time-limited |
 | `libsignal-service/.../internal/util/BlacklistingTrustManager.java` | `a1c18d30c7` (2026-10-22) | refuses the known compromised TLS intermediates |
 | `libsignal-service/src/test/resources/emudhra-impacted-intermediates.json` | `c0c10dde4e` (2026-10-21) | the list the test for the above reads |
+| `models-jvm/.../models/ServiceId.kt` | `db2d1e13df` (2026-10-01) | `normalizeAddressName`: one spelling for a service id used as an address name |
+| `models-jvm/.../models/ProtocolAddressExtensions.kt` | `db2d1e13df` | new with the above: `SignalProtocolAddress.normalized()` |
+| `models-jvm/src/test/.../models/ProtocolAddressExtensionsTest.kt` | `db2d1e13df` | the tests for the above |
+| `libsignal-service/.../api/crypto/SignalServiceCipher.java` | `db2d1e13df` | a sealed-sender message from this very device is refused as a self-send; the sender-key record is cleared under the canonical address |
 | `libsignal-service/.../api/crypto/SignalGroupCipher.java` | `daaae6be0e` (2026-11-11) | libsignal 0.107.0: `GroupCipher.decrypt` declares `InvalidVersionException` and `InvalidKeyException` instead of wrapping them in an `AssertionError` |
 | `libsignal-service/.../api/crypto/SignalSessionCipher.java` | `daaae6be0e` | libsignal 0.107.0: the same for `SessionCipher.decrypt(PreKeySignalMessage)` and `InvalidVersionException` |
 

@@ -786,6 +786,8 @@ class SignalRepositoryImpl @Inject constructor(
      * that has no other copy anywhere -- this store is the only one there is.
      */
     override fun purgeAbandonedAttachments(): Int {
+        // Against the empty stand-in database every attachment on disk would look abandoned.
+        if (com.wanderwildwood.kotozute.util.MessageStoreGate.blocked) return 0
         val known = mutableSetOf<String>()
         var unreadable = 0
         val unsent = mutableSetOf<String>()

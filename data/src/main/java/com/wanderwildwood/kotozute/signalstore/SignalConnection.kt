@@ -219,6 +219,12 @@ internal class SignalConnection(
     }
 
     fun connect() {
+        // The message database was refused at startup (see MessageStoreGate): whatever came off
+        // the socket now would be acknowledged to Signal and then lost with the process.
+        if (com.wanderwildwood.kotozute.util.MessageStoreGate.blocked) {
+            Timber.w("signal socket: not connecting, the message database is not open")
+            return
+        }
         Timber.i("signal socket: connecting as device %d", credentials.deviceId)
         // Registered BEFORE connecting, and the order is the whole point.
         //

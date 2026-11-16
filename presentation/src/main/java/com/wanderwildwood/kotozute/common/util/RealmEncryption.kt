@@ -58,11 +58,13 @@ object RealmEncryption {
 
 
     /**
-     * The key to open the Realm with, or null to carry on without one.
+     * The key to open the Realm with, or null when the keystore will not produce one.
      *
      * Null is returned only when the keystore itself will not co-operate, which happens on
-     * devices with a broken or wiped keystore. Refusing to start would be the wrong answer to
-     * that: an unencrypted database the user can read beats an encrypted one nobody can.
+     * devices with a broken or wiped keystore, and sometimes for a while after a system
+     * update. It used to mean "carry on without encryption". It does not any more: see
+     * [refusal] for what a missing key is allowed to open, which is only a database that was
+     * never encrypted in the first place.
      */
     fun keyOrNull(context: Context): ByteArray? = try {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -73,8 +75,43 @@ object RealmEncryption {
             else -> newKey().also { seal(context, it) }
         }
     } catch (t: Throwable) {
-        Timber.e(t, "realm: no usable encryption key; continuing unencrypted")
+        Timber.e(t, "realm: the keystore gave no usable encryption key")
         null
+    }
+
+    /** Why the message database is not being opened. */
+    enum class Refusal {
+        /** There is an encrypted database on disk and no key to open it with. */
+        NO_KEY_FOR_ENCRYPTED,
+
+        /** There is no database yet, and no key to make an encrypted one with. */
+        NO_KEY_FOR_NEW
+    }
+
+    /**
+     * Whether to refuse to open the database with this key, and why. Null means go ahead.
+     *
+     * With a key there is nothing to refuse. Without one, three cases:
+     *
+     *  - **The file on disk is encrypted.** Opening it without its key fails, and what used to
+     *    follow was the worst outcome available: the database was discarded and an empty,
+     *    unencrypted one took its place. A keystore that is only slow to come back after an
+     *    update cost somebody their whole Signal history that way. Refused; nothing is touched.
+     *  - **There is no file.** Going ahead would create an unencrypted database. Refused.
+     *  - **The file on disk was never encrypted** -- an install from before this class
+     *    existed whose keystore has never worked, or one whose conversion declined to run.
+     *    Those messages are in the clear already and refusing would only lock their owner out
+     *    of them, so that file is still opened as it is. It is converted the first time a key
+     *    is available ([encryptExistingRealm]).
+     */
+    fun refusal(context: Context, key: ByteArray?): Refusal? {
+        if (key != null) return null
+        val exists = File(context.filesDir, REALM_NAME).exists()
+        return when {
+            !exists -> Refusal.NO_KEY_FOR_NEW
+            isEncrypted(context) -> Refusal.NO_KEY_FOR_ENCRYPTED
+            else -> null
+        }
     }
 
     /**
@@ -177,9 +214,9 @@ object RealmEncryption {
      * keystore that lost its key leaves a file nobody can decrypt, and starting over beats an
      * app that will not open. A file written by a *newer* build of this app is not damaged at
      * all -- every byte is intact and the only thing wrong is that this build is behind it.
-     * [discardUnreadableRealm] deletes, and the KDoc there says what that costs: the Signal
-     * history has no second copy anywhere. Deleting a recoverable database because the check
-     * could not tell it from an unrecoverable one is the worst trade in this file.
+     * [setAsideUnreadableRealm] starts the app on an empty database, and the Signal history
+     * has no second copy anywhere. Putting a perfectly good database out of reach because the
+     * check could not tell it from a damaged one is the worst trade in this file.
      *
      * A DynamicRealm is the discriminator because it opens a file without validating it
      * against the model classes -- which is how a migration reads one. If it opens, the key
@@ -199,23 +236,47 @@ object RealmEncryption {
         .getOrNull()
 
     /**
-     * Last resort, for a database that exists, claims to be encrypted, and will not open --
-     * a keystore that lost its key, which some devices do on a firmware update.
+     * Last resort, for a database file that will not open: moves it out of the way so that a
+     * new, empty one can be made. **Nothing is deleted.**
      *
-     * SMS can be filled again from the telephony provider on the next sync. Signal cannot:
-     * this database holds the only copy of it, and Signal delivers a message to a device
-     * once, so what a discarded database held is gone with it -- there is nothing to draw
-     * down again. Nor are the drafts, the pins, or which conversations were archived, on
-     * either rail. That is a real loss and this says so in the log rather than quietly
-     * starting over as though nothing had happened.
+     * The file is renamed beside itself (`default.realm.unreadable-<time>`) and stays on the
+     * phone. This used to delete it. SMS can be filled again from the telephony provider on
+     * the next sync; Signal cannot -- this database holds the only copy of it, and Signal
+     * delivers a message to a device once. A file that is kept can still be read by whatever
+     * later works out why it would not open; a deleted one cannot.
+     *
+     * Only Realm's own scratch files (the lock, the note pipe, the management folder) are
+     * removed, because a new database of the same name must not find the old one's there.
+     *
+     * @return false when the file could not be moved; it is then left exactly as it was.
+     * @param forgetKey true when the reason is that the key is gone: the sealed key is moved
+     *   aside too, under the same suffix, so a new one is made on the next start. False when
+     *   the key is fine and the file is what is wrong; the new database then uses the same key
+     *   and the file set aside stays readable with it.
      */
-    fun discardUnreadableRealm(context: Context) {
+    fun setAsideUnreadableRealm(context: Context, forgetKey: Boolean): Boolean {
         val dir = context.filesDir
-        Timber.e("realm: cannot open the encrypted database; starting a new one")
-        listOf(REALM_NAME, "$REALM_NAME.lock", "$REALM_NAME.note").forEach { File(dir, it).delete() }
+        val suffix = ".unreadable-" + System.currentTimeMillis()
+        val realm = File(dir, REALM_NAME)
+        if (realm.exists()) {
+            val moved = realm.renameTo(File(dir, REALM_NAME + suffix))
+            Timber.e("realm: the database would not open; set aside as %s%s (moved: %b)", REALM_NAME, suffix, moved)
+            // If it could not even be renamed it stays where it is, untouched, and the next
+            // start meets it again. That is the right failure: not opening beats deleting.
+            if (!moved) return false
+        }
+        listOf("$REALM_NAME.lock", "$REALM_NAME.note").forEach { File(dir, it).delete() }
         File(dir, "$REALM_NAME.management").deleteRecursively()
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .remove(PREF_SEALED_KEY).remove(PREF_IV).remove(PREF_ENCRYPTED).apply()
+        if (forgetKey) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString(PREF_SEALED_KEY + suffix, prefs.getString(PREF_SEALED_KEY, null))
+                .putString(PREF_IV + suffix, prefs.getString(PREF_IV, null))
+                .remove(PREF_SEALED_KEY).remove(PREF_IV).remove(PREF_ENCRYPTED)
+                // commit(): the process is about to be restarted on purpose.
+                .commit()
+        }
+        return true
     }
 
     // --- key handling ---------------------------------------------------------------------

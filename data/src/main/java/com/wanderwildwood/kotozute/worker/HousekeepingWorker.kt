@@ -69,6 +69,10 @@ class HousekeepingWorker(appContext: Context, workerParams: WorkerParameters)
     @Inject lateinit var scheduledMessageRepository: ScheduledMessageRepository
 
     override fun doWork(): Result {
+        // With the message database refused (see MessageStoreGate) the one in use is empty, and
+        // "a file no row claims" would be every file there is. Nothing is cleaned in that state.
+        if (com.wanderwildwood.kotozute.util.MessageStoreGate.blocked) return Result.success()
+
         val twoHoursAgo = (System.currentTimeMillis() - (2 * 60 * 60 * 1000))
 
         removeOrphanedScheduledMessageAttachmentFiles()

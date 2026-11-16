@@ -169,6 +169,13 @@
         <activity android:name=".feature.signal.SignalThreadActivity" />
         <activity android:name=".feature.signal.SignalThreadInfoActivity" />
         <activity android:name=".feature.signal.ViewOnceActivity" android:theme="@style/AppLaunchTheme" />
+        <!-- Shown instead of everything else when the message database cannot be opened
+             encrypted. Not exported, kept out of Recents, no history of its own. -->
+        <activity
+            android:name=".feature.locked.MessagesLockedActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
         <activity
             android:name=".feature.qkreply.QkReplyActivity"
             android:excludeFromRecents="true"

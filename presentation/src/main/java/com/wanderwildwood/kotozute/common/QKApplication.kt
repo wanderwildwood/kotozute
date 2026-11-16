@@ -83,6 +83,52 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     @Inject lateinit var signalNotifications: com.wanderwildwood.kotozute.feature.signal.SignalNotifications
     @Inject lateinit var messageRepo: com.wanderwildwood.kotozute.repository.MessageRepository
 
+    /**
+     * The message database is not being opened. Everything [onCreate] would have done after
+     * this point is skipped, and whatever screen is asked for shows
+     * [com.wanderwildwood.kotozute.feature.locked.MessagesLockedActivity] instead, which says
+     * what happened and what can be done about it.
+     *
+     * Realm still needs a database to hand out, because receivers and workers keep running
+     * and would crash without one. It gets an empty one that lives in memory and is gone with
+     * the process; the file on disk, if there is one, is not opened, moved or written.
+     * Signal does not connect in this state (see [MessageStoreGate]).
+     */
+    private fun refuseMessageStore(refusal: RealmEncryption.Refusal) {
+        Timber.e("realm: not opening the message database (%s); showing the locked screen", refusal)
+        com.wanderwildwood.kotozute.util.MessageStoreGate.blocked = true
+        Realm.setDefaultConfiguration(
+            RealmConfiguration.Builder()
+                .name("locked-placeholder.realm")
+                .inMemory()
+                .schemaVersion(QkRealmMigration.SCHEMA_VERSION)
+                .build()
+        )
+        // Receivers and workers still run and ask for WorkManager, which this app builds by
+        // hand further down onCreate -- a point this start never reaches. The two jobs that
+        // compare files on disk with what the database holds, and delete the difference, do
+        // nothing while the gate is set: against an empty database everything is an orphan.
+        runCatching {
+            WorkManager.initialize(this, Configuration.Builder().setWorkerFactory(workerFactory).build())
+        }.onFailure { Timber.w(it, "work manager: could not start while the message database is locked") }
+        val locked = com.wanderwildwood.kotozute.feature.locked.MessagesLockedActivity::class.java
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {
+                if (locked.isInstance(activity)) return
+                activity.startActivity(
+                    com.wanderwildwood.kotozute.feature.locked.MessagesLockedActivity.intent(activity, refusal)
+                )
+                activity.finish()
+            }
+            override fun onActivityStarted(activity: android.app.Activity) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = Unit
+            override fun onActivityPaused(activity: android.app.Activity) = Unit
+            override fun onActivityStopped(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
+    }
+
     override fun onCreate() {
         super.onCreate()
 
@@ -166,6 +212,17 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         }
 
         val key = RealmEncryption.keyOrNull(this)
+
+        // ⛔ No key is no longer "carry on unencrypted". A database is never created without
+        // encryption, and an encrypted one is never swapped for an unencrypted one; the app
+        // stops on one screen that says what happened instead. The single exception is a file
+        // that was never encrypted, which is still opened as it is. See
+        // [RealmEncryption.refusal] for the three cases.
+        RealmEncryption.refusal(this, key)?.let { refusal ->
+            refuseMessageStore(refusal)
+            return
+        }
+
         if (key != null) RealmEncryption.encryptExistingRealm(this, key, realmConfig)
 
         // Ask what is actually on disk rather than assuming the conversion ran. It declines
@@ -177,20 +234,22 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
                         .build()
         )
 
-        // A keystore that lost its key leaves a database nobody can read. Both rails can be
-        // filled again from elsewhere, so starting over beats an app that will not open.
+        // A file that will not open although its key is right (or it has none) is set aside,
+        // never deleted, and the app starts on an empty database: SMS can be filled again from
+        // the phone's own store, and an app that will not open cannot receive a text.
         //
         // ⚠ **Except when the file is only newer than this build.** That failure looks
         // identical here and is the opposite case: nothing is damaged, and installing the
-        // build that wrote it gets everything back. Discarding is irreversible and the Signal
-        // history has no second copy, so a database that can still be opened is never deleted
-        // -- this refuses to start instead, which is a state somebody can get out of.
+        // build that wrote it gets everything back. A database that can still be opened is
+        // left exactly where it is -- this refuses to start instead, which is a state somebody
+        // can get out of.
         //
         // The throwable is logged either way. It was swallowed before, so after the fact
-        // there was no way to tell a lost keystore from an older APK being installed.
-        runCatching { Realm.getDefaultInstance().use { it.isEmpty } }.onFailure { failure ->
+        // there was no way to tell a damaged file from an older APK being installed.
+        val failure = runCatching { Realm.getDefaultInstance().use { it.isEmpty } }.exceptionOrNull()
+        if (failure != null) {
             val onDisk = RealmEncryption.versionRefusedAsNewer(failure)
-                ?: RealmEncryption.schemaVersionOnDisk(key)
+                ?: RealmEncryption.schemaVersionOnDisk(key.takeIf { RealmEncryption.isEncrypted(this) })
             if (onDisk != null && onDisk > QkRealmMigration.SCHEMA_VERSION) {
                 Timber.e(
                     failure,
@@ -204,13 +263,22 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
                         "version again -- nothing has been deleted."
                 )
             }
-            Timber.e(failure, "realm: cannot open the database; discarding it")
-            RealmEncryption.discardUnreadableRealm(this)
-            val fresh = RealmEncryption.keyOrNull(this)
-            if (fresh != null) RealmEncryption.encryptExistingRealm(this, fresh, realmConfig)
-            Realm.setDefaultConfiguration(
-                    realmConfig().apply { if (fresh != null) encryptionKey(fresh) }.build()
-            )
+            Timber.e(failure, "realm: cannot open the database; setting it aside")
+            if (!RealmEncryption.setAsideUnreadableRealm(this, forgetKey = false)) {
+                throw IllegalStateException(
+                    "The message database would not open and could not be moved aside. " +
+                        "Nothing has been deleted.",
+                    failure
+                )
+            }
+            // The empty database that replaces it is encrypted or it is not made at all.
+            if (key == null) {
+                refuseMessageStore(RealmEncryption.Refusal.NO_KEY_FOR_NEW)
+                return
+            }
+            // With no file left this only records that what comes next is encrypted.
+            RealmEncryption.encryptExistingRealm(this, key, realmConfig)
+            Realm.setDefaultConfiguration(realmConfig().encryptionKey(key).build())
         }
 
         qkMigration.performMigration()

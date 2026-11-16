@@ -1014,6 +1014,14 @@ interface SignalRepository {
     fun purgeAbandonedAttachments(): Int
 
     /**
+     * Encrypts Signal attachments, and the one key, that older versions stored on the phone
+     * in the clear. Background work; safe to stop and to run again.
+     *
+     * @return how many attachments are still waiting.
+     */
+    fun sealStorageAtRest(): Int
+
+    /**
      * Tries again for attachments that did not arrive the first time, returning how many did.
      *
      * Three immediate attempts cover a dropped socket; they do not cover a phone with no usable

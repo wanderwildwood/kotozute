@@ -785,6 +785,15 @@ class SignalRepositoryImpl @Inject constructor(
      * costs disk until the next pass, and deleting a live attachment costs somebody a picture
      * that has no other copy anywhere -- this store is the only one there is.
      */
+    override fun sealStorageAtRest(): Int {
+        // Nothing is rearranged while the message store is refusing to open: the same
+        // keystore is behind both, and this is not the moment to be making new keys in it.
+        if (com.wanderwildwood.kotozute.util.MessageStoreGate.blocked) return 0
+        return runCatching { signalStore.sealStorageAtRest() }
+            .onFailure { Timber.w(it, "signal: could not finish encrypting stored attachments") }
+            .getOrDefault(0)
+    }
+
     override fun purgeAbandonedAttachments(): Int {
         // Against the empty stand-in database every attachment on disk would look abandoned.
         if (com.wanderwildwood.kotozute.util.MessageStoreGate.blocked) return 0

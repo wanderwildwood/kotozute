@@ -37,7 +37,7 @@ dependencies {
 
     implementation "org.signal:libsignal-client:$libsignal_version"
     api 'com.squareup.okio:okio:3.17.0'
-    implementation 'com.squareup.okhttp3:okhttp-coroutines:5.3.2'
+    implementation "com.squareup.okhttp3:okhttp-coroutines:$okhttp3_version"
 
     api 'io.reactivex.rxjava3:rxjava:3.1.12'
 

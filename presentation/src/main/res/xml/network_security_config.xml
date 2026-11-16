@@ -14,12 +14,10 @@
         but the app does not open that connection. It hands the message to the phone's own MMS
         service (SmsManager.sendMultimediaMessage / downloadMultimediaMessage), and the system
         makes the request on the carrier's network, outside this app and outside this file.
-        The older in-app download path in android-smsmms (service_alt) is only taken if the
-        "system_mms_sending" preference is false, and nothing in the app sets it.
+        The MMS library could once make that request itself, over an HTTP client of its own;
+        that path and its client are removed.
       - Desktop Sync listens for a browser; it makes no outgoing connection.
 
-    If a carrier ever needs the in-app MMS path back, cleartext would have to be allowed here
-    for that carrier's message center by name, with the reason beside it. Not app-wide.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">

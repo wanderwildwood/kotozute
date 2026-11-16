@@ -32,9 +32,6 @@ import android.telephony.SmsMessage;
 import android.text.TextUtils;
 
 import com.android.mms.MmsConfig;
-import com.android.mms.service_alt.MmsNetworkManager;
-import com.android.mms.service_alt.MmsRequestManager;
-import com.android.mms.service_alt.SendRequest;
 import com.google.android.mms.util_alt.SqliteWrapper;
 import timber.log.Timber;
 
@@ -503,22 +500,10 @@ public class Transaction {
         } else {
             Timber.v("using lollipop method for sending sms");
 
-            if (settings.getUseSystemSending()) {
-                Timber.v("using system method for sending");
-                sendMmsThroughSystem(context, subject, data, fromAddress, addresses, explicitSentMmsReceiver, save, messageUri);
-            } else {
-                try {
-                    MessageInfo info = getBytes(context, saveMessage, fromAddress, address.split(" "),
-                            data.toArray(new MMSPart[data.size()]), subject);
-                    MmsRequestManager requestManager = new MmsRequestManager(context, info.bytes);
-                    SendRequest request = new SendRequest(requestManager, Utils.getDefaultSubscriptionId(),
-                            info.location, null, null, null, null);
-                    MmsNetworkManager manager = new MmsNetworkManager(context, Utils.getDefaultSubscriptionId());
-                    request.execute(context, manager);
-                } catch (Exception e) {
-                    Timber.e("error sending mms", e);
-                }
-            }
+            // Always through the system. The other branch sent the message itself over an
+            // HTTP client of its own; it is removed with that client.
+            Timber.v("using system method for sending");
+            sendMmsThroughSystem(context, subject, data, fromAddress, addresses, explicitSentMmsReceiver, save, messageUri);
         }
     }
 

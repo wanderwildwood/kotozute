@@ -29,7 +29,6 @@ import android.provider.Telephony;
 import android.text.TextUtils;
 import timber.log.Timber;
 
-import com.android.mms.service_alt.exception.MmsHttpException;
 import com.google.android.mms.MmsException;
 import com.google.android.mms.pdu_alt.GenericPdu;
 import com.google.android.mms.pdu_alt.PduHeaders;
@@ -41,9 +40,15 @@ import com.klinker.android.send_message.BroadcastUtils;
 import com.klinker.android.send_message.Transaction;
 
 /**
- * Request to download an MMS
+ * What is left of the request to download an MMS: writing a downloaded message into the
+ * phone's message store ({@link #persist}).
+ *
+ * The download itself is done by the system (SmsManager.downloadMultimediaMessage). This
+ * class used to be able to fetch the message from the carrier over its own HTTP client as
+ * well; that path was only taken with a preference nothing set, and it has been removed
+ * together with the old OkHttp it needed.
  */
-public class DownloadRequest extends MmsRequest {
+public class DownloadRequest {
     private static final String TAG = "DownloadRequest";
 
     private static final String LOCATION_SELECTION =
@@ -55,63 +60,6 @@ public class DownloadRequest extends MmsRequest {
 
     // The indexes of the columns which must be consistent with above PROJECTION.
     static final int COLUMN_CONTENT_LOCATION      = 0;
-
-    private final String mLocationUrl;
-    private final PendingIntent mDownloadedIntent;
-    private final Uri mContentUri;
-
-    public DownloadRequest(RequestManager manager, int subId, String locationUrl,
-            Uri contentUri, PendingIntent downloadedIntent, String creator,
-            Bundle configOverrides, Context context) throws MmsException {
-        super(manager, subId, creator, configOverrides);
-
-        if (locationUrl == null) {
-            mLocationUrl = getContentLocation(context, contentUri);
-        } else {
-            mLocationUrl = locationUrl;
-        }
-
-        mDownloadedIntent = downloadedIntent;
-        mContentUri = contentUri;
-    }
-
-    @Override
-    protected byte[] doHttp(Context context, MmsNetworkManager netMgr, ApnSettings apn)
-            throws MmsHttpException {
-        final MmsHttpClient mmsHttpClient = netMgr.getOrCreateHttpClient();
-        if (mmsHttpClient == null) {
-            Timber.e("MMS network is not ready!");
-            throw new MmsHttpException(0/*statusCode*/, "MMS network is not ready");
-        }
-        return mmsHttpClient.execute(
-                mLocationUrl,
-                null/*pud*/,
-                MmsHttpClient.METHOD_GET,
-                apn.isProxySet(),
-                apn.getProxyAddress(),
-                apn.getProxyPort(),
-                mMmsConfig);
-    }
-
-    @Override
-    protected PendingIntent getPendingIntent() {
-        return mDownloadedIntent;
-    }
-
-    @Override
-    protected int getQueueType() {
-        return 1;
-    }
-
-    @Override
-    protected Uri persistIfRequired(Context context, int result, byte[] response) {
-        if (!mRequestManager.getAutoPersistingPref()) {
-            notifyOfDownload(context);
-            return null;
-        }
-
-        return persist(context, response, mMmsConfig, mLocationUrl, mSubId, mCreator);
-    }
 
     public static Uri persist(Context context, byte[] response, MmsConfig.Overridden mmsConfig,
                               String locationUrl, int subId, String creator) {
@@ -287,61 +235,6 @@ public class DownloadRequest extends MmsRequest {
 //                    null,
 //                    null, Activity.RESULT_OK, null, null);
 //        }
-    }
-
-    /**
-     * Transfer the received response to the caller (for download requests write to content uri)
-     *
-     * @param fillIn the intent that will be returned to the caller
-     * @param response the pdu to transfer
-     */
-    @Override
-    protected boolean transferResponse(Intent fillIn, final byte[] response) {
-        return mRequestManager.writePduToContentUri(mContentUri, response);
-    }
-
-    @Override
-    protected boolean prepareForHttpRequest() {
-        return true;
-    }
-
-    /**
-     * Try downloading via the carrier app.
-     *
-     * @param context The context
-     * @param carrierMessagingServicePackage The carrier messaging service handling the download
-     */
-    public void tryDownloadingByCarrierApp(Context context, String carrierMessagingServicePackage) {
-//        final CarrierDownloadManager carrierDownloadManger = new CarrierDownloadManager();
-//        final CarrierDownloadCompleteCallback downloadCallback =
-//                new CarrierDownloadCompleteCallback(context, carrierDownloadManger);
-//        carrierDownloadManger.downloadMms(context, carrierMessagingServicePackage,
-//                downloadCallback);
-    }
-
-    @Override
-    protected void revokeUriPermission(Context context) {
-        context.revokeUriPermission(mContentUri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-    }
-
-    private String getContentLocation(Context context, Uri uri)
-            throws MmsException {
-        Cursor cursor = android.database.sqlite.SqliteWrapper.query(context, context.getContentResolver(),
-                uri, PROJECTION, null, null, null);
-
-        if (cursor != null) {
-            try {
-                if ((cursor.getCount() == 1) && cursor.moveToFirst()) {
-                    String location = cursor.getString(COLUMN_CONTENT_LOCATION);
-                    cursor.close();
-                    return location;
-                }
-            } finally {
-                cursor.close();
-            }
-        }
-
-        throw new MmsException("Cannot get X-Mms-Content-Location from: " + uri);
     }
 
     private static Long getId(Context context, String location) {

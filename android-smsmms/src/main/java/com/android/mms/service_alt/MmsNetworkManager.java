@@ -29,12 +29,11 @@ import android.os.SystemClock;
 import timber.log.Timber;
 
 import com.android.mms.service_alt.exception.MmsNetworkException;
-import com.squareup.okhttp.ConnectionPool;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-public class MmsNetworkManager implements com.squareup.okhttp.internal.Network {
+public class MmsNetworkManager {
     private static final String TAG = "MmsNetworkManager";
     // Timeout used to call ConnectivityManager.requestNetwork
     private static final int NETWORK_REQUEST_TIMEOUT_MILLIS = 60 * 1000;
@@ -67,12 +66,6 @@ public class MmsNetworkManager implements com.squareup.okhttp.internal.Network {
 
     private volatile ConnectivityManager mConnectivityManager;
 
-    // The OkHttp's ConnectionPool used by the HTTP client associated with this network manager
-    private ConnectionPool mConnectionPool;
-
-    // The MMS HTTP client for this network
-    private MmsHttpClient mMmsHttpClient;
-
     // The SIM ID which we use to connect
     private final int mSubId;
 
@@ -84,11 +77,9 @@ public class MmsNetworkManager implements com.squareup.okhttp.internal.Network {
         mNetwork = null;
         mMmsRequestCount = 0;
         mConnectivityManager = null;
-        mConnectionPool = null;
-        mMmsHttpClient = null;
         mSubId = subId;
 
-        if (!MmsRequest.useWifi(context)) {
+        if (!useWifi(context)) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
                 mNetworkRequest = new NetworkRequest.Builder()
                         .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
@@ -235,17 +226,10 @@ public class MmsNetworkManager implements com.squareup.okhttp.internal.Network {
         mNetworkCallback = null;
         mNetwork = null;
         mMmsRequestCount = 0;
-        // Currently we follow what android.net.Network does with ConnectionPool,
-        // which is per Network object. So if Network changes, we should clear
-        // out the ConnectionPool and thus the MmsHttpClient (since it is linked
-        // to a specific ConnectionPool).
-        mConnectionPool = null;
-        mMmsHttpClient = null;
     }
 
     private static final InetAddress[] EMPTY_ADDRESS_ARRAY = new InetAddress[0];
 
-    @Override
     public InetAddress[] resolveInetAddresses(String host) throws UnknownHostException {
         Network network = null;
         synchronized (this) {
@@ -263,40 +247,6 @@ public class MmsNetworkManager implements com.squareup.okhttp.internal.Network {
                     Context.CONNECTIVITY_SERVICE);
         }
         return mConnectivityManager;
-    }
-
-    private ConnectionPool getOrCreateConnectionPoolLocked() {
-        if (mConnectionPool == null) {
-            mConnectionPool = new ConnectionPool(httpMaxConnections, httpKeepAliveDurationMs);
-        }
-        return mConnectionPool;
-    }
-
-    /**
-     * Get an MmsHttpClient for the current network
-     *
-     * @return The MmsHttpClient instance
-     */
-    public MmsHttpClient getOrCreateHttpClient() {
-        synchronized (this) {
-            if (mMmsHttpClient == null) {
-                if (mNetwork != null) {
-                    // Create new MmsHttpClient for the current Network
-                    mMmsHttpClient = new MmsHttpClient(
-                            mContext,
-                            mNetwork.getSocketFactory(),
-                            MmsNetworkManager.this,
-                            getOrCreateConnectionPoolLocked());
-                } else if (permissionError) {
-                    mMmsHttpClient = new MmsHttpClient(
-                            mContext,
-                            new SSLCertificateSocketFactory(NETWORK_REQUEST_TIMEOUT_MILLIS),
-                            MmsNetworkManager.this,
-                            getOrCreateConnectionPoolLocked());
-                }
-            }
-            return mMmsHttpClient;
-        }
     }
 
     /**
@@ -324,6 +274,23 @@ public class MmsNetworkManager implements com.squareup.okhttp.internal.Network {
         }
         Timber.d("MmsNetworkManager: getApnName: " + apnName);
         return apnName;
+    }
+
+    /**
+     * are we set up to use wifi? if so, send mms over it.
+     * (Moved here from MmsRequest, which is gone with the in-app HTTP path.)
+     */
+    public static boolean useWifi(Context context) {
+        if (com.klinker.android.send_message.Utils.isMmsOverWifiEnabled(context)) {
+            ConnectivityManager mConnMgr = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (mConnMgr != null) {
+                NetworkInfo niWF = mConnMgr.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+                if ((niWF != null) && (niWF.isConnected())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
 }

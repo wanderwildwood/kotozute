@@ -37,9 +37,6 @@ import android.text.TextUtils;
 
 import com.android.mms.MmsConfig;
 import com.android.mms.logs.LogTag;
-import com.android.mms.service_alt.DownloadRequest;
-import com.android.mms.service_alt.MmsNetworkManager;
-import com.android.mms.service_alt.MmsRequestManager;
 import com.google.android.mms.ContentType;
 import com.google.android.mms.MmsException;
 import com.google.android.mms.pdu_alt.DeliveryInd;
@@ -207,28 +204,11 @@ public class PushReceiver extends BroadcastReceiver {
 
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                                 Timber.v("receiving on a lollipop+ device");
-                                boolean useSystem = true;
-
-                                if (com.klinker.android.send_message.Transaction.settings != null) {
-                                    useSystem = com.klinker.android.send_message.Transaction.settings
-                                            .getUseSystemSending();
-                                } else {
-                                    useSystem = PreferenceManager.getDefaultSharedPreferences(mContext)
-                                            .getBoolean("system_mms_sending", useSystem);
-                                }
-
-                                if (useSystem) {
-                                    DownloadManager.getInstance().downloadMultimediaMessage(mContext, location, uri, true, subId);
-                                } else {
-                                    Timber.v("receiving with lollipop method");
-                                    MmsRequestManager requestManager = new MmsRequestManager(mContext);
-                                    DownloadRequest request = new DownloadRequest(requestManager,
-                                            Utils.getDefaultSubscriptionId(),
-                                            location, uri, null, null,
-                                            null, mContext);
-                                    MmsNetworkManager manager = new MmsNetworkManager(mContext, Utils.getDefaultSubscriptionId());
-                                    request.execute(mContext, manager);
-                                }
+                                // Always the system's own download. This could also fetch the
+                                // message itself over an HTTP client of its own, when the
+                                // "system_mms_sending" preference was false; nothing set it, and
+                                // that path is removed.
+                                DownloadManager.getInstance().downloadMultimediaMessage(mContext, location, uri, true, subId);
                             } else {
                                 if (NotificationTransaction.allowAutoDownload(mContext)) {
                                     // Start service to finish the notification transaction.

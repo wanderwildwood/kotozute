@@ -169,7 +169,6 @@
                 android:id="@+id/darkMode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:summary="@string/settings_dark_note"
                 app:title="@string/settings_dark"
                 app:widget="@layout/settings_switch_widget" />
 

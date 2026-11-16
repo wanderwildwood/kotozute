@@ -19,10 +19,12 @@ Where the app processes personal data, that processing happens on your own devic
 On the phone only:
 
 - **Texts and picture messages** are kept by Android itself, in its own message store, because the app is the phone's default SMS app. The app also keeps a copy of them, with your contacts' names and numbers, in its own database.
-- **Signal messages, attachments, groups, contacts and receipts** are kept in the app's own database. Signal's cryptographic keys and sessions are kept in a second, separate database.
+- **Signal messages, groups, contacts and receipts** are kept in the app's own database, and **Signal attachments** as files in the app's private storage beside it. Signal's cryptographic keys and sessions are kept in a second, separate database.
 - **Settings, scheduled messages, and blocked numbers.**
 
 The app's own database is encrypted on disk with a random key sealed by a key in the phone's keystore, and so is the Signal key database. That protects the files if the storage is lifted from the phone. It does not protect them from code running as this app on an unlocked phone, because the keystore key cannot require your fingerprint or PIN: the app has to open its databases at start-up and in the background, with nobody there to unlock anything.
+
+Signal attachments are encrypted on disk as well, each file under a key of its own, derived from a secret sealed by the keystore in the same way. Attachments that an earlier version stored unencrypted are encrypted in the background after you update; until that has finished, some of them are still as the earlier version left them. A few short-lived copies are not encrypted, and sit in the app's private storage or its private cache: a voice message while it is playing, a view-once video while it is showing, a file you share or copy to another app (the other app has to be able to read it), and the attachments of a message that has not finished sending.
 
 The manifest sets `allowBackup="false"`, so Android does not copy the app into a device backup or a cloud backup. There is no cloud copy and no copy held by the developer.
 

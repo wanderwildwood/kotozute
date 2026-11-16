@@ -286,6 +286,13 @@
                 android:layout_height="wrap_content"
                 app:summary="@string/settings_crash_log_summary"
                 app:title="@string/settings_crash_log_title" />
+            <!-- Only when a message database was set aside as unreadable; see SetAsideDatabases. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/setAsideDatabases"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:title="@string/settings_set_aside_title" />
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/sync"
                 android:layout_width="match_parent"

@@ -27,6 +27,9 @@ interface SettingsView : QkViewContract<SettingsState> {
 
     /** Shows what was recorded the last few times the app stopped, and offers to send it. */
     fun showCrashLog(log: String)
+
+    /** Arm-and-confirm, then removes the message files that were set aside as unreadable. */
+    fun askRemoveSetAside()
     fun aboutLongClicks(): Observable<*>
     fun textSizeSelected(): Observable<Int>
     fun sendDelaySelected(): Observable<Int>

@@ -155,13 +155,14 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun onDetach(view: View) {
         // Leaving this screen for another one in the same activity is not a pause, so the
         // watch would not see it: an armed row must not be waiting when the screen comes back.
-        if (resetArmed || unpairArmed) activity?.armedWatch()?.disarm()
+        if (resetArmed || unpairArmed || setAsideArmed) activity?.armedWatch()?.disarm()
         super.onDetach(view)
     }
 
     override fun onAttach(view: View) {
         super.onAttach(view)
         presenter.bindIntents(this)
+        showSetAside()
         // After the intents are bound, never before: these are the results that came back
         // while this screen was stopped.
         pendingExportFolder?.let { folder ->
@@ -255,7 +256,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun handleBack(): Boolean {
         // Back with a row armed only disarms it; the next Back leaves (STYLE.md).
-        if (resetArmed || unpairArmed) {
+        if (resetArmed || unpairArmed || setAsideArmed) {
             activity?.armedWatch()?.disarm()
             return true
         }
@@ -297,6 +298,47 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     private var unpairArmed = false
     private val disarmUnpairRunnable: () -> Unit = { disarmUnpair() }
+
+    private var setAsideArmed = false
+    private val disarmSetAsideRunnable: () -> Unit = { disarmSetAside() }
+
+    private fun disarmSetAside() {
+        setAsideArmed = false
+        activity?.armedWatch()?.done(disarmSetAsideRunnable)
+        showSetAside()
+    }
+
+    /**
+     * The row for message files that were set aside because they would not open. Shown only
+     * when there are any, with how many and how much room they take.
+     */
+    private fun showSetAside() {
+        val context = activity ?: return
+        val found = com.wanderwildwood.kotozute.common.util.SetAsideDatabases.find(context)
+        binding.setAsideDatabases.setVisible(found.count > 0)
+        if (found.count == 0) return
+        binding.setAsideDatabases.title = context.getString(R.string.settings_set_aside_title)
+        binding.setAsideDatabases.summary = context.resources.getQuantityString(
+            R.plurals.settings_set_aside_summary,
+            found.count,
+            found.count,
+            android.text.format.Formatter.formatShortFileSize(context, found.bytes)
+        )
+    }
+
+    /** Arm-and-confirm, as the other rows that destroy something are. */
+    override fun askRemoveSetAside() {
+        val context = activity ?: return
+        if (setAsideArmed) {
+            com.wanderwildwood.kotozute.common.util.SetAsideDatabases.remove(context)
+            disarmSetAside()
+            return
+        }
+        setAsideArmed = true
+        binding.setAsideDatabases.title = context.getString(R.string.settings_set_aside_armed)
+        binding.setAsideDatabases.summary = context.getString(R.string.settings_set_aside_armed_summary)
+        context.armedWatch()?.arm(disarmSetAsideRunnable)
+    }
 
     private fun disarmUnpair() {
         unpairArmed = false

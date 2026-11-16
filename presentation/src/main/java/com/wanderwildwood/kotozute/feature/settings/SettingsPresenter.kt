@@ -399,6 +399,8 @@ class SettingsPresenter @Inject constructor(
                                 com.wanderwildwood.kotozute.common.util.CrashLog.read(context)
                             )
 
+                        R.id.setAsideDatabases -> view.askRemoveSetAside()
+
                         R.id.signalFetchContacts -> fetchContacts(view)
 
                         // Asks first. Everything else on this screen acts on the phone; this

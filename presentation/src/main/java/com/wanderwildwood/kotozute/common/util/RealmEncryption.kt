@@ -38,9 +38,10 @@ import javax.crypto.spec.GCMParameterSpec
  */
 object RealmEncryption {
 
-    private const val PREFS = "realm_encryption"
-    private const val PREF_SEALED_KEY = "sealed_key"
-    private const val PREF_IV = "iv"
+    // Not private: [SetAsideDatabases] names set-aside files and keys from these.
+    internal const val PREFS = "realm_encryption"
+    internal const val PREF_SEALED_KEY = "sealed_key"
+    internal const val PREF_IV = "iv"
     private const val PREF_ENCRYPTED = "realm_is_encrypted"
 
     private const val KEYSTORE = "AndroidKeyStore"
@@ -51,7 +52,7 @@ object RealmEncryption {
     /** Realm's key length. Not negotiable; it wants exactly this many bytes. */
     private const val REALM_KEY_BYTES = 64
 
-    private const val REALM_NAME = "default.realm"
+    internal const val REALM_NAME = "default.realm"
 
     /** Kept until the encrypted copy has been opened once, then deleted. */
     private const val ROLLBACK_SUFFIX = ".pre-encryption"
@@ -256,7 +257,7 @@ object RealmEncryption {
      */
     fun setAsideUnreadableRealm(context: Context, forgetKey: Boolean): Boolean {
         val dir = context.filesDir
-        val suffix = ".unreadable-" + System.currentTimeMillis()
+        val suffix = SetAsideDatabases.MARK + System.currentTimeMillis()
         val realm = File(dir, REALM_NAME)
         if (realm.exists()) {
             val moved = realm.renameTo(File(dir, REALM_NAME + suffix))

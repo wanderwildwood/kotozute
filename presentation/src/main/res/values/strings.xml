@@ -1487,4 +1487,13 @@
     <string name="messages_locked_start_empty_message">The messages that cannot be opened are moved aside on this phone, not deleted. Without their key they cannot be read.\n\nYour texts come back from the phone\'s own message store. Signal messages that were only on this phone do not come back.\n\nTry restarting the phone first.</string>
     <string name="messages_locked_start_empty_confirm">Start empty</string>
     <string name="messages_locked_start_empty_failed">The old messages could not be moved aside, so nothing was changed.</string>
+
+    <!-- Settings row, shown only when message files were set aside because they could not be opened -->
+    <string name="settings_set_aside_title">Remove unreadable message files</string>
+    <plurals name="settings_set_aside_summary">
+        <item quantity="one">%1$d old message file that could not be opened is kept on this phone, %2$s</item>
+        <item quantity="other">%1$d old message files that could not be opened are kept on this phone, %2$s</item>
+    </plurals>
+    <string name="settings_set_aside_armed">Remove for good — tap again</string>
+    <string name="settings_set_aside_armed_summary">These files cannot be read without their key, and removing them cannot be undone. Your current messages are not touched.</string>
 </resources>

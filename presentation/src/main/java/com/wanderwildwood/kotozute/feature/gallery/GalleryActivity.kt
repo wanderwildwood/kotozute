@@ -19,6 +19,7 @@
 package com.wanderwildwood.kotozute.feature.gallery
 
 import android.Manifest
+import android.graphics.Color
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -84,6 +85,17 @@ class GalleryActivity : QkActivity(), GalleryView {
                         }
             }
         })
+    }
+
+    override fun onResume() {
+        // The bars are drawn in the window, so dark mode's filter would turn the theme's black
+        // strip white over the picture. Painted white while dark mode is on, the filter turns it
+        // black again and DarkMode asks for light icons, as in light mode. Set before super, so
+        // DarkMode's own resume pass reads the colour picked here.
+        val bar = if (DarkMode.on) Color.WHITE else Color.BLACK
+        window.statusBarColor = bar
+        window.navigationBarColor = bar
+        super.onResume()
     }
 
     fun onPageSelected(position: Int) {

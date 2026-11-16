@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    No cleartext http, anywhere, and only the certificate authorities the system ships.
+
+    This is what Android already does for an app at this target level; it is written down so
+    that it is a decision rather than a default, and so that raising or lowering the target
+    cannot change it quietly.
+
+    Nothing the app does itself needs plain http:
+      - Signal: https and wss only, to Signal's own hosts, against Signal's own pinned roots.
+      - GIF search: https.
+      - The captcha page when registering: https.
+      - Picture messages (MMS): a carrier's message center is very often a plain http address,
+        but the app does not open that connection. It hands the message to the phone's own MMS
+        service (SmsManager.sendMultimediaMessage / downloadMultimediaMessage), and the system
+        makes the request on the carrier's network, outside this app and outside this file.
+        The older in-app download path in android-smsmms (service_alt) is only taken if the
+        "system_mms_sending" preference is false, and nothing in the app sets it.
+      - Desktop Sync listens for a browser; it makes no outgoing connection.
+
+    If a carrier ever needs the in-app MMS path back, cleartext would have to be allowed here
+    for that carrier's message center by name, with the reason beside it. Not app-wide.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

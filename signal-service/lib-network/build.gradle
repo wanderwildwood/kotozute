@@ -1,5 +1,5 @@
 // Signal-Android `lib/network`, built from source.
-// From `lib/network/build.gradle.kts` at b92917acdb (2026-09-10).
+// From `lib/network/build.gradle.kts` at 90a6ddce46 (v8.36.2, 2026-11-15).
 //
 // This is the module the app talks to most directly -- `org.signal.network.api`,
 // `org.signal.network.rest` and `org.signal.network.service` all live here, not in
@@ -32,10 +32,9 @@ dependencies {
     api project(':signal-service:libsignal-service')
     api project(':signal-service:network')
     implementation project(':signal-service:util-jvm')
-    implementation project(':signal-service:models-jvm')
     implementation project(':signal-service:serialization')
 
-    implementation "org.signal:libsignal-client:$libsignal_version"
+    api "org.signal:libsignal-client:$libsignal_version"
     api 'com.squareup.okio:okio:3.17.0'
     implementation "com.squareup.okhttp3:okhttp-coroutines:$okhttp3_version"
 

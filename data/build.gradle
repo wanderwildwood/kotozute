@@ -120,12 +120,12 @@ dependencies {
     // This replaces `com.github.turasa:signal-network:2.15.3_unofficial_152`.
     //
     // All four are named rather than leaning on what libsignal-service re-exports, because
-    // this module's own code imports from three of them directly: `org.signal.core.models`
-    // (ServiceId and friends), `org.signal.core.util`, and `org.signal.network`.
+    // this module's own code imports from them directly: `org.signal.core.models` (ServiceId
+    // and friends, in util-jvm since upstream merged core/models-jvm into it),
+    // `org.signal.core.util`, and `org.signal.network`.
     api project(':signal-service:lib-network')
     api project(':signal-service:libsignal-service')
     api project(':signal-service:network')
-    api project(':signal-service:models-jvm')
     api project(':signal-service:util-jvm')
 
     implementation 'net.zetetic:sqlcipher-android:4.9.0'

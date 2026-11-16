@@ -1,5 +1,5 @@
 // Signal-Android `lib/libsignal-service`, built from source.
-// From `lib/libsignal-service/build.gradle.kts` at b92917acdb (2026-09-10).
+// From `lib/libsignal-service/build.gradle.kts` at 90a6ddce46 (v8.36.2, 2026-11-15).
 //
 // Dropped from upstream's file, none of it behaviour: `maven-publish`/`signing`/`javadoc`
 // (nothing is published from here), `ktlint` and `idea`. Upstream's tests and test fixtures
@@ -9,6 +9,7 @@ plugins {
     id 'org.jetbrains.kotlin.jvm'
     id 'java-test-fixtures'
     id 'com.squareup.wire'
+    id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
 java {
@@ -47,7 +48,7 @@ wire {
 }
 
 dependencies {
-    api 'com.googlecode.libphonenumber:libphonenumber:9.0.29'
+    api 'com.googlecode.libphonenumber:libphonenumber:9.0.41'
     api "com.fasterxml.jackson.core:jackson-databind:$jackson_version"
     api "com.fasterxml.jackson.module:jackson-module-kotlin:$jackson_version"
 
@@ -60,12 +61,13 @@ dependencies {
     implementation 'io.reactivex.rxjava3:rxkotlin:3.0.1'
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2'
 
     api project(':signal-service:network')
     implementation project(':signal-service:util-jvm')
-    implementation project(':signal-service:models-jvm')
+    implementation project(':signal-service:serialization')
 
     // Signal's own test suite, restored and run against this build of its source -- versions
     // from upstream's `gradle/test-libs.versions.toml`. The suite is the strongest check there
@@ -76,6 +78,7 @@ dependencies {
     testImplementation 'com.willowtreeapps.assertk:assertk:0.28.1'
     testImplementation 'org.conscrypt:conscrypt-openjdk-uber:2.5.2'
     testImplementation 'io.mockk:mockk:1.13.17'
+    testImplementation testFixtures(project(':signal-service:serialization'))
 
     testFixturesImplementation "org.signal:libsignal-client:$libsignal_version"
     testFixturesImplementation 'junit:junit:4.13.2'

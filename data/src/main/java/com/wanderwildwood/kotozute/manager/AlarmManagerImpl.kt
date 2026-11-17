@@ -21,7 +21,9 @@ package com.wanderwildwood.kotozute.manager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.wanderwildwood.kotozute.receiver.SendScheduledMessageReceiver
+import timber.log.Timber
 import javax.inject.Inject
 
 class AlarmManagerImpl @Inject constructor(private val context: Context) : AlarmManager {
@@ -33,7 +35,19 @@ class AlarmManagerImpl @Inject constructor(private val context: Context) : Alarm
 
     override fun setAlarm(date: Long, intent: PendingIntent) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-        alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, date, intent)
+        // Without "Alarms & reminders" (off by default on Android 14 and later) an exact alarm
+        // throws. A slightly late message is better than one that never goes, so fall back to
+        // an inexact alarm, which needs no permission.
+        val exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+        if (exact) {
+            try {
+                alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, date, intent)
+                return
+            } catch (e: SecurityException) {
+                Timber.w(e, "exact alarm refused; setting an inexact one")
+            }
+        }
+        alarmManager.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, date, intent)
     }
 
 }

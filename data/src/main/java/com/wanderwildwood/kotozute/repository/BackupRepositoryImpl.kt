@@ -46,6 +46,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.concurrent.schedule
 
+/** How long a failed backup or restore says so before the screen goes back to normal. */
+private const val FAILED_SHOWN_MS = 4000L
+
 @Singleton
 class BackupRepositoryImpl @Inject constructor(
     private val context: Context,
@@ -151,10 +154,12 @@ class BackupRepositoryImpl @Inject constructor(
         val adapter = moshi.adapter(Backup::class.java).indent("\t")
         val json = adapter.toJson(Backup(messageCount, backupMessages)).toByteArray()
 
+        var created: DocumentFile? = null
         try {
             val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault()).format(now())
-            val inputStream = getBackupDocumentTree()
+            created = getBackupDocumentTree()
                     ?.createFile("application/json", "backup-$timestamp.json")
+            val inputStream = created
                     ?.let { file -> context.contentResolver.openOutputStream(file.uri) }
                     ?: throw Exception("Failed to open output stream")
 
@@ -163,6 +168,11 @@ class BackupRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             Timber.w(e)
+            // Say so, and leave no half-written file behind to be found when it is needed.
+            runCatching { created?.delete() }
+            backupProgress.onNext(BackupRepository.Progress.Failed(restore = false))
+            Timer().schedule(FAILED_SHOWN_MS) { backupProgress.onNext(BackupRepository.Progress.Idle()) }
+            return
         }
 
         // Mark the task finished, and set it as Idle a second later
@@ -206,14 +216,27 @@ class BackupRepositoryImpl @Inject constructor(
         // If a backupFile or restore is already running, don't do anything
         if (isBackupOrRestoreRunning()) return
 
+        // A stop asked for after the last restore had already ended must not stop this one.
+        stopFlag = false
         restoreProgress.onNext(BackupRepository.Progress.Parsing())
 
         val adapter = moshi.adapter(Backup::class.java)
-        val backup = DocumentFile.fromSingleUri(context, uri)
-                ?.let { file -> context.contentResolver.openInputStream(file.uri) }
-                ?.source()
-                ?.buffer()
-                ?.use(adapter::fromJson)
+        val backup = try {
+            DocumentFile.fromSingleUri(context, uri)
+                    ?.let { file -> context.contentResolver.openInputStream(file.uri) }
+                    ?.source()
+                    ?.buffer()
+                    ?.use(adapter::fromJson)
+        } catch (e: Exception) {
+            Timber.w(e)
+            null
+        }
+        if (backup == null) {
+            // A damaged or unreadable file: say so and end, rather than sit at "Parsing" for good.
+            restoreProgress.onNext(BackupRepository.Progress.Failed(restore = true))
+            Timer().schedule(FAILED_SHOWN_MS) { restoreProgress.onNext(BackupRepository.Progress.Idle()) }
+            return
+        }
 
         // Only what the phone does not already hold, so restoring over messages still here, or
         // restoring one file twice, doubles nothing.
@@ -226,7 +249,7 @@ class BackupRepositoryImpl @Inject constructor(
             restoreProgress.onNext(BackupRepository.Progress.Idle())
             return
         }
-        val toWrite = backup?.messages?.let { SmsRestore.toWrite(it, existing) }.orEmpty()
+        val toWrite = backup.messages?.let { SmsRestore.toWrite(it, existing) }.orEmpty()
         val messageCount = toWrite.size
         var errorCount = 0
 

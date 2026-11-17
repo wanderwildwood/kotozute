@@ -233,6 +233,7 @@
     <string name="backup_progress_saving">Saving backup…</string>
     <string name="backup_progress_syncing">Syncing messages…</string>
     <string name="backup_progress_finished">Finished!</string>
+    <string name="backup_progress_failed">Couldn\'t save the backup</string>
     <string name="backup_notification_channel_name">Backup and restore</string>
 
     <string name="clipboard_too_large_to_copy">Data size exceeds clipboard limit</string>

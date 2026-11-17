@@ -32,6 +32,8 @@ interface BackupRepository {
         class Saving : Progress(true)
         class Syncing : Progress(true)
         class Finished : Progress(true, false)
+        /** The backup could not be written, or the file to restore could not be read. */
+        class Failed(val restore: Boolean) : Progress(true, false)
     }
 
     fun getDefaultBackupPath(): String

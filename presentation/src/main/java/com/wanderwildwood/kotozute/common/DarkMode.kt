@@ -17,9 +17,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.Window
 import android.view.WindowInsetsController
-import android.view.inspector.WindowInspector
 import java.util.WeakHashMap
 import java.util.concurrent.Executors
 
@@ -27,23 +27,19 @@ import java.util.concurrent.Executors
  * Dark mode: white ink on a black page. The Views-only form of the file every app of this
  * shop carries (written from it by shared-dark/tools/views-variant.py; no Compose).
  *
- * The apps are drawn in two colours, so dark mode is the same drawing with the two swapped.
- * It is done where the window is put on the screen: each window of the app is drawn into a
- * layer, and the layer goes to the screen through a filter that turns every colour into its
- * opposite. Nothing in the app's own drawing changes, so a screen cannot be half dark. The
- * status bar and the navigation bar are drawn by Android over the window, so their icons are
- * asked for in the light colour while dark mode is on (the dark one over a bar the app paints dark,
- * which the filter turns light).
+ * The apps are drawn in two colours, so dark mode is the same drawing with the two swapped:
+ * each window of the app is drawn into a layer, and the layer goes to the screen through a
+ * filter that turns every colour into its opposite. Nothing else changes. The one thing done
+ * beyond that: while dark mode is on, an activity asks for light bar icons, because the page
+ * under the bars is now black.
  *
- * What must keep its own colours (a photograph, a map, a barcode or QR code that a scanner
- * has to read) is marked: [keep] on a view. It is turned twice,
- * which is where it started.
+ * What must keep its own colours (a photograph, a map, a code a scanner has to read) is
+ * marked: [keep] on a view. It is turned twice, which is where
+ * it started. A dialog or popup the app makes calls [window] (or [window]).
  *
- * What decides, in this order: the app's own switch ([set]), once it has been pressed to say
- * something else than the phone does; then the phone's dark setting, where the system has one
- * (KompaktOS); then Home (iori), which has one switch for every app where the system has none
- * (MuditaOS). An app asks Home each time it comes to the front. Pressing the app's switch back
- * to what the phone or Home says lets go of it, and the app follows them again.
+ * What decides, in this order: the app's own switch ([set]), once pressed to something else
+ * than the phone says; then the phone's dark setting (KompaktOS); then Home's switch (iori),
+ * for a system without one (MuditaOS), asked each time the app comes to the front.
  *
  * Started by [DarkModeInit], a provider in the manifest, before any screen is drawn.
  */
@@ -68,20 +64,25 @@ object DarkMode {
     private val main = Handler(Looper.getMainLooper())
     private val asker = Executors.newSingleThreadExecutor()
     private var app: Context? = null
-
-    /** The windows in hand, and the bar appearance each had before dark mode changed it. */
-    private val windows = WeakHashMap<Window, Int?>()
     private var resumed = 0
 
-    private val invert = ColorMatrixColorFilter(
-        floatArrayOf(
-            -1f, 0f, 0f, 0f, 255f,
-            0f, -1f, 0f, 0f, 255f,
-            0f, 0f, -1f, 0f, 255f,
-            0f, 0f, 0f, 1f, 0f,
+    /** Activity windows, and the bar icons each asked for before dark mode changed them. */
+    private val windows = WeakHashMap<Window, Int?>()
+    /** Dialogs and popups that called [window]. */
+    private val others = WeakHashMap<View, Boolean>()
+    /** Views that keep their own colours. */
+    private val kept = WeakHashMap<View, Boolean>()
+
+    private val inverting = Paint().apply {
+        colorFilter = ColorMatrixColorFilter(
+            floatArrayOf(
+                -1f, 0f, 0f, 0f, 255f,
+                0f, -1f, 0f, 0f, 255f,
+                0f, 0f, -1f, 0f, 255f,
+                0f, 0f, 0f, 1f, 0f,
+            )
         )
-    )
-    private val inverting = Paint().apply { colorFilter = invert }
+    }
 
     fun init(application: Application) {
         if (app != null) return
@@ -95,22 +96,30 @@ object DarkMode {
         })
         application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, state: Bundle?) {
-                windows[activity.window] = null
+                if (activity.window !in windows) windows[activity.window] = null
                 apply(activity.window)
             }
-            override fun onActivityStarted(activity: Activity) = apply(activity.window)
             override fun onActivityResumed(activity: Activity) {
                 resumed++
                 follow()
                 apply(activity.window)
+                // Once more before the first frame, after the app's own start-up code has set its bars.
+                val decor = activity.window.decorView
+                decor.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
+                    override fun onPreDraw(): Boolean {
+                        decor.viewTreeObserver.removeOnPreDrawListener(this)
+                        bars(activity.window, on)
+                        return true
+                    }
+                })
                 askHome()
                 watchHome(true)
-                if (on) sweep()
             }
             override fun onActivityPaused(activity: Activity) {
                 resumed = (resumed - 1).coerceAtLeast(0)
                 if (resumed == 0) watchHome(false)
             }
+            override fun onActivityStarted(activity: Activity) {}
             override fun onActivityStopped(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
             override fun onActivityDestroyed(activity: Activity) { windows.remove(activity.window) }
@@ -164,9 +173,8 @@ object DarkMode {
         if (on == dark) return
         on = dark
         windows.keys.toList().forEach { apply(it) }
-        others().forEach { layer(it, dark) }
+        others.keys.toList().forEach { layer(it, dark) }
         kept.keys.toList().forEach { keepNow(it) }
-        if (dark) sweep()
     }
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -180,120 +188,49 @@ object DarkMode {
 
     /** Draws [root] and everything in it through the filter, or straight again. */
     private fun layer(root: View, dark: Boolean) {
-        if (dark) {
-            if (root.getTag(TAG_KEY) != true) {
-                root.setLayerType(View.LAYER_TYPE_HARDWARE, inverting)
-                root.setTag(TAG_KEY, true)
-            }
-        } else if (root.getTag(TAG_KEY) == true) {
-            root.setLayerType(View.LAYER_TYPE_NONE, null)
-            root.setTag(TAG_KEY, false)
-        }
+        if (dark == (root.getTag(TAG_KEY) == true)) return
+        root.setLayerType(if (dark) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE, if (dark) inverting else null)
+        root.setTag(TAG_KEY, dark)
     }
 
     /** A key for a view tag that no resource id of the app can be: ids start at 0x7f, the framework's at 0x01. */
     private const val TAG_KEY = 0x7e_da_4b_01
 
     /**
-     * The bars' icons: light while dark mode is on, and back to what the app had asked for
-     * when it goes off.
+     * Light bar icons while dark mode is on (the page under the bars is black now); the app's
+     * own again when it goes off.
      */
-    @Suppress("DEPRECATION")
     private fun bars(window: Window, dark: Boolean) {
-        if (Build.VERSION.SDK_INT >= 30) {
-            val controller = window.decorView.windowInsetsController ?: window.insetsController ?: return
-            val both = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-            if (dark) {
-                if (windows[window] == null) windows[window] = asked(window, controller.systemBarsAppearance and both)
-                var want = 0
-                if (turnsLight(window.statusBarColor)) want = want or WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                if (turnsLight(window.navigationBarColor)) want = want or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                if (controller.systemBarsAppearance and both != want) controller.setSystemBarsAppearance(want, both)
-                // The older flags count as well when an app (or androidx for it) has set them.
-                val decor = window.decorView
-                val old = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-                var oldWant = 0
-                if (want and WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS != 0) oldWant = oldWant or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                if (want and WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS != 0) oldWant = oldWant or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-                if (decor.systemUiVisibility and old != oldWant) decor.systemUiVisibility = (decor.systemUiVisibility and old.inv()) or oldWant
-            } else {
-                windows[window]?.let { controller.setSystemBarsAppearance(it, both) }
-                windows[window] = null
-            }
+        if (Build.VERSION.SDK_INT < 30) return
+        val controller = window.insetsController ?: return
+        val both = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        if (dark) {
+            if (windows[window] == null) windows[window] = asked(window, controller.systemBarsAppearance and both)
+            controller.setSystemBarsAppearance(0, both)
         } else {
-            val decor = window.decorView
-            val both = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-            if (dark) {
-                if (windows[window] == null) windows[window] = decor.systemUiVisibility and both
-                var want = 0
-                if (turnsLight(window.statusBarColor)) want = want or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                if (turnsLight(window.navigationBarColor)) want = want or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-                if (decor.systemUiVisibility and both != want) decor.systemUiVisibility = (decor.systemUiVisibility and both.inv()) or want
-            } else {
-                windows[window]?.let { decor.systemUiVisibility = (decor.systemUiVisibility and both.inv()) or it }
-                windows[window] = null
-            }
+            windows[window]?.let { controller.setSystemBarsAppearance(it, both) }
+            windows[window] = null
         }
     }
 
-    /**
-     * A bar the app paints dark is painted in the window, so the filter turns it light, and its
-     * icons then have to be the dark ones. A clear bar shows the page under it, which is dark.
-     */
-    private fun turnsLight(barColor: Int): Boolean {
-        if (barColor ushr 24 < 0x80) return false
-        val r = barColor shr 16 and 0xff; val g = barColor shr 8 and 0xff; val b = barColor and 0xff
-        return (r * 299 + g * 587 + b * 114) / 1000 < 128
-    }
-
-    /**
-     * The bar appearance the app asked for, wherever it asked: through the controller, through
-     * the older view flags, or in its theme. The controller alone does not report the last two.
-     */
+    /** The bar icons the app asked for: through the controller, the older view flags, or its theme. */
     @Suppress("DEPRECATION")
     private fun asked(window: Window, fromController: Int): Int {
-        var bits = fromController
         val flags = window.decorView.systemUiVisibility
-        val theme = runCatching {
-            val a = window.context.obtainStyledAttributes(intArrayOf(android.R.attr.windowLightStatusBar, android.R.attr.windowLightNavigationBar))
-            try { booleanArrayOf(a.getBoolean(0, false), a.getBoolean(1, false)) } finally { a.recycle() }
-        }.getOrDefault(booleanArrayOf(false, false))
+        val a = window.context.obtainStyledAttributes(intArrayOf(android.R.attr.windowLightStatusBar, android.R.attr.windowLightNavigationBar))
+        val theme = try { booleanArrayOf(a.getBoolean(0, false), a.getBoolean(1, false)) } finally { a.recycle() }
+        var bits = fromController
         if (flags and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR != 0 || theme[0]) bits = bits or WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
         if (flags and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR != 0 || theme[1]) bits = bits or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
         return bits
     }
 
-    /** Every other window of the app that is up now: dialogs, menus, the selection handles. */
-    private fun others(): List<View> {
-        if (Build.VERSION.SDK_INT < 29) return emptyList()
-        val own = windows.keys.map { it.decorView }
-        return runCatching { WindowInspector.getGlobalWindowViews() }.getOrDefault(emptyList()).filter { it !in own }
+    /** For a window the app makes itself (a dialog, a popup): dark from its first frame, and it follows the switch. */
+    fun window(anyViewInIt: View) {
+        val root = anyViewInIt.rootView
+        others[root] = true
+        layer(root, on)
     }
-
-    /**
-     * A dialog or a menu is a window of its own, and Android does not say when one opens.
-     * While dark mode is on and the app is in front, the windows are looked over a few times a
-     * second and a new one is turned dark. A dialog that calls [window] is dark from its
-     * first frame and does not wait for this.
-     */
-    private var sweeping = false
-    private fun sweep() {
-        if (sweeping) return
-        sweeping = true
-        main.post(object : Runnable {
-            override fun run() {
-                if (!on || resumed == 0) { sweeping = false; return }
-                others().forEach { layer(it, true) }
-                // A bar's icons can be set dark again by the app's own code; put them back.
-                windows.keys.toList().forEach { bars(it, true) }
-                main.postDelayed(this, SWEEP_MS)
-            }
-        })
-    }
-    private const val SWEEP_MS = 200L
-
-    /** For a window the app makes itself (a dialog, a popup): dark from its first frame. */
-    fun window(anyViewInIt: View) = layer(anyViewInIt.rootView, on)
 
     /**
      * A view that keeps its own colours in dark mode: a picture, a map, a code to be scanned.
@@ -304,11 +241,7 @@ object DarkMode {
         keepNow(view)
     }
 
-    private val kept = WeakHashMap<View, Boolean>()
-
-    private fun keepNow(view: View) {
-        if (on) view.setLayerType(View.LAYER_TYPE_HARDWARE, inverting) else view.setLayerType(View.LAYER_TYPE_NONE, null)
-    }
+    private fun keepNow(view: View) = layer(view, on)
 
     // ---- Home's switch ----
 

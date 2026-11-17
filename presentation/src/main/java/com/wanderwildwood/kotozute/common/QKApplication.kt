@@ -99,7 +99,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         com.wanderwildwood.kotozute.util.MessageStoreGate.blocked = true
         Realm.setDefaultConfiguration(
             RealmConfiguration.Builder()
-                .name("locked-placeholder.realm")
+                .name(com.wanderwildwood.kotozute.common.util.LockedPlaceholder.NAME)
                 .inMemory()
                 .schemaVersion(QkRealmMigration.SCHEMA_VERSION)
                 .build()
@@ -231,6 +231,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
             refuseMessageStore(refusal)
             return
         }
+
+        // What an earlier start on the locked screen left on disk. This start opens the real
+        // database, so nothing is using it. Four exact names; see [LockedPlaceholder].
+        runCatching { com.wanderwildwood.kotozute.common.util.LockedPlaceholder.remove(filesDir) }
+            .onFailure { Timber.w(it, "realm: could not clear the locked screen's placeholder") }
 
         if (key != null) RealmEncryption.encryptExistingRealm(this, key, realmConfig)
 

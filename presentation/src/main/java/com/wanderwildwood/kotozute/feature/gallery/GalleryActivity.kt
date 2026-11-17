@@ -87,6 +87,8 @@ class GalleryActivity : QkActivity(), GalleryView {
         })
     }
 
+    override val darkClearsStatusBar = false
+
     override fun onResume() {
         // The bars are drawn in the window, so dark mode's filter would turn the theme's black
         // strip white over the picture. Painted white while dark mode is on, the filter turns it

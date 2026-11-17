@@ -3,6 +3,7 @@ package com.wanderwildwood.kotozute.common
 import android.app.Activity
 import android.app.Dialog
 import android.content.ContextWrapper
+import android.graphics.Color
 import android.os.Build
 import android.view.View
 import android.view.inspector.WindowInspector
@@ -18,6 +19,28 @@ import java.util.WeakHashMap
 
 /** Dark with the app from its first frame. Call before show(); einkDialog() does it for its dialogs. */
 fun <D : Dialog> D.darkWindow(): D = apply { window?.decorView?.let(DarkMode::window) }
+
+/**
+ * The status bar of a screen whose theme paints it the page's white. Dark mode turns that white
+ * black only where the app draws the strip itself; where the system paints it from the colour
+ * the window asks for (MuditaOS), it stayed white over a black page. While dark mode is on the
+ * strip is asked for clear, so what shows there is the screen's own page, turned black like the
+ * rest, as in the apps drawn edge to edge; the theme's colour comes back when it goes off.
+ * Checked before each frame, so it follows the switch wherever it is pressed.
+ */
+object DarkBar {
+
+    fun watch(activity: Activity) {
+        val window = activity.window
+        var light: Int? = null
+        window.decorView.viewTreeObserver.addOnPreDrawListener {
+            val own = light ?: window.statusBarColor.also { light = it }
+            val want = if (DarkMode.on) Color.TRANSPARENT else own
+            if (window.statusBarColor != want) window.statusBarColor = want
+            true
+        }
+    }
+}
 
 /**
  * The toolbar's overflow menu (⋮). appcompat makes that popup inside itself and never hands it

@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.common.base
 
+import com.wanderwildwood.kotozute.common.DarkBar
 import com.wanderwildwood.kotozute.common.DarkOverflow
 import android.annotation.SuppressLint
 import android.os.Bundle
@@ -87,6 +88,14 @@ abstract class QkActivity : AppCompatActivity() {
         super.setContentView(view)
         setSupportActionBar(findViewById<Toolbar?>(R.id.toolbar))
         title = title // The title may have been set before layout inflation
+    }
+
+    /** False on a screen that paints its own status bar for dark mode (the picture viewer). */
+    protected open val darkClearsStatusBar = true
+
+    override fun onPostCreate(savedInstanceState: Bundle?) {
+        super.onPostCreate(savedInstanceState)
+        if (darkClearsStatusBar) DarkBar.watch(this)
     }
 
     /** Every screen's bar comes through here; its overflow menu goes dark with the app. */

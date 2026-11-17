@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.feature.signal
 
+import com.wanderwildwood.kotozute.common.DarkBar
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
@@ -47,6 +48,7 @@ class ViewOnceActivity : AppCompatActivity() {
             setOnClickListener { finish() }
         }
         setContentView(frame)
+        DarkBar.watch(this)
 
         // Restored after the process was put away: the picture was spent when it was first
         // shown, so there is nothing to show again.

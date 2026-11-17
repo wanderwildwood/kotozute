@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.feature.locked
 
+import com.wanderwildwood.kotozute.common.DarkBar
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -38,6 +39,7 @@ class MessagesLockedActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.messages_locked_activity)
+        DarkBar.watch(this)
 
         val refusal = runCatching {
             RealmEncryption.Refusal.valueOf(intent.getStringExtra(EXTRA_REFUSAL).orEmpty())

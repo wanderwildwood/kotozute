@@ -174,7 +174,8 @@ object RealmEncryption {
             return false
         }
 
-        prefs.edit().putBoolean(PREF_ENCRYPTED, true).apply()
+        // commit(): on disk before the plaintext copy goes, not some time after.
+        prefs.edit().putBoolean(PREF_ENCRYPTED, true).commit()
         rollback.delete()
         Timber.i("realm: database encrypted at rest")
         return true
@@ -291,7 +292,10 @@ object RealmEncryption {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(PREF_SEALED_KEY, Base64.encodeToString(sealed, Base64.NO_WRAP))
             .putString(PREF_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-            .apply()
+            // commit(), not apply(): a database is about to be locked with this key, and a key
+            // still waiting in memory when the process dies is a database nobody can open.
+            .commit()
+            .let { written -> check(written) { "the sealed key was not written" } }
     }
 
     private fun unseal(sealed: String, iv: String): ByteArray {

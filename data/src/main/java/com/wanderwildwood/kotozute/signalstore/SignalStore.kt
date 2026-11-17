@@ -2336,6 +2336,9 @@ class SignalStore(private val context: Context) {
         return summary.left
     }
 
+    /** Whether attachments are encrypted here and cannot be opened. See [AttachmentSecret.locked]. */
+    fun attachmentsLocked(): Boolean = AttachmentSecret.locked(context)
+
     /** The bytes of a downloaded attachment, or null if it was never fetched. */
     fun readAttachment(id: String): ByteArray? =
         SignalAttachments(context) { error("no download needed to read") }.read(id)

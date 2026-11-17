@@ -1022,6 +1022,21 @@ interface SignalRepository {
     fun sealStorageAtRest(): Int
 
     /**
+     * Whether Signal attachments are encrypted on this phone and cannot be opened, because
+     * the phone's keystore will not give up their key. Nothing is deleted in that state, and
+     * it can pass: a restart of the phone is the usual cure.
+     */
+    fun attachmentsLocked(): Boolean
+
+    /**
+     * Removes unencrypted working copies of attachments from the cache: ones a stopped
+     * playback left behind, and ones staged for another app some hours ago.
+     *
+     * @return how many files went.
+     */
+    fun cleanWorkingCopies(): Int
+
+    /**
      * Tries again for attachments that did not arrive the first time, returning how many did.
      *
      * Three immediate attempts cover a dropped socket; they do not cover a phone with no usable

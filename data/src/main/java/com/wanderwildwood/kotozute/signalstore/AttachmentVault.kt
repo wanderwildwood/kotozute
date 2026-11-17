@@ -26,13 +26,17 @@ import java.security.MessageDigest
  * @param writeSecret the attachment secret for writing, created if `mayCreate` allows; throws
  *   when it cannot be had. See [AttachmentSecret].
  * @param checkpoint called after each step of a move. For tests, which stop a move there.
+ * @param nothingEncrypted whether no file anywhere is encrypted under the secret yet, which is
+ *   the only condition on which a new one may be made. On its own a vault can only speak for
+ *   its own directory; the app passes [SealedFiles.nothingEncrypted], which speaks for all.
  */
 internal class AttachmentVault(
     private val sealedDir: File,
     private val legacyDir: File,
     private val readSecret: () -> ByteArray?,
     private val writeSecret: (mayCreate: () -> Boolean) -> ByteArray,
-    private val checkpoint: (Step) -> Unit = {}
+    private val checkpoint: (Step) -> Unit = {},
+    private val nothingEncrypted: (() -> Boolean)? = null
 ) {
 
     /** The steps of moving one file, in order. */
@@ -228,7 +232,17 @@ internal class AttachmentVault(
      * made beside files written under a lost one would turn them to noise without an error.
      */
     private fun secretForWriting(): ByteArray =
-        writeSecret { sealedDir.listFiles().isNullOrEmpty() }
+        writeSecret { nothingEncrypted?.invoke() ?: sealedDir.listFiles().isNullOrEmpty() }
+
+    /** Whether [id] is here encrypted and cannot be read because the secret cannot be had. */
+    fun locked(id: String): Boolean = sealed(id).isFile && readSecret() == null
+
+    /** The names of everything kept here, in either form. */
+    fun names(): Set<String> =
+        (sealedDir.listFiles().orEmpty().asList() + legacyDir.listFiles().orEmpty().asList())
+            .filter { it.isFile }
+            .map { it.name }
+            .toSet()
 
     private fun encryptTo(secret: ByteArray, source: InputStream, file: File) {
         FileOutputStream(file).use { out ->

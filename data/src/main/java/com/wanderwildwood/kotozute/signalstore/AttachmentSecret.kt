@@ -49,6 +49,26 @@ internal object AttachmentSecret {
     @Volatile
     private var cached: ByteArray? = null
 
+    /**
+     * When the keystore last refused, so a screen of thumbnails that all fail does not ask it
+     * again for each one. Short: the refusal is often passing, and the next look should find
+     * out.
+     */
+    @Volatile
+    private var refusedAt = 0L
+    private const val REFUSAL_REMEMBERED_MS = 10_000L
+
+    /**
+     * Whether attachments are encrypted on this phone and cannot be opened.
+     *
+     * True when the keystore will not open the secret, and also when files are encrypted and
+     * no secret is on record at all. False on a phone where nothing is encrypted yet.
+     */
+    fun locked(context: Context): Boolean {
+        if (!exists(context) && SealedFiles.nothingEncrypted(context.filesDir)) return false
+        return forReading(context) == null
+    }
+
     /** True once a secret has been sealed, whether or not it can still be opened. */
     fun exists(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(PREF_SEALED)
@@ -60,10 +80,15 @@ internal object AttachmentSecret {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val sealed = prefs.getString(PREF_SEALED, null) ?: return null
         val iv = prefs.getString(PREF_IV, null) ?: return null
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (refusedAt != 0L && now - refusedAt < REFUSAL_REMEMBERED_MS) return null
         return runCatching { unseal(sealed, iv) }
-            .onFailure { Timber.w(it, "signal attachment: the attachment secret would not open") }
+            .onFailure {
+                refusedAt = now
+                Timber.w(it, "signal attachment: the attachment secret would not open")
+            }
             .getOrNull()
-            ?.also { cached = it }
+            ?.also { cached = it; refusedAt = 0L }
     }
 
     /**

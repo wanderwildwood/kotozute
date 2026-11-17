@@ -34,10 +34,11 @@ internal class SignalAttachments(
     private val appContext = context.applicationContext
 
     private val vault = AttachmentVault(
-        sealedDir = File(context.filesDir, SEALED_DIR),
-        legacyDir = File(context.filesDir, LEGACY_DIR),
+        sealedDir = File(context.filesDir, SealedFiles.ATTACHMENTS_SEALED),
+        legacyDir = File(context.filesDir, SealedFiles.ATTACHMENTS_LEGACY),
         readSecret = { AttachmentSecret.forReading(appContext) },
-        writeSecret = { mayCreate -> AttachmentSecret.forWriting(appContext, mayCreate) }
+        writeSecret = { mayCreate -> AttachmentSecret.forWriting(appContext, mayCreate) },
+        nothingEncrypted = { SealedFiles.nothingEncrypted(appContext.filesDir) }
     )
 
     /**
@@ -266,12 +267,6 @@ internal class SignalAttachments(
             .take(32)
 
     companion object {
-
-        /** Where older builds kept attachments, in the clear. Nothing is written here now. */
-        private const val LEGACY_DIR = "signal-attachments"
-
-        /** Where attachments are kept, each in [AttachmentCipher]'s format. */
-        private const val SEALED_DIR = "signal-attachments-sealed"
 
         /**
          * How long a file is left alone after it is written, whatever the rows say.

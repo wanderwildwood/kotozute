@@ -932,7 +932,12 @@ class SignalThreadActivity : QkThemedActivity() {
         val bytes = runCatching { signalRepo.loadAttachment(attachment.id) }.getOrNull()
         if (bytes == null || bytes.isEmpty()) return null
         return runCatching {
-            val file = java.io.File(cacheDir, safeFilename(attachment))
+            // In a folder of its own, so the copy can be found again and removed: see
+            // [SignalWorkingCopies], which clears it a couple of hours after it was staged.
+            val file = java.io.File(
+                com.wanderwildwood.kotozute.util.SignalWorkingCopies.sharedDir(cacheDir),
+                safeFilename(attachment)
+            )
             file.writeBytes(bytes)
             androidx.core.content.FileProvider.getUriForFile(
                 this, "$packageName.messagesText", file
@@ -947,12 +952,15 @@ class SignalThreadActivity : QkThemedActivity() {
     private fun copyPicture(attachment: SavedAttachment) {
         thread(isDaemon = true) {
             val uri = shareableUri(attachment)
-            runOnUiThread {
-                val said = when {
-                    uri == null -> R.string.signal_attachment_unavailable
-                    ClipboardUtils.copyPicture(this, uri) -> R.string.signal_message_copied
-                    else -> R.string.clipboard_unable_to_copy_to
+            if (uri == null) {
+                attachmentWouldNotOpen {
+                    Toast.makeText(this, R.string.signal_attachment_unavailable, Toast.LENGTH_SHORT).show()
                 }
+                return@thread
+            }
+            runOnUiThread {
+                val said = if (ClipboardUtils.copyPicture(this, uri)) R.string.signal_message_copied
+                else R.string.clipboard_unable_to_copy_to
                 Toast.makeText(this, said, Toast.LENGTH_SHORT).show()
             }
         }
@@ -981,7 +989,7 @@ class SignalThreadActivity : QkThemedActivity() {
         thread(isDaemon = true) {
             val uri = shareableUri(attachment)
             if (uri == null) {
-                runOnUiThread {
+                attachmentWouldNotOpen {
                     Toast.makeText(
                         this, R.string.signal_attachment_unavailable, Toast.LENGTH_SHORT
                     ).show()
@@ -1027,7 +1035,13 @@ class SignalThreadActivity : QkThemedActivity() {
     private fun writeAttachmentTo(attachment: SavedAttachment, destination: Uri) {
         thread(isDaemon = true) {
             val bytes = runCatching { signalRepo.loadAttachment(attachment.id) }.getOrNull()
-            val written = bytes != null && bytes.isNotEmpty() && runCatching {
+            if (bytes == null) {
+                attachmentWouldNotOpen {
+                    Toast.makeText(this, R.string.signal_attachment_save_failed, Toast.LENGTH_LONG).show()
+                }
+                return@thread
+            }
+            val written = bytes.isNotEmpty() && runCatching {
                 contentResolver.openOutputStream(destination)?.use { it.write(bytes) }
                     ?: throw java.io.IOException("nothing would open ${'$'}destination")
             }.onFailure { Timber.w(it, "signal attachment: could not save") }.isSuccess
@@ -1300,6 +1314,30 @@ class SignalThreadActivity : QkThemedActivity() {
      *
      * @param onStarted called once the note is playing from cold, not on a resume.
      */
+    /**
+     * Says why an attachment would not open. When the reason is that attachments are locked
+     * -- on the phone, encrypted, and the phone will not release their key -- it says that, in
+     * a dialog that stays, with what may help. Otherwise [otherwise] says what it always did.
+     *
+     * From any thread: the question goes to the keystore, so it is asked off the main one.
+     */
+    private fun attachmentWouldNotOpen(otherwise: () -> Unit) {
+        thread(isDaemon = true) {
+            val locked = runCatching { signalRepo.attachmentsLocked() }.getOrDefault(false)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (locked) {
+                    einkDialog()
+                        .setMessage(R.string.signal_attachments_locked)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                } else {
+                    otherwise()
+                }
+            }
+        }
+    }
+
     /** Said in a dialog that stays until pressed: a toast is gone before the panel has shown it. */
     private fun voiceNoteFailed() {
         if (isFinishing || isDestroyed) return
@@ -1319,24 +1357,13 @@ class SignalThreadActivity : QkThemedActivity() {
         thread(isDaemon = true) {
             val bytes = signalRepo.loadAttachment(id)
             if (bytes == null || bytes.isEmpty()) {
-                runOnUiThread {
-                    voiceNoteFailed()
-                }
+                attachmentWouldNotOpen { voiceNoteFailed() }
                 return@thread
             }
-            val file = java.io.File(cacheDir, "voice-$id.aac")
-            val ok = runCatching { file.writeBytes(bytes) }.isSuccess
+            // Played from memory: nothing decrypted is written anywhere to be played.
             runOnUiThread {
-                val started = ok && SignalVoicePlayer.start(
-                    this, id, file, threadKey,
-                    threadTitle()
-                )
-                if (started) {
-                    onStarted()
-                } else {
-                    file.delete()
-                    voiceNoteFailed()
-                }
+                val started = SignalVoicePlayer.start(this, id, bytes, threadKey, threadTitle())
+                if (started) onStarted() else voiceNoteFailed()
             }
         }
     }
@@ -3343,6 +3370,8 @@ class SignalThreadActivity : QkThemedActivity() {
                 // A video -- which is what a GIF from Signal usually is -- by its first frame.
                 val bmp = bytes?.let { SignalAttachment.decodeStill(it, type) }
                 if (bmp != null) imageCache.put(id, bmp)
+                // There and not readable is said as that, not as "not downloaded".
+                val locked = bytes == null && runCatching { signalRepo.attachmentsLocked() }.getOrDefault(false)
                 runOnUiThread {
                     inFlight.remove(id)
                     // The holder that started this may have been recycled onto another
@@ -3350,7 +3379,10 @@ class SignalThreadActivity : QkThemedActivity() {
                     // now shows this picture picks it up from the cache on its next bind.
                     if (bmp == null) {
                         if (b.image.tag == id) {
-                            b.attachment.text = getString(R.string.signal_attachment_unavailable)
+                            b.attachment.text = getString(
+                                if (locked) R.string.signal_attachment_locked
+                                else R.string.signal_attachment_unavailable
+                            )
                         }
                         return@runOnUiThread
                     }

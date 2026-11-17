@@ -416,6 +416,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // pause so it does not compete with start-up; again after an hour for as long as any
         // are left, which is what a full disk or an interrupted run looks like.
         GlobalScope.launch(Dispatchers.IO) {
+            // First, and at once: unencrypted copies a stopped playback left in the cache, and
+            // ones staged for another app hours ago. Nothing is playing in a process that
+            // has only just started, and nothing plays from a file any more.
+            runCatching { signalRepo.cleanWorkingCopies() }
+                .onFailure { Timber.w(it, "signal: cleaning working copies") }
             delay(30_000)
             while (true) {
                 val left = runCatching { signalRepo.sealStorageAtRest() }

@@ -51,6 +51,12 @@ from the middle of a file.
 The attachment secret is 32 random bytes, sealed with AES-GCM by a key in the Android
 keystore (`AttachmentSecret.kt`, after Signal's `AttachmentSecretProvider`).
 
+The attachments of a message that has not finished sending (the outbox) are stored in the same
+format under the same secret. A voice message or view-once video is decrypted into memory to
+be played, not to a file. The one unencrypted copy the app makes is the one staged in its
+private cache when an attachment is opened in another app or a picture is copied, which that
+app has to be able to read; it is removed once it is two hours old.
+
 The stored file carries no authentication tag, as in Signal Android; upstream's own comment is
 that the format "intentionally no longer includes authentication". It protects a file read
 off the storage from being understood. It does not detect a file that was altered on the

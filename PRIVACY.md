@@ -24,7 +24,11 @@ On the phone only:
 
 The app's own database is encrypted on disk with a random key sealed by a key in the phone's keystore, and so is the Signal key database. That protects the files if the storage is lifted from the phone. It does not protect them from code running as this app on an unlocked phone, because the keystore key cannot require your fingerprint or PIN: the app has to open its databases at start-up and in the background, with nobody there to unlock anything.
 
-Signal attachments are encrypted on disk as well, each file under a key of its own, derived from a secret sealed by the keystore in the same way. Attachments that an earlier version stored unencrypted are encrypted in the background after you update; until that has finished, some of them are still as the earlier version left them. A few short-lived copies are not encrypted, and sit in the app's private storage or its private cache: a voice message while it is playing, a view-once video while it is showing, a file you share or copy to another app (the other app has to be able to read it), and the attachments of a message that has not finished sending.
+Signal attachments are encrypted on disk as well, each file under a key of its own, derived from a secret sealed by the keystore in the same way. Attachments that an earlier version stored unencrypted are encrypted in the background after you update; until that has finished, some of them are still as the earlier version left them.
+
+One kind of copy is not encrypted. When you open an attachment in another app, or copy a picture, the app puts a copy in its private cache for the other app to read; Android does not say when the other app has finished with it, so the copy is removed once it is two hours old, the next time the app starts or does its daily cleanup. A voice message or a view-once video is decrypted in memory to be played and is not written anywhere. The attachments of a message that has not finished sending are kept encrypted in the same way as received ones.
+
+If the phone's keystore will not release the key, the attachments cannot be opened. The app says so where you meet it and in Settings, deletes nothing, and never falls back to storing attachments unencrypted; your messages still work. Restarting the phone usually clears it.
 
 The manifest sets `allowBackup="false"`, so Android does not copy the app into a device backup or a cloud backup. There is no cloud copy and no copy held by the developer.
 

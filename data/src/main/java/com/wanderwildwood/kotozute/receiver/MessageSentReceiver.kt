@@ -65,7 +65,7 @@ class MessageSentReceiver : BroadcastReceiver() {
 
                 when (pendingResult.resultCode) {
                     Activity.RESULT_OK ->
-                        markSent.execute(messageId) { pendingResult.finish() }
+                        markSent.execute(messageId, onError = { pendingResult.finish() }) { pendingResult.finish() }
 
                     else -> markFailed.execute(
                         MarkFailed.Params(messageId, pendingResult.resultCode)

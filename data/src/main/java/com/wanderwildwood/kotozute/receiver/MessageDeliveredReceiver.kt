@@ -49,7 +49,7 @@ class MessageDeliveredReceiver : BroadcastReceiver() {
 
                 when (pendingResult.resultCode) {
                     // TODO notify about delivery
-                    Activity.RESULT_OK -> markDelivered.execute(messageId) { pendingResult.finish() }
+                    Activity.RESULT_OK -> markDelivered.execute(messageId, onError = { pendingResult.finish() }) { pendingResult.finish() }
 
                     // TODO notify about delivery failure
                     else ->

@@ -60,7 +60,8 @@ class RemoteMessagingReceiver : BroadcastReceiver() {
                 conversation?.recipients?.map { it.address } ?: return,
                 remoteInput.getCharSequence("body").toString(),
                 conversation.sendAsGroup
-            )
+            ),
+            onError = { pendingRepository.finish() },
         ) { pendingRepository.finish() }
     }
 }

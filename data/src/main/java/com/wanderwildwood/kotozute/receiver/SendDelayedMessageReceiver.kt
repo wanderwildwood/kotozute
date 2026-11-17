@@ -42,7 +42,8 @@ class SendDelayedMessageReceiver : BroadcastReceiver() {
             ?.let { messageId ->
                 val result = goAsync()
                 actionDelayedMessage.execute(
-                    ActionDelayedMessage.Params(messageId, ActionDelayedMessage.Action.Send)
+                    ActionDelayedMessage.Params(messageId, ActionDelayedMessage.Action.Send),
+                    onError = { result.finish() },
                 ) { result.finish() }
 
             }

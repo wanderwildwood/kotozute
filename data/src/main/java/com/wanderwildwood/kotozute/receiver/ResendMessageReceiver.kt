@@ -17,6 +17,6 @@ class ResendMessageReceiver : BroadcastReceiver() {
         val messageId = intent.getLongExtra("id", -1L)
 
         val pendingRepository = goAsync()
-        sendExistingMessage.execute(messageId) { pendingRepository.finish() }
+        sendExistingMessage.execute(messageId, onError = { pendingRepository.finish() }) { pendingRepository.finish() }
     }
 }

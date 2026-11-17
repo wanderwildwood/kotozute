@@ -39,7 +39,7 @@ class SendScheduledMessageReceiver : BroadcastReceiver() {
 
         intent.getLongExtra("id", -1L).takeIf { it >= 0 }?.let { id ->
             val result = goAsync()
-            sendScheduledMessage.execute(id) { result.finish() }
+            sendScheduledMessage.execute(id, onError = { result.finish() }) { result.finish() }
         }
     }
 

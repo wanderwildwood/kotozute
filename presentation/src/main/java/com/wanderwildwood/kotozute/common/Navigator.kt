@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.common
 
+import com.wanderwildwood.kotozute.common.util.SharedAttachments
 import android.app.Activity
 import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
@@ -183,7 +184,10 @@ class Navigator @Inject constructor(
                 if (it.resourceExists(context)) it
                 else null
             }
-            ?.let { intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(it)) }
+            ?.let {
+                intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(it))
+                intent.putExtra(SharedAttachments.EXTRA_OWN, SharedAttachments.token)
+            }
 
         startActivity(intent)
     }
@@ -212,7 +216,10 @@ class Navigator @Inject constructor(
                 if (uri.resourceExists(context)) uri
                 else null
             }
-            ?.let { intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(it)) }
+            ?.let {
+                intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(it))
+                intent.putExtra(SharedAttachments.EXTRA_OWN, SharedAttachments.token)
+            }
 
         startActivity(intent)
     }

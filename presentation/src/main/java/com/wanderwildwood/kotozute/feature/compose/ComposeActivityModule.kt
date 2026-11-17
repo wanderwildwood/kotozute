@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.feature.compose
 
+import com.wanderwildwood.kotozute.common.util.SharedAttachments
 import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -89,7 +90,12 @@ class ComposeActivityModule {
         activity.intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.run(uris::add)
         activity.intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.run(uris::addAll)
 
-        return uris.map { Attachment(activity, it) }
+        // Another app's share is read with this app's rights: only other apps' content:// addresses
+        // are taken from it (SharedAttachments). This app's own screens carry the process token.
+        val ownScreen = activity.intent.getStringExtra(SharedAttachments.EXTRA_OWN) == SharedAttachments.token
+        return uris
+            .filter { ownScreen || SharedAttachments.mayTake(it.scheme, it.authority, activity.packageName) }
+            .map { Attachment(activity, it) }
     }
 
     @Provides

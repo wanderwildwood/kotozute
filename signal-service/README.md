@@ -1,17 +1,23 @@
 # Signal's service layer, built from Signal's source
 
-Six modules, copied verbatim from [Signal-Android](https://github.com/signalapp/Signal-Android)
-at **`d555580a46` (2026-09-16)** and compiled here:
+Five modules, copied verbatim from [Signal-Android](https://github.com/signalapp/Signal-Android)
+at **`90a6ddce46` (2026-11-15, the commit of release tag `v8.36.2`)** and compiled here:
 
-| here | upstream | what the app uses from it |
+| here | upstream | what the app imports from it |
 |---|---|---|
-| `libsignal-service/` | `lib/libsignal-service` | `org.whispersystems.signalservice.*` — 57 imports |
-| `lib-network/` | `lib/network` | `org.signal.network.api`, `.rest`, `.service` — 11 imports |
-| `network/` | `core/network` | `org.signal.network.NetworkResult` — 1 import |
-| `models-jvm/` | `core/models-jvm` | `org.signal.core.models` — 3 imports |
-| `util-jvm/` | `core/util-jvm` | `org.signal.core.util` — 2 imports |
-| `serialization/` | `core/serialization` | nothing directly; `lib-network` needs it |
+| `libsignal-service/` | `lib/libsignal-service` | `org.whispersystems.signalservice.*`, `org.signal.storageservice.*` — 65 distinct imports |
+| `lib-network/` | `lib/network` | `org.signal.network.api`, `.rest`, `.service` — 4 |
+| `network/` | `core/network` | `org.signal.network.config`, `.crypto`, `.util`, `NetworkResult` — 12 |
+| `util-jvm/` | `core/util-jvm` | `org.signal.core.models`, `org.signal.core.util` — 8 |
+| `serialization/` | `core/serialization` | nothing directly; the other modules need it |
 | `wire-handler/` | `wire-handler/lib` | not a dependency — a build tool, see below |
+
+(Imports counted in the app's main source on 2026-11-16; names the app spells out in full at
+the call site are not in these numbers.)
+
+There were six modules until 2026-11-16. Upstream merged `core/models-jvm` into `core/util-jvm`
+on 2026-11-03 (`592c8c70cb`) and this tree follows upstream's layout, so `org.signal.core.models`
+now lives in `util-jvm/`.
 
 This replaces `com.github.turasa:signal-network:2.15.3_unofficial_152`, the prebuilt fork the app
 took from jitpack until now.
@@ -22,20 +28,21 @@ side.
 
 ## Signal's tests are here and they run
 
-**1,015 of them, and they pass.** Restored from upstream along with the source, with the test
-dependency versions upstream's `gradle/test-libs.versions.toml` gives:
+**1,327 of them, and they pass** (run 2026-11-16 against the copy at `90a6ddce46`; eight are
+skipped by upstream's own annotations, seven in `libsignal-service` and one in `util-jvm`).
+Restored from upstream along with the source, with the test dependency versions upstream's
+`gradle/test-libs.versions.toml` gives:
 
 | module | tests |
 |---|---|
-| `libsignal-service` | 634 |
-| `util-jvm` | 280 |
-| `lib-network` | 80 |
-| `models-jvm` | 17 |
-| `network` | 4 |
+| `libsignal-service` | 712 |
+| `util-jvm` | 338 |
+| `lib-network` | 251 |
+| `network` | 26 |
 
 This is the strongest available check that the copy and the build are right — far better than
 anything written here could be — and it is the **only** thing that exercises the receive-side
-refusals an ordinary conversation never trips. `EnvelopeContentValidatorTest` alone is 73 tests,
+refusals an ordinary conversation never trips. `EnvelopeContentValidatorTest` alone is 83 tests,
 including the pair that matters most to this app: a body of *exactly* 2048 bytes is valid, one
 byte over is not, and the UTF-8 case is tested separately because 600 emoji are 1200 UTF-16 units
 and 2400 bytes.
@@ -66,34 +73,26 @@ here is presented as this project's own work.
 
 ## What was changed, and it is a short list
 
-**628 of the 647 files in the six modules are byte-identical to upstream at `d555580a46`**, and
-so are both files of `wire-handler/` — measured with `cmp`, every file, every time this changes
-(last measured 2026-11-16). Of the other nineteen, thirteen are whole files taken from a later
-upstream commit and match upstream at that commit byte for byte, and six carry an edit made
-here. Both lists are below. The first edit was forced by the build; the rest are ports of
-single upstream fixes, each named here with the upstream commit it follows (the first two are
-also commented at the line; the others are named in the commit message that made them):
+**684 of the 685 copied files in the five modules are byte-identical to upstream at
+`90a6ddce46`**, and so are both files of `wire-handler/` — measured with `cmp` against a
+`git archive` of that commit, every file, every time this changes (last measured 2026-11-16).
+The one that differs:
 
 1. **`network/src/main/java/org/signal/network/util/JsonUtil.java`** — `new KotlinModule()` is a
    constructor jackson removed after 2.12. Replaced with
    `ExtensionsKt.registerKotlinModule(objectMapper)`, which is what upstream's *other* JSON helper
-   (`core/util/.../JsonUtils.java:25`) already does in the same tree.
-2. **`libsignal-service/.../api/SignalServiceMessageSender.java`** — upstream `f627988255`: a
-   transport failure to one recipient of a group send is a network failure for that one, not a
-   throw that loses everybody else's result. Five lines.
-3. **`libsignal-service/.../api/messages/EnvelopeContentValidator.kt`** and its test — upstream
-   `f8ba4ae848`: poll question and option limits counted in graphemes.
-4. **`libsignal-service/.../internal/push/PushServiceSocket.java`** — upstream `ba5ce0c411`:
-   `sendRemoteManifestOnConflict=false` on the storage write. One line.
-5. **`libsignal-service/src/test/.../internal/util/BlacklistingTrustManagerTest.kt`** — upstream's
-   test from `c0c10dde4e`, reading its JSON resource with Jackson where upstream uses
-   kotlinx.serialization, which this module does not build with.
+   (`core/util/.../JsonUtils.java:25`) already does in the same tree. Forced by the build, and
+   commented at the line.
 
-The seven `build.gradle` files are ours — this repo has no version catalogue, so upstream's
-`libs.versions.toml` references are spelled out — and the publishing, ktlint, test-fixture and
-javadoc blocks are dropped because nothing here publishes or lints them. They were first written
-from upstream's files at `b92917acdb` (2026-09-10) and say so; the source beside them is at
-`d555580a46`.
+One upstream file is **not copied**: `libsignal-service/src/test/resources/ias.jks`. It is a
+keystore, no source in these modules refers to it, and this repository's `.gitignore` refuses
+`*.jks` outright. Upstream has 686 files under the five modules' `src/`; 685 are here.
+
+The six `build.gradle` files (five modules and the wire handler) are ours — this repo has no
+version catalogue, so upstream's `libs.versions.toml` references are spelled out — and the
+publishing, ktlint, idea and javadoc blocks are dropped because nothing here publishes or lints
+them. The five module files were rewritten from upstream's `build.gradle.kts` at `90a6ddce46`
+and say so; the wire handler's is unchanged, as upstream's is.
 
 One dependency version is **deliberately not** upstream's, and is commented in the root
 `build.gradle`:
@@ -103,32 +102,95 @@ One dependency version is **deliberately not** upstream's, and is commented in t
   would have been a downgrade of a deserialiser.
 
 **libsignal is upstream's pin**: 0.107.0, the `libsignal-client` version in Signal-Android's
-`gradle/libs.versions.toml` at `90a6ddce46` (2026-11-15), for both `libsignal-client` here and
-`libsignal-android` in the app. The source here is older than that pin (2026-09-16), so the one
-source change upstream made for a libsignal bump in between is taken with it: the two cipher
-wrappers in the table below, from the commit that moved upstream to 0.107.0. Checksums for both
-artifacts in `gradle/verification-metadata.xml` are the ones Signal-Android pins.
+`gradle/libs.versions.toml` at `90a6ddce46`, for both `libsignal-client` here and
+`libsignal-android` in the app. The source and the pin are now from the same commit. So are
+RingRTC (2.74.0), OkHttp (5.3.2) and libphonenumber (9.0.41). Checksums in
+`gradle/verification-metadata.xml` are the ones Signal-Android pins where it pins them.
 
-## Files taken from a later upstream commit
+## How it got here: three copies
 
-Single fixes are ported by copying the whole file at the upstream commit that made them, so
-each file still matches upstream byte for byte, only at a newer commit than the base:
-
-| file | upstream commit | why |
+| date | upstream commit | what |
 |---|---|---|
-| `libsignal-service/.../multidevice/DeviceContactsInputStream.java` | `bc7a984923` (2026-10-23) | an avatar closed by its reader no longer closes the whole contacts sync; an unread avatar is skipped; a contact with only a number is read |
-| `libsignal-service/.../multidevice/DeviceContactsInputStreamTest.java` | `bc7a984923` | the tests for the above |
-| `util-jvm/.../stream/NonClosingInputStream.kt` | `bc7a984923` | new with the above |
-| `libsignal-service/.../api/storage/StorageServiceApi.kt` | `ba5ce0c411` (2026-10-05) | no manifest sent back on a storage conflict the app ignores |
-| `libsignal-service/.../api/websocket/SignalWebSocket.kt` | `d86d875c1e` (2026-09-17) | chat requests are time-limited |
-| `libsignal-service/.../internal/util/BlacklistingTrustManager.java` | `a1c18d30c7` (2026-10-22) | refuses the known compromised TLS intermediates |
-| `libsignal-service/src/test/resources/emudhra-impacted-intermediates.json` | `c0c10dde4e` (2026-10-21) | the list the test for the above reads |
-| `models-jvm/.../models/ServiceId.kt` | `db2d1e13df` (2026-10-01) | `normalizeAddressName`: one spelling for a service id used as an address name |
-| `models-jvm/.../models/ProtocolAddressExtensions.kt` | `db2d1e13df` | new with the above: `SignalProtocolAddress.normalized()` |
-| `models-jvm/src/test/.../models/ProtocolAddressExtensionsTest.kt` | `db2d1e13df` | the tests for the above |
-| `libsignal-service/.../api/crypto/SignalServiceCipher.java` | `db2d1e13df` | a sealed-sender message from this very device is refused as a self-send; the sender-key record is cleared under the canonical address |
-| `libsignal-service/.../api/crypto/SignalGroupCipher.java` | `daaae6be0e` (2026-11-11) | libsignal 0.107.0: `GroupCipher.decrypt` declares `InvalidVersionException` and `InvalidKeyException` instead of wrapping them in an `AssertionError` |
-| `libsignal-service/.../api/crypto/SignalSessionCipher.java` | `daaae6be0e` | libsignal 0.107.0: the same for `SessionCipher.decrypt(PreKeySignalMessage)` and `InvalidVersionException` |
+| 2026-09-16 | `b92917acdb` (2026-09-10) | first copy, six modules, replacing the prebuilt fork |
+| 2026-09-16 | `d555580a46` (2026-09-16) | re-vendored the same day, 75 commits on |
+| 2026-11-16 | `90a6ddce46` (2026-11-15, `v8.36.2`) | re-vendored, 54 commits on in these modules; five modules |
+
+Between the second and third copies, single upstream fixes were ported by hand: thirteen whole
+files taken from later upstream commits and six files edited here. That stopped scaling — the
+tree was nineteen files off its base and each port needed its own proof — so the third copy
+takes everything. All nine upstream commits those ports came from (`f627988255`, `f8ba4ae848`,
+`ba5ce0c411`, `c0c10dde4e`, `bc7a984923`, `d86d875c1e`, `a1c18d30c7`, `db2d1e13df`,
+`daaae6be0e`) are ancestors of `90a6ddce46`, so each of those files is now simply upstream's.
+The local `BlacklistingTrustManagerTest` that read its resource with Jackson is upstream's
+again too: `libsignal-service` builds with kotlinx.serialization now, as upstream's does.
+
+The target is a **release tag's commit**, not the tip of `main`: the newest release whose
+`libsignal-client` pin is the version this app builds with.
+
+## What the third copy changed for the app
+
+Upstream's own app adapted to each of these in the commit named, and the app here was changed
+the same way. `git log d555580a46..90a6ddce46` over the five module paths is the full list;
+these are the ones a caller notices.
+
+- **No manual keepalives** (`37f8b149dd`). `SignalWebSocket.sendKeepAlive`,
+  `HealthMonitor.onKeepAliveResponse` and `WebSocketConnection.sendKeepAlive` are gone; Signal's
+  health monitor lost its keepalive sender, and so did `SignalSocketHealthMonitor`. ⚠ That
+  sender was this app's alarm-backed wake for the socket (30 s on screen, 180 s off) and its
+  dead-socket check. What keeps the connection alive and notices a dead one is now libsignal's
+  chat connection alone. See the note at the end of this section.
+- **This device's own prekeys go through `KeysApiV2`** (`4af8108670`).
+  `KeysApi.checkRepeatedUseKeysSync` and `getAvailablePreKeyCountsSync` no longer exist.
+  `PreKeyUploader` asks for counts once for both identities, and uploads each kind of key in its
+  own request in `PreKeysSyncJob`'s order: one-time EC, one-time Kyber, signed prekey, last-resort
+  Kyber. Because the one-time batches are now separate requests, the refill path stores its keys
+  before it sends them.
+- **Attachment uploads left `PushServiceSocket`** (`4bd15366c2`, `451c1f54b8`). `CdnService` is
+  built from a `CdnApi` and an `AttachmentApi`, and is the `AttachmentUploader` the message sender
+  now takes as its last constructor argument.
+- **Contacts sync is read with `DeviceContactsReader`** (`3676792cd8`), which replaced
+  `DeviceContactsInputStream`. A record with no address is skipped and counted by the reader;
+  the app no longer matches on an exception message to do that.
+- **`SealedSenderAccess` and `UnidentifiedAccess` moved** to `org.signal.network.crypto`
+  (`1d592c7b85`). Imports only.
+- **`SignalServiceConfiguration` lost `systemHttpProxy`** (`77c79d011b`). The app passed an
+  empty one and passes nothing now. Applying a proxy to libsignal's `Network` became the app's
+  job upstream (`ProxyConfig.resolve`, `Network.configureProxy`); this app never applied one
+  and still does not.
+- **Every link code now says `nopni,nopni2`** (`cdd27e08fa`): `ProvisioningSocket.Mode.Link`
+  tells the primary this device can join an account with no phone number. This app cannot
+  (`SignalCapabilities.OPTIONAL_PHONE_NUMBER`), and the library gives no way to leave the claim
+  out, so `DeviceLinker` now refuses such a provisioning message by name, before anything is
+  registered, instead of failing on a missing key.
+- **One more receive-side refusal** (`90cbc7a3de`): an attachment pointer whose audio waveform
+  is longer than `SignalServiceMessageLimits.MAX_AUDIO_WAVEFORM_BAR_COUNT` makes its message
+  invalid, as a pointer with no CDN id or key already did.
+- **Group sends** (`075995b608`, `25d1d76f1c`, `b87b12ad97`): a 1:1 fan-out encrypts on the
+  calling thread and has at most 32 sends in flight; a transport failure to one recipient is a
+  network failure for that one (the fix this tree had ported as `f627988255`).
+- **Storage service**: the sticker pack record is `installedStickerPack` now and there are two
+  new record kinds, hidden sticker pack and favorite sticker. The app picks contacts,
+  groups and the account record out of the manifest by type and leaves other records' ids
+  as they are (`docs/DECISION-storage-write.md`).
+- **Registration errors**: a 403 on a captcha is `UpdateSessionError.TokenNotAccepted`
+  (`2be641e6e6`), and the 441 on registering is `RegisterAccountError.TwoFactorRequired`, which
+  says whether the account has an authenticator app or passkeys (`eb47004f3a`).
+- **"Connected elsewhere"** (`263d273213`): libsignal's `ConnectedElsewhereException` on the chat
+  connection is reported as `NonSuccessfulResponseCodeException(4409)`. The app has no case
+  for it; it is an I/O failure like any other there.
+
+⚠ **Sends still go through `SignalServiceMessageSender`.** Upstream's app is moving its sends to
+`IndividualMessageService` and `GroupMessageService` in `lib/network` (null messages
+`30bb40675b`, several sync sends `9603c75ac3` and `bc7a984923`, group sends `25d1d76f1c`). The
+old sender is still in the library at this commit and still what part of Signal's app calls;
+this app has not been moved to the new services.
+
+⚠ **The keepalive, plainly.** Signal's own no-push mode at this commit has no alarm-backed
+keepalive either: its message thread uses `AlarmSleepTimer` only for reconnect backoff, as this
+app does (`SignalRepositoryImpl`). So following upstream is the like-for-like choice — and it
+still removes the thing this app measured (wakeups per hour, no keepalive ever missed, seven
+hours on a Kompakt, 2026-10-01). How promptly a message arrives on a phone that has been
+dozing for an hour has to be measured again on hardware before this is released.
 
 ## The wire handler is built, not vendored
 

@@ -341,13 +341,14 @@ the details, and the details are where a hand-rolled version silently differs.
   port of Signal Android's call manager, and the ringer and ringback are Signal's, sounds
   included.
 - **Signal's service layer** — AGPL-3.0, **copied into this repository and compiled here**, under
-  `signal-service/`. Six of Signal Android's own modules (`lib/libsignal-service`, `lib/network`,
-  `core/network`, `core/util-jvm`, `core/models-jvm`, `core/serialization`) taken at commit
-  `d555580a46`, 2026-09-16. **628 of the 647 files are byte-identical to upstream at that
-  commit**; thirteen more are whole files taken from a later upstream commit, and six carry an
-  edit made here. Every one of the nineteen, and the reason for it, is recorded in
-  `signal-service/README.md`. Every file
-  keeps its upstream copyright header and `SPDX-License-Identifier`.
+  `signal-service/`. Five of Signal Android's own modules (`lib/libsignal-service`, `lib/network`,
+  `core/network`, `core/util-jvm`, `core/serialization`) taken at commit `90a6ddce46`,
+  2026-11-15, the commit of release tag `v8.36.2`. **684 of the 685 copied files are
+  byte-identical to upstream at that commit**, measured with `cmp`. The one that carries an edit
+  is `network/src/main/java/org/signal/network/util/JsonUtil.java` (a jackson constructor that
+  no longer exists), and one upstream test keystore is left out; both, and the reasons, are
+  recorded in `signal-service/README.md`. Every file keeps its upstream copyright header and
+  `SPDX-License-Identifier`.
 
   This replaced `com.github.turasa:signal-network`, a third-party fork resolved from JitPack,
   which earlier versions of this app linked instead.

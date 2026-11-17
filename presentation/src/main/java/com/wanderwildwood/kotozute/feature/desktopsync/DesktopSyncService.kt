@@ -671,12 +671,13 @@ class DesktopSyncService : Service() {
 
     private fun notificationText(): String {
         val address = findTailscaleAddress(this) ?: findLanAddress(this)
-        return if (address != null) "Listening on $address:$PORT" else "Waiting for a network…"
+        return if (address != null) getString(R.string.desktop_sync_notification_listening, "$address:$PORT")
+        else getString(R.string.desktop_sync_notification_waiting)
     }
 
     private fun buildNotification(contentText: String): Notification {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "Desktop Sync", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, getString(R.string.settings_desktop_sync_title), NotificationManager.IMPORTANCE_LOW)
                 .apply { setShowBadge(false) }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
@@ -691,7 +692,7 @@ class DesktopSyncService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Desktop Sync running")
+            .setContentTitle(getString(R.string.desktop_sync_notification_title))
             .setContentText(contentText)
             .setSmallIcon(R.drawable.ic_sync_black_24dp)
             .setColor(android.graphics.Color.BLACK)
@@ -710,7 +711,7 @@ class DesktopSyncService : Service() {
             .setShowWhen(false)
             .setWhen(0)
             .setSilent(true)
-            .addAction(0, "Stop", stopPendingIntent)
+            .addAction(0, getString(R.string.desktop_sync_notification_stop), stopPendingIntent)
             .build()
     }
 }

@@ -350,6 +350,11 @@
     <string name="settings_syncing_count">Syncing… %1$d of %2$d</string>
 
     <string name="settings_desktop_sync_title">Desktop Sync</string>
+    <string name="desktop_sync_notification_title">Desktop Sync running</string>
+    <string name="desktop_sync_notification_listening">Listening on %1$s</string>
+    <string name="desktop_sync_notification_waiting">Waiting for a network…</string>
+    <string name="desktop_sync_notification_stop">Stop</string>
+    <string name="main_search_hint">Search</string>
     <string name="settings_desktop_sync_summary_off">Text from your computer in a browser</string>
     <string name="settings_category_desktop_sync">Desktop Sync</string>
     <string name="settings_desktop_sync_link_copy">Copy link</string>

@@ -1026,10 +1026,15 @@ open class MessageRepositoryImpl @Inject constructor(
         // by calling markRead, which writes both stores.
         val alreadyRead = activeConversationManager.getActiveConversation() == threadId
 
+        // One time for both stores. Left to itself the provider stamps its own, a few ms off
+        // Realm's, and a restore (which matches on the exact date) would then copy it twice.
+        val receivedAt = System.currentTimeMillis()
+
         // insert the message to the native content provider
         val values = contentValuesOf(
             Sms.ADDRESS to address,
             Sms.BODY to body,
+            Sms.DATE to receivedAt,
             Sms.DATE_SENT to sentTime,
             Sms.THREAD_ID to threadId,
             Sms.READ to if (alreadyRead) 1 else 0,
@@ -1053,7 +1058,7 @@ open class MessageRepositoryImpl @Inject constructor(
             this.threadId = threadId
             this.subId = subId
 
-            date = System.currentTimeMillis()
+            date = receivedAt
 
             contentId = providerContentId
             boxId = Sms.MESSAGE_TYPE_INBOX

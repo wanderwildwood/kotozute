@@ -166,6 +166,17 @@
         <item name="android:textColorSecondary">@color/black</item>
     </style>
 
+    <!-- The "Messages are locked" screen. A framework theme with no night variant: the page
+         is drawn black on white whatever the phone's dark setting says, and DarkMode turns the
+         whole window, bars' icons included. With AppTheme the phone's dark setting painted the
+         status bar dark grey, which DarkMode then turned light grey over a black page. -->
+    <style name="MessagesLockedTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
     <!-- Black mode. No changes needed when not in night theme -->
     <style name="AppTheme.Black" />
     <style name="AppThemeDialog.Black" />

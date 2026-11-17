@@ -175,7 +175,7 @@
             android:name=".feature.locked.MessagesLockedActivity"
             android:excludeFromRecents="true"
             android:exported="false"
-            android:theme="@style/AppTheme" />
+            android:theme="@style/MessagesLockedTheme" />
         <activity
             android:name=".feature.qkreply.QkReplyActivity"
             android:excludeFromRecents="true"

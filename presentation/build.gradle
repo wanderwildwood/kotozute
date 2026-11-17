@@ -23,8 +23,8 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 apply plugin: 'com.mikepenz.aboutlibraries.plugin.android'
 
-// Signing comes from a real keystore in signing/, which is gitignored and written by the
-// release workflow from repository secrets. There is no fallback: a clone without it builds
+// Signing comes from a real keystore in signing/, which is gitignored and kept only on the
+// machine that builds releases. There is no fallback: a clone without it builds
 // an unsigned release APK, which will not install anywhere, rather than a signed-looking one.
 //
 // This repo used to carry a throwaway keystore with password 'android' and fall back to it.

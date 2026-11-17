@@ -360,9 +360,8 @@ redistributing a build should carry this notice — and note that the service la
 repository rather than linked is why this project is AGPL-3.0-or-later rather than GPL: Signal's
 code is AGPL-3.0-only, and a work containing it can be distributed no other way.
 
-Signal Android is watched the way this fork's other upstreams are. A blobless clone lives at
-`/opt/projects/signal-android-upstream`, and the weekly upstream scan tracks it with a
-watermark, scoped to the paths the Signal rail actually takes from — message decryption,
+Signal Android is watched the way this fork's other upstreams are: a weekly upstream scan
+tracks it with a watermark, scoped to the paths the Signal rail actually takes from — message decryption,
 contact discovery, the recipient model, and key handling. Signal lands dozens of commits a day
 across a whole product; without that scope the entry would be noise, and an alert nobody reads
 is the same as no alert.

@@ -204,6 +204,8 @@ class Navigator @Inject constructor(
         intent.putExtra("subscriptionId", scheduledMessage.subId)
         intent.putExtra("sendAsGroup", scheduledMessage.sendAsGroup)
         intent.putExtra("scheduleDateTime", scheduledMessage.date)
+        // The original stays on the schedule until Compose has sent or rescheduled this copy.
+        intent.putExtra("replacesScheduledId", scheduledMessage.id)
 
         scheduledMessage.recipients
             .takeIf { it.isNotEmpty() }

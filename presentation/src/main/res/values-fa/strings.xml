@@ -349,7 +349,6 @@
     <string name="main_menu_send_now">اکنون بفرست</string>
     <string name="scheduled_menu_send_now">اکنون بفرست</string>
     <string name="scheduled_menu_edit_message">ویرایش پیام</string>
-    <string name="dialog_edit_scheduled_message">ویرایش این پیام آن را از زمان‌بندی می‌سترداند.\n\nآسوده‌دل شوید که آن را دوباره در برگه پسین بفرستید، وگرنه از دست خواهد رفت.\n\nآیا می‌خواهید ادامه دهید؟</string>
     <string name="main_menu_rename_conversation">بازنامیدن گفتگو</string>
     <string name="main_sender_draft">پیش‌نویش: %s</string>
     <string name="compose_no_valid_recipients">نمی‌توان آن را به دیگر هَنبازان فرستاد</string>

@@ -105,6 +105,7 @@ class ComposeViewModel @Inject constructor(
     @Named("subscriptionId") val sharedSubscriptionId: Int,
     @Named("sendAsGroup") val sharedSendAsGroup: Boolean?,
     @Named("scheduleDateTime") val sharedScheduledDateTime: Long,
+    @Named("replacesScheduledId") replacesScheduledId: Long,
     private val contactRepo: ContactRepository,
     private val context: Context,
     private val activeConversationManager: ActiveConversationManager,
@@ -147,6 +148,12 @@ class ComposeViewModel @Inject constructor(
 
     private var shouldShowContacts = threadId == 0L && addresses.isEmpty()
     private var showScheduledToast = false
+
+    /**
+     * The scheduled message this screen is editing, or -1. It stays on the schedule until the
+     * edited copy has been rescheduled or sent, and only then is it taken off.
+     */
+    @Volatile private var replacingScheduledId = replacesScheduledId
 
     private var bluetoothMicManager: BluetoothMicManager? = null
 
@@ -1075,7 +1082,9 @@ class ComposeViewModel @Inject constructor(
                 .mapNotNull { conversation -> conversation.takeIf { it.isValid }?.id }
                 .observeOn(Schedulers.io())
                 .withLatestFrom(view.textChangedIntent, state) { threadId, draftText, state ->
-                    if (state.saveDraft)
+                    // Not while editing a scheduled message: that text is still on the
+                    // schedule, and a draft of it too would be a second copy to send by hand.
+                    if (state.saveDraft && replacingScheduledId < 0)
                         conversationRepo.saveDraft(
                             threadId,
                             if (draftText.isNotBlank()) draftText.toString()
@@ -1203,24 +1212,15 @@ class ComposeViewModel @Inject constructor(
                     }
                 }
 
-        // set canSend state depending on if there is text input, an attachment or a schedule set
-        Observables.combineLatest(
-            view.textChangedIntent,     // input message text changed
+        // set canSend state depending on if there is text input or an attachment
+        canSendChanges(
+            view.textChangedIntent,
             state
                 .distinctUntilChanged { state -> state.attachments }    // attachments changed
-                .map { it.attachments.size },   // number of attachments
-            state.distinctUntilChanged { state -> state.scheduled }    // schedule set or not
-                .map { it.scheduled }
+                .map { it.attachments.size }
         )
             .autoDisposable(view.scope())
-            .subscribe {
-                newState {
-                    copy(
-                        canSend = (it.first.isNotBlank() || (it.second > 0)),
-                        scheduled = it.third
-                    )
-                }
-            }
+            .subscribe { canSend -> newState { copy(canSend = canSend) } }
 
         // Show the remaining character counter when necessary
         view.textChangedIntent
@@ -1517,7 +1517,8 @@ class ComposeViewModel @Inject constructor(
                                 body.toString(),
                                 state.attachments.map { it.uri },
                                 conversationId
-                        )
+                        ),
+                            onComplete = dropReplacedScheduled()
                     ).also {
                         newState { copy(scheduled = 0) }
                         showScheduledToast = true
@@ -1530,7 +1531,8 @@ class ComposeViewModel @Inject constructor(
                     else -> {
                         sendNewMessage.execute(
                             SendNewMessage.Params(subId, 0, addresses, body.toString(),
-                                sendAsGroup, state.attachments.toList(), delay)
+                                sendAsGroup, state.attachments.toList(), delay),
+                            onComplete = dropReplacedScheduled()
                         )
                     }
                 }
@@ -1595,6 +1597,23 @@ class ComposeViewModel @Inject constructor(
             }
             .autoDisposable(view.scope())
             .subscribe()
+    }
+
+    /**
+     * What to run once the edited copy of a scheduled message is safely on its way: take the
+     * original off the schedule. Taken once, so a later message from the same screen leaves the
+     * schedule alone. Its files stay where they are, as they always did on an edit: the copy
+     * being sent may still be reading them.
+     *
+     * Only if the original is still on the schedule now. If its time came while it was being
+     * edited it has gone out and been removed, and as ids are the highest plus one, the copy
+     * about to be scheduled could be given its id: deleting by that id later would delete it.
+     */
+    private fun dropReplacedScheduled(): () -> Unit {
+        val id = replacingScheduledId
+        replacingScheduledId = -1L
+        val pending = id >= 0 && scheduledMessageRepo.getScheduledMessage(id) != null
+        return { if (pending) scheduledMessageRepo.deleteScheduledMessage(id) }
     }
 
 }

@@ -332,7 +332,6 @@
         <item quantity="other">%d iletiyi şimdi göndermek istediğinizden emin misiniz?</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">İletiyi düzenle</string>
-    <string name="dialog_edit_scheduled_message">Bu iletiyi düzenlemek onu takvimden silecektir.\n\nSonraki ekranda tekrardan gönderdiğinizden emin olun yoksa silinecektir.\n\nDevam etmek istiyor musunuz?</string>
     <string name="dialog_edit_scheduled_message_positive_button">Evet, iletiyi düzenle</string>
     <string name="dialog_clear_compose_title">İletiyi temizle</string>
     <string name="dialog_clear_compose">İleti silinsin mi? Bu işlem geri alınamaz.</string>

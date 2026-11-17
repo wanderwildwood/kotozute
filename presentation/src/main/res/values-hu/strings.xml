@@ -332,7 +332,6 @@
         <item quantity="other">Biztosan el szeretné küldeni a(z) %d üzenetet most?</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">Üzenet szerkesztése</string>
-    <string name="dialog_edit_scheduled_message">Ennek az üzenetnek a szerkesztése eltávolítja az ütemezésből.\n\nÜgyeljen arra, hogy a következő képernyőn újra küldje el, különben elveszik.\n\nSzeretné folytatni?</string>
     <string name="dialog_edit_scheduled_message_positive_button">Igen, az üzenet szerkesztése</string>
     <string name="dialog_clear_compose_title">Üzenet törlése</string>
     <string name="dialog_clear_compose">Törli az üzenetet? Ez a művelet nem visszavonható.</string>

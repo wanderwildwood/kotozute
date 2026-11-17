@@ -119,6 +119,12 @@ class ComposeActivityModule {
     fun provideSharedScheduleDateTime(activity: ComposeActivity): Long =
         activity.intent.getLongExtra("scheduleDateTime", 0L)
 
+    /** The scheduled message being edited here, or -1. */
+    @Provides
+    @Named("replacesScheduledId")
+    fun provideReplacesScheduledId(activity: ComposeActivity): Long =
+        activity.intent.getLongExtra("replacesScheduledId", -1L)
+
     @Provides
     @IntoMap
     @ViewModelKey(ComposeViewModel::class)

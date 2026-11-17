@@ -111,7 +111,7 @@
     </plurals>
 
     <string name="dialog_edit_scheduled_message_title">Edit message</string>
-    <string name="dialog_edit_scheduled_message">Editing this message will remove it from the schedule.\n\nMake sure to re-submit it on the next screen, or it will be lost.\n\nDo you want to continue?</string>
+    <string name="dialog_edit_scheduled_message_kept">The message stays on the schedule while you edit it. When you schedule or send it again, the edited one takes its place.\n\nGo back without doing either and the original stays as it was.</string>
     <string name="dialog_edit_scheduled_message_positive_button">Yes, edit the message</string>
 
     <string name="dialog_clear_compose_title">Clear message</string>

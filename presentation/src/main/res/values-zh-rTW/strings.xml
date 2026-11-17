@@ -328,7 +328,6 @@
         <item quantity="other">確定要立即傳送 %d 則訊息嗎？</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">編輯訊息</string>
-    <string name="dialog_edit_scheduled_message">編輯此訊息將會把它從排程中移除。\n\n請務必在下一個畫面重新提交，否則將會遺失。\n\n要繼續嗎？</string>
     <string name="dialog_edit_scheduled_message_positive_button">是的，編輯訊息</string>
     <string name="dialog_clear_compose_title">清除訊息</string>
     <string name="dialog_clear_compose">要清除這則訊息嗎？此操作將無法復原。</string>

@@ -92,7 +92,6 @@
         <item quantity="other">Voulez-vous vraiment envoyer %d messages maintenant ?</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">Modifier le message</string>
-    <string name="dialog_edit_scheduled_message">Modifier ce message va le retirer des messages programmés.\n\nAssurez-vous de le réenvoyer au prochain écran, ou il sera perdu.\n\nVoulez-vous continuer ?</string>
     <string name="dialog_edit_scheduled_message_positive_button">Oui, modifier le message</string>
     <string name="dialog_clear_compose_title">Effacer le message</string>
     <string name="dialog_clear_compose">Effacer ce message ? Cette action ne peut être annulée.</string>

@@ -325,7 +325,6 @@
         <item quantity="other">确定发送%d条短信吗？</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">编辑短信</string>
-    <string name="dialog_edit_scheduled_message">编辑此短信，将使其从日程表中移除。\n\n请确保在下一页重新提交，否则短信将会丢失。\n\n确定要继续吗？</string>
     <string name="dialog_edit_scheduled_message_positive_button">是的，确定编辑</string>
     <string name="dialog_clear_compose_title">清除短信内容</string>
     <string name="dialog_clear_compose">确定清除短信内容吗？本操作不可撤回。</string>

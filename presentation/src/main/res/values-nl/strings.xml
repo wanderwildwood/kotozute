@@ -332,7 +332,6 @@
         <item quantity="other">Weet je zeker dat je %d berichten nu wilt versturen?</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">Bewerk bericht</string>
-    <string name="dialog_edit_scheduled_message">Bewerken van dit bericht zal het verwijderen uit de planner.\n\nControleer en zorg dat het wordt toegevoegd in het volgende scherm, of het gaat verloren.\n\nWilt u doorgaan?</string>
     <string name="dialog_edit_scheduled_message_positive_button">Ja, bewerk dit bericht</string>
     <string name="dialog_clear_compose_title">Wissen bericht</string>
     <string name="dialog_clear_compose">Wis het bericht? Deze actie kan niet ongedaan worden gemaakt.</string>

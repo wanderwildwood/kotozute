@@ -92,7 +92,6 @@
         <item quantity="other">Czy na pewno chcesz wysłać te %d wiadomości teraz?</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">Edytuj wiadomość</string>
-    <string name="dialog_edit_scheduled_message">Edycja tej wiadomości spowoduje usunięcie jej z harmonogramu.\n\nUpewnij się, że prześlesz ją ponownie na następnym ekranie, w przeciwnym razie zostanie ona utracona!\n\nCzy chcesz kontynuować?</string>
     <string name="dialog_edit_scheduled_message_positive_button">Tak, edytuj wiadomość</string>
     <string name="dialog_clear_compose_title">Wyczyść wiadomość</string>
     <string name="dialog_clear_compose">Wyczyścić wiadomość? Tej akcji nie można cofnąć.</string>

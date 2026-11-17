@@ -89,7 +89,6 @@
         <item quantity="other">Ești sigur că vrei să trimiți %d mesaje acum?</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">Modifică mesajul</string>
-    <string name="dialog_edit_scheduled_message">Editarea acestui mesaj îl va elimina din program.\n\nAsigură-te că îl retrimiți pe ecranul următor, sau va fi pierdut.\n\nDorești să continui?</string>
     <string name="dialog_edit_scheduled_message_positive_button">Da, editează mesajul</string>
     <string name="dialog_clear_compose_title">Șterge mesajul</string>
     <string name="dialog_clear_compose">Ștergi mesajul? Această acțiune nu poate fi anulată.</string>

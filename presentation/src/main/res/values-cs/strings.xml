@@ -346,7 +346,6 @@
         <item quantity="other">Jste si jisti, že chcete nyní odeslat %d zpráv?</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">Upravit zprávu</string>
-    <string name="dialog_edit_scheduled_message">Úpravou této zprávy ji odstraníte z plánu.\n\nNezapomeňte ji znovu odeslat na další obrazovce, jinak bude ztracena.\n\nChcete pokračovat?</string>
     <string name="dialog_edit_scheduled_message_positive_button">Ano, upravit zprávu</string>
     <string name="dialog_clear_compose_title">Vymazat zprávu</string>
     <string name="dialog_clear_compose">Vymazat zprávu? Tuto akci nelze vrátit zpět.</string>

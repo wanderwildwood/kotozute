@@ -343,7 +343,6 @@
         <item quantity="other">Вы уверены, что хотите отправить прямо сейчас %d сообщений?</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">Редактировать сообщение</string>
-    <string name="dialog_edit_scheduled_message">Редактирование этого сообщения удалит его из планировщика.\n\nУбедитесь, что вы повторно отправите его на следующем экране, иначе оно будет потеряно.\n\nХотите продолжить?</string>
     <string name="dialog_edit_scheduled_message_positive_button">Да, редактировать сообщение</string>
     <string name="dialog_clear_compose_title">Стереть сообщение</string>
     <string name="dialog_clear_compose">Стереть сообщение? Эта операция не может быть отменена.</string>

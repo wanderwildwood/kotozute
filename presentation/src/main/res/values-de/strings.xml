@@ -334,7 +334,6 @@
         <item quantity="other">Bist du sicher, dass du %d Nachrichten jetzt senden möchtest?</item>
     </plurals>
     <string name="dialog_edit_scheduled_message_title">Nachricht bearbeiten</string>
-    <string name="dialog_edit_scheduled_message">Das Bearbeiten dieser Nachricht entfernt sie aus dem Zeitplan.\n\nStelle sicher, dass du sie auf dem nächsten Bildschirm erneut abschickst, sonst geht sie verloren.\n\nWillst du weitermachen?</string>
     <string name="dialog_edit_scheduled_message_positive_button">Ja, Nachricht bearbeiten</string>
     <string name="dialog_clear_compose_title">Nachricht löschen</string>
     <string name="dialog_clear_compose">Die Nachricht löschen? Diese Aktion kann nicht rückgängig gemacht werden.</string>

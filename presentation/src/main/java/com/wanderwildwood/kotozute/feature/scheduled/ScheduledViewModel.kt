@@ -121,15 +121,14 @@ class ScheduledViewModel @Inject constructor(
             }
 
 
-        // edit message (fired after the confirmation dialog has been shown)
+        // edit message (fired after the confirmation dialog has been shown). The message is
+        // NOT taken off the schedule here: Compose does that once it has sent or rescheduled
+        // the edited copy, so a compose screen that fails or is left loses nothing.
         view.editScheduledMessage
             .observeOn(Schedulers.io())
             .doOnNext { selectedMessageId ->
                 scheduledMessageRepo.getScheduledMessage(selectedMessageId)
-                    ?.let { scheduledMessage ->
-                        navigator.showCompose(scheduledMessage)
-                        scheduledMessageRepo.deleteScheduledMessage(scheduledMessage.id)
-                    }
+                    ?.let { scheduledMessage -> navigator.showCompose(scheduledMessage) }
             }
             .observeOn(AndroidSchedulers.mainThread())
             .autoDisposable(view.scope())

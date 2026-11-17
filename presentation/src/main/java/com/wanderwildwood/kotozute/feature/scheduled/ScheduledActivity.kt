@@ -132,7 +132,7 @@ class ScheduledActivity : QkThemedActivity(), ScheduledView {
     override fun showEditMessageDialog(message: Long) {
         einkDialog()
             .setTitle(R.string.dialog_edit_scheduled_message_title)
-            .setMessage(R.string.dialog_edit_scheduled_message)
+            .setMessage(R.string.dialog_edit_scheduled_message_kept)
             .setPositiveButton(R.string.dialog_edit_scheduled_message_positive_button) { _, _ ->
                 editScheduledMessage.onNext(message)
             }

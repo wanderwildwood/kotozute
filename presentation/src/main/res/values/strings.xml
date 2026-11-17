@@ -1479,12 +1479,12 @@
 
     <!-- The message database could not be opened encrypted (no key from the phone's keystore), so the app stops here instead of keeping messages unencrypted -->
     <string name="messages_locked_title">Messages are locked</string>
-    <string name="messages_locked_body_existing">Your messages on this phone are kept encrypted. The key is held by the phone\'s secure key storage, and just now the phone would not hand it over, so the messages cannot be opened.\n\nNothing has been deleted.\n\nWhat you can do:\n\n1. Restart the phone, then open this app again. After a system update the key is sometimes only late.\n\n2. If that does not help, the key may be gone for good. A system update or a reset of the phone\'s saved credentials can do that. You can then start with an empty list.\n\nUntil this is sorted out, Signal messages wait on Signal\'s servers and texts are kept in the phone\'s own message store.</string>
-    <string name="messages_locked_body_new">This app keeps your messages encrypted, with a key made by the phone\'s secure key storage. Just now the phone would not make one, and the app does not keep messages without it, so it has stopped here.\n\nNothing has been deleted.\n\nRestart the phone, then open this app again.\n\nUntil this is sorted out, Signal messages wait on Signal\'s servers and texts are kept in the phone\'s own message store.</string>
+    <string name="messages_locked_body_existing">Your messages are kept encrypted, and the phone would not hand over their key just now. Nothing has been deleted.\n\nRestart the phone and open this app again. If that does not help, the key may be gone for good, and you can start with an empty list.\n\nUntil then, Signal messages wait on Signal\'s servers and texts stay in the phone\'s own store.</string>
+    <string name="messages_locked_body_new">This app keeps your messages encrypted, and the phone would not make a key for them just now. Nothing has been deleted.\n\nRestart the phone and open this app again.\n\nUntil then, Signal messages wait on Signal\'s servers and texts stay in the phone\'s own store.</string>
     <string name="messages_locked_retry">Try again</string>
     <string name="messages_locked_start_empty">Start with an empty list</string>
     <string name="messages_locked_start_empty_title">Start with an empty list?</string>
-    <string name="messages_locked_start_empty_message">The messages that cannot be opened are moved aside on this phone, not deleted. Without their key they cannot be read.\n\nYour texts come back from the phone\'s own message store. Signal messages that were only on this phone do not come back.\n\nTry restarting the phone first.</string>
+    <string name="messages_locked_start_empty_message">The messages that cannot be opened are moved aside, not deleted. Your texts come back from the phone\'s own store. Signal messages that were only on this phone do not.\n\nTry restarting the phone first.</string>
     <string name="messages_locked_start_empty_confirm">Start empty</string>
     <string name="messages_locked_start_empty_failed">The old messages could not be moved aside, so nothing was changed.</string>
 

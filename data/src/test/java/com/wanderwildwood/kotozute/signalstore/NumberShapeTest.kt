@@ -25,7 +25,7 @@ class NumberShapeTest {
 
     @Test
     fun `an ordinary number is fine`() {
-        assertTrue(looksLikeANumber("+17045550148"))
+        assertTrue(looksLikeANumber("+15550100148"))
         assertTrue(looksLikeANumber("+442071838750"))
     }
 
@@ -37,14 +37,14 @@ class NumberShapeTest {
     /** As the address book writes them, and the shape that cannot be found by an equality match. */
     @Test
     fun `anything but digits and a plus is not`() {
-        assertFalse(looksLikeANumber("(704) 555-0148"))
-        assertFalse(looksLikeANumber("+1 704 555 0148"))
-        assertFalse(looksLikeANumber("704-555-0148"))
+        assertFalse(looksLikeANumber("(555) 010-0148"))
+        assertFalse(looksLikeANumber("+1 555 010 0148"))
+        assertFalse(looksLikeANumber("555-010-0148"))
     }
 
     @Test
     fun `a long number that does not start with a plus is not`() {
-        assertFalse(looksLikeANumber("17045550148"))
+        assertFalse(looksLikeANumber("15550100148"))
     }
 
     /** Upstream's odd one, and the reason the rule is copied rather than reasoned out. */

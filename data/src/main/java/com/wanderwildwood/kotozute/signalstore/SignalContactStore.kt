@@ -847,7 +847,7 @@ internal class SignalContactStore(
      * chars (strange but true -- neither shortcodes nor longcodes can be 7 chars long)"*.
      *
      * A malformed number is not cosmetic: every lookup by number is an equality match, so a row
-     * holding `(704) 555-0148` can never be found by the `+17045550148` anyone would search
+     * holding `(555) 010-0148` can never be found by the `+15550100148` anyone would search
      * with, and the person quietly has two half-rows or none.
      *
      * Reported, not repaired, for the reason [duplicateNumbers] is. Upstream has three tiers of

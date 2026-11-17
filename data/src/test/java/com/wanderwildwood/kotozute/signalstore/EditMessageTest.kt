@@ -36,6 +36,6 @@ class EditMessageTest {
 
     @Test
     fun `identity falls back to the number when there is no service id`() {
-        assertEquals("+18285550123:99", ContentNormalizer.messageIdFor("", "+18285550123", 99))
+        assertEquals("+15550100123:99", ContentNormalizer.messageIdFor("", "+15550100123", 99))
     }
 }

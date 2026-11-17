@@ -1212,8 +1212,8 @@ class SignalRepositoryImpl @Inject constructor(
      * under the name they chose. That name is better than anything the account can supply,
      * and it costs a lookup rather than a network call.
      *
-     * Numbers are compared, not matched as text: the address book holds "828 555 0123" where
-     * Signal says "+18285550123".
+     * Numbers are compared, not matched as text: the address book holds "555 010 0123" where
+     * Signal says "+15550100123".
      */
     private fun addressBookName(number: String): String? {
         if (number.isBlank()) return null

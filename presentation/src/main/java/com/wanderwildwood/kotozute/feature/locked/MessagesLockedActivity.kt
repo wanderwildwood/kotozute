@@ -1,15 +1,16 @@
 package com.wanderwildwood.kotozute.feature.locked
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.Button
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.util.RealmEncryption
+import com.wanderwildwood.kotozute.common.util.einkDialog
 import timber.log.Timber
 
 /**
@@ -19,7 +20,10 @@ import timber.log.Timber
  * the rest of the app does meanwhile.
  *
  * Deliberately plain: a framework Activity with framework widgets, no injection, no database,
- * nothing from the rest of the app. It has to work exactly when the rest of the app cannot.
+ * nothing from the rest of the app that is set up at run time. It has to work exactly when
+ * the rest of the app cannot. What it does share is fixed at build time and cannot fail with
+ * the message store: the setup guide's two button shapes, the bundled font, and the dialog
+ * frame every other question in the app is asked in ([einkDialog], a style and nothing more).
  *
  * Two things can be done from here, and the screen says which applies:
  *
@@ -44,15 +48,15 @@ class MessagesLockedActivity : Activity() {
             if (hasOldDatabase) R.string.messages_locked_body_existing
             else R.string.messages_locked_body_new
         )
-        findViewById<Button>(R.id.lockedRetry).setOnClickListener { restart() }
-        findViewById<Button>(R.id.lockedStartEmpty).apply {
+        findViewById<View>(R.id.lockedRetry).setOnClickListener { restart() }
+        findViewById<View>(R.id.lockedStartEmpty).apply {
             visibility = if (hasOldDatabase) View.VISIBLE else View.GONE
             setOnClickListener { confirmStartEmpty() }
         }
     }
 
     private fun confirmStartEmpty() {
-        AlertDialog.Builder(this)
+        einkDialog()
             .setTitle(R.string.messages_locked_start_empty_title)
             .setMessage(R.string.messages_locked_start_empty_message)
             .setNegativeButton(R.string.button_cancel, null)
@@ -64,13 +68,20 @@ class MessagesLockedActivity : Activity() {
                 if (moved) {
                     restart()
                 } else {
-                    AlertDialog.Builder(this)
+                    einkDialog()
                         .setMessage(R.string.messages_locked_start_empty_failed)
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
+                        .dark()
                 }
             }
             .show()
+            .dark()
+    }
+
+    /** Dark from its first frame when dark mode is on, rather than a moment after. */
+    private fun AlertDialog.dark() {
+        window?.decorView?.let(DarkMode::window)
     }
 
     /**

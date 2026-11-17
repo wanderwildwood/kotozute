@@ -3,51 +3,75 @@
     Shown instead of everything else when the message database has been refused (no key from
     the phone's keystore). Framework widgets only, on purpose: this screen must not depend on
     anything the rest of the app sets up. See MessagesLockedActivity.
+
+    The two choices stay at the foot of the screen; only the words above them scroll, if they
+    ever have to. The buttons are plain TextViews in the setup guide's two shapes (the app's
+    own text view asks the dependency graph for its font and size, so it is not used here).
 -->
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/white"
-    android:fillViewport="true"
-    android:scrollbars="none">
+    android:orientation="vertical">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp">
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fadeScrollbars="false"
+        android:fillViewport="true"
+        android:scrollbarSize="4dp"
+        android:scrollbarThumbVertical="@android:color/black">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/messages_locked_title"
-            android:textColor="@android:color/black"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:orientation="vertical"
+            android:paddingLeft="24dp"
+            android:paddingTop="24dp"
+            android:paddingRight="24dp"
+            android:paddingBottom="8dp">
 
-        <TextView
-            android:id="@+id/lockedBody"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:lineSpacingMultiplier="1.15"
-            android:textColor="@android:color/black"
-            android:textSize="16sp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/lato_bold"
+                android:text="@string/messages_locked_title"
+                android:textColor="@android:color/black"
+                android:textSize="22sp" />
 
-        <Button
-            android:id="@+id/lockedRetry"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="@string/messages_locked_retry" />
+            <TextView
+                android:id="@+id/lockedBody"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:fontFamily="@font/lato_regular"
+                android:lineSpacingMultiplier="1.15"
+                android:textColor="@android:color/black"
+                android:textSize="16sp" />
 
-        <Button
-            android:id="@+id/lockedStartEmpty"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/messages_locked_start_empty"
-            android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
 
-    </LinearLayout>
-</ScrollView>
+    <TextView
+        android:id="@+id/lockedRetry"
+        style="@style/MessagesLockedButton"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/setup_option_primary"
+        android:text="@string/messages_locked_retry"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:id="@+id/lockedStartEmpty"
+        style="@style/MessagesLockedButton"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/setup_option"
+        android:text="@string/messages_locked_start_empty"
+        android:textColor="@android:color/black"
+        android:visibility="gone" />
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="20dp" />
+
+</LinearLayout>

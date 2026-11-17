@@ -97,6 +97,9 @@ class SignalCallService : Service() {
                     foreground(ongoingNotification(""))
                     waiter.postDelayed({ if (!seenCall) finish() }, WAIT_FOR_CALL_MS)
                 } else {
+                    // A call that ended before this service got going: it was started as a
+                    // foreground service, and stopping without ever becoming one crashes the app.
+                    if (!inForeground) foreground(ongoingNotification(""))
                     finish()
                 }
             }

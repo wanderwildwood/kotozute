@@ -219,7 +219,8 @@ class DesktopSyncSecurityTest {
     @Test
     fun `with VPN only on, the home network is still refused`() {
         assertFalse(peerAllowed("192.168.1.20", vpnOnly = true, vpnNets = emptyList()))
-        assertTrue(peerAllowed("100.64.0.53", vpnOnly = true, vpnNets = emptyList()))
+        assertTrue(peerAllowed("100.64.0.53", vpnOnly = true, vpnNets = listOf(DesktopSyncService.TAILNET_V4)))
+        assertFalse(peerAllowed("100.64.0.53", vpnOnly = true, vpnNets = emptyList()))
     }
 
     // ---------------------------------------------------------------------------- headers

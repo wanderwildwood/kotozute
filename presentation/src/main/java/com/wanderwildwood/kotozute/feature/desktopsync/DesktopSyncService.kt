@@ -174,7 +174,7 @@ class DesktopSyncService : Service() {
 
         /**
          * True for a peer we'll talk to when "VPN only" is on: a tailnet address (CGNAT v4,
-         * or Tailscale's fd7a:115c:a1e0::/48 v6), an address on the network of whatever
+         * or Tailscale's fd7a:115c:a1e0::/48 v6) while Tailscale is up, an address on the network of whatever
          * other VPN this phone is running (ZeroTier, WireGuard, Nebula...), or this device.
          *
          * Tailscale is recognised by its fixed ranges. Every other VPN picks its own, so for
@@ -193,8 +193,8 @@ class DesktopSyncService : Service() {
         fun isAllowedPeer(ip: String?, vpnNets: List<Subnet>): Boolean {
             val addr = ip?.substringBefore('%')?.lowercase() ?: return false
             if (addr == "127.0.0.1" || addr == "::1" || addr == "0:0:0:0:0:0:0:1") return true
-            if (isTailscale(addr)) return true
-            if (addr.startsWith("fd7a:115c:a1e0")) return true
+            // Tailscale's ranges are in vpnNets only while a VPN on this phone holds an address
+            // in them: 100.64.0.0/10 is also carrier-grade NAT, so the number alone proves nothing.
             if (vpnNets.isEmpty()) return false
             val peer = literalAddress(addr) ?: return false
             return vpnNets.any { it.contains(peer) }
@@ -231,8 +231,8 @@ class DesktopSyncService : Service() {
         }
 
         /**
-         * The networks on the far side of every VPN this phone has up, other than Tailscale's,
-         * which is recognised by range instead.
+         * The networks on the far side of every VPN this phone has up. Tailscale's are its
+         * fixed ranges, listed only while a VPN here holds an address in them.
          *
          * Two kinds are left out, because trusting them would let in exactly what the switch
          * exists to refuse:
@@ -251,6 +251,10 @@ class DesktopSyncService : Service() {
             cachedVpnSubnets = now to nets
             return nets
         }
+
+        /** Tailscale's fixed ranges, trusted only while Tailscale is the VPN that is up. */
+        val TAILNET_V4 = Subnet(InetAddress.getByName("100.64.0.0"), 10)
+        val TAILNET_V6 = Subnet(InetAddress.getByName("fd7a:115c:a1e0::"), 48)
 
         @Volatile private var cachedVpnSubnets: Pair<Long, List<Subnet>>? = null
         private const val VPN_CACHE_MS = 5_000L
@@ -278,13 +282,21 @@ class DesktopSyncService : Service() {
                     }
 
                 val local = subnetsOf(vpn = false)
-                subnetsOf(vpn = true)
+                val vpn = subnetsOf(vpn = true)
+                val hosts = vpn.map { it.address.hostAddress?.lowercase().orEmpty() }
+                val others = vpn
                     .filterNot { net ->
                         val host = net.address.hostAddress?.lowercase().orEmpty()
                         isTailscale(host) || host.startsWith("fd7a:115c:a1e0")
                     }
                     .filter { net -> net.prefix >= (if (net.address is Inet4Address) 8 else 32) }
                     .filterNot { net -> local.any { net.contains(it.address) || it.contains(net.address) } }
+                // Tailscale's whole ranges, but only while a VPN here holds an address in them.
+                others +
+                    listOfNotNull(
+                        TAILNET_V4.takeIf { hosts.any(::isTailscale) },
+                        TAILNET_V6.takeIf { hosts.any { it.startsWith("fd7a:115c:a1e0") } },
+                    )
             }.onFailure {
                 // Empty means "no VPN to trust", which refuses more, never less.
                 Timber.w(it, "could not read the VPN networks; trusting none of them")

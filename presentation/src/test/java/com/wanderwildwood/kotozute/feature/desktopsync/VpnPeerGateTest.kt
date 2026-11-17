@@ -10,7 +10,7 @@ import java.net.InetAddress
 /**
  * Who "VPN only" lets through, before the token is looked at.
  *
- * Tailscale is recognised by its fixed ranges. Any other VPN (ZeroTier, WireGuard, Nebula)
+ * Tailscale is recognised by its fixed ranges, while a VPN holds an address in them. Any other VPN (ZeroTier, WireGuard, Nebula)
  * picks its own, so the phone's address and prefix on the tunnel are what say which peers
  * are on the far side of it.
  */
@@ -22,11 +22,20 @@ class VpnPeerGateTest {
     }
 
     @Test
-    fun `tailscale and loopback pass with no other vpn up`() {
-        assertTrue(isAllowedPeer("100.64.0.53", emptyList()))
-        assertTrue(isAllowedPeer("fd7a:115c:a1e0::1", emptyList()))
+    fun `tailscale passes while it is up, and loopback always`() {
+        val tailnet = listOf(DesktopSyncService.TAILNET_V4, DesktopSyncService.TAILNET_V6)
+        assertTrue(isAllowedPeer("100.64.0.53", tailnet))
+        assertTrue(isAllowedPeer("100.127.255.1", tailnet))
+        assertFalse(isAllowedPeer("100.128.0.1", tailnet))
+        assertTrue(isAllowedPeer("fd7a:115c:a1e0::1", tailnet))
         assertTrue(isAllowedPeer("127.0.0.1", emptyList()))
         assertTrue(isAllowedPeer("::1", emptyList()))
+    }
+
+    @Test
+    fun `a carrier nat peer is refused when no vpn holds a tailnet address`() {
+        assertFalse(isAllowedPeer("100.64.0.53", emptyList()))
+        assertFalse(isAllowedPeer("fd7a:115c:a1e0::1", emptyList()))
     }
 
     @Test

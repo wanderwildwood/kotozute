@@ -64,14 +64,16 @@ class RestoreBackupService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        if (intent == null) return START_NOT_STICKY
         when (intent.action) {
             "${baseContext.packageName}.${ACTION_START}" -> start(intent)
             "${baseContext.packageName}.${ACTION_STOP}" -> stop()
         }
 
-        return START_STICKY
+        // A restore cannot pick up again after the app was stopped: it has no file to go on.
+        return START_NOT_STICKY
     }
 
     @SuppressLint("CheckResult")

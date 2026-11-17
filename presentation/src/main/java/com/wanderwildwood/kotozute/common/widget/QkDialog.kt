@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.common.widget
 
+import com.wanderwildwood.kotozute.common.darkWindow
 import android.app.Activity
 import android.view.LayoutInflater
 import androidx.annotation.StringRes
@@ -99,6 +100,7 @@ class QkDialog(private val context: Activity) : AlertDialog(context, R.style.EIn
         }
 
     init {
+        darkWindow()
         setView(view.root)
     }
 

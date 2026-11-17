@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.feature.signal
 
+import com.wanderwildwood.kotozute.common.darkWindow
 import com.wanderwildwood.kotozute.common.DarkMode
 import com.wanderwildwood.kotozute.common.widget.SelectionMenu
 import android.app.DatePickerDialog
@@ -1631,9 +1632,9 @@ class SignalThreadActivity : QkThemedActivity() {
                 calendar.set(Calendar.SECOND, 0)
                 commitSchedule(calendar.timeInMillis, body)
             }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE),
-                android.text.format.DateFormat.is24HourFormat(this)).show()
+                android.text.format.DateFormat.is24HourFormat(this)).darkWindow().show()
         }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)).show()
+            calendar.get(Calendar.DAY_OF_MONTH)).darkWindow().show()
     }
 
     private fun commitSchedule(at: Long, body: String) {

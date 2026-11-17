@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.feature.settings.autodelete
 
+import com.wanderwildwood.kotozute.common.darkWindow
 import android.app.Activity
 import android.content.DialogInterface
 import android.view.LayoutInflater
@@ -32,6 +33,7 @@ class AutoDeleteDialog(context: Activity, listener: (Int) -> Unit) : AlertDialog
     private val layout = SettingsAutoDeleteDialogBinding.inflate(LayoutInflater.from(context))
 
     init {
+        darkWindow()
         setView(layout.root)
         // The field is what the dialog is for: once the dialog is up, the cursor goes into it,
         // after what is already there, and the keyboard comes up. The window asks for the

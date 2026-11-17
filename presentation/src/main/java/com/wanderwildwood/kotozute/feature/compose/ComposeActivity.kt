@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.feature.compose
 
+import com.wanderwildwood.kotozute.common.darkWindow
 import com.wanderwildwood.kotozute.common.widget.SelectionMenu
 import com.wanderwildwood.kotozute.repository.EmojiReactionRepository
 import com.wanderwildwood.kotozute.common.widget.ReactionPicker
@@ -798,8 +799,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 calendar.set(Calendar.MINUTE, minute)
                 scheduleSelectedIntent.onNext(calendar.timeInMillis)
             }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), DateFormat.is24HourFormat(this))
-                .show()
-        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
+                .darkWindow().show()
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).darkWindow().show()
 
         // On some devices, the keyboard can cover the date picker
         binding.message.hideKeyboard()

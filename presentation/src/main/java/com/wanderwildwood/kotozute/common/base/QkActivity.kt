@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.common.base
 
+import com.wanderwildwood.kotozute.common.DarkOverflow
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.Menu
@@ -86,6 +87,12 @@ abstract class QkActivity : AppCompatActivity() {
         super.setContentView(view)
         setSupportActionBar(findViewById<Toolbar?>(R.id.toolbar))
         title = title // The title may have been set before layout inflation
+    }
+
+    /** Every screen's bar comes through here; its overflow menu goes dark with the app. */
+    override fun setSupportActionBar(toolbar: Toolbar?) {
+        super.setSupportActionBar(toolbar)
+        toolbar?.let(DarkOverflow::watch)
     }
 
     override fun setTitle(titleId: Int) {

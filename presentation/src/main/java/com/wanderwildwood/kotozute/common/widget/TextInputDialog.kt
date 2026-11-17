@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.common.widget
 
+import com.wanderwildwood.kotozute.common.darkWindow
 import android.app.Activity
 import android.content.DialogInterface
 import android.view.LayoutInflater
@@ -32,6 +33,7 @@ class TextInputDialog(context: Activity, hint: String, listener: (String) -> Uni
     private val layout = TextInputDialogBinding.inflate(LayoutInflater.from(context))
 
     init {
+        darkWindow()
         layout.field.hint = hint
 
         setView(layout.root)

@@ -18,6 +18,7 @@
  */
 package com.wanderwildwood.kotozute.feature.settings.about
 
+import com.wanderwildwood.kotozute.common.darkWindow
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -82,6 +83,7 @@ class AboutDialog(private val context: Activity, onVersionLongClick: () -> Unit)
     private val styler: TextViewStyler = QkTextView(context).textViewStyler
 
     init {
+        darkWindow()
         // One fixed size, so opening and closing drawers redraws in place.
         val frame = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         frame.layoutParams = ViewGroup.LayoutParams(

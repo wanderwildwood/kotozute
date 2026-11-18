@@ -650,6 +650,9 @@
     <string name="signal_devices_intro">On the computer, open Signal Desktop and choose to link it to a phone. It shows a QR code. Scan it here.\n\nThe computer starts with no old messages, only new ones.</string>
     <string name="signal_devices_add">Scan a QR code</string>
     <string name="signal_devices_scan_prompt">Point at the QR code on the computer</string>
+    <string name="signal_devices_link_title">Link this device?</string>
+    <string name="signal_devices_link_body">It will be able to read new messages in all your chats and send messages as you. Only link a computer you are setting up yourself, with a code its own Signal Desktop shows. If somebody sent you this code, cancel.</string>
+    <string name="signal_devices_link">Link device</string>
     <string name="signal_devices_adding">Linking\u2026</string>
     <string name="signal_devices_added">Linked. The computer should open in a moment.</string>
     <string name="signal_devices_bad_code">That is not a Signal link code. Scan the one Signal Desktop shows.</string>

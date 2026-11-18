@@ -96,6 +96,32 @@ class SignalDevicesActivity : QkThemedActivity() {
         }
         // A cancelled scan says nothing; there is nothing to report.
         val text = scanned.contents ?: return
+        // Plainly not a link code: said at once, with nothing to confirm. The full check of
+        // the code's contents is still the linker's.
+        val uri = runCatching { android.net.Uri.parse(text.trim()) }.getOrNull()
+        if (uri == null || uri.scheme != "sgnl" || uri.host != "linkdevice") {
+            status.setText(R.string.signal_devices_bad_code)
+            return
+        }
+        confirmLink(text)
+    }
+
+    /**
+     * Asked before anything is sent. Linking hands the new device this account's keys, so it
+     * reads every new message and can send as the account; a code that came from somebody
+     * else (a "join this group" or "verify" code that is really a link code) would give all of
+     * that to them. Signal asks the same after every scan.
+     */
+    private fun confirmLink(text: String) {
+        einkDialog()
+            .setTitle(R.string.signal_devices_link_title)
+            .setMessage(R.string.signal_devices_link_body)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.signal_devices_link) { _, _ -> link(text) }
+            .show()
+    }
+
+    private fun link(text: String) {
         add.isEnabled = false
         status.setText(R.string.signal_devices_adding)
         busy = scope.launch {

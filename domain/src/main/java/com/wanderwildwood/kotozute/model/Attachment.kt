@@ -33,6 +33,7 @@ import com.wanderwildwood.kotozute.extensions.isAudio
 import com.wanderwildwood.kotozute.extensions.isContact
 import com.wanderwildwood.kotozute.extensions.isImage
 import com.wanderwildwood.kotozute.extensions.isVCard
+import java.io.File
 
 
 class Attachment (
@@ -41,6 +42,9 @@ class Attachment (
     inputContent: InputContentInfoCompat? = null
 ) {
     private var resourceBytes: ByteArray? = null
+
+    /** The only place [removeCacheFile] may delete from. */
+    private val cacheDir: File = context.cacheDir
 
     init {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1)
@@ -82,14 +86,21 @@ class Attachment (
         resourceBytes = null
     }
 
+    /**
+     * Deletes the file behind a file:// attachment, but only one inside the app's cache, where
+     * the staged, pasted, recorded and contact-card copies live. Any other file:// path -- a
+     * scheduled message's own copy in the files dir, or anything handed in from elsewhere --
+     * is left alone. The path is resolved first, so `..` and links cannot point outside.
+     */
     fun removeCacheFile(): Boolean {
-        // all file:// scheme files are local to the app cache dir, so can be deleted
-        if (uri.scheme == ContentResolver.SCHEME_FILE) {
-            return try { uri.toFile().delete() }
-            catch (e: Exception) { false }
+        if (uri.scheme != ContentResolver.SCHEME_FILE) return false
+        return try {
+            val file = uri.toFile().canonicalFile
+            val cache = cacheDir.canonicalFile
+            if (file.path.startsWith(cache.path + File.separator)) file.delete() else false
+        } catch (e: Exception) {
+            false
         }
-
-        return false
     }
 }
 

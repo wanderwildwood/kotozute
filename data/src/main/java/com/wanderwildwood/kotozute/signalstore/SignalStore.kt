@@ -48,6 +48,26 @@ class SignalStore(private val context: Context) {
     val protocol: SignalServiceDataStore by lazy { SignalDataStore(database, account) }
 
     /**
+     * What a sticker, a call, a group change, a poll and the rest are written as when they
+     * become a message's words: from strings.xml, so a row is kept in the phone's language.
+     */
+    private fun placeholders(): ContentNormalizer.Placeholders {
+        return ContentNormalizer.Placeholders(
+            sticker = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_sticker),
+            groupCall = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_group_call),
+            groupCreated = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_group_created),
+            groupUpdated = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_group_updated),
+            poll = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_poll),
+            pollEnded = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_poll_ended),
+            contact = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_contact),
+            contactCard = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_contact_card),
+            payment = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_payment),
+            gift = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_gift),
+            unsupported = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_unsupported)
+        )
+    }
+
+    /**
      * Why the kept envelopes would not decrypt, most recent first.
      *
      * Distinct reasons only: ten copies of the same failure is one fact, and a screen that
@@ -316,7 +336,7 @@ class SignalStore(private val context: Context) {
                 database, account, SignalDataStore(database, account), connection,
                 SignalNetworkConfig.currentCertificateValidator(), attachmentsFor(connection),
                 contacts, blocks, keys, StoreEvents(events, onNamesLearned),
-                context.getString(com.wanderwildwood.kotozute.data.R.string.signal_sticker)
+                placeholders()
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -2008,7 +2028,7 @@ class SignalStore(private val context: Context) {
             database, account, SignalDataStore(database, account), connection,
             SignalNetworkConfig.currentCertificateValidator(), attachmentsFor(connection),
             contacts, blocks, keys, StoreEvents(events, onNamesLearned),
-            context.getString(com.wanderwildwood.kotozute.data.R.string.signal_sticker)
+            placeholders()
         ).listen(keepGoing) { r ->
             onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
         }

@@ -51,6 +51,32 @@ class GroupUpdateDescriptionTest {
     }
 
     @Test
+    fun `the words are the ones the app passes in, not built-in English`() {
+        val words = ContentNormalizer.Placeholders(
+            groupCall = "Appel de groupe",
+            groupCreated = "Groupe créé.",
+            groupUpdated = "Groupe mis à jour.",
+            poll = "(un sondage)",
+            contact = "(contact) %1\$s !",
+            contactCard = "(une fiche)",
+            payment = "(un paiement)"
+        )
+        val call = update(revision = 3).copy(
+            groupCallUpdate = org.whispersystems.signalservice.internal.push.DataMessage.GroupCallUpdate(eraId = "era-1")
+        )
+        assertEquals("Appel de groupe", ContentNormalizer.describe(call, words))
+        assertEquals("Groupe créé.", ContentNormalizer.describe(update(revision = 0), words))
+        assertEquals("Groupe mis à jour.", ContentNormalizer.describe(update(revision = 2), words))
+        assertEquals(
+            "(un sondage)",
+            ContentNormalizer.describe(DataMessage(pollCreate = DataMessage.PollCreate(question = "")), words)
+        )
+        assertEquals("(un paiement)", ContentNormalizer.describe(DataMessage(payment = DataMessage.Payment()), words))
+        assertEquals("(contact) Ada Whitlock !", words.contactNamed("Ada Whitlock"))
+        assertEquals("(contact) Ada Whitlock", ContentNormalizer.Placeholders().contactNamed("Ada Whitlock"))
+    }
+
+    @Test
     fun `a call, a group change and a closed poll are events, drawn as update rows`() {
         val call = update(revision = 3).copy(
             groupCallUpdate = org.whispersystems.signalservice.internal.push.DataMessage.GroupCallUpdate(eraId = "era-1")

@@ -73,7 +73,7 @@ class ReactionEmojiTest {
         ),
         self.toString(),
         null,
-        stickerPlaceholder = "(a sticker)"
+        words = ContentNormalizer.Placeholders(sticker = "(a sticker)")
     )
 
     private companion object {

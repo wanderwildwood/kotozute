@@ -90,7 +90,7 @@ class StickerEmojiTest {
         ),
         self.toString(),
         null,
-        stickerPlaceholder = PLACEHOLDER
+        words = ContentNormalizer.Placeholders(sticker = PLACEHOLDER)
     )?.body
 
     private companion object {

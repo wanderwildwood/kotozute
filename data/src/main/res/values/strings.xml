@@ -10,6 +10,22 @@
     <string name="signal_typing_someone">Someone</string>
     <!-- A sticker, in the conversation and its notification, when it carries no single emoji to show instead. -->
     <string name="signal_sticker">(sticker)</string>
+    <!--
+      Written as a Signal message's words when what arrived was not words: a call, a change to
+      the group, a poll, a contact card, a payment, a gift, or something newer than this app.
+      Kept in the conversation and in the history export in the language the phone had then.
+    -->
+    <string name="signal_event_group_call">Group call</string>
+    <string name="signal_event_group_created">Created the group.</string>
+    <string name="signal_event_group_updated">Updated the group.</string>
+    <string name="signal_event_poll">(a poll)</string>
+    <string name="signal_event_poll_ended">(a poll ended)</string>
+    <!-- %1$s is the name on the contact card. -->
+    <string name="signal_event_contact">(contact) %1$s</string>
+    <string name="signal_event_contact_card">(a contact card)</string>
+    <string name="signal_event_payment">(a payment)</string>
+    <string name="signal_event_gift">(a gift)</string>
+    <string name="signal_event_unsupported">(a message this version of the app cannot show)</string>
 
     <!--
       The first line of a group this phone just made.
@@ -17,8 +33,7 @@
       Signal writes an update into the conversation at both ends: "You created the group."
       to whoever made it, "X added you to the group." to everybody else
       (GroupsV2UpdateMessageProducer). This app has no update row, only messages, so it says
-      the same thing as one. The receiving side's wording is in ContentNormalizer.describe,
-      which has no Context to read a resource with; see the note there.
+      the same thing as one. The receiving side's wording is signal_event_group_created.
     -->
     <string name="signal_group_created_by_you">You created the group.</string>
     <!--

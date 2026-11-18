@@ -2160,7 +2160,8 @@ class SignalRepositoryImpl @Inject constructor(
     private fun shownBody(body: String, attachments: List<String>): String {
         if (body.isNotBlank()) return body
         val card = attachments.firstOrNull(com.wanderwildwood.kotozute.signalstore.ContactCards::isVCard) ?: return body
-        return com.wanderwildwood.kotozute.signalstore.ContactCards.nameInDataUri(card)?.let { "(contact) $it" } ?: body
+        return com.wanderwildwood.kotozute.signalstore.ContactCards.nameInDataUri(card)
+            ?.let { context.getString(com.wanderwildwood.kotozute.data.R.string.signal_event_contact, it) } ?: body
     }
 
     /**

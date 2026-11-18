@@ -28,6 +28,32 @@ import org.whispersystems.signalservice.internal.push.DataMessage
 internal object ContentNormalizer {
 
     /**
+     * The words written into a message's body when Signal sent something this app draws as a
+     * line of text: a sticker with no single emoji, a call, a group change, a poll, a card.
+     *
+     * The app passes these from strings.xml (see `SignalStore.placeholders`), so a row is
+     * written in the phone's language. The defaults are the same American English, for the
+     * tests and for anything that has no Context; this object has no resources of its own.
+     *
+     * [contact] is a format with one `%1$s` for the person's name.
+     */
+    data class Placeholders(
+        val sticker: String = "(sticker)",
+        val groupCall: String = "Group call",
+        val groupCreated: String = "Created the group.",
+        val groupUpdated: String = "Updated the group.",
+        val poll: String = "(a poll)",
+        val pollEnded: String = "(a poll ended)",
+        val contact: String = "(contact) %1\$s",
+        val contactCard: String = "(a contact card)",
+        val payment: String = "(a payment)",
+        val gift: String = "(a gift)",
+        val unsupported: String = "(a message this version of the app cannot show)"
+    ) {
+        fun contactNamed(name: String): String = String.format(contact, name)
+    }
+
+    /**
      * How many body ranges are worth expanding, which is upstream's
      * `DataMessageProcessor.BODY_RANGE_PROCESSING_LIMIT`.
      */
@@ -76,10 +102,10 @@ internal object ContentNormalizer {
          */
         originalOf: (author: String, revisionSentAt: Long) -> Long? = { _, _ -> null },
         /**
-         * What a sticker says when its emoji is not one emoji. The app passes
-         * `R.string.signal_sticker` from strings.xml; this object has no resources of its own.
+         * What a sticker, a call, a group change and the rest say when they are written as the
+         * message's words. The app passes them from strings.xml; see [Placeholders].
          */
-        stickerPlaceholder: String = "(sticker)"
+        words: Placeholders = Placeholders()
     ): BridgeMessage? {
         var authorUuid = metadata.sourceServiceId.toString()
         var authorNumber = metadata.sourceE164.orEmpty()
@@ -259,7 +285,7 @@ internal object ContentNormalizer {
         // client wrote, and a sentence in it would stand in the thread and the notification as
         // if it were what they said.
         if (body.isEmpty() && dataMessage.sticker != null) {
-            body = dataMessage.sticker?.emoji?.takeIf { SingleEmoji.isSingleEmoji(it) } ?: stickerPlaceholder
+            body = dataMessage.sticker?.emoji?.takeIf { SingleEmoji.isSingleEmoji(it) } ?: words.sticker
         }
         // ⚠ At most 250, which is upstream's `BODY_RANGE_PROCESSING_LIMIT` and applied at
         // every path that touches body ranges. Ranges may overlap and are only bounds-checked,
@@ -284,7 +310,7 @@ internal object ContentNormalizer {
         // `isGroupAction`, `isPollTerminate` in `MessageRecord.isUpdate`).
         var update = false
         if (body.isEmpty() && dataMessage.attachments.isEmpty() && reaction == null) {
-            describe(dataMessage)?.let {
+            describe(dataMessage, words)?.let {
                 body = it
                 update = isEvent(dataMessage)
             }
@@ -295,7 +321,7 @@ internal object ContentNormalizer {
         // notification. Signal keeps one call row per era (`CallTable` keys group calls on the
         // era id) and does not ring for the update itself, only for a ring.
         val groupCallEra = dataMessage.groupCallUpdate?.eraId?.takeIf {
-            it.isNotBlank() && groupId.isNotBlank() && body == describe(dataMessage)
+            it.isNotBlank() && groupId.isNotBlank() && body == describe(dataMessage, words)
         }
 
         return BridgeMessage(
@@ -576,10 +602,9 @@ internal object ContentNormalizer {
      * newer client using a feature that did not exist when this was built has no field here
      * to recognise, and saying so beats a blank.
      *
-     * ⚠ The words are literals rather than resources because this object is deliberately free
-     * of a Context -- that is what makes every rule in it testable. The one line this app
-     * writes for *itself* on making a group is a resource, because the repository that writes
-     * it has one.
+     * ⚠ The words come in as [Placeholders] rather than as resources because this object is
+     * deliberately free of a Context -- that is what makes every rule in it testable. The app
+     * fills them from strings.xml; the defaults are the same English.
      */
     /**
      * Whether a message [describe] has words for is something that happened rather than
@@ -590,11 +615,11 @@ internal object ContentNormalizer {
     internal fun isEvent(m: DataMessage): Boolean =
         m.groupCallUpdate != null || m.groupV2 != null || m.pollTerminate != null
 
-    internal fun describe(m: DataMessage): String? = when {
+    internal fun describe(m: DataMessage, words: Placeholders = Placeholders()): String? = when {
         // ⚠ Before the group update below, which it would otherwise always lose to: every
         // message sent to a group carries the group's context, a call update included, so a
         // group call read as "Updated the group."
-        m.groupCallUpdate != null -> "Group call"
+        m.groupCallUpdate != null -> words.groupCall
         // A group update: the group's context, a revision, and nothing a person typed. It is
         // how Signal says a group has been made or changed -- `PushGroupSendJob` sends exactly
         // this, and `GroupManagerV2.createGroup` sends it the moment a group exists, which is
@@ -604,19 +629,19 @@ internal object ContentNormalizer {
         // Who did it is already on the bubble in a group thread, which is where upstream puts
         // the name in "X added you to the group."
         m.groupV2 != null ->
-            if ((m.groupV2?.revision ?: 0) == 0) "Created the group." else "Updated the group."
+            if ((m.groupV2?.revision ?: 0) == 0) words.groupCreated else words.groupUpdated
         m.pollCreate != null ->
-            m.pollCreate?.question?.takeIf { it.isNotBlank() } ?: "(a poll)"
-        m.pollTerminate != null -> "(a poll ended)"
+            m.pollCreate?.question?.takeIf { it.isNotBlank() } ?: words.poll
+        m.pollTerminate != null -> words.pollEnded
         // Who it is, rather than that it is a card: the card itself is kept beside the message
         // as a vCard to open. See [ContactCards].
         m.contact.isNotEmpty() -> ContactCards.nameOf(m.contact.first())
-            .takeIf { it.isNotBlank() }?.let { "(contact) $it" } ?: "(a contact card)"
-        m.payment != null -> "(a payment)"
-        m.giftBadge != null -> "(a gift)"
+            .takeIf { it.isNotBlank() }?.let(words::contactNamed) ?: words.contactCard
+        m.payment != null -> words.payment
+        m.giftBadge != null -> words.gift
         m.adminDelete != null -> null
         (m.requiredProtocolVersion ?: 0) > DataMessage.ProtocolVersion.CURRENT.value ->
-            "(a message this version of the app cannot show)"
+            words.unsupported
         else -> null
     }
 

@@ -1423,6 +1423,7 @@ class DesktopSyncServer(
                 // The bytes never change under an id, so let the browser keep them rather
                 // than pulling every picture in a thread over the network on each poll.
                 addHeader("Cache-Control", "private, max-age=86400")
+                addHeader("Content-Security-Policy", ATTACHMENT_CSP)
             }
         }
 
@@ -1441,6 +1442,7 @@ class DesktopSyncServer(
             addHeader("Accept-Ranges", "bytes")
             addHeader("Content-Range", "bytes $start-$end/$length")
             addHeader("Cache-Control", "private, max-age=86400")
+            addHeader("Content-Security-Policy", ATTACHMENT_CSP)
         }
     }
 
@@ -2327,12 +2329,15 @@ class DesktopSyncServer(
     private fun handlePart(partId: Long, session: IHTTPSession): Response {
         val part = messageRepository.getPart(partId)
             ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "no such part"))
-        var mime = part.type.takeIf { it.isNotBlank() } ?: "application/octet-stream"
+        // The sender chose the declared type. Only a kind that holds no script is drawn or
+        // played; anything else goes as a download. See [inlinePartType].
+        val declared = part.type.substringBefore(';').trim().lowercase()
+        var mime = inlinePartType(declared) ?: "application/octet-stream"
         var uri = part.getUri()
 
         // A video the browser cannot decode is re-encoded once and served from the cache
         // afterwards. Nothing else is touched: see VideoForBrowser for which codecs count.
-        if (mime.startsWith("video/")) {
+        if (declared.startsWith("video/")) {
             val size = runCatching {
                 context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
             }.getOrNull()
@@ -2340,6 +2345,11 @@ class DesktopSyncServer(
                 uri = android.net.Uri.fromFile(playable)
                 mime = "video/mp4"
             }
+        }
+        val disposition = if (mime == "application/octet-stream") {
+            "attachment; filename=\"" + fileNameFor(part.id, declared) + "\""
+        } else {
+            "inline; filename=\"" + fileNameFor(part.id, mime) + "\""
         }
 
         // How long the part is. A picture does not care, but a video does: a browser
@@ -2358,7 +2368,8 @@ class DesktopSyncServer(
             val stream = open()
                 ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "part unreadable"))
             return newChunkedResponse(Response.Status.OK, mime, stream).apply {
-                addHeader("Content-Disposition", "inline; filename=\"" + fileNameFor(part.id, mime) + "\"")
+                addHeader("Content-Disposition", disposition)
+                addHeader("Content-Security-Policy", ATTACHMENT_CSP)
             }
         }
 
@@ -2368,7 +2379,8 @@ class DesktopSyncServer(
                 ?: return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "part unreadable"))
             return newFixedLengthResponse(Response.Status.OK, mime, stream, length).apply {
                 addHeader("Accept-Ranges", "bytes")
-                addHeader("Content-Disposition", "inline; filename=\"" + fileNameFor(part.id, mime) + "\"")
+                addHeader("Content-Disposition", disposition)
+                addHeader("Content-Security-Policy", ATTACHMENT_CSP)
             }
         }
 
@@ -2395,7 +2407,8 @@ class DesktopSyncServer(
         ).apply {
             addHeader("Accept-Ranges", "bytes")
             addHeader("Content-Range", "bytes $start-$end/$length")
-            addHeader("Content-Disposition", "inline; filename=\"" + fileNameFor(part.id, mime) + "\"")
+            addHeader("Content-Disposition", disposition)
+            addHeader("Content-Security-Policy", ATTACHMENT_CSP)
         }
     }
 
@@ -2744,13 +2757,15 @@ class DesktopSyncServer(
                     put("url", "/api/parts/${part.id}")
                     put("type", part.type)
                     put("label", part.getSummary() ?: part.type)
-                    put("isImage", part.type.startsWith("image"))
+                    // Drawn or played only when it will be served that way: see [inlinePartType].
+                    // An SVG is a download, not a picture.
+                    put("isImage", inlinePartType(part.type)?.startsWith("image/") == true)
                     put("isVideo", part.type.startsWith("video"))
                     // MMS carries recordings too -- the composer has always been able to
                     // make them -- and they reached the browser as a download link for the
                     // same reason Signal's did. MMS has no voice-note flag, so these are
                     // audio and are not claimed to be more than that.
-                    put("isAudio", part.type.startsWith("audio"))
+                    put("isAudio", inlinePartType(part.type)?.startsWith("audio/") == true)
                     put("isVoice", false)
                 })
             }

@@ -156,6 +156,36 @@ internal val SECURITY_HEADERS: Map<String, String> = linkedMapOf(
     "Cross-Origin-Resource-Policy" to "same-origin",
 )
 
+/**
+ * The Content-Security-Policy on every attachment the browser fetches: a picture, a sound, a
+ * video or a download, never a page. A file that does reach the browser as a document of
+ * its own (opened in a new tab) is sandboxed, so it runs no script and has an origin of its
+ * own: it can read nothing of the dashboard's, neither its token nor its conversations.
+ * Pictures, sound and inline styles stay allowed so a picture or a video opened in a tab of
+ * its own still shows.
+ */
+internal const val ATTACHMENT_CSP =
+    "sandbox; default-src 'none'; img-src *; media-src *; style-src 'unsafe-inline'"
+
+/**
+ * The type an MMS part may be served as for the browser to draw or play, or null to offer it
+ * only as a download.
+ *
+ * ⚠ The sender writes a part's type, so it is not to be believed. Served as declared, a
+ * `text/html` or `image/svg+xml` part opened from a conversation was a page with script in it
+ * on the dashboard's own origin. Only kinds that hold no script are drawn or played; Signal's
+ * attachments are held to the same short list by [sniffServedType].
+ */
+internal fun inlinePartType(declared: String): String? =
+    declared.substringBefore(';').trim().lowercase().takeIf { it in INLINE_PART_TYPES }
+
+private val INLINE_PART_TYPES = setOf(
+    "image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/gif", "image/webp", "image/bmp",
+    "video/mp4", "video/3gpp", "video/3gpp2", "video/webm", "video/quicktime",
+    "audio/amr", "audio/aac", "audio/mp4", "audio/mpeg", "audio/ogg", "audio/3gpp",
+    "audio/wav", "audio/x-wav",
+)
+
 /** The header the page sets on every change it asks for. A page elsewhere cannot add it without a preflight that is never answered. */
 internal const val PAGE_HEADER = "x-kotozute"
 

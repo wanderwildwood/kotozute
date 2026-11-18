@@ -16,8 +16,11 @@ object Licences {
 
     const val SOURCE_URL = "https://github.com/wanderwildwood/kotozute"
 
-    /** The app's own licence, as its row names it. */
-    const val APP_LICENCE = "AGPL-3.0-or-later"
+    /**
+     * The app's licence as distributed, as its row names it. The code written here is
+     * AGPL-3.0-or-later, but the app carries Signal's AGPL-3.0-only code, so the whole is -only.
+     */
+    const val APP_LICENCE = "AGPL-3.0-only"
 
     /**
      * One row of the Licenses list, and the page behind it. [texts] are the component's own full

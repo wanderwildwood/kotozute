@@ -1,6 +1,6 @@
 # Messaging — Privacy Policy
 
-Version 1.35.0. Last reviewed 4 November 2026.
+Last reviewed 17 November 2026.
 
 This is the policy for Messaging (kotozute, 言伝), the app published from this repository.
 
@@ -116,4 +116,4 @@ Messaging connects to your carrier, Signal and GIPHY. They are separate from thi
 
 ## Changes
 
-If a later version changes what the app stores or which hosts it contacts, this policy is updated in the same release and the change is described in the release notes. The source is public, so any claim here can be checked against the code: <https://github.com/wanderwildwood/kotozute>. GitHub reports its license as AGPL-3.0.
+If a later version changes what the app stores or which hosts it contacts, this policy is updated in the same release and the change is described in the release notes. The source is public, so any claim here can be checked against the code: <https://github.com/wanderwildwood/kotozute>. The app as distributed is AGPL-3.0-only (the code written for it is AGPL-3.0-or-later; Signal's code in it is AGPL-3.0-only).

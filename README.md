@@ -309,13 +309,14 @@ Privacy: what the app stores and what it sends is set out in [PRIVACY.md](PRIVAC
 
 ## License
 
-**AGPL-3.0-or-later** — see [LICENSE](LICENSE) for the full text.
+This project's own code is **AGPL-3.0-or-later**. The app as distributed, which contains Signal's
+AGPL-3.0-only code, is **AGPL-3.0-only**. See [LICENSE](LICENSE) for the full text.
 
 This was GPL-3.0-only, inherited from QKSMS by way of QUIK and InkMessage, and the SMS half of
 the app still is that code. The Signal half now carries work taken from Signal Android itself,
-which is AGPL-3.0, and a combined work containing AGPL code is distributed under the AGPL. So
-the whole is AGPL-3.0-or-later. GPLv3 §13 is what permits the combination; it does not let the
-result be offered as GPL alone.
+which is AGPL-3.0-only, and a combined work containing AGPL code is distributed under the AGPL.
+So the code written here is offered as AGPL-3.0-or-later, and the app as a whole is AGPL-3.0-only.
+GPLv3 §13 is what permits the combination; it does not let the result be offered as GPL alone.
 
 The practical difference from GPLv3 is §13's network clause: anyone who modifies this and lets
 people use it *over a network* must offer those users the corresponding source, not only
@@ -357,8 +358,8 @@ the details, and the details are where a hand-rolled version silently differs.
 
 Where Signal's code is adapted rather than taken, the adaptation says so where it sits. Anyone
 redistributing a build should carry this notice — and note that the service layer being *in* this
-repository rather than linked is why this project is AGPL-3.0-or-later rather than GPL: Signal's
-code is AGPL-3.0-only, and a work containing it can be distributed no other way.
+repository rather than linked is why the app is AGPL-3.0-only rather than GPL: Signal's code is
+AGPL-3.0-only, and a work containing it can be distributed no other way.
 
 Signal Android is watched the way this fork's other upstreams are: a weekly upstream scan
 tracks it with a watermark, scoped to the paths the Signal rail actually takes from — message decryption,

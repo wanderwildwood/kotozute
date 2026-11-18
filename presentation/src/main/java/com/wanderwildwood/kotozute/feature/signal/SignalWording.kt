@@ -204,6 +204,7 @@ object SignalWording {
         SignalRepository.LinkFailure.NotScanned -> Words.Res(R.string.signal_link_not_scanned)
         SignalRepository.LinkFailure.Undecryptable -> Words.Res(R.string.signal_link_undecryptable)
         SignalRepository.LinkFailure.NoProvisioningCode -> Words.Res(R.string.signal_link_no_code)
+        SignalRepository.LinkFailure.NoPhoneNumber -> Words.Res(R.string.signal_link_no_phone_number)
         is SignalRepository.LinkFailure.Refused ->
             Words.Res(R.string.signal_register_refused, listOf(failure.detail))
         is SignalRepository.LinkFailure.Unexplained -> Words.Raw(failure.detail)

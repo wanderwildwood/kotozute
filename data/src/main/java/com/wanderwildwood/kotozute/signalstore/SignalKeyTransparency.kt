@@ -98,7 +98,7 @@ internal class SignalKeyTransparency(
         val accessKey = runCatching { accounts.profileKey() }.getOrNull()
             ?.let { key ->
                 runCatching {
-                    org.whispersystems.signalservice.api.crypto.UnidentifiedAccess
+                    org.signal.network.crypto.UnidentifiedAccess
                         .deriveAccessKeyFrom(org.signal.libsignal.zkgroup.profiles.ProfileKey(key))
                 }.getOrNull()
             }

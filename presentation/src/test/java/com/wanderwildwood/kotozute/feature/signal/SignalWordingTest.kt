@@ -267,6 +267,10 @@ class SignalWordingTest {
         assertEquals("nobody scanned the code in time; ask for a new one", say(LinkFailure.NotScanned))
         assertEquals("the provisioning message could not be decrypted", say(LinkFailure.Undecryptable))
         assertEquals("no provisioning code in the message", say(LinkFailure.NoProvisioningCode))
+        assertEquals(
+            "that Signal account has no phone number, and this app cannot be linked to one without",
+            say(LinkFailure.NoPhoneNumber)
+        )
         assertEquals("registration refused: E", say(LinkFailure.Refused("E")))
         assertEquals("IOException", say(LinkFailure.Unexplained("IOException")))
     }

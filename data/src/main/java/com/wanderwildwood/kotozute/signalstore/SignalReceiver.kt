@@ -358,9 +358,14 @@ internal class SignalReceiver(
      * connection -- there is no separate "listen" call to make.
      *
      * A long timeout rather than a short one on purpose. Each expiry is a wakeup that does
-     * nothing, and on a phone that is battery spent to learn that nothing happened; the
-     * keepalive in [SignalSocketHealthMonitor] is what actually notices a dead socket, and it
-     * does that on its own schedule regardless of what this timeout is.
+     * nothing, and on a phone that is battery spent to learn that nothing happened. It is
+     * Signal's own number: `IncomingMessageObserver.websocketReadTimeout` is one minute.
+     *
+     * ⚠ What notices a dead socket is now libsignal's chat connection alone. The keepalive
+     * sender in [SignalSocketHealthMonitor] used to do it on its own alarm-backed schedule,
+     * and it went when Signal removed manual keepalives (upstream 37f8b149dd). This timeout is
+     * a thread wait, not an alarm, so it does not wake a dozing phone; nothing in this app
+     * does that on a schedule for the socket any more.
      *
      * @param onBatch called after each batch is stored, with what was filed.
      */
@@ -371,7 +376,7 @@ internal class SignalReceiver(
             } catch (e: java.util.concurrent.TimeoutException) {
                 // Nothing arrived inside the read window, which is the ordinary state of a
                 // quiet account and not a broken socket. The read is the only thing that
-                // ended; the connection is still up and its keepalives are still going.
+                // ended; the connection is still up.
                 //
                 // Letting this out unwound the whole listen, and the loop above it treated
                 // that as a dead connection and built a new authenticated websocket. On a

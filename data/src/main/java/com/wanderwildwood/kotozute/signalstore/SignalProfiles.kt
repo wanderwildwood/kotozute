@@ -6,7 +6,7 @@ import org.signal.core.models.ServiceId
 import org.signal.libsignal.zkgroup.profiles.ProfileKey
 import org.signal.network.NetworkResult
 import org.whispersystems.signalservice.api.crypto.ProfileCipher
-import org.whispersystems.signalservice.api.crypto.SealedSenderAccess
+import org.signal.network.crypto.SealedSenderAccess
 import timber.log.Timber
 
 /**

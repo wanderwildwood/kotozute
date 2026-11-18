@@ -15,6 +15,10 @@ package com.wanderwildwood.kotozute.signalstore
  *
  * Public only because the application class that sets it lives in another module; nothing
  * else has any business writing it.
+ *
+ * ⚠ Nothing reads it at present. Its one reader was the keepalive sender in
+ * [SignalSocketHealthMonitor], which went when Signal removed manual keepalives (upstream
+ * 37f8b149dd). It is still set, so the fact is here if a cadence is ever chosen again.
  */
 object SignalForeground {
 

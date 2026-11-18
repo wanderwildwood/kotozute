@@ -8,5 +8,5 @@
 includeBuild 'signal-service/wire-handler'
 
 include ':presentation', ':android-smsmms', ':domain', ':data', ':common'
-include ':signal-service:util-jvm', ':signal-service:models-jvm', ':signal-service:network'
+include ':signal-service:util-jvm', ':signal-service:network'
 include ':signal-service:serialization', ':signal-service:libsignal-service', ':signal-service:lib-network'

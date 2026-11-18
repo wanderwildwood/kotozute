@@ -1,6 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
-import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream
+import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsReader
 import timber.log.Timber
 import java.io.InputStream
 
@@ -13,29 +13,25 @@ import java.io.InputStream
 internal object ContactsSyncReader {
 
     fun read(input: InputStream): List<SignalContactStore.Contact> {
-        val stream = DeviceContactsInputStream(input)
+        // Signal's own reader (`DeviceContactsReader`, which replaced `DeviceContactsInputStream`
+        // upstream in 3676792cd8), walked the way `MultiDeviceContactSyncJob` walks it. A record
+        // with no address is skipped and counted by the reader itself; a truncated or malformed
+        // one fails the read.
+        val reader = DeviceContactsReader(input)
         val found = mutableListOf<SignalContactStore.Contact>()
         var avatars = 0
         var avatarBytes = 0L
-        while (true) {
-            val contact = try {
-                stream.read() ?: break
-            } catch (e: java.io.IOException) {
-                // signal-cli skips these rather than abandoning the sync: one malformed
-                // entry should not cost every name after it in the stream.
-                if (e.message?.contains("Missing contact address") == true) continue else throw e
-            }
+        for (contact in reader.contacts()) {
             // The avatar sits in the stream between this contact and the next. This app keeps
-            // none, and `DeviceContactsInputStream.read()` now steps over whatever of it is left
-            // unread (upstream bc7a984923), so nothing here has to drain it. It is read anyway,
-            // only to count it in the log line below.
+            // none, and the reader steps over whatever of it is left unread when the next
+            // contact is asked for, so nothing here has to drain it. It is read anyway, only to
+            // count it in the log line below.
             //
-            // ⚠ Never close it. Until that upstream change the avatar was a `LimitedInputStream`
-            // straight on the shared stream, so closing it -- a `.use { }` here once did --
-            // closed the whole download after the first contact with a picture, and every name
-            // after it was lost. Upstream now hands it out behind a `NonClosingInputStream`, so
-            // a close is harmless, but there is no reason to rely on that.
-            contact.avatar.orElse(null)?.inputStream?.let { avatar ->
+            // ⚠ Never close it. The reader hands it out behind a `NonClosingInputStream`, so a
+            // close is harmless now -- a `.use { }` here once closed the whole download after
+            // the first contact with a picture, and every name after it was lost -- but there
+            // is no reason to rely on that.
+            contact.avatar?.inputStream?.let { avatar ->
                 avatars++
                 val scratch = ByteArray(8192)
                 while (true) {
@@ -45,11 +41,11 @@ internal object ContactsSyncReader {
                 }
             }
 
-            val aci = contact.aci.orElse(null)?.toString() ?: continue
+            val aci = contact.aci?.toString() ?: continue
             found += SignalContactStore.Contact(
                 serviceId = aci,
-                e164 = contact.e164.orElse(null),
-                name = contact.name.orElse(null)
+                e164 = contact.e164,
+                name = contact.name
                 // No profile key here. DeviceContact carries aci, e164, name, avatar and
                 // the expiration timer -- and nothing else. Profile keys travel on
                 // DataMessage instead, shared by the person themselves; see
@@ -61,6 +57,9 @@ internal object ContactsSyncReader {
         // signal-cli rather than a Signal client produces.
         if (avatars > 0) {
             Timber.i("signal contacts: stepped over %d avatar(s), %d byte(s)", avatars, avatarBytes)
+        }
+        if (reader.skippedRecords > 0) {
+            Timber.i("signal contacts: skipped %d record(s) with no address", reader.skippedRecords)
         }
         return found
     }

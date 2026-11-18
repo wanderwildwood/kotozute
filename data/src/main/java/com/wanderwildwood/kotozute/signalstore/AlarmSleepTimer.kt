@@ -32,6 +32,10 @@ import java.util.concurrent.ConcurrentSkipListSet
  *
  * Signal uses this only when it has no push and must hold the socket itself. That is this app
  * always: there is no FCM here, and the socket is the only way anything arrives.
+ *
+ * ⚠ The keepalive round described above was removed with Signal's own (upstream 37f8b149dd),
+ * and it was this timer's main user. The websockets are still handed one, as Signal's are, but
+ * the service layer does not sleep on it; what is left is [wakeAfter].
  */
 internal class AlarmSleepTimer(private val context: Context) : SleepTimer {
 

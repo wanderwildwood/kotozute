@@ -255,6 +255,17 @@ class DeviceLinker internal constructor(
         // Upstream reads `message.pniBinary ?: message.pni`, exactly this way round.
         val pni = ServiceId.PNI.parseOrNull(provision.pni, provision.pniBinary)
         val aciIdentity = provision.aciIdentityKeyPair()
+        // ⚠ Said, rather than thrown. Signal's `ProvisioningSocket.Mode.Link` now puts
+        // `nopni,nopni2` in every link code (upstream cdd27e08fa), which tells the primary
+        // this device can be linked to an account with no phone number -- and a primary that
+        // has none then leaves the number, the PNI and the PNI identity key out of this
+        // message (`LinkDeviceApi.linkDevice`, "only ever sent as a complete set"). Before,
+        // such a primary called this app's code out of date and sent nothing. This build still
+        // cannot be that device -- see [SignalCapabilities.OPTIONAL_PHONE_NUMBER] -- so it
+        // stops here, before anything is registered with the server.
+        if (provision.pniIdentityKeyPublic == null || provision.pniIdentityKeyPrivate == null) {
+            return Result.Failed(LinkFailure.NoPhoneNumber)
+        }
         val pniIdentity = provision.pniIdentityKeyPair()
 
         // Ours, not the primary's. libsignal uses these to recognise a session as belonging to

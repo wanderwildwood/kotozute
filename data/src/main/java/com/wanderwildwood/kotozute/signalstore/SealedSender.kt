@@ -3,8 +3,8 @@ package com.wanderwildwood.kotozute.signalstore
 import org.signal.libsignal.metadata.certificate.SenderCertificate
 import org.signal.libsignal.zkgroup.profiles.ProfileKey
 import org.signal.network.NetworkResult
-import org.whispersystems.signalservice.api.crypto.SealedSenderAccess
-import org.whispersystems.signalservice.api.crypto.UnidentifiedAccess
+import org.signal.network.crypto.SealedSenderAccess
+import org.signal.network.crypto.UnidentifiedAccess
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 

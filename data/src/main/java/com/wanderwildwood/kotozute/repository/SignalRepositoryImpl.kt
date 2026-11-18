@@ -4618,7 +4618,19 @@ class SignalRepositoryImpl @Inject constructor(
      * promise in one place rather than at each of them; [openViewOnce] is the one way in.
      */
     override fun loadAttachment(id: String): ByteArray? {
-        if (id.isBlank()) return null
+        if (!mayHandOn(id)) return null
+        return signalStore.readAttachment(id)
+    }
+
+    /** The same attachment as a stream. See [loadAttachment] for what is refused. */
+    override fun openAttachment(id: String): SignalRepository.AttachmentStream? {
+        if (!mayHandOn(id)) return null
+        return signalStore.openAttachment(id)?.let { SignalRepository.AttachmentStream(it.length, it.stream) }
+    }
+
+    /** False for a blank id and for a view-once message's attachment. */
+    private fun mayHandOn(id: String): Boolean {
+        if (id.isBlank()) return false
         val viewOnce = Realm.getDefaultInstance().use { realm ->
             realm.where(SignalMessage::class.java)
                 .equalTo("viewOnce", true)
@@ -4627,9 +4639,9 @@ class SignalRepositoryImpl @Inject constructor(
         }
         if (viewOnce) {
             Timber.w("signal: refused to hand on a view-once attachment")
-            return null
+            return false
         }
-        return signalStore.readAttachment(id)
+        return true
     }
 
     /**

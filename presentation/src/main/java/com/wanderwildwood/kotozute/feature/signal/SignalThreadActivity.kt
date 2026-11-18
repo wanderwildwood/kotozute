@@ -930,20 +930,28 @@ class SignalThreadActivity : QkThemedActivity() {
      * @return null if the attachment is not on the phone, having said so.
      */
     private fun shareableUri(attachment: SavedAttachment): Uri? {
-        val bytes = runCatching { signalRepo.loadAttachment(attachment.id) }.getOrNull()
-        if (bytes == null || bytes.isEmpty()) return null
-        return runCatching {
-            // In a folder of its own, so the copy can be found again and removed: see
-            // [SignalWorkingCopies], which clears it a couple of hours after it was staged.
-            val file = java.io.File(
+        // Streamed into the copy, never held whole: a long video read as one array could
+        // take the app down on the phone's heap.
+        val opened = runCatching { signalRepo.openAttachment(attachment.id) }.getOrNull() ?: return null
+        // In a folder of its own, so the copy can be found again and removed: see
+        // [SignalWorkingCopies], which clears it a couple of hours after it was staged.
+        val file = runCatching {
+            java.io.File(
                 com.wanderwildwood.kotozute.util.SignalWorkingCopies.sharedDir(cacheDir),
                 safeFilename(attachment)
             )
-            file.writeBytes(bytes)
+        }.getOrNull() ?: run { runCatching { opened.stream.close() }; return null }
+        return runCatching {
+            val copied = opened.stream.use { input -> file.outputStream().use { input.copyTo(it) } }
+            if (copied <= 0L) throw java.io.IOException("the attachment is empty")
             androidx.core.content.FileProvider.getUriForFile(
                 this, "$packageName.messagesText", file
             )
-        }.onFailure { Timber.w(it, "signal attachment: could not stage a copy") }.getOrNull()
+        }.onFailure {
+            // Not left behind cut short, where another app would be handed half a file.
+            runCatching { file.delete() }
+            Timber.w(it, "signal attachment: could not stage a copy")
+        }.getOrNull()
     }
 
     /**
@@ -1035,17 +1043,22 @@ class SignalThreadActivity : QkThemedActivity() {
      */
     private fun writeAttachmentTo(attachment: SavedAttachment, destination: Uri) {
         thread(isDaemon = true) {
-            val bytes = runCatching { signalRepo.loadAttachment(attachment.id) }.getOrNull()
-            if (bytes == null) {
+            // Streamed into the document, never held whole; see [shareableUri].
+            val opened = runCatching { signalRepo.openAttachment(attachment.id) }.getOrNull()
+            if (opened == null) {
                 attachmentWouldNotOpen {
                     Toast.makeText(this, R.string.signal_attachment_save_failed, Toast.LENGTH_LONG).show()
                 }
                 return@thread
             }
-            val written = bytes.isNotEmpty() && runCatching {
-                contentResolver.openOutputStream(destination)?.use { it.write(bytes) }
-                    ?: throw java.io.IOException("nothing would open ${'$'}destination")
+            val written = opened.length > 0 && runCatching {
+                opened.stream.use { input ->
+                    val copied = contentResolver.openOutputStream(destination)?.use { input.copyTo(it) }
+                        ?: throw java.io.IOException("nothing would open ${'$'}destination")
+                    if (copied <= 0L) throw java.io.IOException("the attachment is empty")
+                }
             }.onFailure { Timber.w(it, "signal attachment: could not save") }.isSuccess
+            if (opened.length <= 0) runCatching { opened.stream.close() }
             runOnUiThread {
                 Toast.makeText(
                     this,

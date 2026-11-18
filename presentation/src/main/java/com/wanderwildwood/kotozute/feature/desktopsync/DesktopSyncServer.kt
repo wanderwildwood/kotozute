@@ -23,7 +23,6 @@ import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
 import com.wanderwildwood.kotozute.util.Preferences
 import kotlin.concurrent.thread
-import java.io.ByteArrayInputStream
 import java.io.InputStream
 import com.wanderwildwood.kotozute.compat.SubscriptionManagerCompat
 import com.wanderwildwood.kotozute.model.Attachment
@@ -109,6 +108,9 @@ class DesktopSyncServer(
 
         /** An action name is a single short word; nothing larger is one. */
         private const val MAX_ACTION_BODY_BYTES = 256
+
+        /** How much of a Signal attachment's start [sniffServedType] needs to see. */
+        const val SNIFF_BYTES = 16
 
         /**
          * `bytes=START-[END]` out of a Range header. Only the single-range form, which
@@ -1400,32 +1402,46 @@ class DesktopSyncServer(
      * Fetched through the repository rather than off disk: the repository is what holds the
      * pinned-TLS client that can fetch one that has not been kept yet.
      *
-     * Whole in memory, which is the phone's own approach in its thread screen, and it is a
-     * real cost here rather than a nominal one -- the first video this was tried against was
-     * 27 MB. Acceptable because the alternative is a disk cache with its own eviction and
-     * lifetime, and this is a request the user made by opening the thread. Ranges are
-     * answered from the array we already hold, which is what a video element needs before
-     * it will let anyone seek.
+     * Streamed, never held whole: the first video this was tried against was 27 MB, and one
+     * array of that size on the phone's heap could take the app down. The type is read from
+     * the first few bytes, which are then given back to the stream. A range is answered by
+     * reading past its start, as a part's is: requests start at zero and walk forward, so
+     * this is cheap in practice, and it is what a video element needs before it will let
+     * anyone seek.
      */
     private fun handleSignalAttachment(id: String, session: IHTTPSession): Response {
         if (!signalEnabled()) {
             return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "not found"))
         }
-        val bytes = runCatching { signalRepository.loadAttachment(id) }.getOrNull()
-            ?: return jsonResponse(
-                Response.Status.NOT_FOUND,
-                JSONObject().put("error", "that attachment is no longer on the phone")
-            )
+        fun gone() = jsonResponse(
+            Response.Status.NOT_FOUND,
+            JSONObject().put("error", "that attachment is no longer on the phone")
+        )
+        val opened = runCatching { signalRepository.openAttachment(id) }.getOrNull() ?: return gone()
+        val length = opened.length
+        val stream = java.io.BufferedInputStream(opened.stream, SNIFF_BYTES)
         // See [sniffServedType]: what the browser must be told to draw or play a file.
-        val mime = sniffServedType(bytes)
+        val mime = runCatching {
+            stream.mark(SNIFF_BYTES)
+            val head = ByteArray(SNIFF_BYTES)
+            var filled = 0
+            while (filled < head.size) {
+                val n = stream.read(head, filled, head.size - filled)
+                if (n < 0) break
+                filled += n
+            }
+            stream.reset()
+            sniffServedType(head.copyOf(filled))
+        }.getOrElse {
+            Timber.w(it, "Desktop Sync: a Signal attachment would not read")
+            runCatching { stream.close() }
+            return gone()
+        }
 
-        val length = bytes.size.toLong()
         val range = session.headers["range"]?.let { RANGE.find(it) }
 
         if (range == null) {
-            return newFixedLengthResponse(
-                Response.Status.OK, mime, ByteArrayInputStream(bytes), length
-            ).apply {
+            return newFixedLengthResponse(Response.Status.OK, mime, stream, length).apply {
                 addHeader("Accept-Ranges", "bytes")
                 // The bytes never change under an id, so let the browser keep them rather
                 // than pulling every picture in a thread over the network on each poll.
@@ -1436,15 +1452,18 @@ class DesktopSyncServer(
 
         val start = range.groupValues[1].toLongOrNull() ?: 0L
         val end = range.groupValues[2].toLongOrNull()?.coerceAtMost(length - 1) ?: (length - 1)
-        if (start > end || start < 0) {
+        if (start > end || start < 0 || start >= length) {
+            runCatching { stream.close() }
             return jsonResponse(Response.Status.RANGE_NOT_SATISFIABLE, JSONObject().put("error", "bad range"))
                 .apply { addHeader("Content-Range", "bytes */$length") }
         }
 
-        val count = (end - start + 1).toInt()
+        if (!runCatching { skipFully(stream, start) }.getOrDefault(false)) {
+            runCatching { stream.close() }
+            return gone()
+        }
         return newFixedLengthResponse(
-            Response.Status.PARTIAL_CONTENT, mime,
-            ByteArrayInputStream(bytes, start.toInt(), count), count.toLong()
+            Response.Status.PARTIAL_CONTENT, mime, stream, end - start + 1
         ).apply {
             addHeader("Accept-Ranges", "bytes")
             addHeader("Content-Range", "bytes $start-$end/$length")
@@ -2866,6 +2885,27 @@ internal fun isOrdinaryDisconnect(exception: IOException): Boolean {
         text.contains("broken pipe") ||
         text.contains("socket closed") ||
         text.contains("stream closed")
+}
+
+/**
+ * Reads past [count] bytes of [stream]; false if it ended first.
+ *
+ * ⚠ Not `skip` alone: a decrypting stream skips only what it has already decrypted, so its
+ * `skip` answers 0 long before the end. A 0 is followed by a read of one byte, which says
+ * whether the stream really ended.
+ */
+internal fun skipFully(stream: InputStream, count: Long): Boolean {
+    var left = count
+    while (left > 0) {
+        val n = stream.skip(left)
+        if (n > 0) {
+            left -= n
+        } else {
+            if (stream.read() < 0) return false
+            left--
+        }
+    }
+    return true
 }
 
 /**

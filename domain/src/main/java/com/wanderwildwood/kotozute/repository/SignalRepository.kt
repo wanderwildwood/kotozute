@@ -377,6 +377,16 @@ interface SignalRepository {
     /** Blocking. Returns null if Signal cannot be reached or has no such attachment. */
     fun loadAttachment(id: String): ByteArray?
 
+    /** An attachment as a stream and its length in bytes; whoever receives it closes [stream]. */
+    class AttachmentStream(val length: Long, val stream: java.io.InputStream)
+
+    /**
+     * [loadAttachment] as a stream, with the same refusals: nothing is held in memory, so a
+     * long video can be opened, saved, shared or served without one array of its size.
+     * Blocking.
+     */
+    fun openAttachment(id: String): AttachmentStream?
+
     /** A view-once picture and its type, for the viewer. */
     class ViewOnceMedia(val bytes: ByteArray, val type: String)
 

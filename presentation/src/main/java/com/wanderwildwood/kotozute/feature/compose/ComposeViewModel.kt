@@ -131,6 +131,7 @@ class ComposeViewModel @Inject constructor(
     private val sendNewMessage: SendNewMessage,
     private val subscriptionManager: SubscriptionManagerCompat,
     private val syncContacts: com.wanderwildwood.kotozute.interactor.SyncContacts,
+    private val updateScheduledMessageAlarms: com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms,
 ) : QkViewModel<ComposeView, ComposeState>(ComposeState(
         editingMode = threadId == 0L && addresses.isEmpty(),
         threadId = threadId,
@@ -158,6 +159,9 @@ class ComposeViewModel @Inject constructor(
     private var bluetoothMicManager: BluetoothMicManager? = null
 
     init {
+        // Held back from sending while it is being edited here. See [ScheduledEdits].
+        com.wanderwildwood.kotozute.interactor.ScheduledEdits.begin(replacesScheduledId)
+
         // set shared subscription into state if set
         subscriptionManager.activeSubscriptionInfoList.firstOrNull {
             it.subscriptionId == sharedSubscriptionId
@@ -1518,6 +1522,7 @@ class ComposeViewModel @Inject constructor(
                                 state.attachments.map { it.uri },
                                 conversationId
                         ),
+                            onError = keepReplacedScheduled(),
                             onComplete = dropReplacedScheduled()
                     ).also {
                         newState { copy(scheduled = 0) }
@@ -1532,6 +1537,7 @@ class ComposeViewModel @Inject constructor(
                         sendNewMessage.execute(
                             SendNewMessage.Params(subId, 0, addresses, body.toString(),
                                 sendAsGroup, state.attachments.toList(), delay),
+                            onError = keepReplacedScheduled(),
                             onComplete = dropReplacedScheduled()
                         )
                     }
@@ -1613,7 +1619,39 @@ class ComposeViewModel @Inject constructor(
         val id = replacingScheduledId
         replacingScheduledId = -1L
         val pending = id >= 0 && scheduledMessageRepo.getScheduledMessage(id) != null
-        return { if (pending) scheduledMessageRepo.deleteScheduledMessage(id) }
+        return {
+            if (pending) scheduledMessageRepo.deleteScheduledMessage(id)
+            com.wanderwildwood.kotozute.interactor.ScheduledEdits.end(id)
+        }
+    }
+
+    /**
+     * What to run if the edited copy could not be scheduled or sent: the original is kept, and
+     * it is no longer held back, so it goes when its time comes (or now, if that has passed).
+     * Read before [dropReplacedScheduled] takes the id; the two are passed in that order.
+     */
+    private fun keepReplacedScheduled(): (Throwable) -> Unit {
+        val id = replacingScheduledId
+        return {
+            if (id >= 0) {
+                com.wanderwildwood.kotozute.interactor.ScheduledEdits.end(id)
+                updateScheduledMessageAlarms.execute(Unit)
+            }
+        }
+    }
+
+    /**
+     * Left without sending or scheduling the edited copy: the original is no longer held back.
+     * The catch-up sends it if its time came during the edit, and arms its alarm if not.
+     */
+    override fun onCleared() {
+        val id = replacingScheduledId
+        if (id >= 0) {
+            replacingScheduledId = -1L
+            com.wanderwildwood.kotozute.interactor.ScheduledEdits.end(id)
+            updateScheduledMessageAlarms.execute(Unit)
+        }
+        super.onCleared()
     }
 
 }

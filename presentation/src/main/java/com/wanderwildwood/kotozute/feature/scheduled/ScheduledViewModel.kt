@@ -127,8 +127,12 @@ class ScheduledViewModel @Inject constructor(
         view.editScheduledMessage
             .observeOn(Schedulers.io())
             .doOnNext { selectedMessageId ->
+                // Held back from sending from now, not only once Compose is up. See
+                // [com.wanderwildwood.kotozute.interactor.ScheduledEdits].
+                com.wanderwildwood.kotozute.interactor.ScheduledEdits.begin(selectedMessageId)
                 scheduledMessageRepo.getScheduledMessage(selectedMessageId)
                     ?.let { scheduledMessage -> navigator.showCompose(scheduledMessage) }
+                    ?: com.wanderwildwood.kotozute.interactor.ScheduledEdits.end(selectedMessageId)
             }
             .observeOn(AndroidSchedulers.mainThread())
             .autoDisposable(view.scope())

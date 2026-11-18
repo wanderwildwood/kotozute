@@ -41,6 +41,8 @@ class SendScheduledMessage @Inject constructor(
 ) : Interactor<Long>() {
 
     override fun buildObservable(params: Long): Flowable<*> {
+        // Open for editing: see [ScheduledEdits]. It goes once the edit ends without a copy.
+        if (ScheduledEdits.isOpen(params)) return Flowable.empty<Unit>()
         return Flowable.just(params)
             .mapNotNull(scheduledMessageRepo::getScheduledMessage)
             // Read out of Realm before anything is sent or deleted. Below this point the

@@ -780,6 +780,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                         activity.getString(R.string.settings_signal_history_key_asked)
                     failure is com.wanderwildwood.kotozute.repository.AccountKeyNotSent ->
                         activity.getString(R.string.settings_signal_history_key_unanswered)
+                    failure is com.wanderwildwood.kotozute.repository.AttachmentsLockedForExport ->
+                        activity.getString(R.string.settings_signal_history_attachments_locked)
                     else -> activity.getString(R.string.settings_signal_history_not_written)
                 }
             } else {

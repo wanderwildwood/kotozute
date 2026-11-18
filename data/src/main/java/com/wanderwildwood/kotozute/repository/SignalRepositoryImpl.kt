@@ -5183,6 +5183,12 @@ class SignalRepositoryImpl @Inject constructor(
         folder: String,
         onProgress: (Int) -> Unit
     ): SignalRepository.ExportStats {
+        // Before anything is written: while the attachment secret is locked every attachment
+        // reads as missing, and a copy made then would hold none of them while reporting it
+        // finished. Locked is checked strictly here -- a check that cannot run refuses too.
+        if (signalStore.attachmentsLocked()) {
+            throw com.wanderwildwood.kotozute.repository.AttachmentsLockedForExport()
+        }
         val day = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
             .format(java.util.Date())
         val tree = com.wanderwildwood.kotozute.signalstore.TreeExportDestination(

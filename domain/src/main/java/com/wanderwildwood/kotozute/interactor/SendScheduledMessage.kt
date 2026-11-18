@@ -28,8 +28,6 @@ import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Flowable
-import io.reactivex.rxkotlin.toFlowable
-import io.realm.RealmList
 import javax.inject.Inject
 
 class SendScheduledMessage @Inject constructor(
@@ -106,18 +104,16 @@ class SendScheduledMessage @Inject constructor(
     private fun smsSend(params: Long): Flowable<*> {
         return Flowable.just(params)
             .mapNotNull(scheduledMessageRepo::getScheduledMessage)
-            .flatMap { message ->
-                if (message.sendAsGroup) {
-                    listOf(message)
-                } else {
-                    message.recipients.map { recipient -> message.copy(recipients = RealmList(recipient)) }
-                }.toFlowable()
-            }
+            // One send for every recipient, group or not, as Compose sends: the repository
+            // splits a non-group message into one per person after it has read the
+            // attachments once. Splitting it here sent each person a send of their own, and
+            // the first one's end deleted the attachment copies (and the row, and its folder)
+            // before the second had read them, so everyone after the first got an empty part.
             .map { message ->
                 val threadId = TelephonyCompat.getOrCreateThreadId(context, message.recipients)
                 val attachments = message.attachments.mapNotNull(Uri::parse).map { Attachment(context, it) }
                 SendNewMessage.Params(
-                    message.subId, threadId, message.recipients, message.body,
+                    message.subId, threadId, message.recipients.toList(), message.body,
                     message.sendAsGroup, attachments
                 )
             }

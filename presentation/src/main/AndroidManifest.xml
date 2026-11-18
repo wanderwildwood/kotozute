@@ -25,7 +25,8 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Only to scan the bridge's pairing QR, and only when you tap Scan. Declared as not
+    <!-- Only to scan a computer's Signal link code (Settings, Signal, Linked devices), and only
+         when you press Scan a QR code. Photos go to the phone's camera app. Declared as not
          required so the app still installs on a device without a camera. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />

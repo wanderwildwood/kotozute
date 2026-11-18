@@ -52,7 +52,7 @@ From the app's manifests (`presentation/src/main/AndroidManifest.xml` and `data/
 - `CALL_PHONE`: the call button in a text conversation places a call.
 - `RECORD_AUDIO`: voice messages and Signal voice calls. `MODIFY_AUDIO_SETTINGS` and `BLUETOOTH`: routing a call's sound to the earpiece, speaker, wired or Bluetooth headset.
 - `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`, and `WRITE_EXTERNAL_STORAGE` (capped below the Kompakt's Android version, so never granted on it): attaching and saving files.
-- `CAMERA`: declared in the manifest. The app takes no pictures itself: the camera button hands the job to the phone's camera app, and the app generates a QR code for linking Signal but never scans one. The manifest's own comment on this line (that it is for scanning a pairing code) is out of date.
+- `CAMERA`: only to scan the link code that Signal on a computer shows, under Settings, Signal, Linked devices, and only when you press "Scan a QR code". The picture is read on the phone and not kept. The app takes no photos itself: the camera button for a photo hands the job to the phone's camera app.
 - `INTERNET`: Signal, GIF search and Desktop Sync, all below.
 - `ACCESS_NETWORK_STATE`: whether a connection is there.
 - `POST_NOTIFICATIONS`: message and call notifications. `USE_FULL_SCREEN_INTENT`: the Signal call screen over the lock screen.

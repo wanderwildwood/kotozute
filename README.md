@@ -212,11 +212,17 @@ Settings → General → Unread on the lock screen turns it off.
 
 ## Building
 
-Requires **JDK 17** — the project's Kotlin/kapt toolchain fails on JDK 21 with an `IllegalAccessError` about `com.sun.tools.javac`.
+Requires **JDK 21**. The Signal libraries ship Java 21 class files, and kapt's javac stubs cannot read class files newer than the JDK running them, so a JDK 17 build fails with "class file has wrong version 65.0, should be 61.0".
 
 ```bash
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 ./gradlew :presentation:assembleRelease
+```
+
+The project does not set `org.gradle.java.home` itself, since a JDK path is particular to one machine. A build machine whose default JDK is older, as the release machine's is, pins 21 for Gradle in its own `~/.gradle/gradle.properties` instead:
+
+```properties
+org.gradle.java.home=/usr/lib/jvm/java-21-openjdk-amd64
 ```
 
 The APK lands in `presentation/build/outputs/apk/release/`.

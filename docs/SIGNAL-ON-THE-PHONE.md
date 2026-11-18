@@ -286,9 +286,9 @@ Two things worth keeping:
 ones stops working. They should be re-checked against signal-cli on every upgrade, not treated
 as constants.
 
-*Which JDK the build needs is still being settled; [README](../README.md#building) has the
-current instructions.* When this was written, kapt generated javac stubs, and javac on
-JDK 17 could not read the Java 21 class files this dependency ships: *"class file has wrong version 65.0, should be 61.0"*. That added one
+*The build needs JDK 21; [README](../README.md#building) has the current instructions.*
+kapt generates javac stubs, and javac on
+JDK 17 cannot read the Java 21 class files this dependency ships: *"class file has wrong version 65.0, should be 61.0"*. That added one
 more entry requirement: **JDK 21+ on the build machine**, which is what Signal-Android uses.
 
 ## It talks to Signal

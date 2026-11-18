@@ -65,10 +65,12 @@ internal object AttachmentSecret {
      * Whether attachments are encrypted on this phone and cannot be opened.
      *
      * True when the keystore will not open the secret, and also when files are encrypted and
-     * no secret is on record at all. False on a phone where nothing is encrypted yet.
+     * no secret is on record at all. False whenever nothing is encrypted yet, with or without
+     * a seal on record: there is nothing to be locked out of, and a seal whose keystore entry
+     * is gone is replaced the next time an attachment is written (see [forWriting]).
      */
     fun locked(context: Context): Boolean {
-        if (!exists(context) && SealedFiles.nothingEncrypted(context.filesDir)) return false
+        if (SealedFiles.nothingEncrypted(context.filesDir)) return false
         return forReading(context) == null
     }
 

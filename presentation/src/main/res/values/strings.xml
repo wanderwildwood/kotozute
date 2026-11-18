@@ -973,6 +973,7 @@
     <string name="settings_desktop_sync_link_vpn_only">VPN only is on and no VPN is connected. Connect one, or switch VPN only off in Settings, Desktop Sync.</string>
     <string name="settings_desktop_sync_tls_title">Use HTTPS</string>
     <string name="settings_desktop_sync_tls_summary">Needed before a browser will let the page use the microphone. The phone makes its own certificate, so every visit starts with a security warning you have to accept, and an already-paired browser needs the link again.</string>
+    <string name="desktop_sync_tls_unavailable">HTTPS is on, and the phone could not prepare its certificate</string>
     <string name="settings_desktop_sync_vpn_only_title">VPN only</string>
     <string name="settings_desktop_sync_vpn_only_summary">Refuse connections that don\'t come through a VPN</string>
     <string name="settings_desktop_sync_reset_title">Forget all browsers</string>

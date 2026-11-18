@@ -161,14 +161,21 @@ class DesktopSyncServer(
         //
         // ⚠ Still UNBOUND either way: NanoHTTPD binds it itself in ServerRunnable, and binding
         // here too fails the second bind with EADDRINUSE.
-        val tls = if (prefs.desktopSyncTls.get()) DesktopSyncTls.serverSocketFactory(context) else null
-        if (prefs.desktopSyncTls.get() && tls == null) {
-            // Said out loud. Falling back to plain HTTP silently would leave somebody wondering
-            // why the browser still refuses the microphone on a phone they had switched TLS on
-            // for -- the setting saying one thing and the socket doing another.
-            Timber.w("desktop sync: TLS was asked for and could not be prepared; serving plainly")
+        val tlsAsked = prefs.desktopSyncTls.get()
+        val tls = if (tlsAsked) DesktopSyncTls.serverSocketFactory(context) else null
+        if (tlsAsked && tls == null) {
+            Timber.w("desktop sync: TLS was asked for and could not be prepared; not starting")
         }
         setServerSocketFactory {
+            // ⚠ No plain fallback. Somebody who switched HTTPS on is relying on it, and serving
+            // the token and every message in the clear while the setting still reads on is the
+            // setting saying one thing and the socket doing another. Thrown from here, the
+            // start fails, the switch goes off and Settings says why.
+            if (tlsAsked && tls == null) {
+                throw java.io.IOException(
+                    context.getString(com.wanderwildwood.kotozute.R.string.desktop_sync_tls_unavailable)
+                )
+            }
             val socket = tls?.createServerSocket() ?: java.net.ServerSocket()
             Timber.i(
                 "desktop sync: socket is %s (tls asked=%s, prepared=%s)",

@@ -87,7 +87,7 @@ internal object DesktopSyncTls {
             .apply { init(arrayOf(keyManagerFor(entry)), null, null) }
             .serverSocketFactory
     }.onFailure {
-        Timber.w(it, "desktop sync: could not prepare a certificate; serving without TLS")
+        Timber.w(it, "desktop sync: could not prepare a certificate")
     }.getOrNull()
 
     /**

@@ -57,7 +57,17 @@ class SignalStreamService : android.app.Service() {
             return START_NOT_STICKY
         }
 
-        startForeground(NOTIFICATION_ID, buildNotification())
+        // A sticky restart comes with no app in front, and Android 12 can refuse it the
+        // foreground; thrown from here that would crash the process it just restarted. The
+        // switch stays on, and the next allowed start (opening the app, the next boot) brings
+        // the service back.
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (e: IllegalStateException) {
+            Timber.w(e, "signal: the system would not let the stream service run in the foreground now")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         // Idempotent: startStream refuses to start a second loop while one is running, so
         // this is safe on every redelivery. Off the main thread: starting the stream opens the
         // protocol store, and on a cold start that held the first screen for over a second

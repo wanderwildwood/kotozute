@@ -34,6 +34,9 @@ import javax.crypto.spec.GCMParameterSpec
  */
 internal object AttachmentSecret {
 
+    /** The keystore has no entry under [ALIAS] at all, as against one it will not hand over now. */
+    private class EntryGone : IllegalStateException("the keystore entry that sealed the attachment secret is gone")
+
     private const val PREFS = "signal_attachment_secret"
     private const val PREF_SEALED = "sealed_secret"
     private const val PREF_IV = "iv"
@@ -105,7 +108,23 @@ internal object AttachmentSecret {
         val sealed = prefs.getString(PREF_SEALED, null)
         val iv = prefs.getString(PREF_IV, null)
         try {
-            if (sealed != null && iv != null) return unseal(sealed, iv).also { cached = it }
+            if (sealed != null && iv != null) {
+                try {
+                    return unseal(sealed, iv).also { cached = it }
+                } catch (gone: EntryGone) {
+                    // The keystore entry is not refusing for a moment; it is not there, and
+                    // that seal can never open again. With nothing encrypted under it, nothing
+                    // is lost by starting over -- and not starting over would refuse every
+                    // attachment from now on, received or sent, until the app's data was
+                    // cleared. With anything encrypted, it stays a fault to report.
+                    check(mayCreate()) { "attachments are already encrypted and the entry that sealed their secret is gone" }
+                    Timber.w("signal attachment: the attachment secret's keystore entry is gone and nothing was encrypted under it; making a new one")
+                    val fresh = ByteArray(SECRET_BYTES).also(SecureRandom()::nextBytes)
+                    seal(context, fresh)
+                    refusedAt = 0L
+                    return fresh.also { cached = it }
+                }
+            }
             check(sealed == null && iv == null) { "half of the sealed attachment secret is missing" }
             check(mayCreate()) { "attachments are already encrypted and their secret is gone" }
             val fresh = ByteArray(SECRET_BYTES).also(SecureRandom()::nextBytes)
@@ -158,7 +177,7 @@ internal object AttachmentSecret {
         }
         (existing as? KeyStore.SecretKeyEntry)?.let { return@onKeystoreThread it.secretKey }
 
-        check(createIfMissing) { "the keystore entry that sealed the attachment secret is gone" }
+        if (!createIfMissing) throw EntryGone()
         KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE).apply {
             init(
                 KeyGenParameterSpec.Builder(

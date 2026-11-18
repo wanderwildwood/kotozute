@@ -45,12 +45,21 @@ internal class SignalKeyStore(private val db: ProtocolDatabase) {
         // copy. Reducing it to the storage key on the way in meant a backup had to invent its
         // own secret, thirty digits shown once and stored nowhere, which is lost the moment
         // the paper is. A linked device holds the pool in Signal too.
+        //
+        // The media root key belongs to the account as well, so it is dropped when these keys
+        // are another account's (a different storage key), and the next device linked gets a
+        // fresh one. The same account's keys arriving again keep it: a device already linked
+        // holds it.
         withStoreLock(db) {
             db.writableDatabase.execSQL(
                 """
                 INSERT INTO account_keys (_id, storage_key, entropy_pool, updated_timestamp)
                 VALUES (1, ?, ?, ?)
                 ON CONFLICT(_id) DO UPDATE SET
+                  media_root_key = CASE
+                    WHEN account_keys.storage_key IS NULL
+                      OR account_keys.storage_key = excluded.storage_key
+                    THEN account_keys.media_root_key ELSE NULL END,
                   storage_key = excluded.storage_key,
                   entropy_pool = excluded.entropy_pool,
                   updated_timestamp = excluded.updated_timestamp
@@ -83,6 +92,10 @@ internal class SignalKeyStore(private val db: ProtocolDatabase) {
                 INSERT INTO account_keys (_id, storage_key, entropy_pool, updated_timestamp)
                 VALUES (1, ?, NULL, ?)
                 ON CONFLICT(_id) DO UPDATE SET
+                  media_root_key = CASE
+                    WHEN account_keys.storage_key IS NULL
+                      OR account_keys.storage_key = excluded.storage_key
+                    THEN account_keys.media_root_key ELSE NULL END,
                   storage_key = excluded.storage_key,
                   entropy_pool = NULL,
                   updated_timestamp = excluded.updated_timestamp

@@ -6,6 +6,8 @@ import android.content.ComponentCallbacks
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.database.ContentObserver
 import android.database.Cursor
@@ -20,6 +22,7 @@ import android.view.View
 import android.view.ViewTreeObserver
 import android.view.Window
 import android.view.WindowInsetsController
+import java.security.MessageDigest
 import java.util.WeakHashMap
 import java.util.concurrent.Executors
 
@@ -39,7 +42,9 @@ import java.util.concurrent.Executors
  *
  * What decides, in this order: the app's own switch ([set]), once pressed to something else
  * than the phone says; then the phone's dark setting (KompaktOS); then Home's switch (iori),
- * for a system without one (MuditaOS), asked each time the app comes to the front.
+ * for a system without one (MuditaOS), asked each time the app comes to the front. Home is
+ * heard only when the app holding its provider is Home: its name and its release certificate
+ * ([HOME_CERT_SHA256]). With no Home to ask, what was last heard from it is forgotten.
  *
  * Started by [DarkModeInit], a provider in the manifest, before any screen is drawn.
  */
@@ -47,6 +52,21 @@ object DarkMode {
 
     /** Home's provider: one row, `dark` (0 or 1) and `stamp` (changes on each press of Home's switch). */
     val HOME: Uri = Uri.parse("content://com.wanderwildwood.iori.dark/state")
+
+    /** The one app whose provider is Home's. */
+    const val HOME_PACKAGE = "com.wanderwildwood.iori"
+
+    /** SHA-256 of the certificate Home's releases are signed with, lower-case hex. */
+    const val HOME_CERT_SHA256 = "fb06881da0a2c7b0a98fc6c730098a106636974db877d63e18670b53b0890512"
+
+    /**
+     * The debug keys test builds are signed with (the build box's and the desk machine's). Home
+     * signed with one of them is heard only by a debug build of this app, never by a release.
+     */
+    val DEBUG_CERTS_SHA256 = setOf(
+        "1e7e9cc0ea37a725d0eaf622187792c425dc0351a3e228ef462f8eaacbb9db06",
+        "9ae26e87553000817b4185b15d9047845e87871d8f5204dac77b82183fee248b",
+    )
 
     private const val PREFS = "dark_mode"
     private const val KEY_ON = "on"
@@ -260,12 +280,25 @@ object DarkMode {
         }
     }
 
-    /** Asks Home what its switch says. */
+    /**
+     * Asks Home what its switch says. With no Home on the phone (no answer, or the provider is held
+     * by an app that is not Home), Home's last word is forgotten: settings brought back from a
+     * backup made beside Home would otherwise keep the app dark on a phone without it.
+     */
     private fun askHome() {
         val context = app ?: return
         asker.execute {
             runCatching {
-                context.contentResolver.query(HOME, null, null, null, null)?.use { c ->
+                val cursor = if (isHome(context)) context.contentResolver.query(HOME, null, null, null, null) else null
+                if (cursor == null) {
+                    val p = prefs(context)
+                    if (p.getBoolean(KEY_HOME, false)) {
+                        p.edit().putBoolean(KEY_HOME, false).apply()
+                        main.post { follow() }
+                    }
+                    return@runCatching
+                }
+                cursor.use { c ->
                     if (!c.moveToFirst()) return@use
                     val dark = c.getInt(c.getColumnIndexOrThrow("dark")) != 0
                     val stamp = c.getLong(c.getColumnIndexOrThrow("stamp"))
@@ -278,6 +311,34 @@ object DarkMode {
             }
         }
     }
+
+    /**
+     * Whether the app that holds Home's provider is Home: its name, and signed with Home's release
+     * certificate and nothing else. A name or an authority alone is not enough: on a phone without
+     * Home any app can take them. A debuggable build of this app also hears Home signed with a debug key.
+     */
+    private fun isHome(context: Context): Boolean {
+        val pm = context.packageManager
+        val owner = HOME.authority?.let { pm.resolveContentProvider(it, 0) }?.packageName ?: return false
+        if (owner != HOME_PACKAGE) return false
+        val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        val certs = if (debuggable) DEBUG_CERTS_SHA256 + HOME_CERT_SHA256 else setOf(HOME_CERT_SHA256)
+        val signers = signers(pm, owner)
+        return signers.isNotEmpty() && signers.all { it in certs }
+    }
+
+    /** The SHA-256 of each certificate [pkg] is signed with, lower-case hex; none when it cannot be read. */
+    @Suppress("DEPRECATION")
+    private fun signers(pm: PackageManager, pkg: String): List<String> = runCatching {
+        val raw = if (Build.VERSION.SDK_INT >= 28) {
+            pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo?.apkContentsSigners
+        } else {
+            pm.getPackageInfo(pkg, PackageManager.GET_SIGNATURES).signatures
+        }
+        raw.orEmpty().map { sig ->
+            MessageDigest.getInstance("SHA-256").digest(sig.toByteArray()).joinToString("") { "%02x".format(it) }
+        }
+    }.getOrDefault(emptyList())
 }
 
 /** Starts [DarkMode] before the app's first screen. Declared in the manifest; holds no data. */

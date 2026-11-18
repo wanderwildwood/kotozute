@@ -133,7 +133,15 @@ object RealmEncryption {
         val realm = File(dir, REALM_NAME)
         if (!realm.exists()) {
             // A fresh install: nothing to convert, and the first open will create it encrypted.
-            prefs.edit().putBoolean(PREF_ENCRYPTED, true).apply()
+            // commit(): the database is created under the key at once, and a flag still waiting
+            // in memory when the process dies would leave an encrypted file opened without one.
+            if (!prefs.edit().putBoolean(PREF_ENCRYPTED, true).commit()) {
+                // Not on disk. Take the flag back out of memory too, so this start creates the
+                // file plain, as the disk says; the next start converts it the usual way.
+                Timber.w("realm: the encrypted flag could not be written; starting unencrypted")
+                prefs.edit().remove(PREF_ENCRYPTED).commit()
+                return false
+            }
             return true
         }
 

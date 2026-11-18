@@ -160,10 +160,10 @@ history in** reads that folder and keeps them for good. The binary and its sourc
 last release that carried either.
 
 Nothing else is lost by it going. Reactions, blocking and read receipts were the bridge's to
-send and the phone sends them itself now. The one thing that did not survive is the list of
-other devices on the account: the bridge could ask signal-cli, and the phone's Signal library
-has no way to ask at all, so the account screen says which device this phone is and stops
-there.
+send and the phone sends them itself now. The list of other devices on the account is back
+too, read from Signal directly: on a phone the account was set up on, Settings → Linked
+devices lists them and can add or unlink one. On a phone that is itself linked, the account
+screen says which device it is.
 
 ### What is not possible
 
@@ -221,7 +221,7 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 
 The APK lands in `presentation/build/outputs/apk/release/`.
 
-Released builds are signed with a real key supplied through `signing/`, which is gitignored and kept only on the machine that builds releases. There is no fallback: a clone without it builds an *unsigned* release APK, which will not install anywhere. That is deliberate — a missing signing key should stop you, not quietly hand you something installable. `assembleDebug` still works anywhere, signed with the usual Android debug key.
+Released builds are signed with a real key supplied through `signing/`, which is gitignored and kept only on the machine that builds releases. There is no fallback: a clone without it builds an *unsigned* release APK, which will not install anywhere. That is deliberate — a missing signing key should stop you, not quietly hand you something installable. `assembleDebug` still works anywhere: on the machine that holds `signing/` it is signed with the release key, like a release, and anywhere else with the usual Android debug key.
 
 ## Installing
 

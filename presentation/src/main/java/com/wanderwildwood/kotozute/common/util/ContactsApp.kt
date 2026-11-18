@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.ContactsContract
 import androidx.activity.result.contract.ActivityResultContract
+import com.wanderwildwood.kotozute.common.HouseApps
 
 /**
  * Contacts (enishi), the address book made to sit beside this app, answers every contacts
@@ -18,13 +19,13 @@ import androidx.activity.result.contract.ActivityResultContract
  * answers it.
  */
 object ContactsApp {
-    const val PACKAGE = "com.wanderwildwood.enishi"
+    const val PACKAGE = HouseApps.CONNECTIONS
 
-    /** The same request, addressed to Contacts if it is here to take it. */
-    fun prefer(context: Context, intent: Intent): Intent {
-        val named = Intent(intent).setPackage(PACKAGE)
-        return if (named.resolveActivity(context.packageManager) != null) named else intent
-    }
+    /**
+     * The same request, addressed to Contacts if the real one is here to take it: signed with its
+     * release certificate ([HouseApps]). An app that only took its name is treated as not installed.
+     */
+    fun prefer(context: Context, intent: Intent): Intent = HouseApps.aimed(context, intent, PACKAGE) ?: intent
 
     /**
      * `ActivityResultContracts.PickContact`, addressed the same way. What comes back is the

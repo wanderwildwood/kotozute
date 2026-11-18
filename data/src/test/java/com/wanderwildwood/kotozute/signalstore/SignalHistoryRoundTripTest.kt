@@ -9,6 +9,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.IOException
 import java.io.InputStream
 
 /**
@@ -34,6 +36,9 @@ class SignalHistoryRoundTripTest {
         val messages = mutableMapOf<String, MutableList<SignalHistoryExporter.Source.Message>>()
         val files = mutableMapOf<String, ByteArray>()
 
+        /** Attachments whose stream hands over a few bytes and then fails. */
+        val failing = mutableSetOf<String>()
+
         override fun threads() = threads.toList()
 
         override fun eachMessage(
@@ -44,7 +49,12 @@ class SignalHistoryRoundTripTest {
         }
 
         override fun attachment(id: String): SignalHistoryExporter.Source.Attachment? =
-            files[id]?.let { bytes ->
+            if (id in failing) SignalHistoryExporter.Source.Attachment(64) {
+                object : InputStream() {
+                    var given = 0
+                    override fun read(): Int = if (given++ < 5) 1 else throw IOException("gone")
+                }
+            } else files[id]?.let { bytes ->
                 SignalHistoryExporter.Source.Attachment(bytes.size.toLong()) {
                     ByteArrayInputStream(bytes)
                 }
@@ -305,6 +315,26 @@ class SignalHistoryRoundTripTest {
         // the backup rather than merely its picture.
         assertEquals(1, sink.inserted.size)
         assertNotNull(org.json.JSONArray(sink.inserted.single().attachmentsJson).getJSONObject(0))
+    }
+
+    @Test
+    fun `an attachment whose copy fails partway leaves no part of it in the folder`() {
+        val store = Store()
+        val key = "direct:$ada"
+        store.thread(key, title = "Ada")
+        store.failing += "broken"
+        store.message(
+            key, ts = 1_699_000_000_000, body = "look", sender = ada,
+            attachmentsJson = """[{"id":"broken","type":"image/png","filename":"a.png","size":64,"pending":false}]"""
+        )
+        val folder = temp.newFolder()
+
+        val exported = SignalHistoryExporter(store, DirectoryExportDestination(folder), selfAci).run()
+
+        assertEquals(0, exported.attachments)
+        assertEquals(1, exported.missing)
+        // The entry is written with no name, so a truncated file would be pointed at by nothing.
+        assertFalse(File(File(folder, DirectoryExportSource.FILES), "broken").exists())
     }
 
     @Test

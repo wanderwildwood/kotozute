@@ -325,6 +325,10 @@ internal class SignalHistoryExporter(
                         .isSuccess
                 } ?: false
                 if (!copied) {
+                    // The copy streams, so one that failed partway has already left part of
+                    // the file in the folder. The entry is written with no name, so nothing
+                    // would ever point at it; it is removed rather than left looking whole.
+                    destination.discard(id)
                     missing++
                     array.put(attachmentEntry())
                     continue

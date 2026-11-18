@@ -20,6 +20,13 @@ internal interface SignalExportDestination {
      */
     fun file(name: String, under: String? = DirectoryExportSource.FILES): OutputStream?
 
+    /**
+     * Removes a file made by [file] whose writing failed partway, so a truncated copy is not
+     * left in the folder under a name the records no longer point at. Does nothing where the
+     * file cannot be found again or removed.
+     */
+    fun discard(name: String, under: String? = DirectoryExportSource.FILES) {}
+
     /** What to call the folder in a sentence, once the writing is done. */
     fun name(): String
 }
@@ -85,6 +92,8 @@ internal class EncryptedExportDestination(
     override fun file(name: String, under: String?): OutputStream? =
         inner.file(name, under)?.let { SignalBackupCrypto.encrypt(it, derived) }
 
+    override fun discard(name: String, under: String?) = inner.discard(name, under)
+
     override fun name(): String = inner.name()
 
     companion object {
@@ -111,6 +120,10 @@ internal class DirectoryExportDestination(private val dir: File) : SignalExportD
         val parent = if (under == null) dir else File(dir, under)
         parent.mkdirs()
         return File(parent, name).outputStream()
+    }
+
+    override fun discard(name: String, under: String?) {
+        File(if (under == null) dir else File(dir, under), name).delete()
     }
 
     override fun name(): String = dir.name

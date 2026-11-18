@@ -44,9 +44,15 @@ internal class TreeExportDestination(
         )?.let { DocumentsContract.getDocumentId(it) }
     }.getOrNull()
 
+    /** Each document made here, by parent id and name, so one that failed can be removed. */
+    private val made = mutableMapOf<String, Uri>()
+
     private fun create(parent: String, mime: String, name: String): OutputStream? = runCatching {
         DocumentsContract.createDocument(context.contentResolver, documentUri(parent), mime, name)
-            ?.let { context.contentResolver.openOutputStream(it) }
+            ?.let { uri ->
+                made["$parent/$name"] = uri
+                context.contentResolver.openOutputStream(uri)
+            }
     }.getOrNull()
 
     // Deliberately not application/json. A document provider appends the extension its mime
@@ -62,6 +68,13 @@ internal class TreeExportDestination(
     // but every name here is unique within one fresh folder.
     override fun file(name: String, under: String?): OutputStream? =
         create(if (under == null) folder else files, "application/octet-stream", name)
+
+    override fun discard(name: String, under: String?) {
+        runCatching {
+            val uri = made.remove("${if (under == null) folder else files}/$name") ?: return
+            DocumentsContract.deleteDocument(context.contentResolver, uri)
+        }
+    }
 
     override fun name(): String = folderName
 }

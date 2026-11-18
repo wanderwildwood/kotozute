@@ -30,6 +30,14 @@ class SharedAttachmentsTest {
     }
 
     @Test
+    fun thePhonesMessageStoreIsNeverTakenFromAnotherApp() {
+        assertFalse(SharedAttachments.mayTake("content", "mms", own))
+        assertFalse(SharedAttachments.mayTake("content", "MMS", own))
+        assertFalse(SharedAttachments.mayTake("content", "sms", own))
+        assertFalse(SharedAttachments.mayTake("content", "mms-sms", own))
+    }
+
+    @Test
     fun oddAddressesAreRefused() {
         assertFalse(SharedAttachments.mayTake(null, "com.example", own))
         assertFalse(SharedAttachments.mayTake("content", null, own))

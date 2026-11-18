@@ -11,6 +11,14 @@ import java.util.UUID
  * private files, the message store or its key) and never one of this app's own content providers.
  * This app's own screens (forward, a scheduled message) mark their intents with [token], a value
  * that lives only in this process, and are taken as they are.
+ *
+ * ⚠ Nor the phone's own message store (`mms`, `sms`, `mms-sms` and the rest of the telephony
+ * provider). This app may read it as the SMS app; another app may not, and handing the compose
+ * screen an address in it -- a picture from another conversation -- would have it read and
+ * attached with this app's rights, one press of Send from going to whoever asked. No other app
+ * has a reason to share a part of the message store, so it is refused whatever comes with it:
+ * on Android 12 a grant flag on the intent proves nothing here, because the system does not
+ * check the sender's own access when the receiver already holds the permission.
  */
 object SharedAttachments {
 
@@ -24,6 +32,10 @@ object SharedAttachments {
         if (!scheme.equals("content", ignoreCase = true)) return false
         val a = authority?.lowercase() ?: return false
         val own = ownPackage.lowercase()
-        return a.isNotEmpty() && a != own && !a.startsWith("$own.") && !a.contains("@")
+        return a.isNotEmpty() && a != own && !a.startsWith("$own.") && !a.contains("@") &&
+            a !in MESSAGE_STORE
     }
+
+    /** The telephony provider's authorities: the phone's texts, picture messages and SIM. */
+    private val MESSAGE_STORE = setOf("sms", "mms", "mms-sms", "telephony", "icc")
 }

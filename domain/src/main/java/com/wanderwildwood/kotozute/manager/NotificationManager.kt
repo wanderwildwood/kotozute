@@ -33,6 +33,9 @@ interface NotificationManager {
 
     fun notifyFailed(threadId: Long)
 
+    /** A scheduled Signal message [scheduledId] could not be sent; its row is kept in Scheduled. */
+    fun notifyScheduledNotSent(scheduledId: Long)
+
     fun createNotificationChannel(threadId: Long = 0L)
 
     fun buildNotificationChannelId(threadId: Long): String

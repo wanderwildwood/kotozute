@@ -1142,6 +1142,8 @@
     <string name="notification_foreground_worker_text">On Android 12 and older, a notification is required for the background work that enables receiving messages.</string>
     <string name="notification_foreground_worker_channel_name">Message receiving worker notification</string>
     <string name="notification_message_failed_action">Resend</string>
+    <string name="notification_scheduled_not_sent_title">Scheduled message not sent</string>
+    <string name="notification_scheduled_not_sent_text">A scheduled Signal message could not be sent. It is still in Scheduled, where you can send it now or change it.</string>
 
     <string-array name="night_modes">
         <item>System</item>

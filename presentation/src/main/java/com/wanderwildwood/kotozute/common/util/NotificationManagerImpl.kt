@@ -43,6 +43,7 @@ import com.wanderwildwood.kotozute.common.util.extensions.toPerson
 import com.wanderwildwood.kotozute.extensions.isImage
 import com.wanderwildwood.kotozute.feature.compose.ComposeActivity
 import com.wanderwildwood.kotozute.feature.qkreply.QkReplyActivity
+import com.wanderwildwood.kotozute.feature.scheduled.ScheduledActivity
 import com.wanderwildwood.kotozute.feature.settings.SettingsActivity
 import com.wanderwildwood.kotozute.manager.PermissionManager
 import com.wanderwildwood.kotozute.manager.ShortcutManager
@@ -101,6 +102,8 @@ class NotificationManagerImpl @Inject constructor(
 
     companion object {
         const val DEFAULT_CHANNEL_ID = "notifications_default"
+        private const val SCHEDULED_NOT_SENT_TAG = "scheduled_not_sent"
+        private const val SCHEDULED_NOT_SENT_ID = 300001
         const val RECEIVING_WORKER_CHANNEL_ID = "notifications_receiving_worker"
         // Bumped to turn its badge off — see DesktopSyncService.CHANNEL_ID for why an
         // id change is the only way to alter an already-created channel. A backup in
@@ -499,6 +502,26 @@ class NotificationManagerImpl @Inject constructor(
                 .setVibrate(if (prefs.vibration(threadId).get()) VIBRATE_PATTERN else longArrayOf(0))
 
         notificationManager.notify(threadId.toInt() + 100000, notification.build())
+    }
+
+    override fun notifyScheduledNotSent(scheduledId: Long) {
+        val open = Intent(context, ScheduledActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val openPI = PendingIntent.getActivity(
+            context, SCHEDULED_NOT_SENT_ID, open,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, DEFAULT_CHANNEL_ID)
+            .setContentTitle(context.getString(R.string.notification_scheduled_not_sent_title))
+            .setContentText(context.getString(R.string.notification_scheduled_not_sent_text))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.notification_scheduled_not_sent_text)))
+            .setSmallIcon(R.drawable.ic_notification_failed)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .setAutoCancel(true)
+            .setContentIntent(openPI)
+        // One notice per scheduled row, so a second failure replaces the first.
+        tryOrNull { notificationManager.notify(SCHEDULED_NOT_SENT_TAG, scheduledId.toInt(), notification.build()) }
     }
 
     private fun getReplyAction(threadId: Long): NotificationCompat.Action {

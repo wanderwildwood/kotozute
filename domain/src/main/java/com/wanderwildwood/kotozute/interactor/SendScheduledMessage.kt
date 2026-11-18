@@ -22,6 +22,7 @@ import android.content.Context
 import android.net.Uri
 import com.wanderwildwood.kotozute.compat.TelephonyCompat
 import com.wanderwildwood.kotozute.extensions.mapNotNull
+import com.wanderwildwood.kotozute.manager.NotificationManager
 import com.wanderwildwood.kotozute.model.Attachment
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.repository.SignalRepository
@@ -35,7 +36,8 @@ class SendScheduledMessage @Inject constructor(
     private val scheduledMessageRepo: ScheduledMessageRepository,
     private val deleteScheduledMessagesInteractor: DeleteScheduledMessages,
     private val sendNewMessage: SendNewMessage,
-    private val signalRepo: SignalRepository
+    private val signalRepo: SignalRepository,
+    private val notificationManager: NotificationManager
 ) : Interactor<Long>() {
 
     override fun buildObservable(params: Long): Flowable<*> {
@@ -56,8 +58,16 @@ class SendScheduledMessage @Inject constructor(
                 // made. Text only: an attachment is held as a data URI, and parking a
                 // photo's worth of base64 in the database until Tuesday is not worth what
                 // it buys.
-                Flowable.fromCallable { signalRepo.send(plan.signalThreadKey, plan.body) }
-                    .doOnNext { deleteScheduledMessagesInteractor.execute(listOf(params)) }
+                //
+                // A send that fails keeps its row: the Scheduled list is the only place it can
+                // be sent again from. It is not left silent, though -- a notification says so,
+                // and one failure does not stop the other due messages behind it.
+                Flowable.fromCallable {
+                    val sent = runCatching { signalRepo.send(plan.signalThreadKey, plan.body) }.isSuccess
+                    if (sent) deleteScheduledMessagesInteractor.execute(listOf(params))
+                    else notificationManager.notifyScheduledNotSent(params)
+                    sent
+                }
             }
     }
 

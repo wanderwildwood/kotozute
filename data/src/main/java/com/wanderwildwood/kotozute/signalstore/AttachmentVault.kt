@@ -79,10 +79,68 @@ internal class AttachmentVault(
             Timber.w("signal attachment: an encrypted attachment cannot be read; its secret is unavailable")
             return null
         }
+        // Read into one array of the right size. `readBytes()` on a stream with no size grows
+        // its buffer by doubling, and for a long video held the old buffer, the new one and the
+        // final copy at once -- three times the file, on a phone's heap.
         return try {
-            AttachmentCipher.decryptingStream(secret, file).use { it.readBytes() }
+            val length = AttachmentCipher.plaintextLength(file.length())
+            AttachmentCipher.decryptingStream(secret, file).use { input ->
+                if (length < 0 || length > Int.MAX_VALUE - 8) {
+                    input.readBytes()
+                } else {
+                    val out = ByteArray(length.toInt())
+                    var filled = 0
+                    while (filled < out.size) {
+                        val n = input.read(out, filled, out.size - filled)
+                        if (n < 0) break
+                        filled += n
+                    }
+                    if (filled == out.size) out else out.copyOf(filled)
+                }
+            }
         } catch (e: IOException) {
             Timber.w(e, "signal attachment: an encrypted attachment would not read")
+            null
+        } catch (e: OutOfMemoryError) {
+            // One array too large for the heap, refused before anything was put in it: this
+            // attachment cannot be had as bytes, and nothing else is the worse for asking.
+            Timber.w("signal attachment: an attachment is too large to hold in memory")
+            null
+        }
+    }
+
+    /** An attachment as a stream, with its length; the caller closes [stream]. */
+    class Opened(val length: Long, val stream: InputStream)
+
+    /**
+     * An attachment as a stream, in whichever form it is in, or null as [read] would be.
+     *
+     * Nothing is held in memory: for whatever copies a whole attachment somewhere else (the
+     * history export), where a long video read as one array could take the app down.
+     */
+    fun open(id: String): Opened? {
+        openSealed(id)?.let { return it }
+        val plain = legacy(id)
+        runCatching { if (plain.isFile) Opened(plain.length(), plain.inputStream()) else null }
+            .getOrNull()?.let { return it }
+        // Asked once more, for the reason [read] asks twice.
+        return openSealed(id)
+    }
+
+    private fun openSealed(id: String): Opened? {
+        val file = sealed(id)
+        if (!file.isFile) return null
+        val secret = readSecret() ?: run {
+            Timber.w("signal attachment: an encrypted attachment cannot be read; its secret is unavailable")
+            return null
+        }
+        return try {
+            Opened(
+                AttachmentCipher.plaintextLength(file.length()),
+                AttachmentCipher.decryptingStream(secret, file)
+            )
+        } catch (e: IOException) {
+            Timber.w(e, "signal attachment: an encrypted attachment would not open")
             null
         }
     }

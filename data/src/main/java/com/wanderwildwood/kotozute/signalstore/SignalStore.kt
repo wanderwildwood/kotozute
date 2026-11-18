@@ -2343,6 +2343,10 @@ class SignalStore(private val context: Context) {
     fun readAttachment(id: String): ByteArray? =
         SignalAttachments(context) { error("no download needed to read") }.read(id)
 
+    /** A downloaded attachment as a stream and its length, or null; the caller closes it. */
+    internal fun openAttachment(id: String): AttachmentVault.Opened? =
+        SignalAttachments(context) { error("no download needed to read") }.open(id)
+
     /**
      * Closes the shared socket.
      *

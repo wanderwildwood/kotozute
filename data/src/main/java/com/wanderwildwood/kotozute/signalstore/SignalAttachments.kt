@@ -152,6 +152,9 @@ internal class SignalAttachments(
      */
     fun read(id: String): ByteArray? = if (id.isBlank()) null else vault.read(id)
 
+    /** The same attachment as a stream, not held in memory. See [AttachmentVault.open]. */
+    fun open(id: String): AttachmentVault.Opened? = if (id.isBlank()) null else vault.open(id)
+
     /**
      * Encrypts the attachments an older build left in the clear. See
      * [AttachmentVault.migrateAll]; safe to stop, safe to run again.

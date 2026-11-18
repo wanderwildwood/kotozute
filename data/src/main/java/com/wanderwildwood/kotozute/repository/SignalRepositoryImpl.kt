@@ -5298,10 +5298,19 @@ class SignalRepositoryImpl @Inject constructor(
         override fun attachment(
             id: String
         ): com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Attachment? {
-            val bytes = signalStore.readAttachment(id) ?: return null
+            // Streamed, not read whole: an export goes through every attachment, and one long
+            // video held as an array could end it, and the app, part of the way through.
+            // Opened here only for its length and closed again: the exporter may never ask for
+            // the bytes, and a stream it never asked for would be left open.
+            val length = signalStore.openAttachment(id)
+                ?.let { opened -> runCatching { opened.stream.close() }; opened.length }
+                ?: return null
             return com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Attachment(
-                size = bytes.size.toLong(),
-                open = { java.io.ByteArrayInputStream(bytes) }
+                size = length,
+                open = {
+                    signalStore.openAttachment(id)?.stream
+                        ?: throw java.io.IOException("the attachment is no longer on the phone")
+                }
             )
         }
     }

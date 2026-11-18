@@ -87,6 +87,23 @@ class AttachmentVaultTest {
     }
 
     @Test
+    fun `an attachment opens as a stream of its own length, in either form`() {
+        val content = bytes(70_001)
+        vault().write("s1", ByteArrayInputStream(content))
+        val sealed = vault().open("s1")!!
+        assertEquals(content.size.toLong(), sealed.length)
+        assertArrayEquals(content, sealed.stream.use { it.readBytes() })
+
+        val old = bytes(1234)
+        plant("s2", old)
+        val plain = vault().open("s2")!!
+        assertEquals(old.size.toLong(), plain.length)
+        assertArrayEquals(old, plain.stream.use { it.readBytes() })
+
+        assertNull(vault().open("never"))
+    }
+
+    @Test
     fun `an attachment that is nowhere is null`() {
         assertNull(vault().read("never"))
         assertFalse(vault().has("never"))

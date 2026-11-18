@@ -257,7 +257,7 @@ class SignalConversationsActivity : QkThemedActivity() {
         val msg = when {
             smsTaken -> getString(R.string.signal_sms_taken)
             conn == null -> null
-            !conn.rejected.isNullOrBlank() -> conn.rejected
+            !conn.rejected.isNullOrBlank() -> say(SignalWording.refusal(conn.rejected.orEmpty()))
             conn.primaryIdle -> getString(R.string.settings_signal_status_primary_idle)
             // Three states, not two: connected, on its way, and not going to happen.
             // The middle one used to read as the last one.

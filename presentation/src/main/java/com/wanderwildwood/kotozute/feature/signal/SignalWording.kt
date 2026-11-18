@@ -65,6 +65,17 @@ fun Context.sayFailure(failure: Throwable): String? =
  */
 object SignalWording {
 
+    /**
+     * Why the server refused this device, from what is stored for it: a
+     * [com.wanderwildwood.kotozute.repository.SignalRefusal] kind, or the English sentence an
+     * older build stored. Anything else is shown as it came.
+     */
+    fun refusal(stored: String): Words = when (com.wanderwildwood.kotozute.repository.SignalRefusal.of(stored)) {
+        com.wanderwildwood.kotozute.repository.SignalRefusal.UNLINKED -> Words.Res(R.string.signal_refused_unlinked)
+        com.wanderwildwood.kotozute.repository.SignalRefusal.DEPRECATED -> Words.Res(R.string.signal_refused_deprecated)
+        else -> Words.Raw(stored)
+    }
+
     /** Words for a failure that is one of the rail's own kinds, or null for anything else. */
     fun failure(failure: Throwable): Words? = when (failure) {
         is SendRefused -> send(failure.failure)

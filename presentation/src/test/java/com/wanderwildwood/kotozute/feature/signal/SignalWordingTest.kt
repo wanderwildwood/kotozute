@@ -10,6 +10,7 @@ import com.wanderwildwood.kotozute.repository.SignalRepository.LookupRefusal
 import com.wanderwildwood.kotozute.repository.SignalRepository.ProfileNameFailure
 import com.wanderwildwood.kotozute.repository.SignalRepository.RegistrationFailure
 import com.wanderwildwood.kotozute.repository.SignalRepository.StorageRefusal
+import com.wanderwildwood.kotozute.repository.SignalRefusal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -384,5 +385,33 @@ class SignalWordingTest {
             "10 contact(s), 8 with a profile key, 6 named, 2 by username, 1 with nothing to show but an id",
             counts(ContactCounts(known = 10, withProfileKey = 8, named = 6, withUsername = 2, nameless = 1))
         )
+    }
+
+    // -- the server refusing this device -------------------------------------------------------
+
+    @Test
+    fun `a refusal is stored as a kind and worded on screen`() {
+        assertEquals(
+            "This phone is no longer linked to Signal. Link it again to receive messages.",
+            English.of(SignalWording.refusal(SignalRefusal.UNLINKED))
+        )
+        assertEquals(
+            "Signal will not accept this version anymore. The app needs updating.",
+            English.of(SignalWording.refusal(SignalRefusal.DEPRECATED))
+        )
+    }
+
+    @Test
+    fun `a sentence an older build stored still reads in the phone's language`() {
+        assertEquals(
+            English.of(SignalWording.refusal(SignalRefusal.UNLINKED)),
+            English.of(SignalWording.refusal("This phone is no longer linked to Signal. Link it again to receive messages."))
+        )
+        assertEquals(
+            English.of(SignalWording.refusal(SignalRefusal.DEPRECATED)),
+            English.of(SignalWording.refusal("Signal will not accept this version any more. The app needs updating."))
+        )
+        // Anything else is shown as it came rather than dropped.
+        assertEquals("something new", English.of(SignalWording.refusal("something new")))
     }
 }

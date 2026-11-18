@@ -32,7 +32,8 @@ import kotlin.math.abs
  */
 internal class SignalSocketHealthMonitor(
     /**
-     * Called when the server says this device is no longer welcome.
+     * Called when the server says this device is no longer welcome, with a
+     * [com.wanderwildwood.kotozute.repository.SignalRefusal] kind, never a sentence.
      *
      * ⚠ Without it the loop reconnects for ever. When the account owner removes this linked
      * device -- an ordinary thing to do, and exactly what the unpair path does -- the server
@@ -144,9 +145,9 @@ internal class SignalSocketHealthMonitor(
                     // Not a network problem and not worth retrying: the credentials this
                     // device holds are no longer an account. Retrying is what it did before,
                     // for ever, in silence.
-                    onRejected("This phone is no longer linked to Signal. Link it again to receive messages.")
+                    onRejected(com.wanderwildwood.kotozute.repository.SignalRefusal.UNLINKED)
                 WebSocketConnectionState.REMOTE_DEPRECATED ->
-                    onRejected("Signal will not accept this version any more. The app needs updating.")
+                    onRejected(com.wanderwildwood.kotozute.repository.SignalRefusal.DEPRECATED)
                 else -> {
                     // Any other transition is a transition *out* of connecting, so the
                     // watchdog has done its job or is no longer about anything -- and
@@ -163,7 +164,7 @@ internal class SignalSocketHealthMonitor(
         // 499 is the server saying this build is too old to talk to. Discarded before, so a
         // deprecated client looked exactly like a flaky connection.
         if (status == DEPRECATED_STATUS) {
-            onRejected("Signal will not accept this version any more. The app needs updating.")
+            onRejected(com.wanderwildwood.kotozute.repository.SignalRefusal.DEPRECATED)
         }
     }
 

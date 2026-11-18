@@ -932,6 +932,8 @@
     <string name="signal_attachment_unavailable">Attachment (not downloaded)</string>
     <!-- An attachment that is on the phone, encrypted, and cannot be opened because the phone will not release its key -->
     <string name="signal_attachment_locked">Attachment (locked)</string>
+    <string name="signal_refused_unlinked">This phone is no longer linked to Signal. Link it again to receive messages.</string>
+    <string name="signal_refused_deprecated">Signal will not accept this version anymore. The app needs updating.</string>
     <string name="signal_attachments_locked">This attachment is locked. It is stored encrypted, and the phone would not release the key that opens it. Nothing has been deleted. Restarting the phone may help.</string>
     <string name="signal_view_once_received">View-once photo. Viewed.</string>
     <string name="signal_view_once_open">View-once photo. Tap to view.</string>

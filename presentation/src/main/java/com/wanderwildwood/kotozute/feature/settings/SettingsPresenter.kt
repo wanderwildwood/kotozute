@@ -734,7 +734,8 @@ class SettingsPresenter @Inject constructor(
             // line rather than decorating it. Saying "offline" here would be true and useless:
             // the phone is offline because the account no longer has it, and only its owner
             // can change that.
-            !conn.rejected.isNullOrBlank() -> conn.rejected.orEmpty()
+            !conn.rejected.isNullOrBlank() ->
+                context.say(SignalWording.refusal(conn.rejected.orEmpty()))
             // Before "offline", because it says whose fault the offline is. Only ever set by
             // Signal's own status check, never guessed from a failure here.
             !conn.signalConnected && conn.serviceOutage ->

@@ -286,11 +286,10 @@ Two things worth keeping:
 ones stops working. They should be re-checked against signal-cli on every upgrade, not treated
 as constants.
 
-⚠ **The branch does not currently build.** kapt generates javac stubs, and javac on JDK 17
-cannot read the Java 21 class files this dependency ships: *"class file has wrong version 65.0,
-should be 61.0"*. The build box has only JDK 17. So the list of entry requirements gains one more:
-**JDK 21+ on the build machine**, which is what Signal-Android uses. That is an install on
-someone else's laptop, so it is left as a decision rather than done.
+*Since settled: the build machine has JDK 21 beside 17 now, and the branch builds.* At the
+time, kapt generated javac stubs, and javac on JDK 17 could not read the Java 21 class files
+this dependency ships: *"class file has wrong version 65.0, should be 61.0"*. That added one
+more entry requirement: **JDK 21+ on the build machine**, which is what Signal-Android uses.
 
 ## It talks to Signal
 

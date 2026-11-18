@@ -72,7 +72,7 @@ class SignalCallService : Service() {
     private fun show(state: SignalCallState) {
         when (state) {
             is SignalCallState.Ringing -> {
-                foreground(ringingNotification(state.peer))
+                foreground(ringingNotification(this, state.peer))
                 if (ringer == null) {
                     ringer = IncomingRinger(this).also { it.start() }
                 }
@@ -122,6 +122,8 @@ class SignalCallService : Service() {
                 startForeground(NOTIFICATION_ID, notification)
             }
             inForeground = true
+            // The notification is this service's now, whoever put it up first.
+            ringingWithoutService = false
         } catch (e: Exception) {
             // Android 12 refuses a foreground service started from the background unless the app
             // is already running one. The notification still goes up, with its full-screen
@@ -131,34 +133,6 @@ class SignalCallService : Service() {
             Timber.w(e, "signal calls: could not become a foreground service")
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
         }
-    }
-
-    private fun ringingNotification(peer: String): Notification {
-        val name = nameOf(this, peer)
-        val screen = SignalCallActivity.intent(this)
-        val fullScreen = PendingIntent.getActivity(
-            this, 1, screen, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val answer = PendingIntent.getActivity(
-            this, 2, SignalCallActivity.intent(this).setAction(SignalCallActivity.ACTION_ANSWER),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val decline = PendingIntent.getService(
-            this, 3, Intent(this, SignalCallService::class.java).setAction(ACTION_DECLINE),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(name)
-            .setContentText(getString(R.string.signal_call_incoming))
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setOngoing(true)
-            .setContentIntent(fullScreen)
-            .setFullScreenIntent(fullScreen, true)
-            .addAction(0, getString(R.string.signal_call_decline), decline)
-            .addAction(0, getString(R.string.signal_call_answer), answer)
-            .build()
     }
 
     private fun ongoingNotification(peer: String): Notification {
@@ -234,13 +208,74 @@ class SignalCallService : Service() {
         const val ACTION_HANG_UP = "com.wanderwildwood.kotozute.signalcall.HANG_UP"
         const val ACTION_MICROPHONE = "com.wanderwildwood.kotozute.signalcall.MICROPHONE"
 
-        fun start(context: Context, action: String? = null) {
+        /** Whether the ringing notification is up without the service that would take it down. */
+        @Volatile private var ringingWithoutService = false
+
+        /**
+         * Starts the service. [ringingPeer] is the caller when this is for a call that has
+         * just started ringing.
+         *
+         * ⚠ Android 12 refuses a foreground service started from the background unless the app
+         * is already running one, and with "Keep Signal connected" off it may not be: the
+         * stream can take a call in a process kept alive by nothing. The service is then never
+         * created, and everything that shows a ringing call is in it -- so the call came and
+         * went with nothing on the phone at all. Refused, the ringing notification goes up from
+         * here instead, full-screen intent and Answer and Decline with it; the call screen it
+         * opens starts the service from the front, where it is allowed, and that rings.
+         */
+        fun start(context: Context, action: String? = null, ringingPeer: String? = null) {
             val intent = Intent(context, SignalCallService::class.java).setAction(action)
             try {
                 ContextCompat.startForegroundService(context, intent)
             } catch (e: Exception) {
                 Timber.w(e, "signal calls: could not start the call service")
+                if (ringingPeer != null) {
+                    runCatching {
+                        createChannel(context)
+                        context.getSystemService(NotificationManager::class.java)
+                            .notify(NOTIFICATION_ID, ringingNotification(context, ringingPeer))
+                        ringingWithoutService = true
+                    }.onFailure { Timber.w(it, "signal calls: could not show the ringing call") }
+                }
             }
+        }
+
+        /**
+         * The call has stopped ringing. A ringing notification put up by [start] without the
+         * service is taken down; one the service owns is left to it.
+         */
+        fun ringingOver(context: Context) {
+            if (!ringingWithoutService) return
+            ringingWithoutService = false
+            runCatching { context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID) }
+        }
+
+        fun ringingNotification(context: Context, peer: String): Notification {
+            val name = nameOf(context, peer)
+            val screen = SignalCallActivity.intent(context)
+            val fullScreen = PendingIntent.getActivity(
+                context, 1, screen, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val answer = PendingIntent.getActivity(
+                context, 2, SignalCallActivity.intent(context).setAction(SignalCallActivity.ACTION_ANSWER),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val decline = PendingIntent.getService(
+                context, 3, Intent(context, SignalCallService::class.java).setAction(ACTION_DECLINE),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            return NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(name)
+                .setContentText(context.getString(R.string.signal_call_incoming))
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setOngoing(true)
+                .setContentIntent(fullScreen)
+                .setFullScreenIntent(fullScreen, true)
+                .addAction(0, context.getString(R.string.signal_call_decline), decline)
+                .addAction(0, context.getString(R.string.signal_call_answer), answer)
+                .build()
         }
 
         /**

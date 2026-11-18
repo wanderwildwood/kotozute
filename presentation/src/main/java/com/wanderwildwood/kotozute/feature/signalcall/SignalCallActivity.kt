@@ -90,6 +90,9 @@ class SignalCallActivity : QkThemedActivity() {
 
     override fun onStart() {
         super.onStart()
+        // Opened from a ringing notification that went up without the call service (Android
+        // would not start it from the background): from the front it may start, and it rings.
+        if (signalRepo.calls().current() is SignalCallState.Ringing) SignalCallService.start(this)
         watching = signalRepo.calls().state()
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe { render(it) }

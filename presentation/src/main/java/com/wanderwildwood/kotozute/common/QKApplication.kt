@@ -347,11 +347,18 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // call screen over the lock screen. Only on the change into ringing: the service
         // follows the call itself from there.
         signalRepo.calls().state()
-            .map { it is com.wanderwildwood.kotozute.repository.SignalCallState.Ringing }
+            .map { (it as? com.wanderwildwood.kotozute.repository.SignalCallState.Ringing)?.peer.orEmpty() }
             .distinctUntilChanged()
-            .filter { it }
             .subscribe(
-                { com.wanderwildwood.kotozute.feature.signalcall.SignalCallService.start(this) },
+                { ringingPeer ->
+                    // The caller goes with the start, so a refused start can still show the call.
+                    if (ringingPeer.isNotEmpty()) {
+                        com.wanderwildwood.kotozute.feature.signalcall.SignalCallService
+                            .start(this, ringingPeer = ringingPeer)
+                    } else {
+                        com.wanderwildwood.kotozute.feature.signalcall.SignalCallService.ringingOver(this)
+                    }
+                },
                 { Timber.w(it, "signal calls: watching for a ringing call") }
             )
         if (prefs.signalEnabled.get()) {

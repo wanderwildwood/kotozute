@@ -2359,6 +2359,16 @@ class SignalStore(private val context: Context) {
     /** Whether attachments are encrypted here and cannot be opened. See [AttachmentSecret.locked]. */
     fun attachmentsLocked(): Boolean = AttachmentSecret.locked(context)
 
+    /**
+     * How many encrypted files can never be opened again, their secret being lost for good;
+     * 0 when there are none, or when the keystore only refuses for now.
+     */
+    fun unreadableAttachmentCount(): Int =
+        if (AttachmentSecret.lostForGood(context)) SealedFiles.count(context.filesDir) else 0
+
+    /** Removes them; see [AttachmentSecret.startOver]. */
+    fun removeUnreadableAttachments(): Boolean = AttachmentSecret.startOver(context)
+
     /** The bytes of a downloaded attachment, or null if it was never fetched. */
     fun readAttachment(id: String): ByteArray? =
         SignalAttachments(context) { error("no download needed to read") }.read(id)

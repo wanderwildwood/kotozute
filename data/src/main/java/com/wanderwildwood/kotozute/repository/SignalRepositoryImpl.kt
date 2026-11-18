@@ -812,6 +812,14 @@ class SignalRepositoryImpl @Inject constructor(
     override fun attachmentsLocked(): Boolean =
         runCatching { signalStore.attachmentsLocked() }.getOrDefault(false)
 
+    override fun unreadableAttachmentCount(): Int =
+        runCatching { signalStore.unreadableAttachmentCount() }.getOrDefault(0)
+
+    override fun removeUnreadableAttachments(): Boolean =
+        runCatching { signalStore.removeUnreadableAttachments() }
+            .onFailure { Timber.w(it, "signal: could not remove the unreadable attachments") }
+            .getOrDefault(false)
+
     override fun cleanWorkingCopies(): Int =
         runCatching { com.wanderwildwood.kotozute.util.SignalWorkingCopies.clean(context.cacheDir) }
             .onFailure { Timber.w(it, "signal: could not clean working copies out of the cache") }

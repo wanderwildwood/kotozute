@@ -1042,6 +1042,22 @@ interface SignalRepository {
     fun attachmentsLocked(): Boolean
 
     /**
+     * How many encrypted Signal attachments can never be opened again, because the
+     * keystore entry that sealed their key is gone rather than refusing for now. 0 when none.
+     * Blocking.
+     */
+    fun unreadableAttachmentCount(): Int
+
+    /**
+     * Removes the attachments [unreadableAttachmentCount] counts, so new ones can be kept
+     * under a new key. Messages are not touched. Does nothing while the key may only be
+     * refusing for now. Blocking.
+     *
+     * @return true when nothing unreadable is left.
+     */
+    fun removeUnreadableAttachments(): Boolean
+
+    /**
      * Removes unencrypted working copies of attachments from the cache: ones a stopped
      * playback left behind, and ones staged for another app some hours ago.
      *

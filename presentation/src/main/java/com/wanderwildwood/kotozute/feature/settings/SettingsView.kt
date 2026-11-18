@@ -30,6 +30,9 @@ interface SettingsView : QkViewContract<SettingsState> {
 
     /** Arm-and-confirm, then removes the message files that were set aside as unreadable. */
     fun askRemoveSetAside()
+
+    /** Arm-and-confirm, then removes the Signal attachments whose key is gone for good. */
+    fun askRemoveUnreadableAttachments()
     fun aboutLongClicks(): Observable<*>
     fun textSizeSelected(): Observable<Int>
     fun sendDelaySelected(): Observable<Int>

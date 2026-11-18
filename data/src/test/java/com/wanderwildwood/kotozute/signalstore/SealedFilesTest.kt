@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -45,5 +46,29 @@ class SealedFilesTest {
         file(SealedFiles.OUTBOX, "msg_1", "0")
         file(SealedFiles.OUTBOX, "msg_2", SealedFiles.OUTBOX_SEALED, "0")
         assertFalse(SealedFiles.nothingEncrypted(folder.root))
+    }
+
+    @Test
+    fun `count is both places together`() {
+        file(SealedFiles.ATTACHMENTS_SEALED, "abc")
+        file(SealedFiles.ATTACHMENTS_SEALED, "def")
+        file(SealedFiles.OUTBOX, "msg_1", SealedFiles.OUTBOX_SEALED, "0")
+        file(SealedFiles.ATTACHMENTS_LEGACY, "old")
+        file(SealedFiles.OUTBOX, "msg_2", "0")
+        assertEquals(3, SealedFiles.count(folder.root))
+    }
+
+    /** What can never be read goes; what an older build kept in the clear stays. */
+    @Test
+    fun `removing all leaves nothing encrypted and keeps the plaintext`() {
+        file(SealedFiles.ATTACHMENTS_SEALED, "abc")
+        file(SealedFiles.OUTBOX, "msg_1", SealedFiles.OUTBOX_SEALED, "0")
+        val legacy = file(SealedFiles.ATTACHMENTS_LEGACY, "old")
+        val unsentPlain = file(SealedFiles.OUTBOX, "msg_2", "0")
+        assertTrue(SealedFiles.removeAll(folder.root))
+        assertTrue(SealedFiles.nothingEncrypted(folder.root))
+        assertEquals(0, SealedFiles.count(folder.root))
+        assertTrue(legacy.isFile)
+        assertTrue(unsentPlain.isFile)
     }
 }

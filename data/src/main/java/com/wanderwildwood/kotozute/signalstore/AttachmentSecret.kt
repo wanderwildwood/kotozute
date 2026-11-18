@@ -74,6 +74,57 @@ internal object AttachmentSecret {
         return forReading(context) == null
     }
 
+    /**
+     * Whether files are encrypted here under a secret that can never be opened again: none is
+     * on record, half of one is, or the keystore entry that sealed it is gone. Not when the
+     * keystore only refuses for now, which [locked] also reports and which can pass.
+     */
+    @Synchronized
+    fun lostForGood(context: Context): Boolean {
+        if (SealedFiles.nothingEncrypted(context.filesDir)) return false
+        if (cached != null) return false
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val sealed = prefs.getString(PREF_SEALED, null)
+        val iv = prefs.getString(PREF_IV, null)
+        if (sealed == null || iv == null) return true
+        return try {
+            unseal(sealed, iv).also { cached = it; refusedAt = 0L }
+            false
+        } catch (gone: EntryGone) {
+            true
+        } catch (t: Throwable) {
+            // Refused, not gone: the files may open again.
+            false
+        }
+    }
+
+    /**
+     * Removes every file encrypted under a secret that is [lostForGood], and the record of
+     * that secret, so the next attachment written starts a new one (see [forWriting]).
+     *
+     * ⚠ Only ever for a secret lost for good: the files it removes could not be read by
+     * anything, but they are still deleted, so it does nothing while the keystore may only be
+     * refusing for now. Synchronized with [forWriting], so no new secret is made part way.
+     *
+     * @return true when nothing encrypted is left and a new secret can be made.
+     */
+    @Synchronized
+    fun startOver(context: Context): Boolean {
+        if (!lostForGood(context)) return SealedFiles.nothingEncrypted(context.filesDir)
+        if (!SealedFiles.removeAll(context.filesDir)) {
+            Timber.w("signal attachment: not every unreadable encrypted file could be removed")
+            return false
+        }
+        val cleared = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .remove(PREF_SEALED)
+            .remove(PREF_IV)
+            .commit()
+        cached = null
+        refusedAt = 0L
+        Timber.w("signal attachment: removed the attachments whose secret was lost; a new one will be made")
+        return cleared
+    }
+
     /** True once a secret has been sealed, whether or not it can still be opened. */
     fun exists(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(PREF_SEALED)

@@ -401,6 +401,8 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.setAsideDatabases -> view.askRemoveSetAside()
 
+                        R.id.attachmentsLocked -> view.askRemoveUnreadableAttachments()
+
                         R.id.signalFetchContacts -> fetchContacts(view)
 
                         // Asks first. Everything else on this screen acts on the phone; this

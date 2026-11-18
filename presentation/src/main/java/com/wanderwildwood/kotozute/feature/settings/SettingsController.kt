@@ -155,7 +155,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun onDetach(view: View) {
         // Leaving this screen for another one in the same activity is not a pause, so the
         // watch would not see it: an armed row must not be waiting when the screen comes back.
-        if (resetArmed || unpairArmed || setAsideArmed) activity?.armedWatch()?.disarm()
+        if (resetArmed || unpairArmed || setAsideArmed || unreadableArmed) activity?.armedWatch()?.disarm()
         super.onDetach(view)
     }
 
@@ -257,7 +257,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     override fun handleBack(): Boolean {
         // Back with a row armed only disarms it; the next Back leaves (STYLE.md).
-        if (resetArmed || unpairArmed || setAsideArmed) {
+        if (resetArmed || unpairArmed || setAsideArmed || unreadableArmed) {
             activity?.armedWatch()?.disarm()
             return true
         }
@@ -301,17 +301,79 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     private val disarmUnpairRunnable: () -> Unit = { disarmUnpair() }
 
     /**
+     * How many Signal attachments can never be opened again, their key being gone for good;
+     * 0 while the key only refuses for now, when the row has nothing to press.
+     */
+    private var unreadableCount = 0
+    private var unreadableArmed = false
+    private val disarmUnreadableRunnable: () -> Unit = { disarmUnreadable() }
+
+    /**
      * The line that says Signal attachments cannot be opened, shown only while that is so.
-     * It says what happened and what may help; there is nothing to press. Asked off the main
-     * thread, because the answer comes from the phone's keystore.
+     * It says what happened and what may help. When the key is gone for good, it says so
+     * and offers to remove what can never be opened, so new attachments can be kept. Asked
+     * off the main thread, because the answer comes from the phone's keystore.
      */
     private fun showAttachmentsLocked() {
         kotlin.concurrent.thread(isDaemon = true) {
             val locked = runCatching { signalRepo.attachmentsLocked() }.getOrDefault(false)
+            val unreadable = if (locked) runCatching { signalRepo.unreadableAttachmentCount() }.getOrDefault(0) else 0
             activity?.runOnUiThread {
-                if (isAttached) binding.attachmentsLocked.setVisible(locked)
+                if (!isAttached) return@runOnUiThread
+                val context = activity ?: return@runOnUiThread
+                unreadableCount = unreadable
+                binding.attachmentsLocked.setVisible(locked)
+                if (unreadableArmed) return@runOnUiThread
+                if (unreadable > 0) {
+                    binding.attachmentsLocked.title = context.getString(R.string.settings_attachments_lost_title)
+                    binding.attachmentsLocked.summary = context.resources.getQuantityString(
+                        R.plurals.settings_attachments_lost_summary, unreadable, unreadable
+                    )
+                } else {
+                    binding.attachmentsLocked.title = context.getString(R.string.settings_attachments_locked_title)
+                    binding.attachmentsLocked.summary = context.getString(R.string.settings_attachments_locked_summary)
+                }
             }
         }
+    }
+
+    private fun disarmUnreadable() {
+        unreadableArmed = false
+        activity?.armedWatch()?.done(disarmUnreadableRunnable)
+        showAttachmentsLocked()
+    }
+
+    /**
+     * Arm-and-confirm, as the other rows that destroy something are. Only when the key is
+     * gone for good; while it only refuses for now there is nothing to press.
+     */
+    override fun askRemoveUnreadableAttachments() {
+        val context = activity ?: return
+        if (unreadableCount <= 0) return
+        if (unreadableArmed) {
+            unreadableArmed = false
+            context.armedWatch()?.done(disarmUnreadableRunnable)
+            val appContext = context.applicationContext
+            kotlin.concurrent.thread(isDaemon = true) {
+                val removed = runCatching { signalRepo.removeUnreadableAttachments() }.getOrDefault(false)
+                activity?.runOnUiThread {
+                    Toast.makeText(
+                        appContext,
+                        if (removed) R.string.settings_attachments_lost_removed
+                        else R.string.settings_attachments_lost_failed,
+                        Toast.LENGTH_LONG
+                    ).show()
+                    if (isAttached) showAttachmentsLocked()
+                }
+            }
+            return
+        }
+        unreadableArmed = true
+        binding.attachmentsLocked.title = context.getString(R.string.settings_set_aside_armed)
+        binding.attachmentsLocked.summary = context.resources.getQuantityString(
+            R.plurals.settings_attachments_lost_armed_summary, unreadableCount, unreadableCount
+        )
+        context.armedWatch()?.arm(disarmUnreadableRunnable)
     }
 
     private var setAsideArmed = false

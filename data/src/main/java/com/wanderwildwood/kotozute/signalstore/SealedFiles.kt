@@ -38,4 +38,25 @@ internal object SealedFiles {
         val messages = File(filesDir, OUTBOX).listFiles().orEmpty()
         return messages.none { !File(it, OUTBOX_SEALED).list().isNullOrEmpty() }
     }
+
+    /** How many files are encrypted, in both places together. */
+    fun count(filesDir: File): Int {
+        val stored = File(filesDir, ATTACHMENTS_SEALED).list()?.size ?: 0
+        val unsent = File(filesDir, OUTBOX).listFiles().orEmpty()
+            .sumOf { File(it, OUTBOX_SEALED).list()?.size ?: 0 }
+        return stored + unsent
+    }
+
+    /**
+     * Removes every encrypted file, in both places; for when their secret is lost for good
+     * and nothing can read them. Files kept in the clear by older builds are left. An unsent
+     * message whose attachments go is then one that cannot be sent again, and says so.
+     *
+     * @return true when nothing encrypted is left.
+     */
+    fun removeAll(filesDir: File): Boolean {
+        File(filesDir, ATTACHMENTS_SEALED).listFiles().orEmpty().forEach { it.deleteRecursively() }
+        File(filesDir, OUTBOX).listFiles().orEmpty().forEach { File(it, OUTBOX_SEALED).deleteRecursively() }
+        return nothingEncrypted(filesDir)
+    }
 }

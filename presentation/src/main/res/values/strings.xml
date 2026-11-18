@@ -1518,5 +1518,17 @@
     <string name="settings_attachments_locked_title">Signal attachments are locked</string>
     <string name="settings_attachments_locked_summary">They are stored encrypted, and the phone would not release the key that opens them. Nothing has been deleted, and messages still work. Restarting the phone may help.</string>
     <string name="settings_set_aside_armed">Remove for good — tap again</string>
+    <!-- When the key to Signal attachments is gone for good, not only refusing for now. -->
+    <string name="settings_attachments_lost_title">Signal attachments cannot be opened again</string>
+    <plurals name="settings_attachments_lost_summary">
+        <item quantity="one">%1$d attachment was encrypted with a key this phone no longer has, so new attachments cannot be kept. Tap to remove it.</item>
+        <item quantity="other">%1$d attachments were encrypted with a key this phone no longer has, so new attachments cannot be kept. Tap to remove them.</item>
+    </plurals>
+    <plurals name="settings_attachments_lost_armed_summary">
+        <item quantity="one">%1$d attachment cannot be opened again. Removing it lets new ones be kept and cannot be undone. Your messages are not touched.</item>
+        <item quantity="other">These %1$d attachments cannot be opened again. Removing them lets new ones be kept and cannot be undone. Your messages are not touched.</item>
+    </plurals>
+    <string name="settings_attachments_lost_removed">Removed. New Signal attachments will be kept.</string>
+    <string name="settings_attachments_lost_failed">Not every attachment could be removed. Try again.</string>
     <string name="settings_set_aside_armed_summary">These files cannot be read without their key, and removing them cannot be undone. Your current messages are not touched.</string>
 </resources>

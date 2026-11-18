@@ -1147,6 +1147,7 @@
     <string name="notification_message_failed_action">Resend</string>
     <string name="notification_scheduled_not_sent_title">Scheduled message not sent</string>
     <string name="notification_scheduled_not_sent_text">A scheduled Signal message could not be sent. It is still in Scheduled, where you can send it now or change it.</string>
+    <string name="notification_scheduled_waiting_text">A scheduled Signal message was not sent because the safety number has changed. It is waiting in the conversation, where you can check the number and send it.</string>
 
     <string-array name="night_modes">
         <item>System</item>

@@ -26,6 +26,7 @@ import com.wanderwildwood.kotozute.manager.NotificationManager
 import com.wanderwildwood.kotozute.model.Attachment
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.repository.SignalRepository
+import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Flowable
 import io.reactivex.rxkotlin.toFlowable
 import io.realm.RealmList
@@ -37,7 +38,8 @@ class SendScheduledMessage @Inject constructor(
     private val deleteScheduledMessagesInteractor: DeleteScheduledMessages,
     private val sendNewMessage: SendNewMessage,
     private val signalRepo: SignalRepository,
-    private val notificationManager: NotificationManager
+    private val notificationManager: NotificationManager,
+    private val prefs: Preferences
 ) : Interactor<Long>() {
 
     override fun buildObservable(params: Long): Flowable<*> {
@@ -46,7 +48,7 @@ class SendScheduledMessage @Inject constructor(
             // Read out of Realm before anything is sent or deleted. Below this point the
             // row may be gone, and a managed object outliving its row is the kind of
             // failure that only shows up on the device.
-            .map { message -> Scheduled(message.signalThreadKey, message.body) }
+            .map { message -> Scheduled(message.signalThreadKey, message.body, message.date) }
             .flatMap { plan ->
                 if (plan.signalThreadKey.isEmpty()) {
                     // SMS: the original path, unchanged.
@@ -59,19 +61,47 @@ class SendScheduledMessage @Inject constructor(
                 // photo's worth of base64 in the database until Tuesday is not worth what
                 // it buys.
                 //
-                // A send that fails keeps its row: the Scheduled list is the only place it can
-                // be sent again from. It is not left silent, though -- a notification says so,
-                // and one failure does not stop the other due messages behind it.
+                // A send that fails with nothing kept in the conversation keeps its row: the
+                // Scheduled list is the only place it can be sent again from. It is not left
+                // silent -- a notification says so -- and it is not sent again behind the
+                // person's back: the catch-up in [UpdateScheduledMessageAlarms] passes it over
+                // until they send or change it. One failure does not stop the other due
+                // messages behind it.
+                //
+                // Two failures are not that. A message that went but could not be filed has
+                // gone, and one refused for a changed safety number is already in the
+                // conversation, marked not sent, with the notice that sends it. Keeping the
+                // row for either would send it twice. See [ScheduledSignalResult].
                 Flowable.fromCallable {
-                    val sent = runCatching { signalRepo.send(plan.signalThreadKey, plan.body) }.isSuccess
-                    if (sent) deleteScheduledMessagesInteractor.execute(listOf(params))
-                    else notificationManager.notifyScheduledNotSent(params)
-                    sent
+                    val failure = runCatching { signalRepo.send(plan.signalThreadKey, plan.body) }.exceptionOrNull()
+                    val key = ScheduledSignalResult.key(params, plan.date)
+                    val outcome = ScheduledSignalResult.of(failure)
+                    when (outcome) {
+                        ScheduledSignalResult.Outcome.SENT -> {
+                            forgetNotSent(key)
+                            deleteScheduledMessagesInteractor.execute(listOf(params))
+                        }
+                        ScheduledSignalResult.Outcome.WAITING_IN_THREAD -> {
+                            forgetNotSent(key)
+                            deleteScheduledMessagesInteractor.execute(listOf(params))
+                            notificationManager.notifyScheduledWaitingInThread(params, plan.signalThreadKey)
+                        }
+                        ScheduledSignalResult.Outcome.NOT_SENT -> {
+                            prefs.scheduledSignalNotSent.set(prefs.scheduledSignalNotSent.get() + key)
+                            notificationManager.notifyScheduledNotSent(params)
+                        }
+                    }
+                    outcome == ScheduledSignalResult.Outcome.SENT
                 }
             }
     }
 
-    private data class Scheduled(val signalThreadKey: String, val body: String)
+    private data class Scheduled(val signalThreadKey: String, val body: String, val date: Long)
+
+    private fun forgetNotSent(key: String) {
+        val notSent = prefs.scheduledSignalNotSent.get()
+        if (key in notSent) prefs.scheduledSignalNotSent.set(notSent - key)
+    }
 
     private fun smsSend(params: Long): Flowable<*> {
         return Flowable.just(params)

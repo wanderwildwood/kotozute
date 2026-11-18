@@ -308,6 +308,14 @@ class Preferences @Inject constructor(
     /** Text conversations accepted as message requests, by thread id. See SmsRequests. */
     val smsAcceptedRequests = rxPrefs.getStringSet("smsAcceptedRequests", emptySet())
 
+    /**
+     * Scheduled Signal messages that were tried and did not go, as "<id>:<due time>". They stay
+     * in Scheduled for the person to send or change, and the catch-up that sends past-due
+     * messages passes them over rather than sending them again on its own. See
+     * [com.wanderwildwood.kotozute.interactor.ScheduledSignalResult].
+     */
+    val scheduledSignalNotSent = rxPrefs.getStringSet("scheduledSignalNotSent", emptySet())
+
     /** Text messages pinned in their conversations, by thread id. See SmsPins. */
     val smsPinnedMessages = rxPrefs.getString("smsPinnedMessages", "{}")
 

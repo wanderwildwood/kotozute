@@ -36,6 +36,12 @@ interface NotificationManager {
     /** A scheduled Signal message [scheduledId] could not be sent; its row is kept in Scheduled. */
     fun notifyScheduledNotSent(scheduledId: Long)
 
+    /**
+     * A scheduled Signal message [scheduledId] was refused for a changed safety number. It is
+     * kept in the conversation [threadKey], marked not sent, and its row in Scheduled is gone.
+     */
+    fun notifyScheduledWaitingInThread(scheduledId: Long, threadKey: String)
+
     fun createNotificationChannel(threadId: Long = 0L)
 
     fun buildNotificationChannelId(threadId: Long): String

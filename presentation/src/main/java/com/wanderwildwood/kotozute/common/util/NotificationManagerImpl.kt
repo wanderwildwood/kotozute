@@ -524,6 +524,28 @@ class NotificationManagerImpl @Inject constructor(
         tryOrNull { notificationManager.notify(SCHEDULED_NOT_SENT_TAG, scheduledId.toInt(), notification.build()) }
     }
 
+    override fun notifyScheduledWaitingInThread(scheduledId: Long, threadKey: String) {
+        val open = com.wanderwildwood.kotozute.feature.signal.SignalConversationsActivity
+            .intentFor(context, threadKey, "")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val openPI = PendingIntent.getActivity(
+            context, SCHEDULED_NOT_SENT_ID + 1, open,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val text = context.getString(R.string.notification_scheduled_waiting_text)
+        val notification = NotificationCompat.Builder(context, DEFAULT_CHANNEL_ID)
+            .setContentTitle(context.getString(R.string.notification_scheduled_not_sent_title))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setSmallIcon(R.drawable.ic_notification_failed)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .setAutoCancel(true)
+            .setContentIntent(openPI)
+        // The same tag and id as the plain failure: one notice per scheduled row.
+        tryOrNull { notificationManager.notify(SCHEDULED_NOT_SENT_TAG, scheduledId.toInt(), notification.build()) }
+    }
+
     private fun getReplyAction(threadId: Long): NotificationCompat.Action {
         val replyIntent = Intent(context, RemoteMessagingReceiver::class.java).putExtra("threadId", threadId)
         val replyPI = PendingIntent.getBroadcast(context, threadId.toInt(), replyIntent,

@@ -107,16 +107,60 @@ internal class DesktopLinker(
 
     /**
      * One random key for the life of the account, made the first time it is wanted: upstream
-     * does the same (`BackupValues.mediaRootBackupKey`). Kept in a private file of its own so
-     * the protocol database's schema is not touched for it.
+     * does the same (`BackupValues.mediaRootBackupKey`), and keeps it in its encrypted
+     * key-value store. Here it is in the protocol store, beside the entropy pool.
+     *
+     * An older build kept it in a plain preferences file. That is moved in first, here as
+     * well as at start-up, so a key already handed to a linked device is never passed over
+     * for a new one.
+     *
+     * Throws if the protocol store cannot be read or will not keep a new key; linking then
+     * fails and says so, which is better than linking with a key this phone will not have
+     * tomorrow.
      */
     private fun mediaRootKey(): MediaRootBackupKey {
-        val prefs = context.getSharedPreferences("signal_link_extras", Context.MODE_PRIVATE)
-        prefs.getString("media_root", null)?.let { stored ->
-            runCatching { return MediaRootBackupKey(Base64.decode(stored)) }
-        }
+        moveMediaRootKey(context, keys)
+        keys.mediaRootKey()?.let { return MediaRootBackupKey(it) }
         val fresh = MediaRootBackupKey.generate()
-        prefs.edit().putString("media_root", Base64.encodeWithPadding(fresh.value)).apply()
+        keys.storeMediaRootKey(fresh.value)
+        check(keys.mediaRootKey()?.contentEquals(fresh.value) == true) {
+            "the media root key was not kept"
+        }
         return fresh
+    }
+
+    companion object {
+
+        private const val OLD_PREFS = "signal_link_extras"
+        private const val OLD_PREF_KEY = "media_root"
+
+        /**
+         * Moves the key out of the plain preferences file of older builds. See
+         * [MediaRootKeyMove] for the order; this only supplies the two real stores.
+         */
+        fun moveMediaRootKey(context: Context, keys: SignalKeyStore): MediaRootKeyMove.Result {
+            val prefs = context.getSharedPreferences(OLD_PREFS, Context.MODE_PRIVATE)
+            return MediaRootKeyMove.run(
+                oldPresent = { prefs.contains(OLD_PREF_KEY) },
+                readOld = {
+                    prefs.getString(OLD_PREF_KEY, null)
+                        ?.let { stored -> runCatching { Base64.decode(stored) }.getOrNull() }
+                },
+                readStored = { keys.mediaRootKey() },
+                store = { keys.storeMediaRootKey(it) },
+                removeOld = {
+                    // commit, not apply: "gone" has to mean gone from the disk.
+                    val cleared = prefs.edit().remove(OLD_PREF_KEY).commit()
+                    // The file held nothing else, so it goes too rather than staying as an
+                    // empty file with a telling name.
+                    if (cleared) context.deleteSharedPreferences(OLD_PREFS)
+                    cleared
+                }
+            ).also { result ->
+                if (result != MediaRootKeyMove.Result.NOTHING_TO_MOVE) {
+                    Timber.i("signal link: moving the media root key ended as %s", result)
+                }
+            }
+        }
     }
 }

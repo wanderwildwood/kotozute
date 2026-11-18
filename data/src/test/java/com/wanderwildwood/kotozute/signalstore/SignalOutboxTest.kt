@@ -19,7 +19,8 @@ import org.junit.Test
 class SignalOutboxTest {
 
     private val root: File = Files.createTempDirectory("outbox").toFile()
-    private val outbox = SignalOutbox(root)
+    private val secret = ByteArray(32) { (it + 3).toByte() }
+    private val outbox = SignalOutbox(root, readSecret = { secret }, writeSecret = { secret })
     private val id = "0f2d-aci:1790000000000"
 
     @Test

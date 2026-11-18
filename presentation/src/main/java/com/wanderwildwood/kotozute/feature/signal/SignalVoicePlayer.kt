@@ -4,13 +4,11 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import com.wanderwildwood.kotozute.common.QkMediaPlayer
 import timber.log.Timber
-import java.io.File
 
 /**
  * The one Signal voice note playing, or paused, anywhere in the app.
@@ -28,6 +26,13 @@ import java.io.File
  * deliberate -- one sound at a time across the whole app -- and it means the MMS player may
  * reset it underneath us. Its reset calls the completion listener, which is how this hears
  * about it; see [start].
+ *
+ * A note is played from memory, never from a file. It is kept encrypted on disk and decrypted
+ * into a byte array on its way here; `MediaPlayer` reads that through a `MediaDataSource`, at
+ * whatever position it asks for, so seeking and resuming work as they did from a file. Signal
+ * Android gives its player a `DataSource` over the decrypting stream for the same reason
+ * (`PartDataSource`); with the platform player and a note of a few hundred kilobytes, the
+ * bytes already in hand are that source.
  */
 object SignalVoicePlayer {
 
@@ -49,8 +54,6 @@ object SignalVoicePlayer {
     var title: String = ""
         private set
 
-    /** The cache copy being played, so it can be removed when playback ends or is replaced. */
-    private var file: File? = null
 
     /**
      * Bumped whenever the loaded note changes, so a completion callback from an earlier one --
@@ -91,12 +94,12 @@ object SignalVoicePlayer {
         else positions[id] ?: 0
 
     /**
-     * Load [file] and play it from wherever it was last left. Whatever was loaded before is
-     * stopped first and its place remembered.
+     * Load the note in [bytes] and play it from wherever it was last left. Whatever was loaded
+     * before is stopped first and its place remembered.
      *
-     * @return false when the platform would not play it; the file is deleted either way.
+     * @return false when the platform would not play it.
      */
-    fun start(context: Context, id: String, file: File, threadKey: String, title: String): Boolean {
+    fun start(context: Context, id: String, bytes: ByteArray, threadKey: String, title: String): Boolean {
         replaceCurrent()
         val app = context.applicationContext
         val startAt = positions.remove(id) ?: 0
@@ -115,7 +118,7 @@ object SignalVoicePlayer {
             // note stops mid-word, foreground service or not: a foreground service keeps the
             // process alive, not awake. MediaPlayer holds the lock only while it plays.
             QkMediaPlayer.setWakeMode(app, PowerManager.PARTIAL_WAKE_LOCK)
-            QkMediaPlayer.setDataSource(app, Uri.fromFile(file))
+            QkMediaPlayer.setDataSource(SignalAttachment.BytesSource(bytes))
             QkMediaPlayer.prepare()
             QkMediaPlayer.setOnCompletionListener {
                 // ⚠ Called synchronously from inside QkMediaPlayer.reset()/stop() as well as at
@@ -131,14 +134,12 @@ object SignalVoicePlayer {
         if (!ok) {
             generation++
             runCatching { QkMediaPlayer.reset() }
-            file.delete()
             announce()
             return false
         }
         durations[id] = runCatching { QkMediaPlayer.duration }.getOrDefault(0)
         currentId = id
         isPlaying = true
-        this.file = file
         this.threadKey = threadKey
         this.title = title
         requestFocus(app)
@@ -230,8 +231,6 @@ object SignalVoicePlayer {
         generation++
         currentId = null
         isPlaying = false
-        file?.delete()
-        file = null
         abandonFocus()
     }
 

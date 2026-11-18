@@ -345,7 +345,16 @@ class SignalRepositoryImpl @Inject constructor(
     private val orphansSwept = AtomicBoolean(false)
 
     private val outbox by lazy {
-        com.wanderwildwood.kotozute.signalstore.SignalOutbox(java.io.File(context.filesDir, "signal-outbox"))
+        com.wanderwildwood.kotozute.signalstore.SignalOutbox(
+            root = java.io.File(context.filesDir, com.wanderwildwood.kotozute.signalstore.SealedFiles.OUTBOX),
+            readSecret = { com.wanderwildwood.kotozute.signalstore.AttachmentSecret.forReading(context) },
+            writeSecret = { mayCreate ->
+                com.wanderwildwood.kotozute.signalstore.AttachmentSecret.forWriting(context, mayCreate)
+            },
+            nothingEncrypted = {
+                com.wanderwildwood.kotozute.signalstore.SealedFiles.nothingEncrypted(context.filesDir)
+            }
+        )
     }
 
     /** Whether the socket is reaching for the server. See [noteConnecting]. */
@@ -785,6 +794,29 @@ class SignalRepositoryImpl @Inject constructor(
      * costs disk until the next pass, and deleting a live attachment costs somebody a picture
      * that has no other copy anywhere -- this store is the only one there is.
      */
+    override fun sealStorageAtRest(): Int {
+        // Nothing is rearranged while the message store is refusing to open: the same
+        // keystore is behind both, and this is not the moment to be making new keys in it.
+        if (com.wanderwildwood.kotozute.util.MessageStoreGate.blocked) return 0
+        // Unsent messages first: there are few, and they are the ones about to be read.
+        val unsentLeft = runCatching { outbox.encryptStored() }
+            .onFailure { Timber.w(it, "signal: could not finish encrypting unsent attachments") }
+            .getOrDefault(1)
+        val storedLeft = runCatching { signalStore.sealStorageAtRest() }
+            .onFailure { Timber.w(it, "signal: could not finish encrypting stored attachments") }
+            // Not known to be done, so not reported as done.
+            .getOrDefault(1)
+        return unsentLeft + storedLeft
+    }
+
+    override fun attachmentsLocked(): Boolean =
+        runCatching { signalStore.attachmentsLocked() }.getOrDefault(false)
+
+    override fun cleanWorkingCopies(): Int =
+        runCatching { com.wanderwildwood.kotozute.util.SignalWorkingCopies.clean(context.cacheDir) }
+            .onFailure { Timber.w(it, "signal: could not clean working copies out of the cache") }
+            .getOrDefault(0)
+
     override fun purgeAbandonedAttachments(): Int {
         // Against the empty stand-in database every attachment on disk would look abandoned.
         if (com.wanderwildwood.kotozute.util.MessageStoreGate.blocked) return 0
@@ -1992,7 +2024,19 @@ class SignalRepositoryImpl @Inject constructor(
         } ?: throw com.wanderwildwood.kotozute.repository.SendRefused(
             com.wanderwildwood.kotozute.repository.SendFailure.Unexplained("nothing to send again")
         )
-        val attachments = outbox.load(messageId, m.attachments.isNotBlank()) ?: run {
+        val loaded = try {
+            outbox.load(messageId, m.attachments.isNotBlank())
+        } catch (locked: com.wanderwildwood.kotozute.signalstore.SignalOutbox.Unreadable) {
+            // There, and not readable: the attachment secret is unavailable. Marked not sent
+            // so it can be tried again by hand, and kept -- this is not the "gone" below.
+            setSendState(messageId, SignalMessage.SEND_FAILED)
+            throw com.wanderwildwood.kotozute.repository.SendRefused(
+                com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared(
+                    "it is on this phone but cannot be read right now"
+                )
+            )
+        }
+        val attachments = loaded ?: run {
             setSendState(messageId, SignalMessage.SEND_FAILED)
             throw com.wanderwildwood.kotozute.repository.SendRefused(
                 com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared("it is no longer on this phone")

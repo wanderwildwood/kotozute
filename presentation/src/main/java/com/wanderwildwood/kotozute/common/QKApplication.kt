@@ -411,6 +411,26 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // not a thing to do every minute, and an orphan costs only disk until the next pass.
         // Upstream runs the same sweep from a job with a one-day lifespan
         // (`DeleteAbandonedAttachmentsJob`); there is no job queue here, so it is a loop.
+        // Attachments that versions before this one stored in the clear are encrypted where
+        // they are, a file at a time, while the app carries on reading either form. A short
+        // pause so it does not compete with start-up; again after an hour for as long as any
+        // are left, which is what a full disk or an interrupted run looks like.
+        GlobalScope.launch(Dispatchers.IO) {
+            // First, and at once: unencrypted copies a stopped playback left in the cache, and
+            // ones staged for another app hours ago. Nothing is playing in a process that
+            // has only just started, and nothing plays from a file any more.
+            runCatching { signalRepo.cleanWorkingCopies() }
+                .onFailure { Timber.w(it, "signal: cleaning working copies") }
+            delay(30_000)
+            while (true) {
+                val left = runCatching { signalRepo.sealStorageAtRest() }
+                    .onFailure { Timber.w(it, "signal: encrypting stored attachments") }
+                    .getOrDefault(0)
+                if (left == 0) break
+                delay(60 * 60_000L)
+            }
+        }
+
         GlobalScope.launch(Dispatchers.IO) {
             delay(2 * 60_000)
             while (true) {

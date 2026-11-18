@@ -143,7 +143,7 @@ object ProtocolStoreKey {
      * for, and this app can ask from several places at once -- a boot broadcast, the socket
      * service, and the UI -- which is exactly the shape that provokes it.
      */
-    private fun <T> onKeystoreThread(body: () -> T): T = try {
+    internal fun <T> onKeystoreThread(body: () -> T): T = try {
         keystoreWork.submit(body).get()
     } catch (e: java.util.concurrent.ExecutionException) {
         // Unwrapped, so the caller sees what actually went wrong rather than the plumbing.

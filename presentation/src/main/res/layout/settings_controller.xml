@@ -293,6 +293,14 @@
                 android:layout_height="wrap_content"
                 android:visibility="gone"
                 app:title="@string/settings_set_aside_title" />
+            <!-- Only while Signal attachments cannot be opened; see SignalRepository.attachmentsLocked. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/attachmentsLocked"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_attachments_locked_summary"
+                app:title="@string/settings_attachments_locked_title" />
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/sync"
                 android:layout_width="match_parent"

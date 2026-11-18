@@ -20,13 +20,33 @@ import java.io.InputStream
  * Attachments are downloaded **at receive time**, not lazily when a bubble is drawn. An
  * attachment lives on Signal's CDN for a limited window and then stops existing; fetching it
  * on demand means the ones worth keeping are exactly the ones that fail.
+ *
+ * **Encrypted where they are kept.** Every file is written through [AttachmentVault] in Signal
+ * Android's own on-disk format, under a secret sealed by the phone's keystore
+ * ([AttachmentSecret]), and [read] is the one way back out. Files an older build wrote in the
+ * clear are still read, and [encryptStored] moves them over.
  */
 internal class SignalAttachments(
     context: Context,
     private val receiver: () -> SignalServiceMessageReceiver
 ) {
 
-    private val dir = File(context.filesDir, "signal-attachments").apply { mkdirs() }
+    private val appContext = context.applicationContext
+
+    private val vault = AttachmentVault(
+        sealedDir = File(context.filesDir, SealedFiles.ATTACHMENTS_SEALED),
+        legacyDir = File(context.filesDir, SealedFiles.ATTACHMENTS_LEGACY),
+        readSecret = { AttachmentSecret.forReading(appContext) },
+        writeSecret = { mayCreate -> AttachmentSecret.forWriting(appContext, mayCreate) },
+        nothingEncrypted = { SealedFiles.nothingEncrypted(appContext.filesDir) }
+    )
+
+    /**
+     * Where a download sits while it is still the CDN's ciphertext. Not beside the kept files:
+     * whether anything has been encrypted yet is read off that directory being empty.
+     */
+    private val scratch: File
+        get() = File(appContext.cacheDir, "signal-attachment-downloads").apply { mkdirs() }
 
     /**
      * Fetches one attachment and returns the id to record, or null if it could not be had.
@@ -94,14 +114,15 @@ internal class SignalAttachments(
         }
 
         val id = idFor(servicePointer.remoteId.toString())
-        val destination = File(dir, id)
-        if (destination.exists()) {
+        if (vault.has(id)) {
             Outcome.Got(id)
         } else {
             // Downloads to a temporary file, decrypts on the way out. The library needs a
             // seekable destination for the ciphertext, so this cannot stream straight to its
-            // final home.
-            val temp = File.createTempFile("att", null, dir)
+            // final home. What comes out is encrypted again on its way to disk, under this
+            // phone's own secret; if that cannot be had the write throws and nothing is kept
+            // in the clear instead.
+            val temp = File.createTempFile("att", null, scratch)
             try {
                 receiver().retrieveAttachment(
                     servicePointer,
@@ -109,7 +130,7 @@ internal class SignalAttachments(
                     // Bounded by what the sender declared, not by a flat ceiling.
                     downloadLimitFor(declaredSize),
                     AttachmentCipherInputStream.IntegrityCheck.forEncryptedDigest(digest)
-                ).use { plaintext -> destination.outputStream().use { plaintext.copyTo(it) } }
+                ).use { plaintext -> vault.write(id, plaintext) }
                 Outcome.Got(id)
             } finally {
                 temp.delete()
@@ -123,7 +144,22 @@ internal class SignalAttachments(
         Outcome.Failed(t)
     }
 
-    fun read(id: String): ByteArray? = File(dir, id).takeIf { it.isFile }?.readBytes()
+    /**
+     * The bytes of an attachment, decrypted, or null if they cannot be had.
+     *
+     * Everything that shows, plays, saves, shares, forwards or exports an attachment comes
+     * through here; nothing else opens these files.
+     */
+    fun read(id: String): ByteArray? = if (id.isBlank()) null else vault.read(id)
+
+    /**
+     * Encrypts the attachments an older build left in the clear. See
+     * [AttachmentVault.migrateAll]; safe to stop, safe to run again.
+     */
+    fun encryptStored(): AttachmentVault.Summary = vault.migrateAll()
+
+    /** How many attachments are still stored in the clear. */
+    fun storedInTheClear(): Int = vault.plaintextCount()
 
     /**
      * Removes the bytes behind an attachment.
@@ -138,8 +174,7 @@ internal class SignalAttachments(
      */
     fun forget(id: String): Boolean {
         if (id.isBlank()) return false
-        val file = File(dir, id)
-        return runCatching { file.isFile && file.delete() }
+        return runCatching { vault.forget(id) }
             .onFailure { Timber.w(it, "signal attachment: could not remove one") }
             .getOrDefault(false)
     }
@@ -181,8 +216,7 @@ internal class SignalAttachments(
         known: Set<String>,
         now: Long = System.currentTimeMillis()
     ): Int {
-        val files = dir.listFiles() ?: return 0
-        return sweep(files, known, now)
+        return sweep(vault.files(), known, now)
     }
 
     /**
@@ -191,10 +225,7 @@ internal class SignalAttachments(
      * same file referenced by two messages is one file.
      */
     fun keep(id: String, open: () -> InputStream): Boolean = try {
-        val destination = File(dir, id)
-        if (!destination.isFile) {
-            open().use { source -> destination.outputStream().use { source.copyTo(it) } }
-        }
+        if (!vault.has(id)) open().use { source -> vault.write(id, source) }
         true
     } catch (t: Throwable) {
         Timber.w(t, "signal attachment: could not keep %s", id)
@@ -206,7 +237,7 @@ internal class SignalAttachments(
         val servicePointer = AttachmentPointerUtil.createSignalAttachmentPointer(pointer)
         val digest = servicePointer.digest.orElse(null)
             ?: throw InvalidMessageException("attachment has no digest")
-        val temp = File.createTempFile("sync", null, dir)
+        val temp = File.createTempFile("sync", null, scratch)
         try {
             receiver().retrieveAttachment(
                 servicePointer,

@@ -26,7 +26,8 @@ ALIGNMENT-with-molly.md).
 
 - Not custom cryptography: the primitives are the platform's `javax.crypto` AES and HMAC.
 - Not used for SMS/MMS (those are plain, by their nature) and not used for anything the app
-  stores itself; local storage relies on Android's own protections.
+  stores itself. What it stores is encrypted separately: the two databases with keys sealed
+  by the phone's keystore, and Signal attachments as described under "AES/CTR" below.
 - The message layer itself (Double Ratchet, sealed sender) is libsignal's, a separate library.
 
 ## If a reviewer asks
@@ -35,3 +36,29 @@ State the above in two lines: protocol-mandated attachment format of the Signal 
 authenticated by HMAC-SHA256, taken unchanged from Signal's open-source client library. Offer
 the file paths. If a real weakness in the format were published, Signal would change the
 format for all clients, and this app would take their update.
+
+## AES/CTR/NoPadding, for attachments stored on the phone
+
+A second thing a scanner will read. `AttachmentCipher.kt` (data module) encrypts each Signal
+attachment the app keeps on the phone with `AES/CTR/NoPadding`. This too is Signal's format,
+the one Signal Android stores its own attachments in (`ModernEncryptingPartOutputStream` and
+`ModernDecryptingPartInputStream`), carried over unchanged: 32 random bytes at the head of the
+file, a key for that file alone that is HMAC-SHA256 of the app's attachment secret over those
+bytes, and AES-256 in counter mode starting from zero. Because every file has its own key, the
+fixed starting counter never repeats a keystream. Counter mode is what lets a reader start
+from the middle of a file.
+
+The attachment secret is 32 random bytes, sealed with AES-GCM by a key in the Android
+keystore (`AttachmentSecret.kt`, after Signal's `AttachmentSecretProvider`).
+
+The attachments of a message that has not finished sending (the outbox) are stored in the same
+format under the same secret. A voice message or view-once video is decrypted into memory to
+be played, not to a file. The one unencrypted copy the app makes is the one staged in its
+private cache when an attachment is opened in another app or a picture is copied, which that
+app has to be able to read; it is removed once it is two hours old.
+
+The stored file carries no authentication tag, as in Signal Android; upstream's own comment is
+that the format "intentionally no longer includes authentication". It protects a file read
+off the storage from being understood. It does not detect a file that was altered on the
+phone. The attachment was authenticated once already, by the HMAC described above, when it
+was downloaded.

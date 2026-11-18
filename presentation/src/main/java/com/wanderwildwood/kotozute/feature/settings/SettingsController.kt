@@ -163,6 +163,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         super.onAttach(view)
         presenter.bindIntents(this)
         showSetAside()
+        showAttachmentsLocked()
         // After the intents are bound, never before: these are the results that came back
         // while this screen was stopped.
         pendingExportFolder?.let { folder ->
@@ -298,6 +299,20 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     private var unpairArmed = false
     private val disarmUnpairRunnable: () -> Unit = { disarmUnpair() }
+
+    /**
+     * The line that says Signal attachments cannot be opened, shown only while that is so.
+     * It says what happened and what may help; there is nothing to press. Asked off the main
+     * thread, because the answer comes from the phone's keystore.
+     */
+    private fun showAttachmentsLocked() {
+        kotlin.concurrent.thread(isDaemon = true) {
+            val locked = runCatching { signalRepo.attachmentsLocked() }.getOrDefault(false)
+            activity?.runOnUiThread {
+                if (isAttached) binding.attachmentsLocked.setVisible(locked)
+            }
+        }
+    }
 
     private var setAsideArmed = false
     private val disarmSetAsideRunnable: () -> Unit = { disarmSetAside() }

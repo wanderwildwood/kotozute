@@ -83,6 +83,9 @@ class HousekeepingWorker(appContext: Context, workerParams: WorkerParameters)
 
         removeOrphanedComposeDelayCancelledAttachments(twoHoursAgo)
 
+        // Signal attachments staged for another app, and playback copies an older build left.
+        com.wanderwildwood.kotozute.util.SignalWorkingCopies.clean(applicationContext.cacheDir)
+
         return Result.success()
     }
 

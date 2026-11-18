@@ -2309,6 +2309,36 @@ class SignalStore(private val context: Context) {
         }
     }
 
+    /**
+     * Encrypts what older builds left on this phone in the clear: stored attachments, and the
+     * media root backup key.
+     *
+     * Background work, run at start-up and safe to run again; each half finishes or leaves
+     * things as they were. See [AttachmentVault.migrateAll] and [MediaRootKeyMove].
+     *
+     * @return how many attachments are still in the clear afterwards.
+     */
+    fun sealStorageAtRest(): Int {
+        // The key first: it is one row, and it should not wait behind a gallery of pictures.
+        // Only where a protocol store already exists -- opening one here would create it, and
+        // a phone that has never used Signal has no key to move.
+        if (ProtocolStoreKey.exists(context)) {
+            runCatching { DesktopLinker.moveMediaRootKey(context, keys) }
+                .onFailure { Timber.w(it, "signal link: the media root key could not be moved yet") }
+        }
+        val attachments = SignalAttachments(context) { error("no download needed to encrypt") }
+        if (attachments.storedInTheClear() == 0) return 0
+        val summary = attachments.encryptStored()
+        Timber.i(
+            "signal attachment: encrypted %d stored attachment(s); %d still to do%s",
+            summary.done, summary.left, if (summary.stoppedEarly) " (stopped early)" else ""
+        )
+        return summary.left
+    }
+
+    /** Whether attachments are encrypted here and cannot be opened. See [AttachmentSecret.locked]. */
+    fun attachmentsLocked(): Boolean = AttachmentSecret.locked(context)
+
     /** The bytes of a downloaded attachment, or null if it was never fetched. */
     fun readAttachment(id: String): ByteArray? =
         SignalAttachments(context) { error("no download needed to read") }.read(id)

@@ -926,6 +926,9 @@
     <string name="signal_attachment_image">Image attachment</string>
     <string name="signal_attachment_other">Attachment: %s</string>
     <string name="signal_attachment_unavailable">Attachment (not downloaded)</string>
+    <!-- An attachment that is on the phone, encrypted, and cannot be opened because the phone will not release its key -->
+    <string name="signal_attachment_locked">Attachment (locked)</string>
+    <string name="signal_attachments_locked">This attachment is locked. It is stored encrypted, and the phone would not release the key that opens it. Nothing has been deleted. Restarting the phone may help.</string>
     <string name="signal_view_once_received">View-once photo. Viewed.</string>
     <string name="signal_view_once_open">View-once photo. Tap to view.</string>
     <string name="signal_view_once_downloading">View-once photo, still arriving.</string>
@@ -1502,6 +1505,9 @@
         <item quantity="one">%1$d old message file that could not be opened is kept on this phone, %2$s</item>
         <item quantity="other">%1$d old message files that could not be opened are kept on this phone, %2$s</item>
     </plurals>
+    <!-- Settings row, shown only while Signal attachments cannot be opened because the phone will not release their key -->
+    <string name="settings_attachments_locked_title">Signal attachments are locked</string>
+    <string name="settings_attachments_locked_summary">They are stored encrypted, and the phone would not release the key that opens them. Nothing has been deleted, and messages still work. Restarting the phone may help.</string>
     <string name="settings_set_aside_armed">Remove for good — tap again</string>
     <string name="settings_set_aside_armed_summary">These files cannot be read without their key, and removing them cannot be undone. Your current messages are not touched.</string>
 </resources>

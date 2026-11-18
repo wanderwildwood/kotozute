@@ -29,6 +29,7 @@ Measured against the stock app rather than guessed at:
 - Sender names always bold; message previews bold only when unread
 - Lato is bundled statically. Upstream loaded it through Google Play Services' downloadable-fonts provider, which silently does nothing on a degoogled phone, so the font never rendered on a Kompakt
 - Black and white only. E-ink dithers color to muddy gray, so the accent-color system always resolves to black
+- Dark mode is a switch in Settings, and the app also follows the phone's own dark setting. Pictures keep their colors
 - Consistent icon weights, and chevrons on navigable settings rows
 
 ## Desktop Sync
@@ -190,9 +191,9 @@ conversations have a phone at the top to call out; groups do not, because group 
 supported.
 
 Every call goes through Signal's relay servers rather than straight between the two phones, so
-nobody on a call learns this phone's IP address. Headsets and Bluetooth are not handled yet, and
-another of your devices is not yet told when a call was answered here. RingRTC adds about 13 MB to
-the download.
+nobody on a call learns this phone's IP address. The call screen's **Audio** button moves the
+sound between the earpiece, the speaker, a wired headset and a Bluetooth one. Another of your
+devices is not yet told when a call was answered here. RingRTC adds about 13 MB to the download.
 
 ## Sending where you are
 

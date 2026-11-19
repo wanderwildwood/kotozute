@@ -221,12 +221,25 @@
     <string name="backup_location_gone_message">The backup folder can no longer be found or opened. It may have been deleted or moved, or the memory card taken out. Choose the folder again to back up.</string>
     <string name="backup_details">%1$s\n%2$d messages</string>
     <string name="backup_selected_backup_error_title">Error</string>
-    <string name="backup_selected_backup_error_message">Couldn\'t read backup file</string>
+    <string name="backup_selected_backup_error_message">Couldn\'t read this backup. If it was made on another phone, enter that phone\'s backup code first (Backup code, above).</string>
+    <string name="backup_code_title">Backup code</string>
+    <string name="backup_code_summary_none">Not set up. Backups need one.</string>
+    <string name="backup_code_summary_set">Backups are encrypted with it</string>
+    <string name="backup_code_make">Make a backup code</string>
+    <string name="backup_code_make_message">Backups are encrypted with a 30-digit code. You will see it once now: write it down and keep it somewhere safe. Without it, no backup can be restored on another phone.</string>
+    <string name="backup_code_show">Show the code</string>
+    <string name="backup_code_show_message">%s\n\nWrite this down. It opens every backup made on this phone.</string>
+    <string name="backup_code_written_down">I wrote it down</string>
+    <string name="backup_code_enter">Enter a code from another phone</string>
+    <string name="backup_code_enter_message">To restore backups made on another phone, type that phone\'s 30 digits. This phone then uses that code for its own backups; backups already made here still need the old one.</string>
+    <string name="backup_code_enter_hint">30 digits</string>
+    <string name="backup_code_keep">Use this code</string>
+    <string name="backup_code_not_whole">That is not 30 digits.</string>
     <string name="backup_selected_backup_details_title">Backup details</string>
     <string name="backup_restore_dialog_title">Backups</string>
     <string name="backup_restore_dialog_summary" translatable="false">/Messaging/Backups</string>
     <string name="backup_restore_dialog_empty">No backups found</string>
-    <string name="backup_leaves_out">A backup holds your SMS text messages and nothing else. It leaves out picture and group messages (MMS), this app\'s settings, blocked numbers and scheduled messages, and everything in Signal: Signal history has its own copy under Settings, and a Signal account has to be linked again on a new phone. Restoring skips any message already on this phone, so nothing is doubled. Automatic backups, when turned on, go to the same folder and delete only the oldest files this app named backup-, beyond the number you keep.</string>
+    <string name="backup_leaves_out">A backup holds your SMS text messages and nothing else. It leaves out picture and group messages (MMS), this app\'s settings, blocked numbers and scheduled messages, and everything in Signal: Signal history has its own copy under Settings, and a Signal account has to be linked again on a new phone. Restoring skips any message already on this phone, so nothing is doubled. Automatic backups, when turned on, go to the same folder and delete only the oldest files this app named backup-, beyond the number you keep. Each backup is encrypted with your backup code.</string>
     <string name="backup_auto_title">Automatic backups</string>
     <string name="backup_keep_title">Keep</string>
     <plurals name="backup_keep_summary">

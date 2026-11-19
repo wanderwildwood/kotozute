@@ -106,6 +106,13 @@
                 app:summary="@string/backup_location_summary" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/backupCode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/backup_code_title"
+                tools:summary="Set up" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/frequency"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

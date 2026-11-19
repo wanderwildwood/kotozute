@@ -154,17 +154,30 @@ class BackupRepositoryImpl @Inject constructor(
         val adapter = moshi.adapter(Backup::class.java).indent("\t")
         val json = adapter.toJson(Backup(messageCount, backupMessages)).toByteArray()
 
+        // Encrypted under the backup code (BackupCode). No code, no backup: a plain copy of
+        // every text in a folder other apps can read is what this replaced.
+        val sealed = try {
+            com.wanderwildwood.kotozute.backup.BackupCode.encrypt(context, json)
+        } catch (e: Exception) {
+            Timber.w(e, "backup: not encrypted, so not written")
+            backupProgress.onNext(BackupRepository.Progress.Failed(restore = false))
+            Timer().schedule(FAILED_SHOWN_MS) { backupProgress.onNext(BackupRepository.Progress.Idle()) }
+            return null
+        } finally {
+            java.util.Arrays.fill(json, 0)
+        }
+
         var created: DocumentFile? = null
         try {
             val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(now())
             created = getBackupDocumentTree()
-                    ?.createFile("application/json", "backup-$timestamp.json")
+                    ?.createFile("application/octet-stream", "backup-$timestamp.kzb")
             val inputStream = created
                     ?.let { file -> context.contentResolver.openOutputStream(file.uri) }
                     ?: throw Exception("Failed to open output stream")
 
             inputStream.use { stream ->
-                stream.write(json)
+                stream.write(sealed)
             }
         } catch (e: Exception) {
             Timber.w(e)
@@ -223,10 +236,11 @@ class BackupRepositoryImpl @Inject constructor(
         val file = DocumentFile.fromSingleUri(context, uri)
                 ?: throw IllegalArgumentException("Couldn't open backup file")
 
-        val metadata = context.contentResolver.openInputStream(file.uri)
-                ?.source()
-                ?.buffer()
-                ?.use(adapter::fromJson)
+        val bytes = context.contentResolver.openInputStream(file.uri)?.use { it.readBytes() }
+                ?: throw IllegalArgumentException("Couldn't open backup file")
+        // Throws BackupCode.Needed or BackupCrypto.WrongCode for an encrypted file this
+        // phone's code does not open; the screen says to enter the other phone's code.
+        val metadata = adapter.fromJson(String(com.wanderwildwood.kotozute.backup.BackupCode.open(context, bytes), Charsets.UTF_8))
                 ?: throw IllegalArgumentException("Couldn't parse backup file")
 
         return BackupFile(file.lastModified(), metadata.messageCount)
@@ -244,9 +258,9 @@ class BackupRepositoryImpl @Inject constructor(
         val backup = try {
             DocumentFile.fromSingleUri(context, uri)
                     ?.let { file -> context.contentResolver.openInputStream(file.uri) }
-                    ?.source()
-                    ?.buffer()
-                    ?.use(adapter::fromJson)
+                    ?.use { it.readBytes() }
+                    ?.let { com.wanderwildwood.kotozute.backup.BackupCode.open(context, it) }
+                    ?.let { adapter.fromJson(String(it, Charsets.UTF_8)) }
         } catch (e: Exception) {
             Timber.w(e)
             null

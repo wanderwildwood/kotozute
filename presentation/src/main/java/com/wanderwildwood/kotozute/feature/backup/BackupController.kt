@@ -154,6 +154,8 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
 
         binding.frequency.setOnClickListener { frequencyDialog.show(activity!!) }
         binding.keep.setOnClickListener { keepDialog.show(activity!!) }
+        binding.backupCode.setOnClickListener { codeOptions() }
+        showCodeSummary()
 
         // Make the list titles bold
         binding.linearLayout.children
@@ -243,7 +245,104 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
 
     override fun stopRestoreCancel(): Observable<*> = stopRestoreCancelSubject
 
+    // No code yet: set one up first (and show it), then the next tap backs up.
     override fun backupClicks(): Observable<*> = binding.fab.clicks()
+            .filter {
+                val ok = runCatching { com.wanderwildwood.kotozute.backup.BackupCode.exists(activity!!) }.getOrDefault(false)
+                if (!ok) offerNewCode()
+                ok
+            }
+
+    // ---- backup code (BackupCode; Signal-style 30 digits) --------------------------------
+
+    private fun showCodeSummary() {
+        val has = com.wanderwildwood.kotozute.backup.BackupCode.exists(activity!!)
+        binding.backupCode.summary = activity!!.getString(
+            if (has) R.string.backup_code_summary_set else R.string.backup_code_summary_none
+        )
+    }
+
+    private fun secure(dialog: androidx.appcompat.app.AlertDialog) {
+        dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+    }
+
+    private fun codeOptions() {
+        val ctx = activity ?: return
+        if (!com.wanderwildwood.kotozute.backup.BackupCode.exists(ctx)) {
+            ctx.einkDialog()
+                .setTitle(R.string.backup_code_title)
+                .setItems(arrayOf(ctx.getString(R.string.backup_code_make), ctx.getString(R.string.backup_code_enter))) { _, i ->
+                    if (i == 0) offerNewCode() else enterCode()
+                }
+                .show()
+            return
+        }
+        ctx.einkDialog()
+            .setTitle(R.string.backup_code_title)
+            .setItems(arrayOf(ctx.getString(R.string.backup_code_show), ctx.getString(R.string.backup_code_enter))) { _, i ->
+                if (i == 0) showCode() else enterCode()
+            }
+            .show()
+    }
+
+    private fun offerNewCode() {
+        val ctx = activity ?: return
+        ctx.einkDialog()
+            .setTitle(R.string.backup_code_title)
+            .setMessage(R.string.backup_code_make_message)
+            .setNegativeButton(R.string.button_cancel, null)
+            .setPositiveButton(R.string.backup_code_make) { _, _ ->
+                runCatching { com.wanderwildwood.kotozute.backup.BackupCode.create(ctx) }
+                    .onSuccess { showCode(it) }
+                    .onFailure { timber.log.Timber.w(it, "backup: could not make a code") }
+                showCodeSummary()
+            }
+            .show()
+    }
+
+    private fun showCode(known: String? = null) {
+        val ctx = activity ?: return
+        val code = known ?: runCatching { com.wanderwildwood.kotozute.backup.BackupCode.get(ctx) }.getOrNull() ?: return
+        ctx.einkDialog()
+            .setTitle(R.string.backup_code_title)
+            .setMessage(ctx.getString(R.string.backup_code_show_message, com.wanderwildwood.kotozute.backup.BackupCrypto.grouped(code)))
+            .setPositiveButton(R.string.backup_code_written_down, null)
+            .show()
+            .also(::secure)
+    }
+
+    private fun enterCode() {
+        val ctx = activity ?: return
+        val field = android.widget.EditText(ctx).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            setHint(R.string.backup_code_enter_hint)
+            importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO
+        }
+        val box = android.widget.FrameLayout(ctx).apply {
+            val pad = (24 * ctx.resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(field)
+        }
+        ctx.einkDialog()
+            .setTitle(R.string.backup_code_enter)
+            .setMessage(R.string.backup_code_enter_message)
+            .setView(box)
+            .setNegativeButton(R.string.button_cancel, null)
+            .setPositiveButton(R.string.backup_code_keep) { _, _ ->
+                val code = com.wanderwildwood.kotozute.backup.BackupCrypto.normalize(field.text.toString())
+                field.setText("")
+                if (code == null) {
+                    ctx.einkDialog().setMessage(R.string.backup_code_not_whole)
+                        .setPositiveButton(android.R.string.ok, null).show()
+                } else {
+                    runCatching { com.wanderwildwood.kotozute.backup.BackupCode.set(ctx, code) }
+                        .onFailure { timber.log.Timber.w(it, "backup: could not keep the code") }
+                    showCodeSummary()
+                }
+            }
+            .show()
+            .also(::secure)
+    }
 
     override fun documentTreeSelected(): Observable<Uri> = documentTreeSelectedSubject
 

@@ -4,13 +4,13 @@ package com.wanderwildwood.kotozute.repository
  * Which old backups an automatic backup removes.
  *
  * Only a file this app wrote is ever a candidate: its name is `backup-` and fourteen digits and
- * `.json`, exactly what [BackupRepositoryImpl.performBackup] creates. Anything else in the
+ * `.json` (older, plain) or `.kzb` (encrypted, see BackupCrypto), exactly what [BackupRepositoryImpl.performBackup] creates. Anything else in the
  * folder, including a copy the file provider renamed to `backup-... (1).json`, is never named.
  */
 object BackupPruning {
 
     /** What [BackupRepositoryImpl.performBackup] names a backup file. */
-    val OWN_BACKUP_NAME = Regex("^backup-\\d{14}\\.json$")
+    val OWN_BACKUP_NAME = Regex("^backup-\\d{14}\\.(json|kzb)$")
 
     data class Entry(val name: String, val modifiedAt: Long)
 

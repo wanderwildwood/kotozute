@@ -85,6 +85,7 @@ object AppLock {
         "realm_encryption" to "sealed_key",
         "signal_protocol_store" to "sealed_key",
         "signal_attachment_secret" to "sealed_secret",
+        "backup_code" to com.wanderwildwood.kotozute.backup.BackupCode.PREF_SEALED,
     )
 
     @Volatile private var lockKey: ByteArray? = null

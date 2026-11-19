@@ -17,7 +17,7 @@ import javax.crypto.Mac
 import javax.crypto.SecretKey
 
 /**
- * The optional passphrase lock (Molly's "data encryption at rest", chosen by David
+ * The optional passphrase lock (Molly's "data encryption at rest", chosen
  * 2026-11-19 as a setting, OFF by default).
  *
  * ## What it locks

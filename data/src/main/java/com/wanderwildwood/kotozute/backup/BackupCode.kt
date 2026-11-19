@@ -16,7 +16,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * The backup code: 30 digits made once on this phone (David's choice, 2026-11-19: the
+ * The backup code: 30 digits made once on this phone (chosen 2026-11-19: the
  * Signal-style code), shown for writing down, and used for every backup after.
  *
  * Kept on the phone so automatic backups can run with nobody there: sealed by its own

@@ -84,6 +84,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     @Inject lateinit var signalNotifications: com.wanderwildwood.kotozute.feature.signal.SignalNotifications
     @Inject lateinit var messageRepo: com.wanderwildwood.kotozute.repository.MessageRepository
     @Inject lateinit var syncRepo: com.wanderwildwood.kotozute.repository.SyncRepository
+    @Inject lateinit var conversationRepo: com.wanderwildwood.kotozute.repository.ConversationRepository
     @Inject lateinit var updateScheduledMessageAlarms: com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
 
     /**
@@ -274,7 +275,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         runCatching { updateScheduledMessageAlarms.execute(Unit) }
             .onFailure { Timber.w(it, "lock: could not set scheduled-message alarms after unlock") }
         Thread {
-            runCatching { com.wanderwildwood.kotozute.lock.LockedArrivals.bringIn(this, syncRepo) }
+            runCatching { com.wanderwildwood.kotozute.lock.LockedArrivals.bringIn(this, syncRepo, conversationRepo) }
                 .onFailure { Timber.w(it, "lock: bringing in texts that arrived while locked") }
         }.also { it.isDaemon = true }.start()
     }

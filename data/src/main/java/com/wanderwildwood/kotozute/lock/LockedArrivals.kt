@@ -66,14 +66,28 @@ object LockedArrivals {
 
     /** At unlock: copy the waiting texts in from the provider, then clear the list and notice. */
     @Synchronized
-    fun bringIn(context: Context, syncRepo: SyncRepository) {
+    fun bringIn(
+        context: Context,
+        syncRepo: SyncRepository,
+        conversationRepo: com.wanderwildwood.kotozute.repository.ConversationRepository
+    ) {
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val uris = p.getStringSet(PREF_URIS, emptySet()).orEmpty()
         var done = 0
+        val threads = mutableSetOf<Long>()
         for (u in uris) {
             runCatching { syncRepo.syncMessage(Uri.parse(u)) }
-                .onSuccess { done++ }
+                .onSuccess { m -> done++; m?.threadId?.let(threads::add) }
                 .onFailure { Timber.w(it, "lock: could not bring in a text that arrived while locked") }
+        }
+        // As the receive workers do after a sync: the inbox row's preview and date, and a
+        // conversation for a sender who had none (found on the emulator, 2026-11-19: the text
+        // was in the conversation but the inbox still previewed the one before).
+        if (threads.isNotEmpty()) {
+            runCatching {
+                conversationRepo.updateConversations(threads)
+                threads.forEach { conversationRepo.getOrCreateConversation(it) }
+            }.onFailure { Timber.w(it, "lock: could not update conversations after bringing texts in") }
         }
         p.edit().remove(PREF_URIS).commit()
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)

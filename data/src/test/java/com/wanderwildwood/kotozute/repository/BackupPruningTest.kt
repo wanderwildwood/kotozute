@@ -75,4 +75,12 @@ class BackupPruningTest {
         assertTrue(BackupPruning.toDelete(listOf(a, b), keep = 0, justWritten = b.name).isEmpty())
         assertTrue(BackupPruning.toDelete(listOf(a, b), keep = -1, justWritten = b.name).isEmpty())
     }
+
+    @Test
+    fun `encrypted bin backups count with the plain ones, other bins do not`() {
+        val enc = e("backup-20261105030000.bin", 500)
+        val other = e("photos-20261105030000.bin", 1)
+        val gone = BackupPruning.toDelete(listOf(a, b, enc, other), keep = 2, justWritten = enc.name)
+        assertEquals(listOf(a.name), gone)
+    }
 }

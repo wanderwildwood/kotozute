@@ -171,7 +171,10 @@ class BackupRepositoryImpl @Inject constructor(
         try {
             val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(now())
             created = getBackupDocumentTree()
-                    ?.createFile("application/octet-stream", "backup-$timestamp.kzb")
+                    // `.bin`, not a name of our own: file pickers decide a file's type from its
+                    // extension, and one they do not know (".kzb" was tried, 2026-11-19) is
+                    // hidden from the Restore picker even though it asks for binary files.
+                    ?.createFile("application/octet-stream", "backup-$timestamp.bin")
             val inputStream = created
                     ?.let { file -> context.contentResolver.openOutputStream(file.uri) }
                     ?: throw Exception("Failed to open output stream")

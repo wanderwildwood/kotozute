@@ -57,6 +57,7 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
 
     @Inject lateinit var frequencyDialog: QkDialog
     @Inject lateinit var keepDialog: QkDialog
+    @Inject lateinit var prefs: com.wanderwildwood.kotozute.util.Preferences
 
     private val selectFolderCancelSubject: Subject<Unit> = PublishSubject.create()
     private val selectFolderConfirmSubject: Subject<Unit> = PublishSubject.create()
@@ -165,6 +166,11 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
     }
 
     override fun render(state: BackupState) {
+        // The chosen folder's name, not "Set folder" for ever after one was set.
+        binding.location.summary = runCatching {
+            prefs.backupDirectory.get().takeIf { it != android.net.Uri.EMPTY }
+                ?.let { androidx.documentfile.provider.DocumentFile.fromTreeUri(activity!!, it)?.name }
+        }.getOrNull() ?: activity!!.getString(R.string.backup_location_summary)
         val frequencyLabels = activity!!.resources.getStringArray(R.array.backup_frequency_labels)
         binding.frequency.summary = frequencyLabels.getOrElse(state.frequency) { frequencyLabels[0] }
         frequencyDialog.adapter.selectedItem = state.frequency

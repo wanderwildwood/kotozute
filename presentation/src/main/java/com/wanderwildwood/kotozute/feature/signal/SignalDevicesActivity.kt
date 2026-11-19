@@ -40,6 +40,9 @@ class SignalDevicesActivity : QkThemedActivity() {
     private lateinit var status: TextView
     private lateinit var add: Button
     private var busy: Job? = null
+    // A scanned code waiting on the confirmation. Kept across a rebuild of the screen (a turn,
+    // a change of theme), so the question comes back instead of vanishing with the old screen.
+    private var pendingCode: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -65,6 +68,12 @@ class SignalDevicesActivity : QkThemedActivity() {
             orientation = LinearLayout.VERTICAL
             column.addView(this)
         }
+        savedInstanceState?.getString(KEY_PENDING_CODE)?.let { confirmLink(it) }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingCode?.let { outState.putString(KEY_PENDING_CODE, it) }
     }
 
     override fun onResume() {
@@ -113,11 +122,16 @@ class SignalDevicesActivity : QkThemedActivity() {
      * that to them. Signal asks the same after every scan.
      */
     private fun confirmLink(text: String) {
+        pendingCode = text
         einkDialog()
             .setTitle(R.string.signal_devices_link_title)
             .setMessage(R.string.signal_devices_link_body)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.signal_devices_link) { _, _ -> link(text) }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> pendingCode = null }
+            .setOnCancelListener { pendingCode = null }
+            .setPositiveButton(R.string.signal_devices_link) { _, _ ->
+                pendingCode = null
+                link(text)
+            }
             .show()
     }
 
@@ -183,6 +197,8 @@ class SignalDevicesActivity : QkThemedActivity() {
     }
 
     companion object {
+        private const val KEY_PENDING_CODE = "pending_link_code"
+
         fun intent(context: Context) = Intent(context, SignalDevicesActivity::class.java)
     }
 }

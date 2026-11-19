@@ -169,6 +169,13 @@
             android:turnScreenOn="true" />
         <activity android:name=".feature.signal.SignalRegisterActivity" />
         <activity android:name=".feature.signal.SignalDevicesActivity" />
+        <!-- The QR scanner's own manifest turns it to landscape. Coming back from it turned the
+             Linked devices screen around too, which rebuilt it and took the link confirmation
+             with it. Upright like the rest of the app. -->
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="portrait"
+            tools:replace="android:screenOrientation" />
         <activity android:name=".feature.signal.SignalThreadActivity" />
         <activity android:name=".feature.signal.SignalThreadInfoActivity" />
         <activity android:name=".feature.signal.ViewOnceActivity" android:theme="@style/AppLaunchTheme" />

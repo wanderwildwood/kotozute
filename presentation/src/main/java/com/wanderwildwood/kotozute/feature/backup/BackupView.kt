@@ -28,6 +28,9 @@ interface BackupView : QkViewContract<BackupState> {
 
     fun backupClicks(): Observable<*>
 
+    fun frequencySelected(): Observable<Int>
+    fun keepSelected(): Observable<Int>
+
     fun locationRationaleConfirmClicks(): Observable<*>
     fun locationRationaleCancelClicks(): Observable<*>
 

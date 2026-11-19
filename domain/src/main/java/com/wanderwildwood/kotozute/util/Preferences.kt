@@ -104,6 +104,10 @@ class Preferences @Inject constructor(
      */
     val askDefaultSms = rxPrefs.getBoolean("askDefaultSms", true)
     val backupDirectory = rxPrefs.getObject("backupDirectory", Uri.EMPTY, UriPreferenceConverter())
+    /** Automatic backups: 0 off, 1 daily, 2 weekly. */
+    val backupFrequency = rxPrefs.getInteger("backupFrequency", 0)
+    /** How many backups an automatic one leaves in the folder. */
+    val backupKeep = rxPrefs.getInteger("backupKeep", 3)
     @Deprecated("This should only be accessed when migrating to @blockingManager")
     val sia = rxPrefs.getBoolean("sia", false)
 

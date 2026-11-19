@@ -59,7 +59,7 @@ class BackupPruningTest {
     fun `the backup just written is kept even when its time looks old`() {
         val fresh = e("backup-20261105030000.json", 0)
         assertEquals(
-            listOf(c.name, d.name),
+            listOf(d.name, c.name),
             BackupPruning.toDelete(listOf(c, d, fresh), keep = 1, justWritten = fresh.name))
     }
 

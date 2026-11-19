@@ -42,6 +42,9 @@ interface NotificationManager {
      */
     fun notifyScheduledWaitingInThread(scheduledId: Long, threadKey: String)
 
+    /** An automatic backup could not be written. Says so once; the next one tries again as scheduled. */
+    fun notifyBackupFailed()
+
     fun createNotificationChannel(threadId: Long = 0L)
 
     fun buildNotificationChannelId(threadId: Long): String

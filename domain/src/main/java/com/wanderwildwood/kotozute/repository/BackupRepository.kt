@@ -44,7 +44,16 @@ interface BackupRepository {
 
     fun persistBackupDirectory(directory: Uri)
 
-    fun performBackup()
+    /** Writes a backup and returns the name of the file, or null if none was written. */
+    fun performBackup(): String?
+
+    fun isBackupRunning(): Boolean
+
+    /**
+     * Deletes this app's own older backups from the backup folder, keeping the newest [keep]
+     * and [justWritten]. Nothing else in the folder is touched.
+     */
+    fun pruneBackups(keep: Int, justWritten: String)
 
     fun getBackupProgress(): Observable<Progress>
 

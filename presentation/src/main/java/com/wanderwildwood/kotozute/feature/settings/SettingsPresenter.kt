@@ -91,18 +91,28 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.askDefaultSms.asObservable()
                 .subscribe { on -> newState { copy(askDefaultSms = on) } }
 
+        // Only what this screen shows, and only when it changes: the connection state ticks
+        // many times a second while a backlog arrives, and each tick was a full re-render.
         disposables += signalRepo.connectionState()
-                .subscribe { conn ->
+                .map { conn ->
+                    listOf(
+                        conn.configured, conn.enabled, conn.linkedDirectly,
+                        // Recomputed with every connection change rather than read once:
+                        // this phone becomes a primary the moment registration finishes,
+                        // and that arrives as a connection state change.
+                        signalRepo.isPrimaryDevice(),
+                        signalStatusSummary(conn)
+                    )
+                }
+                .distinctUntilChanged()
+                .subscribe { v ->
                     newState {
                         copy(
-                            signalPaired = conn.configured,
-                            signalEnabled = conn.enabled,
-                            signalLinkedDirectly = conn.linkedDirectly,
-                            // Recomputed with every connection change rather than read once:
-                            // this phone becomes a primary the moment registration finishes,
-                            // and that arrives as a connection state change.
-                            signalIsPrimary = signalRepo.isPrimaryDevice(),
-                            signalStatusSummary = signalStatusSummary(conn)
+                            signalPaired = v[0] as Boolean,
+                            signalEnabled = v[1] as Boolean,
+                            signalLinkedDirectly = v[2] as Boolean,
+                            signalIsPrimary = v[3] as Boolean,
+                            signalStatusSummary = v[4] as String
                         )
                     }
                 }

@@ -78,7 +78,21 @@ private const val PICK_BACKUP_FOLDER = 4804
 
 class SettingsController : QkController<SettingsView, SettingsState, SettingsPresenter>(), SettingsView {
 
-    private val binding get() = SettingsControllerBinding.bind(containerView!!)
+    // ⚠ Bound once per view, not on every read. This was `get() = bind(containerView!!)`, and
+    // render() reads `binding` over a hundred times, so each render walked the whole settings
+    // tree a hundred times. A burst of Signal connection changes (right after the passphrase
+    // lock opens, when the queued messages arrive) froze the screen into an ANR (2026-11-19).
+    private var boundView: android.view.View? = null
+    private var bound: SettingsControllerBinding? = null
+    private val binding: SettingsControllerBinding
+        get() {
+            val view = containerView!!
+            if (bound == null || boundView !== view) {
+                bound = SettingsControllerBinding.bind(view)
+                boundView = view
+            }
+            return bound!!
+        }
 
     @Inject lateinit var context: Context
     @Inject lateinit var colors: Colors

@@ -2454,7 +2454,7 @@ class SignalStore(private val context: Context) {
             is org.signal.libsignal.net.RequestResult.NonSuccess -> return UsernameOutcome.Taken
             else -> return UsernameOutcome.Failed("$reserved")
         }
-        val username = candidates.firstOrNull { it.hash.contentEquals(hash) }
+        val username = candidates.firstOrNull { it.hash == hash }
             ?: return UsernameOutcome.Failed("the service reserved a name that was not asked for")
         val link = runCatching { username.generateLink() }.getOrElse { return UsernameOutcome.Failed("${it.message}") }
         val confirmed = connection.account.confirmUsername(username, link)

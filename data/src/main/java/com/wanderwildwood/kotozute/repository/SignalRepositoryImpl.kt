@@ -2944,6 +2944,18 @@ class SignalRepositoryImpl @Inject constructor(
             return false
         }
 
+        // ⚠ A view-once message is never edited, and an edit never decides what is view-once
+        // (upstream 3cf0efa904, "Ignore the view-once flag on incoming message edits"). An edit
+        // brings its own flag and its own attachments: taken as they came, an edit of a spent
+        // view-once picture could bring it back as an ordinary one that stays, and an edit of
+        // an ordinary message could make it view-once. Upstream refuses an edit whose target is
+        // view-once and keeps the target's own flag for any other edit; so does this.
+        val isEdit = existing != null && m.revisionTs > 0L
+        if (isEdit && existing!!.viewOnce) {
+            Timber.w("signal: an edit of a view-once message; ignored")
+            return false
+        }
+
         val row = existing ?: realm.createObject(SignalMessage::class.java, m.id)
         // An edit keeps what it replaces, as upstream keeps every revision.
         if (existing != null && m.revisionTs > existing.revisionTs && existing.body != m.body) {
@@ -2968,7 +2980,7 @@ class SignalRepositoryImpl @Inject constructor(
         if (m.pollJson.isNotEmpty() && row.poll.isEmpty()) row.poll = m.pollJson
         row.expiresAt = if (countdownStarted > 0L) countdownStarted else m.expiresAt
         row.expiresInSeconds = m.expiresInSeconds
-        row.viewOnce = m.viewOnce
+        row.viewOnce = if (isEdit) existing!!.viewOnce else m.viewOnce
         row.update = m.update
         // Only ever forward: an edit records itself, and anything else leaves it alone.
         if (m.revisionTs > row.revisionTs) row.revisionTs = m.revisionTs

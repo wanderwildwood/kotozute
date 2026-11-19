@@ -63,19 +63,36 @@ class SignalRepositoryImpl @Inject constructor(
      * Lazy, and it must stay lazy: constructing it opens the keystore and the encrypted
      * database, and this repository is built during startup on the main thread.
      */
-    private val signalStore by lazy { com.wanderwildwood.kotozute.signalstore.SignalStore(context) }
+    private val signalStoreLazy = lazy { com.wanderwildwood.kotozute.signalstore.SignalStore(context) }
+    private val signalStore by signalStoreLazy
 
     /**
      * Signal voice calls. Lazy for the same reason as [signalStore], and because RingRTC itself
      * only loads when a call first arrives.
      */
-    private val callEngine by lazy {
+    private val callEngineLazy = lazy {
         com.wanderwildwood.kotozute.signalstore.SignalCallEngine(context, signalStore) { peer, callId, at, video, outcome ->
             noteCall(peer, callId, at, video, outcome)
         }
     }
+    private val callEngine by callEngineLazy
 
     override fun calls(): SignalCallControl = callEngine
+
+    override fun proxyChanged() = runOffThread {
+        val setting = com.wanderwildwood.kotozute.signalstore.SocksSetting(
+            prefs.signalProxyEnabled.get(), prefs.signalProxyHost.get(), prefs.signalProxyPort.get()
+        )
+        // First, so every connection made from here on -- including the ones the restart
+        // below causes -- reads the new route.
+        com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.setSocks(setting)
+        Timber.i("signal proxy: %s", if (setting.enabled) "on" else "off")
+        // A call cannot go through the proxy (see SignalCallEngine), and one already
+        // connected is talking directly: ended rather than left to carry on outside it.
+        if (setting.enabled && callEngineLazy.isInitialized()) callEngine.hangUp()
+        // Nothing to restart in a store never opened: it reads the route when it first connects.
+        if (signalStoreLazy.isInitialized()) signalStore.applyProxy()
+    }
 
     /**
      * "Note to Self", read from resources so it follows the phone's language.

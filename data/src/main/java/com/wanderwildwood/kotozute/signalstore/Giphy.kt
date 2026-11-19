@@ -104,11 +104,18 @@ object Giphy {
         val sslContext = SSLContext.getInstance("TLS").apply {
             init(null, arrayOf<TrustManager>(trustManager), null)
         }
-        OkHttpClient.Builder()
+        val builder = OkHttpClient.Builder()
             .sslSocketFactory(Tls12SocketFactory(sslContext.socketFactory), trustManager)
             .proxySelector(ContentProxySelector)
             .addNetworkInterceptor(SafetyInterceptor)
-            .build()
+        // With the SOCKS proxy on, straight through it to GIPHY instead of through Signal's
+        // content proxy: the content proxy is there to keep this phone's address from GIPHY,
+        // which the SOCKS proxy does too, and OkHttp cannot chain one proxy behind another.
+        // The safety interceptor still holds every request and redirect to giphy.com.
+        org.signal.network.config.SocksRouting.apply(
+            builder, { SignalNetworkConfig.currentSocksProxy() }, ContentProxySelector
+        )
+        builder.build()
     }
 
     /** Trending when [query] is blank, as upstream's keyboard opens; otherwise a search. */

@@ -133,6 +133,12 @@ interface SettingsView : QkViewContract<SettingsState> {
     /** Null on success, or a reason to show. */
     fun showSignalProfileNameResult(failure: String?)
 
+    /** Ask for the SOCKS proxy's host and port, starting from what is stored. */
+    fun askSignalProxyAddress(host: String, port: Int)
+
+    /** A host and port somebody entered, already checked. */
+    fun signalProxyAddressEntered(): Observable<Pair<String, Int>>
+
     fun askSignalUnpair()
     fun showSection(container: Int, title: Int)
     fun showSwipeActions()

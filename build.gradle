@@ -23,12 +23,12 @@ buildscript {
     //              through the old prebuilt fork, and jackson-databind is the deserialiser a
     //              Signal envelope goes through. Taking upstream's number would be a downgrade.
     //   libsignal  upstream's pin (`libsignal-client` in Signal-Android's libs.versions.toml,
-    //              0.107.0 at 90a6ddce46, 2026-11-15). One number for `libsignal-client` in
+    //              0.108.0 at aa38b25dae, 2026-11-18). One number for `libsignal-client` in
     //              the service modules and `libsignal-android` in :data, because the Java API
     //              and the native library ship together. Do not move it past upstream's pin:
     //              the service source beside it is only known to work up to there.
     ext.jackson_version = '2.22.4'
-    ext.libsignal_version = '0.107.0'
+    ext.libsignal_version = '0.108.0'
     // RingRTC, Signal's calling library: upstream's pin too (`signal-ringrtc` in the same file).
     ext.ringrtc_version = '2.74.0'
     ext.lifecycle_version = '2.1.0'

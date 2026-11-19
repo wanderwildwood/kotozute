@@ -28,6 +28,7 @@ import com.wanderwildwood.kotozute.interactor.UpdateBadge
 import com.wanderwildwood.kotozute.manager.ActiveConversationManager
 import com.wanderwildwood.kotozute.manager.NotificationManager
 import com.wanderwildwood.kotozute.manager.ShortcutManager
+import com.wanderwildwood.kotozute.repository.BackupRepository
 import com.wanderwildwood.kotozute.repository.ContactRepository
 import com.wanderwildwood.kotozute.repository.ConversationRepository
 import com.wanderwildwood.kotozute.repository.MessageContentFilterRepository
@@ -52,6 +53,7 @@ class InjectionWorkerFactory @Inject constructor(
     private val filterRepo: MessageContentFilterRepository,
     private val contactRepo: ContactRepository,
     private val signalRepo: SignalRepository,
+    private val backupRepo: BackupRepository,
 
 ) : WorkerFactory() {
     override fun createWorker(
@@ -68,6 +70,11 @@ class InjectionWorkerFactory @Inject constructor(
         when (instance) {
             is HousekeepingWorker ->
                 instance.scheduledMessageRepository = scheduledMessageRepository
+            is BackupWorker -> {
+                instance.backupRepo = backupRepo
+                instance.prefs = prefs
+                instance.notificationManager = notificationManager
+            }
             is SignalSyncWorker -> {
                 instance.signalRepo = signalRepo
                 instance.prefs = prefs

@@ -104,6 +104,7 @@ class NotificationManagerImpl @Inject constructor(
         const val DEFAULT_CHANNEL_ID = "notifications_default"
         private const val SCHEDULED_NOT_SENT_TAG = "scheduled_not_sent"
         private const val SCHEDULED_NOT_SENT_ID = 300001
+        private const val BACKUP_FAILED_ID = 300002
         const val RECEIVING_WORKER_CHANNEL_ID = "notifications_receiving_worker"
         // Bumped to turn its badge off — see DesktopSyncService.CHANNEL_ID for why an
         // id change is the only way to alter an already-created channel. A backup in
@@ -522,6 +523,27 @@ class NotificationManagerImpl @Inject constructor(
             .setContentIntent(openPI)
         // One notice per scheduled row, so a second failure replaces the first.
         tryOrNull { notificationManager.notify(SCHEDULED_NOT_SENT_TAG, scheduledId.toInt(), notification.build()) }
+    }
+
+    override fun notifyBackupFailed() {
+        val open = Intent(context, com.wanderwildwood.kotozute.feature.backup.BackupActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val openPI = PendingIntent.getActivity(
+            context, BACKUP_FAILED_ID, open,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val text = context.getString(R.string.notification_backup_failed_text)
+        val notification = NotificationCompat.Builder(context, DEFAULT_CHANNEL_ID)
+            .setContentTitle(context.getString(R.string.notification_backup_failed_title))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setSmallIcon(R.drawable.ic_notification_failed)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .setAutoCancel(true)
+            .setContentIntent(openPI)
+        // One notice, replaced by the next failure.
+        tryOrNull { notificationManager.notify(BACKUP_FAILED_ID, notification.build()) }
     }
 
     override fun notifyScheduledWaitingInThread(scheduledId: Long, threadKey: String) {

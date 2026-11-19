@@ -56,6 +56,14 @@ class BackupPresenter @Inject constructor(
                 .subscribe { progress -> newState { copy(restoreProgress = progress) } }
     }
 
+    init {
+        disposables += prefs.backupFrequency.asObservable()
+                .subscribe { frequency -> newState { copy(frequency = frequency) } }
+
+        disposables += prefs.backupKeep.asObservable()
+                .subscribe { keep -> newState { copy(keep = keep) } }
+    }
+
     override fun bindIntents(view: BackupView) {
         super.bindIntents(view)
 
@@ -92,6 +100,14 @@ class BackupPresenter @Inject constructor(
                         else -> performBackup.execute(Unit)
                     }
                 }
+
+        view.frequencySelected()
+                .autoDisposable(view.scope())
+                .subscribe(prefs.backupFrequency::set)
+
+        view.keepSelected()
+                .autoDisposable(view.scope())
+                .subscribe(prefs.backupKeep::set)
 
         view.locationRationaleConfirmClicks()
                 .doOnNext { newState { copy(showLocationRationale = false) } }

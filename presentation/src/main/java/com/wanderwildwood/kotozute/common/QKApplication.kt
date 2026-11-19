@@ -50,6 +50,7 @@ import com.wanderwildwood.kotozute.migration.QkMigration
 import com.wanderwildwood.kotozute.BuildConfig
 import com.wanderwildwood.kotozute.migration.QkRealmMigration
 import com.wanderwildwood.kotozute.util.NightModeManager
+import com.wanderwildwood.kotozute.worker.BackupWorker
 import com.wanderwildwood.kotozute.worker.HousekeepingWorker
 import io.realm.Realm
 import io.realm.RealmConfiguration
@@ -548,6 +549,11 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
         // register, or re-register, housekeeping work manager
         HousekeepingWorker.register(applicationContext)
+        // Automatic backups follow their setting: scheduled, rescheduled or cancelled whenever
+        // it changes, and put back each time the app starts.
+        prefs.backupFrequency.asObservable()
+            .distinctUntilChanged()
+            .subscribe { frequency -> BackupWorker.sync(applicationContext, frequency) }
         // Earlier builds checked for updates by themselves. This one never does, so clear the
         // job and the notification channel those builds left behind.
         WorkManager.getInstance(applicationContext).cancelUniqueWork("UpdateCheckWorker")

@@ -226,7 +226,15 @@
     <string name="backup_restore_dialog_title">Backups</string>
     <string name="backup_restore_dialog_summary" translatable="false">/Messaging/Backups</string>
     <string name="backup_restore_dialog_empty">No backups found</string>
-    <string name="backup_leaves_out">A backup holds your SMS text messages and nothing else. It leaves out picture and group messages (MMS), this app\'s settings, blocked numbers and scheduled messages, and everything in Signal: Signal history has its own copy under Settings, and a Signal account has to be linked again on a new phone. Restoring skips any message already on this phone, so nothing is doubled. There is no scheduled backup: you take one when you want one.</string>
+    <string name="backup_leaves_out">A backup holds your SMS text messages and nothing else. It leaves out picture and group messages (MMS), this app\'s settings, blocked numbers and scheduled messages, and everything in Signal: Signal history has its own copy under Settings, and a Signal account has to be linked again on a new phone. Restoring skips any message already on this phone, so nothing is doubled. Automatic backups, when turned on, go to the same folder and delete only the oldest files this app named backup-, beyond the number you keep.</string>
+    <string name="backup_auto_title">Automatic backups</string>
+    <string name="backup_keep_title">Keep</string>
+    <plurals name="backup_keep_summary">
+        <item quantity="one">%d backup</item>
+        <item quantity="other">%d backups</item>
+    </plurals>
+    <string name="notification_backup_failed_title">Automatic backup failed</string>
+    <string name="notification_backup_failed_text">Your messages were not backed up. Check that the backup folder is still there, then try Backup now. The next automatic backup will try again.</string>
     <string name="backup_now">Backup now</string>
     <string name="backup_progress_parsing">Parsing backup…</string>
     <string name="backup_progress_running">%1$d/%2$d messages</string>
@@ -1221,6 +1229,28 @@
         <item>One group chat</item>
         <item>Separate chats</item>
     </string-array>
+
+    <string-array name="backup_frequency_labels">
+        <item>Off</item>
+        <item>Daily</item>
+        <item>Weekly</item>
+    </string-array>
+
+    <string-array name="backup_keep_labels">
+        <item>1 backup</item>
+        <item>2 backups</item>
+        <item>3 backups</item>
+        <item>5 backups</item>
+        <item>10 backups</item>
+    </string-array>
+
+    <integer-array name="backup_keep_ids">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </integer-array>
 
     <string-array name="delayed_sending_labels">
         <item>No delay</item>

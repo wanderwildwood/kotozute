@@ -29,6 +29,7 @@ import androidx.core.view.children
 import androidx.core.view.isVisible
 import com.jakewharton.rxbinding2.view.clicks
 import com.wanderwildwood.kotozute.R
+import com.wanderwildwood.kotozute.common.QkDialog
 import com.wanderwildwood.kotozute.common.base.QkController
 import com.wanderwildwood.kotozute.common.util.FilesOpenTree
 import com.wanderwildwood.kotozute.common.util.QkActivityResultContracts
@@ -53,6 +54,9 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
     private val binding get() = BackupControllerBinding.bind(containerView!!)
 
     @Inject override lateinit var presenter: BackupPresenter
+
+    @Inject lateinit var frequencyDialog: QkDialog
+    @Inject lateinit var keepDialog: QkDialog
 
     private val selectFolderCancelSubject: Subject<Unit> = PublishSubject.create()
     private val selectFolderConfirmSubject: Subject<Unit> = PublishSubject.create()
@@ -143,6 +147,14 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
             binding.fabLabel.setTextColor(theme.textPrimary)
         }
 
+        frequencyDialog.adapter.setData(R.array.backup_frequency_labels)
+        frequencyDialog.setTitle(R.string.backup_auto_title)
+        keepDialog.adapter.setData(R.array.backup_keep_labels, R.array.backup_keep_ids)
+        keepDialog.setTitle(R.string.backup_keep_title)
+
+        binding.frequency.setOnClickListener { frequencyDialog.show(activity!!) }
+        binding.keep.setOnClickListener { keepDialog.show(activity!!) }
+
         // Make the list titles bold
         binding.linearLayout.children
                 .mapNotNull { it as? PreferenceView }
@@ -151,6 +163,14 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
     }
 
     override fun render(state: BackupState) {
+        val frequencyLabels = activity!!.resources.getStringArray(R.array.backup_frequency_labels)
+        binding.frequency.summary = frequencyLabels.getOrElse(state.frequency) { frequencyLabels[0] }
+        frequencyDialog.adapter.selectedItem = state.frequency
+        binding.keep.isVisible = state.frequency != 0
+        binding.keep.summary = activity!!.resources
+                .getQuantityString(R.plurals.backup_keep_summary, state.keep, state.keep)
+        keepDialog.adapter.selectedItem = state.keep
+
         when {
             state.backupProgress.running -> {
                 binding.progressIcon.setImageResource(R.drawable.ic_file_upload_black_24dp)
@@ -200,6 +220,10 @@ class BackupController : QkController<BackupView, BackupState, BackupPresenter>(
     }
 
     override fun setBackupLocationClicks(): Observable<*> = binding.location.clicks()
+
+    override fun frequencySelected(): Observable<Int> = frequencyDialog.adapter.menuItemClicks
+
+    override fun keepSelected(): Observable<Int> = keepDialog.adapter.menuItemClicks
 
     override fun restoreClicks(): Observable<*> = binding.restore.clicks()
 

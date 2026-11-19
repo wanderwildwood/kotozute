@@ -122,9 +122,9 @@ class BackupRepositoryImpl @Inject constructor(
         Timber.v("Updated backup directory: $directory")
     }
 
-    override fun performBackup() {
+    override fun performBackup(): String? {
         // If a backup or restore is already running, don't do anything
-        if (isBackupOrRestoreRunning()) return
+        if (isBackupOrRestoreRunning()) return null
 
         var messageCount: Int
 
@@ -156,7 +156,7 @@ class BackupRepositoryImpl @Inject constructor(
 
         var created: DocumentFile? = null
         try {
-            val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault()).format(now())
+            val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(now())
             created = getBackupDocumentTree()
                     ?.createFile("application/json", "backup-$timestamp.json")
             val inputStream = created
@@ -172,12 +172,32 @@ class BackupRepositoryImpl @Inject constructor(
             runCatching { created?.delete() }
             backupProgress.onNext(BackupRepository.Progress.Failed(restore = false))
             Timer().schedule(FAILED_SHOWN_MS) { backupProgress.onNext(BackupRepository.Progress.Idle()) }
-            return
+            return null
         }
 
         // Mark the task finished, and set it as Idle a second later
         backupProgress.onNext(BackupRepository.Progress.Finished())
         Timer().schedule(1000) { backupProgress.onNext(BackupRepository.Progress.Idle()) }
+        return created?.name
+    }
+
+    override fun isBackupRunning(): Boolean = isBackupOrRestoreRunning()
+
+    override fun pruneBackups(keep: Int, justWritten: String) {
+        val files = getBackupDocumentTree()?.listFiles() ?: return
+        val entries = files.mapNotNull { file ->
+            file.name?.let { name -> BackupPruning.Entry(name, file.lastModified()) }
+        }
+        val doomed = BackupPruning.toDelete(entries, keep, justWritten).toSet()
+        // Re-check the name on each file itself: the same list the selection was made from,
+        // and only ever a file that matches this app's own backup name.
+        files.filter { file ->
+            val name = file.name
+            name != null && name in doomed && BackupPruning.OWN_BACKUP_NAME.matches(name) && file.isFile
+        }.forEach { file ->
+            Timber.v("Deleting old backup ${file.name}")
+            runCatching { file.delete() }.onFailure { Timber.w(it) }
+        }
     }
 
     private fun messageToBackupMessage(message: Message): BackupMessage = BackupMessage(

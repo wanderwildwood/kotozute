@@ -29,5 +29,8 @@ data class BackupState(
     val locationGone: Boolean = false,
     val showSelectedBackupError: Boolean = false,
     val selectedBackupDetails: String? = null,
-    val showStopRestoreDialog: Boolean = false
+    val showStopRestoreDialog: Boolean = false,
+    /** Automatic backups: 0 off, 1 daily, 2 weekly. */
+    val frequency: Int = 0,
+    val keep: Int = 3
 )

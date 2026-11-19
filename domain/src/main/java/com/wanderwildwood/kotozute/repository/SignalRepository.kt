@@ -84,6 +84,13 @@ interface SignalRepository {
 
     fun isConfigured(): Boolean
 
+    /**
+     * The SOCKS proxy setting in [com.wanderwildwood.kotozute.util.Preferences] changed: every
+     * Signal connection is moved onto it (or off it) without restarting the app. Returns at
+     * once; the sockets reconnect on their own.
+     */
+    fun proxyChanged()
+
     fun unpair()
 
     fun setEnabled(enabled: Boolean)

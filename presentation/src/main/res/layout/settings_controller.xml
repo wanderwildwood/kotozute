@@ -617,6 +617,24 @@
                 app:summary="@string/settings_signal_discover_contacts_summary"
                 app:title="@string/settings_signal_discover_contacts_title" />
 
+            <!--
+                A SOCKS5 proxy for everything said to Signal (Orbot, for Tor). Shown whatever the
+                state of the account, because linking and registering are traffic too, and the
+                proxy has to be on before either for them to go through it.
+            -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalProxy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_signal_proxy_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalProxyAddress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_signal_proxy_address_title" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/signalStatus"
                 android:layout_width="match_parent"

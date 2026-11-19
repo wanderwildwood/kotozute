@@ -73,7 +73,7 @@ internal class SignalConnection(
      * the websocket, so it needs this as well as [authenticated]. Everything else here is
      * reached through one of the APIs below.
      */
-    val network by lazy {
+    private val networkLazy = lazy {
         // ⛔ **libsignal carries its OWN environment, separate from the REST URLs**, and this
         // was hardcoded to PRODUCTION while `SignalNetworkConfig` was pointed at staging.
         //
@@ -95,8 +95,14 @@ internal class SignalConnection(
             SignalNetworkConfig.Environment.STAGING -> Network.Environment.STAGING
             SignalNetworkConfig.Environment.PRODUCTION -> Network.Environment.PRODUCTION
         }
-        Network(environment, userAgent, emptyMap(), Network.BuildVariant.PRODUCTION)
+        Network(environment, userAgent, emptyMap(), Network.BuildVariant.PRODUCTION).also {
+            // Only when there is a proxy: with none, the handle is left exactly as it always
+            // was. Before the first connection, so not one of them goes out direct.
+            val route = SignalNetworkConfig.socksRoute
+            if (route != SocksSetting.Route.Direct) it.applySocks(route)
+        }
     }
+    val network: Network by networkLazy
 
     /**
      * The REST half of the service, for the few things that are not messages: the storage
@@ -109,7 +115,7 @@ internal class SignalConnection(
         )
     }
 
-    val authenticated: SignalWebSocket.AuthenticatedWebSocket by lazy {
+    private val authenticatedLazy = lazy {
         val timer = AlarmSleepTimer(context)
         val monitor = SignalSocketHealthMonitor(onRejected, onPrimaryIdle, onConnecting)
         SignalWebSocket.AuthenticatedWebSocket(
@@ -119,8 +125,9 @@ internal class SignalConnection(
             DISCONNECT_TIMEOUT_MS
         ).also(monitor::monitor)
     }
+    val authenticated: SignalWebSocket.AuthenticatedWebSocket by authenticatedLazy
 
-    val unauthenticated: SignalWebSocket.UnauthenticatedWebSocket by lazy {
+    private val unauthenticatedLazy = lazy {
         val timer = AlarmSleepTimer(context)
         val monitor = SignalSocketHealthMonitor(onRejected)
         SignalWebSocket.UnauthenticatedWebSocket(
@@ -130,6 +137,7 @@ internal class SignalConnection(
             DISCONNECT_TIMEOUT_MS
         ).also(monitor::monitor)
     }
+    val unauthenticated: SignalWebSocket.UnauthenticatedWebSocket by unauthenticatedLazy
 
     val keys: KeysApi by lazy { KeysApi(authenticated, unauthenticated) }
 
@@ -258,6 +266,28 @@ internal class SignalConnection(
     fun disconnect() {
         authenticated.disconnect()
         unauthenticated.disconnect()
+    }
+
+    /**
+     * After the proxy setting changed: libsignal is pointed at the new route and both chat
+     * sockets are dropped, so they reconnect through it. Upstream's own way to restart a socket
+     * (`forceNewWebSocket`), which the health monitor already relies on; the keep-alive tokens
+     * stay, so a socket that was wanted comes straight back.
+     *
+     * Nothing is built here that did not exist: a connection never opened will read the
+     * setting when it is first made. OkHttp clients need nothing -- they read the setting at
+     * each new connection, and refuse a pooled one made before the change.
+     */
+    fun applyProxy() {
+        if (networkLazy.isInitialized()) network.applySocks(SignalNetworkConfig.socksRoute)
+        if (authenticatedLazy.isInitialized()) {
+            runCatching { authenticated.forceNewWebSocket() }
+                .onFailure { Timber.w(it, "signal proxy: could not restart the socket") }
+        }
+        if (unauthenticatedLazy.isInitialized()) {
+            runCatching { unauthenticated.forceNewWebSocket() }
+                .onFailure { Timber.w(it, "signal proxy: could not restart the unidentified socket") }
+        }
     }
 
     companion object {

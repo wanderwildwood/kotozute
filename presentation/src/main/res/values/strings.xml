@@ -435,6 +435,7 @@
     <string name="signal_register_call_instead">Call me with the code instead</string>
     <string name="signal_register_working">Working…</string>
     <string name="signal_register_captcha">Signal wants a puzzle solved first.</string>
+    <string name="signal_register_captcha_proxy">Signal wants a puzzle solved first, and the puzzle is a web page that cannot go through the SOCKS proxy. Turn the proxy off in Settings to solve it, or try again later.</string>
     <string name="signal_register_code_sent">Code sent by text. It can take a minute.</string>
     <string name="signal_register_calling">Calling you with the code. Answer and write it down.</string>
     <string name="signal_record_cd">Record a voice message</string>
@@ -491,6 +492,14 @@
          The code goes on the page this phone serves to the reader's own computer, and the
          phone's own Signal reads it off the monitor. See SignalLinkOffer. -->
     <string name="signal_link_on_computer">Already running Signal on this phone? It cannot scan its own screen. Open\n\n%s\n\non your computer, then point this phone\u2019s Signal at the monitor.</string>
+    <string name="settings_signal_proxy_title">SOCKS proxy</string>
+    <string name="settings_signal_proxy_calls_off">Signal calls are off while the proxy is on: they cannot go through it.</string>
+    <string name="settings_signal_proxy_address_title">Proxy address</string>
+    <string name="settings_signal_proxy_address_summary">%1$s port %2$d</string>
+    <string name="settings_signal_proxy_hint">127.0.0.1 port 9050 is Orbot\'s address, for Tor.</string>
+    <string name="settings_signal_proxy_host">Host</string>
+    <string name="settings_signal_proxy_port">Port</string>
+    <string name="settings_signal_proxy_invalid">That is not a usable address. The host is a name or an IP address, and the port a number from 1 to 65535.</string>
     <string name="settings_signal_keep_title">Keep Signal connected</string>
     <string name="settings_signal_keep_summary">Messages arrive as they are sent, at the cost of a permanent notification. Off, Signal catches up about every 15 minutes and when you open the app. On a Kompakt, switch Messaging on in DuraSpeed too, or it closes the app in the background; the setup guide has a button that opens it.</string>
     <string name="signal_stream_channel">Signal connection</string>

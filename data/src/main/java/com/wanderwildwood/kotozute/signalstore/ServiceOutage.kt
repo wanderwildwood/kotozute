@@ -33,9 +33,17 @@ internal object ServiceOutage {
         else -> Status.UNKNOWN
     }
 
-    /** Blocking. A resolver that cannot be reached at all is [Status.UNKNOWN]. */
-    fun check(): Status =
-        classify(runCatching { InetAddress.getByName(HOST).hostAddress }.getOrNull())
+    /**
+     * Blocking. A resolver that cannot be reached at all is [Status.UNKNOWN].
+     *
+     * ⛔ Not asked at all while the SOCKS proxy is on: the answer is a plain DNS lookup through
+     * this phone's own resolver, which would tell whoever runs it that this phone uses Signal --
+     * the thing the proxy is there to keep to itself. A SOCKS proxy cannot carry the lookup.
+     */
+    fun check(): Status {
+        if (SignalNetworkConfig.proxyOn()) return Status.UNKNOWN
+        return classify(runCatching { InetAddress.getByName(HOST).hostAddress }.getOrNull())
+    }
 
     /**
      * Whether a failed send is the kind that could be Signal being down.

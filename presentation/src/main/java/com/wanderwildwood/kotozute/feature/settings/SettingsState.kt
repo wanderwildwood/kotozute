@@ -74,6 +74,10 @@ data class SettingsState(
     val desktopSyncTls: Boolean = false,
     val signalStatusSummary: String = "",
     val signalKeepConnected: Boolean = false,
+    /** The SOCKS proxy. See [com.wanderwildwood.kotozute.util.Preferences.signalProxyEnabled]. */
+    val signalProxyEnabled: Boolean = false,
+    val signalProxyHost: String = com.wanderwildwood.kotozute.util.Preferences.SIGNAL_PROXY_DEFAULT_HOST,
+    val signalProxyPort: Int = com.wanderwildwood.kotozute.util.Preferences.SIGNAL_PROXY_DEFAULT_PORT,
     val signalWeave: Boolean = true,
     val signalOpensFirst: Boolean = false,
     val markSmsRows: Boolean = false,

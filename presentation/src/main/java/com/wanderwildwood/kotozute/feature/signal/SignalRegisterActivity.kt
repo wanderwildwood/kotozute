@@ -236,8 +236,15 @@ class SignalRegisterActivity : QkThemedActivity() {
     private fun render(result: SignalRepository.Registration) = when (result) {
         is SignalRepository.Registration.NeedsCaptcha -> {
             sessionId = result.sessionId
-            binding.status.setText(R.string.signal_register_captcha)
-            showCaptcha()
+            // ⛔ Not with the SOCKS proxy on. The puzzle is a web page, and Android's WebView
+            // goes out on its own, outside every connection the proxy covers: loading it would
+            // tell signalcaptchas.org this phone's address. Said, rather than done quietly.
+            if (com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.proxyOn()) {
+                binding.status.setText(R.string.signal_register_captcha_proxy)
+            } else {
+                binding.status.setText(R.string.signal_register_captcha)
+                showCaptcha()
+            }
         }
 
 

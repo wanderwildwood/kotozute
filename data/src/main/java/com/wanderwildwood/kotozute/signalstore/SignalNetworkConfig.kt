@@ -9,6 +9,8 @@ import org.signal.network.config.SignalServiceConfiguration
 import org.signal.network.config.SignalServiceUrl
 import org.signal.network.config.SignalStorageUrl
 import org.signal.network.config.SignalSvr2Url
+import org.signal.network.config.SocksProxy
+import org.signal.network.config.SocksProxySource
 import org.signal.network.config.TrustStore
 import org.signal.libsignal.metadata.certificate.CertificateValidator
 import org.signal.libsignal.protocol.ecc.ECPublicKey
@@ -133,6 +135,36 @@ object SignalNetworkConfig {
 
     const val USER_AGENT = "kotozute/1.11.2"
 
+    // --- SOCKS proxy ----------------------------------------------------------------------
+    //
+    // See [SocksSetting]. Held here, beside the environment, because this is the one place
+    // every connection's configuration comes from -- and read at each new connection rather
+    // than built into the clients, so a change reaches the clients already made.
+
+    /**
+     * Where Signal traffic goes now. Set at startup, before anything connects, and again by
+     * Settings; [SignalStore.applyProxy] then restarts what was already open.
+     */
+    @Volatile
+    var socksRoute: SocksSetting.Route = SocksSetting.Route.Direct
+        private set
+
+    fun setSocks(setting: SocksSetting) {
+        socksRoute = setting.route()
+    }
+
+    /** The proxy an OkHttp client is to use now. A blocked setting is a proxy nothing answers on. */
+    fun currentSocksProxy(): SocksProxy? = when (val route = socksRoute) {
+        SocksSetting.Route.Direct -> null
+        is SocksSetting.Route.Socks -> route.proxy
+        SocksSetting.Route.Blocked -> SocksSetting.BLACKHOLE
+    }
+
+    /** Whether anything at all is going through a proxy, for the features that cannot. */
+    fun proxyOn(): Boolean = socksRoute != SocksSetting.Route.Direct
+
+    private val socksSource = SocksProxySource { currentSocksProxy() }
+
     /** Signal's production servers. */
     fun production(): SignalServiceConfiguration = SignalServiceConfiguration(
         arrayOf(SignalServiceUrl(URL, trustStore)),
@@ -150,7 +182,8 @@ object SignalNetworkConfig {
         zkGroupServerPublicParams,
         genericServerPublicParams,
         backupServerPublicParams,
-        false
+        false,
+        socksSource
     )
 
     // --- staging -------------------------------------------------------------------------
@@ -248,7 +281,8 @@ object SignalNetworkConfig {
         stagingZkGroupServerPublicParams,
         stagingGenericServerPublicParams,
         stagingBackupServerPublicParams,
-        false
+        false,
+        socksSource
     )
 
     /**

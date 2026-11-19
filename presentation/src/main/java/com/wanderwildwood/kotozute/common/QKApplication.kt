@@ -192,6 +192,15 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
                 com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.Environment.STAGING
             Timber.w("signal: talking to STAGING servers, not real Signal")
         }
+        // The SOCKS proxy, for the same reason and at the same moment: before anything opens a
+        // connection, so not one of them goes out direct while the setting says otherwise.
+        // Off -- the default -- leaves every connection exactly as it was.
+        @Suppress("DEPRECATION")
+        com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.setSocks(
+            com.wanderwildwood.kotozute.signalstore.SocksSetting.read(
+                android.preference.PreferenceManager.getDefaultSharedPreferences(this)
+            )
+        )
 
         // ⚠ Before anything else can die. There is no crash reporting in this app on purpose,
         // which leaves a crash on somebody else's phone invisible -- "it closed itself" is the

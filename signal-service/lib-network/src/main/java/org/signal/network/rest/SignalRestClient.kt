@@ -31,6 +31,8 @@ import org.signal.libsignal.net.RequestResult
 import org.signal.network.config.SignalProxy
 import org.signal.network.config.SignalServiceConfiguration
 import org.signal.network.config.SignalUrl
+import org.signal.network.config.SocksProxySource
+import org.signal.network.config.SocksRouting
 import org.signal.network.rest.RequestSpec.Host
 import org.signal.network.util.JsonUtil
 import org.signal.network.util.Tls12SocketFactory
@@ -93,11 +95,12 @@ class SignalRestClient @JvmOverloads constructor(
       interceptors: List<Interceptor>,
       dns: Optional<Dns>,
       proxy: Optional<SignalProxy>,
-      clientOverride: OkHttpClient?
+      clientOverride: OkHttpClient?,
+      socks: SocksProxySource? = null
     ): Array<ConnectionHolder> {
       return urls.map { url ->
         ConnectionHolder(
-          client = clientOverride ?: buildClient(url, interceptors, dns, proxy),
+          client = clientOverride ?: buildClient(url, interceptors, dns, proxy, socks),
           url = url.url,
           hostHeader = url.hostHeader
         )
@@ -108,7 +111,8 @@ class SignalRestClient @JvmOverloads constructor(
       url: SignalUrl,
       interceptors: List<Interceptor>,
       dns: Optional<Dns>,
-      proxy: Optional<SignalProxy>
+      proxy: Optional<SignalProxy>,
+      socks: SocksProxySource?
     ): OkHttpClient {
       try {
         val trustManagers = BlacklistingTrustManager.createFor(url.trustStore)
@@ -129,6 +133,8 @@ class SignalRestClient @JvmOverloads constructor(
           builder.addInterceptor(interceptor)
         }
 
+        SocksRouting.apply(builder, socks)
+
         return builder.build()
       } catch (e: NoSuchAlgorithmException) {
         throw AssertionError(e)
@@ -143,7 +149,8 @@ class SignalRestClient @JvmOverloads constructor(
     configuration.networkInterceptors,
     configuration.dns,
     configuration.signalProxy,
-    clientOverride
+    clientOverride,
+    configuration.socksProxy
   )
 
   private val cdnClientsMap: Map<Int, Array<ConnectionHolder>> = configuration.signalCdnUrlMap
@@ -153,7 +160,8 @@ class SignalRestClient @JvmOverloads constructor(
         interceptors = configuration.networkInterceptors,
         dns = configuration.dns,
         proxy = configuration.signalProxy,
-        clientOverride = clientOverride
+        clientOverride = clientOverride,
+        socks = configuration.socksProxy
       )
     }
 
@@ -162,14 +170,15 @@ class SignalRestClient @JvmOverloads constructor(
     configuration.networkInterceptors,
     configuration.dns,
     configuration.signalProxy,
-    clientOverride
+    clientOverride,
+    configuration.socksProxy
   )
 
   /** Lazy so that censored users who never connect directly never build these. */
   private val directCdnClientsMap: Map<Int, Array<ConnectionHolder>> by lazy {
     if (uncensoredConfiguration !== configuration) {
       uncensoredConfiguration.signalCdnUrlMap.mapValues { (_, urls) ->
-        createConnectionHolders(urls, uncensoredConfiguration.networkInterceptors, uncensoredConfiguration.dns, uncensoredConfiguration.signalProxy, clientOverride)
+        createConnectionHolders(urls, uncensoredConfiguration.networkInterceptors, uncensoredConfiguration.dns, uncensoredConfiguration.signalProxy, clientOverride, uncensoredConfiguration.socksProxy)
       }
     } else {
       cdnClientsMap
@@ -178,7 +187,7 @@ class SignalRestClient @JvmOverloads constructor(
 
   private val directStorageClients: Array<ConnectionHolder> by lazy {
     if (uncensoredConfiguration !== configuration) {
-      createConnectionHolders(uncensoredConfiguration.signalStorageUrls, uncensoredConfiguration.networkInterceptors, uncensoredConfiguration.dns, uncensoredConfiguration.signalProxy, clientOverride)
+      createConnectionHolders(uncensoredConfiguration.signalStorageUrls, uncensoredConfiguration.networkInterceptors, uncensoredConfiguration.dns, uncensoredConfiguration.signalProxy, clientOverride, uncensoredConfiguration.socksProxy)
     } else {
       storageClients
     }

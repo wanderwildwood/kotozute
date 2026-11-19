@@ -38,6 +38,14 @@ class Preferences @Inject constructor(
 ) {
 
     companion object {
+        /** See [signalProxyEnabled]. Keys shared with the startup read, which has no Preferences yet. */
+        const val SIGNAL_PROXY_ENABLED = "signalProxyEnabled"
+        const val SIGNAL_PROXY_HOST = "signalProxyHost"
+        const val SIGNAL_PROXY_PORT = "signalProxyPort"
+        /** Orbot's SOCKS port, which is what nearly everybody turning this on means. */
+        const val SIGNAL_PROXY_DEFAULT_HOST = "127.0.0.1"
+        const val SIGNAL_PROXY_DEFAULT_PORT = 9050
+
         const val NIGHT_MODE_SYSTEM = 0
         const val NIGHT_MODE_OFF = 1
         const val NIGHT_MODE_ON = 2
@@ -404,6 +412,18 @@ class Preferences @Inject constructor(
      * this is a choice rather than a default.
      */
     val signalKeepConnected = rxPrefs.getBoolean("signalKeepConnected", false)
+
+    /**
+     * A SOCKS5 proxy for everything this app says to Signal -- Orbot's port, for Tor. Off by
+     * default, and off means every connection is made exactly as it was before the setting
+     * existed. Read once at startup by `QKApplication` (through the same keys, before this
+     * object exists) and again by the data layer whenever Settings changes it.
+     *
+     * The address is kept while the switch is off, so turning it back on needs no retyping.
+     */
+    val signalProxyEnabled = rxPrefs.getBoolean(SIGNAL_PROXY_ENABLED, false)
+    val signalProxyHost = rxPrefs.getString(SIGNAL_PROXY_HOST, SIGNAL_PROXY_DEFAULT_HOST)
+    val signalProxyPort = rxPrefs.getInteger(SIGNAL_PROXY_PORT, SIGNAL_PROXY_DEFAULT_PORT)
 
     /**
      * Signal threads tied to an SMS conversation by hand, as JSON: {"direct:<aci>": <id>}.

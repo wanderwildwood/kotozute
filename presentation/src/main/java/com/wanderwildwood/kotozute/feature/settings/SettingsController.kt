@@ -125,6 +125,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     /** The account's own name, as two parts. See [askSignalProfileName]. */
     private val signalProfileNameSubject: Subject<Pair<String, String>> = PublishSubject.create()
+    private val signalProxyAddressSubject: Subject<Pair<String, Int>> = PublishSubject.create()
     private val signalFetchContactsSubject: Subject<Unit> = PublishSubject.create()
 
     private val signalDiscoverContactsSubject: Subject<Unit> = PublishSubject.create()
@@ -284,6 +285,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun signalUnpairConfirmed(): Observable<*> = signalUnpairSubject
 
     override fun signalProfileNameEntered(): Observable<Pair<String, String>> = signalProfileNameSubject
+    override fun signalProxyAddressEntered(): Observable<Pair<String, Int>> = signalProxyAddressSubject
 
     override fun signalFetchContactsConfirmed(): Observable<*> = signalFetchContactsSubject
 
@@ -509,6 +511,13 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.signalHistoryImport.setVisible(signalSetUp)
         binding.signalHistoryExport.setVisible(signalSetUp)
         binding.signalAccount.setVisible(state.signalPaired && state.signalEnabled)
+        binding.signalProxy.checkbox.isChecked = state.signalProxyEnabled
+        // The one thing the switch cannot say for itself: what it turns off.
+        binding.signalProxy.summary =
+            if (state.signalProxyEnabled) context.getString(R.string.settings_signal_proxy_calls_off) else null
+        binding.signalProxyAddress.summary = context.getString(
+            R.string.settings_signal_proxy_address_summary, state.signalProxyHost, state.signalProxyPort
+        )
         binding.signalKeepConnected.setVisible(state.signalPaired && state.signalEnabled)
         binding.signalKeepConnected.checkbox.isChecked = state.signalKeepConnected
         binding.signalWeave.setVisible(state.signalPaired && state.signalEnabled)
@@ -1341,6 +1350,48 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 // Handed to the presenter rather than sent from here: the controller owns
                 // no repository, and the one place that talks to Signal stays the one place.
                 signalProfileNameSubject.onNext(g to f)
+            }
+            .show()
+    }
+
+    /**
+     * The proxy's host and port, in one dialog. Checked here, so nothing unusable is stored:
+     * a bad address with the switch on would block every connection (see `SocksSetting`).
+     */
+    override fun askSignalProxyAddress(host: String, port: Int) {
+        val context = activity ?: return
+        val column = android.widget.LinearLayout(context).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 0)
+        }
+        val hostField = com.wanderwildwood.kotozute.common.widget.StaticCaretEditText(context).apply {
+            hint = context.getString(R.string.settings_signal_proxy_host)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            maxLines = 1
+            setText(host)
+        }
+        val portField = com.wanderwildwood.kotozute.common.widget.StaticCaretEditText(context).apply {
+            hint = context.getString(R.string.settings_signal_proxy_port)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            maxLines = 1
+            setText(port.toString())
+        }
+        column.addView(hostField)
+        column.addView(portField)
+
+        context.einkDialog()
+            .setTitle(R.string.settings_signal_proxy_address_title)
+            .setMessage(R.string.settings_signal_proxy_hint)
+            .setView(column)
+            .setNegativeButton(R.string.button_cancel, null)
+            .setPositiveButton(R.string.button_save) { _, _ ->
+                val h = com.wanderwildwood.kotozute.signalstore.SocksSetting.normalizeHost(hostField.text.toString())
+                val p = com.wanderwildwood.kotozute.signalstore.SocksSetting.parsePort(portField.text.toString())
+                if (p == null || !com.wanderwildwood.kotozute.signalstore.SocksSetting.isValidHost(h)) {
+                    Toast.makeText(context, R.string.settings_signal_proxy_invalid, Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                signalProxyAddressSubject.onNext(h to p)
             }
             .show()
     }

@@ -161,7 +161,7 @@ class SignalStore(private val context: Context) {
      * its backoff -- so messages arrived late rather than not at all, and the cause looked
      * like a flaky network.
      */
-    internal val connection: SignalConnection by lazy {
+    private val connectionLazy = lazy {
         SignalConnection(
             context,
             account,
@@ -170,6 +170,12 @@ class SignalStore(private val context: Context) {
             onPrimaryIdle = { onPrimaryIdle(it) },
             onConnecting = { onConnecting(it) }
         )
+    }
+    internal val connection: SignalConnection by connectionLazy
+
+    /** See [SignalConnection.applyProxy]. A connection never made has nothing to move. */
+    fun applyProxy() {
+        if (connectionLazy.isInitialized()) connection.applyProxy()
     }
 
     /**

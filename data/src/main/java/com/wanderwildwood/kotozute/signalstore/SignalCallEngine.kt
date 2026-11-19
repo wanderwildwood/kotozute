@@ -151,6 +151,18 @@ internal class SignalCallEngine(
         val id = offer.id ?: return
         val opaque = offer.opaque?.toByteArray() ?: return
         val video = offer.type == CallMessage.Offer.Type.OFFER_VIDEO_CALL
+        // ⛔ Not while the SOCKS proxy is on. A call's audio is WebRTC over UDP to Signal's
+        // relays, and RingRTC as Signal ships it has no way to send that through a SOCKS proxy
+        // (Molly can only because it builds its own RingRTC). Handing it the offer would start
+        // gathering relays at once -- before anyone answers -- straight from this phone's own
+        // address. So it never reaches RingRTC, and no reply is sent, so the person's other
+        // devices go on ringing. The line in the conversation is the receiver's own ringing
+        // note, settled as it already is for a call this phone never answered: missed when it
+        // expires, or answered elsewhere when the caller's hangup says so.
+        if (SignalNetworkConfig.proxyOn()) {
+            Timber.i("signal calls: an offer while the proxy is on; not answering")
+            return
+        }
         val m = managerOrNull() ?: return
 
         // Upstream bails out, and records a missed call, when the caller's identity key is not
@@ -224,10 +236,13 @@ internal class SignalCallEngine(
      * offer itself leaves through [onSendOffer].
      */
     override fun canCall(peer: String): Boolean =
-        runCatching { UUID.fromString(peer) }.isSuccess && peer != store.selfAciOrNull()
+        !SignalNetworkConfig.proxyOn() &&
+            runCatching { UUID.fromString(peer) }.isSuccess && peer != store.selfAciOrNull()
 
     override fun call(peer: String) = worker.execute {
         if (active != null) return@execute
+        // See [receivedOffer]: a call cannot go through the proxy. The button is gone too.
+        if (SignalNetworkConfig.proxyOn()) return@execute
         val m = managerOrNull() ?: return@execute
         val remote = Peer(peer)
         val call = Active(remote, CallId(0), 0, false, System.currentTimeMillis(), outgoing = true)

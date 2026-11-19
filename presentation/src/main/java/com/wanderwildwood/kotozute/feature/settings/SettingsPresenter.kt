@@ -73,6 +73,13 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.signalKeepConnected.asObservable()
                 .subscribe { on -> newState { copy(signalKeepConnected = on) } }
 
+        disposables += prefs.signalProxyEnabled.asObservable()
+                .subscribe { on -> newState { copy(signalProxyEnabled = on) } }
+        disposables += prefs.signalProxyHost.asObservable()
+                .subscribe { host -> newState { copy(signalProxyHost = host) } }
+        disposables += prefs.signalProxyPort.asObservable()
+                .subscribe { port -> newState { copy(signalProxyPort = port) } }
+
         disposables += prefs.signalWeave.asObservable()
                 .subscribe { on -> newState { copy(signalWeave = on) } }
 
@@ -349,6 +356,16 @@ class SettingsPresenter @Inject constructor(
                         R.id.signalBackground ->
                             com.wanderwildwood.kotozute.feature.signal.BackgroundRunning.ask(context)
 
+                        // Written, then applied: the data layer reads the stored setting and moves
+                        // every Signal connection onto it (or off it) at once, no restart.
+                        R.id.signalProxy -> {
+                            prefs.signalProxyEnabled.set(!prefs.signalProxyEnabled.get())
+                            signalRepo.proxyChanged()
+                        }
+
+                        R.id.signalProxyAddress ->
+                            view.askSignalProxyAddress(prefs.signalProxyHost.get(), prefs.signalProxyPort.get())
+
                         R.id.signalKeepConnected -> {
                             val on = !prefs.signalKeepConnected.get()
                             prefs.signalKeepConnected.set(on)
@@ -575,6 +592,15 @@ class SettingsPresenter @Inject constructor(
         view.signalUnpairConfirmed()
             .autoDisposable(view.scope())
             .subscribe { signalRepo.unpair() }
+
+        view.signalProxyAddressEntered()
+            .autoDisposable(view.scope())
+            .subscribe { (host, port) ->
+                prefs.signalProxyHost.set(host)
+                prefs.signalProxyPort.set(port)
+                // Only matters while it is on; off, the address is just kept for later.
+                if (prefs.signalProxyEnabled.get()) signalRepo.proxyChanged()
+            }
 
         view.signalProfileNameEntered()
             .autoDisposable(view.scope())

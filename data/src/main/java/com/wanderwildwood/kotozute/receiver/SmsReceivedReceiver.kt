@@ -60,9 +60,20 @@ class SmsReceivedReceiver : BroadcastReceiver() {
                         messages[0].displayOriginatingAddress,
                         messages.mapNotNull { it.displayMessageBody }.reduce { body, new -> body + new },
                         messages[0].timestampMillis
-                    ).id
+                    )
                 }
-                .subscribe({ messageId ->
+                .subscribe({ message ->
+                    // Locked (passphrase, or a keystore that will not answer): the text is in
+                    // Android's store already; the worker would notify with who and what.
+                    if (com.wanderwildwood.kotozute.lock.LockedArrivals.waiting()) {
+                        com.wanderwildwood.kotozute.lock.LockedArrivals.record(
+                            context,
+                            android.content.ContentUris.withAppendedId(android.provider.Telephony.Sms.CONTENT_URI, message.contentId)
+                        )
+                        pendingResult.finish()
+                        return@subscribe
+                    }
+                    val messageId = message.id
                     // start worker with message id as param
                     WorkManager.getInstance(context).enqueue(
                         OneTimeWorkRequestBuilder<ReceiveSmsWorker>()

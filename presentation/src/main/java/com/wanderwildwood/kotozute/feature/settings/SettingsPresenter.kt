@@ -381,6 +381,7 @@ class SettingsPresenter @Inject constructor(
                         R.id.signalProfileName -> view.askSignalProfileName()
 
                         R.id.signalDevices -> view.showSignalDevices()
+                        R.id.appLock -> view.showAppLock()
 
                         R.id.signalAccount -> {
                             Thread {

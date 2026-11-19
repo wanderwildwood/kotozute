@@ -174,6 +174,22 @@
         <activity android:name=".feature.signal.ViewOnceActivity" android:theme="@style/AppLaunchTheme" />
         <!-- Shown instead of everything else when the message database cannot be opened
              encrypted. Not exported, kept out of Recents, no history of its own. -->
+        <!-- The passphrase lock (feature/lock): its unlock screen, settings, idle timer and the
+             memory wiper, which runs in its own process after the app has ended. -->
+        <activity
+            android:name=".feature.lock.UnlockActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@style/MessagesLockedTheme" />
+        <activity android:name=".feature.lock.AppLockActivity" />
+        <receiver
+            android:name=".feature.lock.LockController$IdleLockReceiver"
+            android:exported="false" />
+        <service
+            android:name=".feature.lock.WipeMemoryJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:process=":wipe" />
         <activity
             android:name=".feature.locked.MessagesLockedActivity"
             android:excludeFromRecents="true"

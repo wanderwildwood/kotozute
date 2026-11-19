@@ -83,8 +83,10 @@ internal object AttachmentSecret {
     fun lostForGood(context: Context): Boolean {
         if (SealedFiles.nothingEncrypted(context.filesDir)) return false
         if (cached != null) return false
+        // ⛔ Locked is not lost: this answer decides whether files are deleted.
+        if (com.wanderwildwood.kotozute.lock.AppLock.isLocked(context)) return false
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val sealed = prefs.getString(PREF_SEALED, null)
+        val sealed = com.wanderwildwood.kotozute.lock.AppLock.reveal(prefs.getString(PREF_SEALED, null))
         val iv = prefs.getString(PREF_IV, null)
         if (sealed == null || iv == null) return true
         return try {
@@ -134,7 +136,8 @@ internal object AttachmentSecret {
     fun forReading(context: Context): ByteArray? {
         cached?.let { return it }
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val sealed = prefs.getString(PREF_SEALED, null) ?: return null
+        // Locked: unread for now, and left on disk.
+        val sealed = runCatching { com.wanderwildwood.kotozute.lock.AppLock.reveal(prefs.getString(PREF_SEALED, null)) }.getOrNull() ?: return null
         val iv = prefs.getString(PREF_IV, null) ?: return null
         val now = android.os.SystemClock.elapsedRealtime()
         if (refusedAt != 0L && now - refusedAt < REFUSAL_REMEMBERED_MS) return null
@@ -158,7 +161,8 @@ internal object AttachmentSecret {
     fun forWriting(context: Context, mayCreate: () -> Boolean): ByteArray {
         cached?.let { return it }
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val sealed = prefs.getString(PREF_SEALED, null)
+        // Throws Locked rather than let a new secret be made beside the covered one.
+        val sealed = com.wanderwildwood.kotozute.lock.AppLock.reveal(prefs.getString(PREF_SEALED, null))
         val iv = prefs.getString(PREF_IV, null)
         try {
             if (sealed != null && iv != null) {
@@ -196,7 +200,7 @@ internal object AttachmentSecret {
         // returned, and a secret that had not reached the disk when the process died would
         // take that file with it.
         val written = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(PREF_SEALED, Base64.encodeToString(sealed, Base64.NO_WRAP))
+            .putString(PREF_SEALED, com.wanderwildwood.kotozute.lock.AppLock.coverForWrite(context, Base64.encodeToString(sealed, Base64.NO_WRAP)))
             .putString(PREF_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
             .commit()
         check(written) { "the sealed attachment secret could not be written" }

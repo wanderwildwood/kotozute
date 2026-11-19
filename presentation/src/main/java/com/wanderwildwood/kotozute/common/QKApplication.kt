@@ -82,6 +82,8 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     @Inject lateinit var signalRepo: com.wanderwildwood.kotozute.repository.SignalRepository
     @Inject lateinit var signalNotifications: com.wanderwildwood.kotozute.feature.signal.SignalNotifications
     @Inject lateinit var messageRepo: com.wanderwildwood.kotozute.repository.MessageRepository
+    @Inject lateinit var syncRepo: com.wanderwildwood.kotozute.repository.SyncRepository
+    @Inject lateinit var updateScheduledMessageAlarms: com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
 
     /**
      * The message database is not being opened. Everything [onCreate] would have done after
@@ -94,7 +96,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
      * the process; the file on disk, if there is one, is not opened, moved or written.
      * Signal does not connect in this state (see [MessageStoreGate]).
      */
-    private fun refuseMessageStore(refusal: RealmEncryption.Refusal) {
+    private fun refuseMessageStore(refusal: RealmEncryption.Refusal?) {
         Timber.e("realm: not opening the message database (%s); showing the locked screen", refusal)
         com.wanderwildwood.kotozute.util.MessageStoreGate.blocked = true
         Realm.setDefaultConfiguration(
@@ -110,13 +112,18 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         // nothing while the gate is set: against an empty database everything is an orphan.
         runCatching {
             WorkManager.initialize(this, Configuration.Builder().setWorkerFactory(workerFactory).build())
+            workManagerStarted = true
         }.onFailure { Timber.w(it, "work manager: could not start while the message database is locked") }
-        val locked = com.wanderwildwood.kotozute.feature.locked.MessagesLockedActivity::class.java
-        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+        // Null refusal: the passphrase lock, not a keystore fault.
+        val shown: Class<out android.app.Activity> =
+            if (refusal == null) com.wanderwildwood.kotozute.feature.lock.UnlockActivity::class.java
+            else com.wanderwildwood.kotozute.feature.locked.MessagesLockedActivity::class.java
+        refusedRedirect = object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {
-                if (locked.isInstance(activity)) return
+                if (shown.isInstance(activity)) return
                 activity.startActivity(
-                    com.wanderwildwood.kotozute.feature.locked.MessagesLockedActivity.intent(activity, refusal)
+                    if (refusal == null) com.wanderwildwood.kotozute.feature.lock.UnlockActivity.intent(activity)
+                    else com.wanderwildwood.kotozute.feature.locked.MessagesLockedActivity.intent(activity, refusal)
                 )
                 activity.finish()
             }
@@ -126,11 +133,15 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
             override fun onActivityStopped(activity: android.app.Activity) = Unit
             override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
             override fun onActivityDestroyed(activity: android.app.Activity) = Unit
-        })
+        }
+        registerActivityLifecycleCallbacks(refusedRedirect)
     }
 
     override fun onCreate() {
         super.onCreate()
+        // The memory wiper's own process (WipeMemoryJob): it needs none of the app, and
+        // starting the app in it would put back into memory what it is there to clear.
+        if (getProcessName().endsWith(":wipe")) return
 
         // set translated "no messages" string for speakThreads interactor
         SpeakThreads.setNoMessagesString(getString(R.string.speak_no_messages))
@@ -220,6 +231,45 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
                     .schemaVersion(QkRealmMigration.SCHEMA_VERSION)
         }
 
+        // The passphrase lock (Molly's; optional, off by default). Locked means nothing below
+        // may run: the keys it needs are covered until the passphrase is given. The same
+        // refused state as a keystore that will not answer, with the unlock screen in front
+        // instead of the "messages are locked" one; [unlocked] runs the rest.
+        if (com.wanderwildwood.kotozute.lock.AppLock.isLocked(this)) {
+            lockedRealmConfig = realmConfig
+            refuseMessageStore(null)
+            return
+        }
+        openAndStart(realmConfig)
+    }
+
+    /** Set while the app waits for its passphrase; what [unlocked] opens the database with. */
+    private var lockedRealmConfig: (() -> RealmConfiguration.Builder)? = null
+    private var refusedRedirect: ActivityLifecycleCallbacks? = null
+    private var workManagerStarted = false
+
+    /**
+     * The passphrase was right ([com.wanderwildwood.kotozute.lock.AppLock.unlock] returned
+     * true). Opens the database and starts everything a normal start would have, in this
+     * process -- the lock key exists only here, so a restart would lock again.
+     */
+    fun unlocked() {
+        val config = lockedRealmConfig ?: return
+        lockedRealmConfig = null
+        refusedRedirect?.let(::unregisterActivityLifecycleCallbacks)
+        refusedRedirect = null
+        com.wanderwildwood.kotozute.util.MessageStoreGate.blocked = false
+        openAndStart(config)
+        // Boot set the scheduled-text alarms from the empty locked placeholder: set them again.
+        runCatching { updateScheduledMessageAlarms.execute(Unit) }
+            .onFailure { Timber.w(it, "lock: could not set scheduled-message alarms after unlock") }
+        Thread {
+            runCatching { com.wanderwildwood.kotozute.lock.LockedArrivals.bringIn(this, syncRepo) }
+                .onFailure { Timber.w(it, "lock: bringing in texts that arrived while locked") }
+        }.also { it.isDaemon = true }.start()
+    }
+
+    private fun openAndStart(realmConfig: () -> RealmConfiguration.Builder) {
         val key = RealmEncryption.keyOrNull(this)
 
         // ⛔ No key is no longer "carry on unencrypted". A database is never created without
@@ -486,10 +536,15 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
                 .install()
 
         // init work manager with custom factory supporting dagger/injection capability
-        WorkManager.initialize(
-            this,
-            Configuration.Builder().setWorkerFactory(workerFactory).build()
-        )
+        // Already started when this runs after the passphrase (see refuseMessageStore).
+        if (!workManagerStarted) {
+            WorkManager.initialize(
+                this,
+                Configuration.Builder().setWorkerFactory(workerFactory).build()
+            )
+            workManagerStarted = true
+        }
+        com.wanderwildwood.kotozute.feature.lock.LockController.watch(this)
 
         // register, or re-register, housekeeping work manager
         HousekeepingWorker.register(applicationContext)

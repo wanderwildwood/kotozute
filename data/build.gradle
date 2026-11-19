@@ -47,6 +47,8 @@ android {
 dependencies {
     // Contact cards: a received Signal card is kept as a vCard, and a picked contact's vCard
     // is read into the card Signal sends. The same library, and exclusions, as presentation.
+    // The passphrase lock's key stretching (lock/AppLock.kt): Signal's Argon2, as Molly uses.
+    implementation 'org.signal:argon2:13.1'
     implementation('com.googlecode.ez-vcard:ez-vcard:0.10.4', {
         exclude group: "org.jsoup", module: "jsoup"
         exclude group: "org.freemarker", module: "freemarker"

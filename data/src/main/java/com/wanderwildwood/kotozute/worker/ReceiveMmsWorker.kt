@@ -150,6 +150,11 @@ class ReceiveMmsWorker(appContext: Context, workerParams: WorkerParameters)
 
                 // if message was persisted ok
                 if (messageUri != null) {
+                    // Locked: persisted to Android's store above; brought in at unlock.
+                    if (com.wanderwildwood.kotozute.lock.LockedArrivals.waiting()) {
+                        com.wanderwildwood.kotozute.lock.LockedArrivals.record(applicationContext, messageUri)
+                        return Result.success()
+                    }
                     // Sync the message
                     val message = syncRepo.syncMessage(messageUri)
                         ?: return Result.failure(inputData)

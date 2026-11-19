@@ -1271,6 +1271,10 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalLinkActivity.intent(it)) }
     }
 
+    override fun showAppLock() {
+        activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.lock.AppLockActivity.intent(it)) }
+    }
+
     override fun showSignalDevices() {
         activity?.let { it.startActivity(com.wanderwildwood.kotozute.feature.signal.SignalDevicesActivity.intent(it)) }
     }

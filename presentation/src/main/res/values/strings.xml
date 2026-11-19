@@ -304,6 +304,44 @@
     <string name="settings_dark">Dark mode</string>
     <!-- Settings: whether the unread count shows on the lock screen, through the Glance app -->
     <string name="settings_lock_screen_title">Unread on the lock screen</string>
+    <string name="settings_app_lock_title">Passphrase lock</string>
+    <string name="settings_app_lock_summary">Keep messages locked behind a passphrase</string>
+    <string name="lock_settings_title">Passphrase lock</string>
+    <string name="lock_on_title">Lock with a passphrase</string>
+    <string name="lock_on_summary">While locked, Signal messages and calls wait until you unlock, Desktop Sync stops, and texts show only that something arrived</string>
+    <string name="lock_after_title">Lock</string>
+    <string name="lock_after_screen_off">When the screen turns off</string>
+    <string name="lock_after_manual">Only when I lock it</string>
+    <plurals name="lock_after_minutes">
+        <item quantity="one">%d minute after leaving the app</item>
+        <item quantity="other">%d minutes after leaving the app</item>
+    </plurals>
+    <string name="lock_wipe_title">Clear memory when locking</string>
+    <string name="lock_wipe_summary">Overwrites the memory the app used, so nothing read can be recovered from it</string>
+    <string name="lock_change_title">Change passphrase</string>
+    <string name="lock_change_confirm">Change</string>
+    <string name="lock_now_title">Lock now</string>
+    <string name="lock_turn_on_title">Lock with a passphrase</string>
+    <string name="lock_turn_on_message">If you forget it, there is no way back in: the only way out is to clear the app\'s data and link Signal again.</string>
+    <string name="lock_turn_on_confirm">Turn on</string>
+    <string name="lock_turn_off_title">Turn off the lock</string>
+    <string name="lock_turn_off_confirm">Turn off</string>
+    <string name="lock_passphrase_hint">Passphrase</string>
+    <string name="lock_passphrase_again_hint">Passphrase again</string>
+    <string name="lock_old_passphrase_hint">Current passphrase</string>
+    <string name="lock_new_passphrase_hint">New passphrase</string>
+    <string name="lock_too_short">Use at least 6 characters.</string>
+    <string name="lock_mismatch">The two passphrases are different.</string>
+    <string name="lock_working">One moment…</string>
+    <string name="lock_failed">That did not work. Nothing has changed.</string>
+    <string name="lock_unlock_title">Messaging is locked</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_unlocking">Unlocking…</string>
+    <string name="lock_wrong_passphrase">That passphrase is not right.</string>
+    <plurals name="lock_arrivals_title">
+        <item quantity="one">%d new message. Unlock to read it.</item>
+        <item quantity="other">%d new messages. Unlock to read them.</item>
+    </plurals>
     <!-- On the lock screen, through Glance: conversations with something unread, not messages -->
     <plurals name="lock_screen_unread_texts">
         <item quantity="one">%d text chat</item>

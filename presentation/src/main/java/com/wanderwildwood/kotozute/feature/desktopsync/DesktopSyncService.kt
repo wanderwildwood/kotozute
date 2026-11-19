@@ -554,6 +554,13 @@ class DesktopSyncService : Service() {
             return
         }
 
+        // Locked: Desktop Sync serves the messages, so it waits for the passphrase too.
+        if (com.wanderwildwood.kotozute.util.MessageStoreGate.blocked) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+
         if (server != null) return // already running
 
         val newServer = DesktopSyncServer(

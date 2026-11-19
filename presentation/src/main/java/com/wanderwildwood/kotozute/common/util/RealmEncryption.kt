@@ -69,12 +69,17 @@ object RealmEncryption {
      */
     fun keyOrNull(context: Context): ByteArray? = try {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val sealed = prefs.getString(PREF_SEALED_KEY, null)
+        // Under the passphrase lock's cover when it is on; see AppLock.
+        val sealed = com.wanderwildwood.kotozute.lock.AppLock.reveal(prefs.getString(PREF_SEALED_KEY, null))
         val iv = prefs.getString(PREF_IV, null)
         when {
             sealed != null && iv != null -> unseal(sealed, iv)
             else -> newKey().also { seal(context, it) }
         }
+    } catch (locked: com.wanderwildwood.kotozute.lock.AppLock.Locked) {
+        // ⛔ Never null. Null reads as "the keystore lost the key", and the screen that
+        // follows offers to start with an empty list. Locked is not lost.
+        throw locked
     } catch (t: Throwable) {
         Timber.e(t, "realm: the keystore gave no usable encryption key")
         null
@@ -298,7 +303,10 @@ object RealmEncryption {
         cipher.init(Cipher.ENCRYPT_MODE, keystoreKey())
         val sealed = cipher.doFinal(key)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(PREF_SEALED_KEY, Base64.encodeToString(sealed, Base64.NO_WRAP))
+            .putString(
+                PREF_SEALED_KEY,
+                com.wanderwildwood.kotozute.lock.AppLock.coverForWrite(context, Base64.encodeToString(sealed, Base64.NO_WRAP))
+            )
             .putString(PREF_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
             // commit(), not apply(): a database is about to be locked with this key, and a key
             // still waiting in memory when the process dies is a database nobody can open.

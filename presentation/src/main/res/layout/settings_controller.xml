@@ -159,6 +159,13 @@
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/appLock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_app_lock_summary"
+                app:title="@string/settings_app_lock_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/lockScreen"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

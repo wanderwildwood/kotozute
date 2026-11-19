@@ -54,9 +54,12 @@ object ProtocolStoreKey {
      */
     fun require(context: Context): ByteArray = try {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val sealed = prefs.getString(PREF_SEALED_KEY, null)
+        // Under the passphrase lock's cover when it is on; see AppLock.
+        val sealed = com.wanderwildwood.kotozute.lock.AppLock.reveal(prefs.getString(PREF_SEALED_KEY, null))
         val iv = prefs.getString(PREF_IV, null)
         if (sealed != null && iv != null) unseal(sealed, iv) else newKey().also { seal(context, it) }
+    } catch (locked: com.wanderwildwood.kotozute.lock.AppLock.Locked) {
+        throw locked
     } catch (t: Throwable) {
         throw IllegalStateException("the protocol store key is unavailable", t)
     }
@@ -74,7 +77,7 @@ object ProtocolStoreKey {
         // commit(), not apply(): the store is created under this key straight away, and a key
         // still waiting in memory when the process dies leaves a store nothing can open.
         val written = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(PREF_SEALED_KEY, android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP))
+            .putString(PREF_SEALED_KEY, com.wanderwildwood.kotozute.lock.AppLock.coverForWrite(context, android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP)))
             .putString(PREF_IV, android.util.Base64.encodeToString(cipher.iv, android.util.Base64.NO_WRAP))
             .commit()
         check(written) { "the sealed protocol store key could not be written" }

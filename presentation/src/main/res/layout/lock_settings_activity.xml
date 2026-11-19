@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Passphrase lock settings (AppLockActivity). The shared top bar over one column of the
+    ordinary settings rows; no separator lines (STYLE.md, settings pages).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        style="@style/Toolbar">
+
+        <com.wanderwildwood.kotozute.common.widget.QkTextView
+            android:id="@+id/toolbarTitle"
+            style="@style/ToolbarText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/lock_settings_title" />
+    </androidx.appcompat.widget.Toolbar>
+
+    <include layout="@layout/top_bar_rule" />
+
+    <com.wanderwildwood.kotozute.common.widget.PagingScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/lockOn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/lock_on_summary"
+                app:title="@string/lock_on_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/lockAfter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/lock_after_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/lockWipe"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/lock_wipe_summary"
+                app:title="@string/lock_wipe_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/lockChange"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/lock_change_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/lockNow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/lock_now_title" />
+
+        </LinearLayout>
+    </com.wanderwildwood.kotozute.common.widget.PagingScrollView>
+</LinearLayout>

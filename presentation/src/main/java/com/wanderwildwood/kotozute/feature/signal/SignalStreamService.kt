@@ -68,6 +68,14 @@ class SignalStreamService : android.app.Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // Locked (passphrase lock, or a refused keystore): nothing may be received until the
+        // database opens; unlocking starts the stream again. The foreground call above still
+        // had to happen -- Android ends an app that is started this way and never makes it.
+        if (com.wanderwildwood.kotozute.util.MessageStoreGate.blocked) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         // Idempotent: startStream refuses to start a second loop while one is running, so
         // this is safe on every redelivery. Off the main thread: starting the stream opens the
         // protocol store, and on a cold start that held the first screen for over a second

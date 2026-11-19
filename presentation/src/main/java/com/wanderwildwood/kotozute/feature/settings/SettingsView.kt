@@ -122,6 +122,7 @@ interface SettingsView : QkViewContract<SettingsState> {
 
     /** The linked-devices screen. Primary only. */
     fun showSignalDevices()
+    fun showAppLock()
 
 
     /** Ask for this account's own profile name. Primary only; see [SettingsState.signalIsPrimary]. */

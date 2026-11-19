@@ -24,6 +24,8 @@ On the phone only:
 
 The app's own database is encrypted on disk with a random key sealed by a key in the phone's keystore, and so is the Signal key database. That protects the files if the storage is lifted from the phone. It does not protect them from code running as this app on an unlocked phone, because the keystore key cannot require your fingerprint or PIN: the app has to open its databases at start-up and in the background, with nobody there to unlock anything.
 
+**Passphrase lock (optional, off unless you turn it on).** Settings, Display, Passphrase lock adds a passphrase on top: the keys to both databases, the attachments and the backup code are then also locked under a key made from your passphrase, which is never stored. While the app is locked it cannot read anything it holds, so Signal messages and calls wait until you unlock, Desktop Sync stops, and an arriving text shows only that something came (the text itself goes into Android's message store as always and into the app when you unlock). Locking withdraws the app's notifications and ends the app; if "Clear memory when locking" is on, the memory it used is then overwritten. A forgotten passphrase cannot be recovered: the only way back is to clear the app's data and link Signal again.
+
 Signal attachments are encrypted on disk as well, each file under a key of its own, derived from a secret sealed by the keystore in the same way. Attachments that an earlier version stored unencrypted are encrypted in the background after you update; until that has finished, some of them are still as the earlier version left them.
 
 One kind of copy is not encrypted. When you open an attachment in another app, or copy a picture, the app puts a copy in its private cache for the other app to read; Android does not say when the other app has finished with it, so the copy is removed once it is two hours old, the next time the app starts or does its daily cleanup. A voice message or a view-once video is decrypted in memory to be played and is not written anywhere. The attachments of a message that has not finished sending are kept encrypted in the same way as received ones.
@@ -36,7 +38,7 @@ The manifest sets `allowBackup="false"`, so Android does not copy the app into a
 
 Five things leave the app's storage only when you ask:
 
-- **Backup and restore** writes your SMS texts (not MMS, settings or Signal) to a plain, unencrypted file in a place you choose. A restore skips messages already on the phone.
+- **Backup and restore** writes your SMS texts (not MMS, settings or Signal) to a file in a folder you choose, by hand or automatically every day or week. Each file is encrypted with a 30-digit backup code that the app makes once and shows you to write down; the code is kept on the phone, sealed like the other keys, so automatic backups can run. Without the code a backup cannot be read, by anyone, including you on another phone. Backups made by versions before 1.35.44 are plain files and still restore. A restore skips messages already on the phone.
 - **Save**, on a picture, video or file in a conversation, writes a copy where you choose, through Android's own save screen.
 - **Write a copy out** (Settings, Signal, Chat history) writes your Signal messages to a folder you pick, encrypted. Import reads a Signal Desktop export or such a copy from a folder you pick.
 - **Desktop Sync**, below.
@@ -72,7 +74,9 @@ Signal and your carrier are independent controllers for what they receive.
 
 **Contact discovery.** If you answer yes to "Ask Signal about your contacts?" (in setup or in Settings, Find contacts on Signal), the phone numbers in your address book are sent to Signal's lookup service, scrambled so the service cannot read them, to learn which are on Signal. Once you have agreed, a number you start a new message to may be looked up the same way. Nothing is looked up before you agree.
 
-**GIF search.** The Signal GIF picker asks GIPHY, through Signal's content proxy (`contentproxy.signal.org`), so GIPHY sees the proxy and not you, and the proxy sees only that you connected to GIPHY. Only when you open the picker.
+**GIF search.** The Signal GIF picker asks GIPHY, through Signal's content proxy (`contentproxy.signal.org`), so GIPHY sees the proxy and not you, and the proxy sees only that you connected to GIPHY. Only when you open the picker. While the SOCKS proxy below is on, the picker goes to GIPHY through your proxy instead, so GIPHY sees your proxy's address.
+
+**SOCKS proxy (optional, off unless you turn it on).** Settings, Signal, SOCKS proxy sends every connection to Signal through a SOCKS5 proxy you name, for example Orbot for Tor; names are looked up by the proxy, not by the phone. Nothing falls back to a direct connection: if the proxy cannot be reached, Signal does not connect. Signal calls cannot go through a proxy, so they are off while it is on. Desktop Sync stays on your own network and is not proxied.
 
 **Updates.** The app never looks for updates, downloads one or installs one, and holds no permission to install apps. Messaging is updated through GitHub (with Obtainium, for instance) or through the InkApps store, never by itself.
 

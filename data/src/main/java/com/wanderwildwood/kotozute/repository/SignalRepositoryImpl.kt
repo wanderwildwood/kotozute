@@ -984,6 +984,7 @@ class SignalRepositoryImpl @Inject constructor(
                 outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED ||
                 outcome == com.wanderwildwood.kotozute.signalstore.CallOutcome.PLACED_UNANSWERED
             val selfAci = signalStore.selfAciOrNull().orEmpty()
+            val callTimer = timerFor("direct:$peer").first
             ingest(
                 listOf(
                     com.wanderwildwood.kotozute.signal.BridgeMessage(
@@ -1000,7 +1001,15 @@ class SignalRepositoryImpl @Inject constructor(
                         quoteTs = 0,
                         read = outcome != com.wanderwildwood.kotozute.signalstore.CallOutcome.MISSED,
                         source = "live",
-                        attachmentsJson = ""
+                        attachmentsJson = "",
+                        // A call in a disappearing conversation goes when its messages do.
+                        // Without this the line had no deadline and "Missed call" stayed on
+                        // the phone for ever after every word around it had gone (Molly's
+                        // "disappearing call history"). The clock starts at the call, as it
+                        // does for a message on receipt; a line already counting down keeps
+                        // its deadline when a later report rewrites it (see ingest).
+                        expiresInSeconds = callTimer.toLong(),
+                        expiresAt = if (callTimer > 0) at + callTimer * 1000L else 0L
                     )
                 )
             )

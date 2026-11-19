@@ -1,6 +1,5 @@
 package com.wanderwildwood.kotozute.feature.lock
 
-import android.app.ActivityManager
 import android.app.job.JobInfo
 import android.app.job.JobParameters
 import android.app.job.JobScheduler
@@ -23,8 +22,9 @@ import timber.log.Timber
  *
  * It runs in its own process (`:wipe` in the manifest), started by the job scheduler because
  * Android 12 will not let an app in the background start a service, and a lock is mostly
- * from the background. It stops well before the phone runs short, so it never pushes other
- * apps out of memory: it watches the system's low-memory line and backs off when told to trim.
+ * from the background. It never pushes other
+ * apps out of memory: it takes only memory that is already free, keeps a quarter of RAM untouched,
+ * stops at 384 MB, and backs off when told to trim.
  */
 class WipeMemoryJob : JobService() {
 
@@ -51,18 +51,30 @@ class WipeMemoryJob : JobService() {
 
     override fun onLowMemory() { stop = true }
 
+    /** A /proc/meminfo field in bytes, or -1. */
+    private fun meminfo(field: String): Long = runCatching {
+        java.io.File("/proc/meminfo").useLines { lines ->
+            lines.first { it.startsWith("$field:") }.filter(Char::isDigit).toLong() * 1024
+        }
+    }.getOrDefault(-1L)
+
+    /**
+     * ⛔ Only memory that is free right now (MemFree), never "available" memory: available counts
+     * cache the kernel must reclaim first, and reclaiming under pressure is what makes Android's
+     * low-memory killer close other apps. The first version claimed available memory and, on the
+     * Kompakt (2.8 GB), five background apps were closed in two seconds (2026-11-19). A dead
+     * process's pages go straight to the free pool, so free memory is where they are anyway.
+     */
     private fun wipe(): Long {
-        val am = getSystemService(ActivityManager::class.java) ?: return 0
-        val info = ActivityManager.MemoryInfo()
+        val total = meminfo("MemTotal").takeIf { it > 0 } ?: return 0
+        val floor = maxOf(total / 4, 256L * 1024 * 1024)
         val chunks = ArrayList<SharedMemory>()
         val pattern = ByteArray(64 * 1024)
-        var total = 0L
+        var wiped = 0L
         try {
-            while (!stop) {
-                am.getMemoryInfo(info)
-                // Keep twice the system's own low-memory line free: well short of where it
-                // starts closing other apps.
-                if (info.lowMemory || info.availMem < info.threshold * 2 + CHUNK_BYTES) break
+            while (!stop && wiped < CAP_BYTES) {
+                val free = meminfo("MemFree")
+                if (free < 0 || free < floor + CHUNK_BYTES) break
                 val mem = runCatching { SharedMemory.create(null, CHUNK_BYTES) }.getOrNull() ?: break
                 chunks += mem
                 val buf = mem.mapReadWrite()
@@ -72,17 +84,21 @@ class WipeMemoryJob : JobService() {
                 } finally {
                     SharedMemory.unmap(buf)
                 }
-                total += CHUNK_BYTES
+                wiped += CHUNK_BYTES
+                Thread.sleep(PAUSE_MS)
             }
         } finally {
             chunks.forEach { runCatching { it.close() } }
         }
-        return total
+        return wiped
     }
 
     companion object {
         private const val JOB_ID = 0x5719E
         private const val CHUNK_BYTES = 4 * 1024 * 1024
+        /** More than the app's own process ever holds; the rest of free memory is not ours to churn. */
+        private const val CAP_BYTES = 384L * 1024 * 1024
+        private const val PAUSE_MS = 15L
 
         fun schedule(context: Context) {
             val js = context.getSystemService(JobScheduler::class.java) ?: return

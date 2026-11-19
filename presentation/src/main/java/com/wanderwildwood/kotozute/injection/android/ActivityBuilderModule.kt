@@ -124,6 +124,9 @@ abstract class ActivityBuilderModule {
     @ContributesAndroidInjector
     abstract fun bindSignalDevicesActivity(): com.wanderwildwood.kotozute.feature.signal.SignalDevicesActivity
 
+    @ContributesAndroidInjector
+    abstract fun bindAppLockActivity(): com.wanderwildwood.kotozute.feature.lock.AppLockActivity
+
 
     @ActivityScope
     @ContributesAndroidInjector(modules = [])

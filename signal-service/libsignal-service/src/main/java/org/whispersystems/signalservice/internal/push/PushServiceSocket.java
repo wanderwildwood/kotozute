@@ -72,6 +72,8 @@ import org.signal.network.config.SignalCdnUrl;
 import org.signal.network.config.SignalProxy;
 import org.signal.network.config.SignalServiceConfiguration;
 import org.signal.network.config.SignalUrl;
+import org.signal.network.config.SocksProxySource;
+import org.signal.network.config.SocksRouting;
 import org.signal.network.crypto.SealedSenderAccess;
 import org.whispersystems.signalservice.internal.crypto.AttachmentDigest;
 import org.whispersystems.signalservice.internal.push.exceptions.ForbiddenException;
@@ -229,12 +231,12 @@ public class PushServiceSocket {
     this.credentialsProvider       = credentialsProvider;
     this.signalAgent               = signalAgent;
     this.automaticNetworkRetry     = automaticNetworkRetry;
-    this.serviceClients            = createServiceConnectionHolders(configuration.getSignalServiceUrls(), configuration.getNetworkInterceptors(), configuration.getDns(), configuration.getSignalProxy());
-    this.cdnClientsMap             = createCdnClientsMap(configuration.getSignalCdnUrlMap(), configuration.getNetworkInterceptors(), configuration.getDns(), configuration.getSignalProxy());
-    this.storageClients            = createConnectionHolders(configuration.getSignalStorageUrls(), configuration.getNetworkInterceptors(), configuration.getDns(), configuration.getSignalProxy());
+    this.serviceClients            = createServiceConnectionHolders(configuration.getSignalServiceUrls(), configuration.getNetworkInterceptors(), configuration.getDns(), configuration.getSignalProxy(), configuration.getSocksProxy());
+    this.cdnClientsMap             = createCdnClientsMap(configuration.getSignalCdnUrlMap(), configuration.getNetworkInterceptors(), configuration.getDns(), configuration.getSignalProxy(), configuration.getSocksProxy());
+    this.storageClients            = createConnectionHolders(configuration.getSignalStorageUrls(), configuration.getNetworkInterceptors(), configuration.getDns(), configuration.getSignalProxy(), configuration.getSocksProxy());
     // Share the existing holders when there is no separate uncensored configuration, rather than building a second set.
-    this.directCdnClientsMap       = uncensoredConfiguration != configuration ? createCdnClientsMap(uncensoredConfiguration.getSignalCdnUrlMap(), uncensoredConfiguration.getNetworkInterceptors(), uncensoredConfiguration.getDns(), uncensoredConfiguration.getSignalProxy()) : this.cdnClientsMap;
-    this.directStorageClients      = uncensoredConfiguration != configuration ? createConnectionHolders(uncensoredConfiguration.getSignalStorageUrls(), uncensoredConfiguration.getNetworkInterceptors(), uncensoredConfiguration.getDns(), uncensoredConfiguration.getSignalProxy()) : this.storageClients;
+    this.directCdnClientsMap       = uncensoredConfiguration != configuration ? createCdnClientsMap(uncensoredConfiguration.getSignalCdnUrlMap(), uncensoredConfiguration.getNetworkInterceptors(), uncensoredConfiguration.getDns(), uncensoredConfiguration.getSignalProxy(), uncensoredConfiguration.getSocksProxy()) : this.cdnClientsMap;
+    this.directStorageClients      = uncensoredConfiguration != configuration ? createConnectionHolders(uncensoredConfiguration.getSignalStorageUrls(), uncensoredConfiguration.getNetworkInterceptors(), uncensoredConfiguration.getDns(), uncensoredConfiguration.getSignalProxy(), uncensoredConfiguration.getSocksProxy()) : this.storageClients;
     this.preferDirectRoute         = preferDirectRoute;
     this.random                    = new SecureRandom();
   }
@@ -1044,13 +1046,14 @@ public class PushServiceSocket {
   private ServiceConnectionHolder[] createServiceConnectionHolders(SignalUrl[] urls,
                                                                    List<Interceptor> interceptors,
                                                                    Optional<Dns> dns,
-                                                                   Optional<SignalProxy> proxy)
+                                                                   Optional<SignalProxy> proxy,
+                                                                   @Nullable SocksProxySource socks)
   {
     List<ServiceConnectionHolder> serviceConnectionHolders = new LinkedList<>();
 
     for (SignalUrl url : urls) {
-      serviceConnectionHolders.add(new ServiceConnectionHolder(createConnectionClient(url, interceptors, dns, proxy),
-                                                               createConnectionClient(url, interceptors, dns, proxy),
+      serviceConnectionHolders.add(new ServiceConnectionHolder(createConnectionClient(url, interceptors, dns, proxy, socks),
+                                                               createConnectionClient(url, interceptors, dns, proxy, socks),
                                                                url.getUrl(), url.getHostHeader()));
     }
 
@@ -1060,12 +1063,13 @@ public class PushServiceSocket {
   private static Map<Integer, ConnectionHolder[]> createCdnClientsMap(final Map<Integer, SignalCdnUrl[]> signalCdnUrlMap,
                                                                       final List<Interceptor> interceptors,
                                                                       final Optional<Dns> dns,
-                                                                      final Optional<SignalProxy> proxy) {
+                                                                      final Optional<SignalProxy> proxy,
+                                                                      final @Nullable SocksProxySource socks) {
     validateConfiguration(signalCdnUrlMap);
     final Map<Integer, ConnectionHolder[]> result = new HashMap<>();
     for (Map.Entry<Integer, SignalCdnUrl[]> entry : signalCdnUrlMap.entrySet()) {
       result.put(entry.getKey(),
-                 createConnectionHolders(entry.getValue(), interceptors, dns, proxy));
+                 createConnectionHolders(entry.getValue(), interceptors, dns, proxy, socks));
     }
     return Collections.unmodifiableMap(result);
   }
@@ -1076,17 +1080,17 @@ public class PushServiceSocket {
     }
   }
 
-  private static ConnectionHolder[] createConnectionHolders(SignalUrl[] urls, List<Interceptor> interceptors, Optional<Dns> dns, Optional<SignalProxy> proxy) {
+  private static ConnectionHolder[] createConnectionHolders(SignalUrl[] urls, List<Interceptor> interceptors, Optional<Dns> dns, Optional<SignalProxy> proxy, @Nullable SocksProxySource socks) {
     List<ConnectionHolder> connectionHolders = new LinkedList<>();
 
     for (SignalUrl url : urls) {
-      connectionHolders.add(new ConnectionHolder(createConnectionClient(url, interceptors, dns, proxy), url.getUrl(), url.getHostHeader()));
+      connectionHolders.add(new ConnectionHolder(createConnectionClient(url, interceptors, dns, proxy, socks), url.getUrl(), url.getHostHeader()));
     }
 
     return connectionHolders.toArray(new ConnectionHolder[0]);
   }
 
-  private static OkHttpClient createConnectionClient(SignalUrl url, List<Interceptor> interceptors, Optional<Dns> dns, Optional<SignalProxy> proxy) {
+  private static OkHttpClient createConnectionClient(SignalUrl url, List<Interceptor> interceptors, Optional<Dns> dns, Optional<SignalProxy> proxy, @Nullable SocksProxySource socks) {
     try {
       TrustManager[] trustManagers = BlacklistingTrustManager.createFor(url.getTrustStore());
 
@@ -1111,6 +1115,8 @@ public class PushServiceSocket {
       for (Interceptor interceptor : interceptors) {
         builder.addInterceptor(interceptor);
       }
+
+      SocksRouting.apply(builder, socks);
 
       return builder.build();
     } catch (NoSuchAlgorithmException | KeyManagementException e) {

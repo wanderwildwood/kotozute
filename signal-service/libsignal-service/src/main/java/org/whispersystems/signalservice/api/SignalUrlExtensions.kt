@@ -9,6 +9,7 @@ import okhttp3.ConnectionSpec
 import okhttp3.OkHttpClient
 import org.signal.network.config.SignalServiceConfiguration
 import org.signal.network.config.SignalUrl
+import org.signal.network.config.SocksRouting
 import org.signal.network.config.TrustStore
 import org.signal.network.util.Tls12SocketFactory
 import org.signal.network.util.TlsProxySocketFactory
@@ -49,6 +50,8 @@ fun <T : SignalUrl> T.buildOkHttpClient(configuration: SignalServiceConfiguratio
     val proxy = configuration.signalProxy.get()
     builder.socketFactory(TlsProxySocketFactory(proxy.host, proxy.port, configuration.dns))
   }
+
+  SocksRouting.apply(builder, configuration.socksProxy)
 
   return builder.build()
 }

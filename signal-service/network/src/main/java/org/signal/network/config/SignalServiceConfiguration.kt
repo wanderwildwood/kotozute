@@ -20,7 +20,12 @@ data class SignalServiceConfiguration(
   val zkGroupServerPublicParams: ByteArray,
   val genericServerPublicParams: ByteArray,
   val backupServerPublicParams: ByteArray,
-  val censored: Boolean
+  val censored: Boolean,
+  /**
+   * Not upstream's. A SOCKS5 proxy for every OkHttp client built from this configuration; see
+   * [SocksRouting]. Null, the default, leaves the clients exactly as upstream builds them.
+   */
+  val socksProxy: SocksProxySource? = null
 ) {
 
   /** Convenience operator overload for combining the URL lists. Does not add the other fields together, as those wouldn't make sense.  */

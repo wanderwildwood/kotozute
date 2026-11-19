@@ -17,6 +17,8 @@ import org.whispersystems.signalservice.api.websocket.WebSocketConnectionState;
 import org.signal.network.config.SignalProxy;
 import org.signal.network.config.SignalServiceConfiguration;
 import org.signal.network.config.SignalServiceUrl;
+import org.signal.network.config.SocksProxySource;
+import org.signal.network.config.SocksRouting;
 import org.whispersystems.signalservice.internal.util.BlacklistingTrustManager;
 import org.whispersystems.signalservice.internal.util.Util;
 
@@ -73,6 +75,7 @@ public class OkHttpWebSocketConnection extends WebSocketListener implements WebS
   private final List<Interceptor>                         interceptors;
   private final Optional<Dns>                             dns;
   private final Optional<SignalProxy>                     signalProxy;
+  private final SocksProxySource                          socksProxy;
   private final BehaviorSubject<WebSocketConnectionState> webSocketState;
   private final boolean                                   allowStories;
   private final SignalServiceUrl[]                        serviceUrls;
@@ -105,6 +108,7 @@ public class OkHttpWebSocketConnection extends WebSocketListener implements WebS
     this.interceptors        = serviceConfiguration.getNetworkInterceptors();
     this.dns                 = serviceConfiguration.getDns();
     this.signalProxy         = serviceConfiguration.getSignalProxy();
+    this.socksProxy          = serviceConfiguration.getSocksProxy();
     this.healthMonitor       = healthMonitor;
     this.webSocketState      = BehaviorSubject.createDefault(WebSocketConnectionState.DISCONNECTED);
     this.allowStories        = allowStories;
@@ -150,6 +154,8 @@ public class OkHttpWebSocketConnection extends WebSocketListener implements WebS
       if (signalProxy.isPresent()) {
         clientBuilder.socketFactory(new TlsProxySocketFactory(signalProxy.get().getHost(), signalProxy.get().getPort(), dns));
       }
+
+      SocksRouting.apply(clientBuilder, socksProxy);
 
       OkHttpClient okHttpClient = clientBuilder.build();
 

@@ -73,16 +73,28 @@ here is presented as this project's own work.
 
 ## What was changed, and it is a short list
 
-**684 of the 685 copied files in the five modules are byte-identical to upstream at
+**679 of the 685 copied files in the five modules are byte-identical to upstream at
 `90a6ddce46`**, and so are both files of `wire-handler/` — measured with `cmp` against a
-`git archive` of that commit, every file, every time this changes (last measured 2026-11-16).
-The one that differs:
+`git archive` of that commit, every file, every time this changes (last measured 2026-11-16;
+the five SOCKS files below were changed on 2026-11-19, and nothing else with them).
+The six that differ:
 
 1. **`network/src/main/java/org/signal/network/util/JsonUtil.java`** — `new KotlinModule()` is a
    constructor jackson removed after 2.12. Replaced with
    `ExtensionsKt.registerKotlinModule(objectMapper)`, which is what upstream's *other* JSON helper
    (`core/util/.../JsonUtils.java:25`) already does in the same tree. Forced by the build, and
    commented at the line.
+
+2. **The SOCKS proxy** (2026-11-19, the app's "SOCKS proxy" setting, modelled on Molly's): one
+   new, optional field on `network/.../config/SignalServiceConfiguration.kt` (`socksProxy`,
+   default null), and one `SocksRouting.apply(builder, ...)` line where each OkHttp client is
+   built — `lib-network/.../rest/SignalRestClient.kt`,
+   `libsignal-service/.../api/SignalUrlExtensions.kt`,
+   `libsignal-service/.../internal/push/PushServiceSocket.java` (the source threaded through its
+   private helpers) and `libsignal-service/.../internal/websocket/OkHttpWebSocketConnection.java`.
+   With the field null, as upstream never sets it, each builder is exactly upstream's. The
+   routing itself is ours and new, in `network/.../config/SocksProxy.kt`, with its test
+   `SocksRoutingTest.kt` beside upstream's.
 
 One upstream file is **not copied**: `libsignal-service/src/test/resources/ias.jks`. It is a
 keystore, no source in these modules refers to it, and this repository's `.gitignore` refuses

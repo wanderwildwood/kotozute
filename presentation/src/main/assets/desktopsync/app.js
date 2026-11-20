@@ -2426,7 +2426,9 @@ async function loadMessages() {
   // that had gone, until the reader opened another conversation and came back (issue #4).
   const sig = forThread + ':' + messageLimit + ':' + messages.length + ':' +
     (messages.length ? messages[messages.length - 1].id + ':' + messages[messages.length - 1].date : '') + ':' +
-    messages.map(m => (m.status || '') + (m.reactions || []).map(r => r.emoji + r.count + (r.mine ? '*' : '') + (r.names || []).join(',')).join('')).join('|');
+    // And its words: an edit keeps the id, the date and the status, so without them an edited
+    // message went on showing what it said before until another conversation was opened.
+    messages.map(m => (m.status || '') + (m.edited ? 'e' : '') + (m.body || '') + (m.reactions || []).map(r => r.emoji + r.count + (r.mine ? '*' : '') + (r.names || []).join(',')).join('')).join('|');
   if (sig === lastMessagesSig) return;
   const isNewThread = !lastMessagesSig.startsWith(forThread + ':');
   lastMessagesSig = sig;
@@ -2648,6 +2650,7 @@ async function loadMessages() {
       + (m.status === 'failed' ? ' · not sent'
         : m.status === 'sending' ? ' · sending…'
         : '')
+      + (m.edited ? ' · edited' : '')
       + (marksSim ? ' · ' + sim : '')
       // A disappearing message says when it goes. Without it a thread that empties itself
       // is indistinguishable from one that lost something, and the reader has no way to

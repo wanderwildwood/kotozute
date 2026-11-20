@@ -1173,6 +1173,8 @@ class DesktopSyncServer(
         put("isMe", m.outgoing)
         put("read", m.read)
         put("rail", "signal")
+        // Edited since it was sent: the phone marks it "Edited", and so does the page.
+        if (m.revisionTs > 0) put("edited", true)
         // The same field the text rail sends, which the browser already draws. A Signal
         // message is written down before it goes now, so it has a sending and a not-sent too.
         if (m.outgoing) {

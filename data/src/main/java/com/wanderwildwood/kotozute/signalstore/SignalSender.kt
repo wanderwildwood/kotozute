@@ -1982,6 +1982,7 @@ internal class SignalSender(
         // sends nothing: with no other devices there is genuinely nobody to tell.
         if (isSelf(recipient)) return sendToSelf(message, timestamp)
 
+        val delivery = Delivery()
         return try {
             val owedProof = owesPniProof(recipient)
             val result: SendMessageResult = sender.sendDataMessage(
@@ -1994,7 +1995,7 @@ internal class SignalSender(
                 sealedSender.accessFor(recipient.toString()),
                 ContentHint.RESENDABLE,
                 message,
-                SignalServiceMessageSender.IndividualSendEvents.EMPTY,
+                delivery,
                 // ⚠⚠ **These two were the wrong way round**, and the comment below described
                 // the second one while it sat on the first. Read out of the bytecode, not
                 // guessed: parameter 6 is `urgent` and parameter 7 is `includePniSignature`.
@@ -2023,6 +2024,10 @@ internal class SignalSender(
                 failed(result)
             }
         } catch (t: Throwable) {
+            if (delivery.reachedRecipient) {
+                Timber.w(t, "signal send: delivered ts=%d, but the copy for this account's other devices did not go", timestamp)
+                return Result.Sent(timestamp)
+            }
             Timber.w(t, "signal send: threw")
             failed(t)
         }
@@ -2077,13 +2082,14 @@ internal class SignalSender(
             .withExpiration(expiresInSeconds)
             .withExpireTimerVersion(expireTimerVersion)
             .build()
+        val delivery = Delivery()
         return try {
             val result = sender.sendEditMessage(
                 SignalServiceAddress(recipient),
                 sealedSender.accessFor(recipient.toString()),
                 ContentHint.RESENDABLE,
                 message,
-                SignalServiceMessageSender.IndividualSendEvents.EMPTY,
+                delivery,
                 true,
                 targetSentAt
             )
@@ -2094,6 +2100,10 @@ internal class SignalSender(
                 failed(result)
             }
         } catch (t: Throwable) {
+            if (delivery.reachedRecipient) {
+                Timber.w(t, "signal edit: delivered ts=%d, but the copy for this account's other devices did not go", timestamp)
+                return Result.Sent(timestamp)
+            }
             Timber.w(t, "signal edit: threw")
             failed(t)
         }
@@ -2394,5 +2404,33 @@ internal class SignalSender(
         internal fun isBodyTooLong(body: String): Boolean =
             utf8Size(body) > MAX_INLINE_BODY_SIZE_BYTES
         private const val MAX_INCREMENTAL_MACS_PER_ENVELOPE = 10
+    }
+
+    /**
+     * Whether a one-to-one send reached its recipient before anything went wrong.
+     *
+     * `SignalServiceMessageSender.sendContent` sends to the recipient, calls [onMessageSent],
+     * and only then -- and only when the recipient's send succeeded -- sends this account's
+     * other devices their copy (the sent transcript). A throw from that second step used to
+     * come out of `sendDataMessage` exactly like a send that never left, so a message the
+     * recipient already had was taken off the screen and its text put back in the composer,
+     * and sending it again gave them a second copy under a new timestamp.
+     *
+     * So a throw after [onMessageSent] is a delivered message whose transcript did not go.
+     * The other devices miss that one message; nothing else is lost. Upstream reaches the
+     * same place differently -- its job retries the whole send under the same timestamp and
+     * the recipient drops the duplicate -- which a composer that holds a failed send cannot.
+     */
+    private class Delivery : SignalServiceMessageSender.IndividualSendEvents {
+        @Volatile
+        var reachedRecipient = false
+            private set
+
+        override fun onMessageEncrypted() = Unit
+        override fun onMessageSent() {
+            reachedRecipient = true
+        }
+        override fun onSyncMessageEncrypted() = Unit
+        override fun onSyncMessageSent() = Unit
     }
 }

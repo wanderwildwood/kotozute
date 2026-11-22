@@ -296,6 +296,8 @@ To be told about each new release, add this repository to
 Obtainium will offer each new release as it appears. **The application id is settled** — updates
 install over what you have, keeping your settings and anything the app has stored.
 
+Questions, ideas, or just saying hello: the wander the dev Discord, <https://discord.gg/UMW8yJg7dQ>
+
 ## Not affiliated with Signal
 
 This is not a Signal product, and has no connection to the Signal Foundation or Signal

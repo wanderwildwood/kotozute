@@ -579,11 +579,13 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.silenceUnknownSenders.checkbox.isChecked = state.silenceUnknownSenders
         binding.darkMode.checkbox.isChecked = state.darkMode
         binding.lockScreen.checkbox.isChecked = state.lockScreenEnabled
-        // Shown when Glance is installed or the switch is already on, so it can still be turned off.
+        // Shown when Glance is installed, or when somebody set the switch on (so it can still be
+        // turned off). The switch starts on, and that alone is no reason for a row without Glance.
         val glanceHere = runCatching {
             context.packageManager.getPackageInfo(com.wanderwildwood.kotozute.glance.GlanceProvider.READER, 0)
         }.isSuccess
-        binding.lockScreen.setVisible(glanceHere || state.lockScreenEnabled)
+        val lockScreenChosen = android.preference.PreferenceManager.getDefaultSharedPreferences(context).contains("lockScreen")
+        binding.lockScreen.setVisible(glanceHere || (lockScreenChosen && state.lockScreenEnabled))
 
         binding.signature.summary = state.signature.takeIf { it.isNotBlank() }
                 ?: context.getString(R.string.settings_signature_summary)

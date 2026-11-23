@@ -579,6 +579,11 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.silenceUnknownSenders.checkbox.isChecked = state.silenceUnknownSenders
         binding.darkMode.checkbox.isChecked = state.darkMode
         binding.lockScreen.checkbox.isChecked = state.lockScreenEnabled
+        // Shown when Glance is installed or the switch is already on, so it can still be turned off.
+        val glanceHere = runCatching {
+            context.packageManager.getPackageInfo(com.wanderwildwood.kotozute.glance.GlanceProvider.READER, 0)
+        }.isSuccess
+        binding.lockScreen.setVisible(glanceHere || state.lockScreenEnabled)
 
         binding.signature.summary = state.signature.takeIf { it.isNotBlank() }
                 ?: context.getString(R.string.settings_signature_summary)
@@ -605,6 +610,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
         binding.mmsSize.summary = state.maxMmsSizeSummary
         binding.filePicker.summary = filePickerLabel()
+        // Only when another app can hand over files; Android's own picker alone is nothing to choose.
+        binding.filePicker.setVisible(com.wanderwildwood.kotozute.common.util.FilePicker.others(context).isNotEmpty())
         mmsSizeDialog.adapter.selectedItem = state.maxMmsSizeId
 
         binding.messageLinkHandling.summary = state.messageLinkHandlingSummary

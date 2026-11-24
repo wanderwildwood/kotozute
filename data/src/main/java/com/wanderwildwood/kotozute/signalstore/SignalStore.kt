@@ -455,6 +455,10 @@ class SignalStore(private val context: Context) {
         attachments: List<String> = emptyList(),
         viewOnce: Boolean = false
     ): Long {
+        // Before the connection, not only inside the sender: a body over the limit is refused
+        // whatever the network says, and checking it after connecting kept the person waiting
+        // half a minute to be told so. [SignalSender.sendToGroup] keeps the same check as the backstop.
+        if (SignalSender.isBodyTooLong(body)) throw SendRefused(SendFailure.TooLong)
         connection.connect()
         // ⚠ Which kind of "no" matters. Being removed from a group is permanent and there is
         // nothing to try again; a server that would not answer is a minute's wait. Both used
@@ -2046,6 +2050,10 @@ class SignalStore(private val context: Context) {
     ): Long {
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient)
             ?: throw IllegalStateException("not a service id: $recipient")
+        // Before the connection, not only inside the sender: a body over the limit is refused
+        // whatever the network says, and checking it after connecting kept the person waiting
+        // half a minute to be told so. [SignalSender.send] keeps the same check as the backstop.
+        if (SignalSender.isBodyTooLong(body)) throw SendRefused(SendFailure.TooLong)
         connection.connect()
         return try {
             when (val result = SignalSender(

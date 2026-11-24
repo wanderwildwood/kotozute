@@ -582,12 +582,9 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
             .distinctUntilChanged()
             .subscribe { keep -> SignalSyncWorker.sync(applicationContext, prefs.signalEnabled.get(), keep) }
 
-        // Whether anything of this app is on screen, for the one decision that needs it: how
-        // often the Signal socket sends a keepalive. Signal reads the same fact from
-        // `AppForegroundObserver` and halves the rate when nobody is looking, which on a phone
-        // with no push -- where that socket is the only way a message arrives -- is most of
-        // the day. Counted rather than flagged, because a configuration change stops one
-        // activity and starts the next.
+        // Whether anything of this app is on screen: Signal's `AppForegroundObserver`, read
+        // here by the limit on background storage reads (upstream 0d8785bd33). Counted rather
+        // than flagged, because a configuration change stops one activity and starts the next.
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private var started = 0
 
@@ -597,6 +594,10 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
                 // Opening the app brings Desktop Sync back if a background start was refused.
                 if (started == 1) {
                     runCatching { com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService.resumeIfOn(this@QKApplication, prefs) }
+                    // A storage read put off while nothing was on screen happens now (upstream
+                    // `ApplicationContext.onForeground`, `needsSyncOnForeground`). After the
+                    // flag above is set, so the read is not put off a second time.
+                    runCatching { signalRepo.onAppForegrounded() }
                 }
             }
 

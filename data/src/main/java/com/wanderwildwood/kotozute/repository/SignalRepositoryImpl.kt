@@ -2650,11 +2650,15 @@ class SignalRepositoryImpl @Inject constructor(
                 // can see the list is missing, in Settings. Where they are already here, the
                 // list is read, because by then somebody has asked for exactly that.
                 if (signalStore.storageKeyKnown()) {
-                    runCatching { signalStore.readStorage() }
-                        .onSuccess { Timber.i("signal storage: %s", it) }
+                    // Through the background limit: Android restarts this process often, and
+                    // each restart lands here. Upstream's start-up read is
+                    // `StorageSyncHelper.scheduleRoutineSync`, an ordinary-priority
+                    // `StorageSyncJob` that the same limit applies to.
+                    readStorageUnlessDeferred("connected")
+                        ?.onSuccess { Timber.i("signal storage: %s", it) }
                         // The key is still held, so every later read uses it; this one
                         // failing costs a sync of freshness, not the ability to read at all.
-                        .onFailure { Timber.w(it, "signal storage: could not read; later reads use the same key") }
+                        ?.onFailure { Timber.w(it, "signal storage: could not read; later reads use the same key") }
                     // Straight after the read, because that is where a write would go and
                     // because a row appearing here *because of* the read is the loop worth
                     // catching. Logged and sent nowhere -- see [logStoragePushDiff].
@@ -2781,8 +2785,10 @@ class SignalRepositoryImpl @Inject constructor(
                         System.currentTimeMillis() + java.util.concurrent.TimeUnit.DAYS.toMillis(1)
                     )
                     if (signalStore.storageKeyKnown()) {
-                        runCatching { signalStore.readStorage() }
-                            .onFailure { Timber.w(it, "signal kt: could not re-read the account's records") }
+                        // Upstream's `CheckKeyTransparencyJob` enqueues `forRemoteChange()`,
+                        // which the background limit applies to.
+                        readStorageUnlessDeferred("key transparency")
+                            ?.onFailure { Timber.w(it, "signal kt: could not re-read the account's records") }
                     }
                     runCatching { signalStore.refreshCapabilities() }
                         .onFailure { Timber.w(it, "signal kt: could not re-send this device's attributes") }
@@ -3655,13 +3661,65 @@ class SignalRepositoryImpl @Inject constructor(
             Timber.d("signal storage: asked to re-read, but the key for it is not here")
             return@runOffThread
         }
-        runCatching { signalStore.readStorage() }
-            .onSuccess {
+        // Upstream's `SyncMessageProcessor` answers a fetch-latest storage manifest with
+        // `StorageSyncJob.forRemoteChange()`, which the background limit applies to; a read put
+        // off here happens when the app is next on screen.
+        readStorageUnlessDeferred("asked by the account")
+            ?.onSuccess {
                 Timber.i("signal storage: re-read on request -- %s", it)
                 contactsChanged()
                 renameThreadsFromContacts()
             }
-            .onFailure { Timber.w(it, "signal storage: could not re-read on request") }
+            ?.onFailure { Timber.w(it, "signal storage: could not re-read on request") }
+    }
+
+    /**
+     * Reads the account's stored records, unless nothing of this app is on screen and the
+     * last such read was under [BackgroundStorageSync.INTERVAL_MS] ago. Returns null when the
+     * read was put off; it then happens on the next foreground ([onAppForegrounded]).
+     *
+     * Upstream `StorageSyncJob.onRun` (0d8785bd33). Only for reads nobody asked for: a person's
+     * read (Settings, setup, an account setting being written) calls `readStorage()` directly,
+     * which is this app's version of upstream's `PRIORITY_HIGH` exemption.
+     *
+     * One departure, and why: upstream clears `needsSyncOnForeground` before the sync and the
+     * job manager retries a failed job, whose retry inside the interval sets the flag again.
+     * There is no job manager here, so a failed read sets the flag itself -- the same end
+     * state, a read owed on the next foreground.
+     */
+    private fun readStorageUnlessDeferred(why: String): Result<SignalRepository.ContactsReport>? {
+        val now = System.currentTimeMillis()
+        val last = prefs.signalStorageLastBackgroundSync.get()
+        when (BackgroundStorageSync.decide(com.wanderwildwood.kotozute.signalstore.SignalForeground.onScreen(), last, now)) {
+            BackgroundStorageSync.Decision.DEFER -> {
+                Timber.i(
+                    "signal storage: off screen and read %d min ago; putting off the read (%s) until the app is next on screen",
+                    java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(now - last), why
+                )
+                prefs.signalStorageSyncOnForeground.set(true)
+                return null
+            }
+            BackgroundStorageSync.Decision.RUN_IN_BACKGROUND -> prefs.signalStorageLastBackgroundSync.set(now)
+            BackgroundStorageSync.Decision.RUN -> Unit
+        }
+        prefs.signalStorageSyncOnForeground.set(false)
+        return runCatching { signalStore.readStorage() }
+            .onFailure { prefs.signalStorageSyncOnForeground.set(true) }
+    }
+
+    /**
+     * The app has come on screen. Upstream `ApplicationContext.onForeground`: when
+     * `needsSyncOnForeground` is set, enqueue `StorageSyncJob.forRemoteChange()`. Here that is
+     * the same re-read an account's request gets, now on screen and so never put off.
+     */
+    override fun onAppForegrounded() {
+        if (!prefs.signalStorageSyncOnForeground.get()) return
+        // Off the main thread: whether this is a linked device opens the protocol store.
+        runOffThread {
+            if (!prefs.signalEnabled.get() || !isConfigured()) return@runOffThread
+            Timber.i("signal storage: on screen with a read owed; reading now")
+            rereadStoredRecords()
+        }
     }
 
     /**
@@ -6105,8 +6163,11 @@ class SignalRepositoryImpl @Inject constructor(
 
     private fun pushStorageNow() {
         if (!runCatching { signalStore.storageKeyKnown() }.getOrDefault(false)) return
-        runCatching { signalStore.readStorage() }
-            .onFailure { Timber.w(it, "signal storage: could not send a change; the next read sends it") }
+        // Upstream's `StorageSyncHelper.scheduleSyncForDataChange` is `forLocalChange()`, which
+        // the background limit applies to (a notification action, say). The change stays
+        // marked, so the read that is put off sends it when the app is next on screen.
+        readStorageUnlessDeferred("a change to send")
+            ?.onFailure { Timber.w(it, "signal storage: could not send a change; the next read sends it") }
     }
 
     override fun markUnread(threadKey: String) = runOffThread {

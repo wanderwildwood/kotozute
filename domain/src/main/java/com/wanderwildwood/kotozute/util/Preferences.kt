@@ -177,6 +177,19 @@ class Preferences @Inject constructor(
     val signalLastContactRequest = rxPrefs.getLong("signalLastContactRequest", 0L)
 
     /**
+     * When the account's stored records were last read while nothing of this app was on
+     * screen. Upstream's `StorageServiceValues.lastBackgroundSyncTime`; see
+     * `BackgroundStorageSync` in the data module.
+     */
+    val signalStorageLastBackgroundSync = rxPrefs.getLong("signalStorageLastBackgroundSync", 0L)
+
+    /**
+     * A background read was put off, so the next time the app comes on screen reads the
+     * account's records. Upstream's `StorageServiceValues.needsSyncOnForeground`.
+     */
+    val signalStorageSyncOnForeground = rxPrefs.getBoolean("signalStorageSyncOnForeground", false)
+
+    /**
      * When the repeated-use Signal keys were last replaced because something would not decrypt.
      *
      * Signal keeps the same value (`lastForcedPreKeyRefresh`) for the same reason: a forced

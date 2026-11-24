@@ -339,6 +339,13 @@ interface SignalRepository {
      */
     fun lastSyncCaughtUp(): Boolean
 
+    /**
+     * Something of this app has just come on screen. Reads the account's stored records if a
+     * read was put off while nothing was (upstream `ApplicationContext.onForeground` and
+     * `needsSyncOnForeground`). Returns at once; the read is off the caller's thread.
+     */
+    fun onAppForegrounded()
+
     /** Holds the account's event stream open, reconnecting as needed. */
     fun startStream()
     fun stopStream()

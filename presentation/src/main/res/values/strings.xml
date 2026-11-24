@@ -449,6 +449,7 @@
     <string name="signal_attachment_open">Open</string>
     <string name="signal_attachment_save">Save a copy…</string>
     <string name="signal_attachment_saved">Saved.</string>
+    <string name="attachment_saved_to">Saved to %1$s.</string>
     <string name="signal_attachment_save_failed">That could not be saved.</string>
     <string name="signal_attachment_open_failed">That attachment could not be opened.</string>
     <string name="contact_card_missing">This contact card is no longer on the phone, or never finished downloading.</string>

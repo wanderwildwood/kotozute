@@ -26,7 +26,6 @@ import io.realm.RealmResults
 import io.realm.annotations.Index
 import io.realm.annotations.LinkingObjects
 import io.realm.annotations.PrimaryKey
-import java.io.File
 
 open class MmsPart : RealmObject() {
 
@@ -47,13 +46,15 @@ open class MmsPart : RealmObject() {
         .encodedPath("part/$id")
         .build()
 
-    fun getBestFilename(): String =
-        if (name.isNullOrBlank()) "unknown"
-        else if (File(name!!).extension.isNotEmpty()) name!!
-        else "$name" +
-                if (type.isBlank()) ""
-                else ".${MimeTypeMap.getSingleton().getExtensionFromMimeType(type)
-                    ?: type.substringAfter("/")}"
+    /**
+     * What to call this part when it is saved or shared: its own name where it has one, with an
+     * extension from its type where that is missing, and `part-<id>` plus an extension where it
+     * has no name at all. It used to be a bare "unknown", which nothing could open.
+     * See [SavedFileNames].
+     */
+    fun getBestFilename(): String = SavedFileNames.nameFor(
+        name, type, "part-$id"
+    ) { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
 
     fun getSummary(): String? = when {
         type == "application/smil" -> null

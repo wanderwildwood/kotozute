@@ -50,6 +50,8 @@ import android.util.LruCache
 import java.util.Calendar
 import javax.inject.Inject
 import kotlin.concurrent.thread
+import com.wanderwildwood.kotozute.common.util.GallerySaver
+import com.wanderwildwood.kotozute.model.SavedFileNames
 import timber.log.Timber
 import kotlin.math.abs
 import java.util.concurrent.TimeUnit
@@ -285,10 +287,11 @@ class SignalThreadActivity : QkThemedActivity() {
      *
      * `ACTION_CREATE_DOCUMENT` needs no storage permission and lets somebody put the file
      * where the app that will open it can find it. That is the whole point of the request
-     * this answers: an epub is wanted **in a reader**, not in here.
+     * this answers: an epub is wanted **in a reader**, not in here. It is told the file's real
+     * type, so what is offered matches it. Pictures and videos skip it: see [saveAttachment].
      */
     private val saveLauncher = registerForActivityResult(
-        com.wanderwildwood.kotozute.common.util.FilesCreateDocument("*/*")
+        com.wanderwildwood.kotozute.common.util.FilesCreateTypedDocument()
     ) { destination: Uri? ->
         val pending = pendingSave
         pendingSave = null
@@ -1024,15 +1027,54 @@ class SignalThreadActivity : QkThemedActivity() {
         }
     }
 
-    /** Asks where to put a copy, then writes it there. */
+    /**
+     * Saves a copy. A picture or a video goes straight into the Gallery (see [GallerySaver]),
+     * with its real type and an extension, so it is found where photos are; anything else asks
+     * where to put it, then writes it there.
+     *
+     * View-once pictures never get here: [downloadableAttachment] offers no attachment for
+     * them, so there is no Save entry to press.
+     */
     private fun saveAttachment(attachment: SavedAttachment) {
+        if (GallerySaver.canUse(attachment.type)) {
+            saveAttachmentToGallery(attachment)
+            return
+        }
         pendingSave = attachment
-        runCatching { saveLauncher.launch(safeFilename(attachment)) }
+        val type = if (SavedFileNames.isVague(attachment.type)) "*/*"
+        else SavedFileNames.normalizeType(attachment.type)
+        runCatching { saveLauncher.launch(safeFilename(attachment) to type) }
             .onFailure {
                 pendingSave = null
                 Timber.w(it, "signal attachment: no document picker")
                 Toast.makeText(this, R.string.signal_attachment_no_app, Toast.LENGTH_LONG).show()
             }
+    }
+
+    /** Off the main thread; says where the copy went, or that it did not work. */
+    private fun saveAttachmentToGallery(attachment: SavedAttachment) {
+        val name = safeFilename(attachment)
+        thread(isDaemon = true) {
+            val opened = runCatching { signalRepo.openAttachment(attachment.id) }.getOrNull()
+            if (opened == null) {
+                attachmentWouldNotOpen {
+                    Toast.makeText(this, R.string.signal_attachment_save_failed, Toast.LENGTH_LONG).show()
+                }
+                return@thread
+            }
+            val saved = opened.length > 0 && runCatching {
+                opened.stream.use { GallerySaver.save(this, it, name, attachment.type) }
+            }.onFailure { Timber.w(it, "signal attachment: could not save to the Gallery") }.isSuccess
+            if (opened.length <= 0) runCatching { opened.stream.close() }
+            runOnUiThread {
+                val message = if (saved) {
+                    getString(R.string.attachment_saved_to, GallerySaver.folderFor(attachment.type))
+                } else {
+                    getString(R.string.signal_attachment_save_failed)
+                }
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     /**
@@ -1076,17 +1118,12 @@ class SignalThreadActivity : QkThemedActivity() {
      * ⚠ Anything that is not a plain name is replaced rather than cleaned up: the sender picks
      * this string, and a separator in it would put the file outside the single directory the
      * `FileProvider` is allowed to serve. The extension is kept where there is one, because it
-     * is what a reader app matches on when the content type is vague.
+     * is what a reader app matches on, and one is added from the type when there is none. The
+     * rules live in [SavedFileNames], which has the tests.
      */
-    private fun safeFilename(attachment: SavedAttachment): String {
-        val proposed = attachment.filename.substringAfterLast('/').substringAfterLast('\\').trim()
-        val cleaned = proposed.replace(Regex("[^A-Za-z0-9._-]"), "_").trim('.', '_')
-        if (cleaned.isNotBlank()) return cleaned.take(120)
-        // Nothing usable was sent. The id is unique and the type gives an extension.
-        val extension = android.webkit.MimeTypeMap.getSingleton()
-            .getExtensionFromMimeType(attachment.type.lowercase())
-        return "signal-${'$'}{attachment.id.takeLast(12)}" + if (extension != null) ".${'$'}extension" else ""
-    }
+    private fun safeFilename(attachment: SavedAttachment): String = SavedFileNames.nameFor(
+        attachment.filename, attachment.type, "signal-${attachment.id.takeLast(12)}"
+    ) { android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
 
     // --- voice messages ------------------------------------------------------------------
 

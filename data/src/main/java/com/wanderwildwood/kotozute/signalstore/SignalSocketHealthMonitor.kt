@@ -218,6 +218,9 @@ internal class SignalSocketHealthMonitor(
         val takenAt = SystemClock.elapsedRealtime()
         lastServerTime = serverTimestamp
         lastServerTimeAt = takenAt
+        // And for the process, not only this socket: the sender certificate's expiry is
+        // judged in server time (upstream `setLastKnownServerTime`; see [ServerClock]).
+        ServerClock.heard(serverTimestamp, takenAt)
         reportSkew(skewFrom(System.currentTimeMillis(), serverTimestamp, takenAt, takenAt))
     }
 

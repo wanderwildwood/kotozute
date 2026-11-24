@@ -139,7 +139,9 @@ internal class SealedSender(
      */
     private fun senderCertificate(): ByteArray? {
         synchronized(Companion) {
-            cached?.let { if (System.currentTimeMillis() < cachedUntil) return it }
+            cached?.let {
+                if (stillUsable(cachedExpiry, cachedAt, System.currentTimeMillis(), ServerClock.offset())) return it
+            }
         }
         // The phone-number-privacy variant (includeE164=false), not the plain one.
         //
@@ -162,7 +164,8 @@ internal class SealedSender(
                     // six days of whatever it asserts. After a number change that is six days
                     // of a certificate describing the old one: still signed, still unexpired,
                     // and no longer true.
-                    cachedUntil = renewAt(expiryOf(bytes), System.currentTimeMillis())
+                    cachedExpiry = expiryOf(bytes)
+                    cachedAt = System.currentTimeMillis()
                 }
                 Timber.i("signal send: got a sender certificate")
             }
@@ -189,18 +192,34 @@ internal class SealedSender(
     companion object {
 
         /**
-         * When a freshly fetched certificate should stop being used.
+         * Whether a certificate fetched at [fetchedAt] that expires at [expiry] may still be used.
          *
-         * The sooner of "a day before it expires" and "a day from now". Its own function so
-         * both halves can be tested: the first is upstream's `SealedSenderConstraint.ROTATION_LEAD_TIME`
-         * (CERTIFICATE_EXPIRATION_BUFFER before 5be9220226),
-         * the second is upstream replacing its certificate daily on a timer
-         * (`RotateSenderCertificateListener`) rather than holding one to the end -- after a
-         * number change, holding it means carrying up to six days of a certificate that
-         * describes the old number: still signed, still unexpired, and no longer true.
+         * Both of these, so both halves can be tested:
+         *
+         * - More than a day from expiry, **by the server's clock**. The day is upstream's
+         *   `SealedSenderConstraint.ROTATION_LEAD_TIME` (CERTIFICATE_EXPIRATION_BUFFER before
+         *   5be9220226). The clock is upstream's since that commit:
+         *   `SealedSenderAccessUtil.getSealedSenderCertificate` compares the expiry with
+         *   `SignalStore.misc.estimatedServerTime`, and `SealedSenderConstraint.computeExpiresAt`
+         *   adds `lastKnownServerTimeOffset`. The expiry is the server's own timestamp, so a
+         *   phone clock two days slow would otherwise keep using a certificate the recipient's
+         *   client has already refused, and one two days fast would throw good ones away.
+         *   [serverOffset] is phone minus server ([ServerClock.offset]); null, the server not yet
+         *   heard, falls back to the phone clock.
+         * - Less than a day old, by the phone clock. Upstream replaces its certificate daily on a
+         *   timer (`RotateSenderCertificateListener`) rather than holding one to the end -- after
+         *   a number change, holding it means carrying up to six days of a certificate that
+         *   describes the old number: still signed, still unexpired, and no longer true. An age
+         *   is a difference of two readings of the same clock, so the offset does not enter it.
+         *
+         * ⚠ Upstream holds a send only once the certificate has actually expired; this app keeps
+         * the stricter day's margin for the use itself, because it cannot hold a send a person is
+         * waiting on (see `CertificateRenewalTest`).
          */
-        internal fun renewAt(expiry: Long, now: Long): Long =
-            minOf(expiry - RENEW_MARGIN_MS, now + MAX_CERTIFICATE_AGE_MS)
+        internal fun stillUsable(expiry: Long, fetchedAt: Long, now: Long, serverOffset: Long?): Boolean {
+            val serverNow = if (serverOffset == null) now else now - serverOffset
+            return serverNow < expiry - RENEW_MARGIN_MS && now < fetchedAt + MAX_CERTIFICATE_AGE_MS
+        }
 
 
         /**
@@ -239,7 +258,12 @@ internal class SealedSender(
 
         /** Shared by every [SealedSender] in the process, because they are all the same account. */
         @Volatile private var cached: ByteArray? = null
-        @Volatile private var cachedUntil = 0L
+
+        /** The cached certificate's own expiry: the server's timestamp, so server time. */
+        @Volatile private var cachedExpiry = 0L
+
+        /** When the cached certificate was fetched, by the phone clock. */
+        @Volatile private var cachedAt = 0L
 
         /**
          * Throw away the cached certificate, because it describes a device that is gone.
@@ -260,7 +284,8 @@ internal class SealedSender(
         fun forgetCertificate() {
             synchronized(Companion) {
                 cached = null
-                cachedUntil = 0L
+                cachedExpiry = 0L
+                cachedAt = 0L
             }
         }
 

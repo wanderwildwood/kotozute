@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 38
+        const val SCHEMA_VERSION: Long = 39
     }
 
     @SuppressLint("ApplySharedPref")
@@ -610,6 +610,15 @@ class QkRealmMigration @Inject constructor(
                 realm.where("SignalMessage").beginsWith("id", prefix).findAll()
                     .forEach { it.setBoolean("update", true) }
             }
+
+            version++
+        }
+
+        if (version == 38L) {
+            // Why one of our own messages did not go. See sendFailure.
+            realm.schema.get("SignalMessage")
+                ?.takeIf { !it.hasField("sendFailure") }
+                ?.addField("sendFailure", String::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

@@ -840,6 +840,8 @@
     <string name="signal_message_edited">Edited</string>
     <string name="signal_message_sending">Sending…</string>
     <string name="signal_message_not_sent">Not sent · tap to send again</string>
+    <!-- The same, with why it did not go on a line of its own below. -->
+    <string name="signal_message_not_sent_because">Not sent · tap to send again\n%s</string>
     <string name="signal_send_again">Send again</string>
     <string name="signal_unsent_delete">Delete</string>
     <string name="signal_delete_for_me">Delete for me</string>
@@ -1375,6 +1377,8 @@
     <string name="signal_send_group_ended">This group has ended, so nothing was sent.</string>
     <string name="signal_send_group_unreachable">This phone could not reach the group just now, so nothing was sent. It will work when the connection is back.</string>
     <string name="signal_send_admins_only">Only this group\'s admins can post in it. Your message was not sent.</string>
+    <string name="signal_send_not_set_up">This phone is not set up on Signal. Register or link it in Settings to send.</string>
+    <string name="signal_send_signal_off">Signal is switched off. Turn on Show Signal conversations in Settings to send.</string>
     <string name="signal_send_number_only">This conversation has only a phone number, not a Signal address. Write to them from a new message instead.</string>
     <string name="signal_send_no_group_key">no group key on this thread yet</string>
 

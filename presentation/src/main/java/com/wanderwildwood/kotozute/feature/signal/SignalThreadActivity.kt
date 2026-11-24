@@ -1814,12 +1814,16 @@ class SignalThreadActivity : QkThemedActivity() {
         // The message itself tells them the typing is over.
         signalRepo.stoppedComposing(threadKey, sent = true)
         thread(isDaemon = true) {
+            // Whether the words before a view-once picture are past the composer, sent or kept
+            // as not sent. Until then the picture has not been tried and stays where it is.
+            var pictureTried = !viewOnce || body.isEmpty()
             val result = runCatching {
                 if (viewOnce) {
                     // A view-once picture has no caption -- upstream's media sender turns
                     // captions off with view-once on -- so words typed with it go first, as
                     // a message of their own.
                     if (body.isNotEmpty()) signalRepo.send(threadKey, body, emptyList(), quoteTs, styles)
+                    pictureTried = true
                     signalRepo.send(threadKey, "", listOfNotNull(attachment), 0L, "", viewOnce = true)
                 } else {
                     signalRepo.send(threadKey, body, listOfNotNull(attachment) + album, quoteTs, styles)
@@ -1834,7 +1838,8 @@ class SignalThreadActivity : QkThemedActivity() {
                         clearReply()
                     }
                     .onFailure { failure ->
-                        // The message stays in the box either way, so nothing typed is lost.
+                        // Nothing typed is lost: a message kept in the thread as not sent is
+                        // cleared from the box, and any other failure leaves the text where it was.
                         if (IdentityNotice.isIdentityProblem(failure)) {
                             // Kept in the thread as "Not sent" -- see sendThroughOutbox -- so
                             // the composer is cleared rather than holding a second copy.
@@ -1843,6 +1848,18 @@ class SignalThreadActivity : QkThemedActivity() {
                             clearReply()
                             identityRefused = true
                             refreshIdentityNotice()
+                        } else if (failure is com.wanderwildwood.kotozute.repository.NotSent) {
+                            // Kept in the thread, marked not sent with the reason, where it
+                            // can be sent again -- so the composer is cleared rather than
+                            // holding a second copy. See sendThroughOutbox.
+                            binding.message.setText("")
+                            if (pictureTried) clearAttachment()
+                            clearReply()
+                            Toast.makeText(
+                                this,
+                                getString(R.string.signal_send_failed, sayFailure(failure).orEmpty()),
+                                Toast.LENGTH_LONG
+                            ).show()
                         } else if (failure is com.wanderwildwood.kotozute.repository.SentButNotFiled) {
                             // ⚠ Not a failed send, and the only branch here that must not read
                             // like one. The composer still holds the text, so the obvious next
@@ -3014,7 +3031,16 @@ class SignalThreadActivity : QkThemedActivity() {
                 }
                 com.wanderwildwood.kotozute.model.SignalMessage.SEND_FAILED -> {
                     b.status.setVisible(true)
-                    b.status.setText(R.string.signal_message_not_sent)
+                    // Why, where the send said: on a phone with no working account this is the
+                    // only lasting place that says so. A reason this build cannot read is left
+                    // out rather than guessed.
+                    val why = com.wanderwildwood.kotozute.repository.SendFailureCodec.decode(m.sendFailure)
+                        ?.let { say(SignalWording.send(it)) }
+                    if (why.isNullOrBlank()) {
+                        b.status.setText(R.string.signal_message_not_sent)
+                    } else {
+                        b.status.text = getString(R.string.signal_message_not_sent_because, why)
+                    }
                     val unsentId = m.id
                     b.status.setOnClickListener { sendAgain(unsentId) }
                 }

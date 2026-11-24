@@ -116,6 +116,14 @@ open class SignalMessage : RealmObject() {
     var sendState: Int = SEND_SENT
 
     /**
+     * Why one of our own messages is [SEND_FAILED], as `SendFailureCodec` keeps it; empty for
+     * none, and for anything not marked not sent. A message that did not go stays in the thread
+     * saying so and why, as upstream keeps it (`MessageTable.markAsSentFailed`), rather than
+     * vanishing back into the composer.
+     */
+    var sendFailure: String = ""
+
+    /**
      * The sent timestamp of this message's latest edit, or 0 if it was never edited.
      *
      * An edit names the revision it replaces, and Signal's clients name the **latest** one

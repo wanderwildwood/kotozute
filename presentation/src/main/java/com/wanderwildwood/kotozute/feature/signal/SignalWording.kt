@@ -79,6 +79,8 @@ object SignalWording {
     /** Words for a failure that is one of the rail's own kinds, or null for anything else. */
     fun failure(failure: Throwable): Words? = when (failure) {
         is SendRefused -> send(failure.failure)
+        // Kept in the thread as not sent; the words are the reason's, as for any refusal.
+        is com.wanderwildwood.kotozute.repository.NotSent -> send(failure.failure)
         is GroupNotMade -> group(failure.why)
         else -> null
     }
@@ -122,6 +124,8 @@ object SignalWording {
         SendFailure.AdminsOnly -> Words.Res(R.string.signal_send_admins_only)
         SendFailure.NumberOnly -> Words.Res(R.string.signal_send_number_only)
         SendFailure.NoGroupKey -> Words.Res(R.string.signal_send_no_group_key)
+        SendFailure.NotSetUp -> Words.Res(R.string.signal_send_not_set_up)
+        SendFailure.SignalOff -> Words.Res(R.string.signal_send_signal_off)
     }
 
     /**

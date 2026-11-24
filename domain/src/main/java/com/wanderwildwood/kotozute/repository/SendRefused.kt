@@ -104,6 +104,21 @@ sealed interface SendFailure {
 
     /** A group conversation that has no master key on it yet. */
     data object NoGroupKey : SendFailure
+
+    /**
+     * This phone has no Signal account it can send as: never registered or linked, or the
+     * registration did not finish. Upstream refuses the same way before anything is sent
+     * (`PushSendJob.onPushSend`: `if (!self().isRegistered) throw NotPushRegisteredException()`,
+     * which `onShouldRetry` does not retry).
+     */
+    data object NotSetUp : SendFailure
+
+    /**
+     * Signal is switched off in Settings. Nothing is received while it is off, so a reply to
+     * whatever went would never show; refused and said, rather than sent half-working. This
+     * app's own switch, with no counterpart upstream.
+     */
+    data object SignalOff : SendFailure
 }
 
 /**

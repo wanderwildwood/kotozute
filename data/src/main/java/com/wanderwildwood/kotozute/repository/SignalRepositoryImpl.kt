@@ -172,7 +172,8 @@ class SignalRepositoryImpl @Inject constructor(
     /**
      * Whether Android says there is a usable network, and a lock the listen loop waits on.
      *
-     * Upstream's `IncomingMessageObserver` holds a `NetworkConnectionListener`: it disconnects
+     * Upstream's `IncomingMessageObserver` holds an `InternetConnectivityMonitor` (a
+     * NetworkConnectionListener until 2b7ca24796, 2026-10-15): it disconnects
      * when the network goes, waits for it, and reconnects the moment Android reports one
      * available. This loop had no listener at all, so it went on trying every half minute with
      * nothing to reach, and after the network came back could sit out the rest of a backoff --
@@ -1208,7 +1209,12 @@ class SignalRepositoryImpl @Inject constructor(
         prefs.signalEnabled.set(enabled)
         if (enabled) startStream() else stopStream()
         publishState(
-            signalConnected = state.value?.signalConnected ?: false,
+            // ⛔ Off means not connected, said at once. This carried the last value over, so a
+            // conversation open while Signal was switched off went on saying "connected" and
+            // kept its composer working -- Settings hiding the Connection row the whole time --
+            // until the app next started (forum t/15210, 1.35.50). Switching on keeps the last
+            // value: the stream says when it is up.
+            signalConnected = enabled && (state.value?.signalConnected ?: false),
             error = null
         )
     }
@@ -1731,10 +1737,14 @@ class SignalRepositoryImpl @Inject constructor(
      * anywhere. Signal inserts the message as sending first and `RetryPendingSendsJob` sends
      * whatever is still pending when the app next starts. So does this; see [resendOrphans].
      *
-     * A failure *in this process* removes the row again: the composer still holds the text,
-     * which is where this app has always put a failed send, and a row saying "not sent" beside
-     * it would be the same message twice. A failure while sending again marks it not sent,
-     * because then there is no composer holding it.
+     * A failure keeps the row, marked not sent with its reason, and says so with [NotSent]
+     * so the screen clears its composer: the message is in the thread now, where it can be sent
+     * again. As upstream: `IndividualSendJob.onFailure` -> `MessageTable.markAsSentFailed`.
+     *
+     * ⛔ It used to remove the row instead and leave the text in the composer. On a phone with
+     * no working account every send went that way, and what the person saw was a message that
+     * appeared, vanished, and never arrived (forum t/15210, 1.35.50) -- the toast that said why
+     * is gone in a moment on an e-ink screen.
      */
     private fun sendThroughOutbox(
         row: BridgeMessage,
@@ -1762,19 +1772,33 @@ class SignalRepositoryImpl @Inject constructor(
                 }
             }
             val sentAt = try {
+                // Before anything reaches the network, as upstream's `PushSendJob.onPushSend`
+                // refuses a send when this account is not registered. Inside this try so the
+                // refusal is a failed send like any other: kept, marked, and said.
+                accountRefusal()?.let { throw com.wanderwildwood.kotozute.repository.SendRefused(it) }
                 send()
             } catch (t: Throwable) {
-                // A message refused for a changed safety number is kept, marked not sent, in
-                // the thread and the outbox: the notice there offers to accept the new key
-                // and send it. It is never dropped and never sent before that choice.
-                if (resending || com.wanderwildwood.kotozute.repository.IdentityNotice.isIdentityProblem(t)) {
-                    runCatching { setSendState(row.id, SignalMessage.SEND_FAILED) }
-                        .onFailure { Timber.w(it, "signal send: could not mark a message not sent") }
-                } else {
-                    runCatching { dropUnsent(row.id) }
-                        .onFailure { Timber.w(it, "signal send: could not remove a message that did not send") }
+                // Kept, marked not sent, in the thread and the outbox, with the reason -- never
+                // dropped. A message refused for a changed safety number goes the same way:
+                // the notice there offers to accept the new key and send it, and it is never
+                // sent before that choice.
+                val reason = com.wanderwildwood.kotozute.repository.SendFailureCodec.of(t)
+                val kept = runCatching { setSendState(row.id, SignalMessage.SEND_FAILED, reason) }
+                    .onFailure { Timber.w(it, "signal send: could not mark a message not sent") }
+                    .isSuccess
+                if (!kept) {
+                    // Not marked, so not kept: the row would sit as "sending" and go again at the
+                    // next start while the composer still held it. Removed, as before, and the
+                    // text stays where it was typed.
+                    if (!resending) {
+                        runCatching { dropUnsent(row.id) }
+                            .onFailure { Timber.w(it, "signal send: could not remove a message that did not send") }
+                    }
+                    throw t
                 }
-                throw t
+                // The identity refusal keeps its own type: screens catch it to offer the choice.
+                if (com.wanderwildwood.kotozute.repository.IdentityNotice.isIdentityProblem(t)) throw t
+                throw com.wanderwildwood.kotozute.repository.NotSent(reason, t)
             }
             // ⚠ Past this point the message has gone. A failure from here is **not** a failed
             // send and must not be reported as one: the text is still sitting in the composer,
@@ -1808,12 +1832,39 @@ class SignalRepositoryImpl @Inject constructor(
         runCatching { nameGroupThreads() }.onFailure { Timber.w(it, "signal groups: naming failed; the next pass renames") }
     }
 
-    private fun setSendState(id: String, state: Int) {
+    /**
+     * Where one of our own messages is, and -- for one not sent -- why. Any other state clears
+     * the reason: a message being sent again, or sent, is no longer refused for anything.
+     */
+    private fun setSendState(
+        id: String,
+        state: Int,
+        reason: com.wanderwildwood.kotozute.repository.SendFailure? = null
+    ) {
         Realm.getDefaultInstance().use { realm ->
             realm.executeTransaction { r ->
-                r.where(SignalMessage::class.java).equalTo("id", id).findFirst()?.sendState = state
+                r.where(SignalMessage::class.java).equalTo("id", id).findFirst()?.let {
+                    it.sendState = state
+                    it.sendFailure = if (state == SignalMessage.SEND_FAILED && reason != null) {
+                        com.wanderwildwood.kotozute.repository.SendFailureCodec.encode(reason)
+                    } else ""
+                }
             }
         }
+    }
+
+    /**
+     * Why this phone cannot send on Signal at all right now, or null when it can.
+     *
+     * Upstream checks the same before every send (`PushSendJob.onPushSend`:
+     * `if (!self().isRegistered) throw NotPushRegisteredException()`). Without it, a phone with
+     * no working account got as far as the socket and failed there with whatever the socket
+     * said. "Switched off" is this app's own switch: nothing is received while it is off.
+     */
+    private fun accountRefusal(): com.wanderwildwood.kotozute.repository.SendFailure? = when {
+        !linkedDirectly() -> com.wanderwildwood.kotozute.repository.SendFailure.NotSetUp
+        !prefs.signalEnabled.get() -> com.wanderwildwood.kotozute.repository.SendFailure.SignalOff
+        else -> null
     }
 
     /** Removes one of our own messages that never went. Never one that did. */
@@ -2063,18 +2114,16 @@ class SignalRepositoryImpl @Inject constructor(
         } catch (locked: com.wanderwildwood.kotozute.signalstore.SignalOutbox.Unreadable) {
             // There, and not readable: the attachment secret is unavailable. Marked not sent
             // so it can be tried again by hand, and kept -- this is not the "gone" below.
-            setSendState(messageId, SignalMessage.SEND_FAILED)
-            throw com.wanderwildwood.kotozute.repository.SendRefused(
-                com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared(
-                    "it is on this phone but cannot be read right now"
-                )
+            val why = com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared(
+                "it is on this phone but cannot be read right now"
             )
+            setSendState(messageId, SignalMessage.SEND_FAILED, why)
+            throw com.wanderwildwood.kotozute.repository.SendRefused(why)
         }
         val attachments = loaded ?: run {
-            setSendState(messageId, SignalMessage.SEND_FAILED)
-            throw com.wanderwildwood.kotozute.repository.SendRefused(
-                com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared("it is no longer on this phone")
-            )
+            val why = com.wanderwildwood.kotozute.repository.SendFailure.AttachmentUnprepared("it is no longer on this phone")
+            setSendState(messageId, SignalMessage.SEND_FAILED, why)
+            throw com.wanderwildwood.kotozute.repository.SendRefused(why)
         }
         // Our own copy of a card sent alone reads as the person; what went was no words.
         val body = if (m.body == shownBody("", attachments)) "" else m.body
@@ -5988,7 +6037,8 @@ class SignalRepositoryImpl @Inject constructor(
     /**
      * This phone's pinned conversations as the account's list, when there is a change to send:
      * the account's own order kept for those still pinned, new ones after, at most Signal's
-     * four (`PinnedConversationPreference`/`MAX_PINNED`).
+     * four (`RemoteConfig.pinnedChatLimit`'s default; the server may set another, and this
+     * app reads no remote config, so it keeps the default as it does for message pins).
      */
     private fun desiredPins(): List<org.whispersystems.signalservice.internal.storage.protos.AccountRecord.PinnedConversation>? {
         if (!prefs.signalPinsDirty.get()) return null

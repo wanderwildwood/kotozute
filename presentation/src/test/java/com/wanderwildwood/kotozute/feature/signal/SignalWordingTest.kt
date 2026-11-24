@@ -82,6 +82,29 @@ class SignalWordingTest {
     }
 
     @Test
+    fun `a phone that cannot send on Signal says why and where to fix it`() {
+        assertEquals(
+            "This phone is not set up on Signal. Register or link it in Settings to send.",
+            send(SendFailure.NotSetUp)
+        )
+        assertEquals(
+            "Signal is switched off. Turn on Show Signal conversations in Settings to send.",
+            send(SendFailure.SignalOff)
+        )
+    }
+
+    @Test
+    fun `a message kept as not sent is worded by its reason, not its cause`() {
+        val kept = com.wanderwildwood.kotozute.repository.NotSent(
+            SendFailure.NotSetUp, IllegalStateException("not a service id")
+        )
+        assertEquals(
+            "This phone is not set up on Signal. Register or link it in Settings to send.",
+            SignalWording.failure(kept)?.let { English.of(it) }
+        )
+    }
+
+    @Test
     fun `anything else keeps whatever it said`() {
         assertEquals("the socket closed", send(SendFailure.Unexplained("the socket closed")))
         assertEquals("IOException", send(SendFailure.Unexplained("IOException")))

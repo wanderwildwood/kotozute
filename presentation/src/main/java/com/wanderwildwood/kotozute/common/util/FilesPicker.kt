@@ -143,7 +143,7 @@ class FilesOpenTree : ActivityResultContracts.OpenDocumentTree() {
  * Name a new file of a known type; the app then writes into the returned address.
  *
  * [FilesCreateDocument] fixes its type when it is made, which is why a saved picture used to be
- * offered as `*/*`: nothing then knew what it was. Here the input is the name and the type
+ * offered as any type at all: nothing then knew what it was. Here the input is the name and the type
  * together, so the picker is told the real type of each file.
  */
 class FilesCreateTypedDocument : androidx.activity.result.contract.ActivityResultContract<Pair<String, String>, android.net.Uri?>() {

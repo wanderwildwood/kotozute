@@ -16,7 +16,7 @@ import kotlin.concurrent.thread
  * `Movies/Messaging`, see [GallerySaver]) with its real type and an extension, so it shows up
  * where a person looks for photos, with no screen in between. Anything else (a PDF, a contact
  * card, audio) goes where the person chooses through Android's own "save as" screen, told the
- * file's real type rather than `*` + `/*`. Before Android 10 a picture takes that screen too.
+ * file's real type rather than as any type. Before Android 10 a picture takes that screen too.
  * Neither path needs a storage permission.
  *
  * Made as an activity's field, so the result is registered before the activity starts.

@@ -127,7 +127,9 @@ class DeviceLinker internal constructor(
      * The part that is easy to miss is why it keeps *two*: closing the old socket the instant
      * a new one opens would strand somebody who scanned at forty-four seconds and is
      * mid-exchange. So each new socket displaces the one before last, never the one before.
-     * `RegisterLinkDeviceQrViewModel.startNewSocket` is those four lines.
+     * `AppRegistrationNetworkController.startProvisioning` is those four lines, in its local
+     * startSocket (RegisterLinkDeviceQrViewModel.startNewSocket until 90470f7916 deleted the old
+     * registration code, 2026-09-29).
      *
      * A failure from any socket but the last is not a failure of the linking: it is an old
      * code expiring, which is the ordinary case and now says nothing at all.
@@ -473,8 +475,8 @@ class DeviceLinker internal constructor(
          * part-way through the exchange. Keeping two means a code stays usable for one full
          * rotation after it stops being displayed.
          *
-         * Signal's `startNewSocket`: append, and while there are more than two, drop the
-         * oldest.
+         * Signal's startSocket in `AppRegistrationNetworkController.startProvisioning`: append,
+         * and while there are more than two, drop the oldest.
          */
         internal fun <T> admit(handles: MutableList<T>, incoming: T, keep: Int = 2): T? {
             handles += incoming

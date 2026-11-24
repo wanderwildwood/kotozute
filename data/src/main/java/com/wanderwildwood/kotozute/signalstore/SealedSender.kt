@@ -192,7 +192,8 @@ internal class SealedSender(
          * When a freshly fetched certificate should stop being used.
          *
          * The sooner of "a day before it expires" and "a day from now". Its own function so
-         * both halves can be tested: the first is upstream's `CERTIFICATE_EXPIRATION_BUFFER`,
+         * both halves can be tested: the first is upstream's `SealedSenderConstraint.ROTATION_LEAD_TIME`
+         * (CERTIFICATE_EXPIRATION_BUFFER before 5be9220226),
          * the second is upstream replacing its certificate daily on a timer
          * (`RotateSenderCertificateListener`) rather than holding one to the end -- after a
          * number change, holding it means carrying up to six days of a certificate that
@@ -284,7 +285,7 @@ internal class SealedSender(
          * Renewed this long before the deadline, so a send never races it -- the clock here
          * and the server's need not agree to the minute.
          *
-         * ⚠ A day, which is upstream's `CERTIFICATE_EXPIRATION_BUFFER`. It was **one hour**,
+         * ⚠ A day, which is upstream's `SealedSenderConstraint.ROTATION_LEAD_TIME`. It was **one hour**,
          * which meant a message could go out under a certificate with ninety seconds left on
          * it -- and a certificate that expires between this device building the message and
          * the recipient's client checking it produces a message that client discards. This

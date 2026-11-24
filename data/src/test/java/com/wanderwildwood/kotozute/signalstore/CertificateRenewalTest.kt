@@ -11,10 +11,12 @@ import org.junit.Test
  * A certificate that expires between this device building a message and the recipient's client
  * checking it produces a message that client discards -- silently, and only for sealed sends.
  *
- * Upstream does not merely rotate: `SealedSenderConstraint` treats a certificate within
- * `CERTIFICATE_EXPIRATION_BUFFER` (a day) of expiry as **not valid** and holds the send until a
- * fresh one arrives. This app cannot hold a send that a person is waiting on, but it can decline
- * to use a certificate upstream would refuse.
+ * Upstream rotates a day ahead (`SealedSenderConstraint.ROTATION_LEAD_TIME`) and, since
+ * 5be9220226 (2026-09-24), holds a send only once the certificate has actually expired, by
+ * server time; before that commit it held sends for the whole last day too
+ * (CERTIFICATE_EXPIRATION_BUFFER). This app cannot hold a send that a person is waiting on, so it
+ * keeps the stricter rule: a certificate within a day of expiry is not used, and a fresh one is
+ * fetched first. Measured by this phone's clock, not the server's.
  */
 class CertificateRenewalTest {
 

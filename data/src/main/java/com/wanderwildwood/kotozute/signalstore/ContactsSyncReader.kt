@@ -13,7 +13,7 @@ import java.io.InputStream
 internal object ContactsSyncReader {
 
     fun read(input: InputStream): List<SignalContactStore.Contact> {
-        // Signal's own reader (`DeviceContactsReader`, which replaced `DeviceContactsInputStream`
+        // Signal's own reader (`DeviceContactsReader`, which replaced DeviceContactsInputStream
         // upstream in 3676792cd8), walked the way `MultiDeviceContactSyncJob` walks it. A record
         // with no address is skipped and counted by the reader itself; a truncated or malformed
         // one fails the read.

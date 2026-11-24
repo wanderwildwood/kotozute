@@ -4,7 +4,7 @@ package com.wanderwildwood.kotozute.signalstore
  * Turns "@Name" in a group message into the mention Signal sends.
  *
  * A mention on the wire is not text: the body carries one U+FFFC per mention and a body range
- * names who it is (`MentionUtil.getMentionSettings` / `BodyRangeUtil` upstream). Sent as plain
+ * names who it is (`MentionUtil.mentionsToBodyRangeList` / `BodyRangeUtil` upstream). Sent as plain
  * text, "@Ada" reaches Ada as three letters -- no mention notification, and in a muted group
  * set to "notify for mentions" nothing at all.
  *

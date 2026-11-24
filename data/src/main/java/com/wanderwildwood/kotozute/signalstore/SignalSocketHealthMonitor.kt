@@ -22,9 +22,9 @@ import kotlin.math.abs
  * the client to bring one.
  *
  * ⚠ **It no longer sends keepalives, because Signal no longer does** (upstream 37f8b149dd,
- * "Remove now-unnecessary manual keepalives", 2026-11-06). `SignalWebSocket.sendKeepAlive`,
- * `HealthMonitor.onKeepAliveResponse` and `WebSocketConnection.sendKeepAlive` are gone from the
- * service layer, and Signal's own monitor lost its `KeepAliveSender` and its `SleepTimer` in the
+ * "Remove now-unnecessary manual keepalives", 2026-11-06). SignalWebSocket.sendKeepAlive,
+ * HealthMonitor.onKeepAliveResponse and WebSocketConnection.sendKeepAlive are gone from the
+ * service layer, and Signal's own monitor lost its KeepAliveSender and its `SleepTimer` in the
  * same commit; this follows it. Until then this class ran an alarm-backed sender on the
  * authenticated socket (30 s on screen, 180 s off, measured on a Kompakt 2026-10-01) and forced
  * a new socket when a keepalive went unanswered for 20 s. What keeps the connection alive, and

@@ -501,8 +501,8 @@ class SignalRepositoryImpl @Inject constructor(
     private fun noteConnecting(connecting: Boolean) {
         if (reaching.getAndSet(connecting) == connecting) return
         publishState(
-            signalConnected = state.value?.signalConnected ?: false,
-            error = state.value?.error
+            signalConnected = KEEP_CONNECTED,
+            keepError = true
         )
     }
 
@@ -528,8 +528,8 @@ class SignalRepositoryImpl @Inject constructor(
         // ⚠ Published, not only recorded. It was kept "where a screen can read it" and no
         // screen did, so the one warning that comes before an unlink reached nobody.
         publishState(
-            signalConnected = state.value?.signalConnected ?: false,
-            error = state.value?.error
+            signalConnected = KEEP_CONNECTED,
+            keepError = true
         )
     }
 
@@ -556,8 +556,8 @@ class SignalRepositoryImpl @Inject constructor(
         if (prefs.signalServiceOutage.get() == down) return
         prefs.signalServiceOutage.set(down)
         publishState(
-            signalConnected = state.value?.signalConnected ?: false,
-            error = state.value?.error
+            signalConnected = KEEP_CONNECTED,
+            keepError = true
         )
     }
 
@@ -1214,7 +1214,12 @@ class SignalRepositoryImpl @Inject constructor(
             // kept its composer working -- Settings hiding the Connection row the whole time --
             // until the app next started (forum t/15210, 1.35.50). Switching on keeps the last
             // value: the stream says when it is up.
-            signalConnected = enabled && (state.value?.signalConnected ?: false),
+            // ⛔ Kept, not read here. Reading the last value and publishing it later lost the
+            // race with the listen loop just started above: it said connected in between, and
+            // this then published the "not connected" it had read first -- so after Signal was
+            // switched off and on again the composer stayed off until the app was restarted
+            // (found on a Kompakt, 11-24). [publishState] reads it at the moment of publishing.
+            signalConnected = if (enabled) KEEP_CONNECTED else false,
             error = null
         )
     }
@@ -1270,8 +1275,8 @@ class SignalRepositoryImpl @Inject constructor(
         runCatching { fillThreadNumbers() }
             .onFailure { Timber.w(it, "signal threads: could not fill in numbers") }
         publishState(
-            signalConnected = state.value?.signalConnected ?: false,
-            error = state.value?.error
+            signalConnected = KEEP_CONNECTED,
+            keepError = true
         )
     }
 
@@ -1650,8 +1655,8 @@ class SignalRepositoryImpl @Inject constructor(
     override fun refresh() = runOffThread {
         Timber.i("signal: refresh -- linked=%s", linkedDirectly())
         publishState(
-            signalConnected = state.value?.signalConnected ?: false,
-            error = state.value?.error
+            signalConnected = KEEP_CONNECTED,
+            keepError = true
         )
     }
 
@@ -2796,7 +2801,7 @@ class SignalRepositoryImpl @Inject constructor(
                     Timber.e("signal kt: disagreed twice -- saying so")
                     prefs.signalKeyTransparencyFailureSeen.set(true)
                     publishState(
-                        signalConnected = state.value?.signalConnected ?: false,
+                        signalConnected = KEEP_CONNECTED,
                         error = context.getString(com.wanderwildwood.kotozute.data.R.string.signal_key_transparency_failed)
                     )
                 }
@@ -6437,36 +6442,60 @@ class SignalRepositoryImpl @Inject constructor(
 
     override fun conversationsRead(): Observable<String> = readElsewhere
 
+    private val publishLock = Any()
+
+    /**
+     * Publishes the connection state.
+     *
+     * [signalConnected] null ([KEEP_CONNECTED]) and [keepError] keep what was last published,
+     * read under the lock right before publishing. ⛔ Never read by the caller: the rest of the
+     * state is slow to gather (it reads the protocol store), and a value read before that and
+     * published after it overwrote whatever another thread published in between -- the listen
+     * loop's "connected", every time Signal was switched back on.
+     */
     private fun publishState(
-        signalConnected: Boolean,
-        error: String?,
+        signalConnected: Boolean?,
+        error: String? = null,
+        keepError: Boolean = false,
     ) {
-        state.onNext(
-            SignalRepository.ConnectionState(
-                configured = isConfigured(),
-                linkedDirectly = linkedDirectly(),
-                undecryptable = undecryptableCount(),
-                contactCounts = runCatching { signalStore.contactCounts() }.getOrNull(),
-                undecryptableReasons =
-                    runCatching { signalStore.undecryptableReasons() }.getOrDefault(emptyList()),
-                enabled = prefs.signalEnabled.get(),
-                signalConnected = signalConnected,
-                // Never both: a socket that has arrived is not still on its way, and saying
-                // so would leave the connecting line on screen for the whole session.
-                connecting = reaching.get() && !signalConnected,
-                lastSyncedAt = prefs.signalLastSync.get(),
-                error = error,
-                rejected = prefs.signalRejected.get().takeIf { it.isNotBlank() },
-                // Only a linked device has a primary to be idle. Signal gates it the same way
-                // (`isLinkedDevice && hasInactivePrimaryDeviceAlert`).
-                primaryIdle = prefs.signalPrimaryIdle.get() && !isPrimaryDevice(),
-                serviceOutage = prefs.signalServiceOutage.get(),
-            )
+        val gathered = SignalRepository.ConnectionState(
+            configured = isConfigured(),
+            linkedDirectly = linkedDirectly(),
+            undecryptable = undecryptableCount(),
+            contactCounts = runCatching { signalStore.contactCounts() }.getOrNull(),
+            undecryptableReasons =
+                runCatching { signalStore.undecryptableReasons() }.getOrDefault(emptyList()),
+            enabled = prefs.signalEnabled.get(),
+            signalConnected = false,
+            connecting = false,
+            lastSyncedAt = prefs.signalLastSync.get(),
+            error = null,
+            rejected = prefs.signalRejected.get().takeIf { it.isNotBlank() },
+            // Only a linked device has a primary to be idle. Signal gates it the same way
+            // (`isLinkedDevice && hasInactivePrimaryDeviceAlert`).
+            primaryIdle = prefs.signalPrimaryIdle.get() && !isPrimaryDevice(),
+            serviceOutage = prefs.signalServiceOutage.get(),
         )
+        synchronized(publishLock) {
+            val last = state.value
+            val connected = signalConnected ?: (last?.signalConnected ?: false)
+            state.onNext(
+                gathered.copy(
+                    signalConnected = connected,
+                    // Never both: a socket that has arrived is not still on its way, and saying
+                    // so would leave the connecting line on screen for the whole session.
+                    connecting = reaching.get() && !connected,
+                    error = if (keepError) last?.error else error,
+                )
+            )
+        }
     }
 
 
     companion object {
+        /** For [publishState]: keep the connected flag last published. */
+        private val KEEP_CONNECTED: Boolean? = null
+
         /** How often the account's discoverability is told to the server again: upstream's week. */
         private const val DISCOVERABILITY_REFRESH_MS = 7L * 24 * 60 * 60 * 1000
 

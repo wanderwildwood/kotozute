@@ -50,7 +50,14 @@ internal class SignalReceiptStore(private val db: ProtocolDatabase) {
          * timestamp, were seen here: a call-log event, not a receipt, keyed the same way.
          * Upstream's `CallLogEventSendJob`, a day of unlimited attempts like the rest.
          */
-        CALLS_READ("calls-read")
+        CALLS_READ("calls-read"),
+
+        /**
+         * Tell the person who wrote it that their voice note was listened to here: upstream's
+         * `SendViewedReceiptJob`, a day of unlimited attempts, and behind the read-receipt
+         * setting like [READ_RECEIPT]. A new value in the existing `kind` column; no schema change.
+         */
+        VIEWED_RECEIPT("viewed-receipt")
     }
 
     /** Somebody still waiting to be told something, and since when. */

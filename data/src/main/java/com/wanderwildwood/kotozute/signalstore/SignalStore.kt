@@ -705,17 +705,41 @@ class SignalStore(private val context: Context) {
         connection.connect()
         val sender = callSender()
         sender.sendViewedSync(serviceId, sentAt)
-        if (receipt) sender.sendViewedReceipt(serviceId, listOf(sentAt))
+        // Owed, not dropped, like the read and delivery receipts: upstream's
+        // `SendViewedReceiptJob` is the same day of unlimited attempts, and since f7174c6658 a
+        // challenge or a rate limit is retried with backoff rather than failing it.
+        if (receipt && !sentOrNoted(sender.sendViewedReceipt(serviceId, listOf(sentAt)))) {
+            Timber.w("signal receipt: could not send a viewed receipt; will keep trying")
+            owe(author, listOf(sentAt), SignalReceiptStore.Kind.VIEWED_RECEIPT)
+        }
+    }
+
+    /** A viewed receipt owed from an earlier attempt. See [SignalSender.sendViewedReceipt]. */
+    private fun sendViewedReceipt(recipient: String, timestamps: List<Long>): Boolean {
+        if (timestamps.isEmpty()) return true
+        val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
+        return sentOrNoted(callSender().sendViewedReceipt(serviceId, timestamps))
+    }
+
+    /**
+     * Whether a receipt went; and, when the server refused it with a challenge or a rate limit,
+     * the wait before owed receipts are tried again ([ReceiptBackoff]).
+     */
+    private fun sentOrNoted(result: SignalSender.Result): Boolean {
+        if (result is SignalSender.Result.Failed) ReceiptBackoff.refused(result.failure)
+        return result is SignalSender.Result.Sent
     }
 
     fun sendReadReceipt(recipient: String, timestamps: List<Long>): Boolean {
         if (timestamps.isEmpty()) return true
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
         connection.connect()
-        return SignalSender(
-            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
-            SignalDataStore(database, account), connection, contacts
-        ).sendReadReceipt(serviceId, timestamps) is SignalSender.Result.Sent
+        return sentOrNoted(
+            SignalSender(
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).sendReadReceipt(serviceId, timestamps)
+        )
     }
 
     /**
@@ -1024,10 +1048,12 @@ class SignalStore(private val context: Context) {
     fun sendDeliveryReceipt(recipient: String, timestamps: List<Long>): Boolean {
         if (timestamps.isEmpty()) return true
         val serviceId = org.signal.core.models.ServiceId.parseOrNull(recipient) ?: return false
-        return SignalSender(
-            SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
-            SignalDataStore(database, account), connection, contacts
-        ).sendDeliveryReceipt(serviceId, timestamps) is SignalSender.Result.Sent
+        return sentOrNoted(
+            SignalSender(
+                SignalNetworkConfig.configuration(), SignalNetworkConfig.USER_AGENT, account, database,
+                SignalDataStore(database, account), connection, contacts
+            ).sendDeliveryReceipt(serviceId, timestamps)
+        )
     }
 
     /**
@@ -1156,13 +1182,28 @@ class SignalStore(private val context: Context) {
             Timber.i("signal receipt: dropped %d owed to somebody no longer on Signal", gone)
         }
 
+        // ⚠ Not while the server has asked us to wait. A receipt it refused with a challenge or
+        // a rate limit is kept, and tried again once the wait is over: upstream f7174c6658,
+        // `tryPushChallengeAndToJobResult` / `RateLimited.toJobResult` with `defaultBackoff()`.
+        // Only the receipts addressed to other people wait; nothing is dropped by waiting, and
+        // the day's lifespan below still applies. See [ReceiptBackoff].
+        val waitingUntil = ReceiptBackoff.waitingUntil()
+        if (waitingUntil != null) {
+            Timber.i(
+                "signal receipt: the server refused one with a challenge or a rate limit; owed receipts wait %d s more",
+                java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(waitingUntil - System.currentTimeMillis())
+            )
+        }
+
         // Delivery: one message per person, carrying their own timestamps.
-        val deliveries = runCatching { store.owed(SignalReceiptStore.Kind.DELIVERY) }
+        val deliveries = if (waitingUntil != null) emptyMap() else runCatching { store.owed(SignalReceiptStore.Kind.DELIVERY) }
             .onFailure { Timber.w(it, "signal receipt: could not read who is owed one") }
             .getOrDefault(emptyMap())
         if (deliveries.isNotEmpty()) {
             connection.connect()
             deliveries.forEach { (recipient, timestamps) ->
+                // A refusal part-way through starts the wait for the rest too.
+                if (ReceiptBackoff.waitingUntil() != null) return@forEach
                 val went = runCatching { sendDeliveryReceipt(recipient, timestamps) }
                     .onFailure { Timber.w(it, "signal receipt: still could not tell them") }
                     .getOrDefault(false)
@@ -1201,13 +1242,14 @@ class SignalStore(private val context: Context) {
         // Read receipts: per person, like delivery, and the only one behind a setting. The
         // setting is read here rather than where the receipt was owed, so a backlog cannot go
         // out behind somebody who has turned receipts off since.
-        if (readReceiptsEnabled()) {
+        if (readReceiptsEnabled() && waitingUntil == null) {
             val reads = runCatching { store.owed(SignalReceiptStore.Kind.READ_RECEIPT) }
                 .onFailure { Timber.w(it, "signal receipt: could not read which read receipts are owed") }
                 .getOrDefault(emptyMap())
             if (reads.isNotEmpty()) {
                 connection.connect()
                 reads.forEach { (recipient, timestamps) ->
+                    if (ReceiptBackoff.waitingUntil() != null) return@forEach
                     val went = runCatching { sendReadReceipt(recipient, timestamps) }
                         .onFailure { Timber.w(it, "signal receipt: still could not send a read receipt") }
                         .getOrDefault(false)
@@ -1219,16 +1261,38 @@ class SignalStore(private val context: Context) {
                     }
                 }
             }
-        } else {
-            // Not held for later. Upstream's job returns without sending and is then finished
-            // and gone; keeping them would be keeping a promise the account has withdrawn.
-            runCatching { store.drop(SignalReceiptStore.Kind.READ_RECEIPT) }
-                .onSuccess { gone ->
-                    if (gone > 0) {
-                        Timber.i("signal receipt: dropped %d read receipt(s); they are switched off", gone)
+            // Viewed receipts (a voice note listened to): behind the same setting, per person.
+            val viewed = runCatching { store.owed(SignalReceiptStore.Kind.VIEWED_RECEIPT) }
+                .onFailure { Timber.w(it, "signal receipt: could not read which viewed receipts are owed") }
+                .getOrDefault(emptyMap())
+            if (viewed.isNotEmpty()) {
+                connection.connect()
+                viewed.forEach { (recipient, timestamps) ->
+                    if (ReceiptBackoff.waitingUntil() != null) return@forEach
+                    val went = runCatching { sendViewedReceipt(recipient, timestamps) }
+                        .onFailure { Timber.w(it, "signal receipt: still could not send a viewed receipt") }
+                        .getOrDefault(false)
+                    if (went) {
+                        told++
+                        runCatching {
+                            store.clear(recipient, timestamps, SignalReceiptStore.Kind.VIEWED_RECEIPT)
+                        }.onFailure { Timber.w(it, "signal receipt: could not clear a viewed receipt that went") }
                     }
                 }
-                .onFailure { Timber.w(it, "signal receipt: could not drop the read receipts owed") }
+            }
+        } else if (!readReceiptsEnabled()) {
+            // Not held for later. Upstream's job returns without sending and is then finished
+            // and gone; keeping them would be keeping a promise the account has withdrawn.
+            // `SendViewedReceiptJob.onRun` reads the same setting for the viewed kind.
+            listOf(SignalReceiptStore.Kind.READ_RECEIPT, SignalReceiptStore.Kind.VIEWED_RECEIPT).forEach { kind ->
+                runCatching { store.drop(kind) }
+                    .onSuccess { gone ->
+                        if (gone > 0) {
+                            Timber.i("signal receipt: dropped %d %s receipt(s); they are switched off", gone, kind.value)
+                        }
+                    }
+                    .onFailure { Timber.w(it, "signal receipt: could not drop the %s receipts owed", kind.value) }
+            }
         }
 
         // Missed calls seen here: one per conversation, at the newest time owed. The call id is
@@ -1253,6 +1317,12 @@ class SignalStore(private val context: Context) {
         runCatching { store.abandonExpired() }
             .onFailure { Timber.w(it, "signal receipt: could not give up on the old ones") }
         return told
+    }
+
+    /** Notes a receipt still owed; see [oweReadReceipt] for what a failure here costs. */
+    private fun owe(recipient: String, timestamps: List<Long>, kind: SignalReceiptStore.Kind) {
+        runCatching { SignalReceiptStore(database).owe(recipient, timestamps, kind) }
+            .onFailure { Timber.w(it, "signal receipt: could not note that a %s receipt is owed; it is lost", kind.value) }
     }
 
     /** Notes that the person who wrote a message has not been told it was read here. */

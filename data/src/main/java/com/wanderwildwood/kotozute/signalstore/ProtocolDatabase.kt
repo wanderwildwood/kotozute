@@ -101,7 +101,7 @@ class ProtocolDatabase(
                 ?: throw IllegalStateException("no migration for protocol store v$version")
             Timber.i("signal store: migrating protocol database to v%d", version)
             steps.forEach { sql ->
-                val add = ADD_COLUMN.find(sql)
+                val add = ProtocolStoreSchema.ADD_COLUMN.find(sql)
                 if (add != null && columnExists(db, add.groupValues[1], add.groupValues[2])) {
                     // Already made by an earlier step from the table's current shape; see
                     // [ProtocolStoreSchema.MIGRATIONS].
@@ -127,7 +127,6 @@ class ProtocolDatabase(
     companion object {
         const val NAME = "signal-protocol.db"
 
-        private val ADD_COLUMN = Regex("""^\s*ALTER TABLE (\w+) ADD COLUMN (\w+)""", RegexOption.IGNORE_CASE)
 
         /** As signal-cli numbers them, and the numbers are stored, so they cannot drift. */
         const val ACCOUNT_ID_TYPE_ACI = 0

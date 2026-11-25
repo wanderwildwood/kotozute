@@ -37,7 +37,10 @@ class KeptCopiesTest {
         var nextAt: Long = 0L,
         var gone: Boolean = false,
         var note: KeptCopies.Note? = null,
-        var gaveUp: Boolean = false
+        var gaveUp: Boolean = false,
+        var build: Int = 0,
+        /** Notes written for it, as `announceGivenUpEnvelopes` writes them: once. */
+        var notes: Int = 0
     )
 
     private class FakeStore(val rows: MutableList<Row>) : KeptCopies.Store {
@@ -53,8 +56,18 @@ class KeptCopiesTest {
             rows.single { it.id == id }.apply { this.attempts = attempts; this.nextAt = nextAt }
         }
 
-        override fun gaveUp(id: Long, attempts: Int, note: KeptCopies.Note?) {
-            rows.single { it.id == id }.apply { this.attempts = attempts; this.note = note; gaveUp = true }
+        override fun gaveUp(id: Long, attempts: Int, note: KeptCopies.Note?, build: Int) {
+            rows.single { it.id == id }.apply {
+                this.attempts = attempts; this.note = note; gaveUp = true; this.build = build
+                // `placeholder_at`: set by the first note and never cleared.
+                if (note != null && notes == 0) notes = 1
+            }
+        }
+
+        override fun freshTries(build: Int, now: Long) {
+            rows.filter { !it.gone && it.attempts >= KeptCopies.MAX_ATTEMPTS && it.build != build }.forEach {
+                it.attempts = 1; it.nextAt = now; it.build = build; it.gaveUp = false
+            }
         }
     }
 
@@ -82,18 +95,18 @@ class KeptCopiesTest {
     @Test
     fun `a copy that processes is cleared and handed back to be filed`() {
         val store = FakeStore(mutableListOf(Row(1, kept(transcript()))))
-        val done = KeptCopies(store).run(start) { _, _ -> KeptCopies.Outcome.Processed(self.toString(), null) }
+        val done = KeptCopies(store, BUILD).run(start) { _, _ -> KeptCopies.Outcome.Processed(self.toString(), null) }
         assertEquals(1, done.size)
         assertTrue(store.rows.single().gone)
         // And nothing is left to try.
-        assertEquals(0, KeptCopies(store).run(start + 1) { _, _ -> error("not again") }.size)
+        assertEquals(0, KeptCopies(store, BUILD).run(start + 1) { _, _ -> error("not again") }.size)
     }
 
     @Test
     fun `a copy that keeps failing backs off, then is given up with a note`() {
         val row = Row(1, kept(transcript()), attempts = 1, nextAt = start + KeptCopies.backoff(1))
         val store = FakeStore(mutableListOf(row))
-        val copies = KeptCopies(store)
+        val copies = KeptCopies(store, BUILD)
         var tries = 0
         val failing: (KeptCopies.Kept, SignalServiceCipherResult) -> KeptCopies.Outcome = { _, _ ->
             tries++
@@ -132,7 +145,7 @@ class KeptCopiesTest {
     @Test
     fun `a throw while processing again counts as a failure`() {
         val row = Row(1, kept(transcript()))
-        KeptCopies(FakeStore(mutableListOf(row))).run(start) { _, _ -> throw IllegalStateException("again") }
+        KeptCopies(FakeStore(mutableListOf(row)), BUILD).run(start) { _, _ -> throw IllegalStateException("again") }
         assertEquals(2, row.attempts)
         assertTrue(row.nextAt > start)
     }
@@ -140,7 +153,7 @@ class KeptCopiesTest {
     @Test
     fun `a copy that cannot be read is given up at once, with no note`() {
         val row = Row(1, byteArrayOf(9, 9, 9))
-        KeptCopies(FakeStore(mutableListOf(row))).run(start) { _, _ -> error("processed garbage") }
+        KeptCopies(FakeStore(mutableListOf(row)), BUILD).run(start) { _, _ -> error("processed garbage") }
         assertTrue(row.gaveUp)
         assertNull(row.note)
     }
@@ -151,7 +164,7 @@ class KeptCopiesTest {
             syncMessage = SyncMessage(blocked = SyncMessage.Blocked(acis = listOf(theirs.toString())))
         )
         var seen: Content? = null
-        KeptCopies(FakeStore(mutableListOf(Row(1, kept(blocked))))).run(start) { _, replay ->
+        KeptCopies(FakeStore(mutableListOf(Row(1, kept(blocked)))), BUILD).run(start) { _, replay ->
             seen = replay.content
             KeptCopies.Outcome.Processed(self.toString(), null)
         }
@@ -162,7 +175,7 @@ class KeptCopiesTest {
     @Test
     fun `nor an old profile key, though the message it rode on is processed`() {
         var seen: Content? = null
-        KeptCopies(FakeStore(mutableListOf(Row(1, kept(transcript(ByteArray(32) { 7 })))))).run(start) { _, replay ->
+        KeptCopies(FakeStore(mutableListOf(Row(1, kept(transcript(ByteArray(32) { 7 }))))), BUILD).run(start) { _, replay ->
             seen = replay.content
             KeptCopies.Outcome.Processed(self.toString(), null)
         }
@@ -281,12 +294,56 @@ class KeptCopiesTest {
         assertNull(KeptCopies.noteFor(SignalServiceCipherResult(update, metadata())))
 
         val row = Row(1, kept(readSync), attempts = KeptCopies.MAX_ATTEMPTS - 1)
-        KeptCopies(FakeStore(mutableListOf(row))).run(start) { _, _ -> KeptCopies.Outcome.Failed }
+        KeptCopies(FakeStore(mutableListOf(row)), BUILD).run(start) { _, _ -> KeptCopies.Outcome.Failed }
         assertTrue(row.gaveUp)
         assertNull(row.note)
     }
 
+    @Test
+    fun `a copy given up by one build gets a fresh set of tries from the next, and one note`() {
+        val row = Row(1, kept(transcript()), attempts = 1, nextAt = start)
+        val store = FakeStore(mutableListOf(row))
+        var now = start
+        while (!row.gaveUp) {
+            KeptCopies(store, BUILD).run(now) { _, _ -> KeptCopies.Outcome.Failed }
+            now = maxOf(now, row.nextAt) + 1
+        }
+        assertEquals(1, row.notes)
+        assertEquals(BUILD, row.build)
+
+        // The same build again: nothing.
+        KeptCopies(store, BUILD).run(now + 365L * 24 * 3600 * 1000) { _, _ -> error("same build tried it again") }
+
+        // An update: tried at once, and again with backoff, then given up again -- one note still.
+        var tries = 0
+        while (true) {
+            KeptCopies(store, BUILD + 1).run(now) { _, _ -> tries++; KeptCopies.Outcome.Failed }
+            if (row.gaveUp) break
+            now = row.nextAt
+        }
+        assertEquals(KeptCopies.MAX_ATTEMPTS - 1, tries)
+        assertEquals(BUILD + 1, row.build)
+        assertEquals(1, row.notes)
+        KeptCopies(store, BUILD + 1).run(now + 1) { _, _ -> error("tried twice by one build") }
+
+        // And the build after that, with the fault fixed: processed, cleared.
+        val done = KeptCopies(store, BUILD + 2).run(now + 2) { _, _ ->
+            KeptCopies.Outcome.Processed(self.toString(), null)
+        }
+        assertEquals(1, done.size)
+        assertTrue(row.gone)
+    }
+
+    @Test
+    fun `a copy still being tried is not reset by an update`() {
+        val row = Row(1, kept(transcript()), attempts = 3, nextAt = start + 10_000)
+        KeptCopies(FakeStore(mutableListOf(row)), BUILD + 1).run(start) { _, _ -> error("not due yet") }
+        assertEquals(3, row.attempts)
+        assertEquals(start + 10_000, row.nextAt)
+    }
+
     private companion object {
+        const val BUILD = 10350053
         const val CiphertextMessageType = CiphertextMessage.WHISPER_TYPE
     }
 }

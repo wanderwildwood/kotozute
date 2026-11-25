@@ -255,7 +255,9 @@ internal object ProtocolStoreSchema {
           unprocessed BLOB,
           -- How many times it has been processed and failed, and when to try next. See KeptCopies.
           unprocessed_attempts INTEGER NOT NULL DEFAULT 0,
-          unprocessed_next_at INTEGER NOT NULL DEFAULT 0
+          unprocessed_next_at INTEGER NOT NULL DEFAULT 0,
+          -- The version code that last gave it up, so the next build tries it afresh.
+          unprocessed_build INTEGER NOT NULL DEFAULT 0
         ) STRICT;
     """
 
@@ -1030,14 +1032,15 @@ internal object ProtocolStoreSchema {
          */
         /**
          * What an envelope decrypted to, kept when processing it then threw, and how often it
-         * has been tried since. Upstream rolls the session back in the same transaction and
+         * has been tried since, and by which build it was last given up. Upstream rolls the session back in the same transaction and
          * processes again; this store's messages are in Realm, so the decrypted content is kept
          * instead. See SignalReceiver.processDecrypted and [KeptCopies].
          */
         43 to listOf(
             "ALTER TABLE envelope ADD COLUMN unprocessed BLOB;",
             "ALTER TABLE envelope ADD COLUMN unprocessed_attempts INTEGER NOT NULL DEFAULT 0;",
-            "ALTER TABLE envelope ADD COLUMN unprocessed_next_at INTEGER NOT NULL DEFAULT 0;"
+            "ALTER TABLE envelope ADD COLUMN unprocessed_next_at INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE envelope ADD COLUMN unprocessed_build INTEGER NOT NULL DEFAULT 0;"
         ),
 
         /**

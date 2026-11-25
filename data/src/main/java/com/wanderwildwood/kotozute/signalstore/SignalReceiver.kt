@@ -51,7 +51,9 @@ internal class SignalReceiver(
      */
     private val events: SignalEvents,
     /** What a sticker, a call, a group change and the rest are written as, from strings.xml. */
-    private val placeholders: ContentNormalizer.Placeholders
+    private val placeholders: ContentNormalizer.Placeholders,
+    /** This app's version code: a kept copy given up by another build is tried again. */
+    private val build: Int
 ) {
 
     /**
@@ -758,21 +760,29 @@ internal class SignalReceiver(
         // ⚠ Surfaced the way a message that never decrypted is: [announceGivenUpEnvelopes]
         // reads exactly these columns, an hour after the envelope was stored, and leaves a note
         // where the message should be. The copy itself stays until the sweep.
-        override fun gaveUp(id: Long, attempts: Int, note: KeptCopies.Note?) = withStoreLock(db) {
+        override fun gaveUp(id: Long, attempts: Int, note: KeptCopies.Note?, build: Int) = withStoreLock(db) {
             if (note == null) {
                 db.writableDatabase.execSQL(
-                    "UPDATE envelope SET unprocessed_attempts = ? WHERE _id = ?",
-                    arrayOf<Any?>(attempts, id)
+                    "UPDATE envelope SET unprocessed_attempts = ?, unprocessed_build = ? WHERE _id = ?",
+                    arrayOf<Any?>(attempts, build, id)
                 )
             } else {
                 db.writableDatabase.execSQL(
-                    "UPDATE envelope SET unprocessed_attempts = ?, retry_requested = 1, retry_sender = ?, " +
-                        "retry_device = ?, retry_group = ? WHERE _id = ?",
-                    arrayOf<Any?>(attempts, note.sender, note.deviceId, note.groupId, id)
+                    "UPDATE envelope SET unprocessed_attempts = ?, unprocessed_build = ?, retry_requested = 1, " +
+                        "retry_sender = ?, retry_device = ?, retry_group = ? WHERE _id = ?",
+                    arrayOf<Any?>(attempts, build, note.sender, note.deviceId, note.groupId, id)
                 )
             }
         }
-    })
+
+        override fun freshTries(build: Int, now: Long) = withStoreLock(db) {
+            db.writableDatabase.execSQL(
+                "UPDATE envelope SET unprocessed_attempts = 1, unprocessed_next_at = ?, unprocessed_build = ? " +
+                    "WHERE unprocessed IS NOT NULL AND unprocessed_attempts >= ? AND unprocessed_build != ?",
+                arrayOf<Any?>(now, build, KeptCopies.MAX_ATTEMPTS, build)
+            )
+        }
+    }, build)
 
     private fun recordFailure(id: Long, reason: String) = withStoreLock(db) {
         db.writableDatabase.execSQL(

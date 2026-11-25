@@ -24,10 +24,18 @@ import java.util.concurrent.TimeUnit
  *   taken out before the copy is processed again ([forReplay]): newer envelopes have been
  *   processed since, and an old snapshot would overwrite what they set.
  * - **Kept until settled.** A copy is cleared only once it has been processed.
+ * - **Tried again by a new build.** A copy given up by one build is given a fresh set of tries
+ *   by the next ([Store.freshTries]): a failure that was this app's fault may be fixed by an
+ *   update, and until the sweep the copy is still there to be processed. Its note, if one
+ *   was written, is not written again; the message replaces it if it now lands.
  *
  * The rows are kept by [SignalReceiver]; this holds the decisions, so they can be tested.
  */
-internal class KeptCopies(private val store: Store) {
+internal class KeptCopies(
+    private val store: Store,
+    /** This app's version code, which a given-up copy is stamped with. */
+    private val build: Int
+) {
 
     interface Store {
         /** Kept copies whose next attempt is due and which have not been given up. */
@@ -45,7 +53,16 @@ internal class KeptCopies(private val store: Store) {
          * could not be read, so nobody is known to have sent it, or it was not a message) the
          * row just waits to be swept.
          */
-        fun gaveUp(id: Long, attempts: Int, note: Note?)
+        fun gaveUp(id: Long, attempts: Int, note: Note?, build: Int)
+
+        /**
+         * Copies given up by any build but [build] start again: one try spent, the next due at
+         * [now], stamped with [build] so this build gives each of them only the one fresh set.
+         *
+         * ⚠ The note stays as it was. `placeholder_at` is untouched, so a copy that fails again
+         * and is given up again is not announced twice.
+         */
+        fun freshTries(build: Int, now: Long)
     }
 
     class Kept(
@@ -91,12 +108,13 @@ internal class KeptCopies(private val store: Store) {
      */
     fun run(now: Long, process: (Kept, SignalServiceCipherResult) -> Outcome): List<Outcome.Processed> {
         val done = mutableListOf<Outcome.Processed>()
+        store.freshTries(build, now)
         store.due(now).forEach { kept ->
             val decoded = SignalReceiver.decodeUnprocessed(kept.copy)
             if (decoded == null) {
                 // Unreadable now, unreadable every time. Given up at once, first reason kept.
                 Timber.w("signal receive: a kept copy could not be read; given up")
-                store.gaveUp(kept.id, MAX_ATTEMPTS, null)
+                store.gaveUp(kept.id, MAX_ATTEMPTS, null, build)
                 return@forEach
             }
             val replay = SignalServiceCipherResult(forReplay(decoded.content), decoded.metadata)
@@ -110,7 +128,7 @@ internal class KeptCopies(private val store: Store) {
                     val attempts = kept.attempts + 1
                     if (attempts >= MAX_ATTEMPTS) {
                         Timber.w("signal receive: a kept message failed %d times; given up", attempts)
-                        store.gaveUp(kept.id, attempts, noteFor(decoded))
+                        store.gaveUp(kept.id, attempts, noteFor(decoded), build)
                     } else {
                         store.failedAgain(kept.id, attempts, now + backoff(attempts))
                     }

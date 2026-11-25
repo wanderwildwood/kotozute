@@ -61,7 +61,7 @@ class EnvelopeSchemaUpgradeTest {
     @Test
     fun `v44 adds the build stamp, and v43 is left as it shipped`() {
         assertEquals(44, ProtocolStoreSchema.VERSION)
-        assertEquals(listOf("unprocessed_build"), addedAt(44).take(1))
+        assertEquals(listOf("unprocessed_build", "unprocessed_waits_for"), addedAt(44))
         assertEquals(
             listOf(
                 "ALTER TABLE envelope ADD COLUMN unprocessed BLOB;",

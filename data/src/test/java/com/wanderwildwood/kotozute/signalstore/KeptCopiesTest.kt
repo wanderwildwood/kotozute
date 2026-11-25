@@ -40,13 +40,21 @@ class KeptCopiesTest {
         var gaveUp: Boolean = false,
         var build: Int = 0,
         /** Notes written for it, as `announceGivenUpEnvelopes` writes them: once. */
-        var notes: Int = 0
+        var notes: Int = 0,
+        var waitsFor: String? = null
     )
 
     private class FakeStore(val rows: MutableList<Row>) : KeptCopies.Store {
         override fun due(now: Long) = rows
-            .filter { !it.gone && it.attempts < KeptCopies.MAX_ATTEMPTS && it.nextAt <= now }
+            .filter { !it.gone && it.waitsFor == null && it.attempts < KeptCopies.MAX_ATTEMPTS && it.nextAt <= now }
             .map { KeptCopies.Kept(it.id, Envelope(clientTimestamp = 1L), 0L, it.copy, it.attempts) }
+
+        override fun all() = rows.filter { !it.gone }
+            .map { KeptCopies.Kept(it.id, Envelope(clientTimestamp = 1L), 0L, it.copy, it.attempts, it.waitsFor) }
+
+        override fun release(id: Long, now: Long) {
+            rows.single { it.id == id }.apply { waitsFor = null; attempts = 0; nextAt = now }
+        }
 
         override fun processed(id: Long, message: com.wanderwildwood.kotozute.signal.BridgeMessage?) {
             rows.single { it.id == id }.gone = true
@@ -340,6 +348,173 @@ class KeptCopiesTest {
         KeptCopies(FakeStore(mutableListOf(row)), BUILD + 1).run(start) { _, _ -> error("not due yet") }
         assertEquals(3, row.attempts)
         assertEquals(start + 10_000, row.nextAt)
+    }
+
+    // --- What points at a kept message waits for it -------------------------------------
+
+    private fun incoming(m: DataMessage) = Content(dataMessage = m)
+    private fun keptFrom(who: ServiceId, content: Content) =
+        SignalServiceCipherResult(content, metadataFrom(who))
+    private fun keptCopyFrom(who: ServiceId, content: Content) =
+        SignalReceiver.encodeUnprocessed(keptFrom(who, content))
+
+    private val original = incoming(DataMessage(body = "Lunch at noon?", timestamp = at))
+    private val originalId = "$theirs:$at"
+
+    private val withdrawal = incoming(DataMessage(timestamp = at + 10, delete = DataMessage.Delete(targetSentTimestamp = at)))
+    private val edit = Content(
+        editMessage = org.whispersystems.signalservice.internal.push.EditMessage(
+            targetSentTimestamp = at,
+            dataMessage = DataMessage(body = "Lunch at one?", timestamp = at + 20)
+        )
+    )
+    private val reaction = incoming(
+        DataMessage(
+            timestamp = at + 30,
+            reaction = DataMessage.Reaction(emoji = "👍", targetAuthorAci = theirs.toString(), targetSentTimestamp = at)
+        )
+    )
+
+    /** What the process step was handed, by the body or event it carried. */
+    private fun describe(replay: SignalServiceCipherResult): String {
+        val c = replay.content
+        return when {
+            c.editMessage != null -> "edit"
+            c.dataMessage?.delete != null -> "delete"
+            c.dataMessage?.reaction != null -> "reaction"
+            else -> "message"
+        }
+    }
+
+    @Test
+    fun `targetOf names the message each kind of event points at`() {
+        val meta = metadataFrom(theirs)
+        val ours = metadataFrom(self)
+        assertEquals(originalId, KeptCopies.targetOf(edit, meta))
+        assertEquals(originalId, KeptCopies.targetOf(withdrawal, meta))
+        assertEquals(originalId, KeptCopies.targetOf(reaction, meta))
+        // The binary twin of the reaction's author works as well as the string.
+        assertEquals(
+            "$self:$at",
+            KeptCopies.targetOf(
+                incoming(DataMessage(timestamp = at + 1, reaction = DataMessage.Reaction(
+                    emoji = "👍", targetAuthorAciBinary = self.toByteString(), targetSentTimestamp = at
+                ))),
+                meta
+            )
+        )
+        assertEquals(originalId, KeptCopies.targetOf(incoming(DataMessage(timestamp = at + 2,
+            pinMessage = DataMessage.PinMessage(targetAuthorAciBinary = theirs.toByteString(), targetSentTimestamp = at, pinDurationForever = true))), ours))
+        assertEquals(originalId, KeptCopies.targetOf(incoming(DataMessage(timestamp = at + 3,
+            unpinMessage = DataMessage.UnpinMessage(targetAuthorAciBinary = theirs.toByteString(), targetSentTimestamp = at))), ours))
+        assertEquals(originalId, KeptCopies.targetOf(incoming(DataMessage(timestamp = at + 4,
+            pollVote = DataMessage.PollVote(targetAuthorAciBinary = theirs.toByteString(), targetSentTimestamp = at))), ours))
+        assertEquals(originalId, KeptCopies.targetOf(incoming(DataMessage(timestamp = at + 5,
+            pollTerminate = DataMessage.PollTerminate(targetSentTimestamp = at))), meta))
+        assertEquals(originalId, KeptCopies.targetOf(incoming(DataMessage(timestamp = at + 6,
+            adminDelete = DataMessage.AdminDelete(targetAuthorAciBinary = theirs.toByteString(), targetSentTimestamp = at))), ours))
+        // Our own withdrawal and edit, synced from another device: our own message.
+        val syncedDelete = Content(syncMessage = SyncMessage(sent = SyncMessage.Sent(
+            timestamp = at + 7, message = DataMessage(timestamp = at + 7, delete = DataMessage.Delete(targetSentTimestamp = at))
+        )))
+        assertEquals("$self:$at", KeptCopies.targetOf(syncedDelete, ours))
+        val syncedEdit = Content(syncMessage = SyncMessage(sent = SyncMessage.Sent(
+            timestamp = at + 8, editMessage = org.whispersystems.signalservice.internal.push.EditMessage(
+                targetSentTimestamp = at, dataMessage = DataMessage(body = "fixed", timestamp = at + 8)
+            )
+        )))
+        assertEquals("$self:$at", KeptCopies.targetOf(syncedEdit, ours))
+        // A plain message points at nothing, and lands as itself.
+        assertNull(KeptCopies.targetOf(original, meta))
+        assertEquals(originalId, KeptCopies.landsAs(keptFrom(theirs, original)))
+        assertEquals("$self:$at", KeptCopies.landsAs(SignalServiceCipherResult(transcript(), metadata())))
+        // An event lands as nothing anything could point at, and is no missing message.
+        assertNull(KeptCopies.landsAs(keptFrom(theirs, reaction)))
+        assertNull(KeptCopies.noteFor(keptFrom(theirs, reaction)))
+    }
+
+    private fun waitingStore(targetAttempts: Int = 1): FakeStore = FakeStore(mutableListOf(
+        Row(1, keptCopyFrom(theirs, original), attempts = targetAttempts, nextAt = start),
+        Row(2, keptCopyFrom(theirs, withdrawal), attempts = 0, waitsFor = originalId),
+        Row(3, keptCopyFrom(theirs, edit), attempts = 0, waitsFor = originalId),
+        Row(4, keptCopyFrom(theirs, reaction), attempts = 0, waitsFor = originalId)
+    ))
+
+    @Test
+    fun `only a kept message still being tried is waited for`() {
+        assertEquals(setOf(originalId), KeptCopies(waitingStore(), BUILD).waitingIds())
+        assertTrue(KeptCopies(waitingStore(KeptCopies.MAX_ATTEMPTS), BUILD).waitingIds().isEmpty())
+        assertTrue(KeptCopies(FakeStore(mutableListOf()), BUILD).waitingIds().isEmpty())
+    }
+
+    @Test
+    fun `a withdrawal, an edit and a reaction wait, then follow their message in the order they came`() {
+        val store = waitingStore()
+        val seen = mutableListOf<String>()
+        val ok: (KeptCopies.Kept, SignalServiceCipherResult) -> KeptCopies.Outcome = { _, replay ->
+            seen += describe(replay)
+            KeptCopies.Outcome.Processed(theirs.toString(), null)
+        }
+        val copies = KeptCopies(store, BUILD)
+        copies.run(start, ok)
+        // The run itself touches only the message; the events wait for it to be filed.
+        assertEquals(listOf("message"), seen)
+        assertEquals(3, copies.afterFiled(start, ok).size)
+        assertEquals(listOf("message", "delete", "edit", "reaction"), seen)
+        assertTrue(store.rows.all { it.gone })
+        // And nothing is done twice.
+        assertEquals(0, copies.afterFiled(start + 1, ok).size)
+    }
+
+    @Test
+    fun `they keep waiting while their message is still being tried`() {
+        val store = waitingStore()
+        val copies = KeptCopies(store, BUILD)
+        copies.run(start) { _, _ -> KeptCopies.Outcome.Failed }
+        copies.afterFiled(start) { _, _ -> error("applied before its message") }
+        assertEquals(listOf(originalId, originalId, originalId), store.rows.drop(1).map { it.waitsFor })
+    }
+
+    @Test
+    fun `when their message is given up they are released, and run on the next drain after its note`() {
+        val store = waitingStore(targetAttempts = KeptCopies.MAX_ATTEMPTS - 1)
+        val copies = KeptCopies(store, BUILD)
+        val seen = mutableListOf<String>()
+        copies.run(start) { _, replay -> seen += describe(replay); KeptCopies.Outcome.Failed }
+        assertTrue(store.rows[0].gaveUp)
+        copies.afterFiled(start) { _, _ -> error("not in the drain that writes the note") }
+        assertTrue(store.rows.drop(1).all { it.waitsFor == null && it.attempts == 0 })
+        // Next drain: ordinary copies now, tried in the order they came.
+        copies.run(start + 1) { _, replay -> seen += describe(replay); KeptCopies.Outcome.Processed(theirs.toString(), null) }
+        assertEquals(listOf("message", "delete", "edit", "reaction"), seen)
+        assertTrue(store.rows.drop(1).all { it.gone })
+    }
+
+    @Test
+    fun `what waits outlasts a restart between its message landing and being applied`() {
+        val store = waitingStore()
+        val ok: (KeptCopies.Kept, SignalServiceCipherResult) -> KeptCopies.Outcome = { _, _ ->
+            KeptCopies.Outcome.Processed(theirs.toString(), null)
+        }
+        KeptCopies(store, BUILD).run(start, ok)
+        // The process died before afterFiled. A new one, from the same rows, picks it up.
+        assertEquals(3, KeptCopies(store, BUILD).afterFiled(start + 60_000, ok).size)
+        assertTrue(store.rows.all { it.gone })
+    }
+
+    @Test
+    fun `an event that fails after its release is retried like any kept copy`() {
+        val store = waitingStore()
+        val copies = KeptCopies(store, BUILD)
+        copies.run(start) { _, _ -> KeptCopies.Outcome.Processed(theirs.toString(), null) }
+        copies.afterFiled(start) { _, replay ->
+            if (describe(replay) == "edit") KeptCopies.Outcome.Failed else KeptCopies.Outcome.Processed(theirs.toString(), null)
+        }
+        val editRow = store.rows.single { it.id == 3L }
+        assertTrue(!editRow.gone)
+        assertEquals(1, editRow.attempts)
+        assertNull(editRow.waitsFor)
+        assertEquals(start + KeptCopies.backoff(1), editRow.nextAt)
     }
 
     private companion object {

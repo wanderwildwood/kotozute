@@ -257,7 +257,10 @@ internal object ProtocolStoreSchema {
           unprocessed_attempts INTEGER NOT NULL DEFAULT 0,
           unprocessed_next_at INTEGER NOT NULL DEFAULT 0,
           -- The version code that last gave it up, so the next build tries it afresh. See v44.
-          unprocessed_build INTEGER NOT NULL DEFAULT 0
+          unprocessed_build INTEGER NOT NULL DEFAULT 0,
+          -- For an edit, a withdrawal, a reaction and the like aimed at a kept message still
+          -- being tried: that message's id, author:timestamp. Null otherwise. See v44.
+          unprocessed_waits_for TEXT
         ) STRICT;
     """
 
@@ -1043,12 +1046,14 @@ internal object ProtocolStoreSchema {
          * instead. See SignalReceiver.processDecrypted and [KeptCopies].
          */
         /**
-         * Which build last gave a kept copy up, so the next build tries it afresh. See
-         * [KeptCopies] and `KeptCopies.Store.freshTries`. Its own step, not part of v43: a
-         * v43 store is already out on a phone, and v43 will not run there again.
+         * Which build last gave a kept copy up, so the next build tries it afresh (see
+         * `KeptCopies.Store.freshTries`), and which kept message an event is waiting for (see
+         * `KeptCopies.afterFiled`). Its own step, not part of v43: a v43 store is already out
+         * on a phone, and v43 will not run there again.
          */
         44 to listOf(
-            "ALTER TABLE envelope ADD COLUMN unprocessed_build INTEGER NOT NULL DEFAULT 0;"
+            "ALTER TABLE envelope ADD COLUMN unprocessed_build INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE envelope ADD COLUMN unprocessed_waits_for TEXT;"
         ),
 
         43 to listOf(

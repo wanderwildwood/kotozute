@@ -1,5 +1,6 @@
 package com.wanderwildwood.kotozute.signalstore
 
+import org.whispersystems.signalservice.api.crypto.EnvelopeMetadata
 import org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult
 import org.whispersystems.signalservice.internal.push.Content
 import org.whispersystems.signalservice.internal.push.Envelope
@@ -28,6 +29,12 @@ import java.util.concurrent.TimeUnit
  *   by the next ([Store.freshTries]): a failure that was this app's fault may be fixed by an
  *   update, and until the sweep the copy is still there to be processed. Its note, if one
  *   was written, is not written again; the message replaces it if it now lands.
+ * - **What points at it waits for it.** An edit, a withdrawal, a reaction, a pin or a vote
+ *   aimed at a copy still being tried would otherwise be applied first and lost -- the copy is
+ *   older than they are. Such an event is kept beside the copy, waiting ([targetOf], `waits_for`),
+ *   and processed once the copy has landed and been filed ([afterFiled]), in the order the
+ *   events arrived. Upstream holds them in `EarlyMessageCache` and replays them when the target
+ *   is inserted; here they are in the store, so they outlast a restart, as the copy does.
  *
  * The rows are kept by [SignalReceiver]; this holds the decisions, so they can be tested.
  */
@@ -38,8 +45,14 @@ internal class KeptCopies(
 ) {
 
     interface Store {
-        /** Kept copies whose next attempt is due and which have not been given up. */
+        /** Kept copies whose next attempt is due, not given up and not waiting for another. */
         fun due(now: Long): List<Kept>
+
+        /** Every kept copy, waiting or not, given up or not, in the order they arrived. */
+        fun all(): List<Kept>
+
+        /** No longer waiting: an ordinary kept copy, not yet tried, due at [now]. */
+        fun release(id: Long, now: Long)
 
         /** Processed: the envelope goes, and its message (if any) takes its place. */
         fun processed(id: Long, message: com.wanderwildwood.kotozute.signal.BridgeMessage?)
@@ -71,7 +84,9 @@ internal class KeptCopies(
         val deliveredAt: Long,
         val copy: ByteArray,
         /** Tries so far, counting the one that first failed. */
-        val attempts: Int
+        val attempts: Int,
+        /** The id of the kept message this event waits for, or null. See [targetOf]. */
+        val waitsFor: String? = null
     )
 
     /**
@@ -109,33 +124,88 @@ internal class KeptCopies(
     fun run(now: Long, process: (Kept, SignalServiceCipherResult) -> Outcome): List<Outcome.Processed> {
         val done = mutableListOf<Outcome.Processed>()
         store.freshTries(build, now)
-        store.due(now).forEach { kept ->
-            val decoded = SignalReceiver.decodeUnprocessed(kept.copy)
-            if (decoded == null) {
-                // Unreadable now, unreadable every time. Given up at once, first reason kept.
-                Timber.w("signal receive: a kept copy could not be read; given up")
-                store.gaveUp(kept.id, MAX_ATTEMPTS, null, build)
-                return@forEach
-            }
-            val replay = SignalServiceCipherResult(forReplay(decoded.content), decoded.metadata)
-            val outcome = runCatching { process(kept, replay) }.getOrElse { Outcome.Failed }
-            when (outcome) {
-                is Outcome.Processed -> {
-                    store.processed(kept.id, outcome.message)
-                    done += outcome
-                }
-                Outcome.Failed -> {
-                    val attempts = kept.attempts + 1
-                    if (attempts >= MAX_ATTEMPTS) {
-                        Timber.w("signal receive: a kept message failed %d times; given up", attempts)
-                        store.gaveUp(kept.id, attempts, noteFor(decoded), build)
-                    } else {
-                        store.failedAgain(kept.id, attempts, now + backoff(attempts))
-                    }
+        store.due(now).forEach { attempt(it, now, process, done) }
+        return done
+    }
+
+    /**
+     * The ids the copies still being tried would land under: what an arriving event has to
+     * wait for. Asked once per batch, and empty -- one query, nothing decoded -- when nothing
+     * is kept.
+     */
+    fun waitingIds(): MutableSet<String> = store.all()
+        .filter { it.waitsFor == null && it.attempts < MAX_ATTEMPTS }
+        .mapNotNullTo(mutableSetOf()) { kept -> SignalReceiver.decodeUnprocessed(kept.copy)?.let { landsAs(it) } }
+
+    /**
+     * Once the batch is filed: processes the events whose message has now landed, in the order
+     * they arrived, and returns what they produced for the caller to file in turn.
+     *
+     * After filing and not inside [run], because a withdrawal or a reaction looks for the row
+     * at once and the row is only there once the batch is filed. Asked every drain rather than
+     * remembered from [run], so a restart in between loses nothing.
+     *
+     * - Still being tried: the event keeps waiting.
+     * - Given up: released, and tried by the next drain -- after this one has written the
+     *   message's note, so an edit then replaces the note rather than the note the edit.
+     * - Landed, or gone: tried now.
+     */
+    fun afterFiled(now: Long, process: (Kept, SignalServiceCipherResult) -> Outcome): List<Outcome.Processed> {
+        val rows = store.all()
+        val waiting = rows.filter { it.waitsFor != null }
+        if (waiting.isEmpty()) return emptyList()
+        val landing = rows.filter { it.waitsFor == null }.mapNotNull { kept ->
+            SignalReceiver.decodeUnprocessed(kept.copy)?.let { landsAs(it) }?.let { it to kept.attempts }
+        }
+        val trying = landing.filter { it.second < MAX_ATTEMPTS }.mapTo(mutableSetOf()) { it.first }
+        val givenUp = landing.filter { it.second >= MAX_ATTEMPTS }.mapTo(mutableSetOf()) { it.first }
+        val done = mutableListOf<Outcome.Processed>()
+        waiting.forEach { event ->
+            when (event.waitsFor) {
+                in trying -> Unit
+                in givenUp -> store.release(event.id, now)
+                else -> {
+                    store.release(event.id, now)
+                    attempt(
+                        Kept(event.id, event.envelope, event.deliveredAt, event.copy, 0),
+                        now, process, done
+                    )
                 }
             }
         }
         return done
+    }
+
+    private fun attempt(
+        kept: Kept,
+        now: Long,
+        process: (Kept, SignalServiceCipherResult) -> Outcome,
+        done: MutableList<Outcome.Processed>
+    ) {
+        val decoded = SignalReceiver.decodeUnprocessed(kept.copy)
+        if (decoded == null) {
+            // Unreadable now, unreadable every time. Given up at once, first reason kept.
+            Timber.w("signal receive: a kept copy could not be read; given up")
+            store.gaveUp(kept.id, MAX_ATTEMPTS, null, build)
+            return
+        }
+        val replay = SignalServiceCipherResult(forReplay(decoded.content), decoded.metadata)
+        val outcome = runCatching { process(kept, replay) }.getOrElse { Outcome.Failed }
+        when (outcome) {
+            is Outcome.Processed -> {
+                store.processed(kept.id, outcome.message)
+                done += outcome
+            }
+            Outcome.Failed -> {
+                val attempts = kept.attempts + 1
+                if (attempts >= MAX_ATTEMPTS) {
+                    Timber.w("signal receive: a kept message failed %d times; given up", attempts)
+                    store.gaveUp(kept.id, attempts, noteFor(decoded), build)
+                } else {
+                    store.failedAgain(kept.id, attempts, now + backoff(attempts))
+                }
+            }
+        }
     }
 
     companion object {
@@ -184,6 +254,47 @@ internal class KeptCopies(
         }
 
         /**
+         * The id (`author:timestamp`) of the message this content acts on, or null if it acts
+         * on none: an edit, a withdrawal for everyone or by an administrator, a reaction, a pin
+         * or unpin, a poll vote or a poll ended. Each names its target the way the handler
+         * that applies it does -- an edit, a withdrawal and a poll ended are always the
+         * sender's own message; the rest name the target's author.
+         */
+        internal fun targetOf(content: Content, metadata: EnvelopeMetadata): String? {
+            val self = metadata.sourceServiceId.toString()
+            fun id(author: String?, at: Long?): String? =
+                if (author.isNullOrBlank() || at == null || at == 0L) null
+                else ContentNormalizer.messageIdFor(author, "", at)
+            fun aci(text: String?, binary: okio.ByteString?): String? =
+                org.signal.core.models.ServiceId.parseOrNull(text, binary)?.toString()
+
+            val sent = content.syncMessage?.sent
+            (content.editMessage ?: sent?.editMessage)?.let { return id(self, it.targetSentTimestamp) }
+            val m = sent?.message ?: content.dataMessage ?: return null
+            m.delete?.let { return id(self, it.targetSentTimestamp) }
+            m.adminDelete?.let { return id(aci(null, it.targetAuthorAciBinary), it.targetSentTimestamp) }
+            m.reaction?.let { return id(aci(it.targetAuthorAci, it.targetAuthorAciBinary), it.targetSentTimestamp) }
+            m.pinMessage?.let { return id(aci(null, it.targetAuthorAciBinary), it.targetSentTimestamp) }
+            m.unpinMessage?.let { return id(aci(null, it.targetAuthorAciBinary), it.targetSentTimestamp) }
+            m.pollVote?.let { return id(aci(null, it.targetAuthorAciBinary), it.targetSentTimestamp) }
+            m.pollTerminate?.let { return id(self, it.targetSentTimestamp) }
+            return null
+        }
+
+        /**
+         * The id a kept copy's message will be filed under once it lands, or null when it is
+         * not a message something could point at (an edit, an event, a sync of something else).
+         * The same `author:timestamp` [ContentNormalizer.normalize] gives it.
+         */
+        internal fun landsAs(decoded: SignalServiceCipherResult): String? {
+            val content = decoded.content
+            if (targetOf(content, decoded.metadata) != null) return null
+            val m = content.syncMessage?.sent?.message ?: content.dataMessage ?: return null
+            val at = m.timestamp?.takeIf { it != 0L } ?: return null
+            return ContentNormalizer.messageIdFor(decoded.metadata.sourceServiceId.toString(), "", at)
+        }
+
+        /**
          * Filed where the message itself would have gone, under the id it would have had.
          *
          * Somebody else's message: under them, in the group it was sent to. Our own, synced from
@@ -192,11 +303,15 @@ internal class KeptCopies(
          * later could not replace the note, because a row never changes conversation. Upstream
          * keys the same transcript by its destination (`PushProcessMessageJob.processOrDefer`).
          *
-         * Null for what is not a message -- a receipt, a read sync, typing, a recipient update:
-         * a note saying a message is missing would be a note about nothing.
+         * Null for what is not a message -- a receipt, a read sync, typing, a recipient update,
+         * an event pointing at another message: a note saying a message is missing would be a
+         * note about nothing.
          */
         internal fun noteFor(decoded: SignalServiceCipherResult): Note? {
             val content = decoded.content
+            // An edit, a withdrawal, a reaction and the rest are not a message that went
+            // missing; the message they point at has its own note, if it needs one.
+            if (targetOf(content, decoded.metadata) != null) return null
             val sent = content.syncMessage?.sent
             // In the order [ContentNormalizer.normalize] reads them, so the note and the message
             // agree about whose it is.

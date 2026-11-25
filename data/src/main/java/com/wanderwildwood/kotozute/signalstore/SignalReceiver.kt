@@ -135,6 +135,10 @@ internal class SignalReceiver(
         if (messages.isNotEmpty()) {
             Timber.w("signal receive: filing %d message(s) decrypted before and never filed", messages.size)
         }
+        // Once per batch. One query, and nothing more when nothing is kept.
+        waitingTargets = runCatching { keptCopies.waitingIds() }
+            .onFailure { Timber.w(it, "signal receive: could not read the kept copies; nothing waits this batch") }
+            .getOrDefault(mutableSetOf())
         pending().forEach { (id, envelope, serverDeliveredTimestamp, alreadyAsked) ->
             // Left where it is, to be read by the next batch on the new connection. Signal
             // breaks the batch at exactly this point and lets the server redeliver the rest;
@@ -201,6 +205,12 @@ internal class SignalReceiver(
                 // fails today may succeed after a fix, and the ciphertext is the only copy
                 // left anywhere. Swept by age below rather than kept for ever.
                 null -> {
+                    // Not failed: waiting for the kept message it points at.
+                    val held = lastHeld
+                    if (held != null) {
+                        keepWaiting(id, held.first, held.second)
+                        return@forEach
+                    }
                     // Kept only when decryption actually threw. A null with nothing recorded
                     // means there was no content to decrypt, and keeping those is how an
                     // ordinary event becomes a permanent "message could not be read".
@@ -211,7 +221,11 @@ internal class SignalReceiver(
                         failed++
                         // Before the failure, so a row that says why is never without the copy
                         // that lets it be processed again. From here on it is [KeptCopies]'s.
-                        lastUnprocessed?.let { keepUnprocessed(id, it) }
+                        lastUnprocessed?.let { copy ->
+                            keepUnprocessed(id, copy)
+                            // So what points at it later in this batch waits for it too.
+                            KeptCopies.landsAs(copy)?.let { waitingTargets += it }
+                        }
                         recordFailure(id, why)
                         // So the next batch does not ask this person again for the same
                         // message, and the one after that, for a fortnight.
@@ -238,8 +252,8 @@ internal class SignalReceiver(
         // What an earlier pass decrypted and could not process, tried again from its copy, on
         // its own schedule. Not after an identity change: like the envelopes above, it waits
         // for the new connection.
-        if (!identityChangedMidBatch) {
-            keptCopies.run(System.currentTimeMillis()) { kept, replay ->
+        val processKept: (KeptCopies.Kept, org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult) -> KeptCopies.Outcome =
+            { kept, replay ->
                 lastFailure = null
                 lastUnprocessed = null
                 val result = processDecrypted(kept.envelope, kept.deliveredAt, replay)
@@ -249,7 +263,9 @@ internal class SignalReceiver(
                 } else {
                     KeptCopies.Outcome.Processed(replay.metadata.sourceServiceId.toString(), result?.second)
                 }
-            }.forEach { done ->
+            }
+        if (!identityChangedMidBatch) {
+            keptCopies.run(System.currentTimeMillis(), processKept).forEach { done ->
                 decrypted++
                 senders += done.sender
                 done.message?.let { messages += it }
@@ -259,9 +275,27 @@ internal class SignalReceiver(
         // Filed in one transaction after the whole batch, not one at a time. The rail
         // announces what it stored, and a notification per message would be a notification
         // per message on a device catching up after a day offline.
-        val stored = if (messages.isEmpty()) 0 else events.store(messages)
+        var stored = if (messages.isEmpty()) 0 else events.store(messages)
         // Only once the message database has them. A store that threw leaves them waiting.
         if (messages.isNotEmpty()) unfiledStore.filed(messages.map { it.id })
+
+        // What was waiting for a kept message that has now landed, applied now that its row
+        // is filed -- a withdrawal or a reaction looks for the row at once. Then filed itself.
+        if (!identityChangedMidBatch) {
+            val later = mutableListOf<com.wanderwildwood.kotozute.signal.BridgeMessage>()
+            runCatching { keptCopies.afterFiled(System.currentTimeMillis(), processKept) }
+                .onFailure { Timber.w(it, "signal receive: could not apply what waited for a kept message; it waits") }
+                .getOrDefault(emptyList())
+                .forEach { done ->
+                    decrypted++
+                    senders += done.sender
+                    done.message?.let { later += it }
+                }
+            if (later.isNotEmpty()) {
+                stored += events.store(later)
+                unfiledStore.filed(later.map { it.id })
+            }
+        }
 
         // Before the sweeps, because it is the only one that reaches the network and the only
         // one somebody is waiting on: until these are back the server hands every new
@@ -723,13 +757,26 @@ internal class SignalReceiver(
         )
     }
 
+    /** Keeps what decrypted beside its envelope, waiting for the kept message it points at. */
+    private fun keepWaiting(
+        id: Long,
+        decrypted: org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult,
+        target: String
+    ) = withStoreLock(db) {
+        db.writableDatabase.execSQL(
+            "UPDATE envelope SET unprocessed = ?, unprocessed_attempts = 0, unprocessed_next_at = 0, " +
+                "unprocessed_waits_for = ? WHERE _id = ?",
+            arrayOf<Any?>(encodeUnprocessed(decrypted), target, id)
+        )
+    }
+
     /** The envelope table's kept copies, for [KeptCopies]. */
     private val keptCopies = KeptCopies(object : KeptCopies.Store {
         override fun due(now: Long): List<KeptCopies.Kept> = withStoreLock(db) {
             db.readableDatabase.rawQuery(
                 "SELECT _id, serialized, server_delivered_timestamp, unprocessed, unprocessed_attempts " +
-                    "FROM envelope WHERE unprocessed IS NOT NULL AND unprocessed_attempts < ? " +
-                    "AND unprocessed_next_at <= ? ORDER BY _id",
+                    "FROM envelope WHERE unprocessed IS NOT NULL AND unprocessed_waits_for IS NULL " +
+                    "AND unprocessed_attempts < ? AND unprocessed_next_at <= ? ORDER BY _id",
                 arrayOf(KeptCopies.MAX_ATTEMPTS.toString(), now.toString())
             ).use { c ->
                 generateSequence {
@@ -743,6 +790,33 @@ internal class SignalReceiver(
                     }
                 }.toList()
             }
+        }
+
+        override fun all(): List<KeptCopies.Kept> = withStoreLock(db) {
+            db.readableDatabase.rawQuery(
+                "SELECT _id, serialized, server_delivered_timestamp, unprocessed, unprocessed_attempts, " +
+                    "unprocessed_waits_for FROM envelope WHERE unprocessed IS NOT NULL ORDER BY _id",
+                null
+            ).use { c ->
+                generateSequence {
+                    if (c.moveToNext()) {
+                        KeptCopies.Kept(
+                            c.getLong(0), Envelope.ADAPTER.decode(c.getBlob(1)), c.getLong(2),
+                            c.getBlob(3), c.getInt(4), if (c.isNull(5)) null else c.getString(5)
+                        )
+                    } else {
+                        null
+                    }
+                }.toList()
+            }
+        }
+
+        override fun release(id: Long, now: Long) = withStoreLock(db) {
+            db.writableDatabase.execSQL(
+                "UPDATE envelope SET unprocessed_waits_for = NULL, unprocessed_attempts = 0, " +
+                    "unprocessed_next_at = ? WHERE _id = ?",
+                arrayOf<Any?>(now, id)
+            )
         }
 
         override fun processed(id: Long, message: com.wanderwildwood.kotozute.signal.BridgeMessage?) {
@@ -867,6 +941,18 @@ internal class SignalReceiver(
      */
     private var lastUnprocessed: org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult? = null
 
+    /**
+     * What decrypted and was not processed because it points at a kept message still being
+     * tried, and the id it waits for. Set by [decrypt], kept by the caller. See [KeptCopies].
+     */
+    private var lastHeld: Pair<org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult, String>? = null
+
+    /**
+     * The ids kept messages still being tried will land under, for this batch. Empty when
+     * nothing is kept, which leaves [decrypt] exactly as it was.
+     */
+    private var waitingTargets: MutableSet<String> = mutableSetOf()
+
     /** Set by [decrypt] when it asked the sender to send it again, so the row can remember. */
     private var askedForRetry: Boolean = false
 
@@ -915,6 +1001,7 @@ internal class SignalReceiver(
         askedForRetry = false
         lastAskedAbout = null
         lastUnprocessed = null
+        lastHeld = null
         val credentials = accounts.credentials()
         val aci = ServiceId.ACI.parseOrNull(credentials.aci) ?: return null
 
@@ -1100,7 +1187,16 @@ internal class SignalReceiver(
             }
             null
         }
-        return processDecrypted(envelope, serverDeliveredTimestamp, decrypted ?: return null)
+        val result = decrypted ?: return null
+        // Pointing at a message that decrypted and is still waiting to be processed: applied
+        // now it would find nothing and be lost, so it waits beside it. See [KeptCopies].
+        if (waitingTargets.isNotEmpty()) {
+            KeptCopies.targetOf(result.content, result.metadata)?.takeIf { it in waitingTargets }?.let { target ->
+                lastHeld = result to target
+                return null
+            }
+        }
+        return processDecrypted(envelope, serverDeliveredTimestamp, result)
     }
 
     /**

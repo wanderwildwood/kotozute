@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 42
+    const val VERSION = 44
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -248,7 +248,19 @@ internal object ProtocolStoreSchema {
           -- The group it was sent to, where it was a group. Same reason.
           retry_group BLOB,
           -- When this app gave up waiting and said so in the conversation. Null until then.
-          placeholder_at INTEGER
+          placeholder_at INTEGER,
+          -- What it decrypted to, when it decrypted and then could not be processed. The
+          -- ciphertext cannot be decrypted twice, so this is what a later pass works from.
+          -- See v43 and SignalReceiver.processDecrypted.
+          unprocessed BLOB,
+          -- How many times it has been processed and failed, and when to try next. See KeptCopies.
+          unprocessed_attempts INTEGER NOT NULL DEFAULT 0,
+          unprocessed_next_at INTEGER NOT NULL DEFAULT 0,
+          -- The version code that last gave it up, so the next build tries it afresh. See v44.
+          unprocessed_build INTEGER NOT NULL DEFAULT 0,
+          -- For an edit, a withdrawal, a reaction and the like aimed at a kept message still
+          -- being tried: that message's id, author:timestamp. Null otherwise. See v44.
+          unprocessed_waits_for TEXT
         ) STRICT;
     """
 
@@ -658,6 +670,12 @@ internal object ProtocolStoreSchema {
      * [ProtocolDatabase.onUpgrade]. Signal guards its own the same way when a step may have
      * already happened (`V203_PreKeyStaleTimestamp`, `columnExists`).
      */
+    /**
+     * An `ADD COLUMN` step, as [ProtocolDatabase.onUpgrade] recognises one to skip when the
+     * column is already there. Here rather than there so a test can read it without SQLCipher.
+     */
+    internal val ADD_COLUMN = Regex("""^\s*ALTER TABLE (\w+) ADD COLUMN (\w+)""", RegexOption.IGNORE_CASE)
+
     val MIGRATIONS: Map<Int, List<String>> = mapOf(
         // v2 added the envelope queue, so that an envelope can be written down before it is
         // acknowledged to the server. Purely additive: nothing existing is touched.
@@ -1021,6 +1039,29 @@ internal object ProtocolStoreSchema {
          * account shares its profile with. Starts at 0 for everyone; the next contacts sync
          * marks the address book again, and the storage record answers for the rest meanwhile.
          */
+        /**
+         * What an envelope decrypted to, kept when processing it then threw, and how often it
+         * has been tried since. Upstream rolls the session back in the same transaction and
+         * processes again; this store's messages are in Realm, so the decrypted content is kept
+         * instead. See SignalReceiver.processDecrypted and [KeptCopies].
+         */
+        /**
+         * Which build last gave a kept copy up, so the next build tries it afresh (see
+         * `KeptCopies.Store.freshTries`), and which kept message an event is waiting for (see
+         * `KeptCopies.afterFiled`). Its own step, not part of v43: a v43 store is already out
+         * on a phone, and v43 will not run there again.
+         */
+        44 to listOf(
+            "ALTER TABLE envelope ADD COLUMN unprocessed_build INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE envelope ADD COLUMN unprocessed_waits_for TEXT;"
+        ),
+
+        43 to listOf(
+            "ALTER TABLE envelope ADD COLUMN unprocessed BLOB;",
+            "ALTER TABLE envelope ADD COLUMN unprocessed_attempts INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE envelope ADD COLUMN unprocessed_next_at INTEGER NOT NULL DEFAULT 0;"
+        ),
+
         /**
          * The media root backup key, moved in from a plain preferences file. The column only;
          * the value is carried over by [MediaRootKeyMove], which needs the old file and so

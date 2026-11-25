@@ -759,6 +759,49 @@ internal object ContentNormalizer {
     /** One row per group call, whoever's update arrives. */
     internal fun groupCallIdFor(groupId: String, eraId: String): String = "groupcall:$groupId:$eraId"
 
+    /**
+     * The conversation a missing-message note goes in: the one the message itself would have
+     * gone in, by the same rule as [normalize].
+     *
+     * [sentTo] is set only for our own message synced from another device -- who it was sent
+     * to, blank for a group or Note to Self -- and then the note is outgoing and filed by its
+     * destination. Otherwise it is [sender]'s message, in their conversation or [groupId].
+     */
+    internal fun noteThreadKey(
+        sender: String,
+        groupId: String,
+        sentTo: String?,
+        sentToNumber: String,
+        selfAci: String?,
+        selfE164: String?
+    ): String? = threadKeyFor(
+        outgoing = sentTo != null,
+        counterpartUuid = sentTo ?: sender,
+        counterpartNumber = if (sentTo != null) sentToNumber else "",
+        groupId = groupId,
+        selfAci = selfAci,
+        selfE164 = selfE164
+    )
+
+    /**
+     * Whether a row already holds a later version of a message than the one arriving: an edit
+     * has set its text and what arrives is the original, or an earlier edit. Then the row's
+     * text stays. [revisionTs] is when the edit that set a row's text was sent, 0 for none.
+     *
+     * Out of order is ordinary: an edit can arrive before its message (a kept copy processed
+     * hours late, a batch read newest first). Upstream applies an edit only to a message it
+     * already has and holds it otherwise (`EditMessageProcessor`, `EarlyMessageCache`); here an
+     * early edit makes the row, so the message arriving after it must not take the text back.
+     */
+    /**
+     * How long after sending somebody may withdraw a message for everyone: Signal's day plus a
+     * day for delivery (`MessageConstraintsUtil.isValidRemoteDeleteReceive`).
+     */
+    internal val WITHDRAWAL_WINDOW_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(2)
+
+    internal fun keepsLaterEdit(existingRevisionTs: Long, arrivingRevisionTs: Long): Boolean =
+        arrivingRevisionTs < existingRevisionTs
+
     internal fun messageIdFor(authorUuid: String, authorNumber: String, timestamp: Long): String =
         "${authorUuid.ifBlank { authorNumber }}:$timestamp"
 

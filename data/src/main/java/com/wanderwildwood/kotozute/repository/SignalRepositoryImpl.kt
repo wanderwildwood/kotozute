@@ -1125,7 +1125,14 @@ class SignalRepositoryImpl @Inject constructor(
         sender: String,
         sentTimestamp: Long,
         groupId: ByteArray?,
-        @androidx.annotation.StringRes body: Int
+        @androidx.annotation.StringRes body: Int,
+        /**
+         * For our own message synced from another device: who it went to, blank for a group or
+         * Note to Self. The note is then ours, in their conversation. See
+         * `ContentNormalizer.noteThreadKey`.
+         */
+        sentTo: String? = null,
+        sentToNumber: String = ""
     ) {
         val group = groupId
             ?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
@@ -1134,11 +1141,11 @@ class SignalRepositoryImpl @Inject constructor(
         // message belongs to do not fail loudly -- they quietly produce a second thread for a
         // conversation that already has one, and the only symptom is a duplicate in the inbox
         // a long time later. That is what `ThreadKeyTest` exists for.
-        val threadKey = com.wanderwildwood.kotozute.signalstore.ContentNormalizer.threadKeyFor(
-            outgoing = false,
-            counterpartUuid = sender,
-            counterpartNumber = "",
+        val threadKey = com.wanderwildwood.kotozute.signalstore.ContentNormalizer.noteThreadKey(
+            sender = sender,
             groupId = group,
+            sentTo = sentTo,
+            sentToNumber = sentToNumber,
             selfAci = signalStore.selfAciOrNull(),
             selfE164 = runCatching { signalStore.selfNumberOrNull() }.getOrNull()
         ) ?: run {
@@ -1153,7 +1160,9 @@ class SignalRepositoryImpl @Inject constructor(
                     ts = sentTimestamp,
                     senderUuid = sender,
                     senderNumber = "",
-                    outgoing = false,
+                    // Ours when it was ours: the message replacing it is outgoing, and a row's
+                    // side should not flip when it does.
+                    outgoing = sentTo != null,
                     body = context.getString(body),
                     // Upstream's BAD_DECRYPT row is an update row. If the message itself turns
                     // up later under this id, it is stored as a message and this flag goes.
@@ -1170,6 +1179,29 @@ class SignalRepositoryImpl @Inject constructor(
             )
         )
         Timber.w("signal receive: a message that would not open was noted in %s", threadKey)
+    }
+
+    /**
+     * Takes out a missing-message note filed where its message will not go. See
+     * `SignalEvents.noteSuperseded`. Only an update row in that conversation: a real message
+     * with the same id is never touched.
+     */
+    private fun removeSupersededNote(id: String, threadKey: String) {
+        var removedOne = false
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
+                    ?: return@executeTransaction
+                if (row.threadKey != threadKey || !row.update) return@executeTransaction
+                row.deleteFromRealm()
+                refreshThreadPreview(r, threadKey)
+                removedOne = true
+            }
+        }
+        if (removedOne) {
+            Timber.i("signal receive: took out a missing-message note filed in the wrong conversation")
+            removed.onNext(threadKey)
+        }
     }
 
     /** Re-derive a thread's snippet, timestamp and unread count from what is left. */
@@ -2942,7 +2974,7 @@ class SignalRepositoryImpl @Inject constructor(
      * Signal's `normalDeleteMaxAgeInSeconds` default is a day, and `RECEIVE_THRESHOLD` adds
      * another for delivery -- a withdrawal that took a while to arrive is still honest.
      */
-    private val WITHDRAWAL_WINDOW_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(2)
+    private val WITHDRAWAL_WINDOW_MS = com.wanderwildwood.kotozute.signalstore.ContentNormalizer.WITHDRAWAL_WINDOW_MS
 
     /**
      * `BackoffUtil.exponentialBackoff`, unchanged: two to the power of the attempt in seconds,
@@ -3027,6 +3059,15 @@ class SignalRepositoryImpl @Inject constructor(
         // where a conversation's messages were.
         if (existing != null && existing.threadKey != m.threadKey) {
             Timber.w("signal: a message tried to move to another conversation; left where it is")
+            return false
+        }
+
+        // ⚠ Nor does an older version of it take back text an edit has set. Without this the
+        // original, arriving after its edit, rewrote the row with what the edit replaced.
+        if (existing != null &&
+            com.wanderwildwood.kotozute.signalstore.ContentNormalizer.keepsLaterEdit(existing.revisionTs, m.revisionTs)
+        ) {
+            Timber.i("signal: an older version of an edited message arrived after the edit; kept the edit")
             return false
         }
 
@@ -3613,6 +3654,21 @@ class SignalRepositoryImpl @Inject constructor(
             sentTimestamp: Long,
             groupId: ByteArray?
         ) = noteUndecryptable(sender, sentTimestamp, groupId)
+
+        override fun noteSuperseded(id: String, threadKey: String) = removeSupersededNote(id, threadKey)
+
+        override fun sentElsewhereGaveUp(
+            sender: String,
+            sentTimestamp: Long,
+            sentTo: String,
+            sentToNumber: String,
+            groupId: ByteArray?
+        ) = notePlaceholder(
+            sender, sentTimestamp, groupId,
+            com.wanderwildwood.kotozute.data.R.string.signal_message_sent_elsewhere_unshown,
+            sentTo = sentTo,
+            sentToNumber = sentToNumber
+        )
 
         override fun cannotShow(
             sender: String,

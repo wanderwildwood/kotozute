@@ -3,6 +3,7 @@ package com.wanderwildwood.kotozute.signalstore
 import com.wanderwildwood.kotozute.repository.SignalRepository.FindOutcome
 import com.wanderwildwood.kotozute.repository.SignalRepository.UsernameOutcome
 import android.content.Context
+import com.wanderwildwood.kotozute.common.util.extensions.versionCode
 import com.wanderwildwood.kotozute.repository.SendFailure
 import com.wanderwildwood.kotozute.repository.SendRefused
 import com.wanderwildwood.kotozute.repository.SignalRepository
@@ -46,6 +47,12 @@ class SignalStore(private val context: Context) {
      * reach a table.
      */
     val protocol: SignalServiceDataStore by lazy { SignalDataStore(database, account) }
+
+    /**
+     * This app's version code, for [KeptCopies]: a copy one build gave up on is tried again by
+     * the next. Zero if the package manager will not say, which only costs one extra round.
+     */
+    private fun build(): Int = runCatching { context.versionCode }.getOrDefault(0)
 
     /**
      * What a sticker, a call, a group change, a poll and the rest are written as when they
@@ -345,7 +352,7 @@ class SignalStore(private val context: Context) {
                 database, account, SignalDataStore(database, account), connection,
                 SignalNetworkConfig.currentCertificateValidator(), attachmentsFor(connection),
                 contacts, blocks, keys, StoreEvents(events, onNamesLearned),
-                placeholders()
+                placeholders(), build()
             ).drain()
             "envelopes=${result.envelopes} decrypted=${result.decrypted} failed=${result.failed} " +
                 "stored=${result.stored} queue-emptied=${result.queueEmptied} senders=${result.senders.size}"
@@ -2115,7 +2122,7 @@ class SignalStore(private val context: Context) {
             database, account, SignalDataStore(database, account), connection,
             SignalNetworkConfig.currentCertificateValidator(), attachmentsFor(connection),
             contacts, blocks, keys, StoreEvents(events, onNamesLearned),
-            placeholders()
+            placeholders(), build()
         ).listen(keepGoing) { r ->
             onBatch("envelopes=${r.envelopes} decrypted=${r.decrypted} failed=${r.failed} stored=${r.stored}")
         }

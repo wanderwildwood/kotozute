@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 42
+    const val VERSION = 43
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -248,7 +248,11 @@ internal object ProtocolStoreSchema {
           -- The group it was sent to, where it was a group. Same reason.
           retry_group BLOB,
           -- When this app gave up waiting and said so in the conversation. Null until then.
-          placeholder_at INTEGER
+          placeholder_at INTEGER,
+          -- What it decrypted to, when it decrypted and then could not be processed. The
+          -- ciphertext cannot be decrypted twice, so this is what a later pass works from.
+          -- See v43 and SignalReceiver.processDecrypted.
+          unprocessed BLOB
         ) STRICT;
     """
 
@@ -1026,6 +1030,13 @@ internal object ProtocolStoreSchema {
          * the value is carried over by [MediaRootKeyMove], which needs the old file and so
          * cannot be SQL.
          */
+        /**
+         * What an envelope decrypted to, kept when processing it then threw. Upstream rolls the
+         * session back in the same transaction and processes again; this store's messages are
+         * in Realm, so the decrypted content is kept instead. See SignalReceiver.processDecrypted.
+         */
+        43 to listOf("ALTER TABLE envelope ADD COLUMN unprocessed BLOB;"),
+
         42 to listOf("ALTER TABLE account_keys ADD COLUMN media_root_key BLOB;"),
 
         41 to listOf("ALTER TABLE recipient ADD COLUMN system_contact INTEGER NOT NULL DEFAULT 0;"),

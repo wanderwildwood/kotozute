@@ -77,6 +77,13 @@ internal class KeptCopies(
         fun gaveUp(id: Long, attempts: Int, note: Note?, build: Int)
 
         /**
+         * A kept event that points at a kept message still being tried (or given up and not
+         * yet noted) waits for it from here, as one arriving now would: `waits_for` set to
+         * [target], tries back to none. See [run].
+         */
+        fun waitFor(id: Long, target: String)
+
+        /**
          * Copies given up by any build but [build] start again: one try spent, the next due at
          * [now], stamped with [build] so this build gives each of them only the one fresh set.
          *
@@ -153,9 +160,30 @@ internal class KeptCopies(
         store.freshTries(build, now)
         val due = store.due(now)
         if (due.isEmpty()) return done
-        val withdrawn = withdrawalsByTarget()
+        val rows = store.all()
+        val withdrawn = withdrawalsByTarget(rows)
+        // A kept edit, withdrawal, reaction, pin or vote -- one that failed itself, or failed
+        // after its release -- ends the way one arriving live does (see [targets]): its message
+        // still being tried, it waits for it; given up and noted, it is applied to the note
+        // and kept as [APPLIED], so a later build that lands the message applies it again and
+        // a withdrawn one stays out. Taken before the loop on purpose: a message landing
+        // earlier in this run is not filed until after it, so what points at it waits for
+        // [afterFiled] like the rest.
+        val targets = targets(rows)
         for (kept in due) {
             if (stop()) break
+            val target = SignalReceiver.decodeUnprocessed(kept.copy)?.let { targetOf(it.content, it.metadata) }
+            if (target != null && target in targets.wait) {
+                store.waitFor(kept.id, target)
+                continue
+            }
+            if (target != null && target in targets.applyAndKeep) {
+                attempt(kept, now, process, done) { k, _, outcome ->
+                    store.appliedEarly(k.id, outcome.message, target)
+                    done += outcome
+                }
+                continue
+            }
             attempt(kept, now, process, done) { k, decoded, outcome ->
                 if (isWithdrawn(decoded, withdrawn)) {
                     Timber.i("signal receive: a kept message was withdrawn before it landed; not filed")
@@ -170,15 +198,18 @@ internal class KeptCopies(
         return done
     }
 
-    /** Withdrawals waiting for a message, or already run against its note: when each was sent. */
-    private fun withdrawalsByTarget(): Map<String, List<Long>> = store.all()
-        .filter { it.waitsFor != null }
+    /**
+     * Withdrawals waiting for a message, already run against its note, or kept themselves
+     * (one that failed, which [run] is about to make wait): when each was sent.
+     */
+    private fun withdrawalsByTarget(rows: List<Kept>): Map<String, List<Long>> = rows
         .mapNotNull { event ->
             val decoded = SignalReceiver.decodeUnprocessed(event.copy) ?: return@mapNotNull null
             val m = decoded.content.syncMessage?.sent?.message ?: decoded.content.dataMessage
             if (m?.delete == null) return@mapNotNull null
-            event.waitsFor!!.removePrefix(APPLIED) to
-                (event.envelope.serverTimestamp ?: event.envelope.clientTimestamp ?: 0L)
+            val target = event.waitsFor?.removePrefix(APPLIED)
+                ?: targetOf(decoded.content, decoded.metadata) ?: return@mapNotNull null
+            target to (event.envelope.serverTimestamp ?: event.envelope.clientTimestamp ?: 0L)
         }
         .groupBy({ it.first }, { it.second })
 
@@ -211,10 +242,12 @@ internal class KeptCopies(
      * The [Targets] for this batch. Asked once per batch, and empty -- one query, nothing
      * decoded -- when nothing is kept.
      */
-    fun targets(): Targets {
+    fun targets(): Targets = targets(store.all())
+
+    private fun targets(rows: List<Kept>): Targets {
         val wait = mutableSetOf<String>()
         val applyAndKeep = mutableSetOf<String>()
-        store.all().filter { it.waitsFor == null }.forEach { kept ->
+        rows.filter { it.waitsFor == null }.forEach { kept ->
             val id = SignalReceiver.decodeUnprocessed(kept.copy)?.let { landsAs(it) } ?: return@forEach
             if (kept.attempts < MAX_ATTEMPTS || !kept.noted) wait += id else applyAndKeep += id
         }

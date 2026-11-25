@@ -911,6 +911,14 @@ internal class SignalReceiver(
             }
         }
 
+        override fun waitFor(id: Long, target: String) = withStoreLock(db) {
+            db.writableDatabase.execSQL(
+                "UPDATE envelope SET unprocessed_waits_for = ?, unprocessed_attempts = 0, unprocessed_next_at = 0 " +
+                    "WHERE _id = ?",
+                arrayOf<Any?>(target, id)
+            )
+        }
+
         override fun freshTries(build: Int, now: Long) = withStoreLock(db) {
             db.writableDatabase.execSQL(
                 "UPDATE envelope SET unprocessed_attempts = 1, unprocessed_next_at = ?, unprocessed_build = ? " +

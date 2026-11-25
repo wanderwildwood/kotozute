@@ -358,8 +358,23 @@ class ConversationsAdapter @Inject constructor(
             else -> conversation.snippet
         }
 
-        // Make the preview in italics if draft
-        if (conversation.draft.isNotEmpty()) holder.binding.snippet.setTypeface(null, Typeface.ITALIC)
+        // The preview in italics for a draft, and ⛔ upright otherwise. This only ever set italics,
+        // so a row recycled from a draft kept them, and they landed on whatever conversation
+        // scrolled into it: sometimes a message sent, sometimes one received. An unread row
+        // (view type 1) keeps its bold either way.
+        val bold = holder.itemViewType == 1
+        val drafted = conversation.draft.isNotEmpty()
+        holder.binding.snippet.setTypeface(
+            Typeface.create(
+                holder.binding.snippet.typeface,
+                when {
+                    drafted && bold -> Typeface.BOLD_ITALIC
+                    drafted -> Typeface.ITALIC
+                    bold -> Typeface.BOLD
+                    else -> Typeface.NORMAL
+                }
+            )
+        )
 
         // Get Scheduled Messages
         val disposable = scheduledMessageRepo

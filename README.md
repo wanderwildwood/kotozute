@@ -352,8 +352,8 @@ the details, and the details are where a hand-rolled version silently differs.
   included.
 - **Signal's service layer** — AGPL-3.0, **copied into this repository and compiled here**, under
   `signal-service/`. Five of Signal Android's own modules (`lib/libsignal-service`, `lib/network`,
-  `core/network`, `core/util-jvm`, `core/serialization`) taken at commit `90a6ddce46`,
-  2026-11-15, the commit of release tag `v8.36.2`. **684 of the 685 copied files are
+  `core/network`, `core/util-jvm`, `core/serialization`) taken at commit `2dd5703875`,
+  2026-11-24, the commit of release tag `v8.37.3`. **684 of the 685 copied files are
   byte-identical to upstream at that commit**, measured with `cmp`. The one that carries an edit
   is `network/src/main/java/org/signal/network/util/JsonUtil.java` (a jackson constructor that
   no longer exists), and one upstream test keystore is left out; both, and the reasons, are

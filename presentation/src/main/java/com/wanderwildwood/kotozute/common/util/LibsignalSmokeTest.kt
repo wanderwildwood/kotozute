@@ -66,10 +66,10 @@ object LibsignalSmokeTest {
             // Now cross the version boundary. SecondaryProvisioningCipher is the first step
             // of linking a device -- the secondary generates a key, shows its public half in
             // the QR, and decrypts what the primary sends back. It comes from a service layer
-            // compiled against libsignal 0.76 and is here being handed a key from 0.102, which
-            // is the mismatch Gradle resolved silently. If twenty-six minor versions of drift
-            // matter, this is where a NoSuchMethodError appears.
-            val cipher = SecondaryProvisioningCipher(identity)
+            // compiled from Signal's source against the libsignal the app ships; since
+            // 07761fa0e1 its key and decryption are libsignal's own
+            // (`RecvProvisionCiphertextState`), so a NoSuchMethodError here means the two drifted.
+            val cipher = SecondaryProvisioningCipher.generate()
             val devicePublicKey = cipher.secondaryDevicePublicKey
             Timber.i(
                 "libsignal-service: provisioning cipher built, device key %d bytes",
@@ -86,7 +86,6 @@ object LibsignalSmokeTest {
                 // -- it says threads "start empty and fill from today" -- so claiming the
                 // capability would be a promise it cannot keep.
                 ProvisioningSocket.Mode.Link(false),
-                identity,
                 SignalNetworkConfig.configuration(),
                 { id, t -> Timber.w(t, "signal-net: provisioning socket %d failed", id) }
             ) { socket ->

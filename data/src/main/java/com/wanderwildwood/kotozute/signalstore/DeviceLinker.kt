@@ -231,8 +231,31 @@ class DeviceLinker internal constructor(
         timer.scheduleAtFixedRate(
             {
                 if (done.get()) return@scheduleAtFixedRate
-                if (rotations.incrementAndGet() > MAX_LINK_ROTATIONS) return@scheduleAtFixedRate
+                val rotation = rotations.incrementAndGet()
+                if (rotation > MAX_LINK_ROTATIONS) return@scheduleAtFixedRate
                 openSocket()
+                // ⛔ The last code gets a deadline of its own: its socket's whole life, then a
+                // little. Waiting for the sockets to report their own ends never finished,
+                // because a code replaced on screen is closed here, and the library takes
+                // that as a quiet cancel and reports nothing -- so `failed` never caught up
+                // with `opened`, and the screen said "Waiting for the code to be scanned"
+                // long after no code was scannable (found 11-24: twenty minutes on, the code
+                // showing was refused by the server). The count still ends a linking whose
+                // every socket failed by itself, which is the no-network case.
+                if (rotation == MAX_LINK_ROTATIONS) {
+                    timer.schedule(
+                        {
+                            finish {
+                                Timber.i("signal link: the last code expired unscanned")
+                                continuation.resumeWithException(
+                                    NobodyScanned(java.net.SocketTimeoutException("the last link code expired"))
+                                )
+                            }
+                        },
+                        LAST_CODE_DEADLINE_MS,
+                        java.util.concurrent.TimeUnit.MILLISECONDS
+                    )
+                }
             },
             LINK_ROTATE_INTERVAL_MS,
             LINK_ROTATE_INTERVAL_MS,
@@ -499,6 +522,14 @@ class DeviceLinker internal constructor(
          * time, against the ninety seconds a single socket allows.
          */
         const val MAX_LINK_ROTATIONS = 5
+
+        /**
+         * How long after the last code is shown the linking gives up: that code's socket lives
+         * `ProvisioningSocket.LIFESPAN` (ninety seconds) and is then cancelled by the library,
+         * so nothing can complete after it. Ten seconds over, so a scan in its final moments
+         * still finishes its exchange first.
+         */
+        val LAST_CODE_DEADLINE_MS = java.util.concurrent.TimeUnit.SECONDS.toMillis(100)
 
         /**
          * Eighteen random bytes, base64, following signal-cli's `KeyUtils.createPassword`.

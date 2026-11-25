@@ -112,4 +112,15 @@ class LinkSocketRotationTest {
         assertEquals(TimeUnit.SECONDS.toMillis(225), total)
         assert(total > TimeUnit.SECONDS.toMillis(90))
     }
+
+    @Test
+    fun `the last code ends the linking once its socket's life is over`() {
+        // A replaced code is closed by us and reports nothing, so the counts alone never
+        // ended a linking nobody scanned (11-24: still "waiting" twenty minutes on). The last
+        // code's deadline does: after its socket's ninety seconds, before a code that no
+        // longer exists could be shown for another full rotation.
+        val lifespan = org.whispersystems.signalservice.api.provisioning.ProvisioningSocket.LIFESPAN.inWholeMilliseconds
+        assertTrue(DeviceLinker.LAST_CODE_DEADLINE_MS > lifespan)
+        assertTrue(DeviceLinker.LAST_CODE_DEADLINE_MS < lifespan + DeviceLinker.LINK_ROTATE_INTERVAL_MS)
+    }
 }

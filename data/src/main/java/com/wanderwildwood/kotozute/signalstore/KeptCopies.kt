@@ -311,15 +311,19 @@ internal class KeptCopies(
          * a timestamp to compare by; each is sent again when it changes. What stays is the
          * message itself and the events that point at one -- reads, deletes, receipts.
          *
-         * Nor the two parts that act on sessions rather than on messages. A sender key
-         * distribution is a chain to decrypt a group's messages with: hours late, it is at best
-         * a chain already held -- libsignal keeps the existing state when the chain id and key
-         * match -- and at worst, after the sender has started a new chain under the same
-         * distribution id, an older one put back in its place, so their later group messages
-         * stop opening. It was processed when it first arrived, before the throw, because it is
-         * handled first. A retry receipt asks for a session to be rebuilt and a message sent
-         * again; acted on hours late it throws away whatever session was set up since, for a
-         * request already answered or abandoned.
+         * Nor a retry receipt, which acts on a session rather than on a message: it asks for
+         * the session to be rebuilt and a message sent again, and acted on hours late it throws
+         * away whatever session was set up since, for a request already answered or abandoned.
+         *
+         * ⚠ A sender key distribution stays. Processing one again is harmless in libsignal
+         * (v0.108.0, `rust/protocol/src/sender_keys.rs` `add_sender_key_state`): a state with
+         * the same chain id and signing key is kept as it is, iteration and all; a sender's new
+         * key comes with a new random chain id (`group_cipher.rs`
+         * `create_sender_key_distribution_message`), so an old distribution only adds its old
+         * chain beside the current one, and decryption finds a chain by its id. Dropping it is
+         * what would hurt: if the first pass threw before the key was taken (it is taken early,
+         * but after the block check), the copy is the only place the key is left, and without
+         * it that sender's group messages would not open.
          */
         fun forReplay(content: Content): Content {
             val sync = content.syncMessage?.let { s ->
@@ -338,7 +342,6 @@ internal class KeptCopies(
             return content.copy(
                 syncMessage = sync,
                 dataMessage = content.dataMessage?.copy(profileKey = null),
-                senderKeyDistributionMessage = null,
                 decryptionErrorMessage = null
             )
         }

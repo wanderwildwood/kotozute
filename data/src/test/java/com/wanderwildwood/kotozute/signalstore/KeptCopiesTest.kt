@@ -202,24 +202,23 @@ class KeptCopiesTest {
     }
 
     @Test
-    fun `nor an old sender key or retry receipt, though the message beside them stays`() {
+    fun `nor an old retry receipt, though a sender key stays with its message`() {
         val content = Content(
             dataMessage = DataMessage(body = "hello", timestamp = at),
             senderKeyDistributionMessage = ByteArray(8) { 1 }.toByteString()
         )
         val replayed = KeptCopies.forReplay(content)
-        assertNull(replayed.senderKeyDistributionMessage)
+        // Harmless processed twice, and the only copy if the first pass threw before taking it.
+        assertEquals(content.senderKeyDistributionMessage, replayed.senderKeyDistributionMessage)
         assertEquals("hello", replayed.dataMessage!!.body)
         // A retry receipt is the whole of its content (one of Content's oneof), so nothing is left.
         val receipt = KeptCopies.forReplay(Content(decryptionErrorMessage = ByteArray(8) { 2 }.toByteString()))
         assertNull(receipt.decryptionErrorMessage)
-        // And through the loop: what is processed again never carries them.
         var seen: Content? = null
-        KeptCopies(FakeStore(mutableListOf(Row(1, keptCopyFrom(theirs, content)))), BUILD).run(start) { _, replay ->
+        KeptCopies(FakeStore(mutableListOf(Row(1, keptCopyFrom(theirs, Content(decryptionErrorMessage = ByteArray(8) { 2 }.toByteString()))))), BUILD).run(start) { _, replay ->
             seen = replay.content
             KeptCopies.Outcome.Processed(theirs.toString(), null)
         }
-        assertNull(seen!!.senderKeyDistributionMessage)
         assertNull(seen!!.decryptionErrorMessage)
     }
 

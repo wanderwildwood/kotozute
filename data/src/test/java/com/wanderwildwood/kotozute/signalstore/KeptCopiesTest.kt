@@ -202,6 +202,28 @@ class KeptCopiesTest {
     }
 
     @Test
+    fun `nor an old sender key or retry receipt, though the message beside them stays`() {
+        val content = Content(
+            dataMessage = DataMessage(body = "hello", timestamp = at),
+            senderKeyDistributionMessage = ByteArray(8) { 1 }.toByteString()
+        )
+        val replayed = KeptCopies.forReplay(content)
+        assertNull(replayed.senderKeyDistributionMessage)
+        assertEquals("hello", replayed.dataMessage!!.body)
+        // A retry receipt is the whole of its content (one of Content's oneof), so nothing is left.
+        val receipt = KeptCopies.forReplay(Content(decryptionErrorMessage = ByteArray(8) { 2 }.toByteString()))
+        assertNull(receipt.decryptionErrorMessage)
+        // And through the loop: what is processed again never carries them.
+        var seen: Content? = null
+        KeptCopies(FakeStore(mutableListOf(Row(1, keptCopyFrom(theirs, content)))), BUILD).run(start) { _, replay ->
+            seen = replay.content
+            KeptCopies.Outcome.Processed(theirs.toString(), null)
+        }
+        assertNull(seen!!.senderKeyDistributionMessage)
+        assertNull(seen!!.decryptionErrorMessage)
+    }
+
+    @Test
     fun `the other state syncs are dropped too`() {
         listOf(
             SyncMessage(contacts = SyncMessage.Contacts()),

@@ -300,6 +300,16 @@ internal class KeptCopies(
          * picture over a newer one. Dropped rather than compared, because none of them carries
          * a timestamp to compare by; each is sent again when it changes. What stays is the
          * message itself and the events that point at one -- reads, deletes, receipts.
+         *
+         * Nor the two parts that act on sessions rather than on messages. A sender key
+         * distribution is a chain to decrypt a group's messages with: hours late, it is at best
+         * a chain already held -- libsignal keeps the existing state when the chain id and key
+         * match -- and at worst, after the sender has started a new chain under the same
+         * distribution id, an older one put back in its place, so their later group messages
+         * stop opening. It was processed when it first arrived, before the throw, because it is
+         * handled first. A retry receipt asks for a session to be rebuilt and a message sent
+         * again; acted on hours late it throws away whatever session was set up since, for a
+         * request already answered or abandoned.
          */
         fun forReplay(content: Content): Content {
             val sync = content.syncMessage?.let { s ->
@@ -317,7 +327,9 @@ internal class KeptCopies(
             }
             return content.copy(
                 syncMessage = sync,
-                dataMessage = content.dataMessage?.copy(profileKey = null)
+                dataMessage = content.dataMessage?.copy(profileKey = null),
+                senderKeyDistributionMessage = null,
+                decryptionErrorMessage = null
             )
         }
 

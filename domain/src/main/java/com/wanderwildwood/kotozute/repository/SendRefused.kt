@@ -24,6 +24,12 @@ sealed interface SendFailure {
     /** The server no longer knows this device. */
     data object Unlinked : SendFailure
 
+    /**
+     * The server no longer has this phone, which was registered as the number's own Signal
+     * phone rather than linked: most likely the number was registered again on another phone.
+     */
+    data object Unregistered : SendFailure
+
     /** The server will not talk to this version of the app. */
     data object VersionRefused : SendFailure
 

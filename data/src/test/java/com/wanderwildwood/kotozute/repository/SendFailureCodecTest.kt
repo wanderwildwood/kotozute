@@ -19,6 +19,7 @@ class SendFailureCodecTest {
         SendFailure.ProofRequired(30),
         SendFailure.RateLimited(3600),
         SendFailure.Unlinked,
+        SendFailure.Unregistered,
         SendFailure.VersionRefused,
         SendFailure.ServerRejected,
         SendFailure.TheyLeft,

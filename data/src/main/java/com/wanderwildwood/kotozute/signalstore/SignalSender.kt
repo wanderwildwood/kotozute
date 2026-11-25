@@ -1464,9 +1464,15 @@ internal class SignalSender(
      * `destination`, built from `recipient.getIdentifier()` -- a service id. Reading it as a
      * phone number would look right and mark nobody.
      */
+    /** [SendFailure.Unlinked] on the account's own primary is [SendFailure.Unregistered] (t/15210). */
+    private fun forThisPhone(f: SendFailure): SendFailure =
+        if (f == SendFailure.Unlinked && runCatching { credentials.deviceId == SignalSessionStore.PRIMARY_DEVICE_ID }.getOrDefault(false)) {
+            SendFailure.Unregistered
+        } else f
+
     private fun failed(t: Throwable): Result.Failed {
         if (t !is org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserException) {
-            return Result.Failed(explain(t), network = isNetwork(t))
+            return Result.Failed(forThisPhone(explain(t)), network = isNetwork(t))
         }
         val serviceId = t.e164Number
         runCatching { contacts.markUnregistered(serviceId) }

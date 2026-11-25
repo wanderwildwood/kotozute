@@ -72,6 +72,7 @@ object SignalWording {
      */
     fun refusal(stored: String): Words = when (com.wanderwildwood.kotozute.repository.SignalRefusal.of(stored)) {
         com.wanderwildwood.kotozute.repository.SignalRefusal.UNLINKED -> Words.Res(R.string.signal_refused_unlinked)
+        com.wanderwildwood.kotozute.repository.SignalRefusal.UNREGISTERED -> Words.Res(R.string.signal_refused_unregistered)
         com.wanderwildwood.kotozute.repository.SignalRefusal.DEPRECATED -> Words.Res(R.string.signal_refused_deprecated)
         else -> Words.Raw(stored)
     }
@@ -92,6 +93,7 @@ object SignalWording {
         is SendFailure.RateLimited ->
             Words.Res(R.string.signal_send_rate_limited, listOf(afterWards(failure.retryAfterSeconds)))
         SendFailure.Unlinked -> Words.Res(R.string.signal_send_unlinked)
+        SendFailure.Unregistered -> Words.Res(R.string.signal_send_unregistered)
         SendFailure.VersionRefused -> Words.Res(R.string.signal_send_version_refused)
         SendFailure.ServerRejected -> Words.Res(R.string.signal_send_server_rejected)
         SendFailure.TheyLeft -> Words.Res(R.string.signal_send_they_left)

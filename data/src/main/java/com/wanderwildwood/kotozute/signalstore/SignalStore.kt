@@ -166,7 +166,10 @@ class SignalStore(private val context: Context) {
             context,
             account,
             SignalNetworkConfig.USER_AGENT,
-            onRejected = { onRejected(it) },
+            onRejected = {
+                val primary = runCatching { account.credentials().deviceId == SignalSessionStore.PRIMARY_DEVICE_ID }.getOrDefault(false)
+                onRejected(com.wanderwildwood.kotozute.repository.SignalRefusal.forDevice(it, primary))
+            },
             onPrimaryIdle = { onPrimaryIdle(it) },
             onConnecting = { onConnecting(it) }
         )

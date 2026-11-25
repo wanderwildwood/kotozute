@@ -1004,6 +1004,7 @@
     <!-- An attachment that is on the phone, encrypted, and cannot be opened because the phone will not release its key -->
     <string name="signal_attachment_locked">Attachment (locked)</string>
     <string name="signal_refused_unlinked">This phone is no longer linked to Signal. Link it again to receive messages.</string>
+    <string name="signal_refused_unregistered">Signal has signed this phone out, most likely because your number was registered on another phone. Register it here again to receive messages.</string>
     <string name="signal_refused_deprecated">Signal will not accept this version anymore. The app needs updating.</string>
     <string name="signal_attachments_locked">This attachment is locked. It is stored encrypted, and the phone would not release the key that opens it. Nothing has been deleted. Restarting the phone may help.</string>
     <string name="signal_view_once_received">View-once photo. Viewed.</string>
@@ -1350,6 +1351,7 @@
     <string name="signal_send_proof_required">Signal has asked this account to prove it is a person before it will take more messages. That has to be answered in Signal on your other phone. Nothing was sent.%1$s</string>
     <string name="signal_send_rate_limited">Signal is limiting how fast this account can send. Nothing was sent.%1$s</string>
     <string name="signal_send_unlinked">This phone is no longer linked to Signal. Link it again to send.</string>
+    <string name="signal_send_unregistered">Signal has signed this phone out, most likely because your number was registered on another phone. Register it here again to send.</string>
     <string name="signal_send_version_refused">Signal will not accept this version any more. The app needs updating.</string>
     <string name="signal_send_server_rejected">Signal refused this message, and sending it again will not help.</string>
     <string name="signal_send_they_left">They are not on Signal any more.</string>

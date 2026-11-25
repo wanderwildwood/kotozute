@@ -69,6 +69,22 @@ class SignalWordingTest {
     }
 
     @Test
+    fun `a registered phone is told to register again, not to link`() {
+        assertEquals(
+            "Signal has signed this phone out, most likely because your number was registered on another phone. Register it here again to send.",
+            send(SendFailure.Unregistered)
+        )
+        assertEquals(
+            com.wanderwildwood.kotozute.repository.SignalRefusal.UNREGISTERED,
+            com.wanderwildwood.kotozute.repository.SignalRefusal.forDevice(com.wanderwildwood.kotozute.repository.SignalRefusal.UNLINKED, primary = true)
+        )
+        assertEquals(
+            com.wanderwildwood.kotozute.repository.SignalRefusal.UNLINKED,
+            com.wanderwildwood.kotozute.repository.SignalRefusal.forDevice(com.wanderwildwood.kotozute.repository.SignalRefusal.UNLINKED, primary = false)
+        )
+    }
+
+    @Test
     fun `the other refusals`() {
         assertEquals(
             "Signal will not accept this version any more. The app needs updating.",

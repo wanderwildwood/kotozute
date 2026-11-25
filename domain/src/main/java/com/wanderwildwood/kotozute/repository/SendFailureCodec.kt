@@ -26,6 +26,7 @@ object SendFailureCodec {
         is SendFailure.ProofRequired -> "ProofRequired$SEP${f.retryAfterSeconds}"
         is SendFailure.RateLimited -> "RateLimited$SEP${f.retryAfterSeconds}"
         SendFailure.Unlinked -> "Unlinked"
+        SendFailure.Unregistered -> "Unregistered"
         SendFailure.VersionRefused -> "VersionRefused"
         SendFailure.ServerRejected -> "ServerRejected"
         SendFailure.TheyLeft -> "TheyLeft"
@@ -64,6 +65,7 @@ object SendFailureCodec {
             "ProofRequired" -> value?.toLongOrNull()?.let { SendFailure.ProofRequired(it) }
             "RateLimited" -> value?.toLongOrNull()?.let { SendFailure.RateLimited(it) }
             "Unlinked" -> SendFailure.Unlinked
+            "Unregistered" -> SendFailure.Unregistered
             "VersionRefused" -> SendFailure.VersionRefused
             "ServerRejected" -> SendFailure.ServerRejected
             "TheyLeft" -> SendFailure.TheyLeft

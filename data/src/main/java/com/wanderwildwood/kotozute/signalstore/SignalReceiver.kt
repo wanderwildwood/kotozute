@@ -265,7 +265,7 @@ internal class SignalReceiver(
                 }
             }
         if (!identityChangedMidBatch) {
-            keptCopies.run(System.currentTimeMillis(), processKept).forEach { done ->
+            keptCopies.run(System.currentTimeMillis(), stop = { identityChangedMidBatch }, process = processKept).forEach { done ->
                 decrypted++
                 senders += done.sender
                 done.message?.let { messages += it }
@@ -283,7 +283,7 @@ internal class SignalReceiver(
         // is filed -- a withdrawal or a reaction looks for the row at once. Then filed itself.
         if (!identityChangedMidBatch) {
             val later = mutableListOf<com.wanderwildwood.kotozute.signal.BridgeMessage>()
-            runCatching { keptCopies.afterFiled(System.currentTimeMillis(), processKept) }
+            runCatching { keptCopies.afterFiled(System.currentTimeMillis(), stop = { identityChangedMidBatch }, process = processKept) }
                 .onFailure { Timber.w(it, "signal receive: could not apply what waited for a kept message; it waits") }
                 .getOrDefault(emptyList())
                 .forEach { done ->
@@ -746,15 +746,47 @@ internal class SignalReceiver(
         }
     }
 
-    /** Keeps what decrypted beside its envelope, to be processed again; see [processDecrypted]. */
+    /**
+     * Keeps what decrypted beside its envelope, to be processed again; see [processDecrypted].
+     *
+     * ⚠ The row may have failed to decrypt before (a session repaired since), and then it says
+     * a resend was asked for and may already have a note in a conversation. From here it is a
+     * kept copy: no note while it is still being tried -- [KeptCopies] asks for one if it is
+     * given up -- and a note already written where the message will not go is taken out (see
+     * [KeptCopies.staleEarlyNote]), with the row free to have its own.
+     */
     private fun keepUnprocessed(
         id: Long,
         decrypted: org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult
-    ) = withStoreLock(db) {
-        db.writableDatabase.execSQL(
-            "UPDATE envelope SET unprocessed = ?, unprocessed_attempts = 1, unprocessed_next_at = ? WHERE _id = ?",
-            arrayOf<Any?>(encodeUnprocessed(decrypted), System.currentTimeMillis() + KeptCopies.backoff(1), id)
-        )
+    ) {
+        val earlier = withStoreLock(db) {
+            db.readableDatabase.rawQuery(
+                "SELECT serialized, retry_sender, retry_group, placeholder_at FROM envelope WHERE _id = ?",
+                arrayOf(id.toString())
+            ).use { c ->
+                if (c.moveToFirst() && !c.isNull(3) && !c.isNull(1)) {
+                    Triple(Envelope.ADAPTER.decode(c.getBlob(0)), c.getString(1), if (c.isNull(2)) null else c.getBlob(2))
+                } else {
+                    null
+                }
+            }
+        }
+        val stale = earlier?.let { (envelope, sender, group) ->
+            val at = envelope.clientTimestamp ?: return@let null
+            val credentials = accounts.credentials()
+            KeptCopies.staleEarlyNote(sender, group, at, decrypted, credentials.aci, credentials.e164)
+        }
+        if (stale != null) {
+            runCatching { events.noteSuperseded(stale.id, stale.threadKey) }
+                .onFailure { Timber.w(it, "signal receive: could not take out an early note") }
+        }
+        withStoreLock(db) {
+            db.writableDatabase.execSQL(
+                "UPDATE envelope SET unprocessed = ?, unprocessed_attempts = 1, unprocessed_next_at = ?, " +
+                    "retry_requested = 0" + (if (stale != null) ", placeholder_at = NULL" else "") + " WHERE _id = ?",
+                arrayOf<Any?>(encodeUnprocessed(decrypted), System.currentTimeMillis() + KeptCopies.backoff(1), id)
+            )
+        }
     }
 
     /** Keeps what decrypted beside its envelope, waiting for the kept message it points at. */

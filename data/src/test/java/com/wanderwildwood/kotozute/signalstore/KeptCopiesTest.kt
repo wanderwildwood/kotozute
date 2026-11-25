@@ -138,7 +138,7 @@ class KeptCopiesTest {
         while (!row.gaveUp) {
             now = row.nextAt
             val before = row.nextAt
-            copies.run(now, failing)
+            copies.run(now, process = failing)
             if (!row.gaveUp) waits += row.nextAt - before
             assertTrue("never more than the cap", row.attempts <= KeptCopies.MAX_ATTEMPTS)
         }
@@ -486,14 +486,14 @@ class KeptCopiesTest {
             KeptCopies.Outcome.Processed(theirs.toString(), null)
         }
         val copies = KeptCopies(store, BUILD)
-        copies.run(start, ok)
+        copies.run(start, process = ok)
         // The run itself touches only the message; the events wait for it to be filed.
         assertEquals(listOf("message"), seen)
-        assertEquals(3, copies.afterFiled(start, ok).size)
+        assertEquals(3, copies.afterFiled(start, process = ok).size)
         assertEquals(listOf("message", "delete", "edit", "reaction"), seen)
         assertTrue(store.rows.all { it.gone })
         // And nothing is done twice.
-        assertEquals(0, copies.afterFiled(start + 1, ok).size)
+        assertEquals(0, copies.afterFiled(start + 1, process = ok).size)
     }
 
     @Test
@@ -520,8 +520,8 @@ class KeptCopiesTest {
         assertEquals(listOf(originalId, originalId, originalId), store.rows.drop(1).map { it.waitsFor })
         // Next drain: noted, so applied to the note in the order they came -- and kept.
         store.rows[0].noted = true
-        copies.run(start + 1, ok)
-        copies.afterFiled(start + 1, ok)
+        copies.run(start + 1, process = ok)
+        copies.afterFiled(start + 1, process = ok)
         assertEquals(listOf("message", "delete", "edit", "reaction"), seen)
         assertTrue(store.rows.drop(1).all { !it.gone && it.waitsFor == KeptCopies.APPLIED + originalId })
         // Not again while the message stays given up.
@@ -540,16 +540,16 @@ class KeptCopiesTest {
             KeptCopies.Outcome.Processed(theirs.toString(), if (describe(replay) == "message") message else null)
         }
         val update = KeptCopies(store, BUILD + 1)
-        val done = update.run(start, ok)
+        val done = update.run(start, process = ok)
         // Processed, and not filed: it was withdrawn, so it never shows again, not even briefly.
         assertTrue(store.rows[0].gone)
         assertNull(store.rows[0].filed)
         assertNull(done.single().message)
         // Then everything that pointed at it, again, in order, and done with.
-        assertEquals(3, update.afterFiled(start, ok).size)
+        assertEquals(3, update.afterFiled(start, process = ok).size)
         assertEquals(listOf("message", "delete", "edit", "reaction"), seen)
         assertTrue(store.rows.all { it.gone })
-        assertEquals(0, update.afterFiled(start + 1, ok).size)
+        assertEquals(0, update.afterFiled(start + 1, process = ok).size)
     }
 
     @Test
@@ -581,9 +581,9 @@ class KeptCopiesTest {
         val ok: (KeptCopies.Kept, SignalServiceCipherResult) -> KeptCopies.Outcome = { _, _ ->
             KeptCopies.Outcome.Processed(theirs.toString(), null)
         }
-        KeptCopies(store, BUILD).run(start, ok)
+        KeptCopies(store, BUILD).run(start, process = ok)
         // The process died before afterFiled. A new one, from the same rows, picks it up.
-        assertEquals(3, KeptCopies(store, BUILD).afterFiled(start + 60_000, ok).size)
+        assertEquals(3, KeptCopies(store, BUILD).afterFiled(start + 60_000, process = ok).size)
         assertTrue(store.rows.all { it.gone })
     }
 
@@ -600,6 +600,75 @@ class KeptCopiesTest {
         assertEquals(1, editRow.attempts)
         assertNull(editRow.waitsFor)
         assertEquals(start + KeptCopies.backoff(1), editRow.nextAt)
+    }
+
+    // --- A note written before the copy existed; an identity change mid-run --------------
+
+    @Test
+    fun `an early note for our own synced send is taken out, since the message goes to its recipient`() {
+        val copy = SignalServiceCipherResult(transcript(), metadata())
+        val stale = KeptCopies.staleEarlyNote(self.toString(), null, at, copy, self.toString(), null)
+        assertEquals(KeptCopies.EarlyNote("$self:$at", "direct:$self"), stale)
+    }
+
+    @Test
+    fun `an early note already where the message goes is left for the message to replace`() {
+        // Somebody else's one-to-one message.
+        assertNull(KeptCopies.staleEarlyNote(theirs.toString(), null, at, keptFrom(theirs, original), self.toString(), null))
+        // A group message: filed by the group either way.
+        val master = ByteArray(32) { (it + 1).toByte() }
+        val group = org.whispersystems.signalservice.internal.push.GroupContextV2(masterKey = master.toByteString(), revision = 0)
+        val inGroup = incoming(DataMessage(body = "Running late", timestamp = at, groupV2 = group))
+        val groupId = java.util.Base64.getDecoder().decode(ContentNormalizer.groupIdForCheck(master))
+        assertNull(KeptCopies.staleEarlyNote(theirs.toString(), groupId, at, keptFrom(theirs, inGroup), self.toString(), null))
+        // Our own note to self, synced: Note to Self either way.
+        val toSelf = Content(syncMessage = SyncMessage(sent = SyncMessage.Sent(
+            destinationServiceIdBinary = self.toByteString(), timestamp = at,
+            message = DataMessage(body = "Buy bread", timestamp = at)
+        )))
+        assertNull(KeptCopies.staleEarlyNote(self.toString(), null, at, SignalServiceCipherResult(toSelf, metadata()), self.toString(), null))
+    }
+
+    @Test
+    fun `an early note for what turns out not to be a message is taken out`() {
+        val readSync = Content(syncMessage = SyncMessage(read = listOf(SyncMessage.Read(senderAciBinary = theirs.toByteString(), timestamp = at))))
+        assertEquals(
+            KeptCopies.EarlyNote("$self:$at", "direct:$self"),
+            KeptCopies.staleEarlyNote(self.toString(), null, at, SignalServiceCipherResult(readSync, metadata()), self.toString(), null)
+        )
+    }
+
+    @Test
+    fun `a copy that changes the account's identity ends the run there`() {
+        val store = FakeStore(mutableListOf(
+            Row(1, kept(transcript()), attempts = 1, nextAt = start),
+            Row(2, kept(transcript()), attempts = 1, nextAt = start)
+        ))
+        var changed = false
+        val tried = mutableListOf<Long>()
+        KeptCopies(store, BUILD).run(start, stop = { changed }) { kept, _ ->
+            tried += kept.id
+            changed = true
+            KeptCopies.Outcome.Processed(self.toString(), null)
+        }
+        assertEquals(listOf(1L), tried)
+        // The second waits, untouched, for the new connection.
+        assertTrue(!store.rows[1].gone)
+        assertEquals(1, store.rows[1].attempts)
+    }
+
+    @Test
+    fun `and so does an event applied after filing`() {
+        val store = waitingStore()
+        val ok: (KeptCopies.Kept, SignalServiceCipherResult) -> KeptCopies.Outcome = { _, _ ->
+            KeptCopies.Outcome.Processed(theirs.toString(), null)
+        }
+        val copies = KeptCopies(store, BUILD)
+        copies.run(start, process = ok)
+        var changed = false
+        val done = copies.afterFiled(start, stop = { changed }) { _, _ -> changed = true; KeptCopies.Outcome.Processed(theirs.toString(), null) }
+        assertEquals(1, done.size)
+        assertEquals(2, store.rows.count { !it.gone })
     }
 
     private companion object {

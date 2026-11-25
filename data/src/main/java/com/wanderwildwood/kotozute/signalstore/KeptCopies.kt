@@ -121,6 +121,9 @@ internal class KeptCopies(
         val sentAt: Long? = null
     )
 
+    /** A note already in a conversation: its row's id and conversation. */
+    data class EarlyNote(val id: String, val threadKey: String)
+
     sealed interface Outcome {
         class Processed(
             val sender: String,
@@ -134,12 +137,16 @@ internal class KeptCopies(
      * Tries every due copy once. Returns what was processed, for the caller to file with the
      * rest of the batch.
      *
+     * [stop] is asked before each copy: a copy that changes the account's identity ends the
+     * run there, as it ends a live batch, and what is left waits for the new connection.
+     *
      * ⚠ A message that somebody has withdrawn is processed and not filed. The withdrawal is
      * waiting for it (or already ran against its note); filing it first would put it back in
      * the conversation, with a notification, until the withdrawal caught up.
      */
     fun run(
         now: Long,
+        stop: () -> Boolean = { false },
         process: (Kept, SignalServiceCipherResult) -> Outcome
     ): List<Outcome.Processed> {
         val done = mutableListOf<Outcome.Processed>()
@@ -148,6 +155,7 @@ internal class KeptCopies(
         if (due.isEmpty()) return done
         val withdrawn = withdrawalsByTarget()
         for (kept in due) {
+            if (stop()) break
             attempt(kept, now, process, done) { k, decoded, outcome ->
                 if (isWithdrawn(decoded, withdrawn)) {
                     Timber.i("signal receive: a kept message was withdrawn before it landed; not filed")
@@ -209,6 +217,7 @@ internal class KeptCopies(
      */
     fun afterFiled(
         now: Long,
+        stop: () -> Boolean = { false },
         process: (Kept, SignalServiceCipherResult) -> Outcome
     ): List<Outcome.Processed> {
         val rows = store.all()
@@ -222,6 +231,7 @@ internal class KeptCopies(
             .associate { it.first to it.second.noted }
         val done = mutableListOf<Outcome.Processed>()
         for (event in waiting) {
+            if (stop()) break
             val waitsFor = event.waitsFor!!
             val applied = waitsFor.startsWith(APPLIED)
             val target = waitsFor.removePrefix(APPLIED)
@@ -331,6 +341,40 @@ internal class KeptCopies(
                 senderKeyDistributionMessage = null,
                 decryptionErrorMessage = null
             )
+        }
+
+        /**
+         * The note written for an envelope that would not open, once it opens and is kept
+         * instead, when that note is not where the message or its own note will go.
+         *
+         * ⚠ The early note is filed by who the failure named and the envelope's timestamp. For
+         * our own message synced from another device that is ourselves, so it sits in Note to
+         * Self under the message's own id -- and a row never changes conversation, so the
+         * message landing in the conversation it was sent to would be refused there. Returned
+         * so it can be taken out; null when it is already where the message goes, which then
+         * replaces it as usual.
+         *
+         * @param sender, [groupId] what the failure recorded (`retry_sender`, `retry_group`).
+         * @param envelopeTs the envelope's own timestamp, which the early note is filed under.
+         */
+        internal fun staleEarlyNote(
+            sender: String,
+            groupId: ByteArray?,
+            envelopeTs: Long,
+            copy: SignalServiceCipherResult,
+            selfAci: String?,
+            selfE164: String?
+        ): EarlyNote? {
+            fun b64(g: ByteArray?) = g?.let { java.util.Base64.getEncoder().encodeToString(it) }.orEmpty()
+            val earlyKey = ContentNormalizer.noteThreadKey(sender, b64(groupId), null, "", selfAci, selfE164)
+                ?: return null
+            val early = EarlyNote(ContentNormalizer.messageIdFor(sender, "", envelopeTs), earlyKey)
+            val note = noteFor(copy) ?: return early
+            val key = ContentNormalizer.noteThreadKey(
+                note.sender, b64(note.groupId), note.sentTo, note.sentToNumber, selfAci, selfE164
+            )
+            val id = ContentNormalizer.messageIdFor(note.sender, "", note.sentAt ?: envelopeTs)
+            return if (key == early.threadKey && id == early.id) null else early
         }
 
         /**

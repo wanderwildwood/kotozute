@@ -183,6 +183,13 @@ interface SignalEvents {
      * @param sentToNumber their number, where the service id is missing.
      * @param groupId the group it was sent to, or null for a one-to-one message.
      */
+    /**
+     * Takes out a missing-message note that turned out to be in the wrong place: the message
+     * did arrive, and will land (or be noted) in its own conversation. Only a note -- an
+     * update row with this [id] in this [threadKey] -- is taken out; anything else is left.
+     */
+    fun noteSuperseded(id: String, threadKey: String) {}
+
     fun sentElsewhereGaveUp(
         sender: String,
         sentTimestamp: Long,

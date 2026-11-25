@@ -1181,6 +1181,29 @@ class SignalRepositoryImpl @Inject constructor(
         Timber.w("signal receive: a message that would not open was noted in %s", threadKey)
     }
 
+    /**
+     * Takes out a missing-message note filed where its message will not go. See
+     * `SignalEvents.noteSuperseded`. Only an update row in that conversation: a real message
+     * with the same id is never touched.
+     */
+    private fun removeSupersededNote(id: String, threadKey: String) {
+        var removedOne = false
+        Realm.getDefaultInstance().use { realm ->
+            realm.executeTransaction { r ->
+                val row = r.where(SignalMessage::class.java).equalTo("id", id).findFirst()
+                    ?: return@executeTransaction
+                if (row.threadKey != threadKey || !row.update) return@executeTransaction
+                row.deleteFromRealm()
+                refreshThreadPreview(r, threadKey)
+                removedOne = true
+            }
+        }
+        if (removedOne) {
+            Timber.i("signal receive: took out a missing-message note filed in the wrong conversation")
+            removed.onNext(threadKey)
+        }
+    }
+
     /** Re-derive a thread's snippet, timestamp and unread count from what is left. */
     private fun refreshThreadPreview(r: Realm, threadKey: String) {
         val thread = r.where(SignalThread::class.java)
@@ -3631,6 +3654,8 @@ class SignalRepositoryImpl @Inject constructor(
             sentTimestamp: Long,
             groupId: ByteArray?
         ) = noteUndecryptable(sender, sentTimestamp, groupId)
+
+        override fun noteSuperseded(id: String, threadKey: String) = removeSupersededNote(id, threadKey)
 
         override fun sentElsewhereGaveUp(
             sender: String,

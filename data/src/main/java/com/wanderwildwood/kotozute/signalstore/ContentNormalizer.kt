@@ -793,6 +793,12 @@ internal object ContentNormalizer {
      * already has and holds it otherwise (`EditMessageProcessor`, `EarlyMessageCache`); here an
      * early edit makes the row, so the message arriving after it must not take the text back.
      */
+    /**
+     * How long after sending somebody may withdraw a message for everyone: Signal's day plus a
+     * day for delivery (`MessageConstraintsUtil.isValidRemoteDeleteReceive`).
+     */
+    internal val WITHDRAWAL_WINDOW_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(2)
+
     internal fun keepsLaterEdit(existingRevisionTs: Long, arrivingRevisionTs: Long): Boolean =
         arrivingRevisionTs < existingRevisionTs
 

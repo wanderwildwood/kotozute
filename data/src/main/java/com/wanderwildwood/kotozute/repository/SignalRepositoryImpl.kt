@@ -2951,7 +2951,7 @@ class SignalRepositoryImpl @Inject constructor(
      * Signal's `normalDeleteMaxAgeInSeconds` default is a day, and `RECEIVE_THRESHOLD` adds
      * another for delivery -- a withdrawal that took a while to arrive is still honest.
      */
-    private val WITHDRAWAL_WINDOW_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(2)
+    private val WITHDRAWAL_WINDOW_MS = com.wanderwildwood.kotozute.signalstore.ContentNormalizer.WITHDRAWAL_WINDOW_MS
 
     /**
      * `BackoffUtil.exponentialBackoff`, unchanged: two to the power of the attempt in seconds,

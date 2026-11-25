@@ -51,13 +51,21 @@ internal class KeptCopies(
         /** Every kept copy, waiting or not, given up or not, in the order they arrived. */
         fun all(): List<Kept>
 
-        /** No longer waiting: an ordinary kept copy, not yet tried, due at [now]. */
-        fun release(id: Long, now: Long)
+        /**
+         * An event that waited for a message that was then given up, applied anyway (to the
+         * message's note) and kept, waiting as `applied:<target>`, so it is applied again if
+         * a later build's fresh tries land the message after all. Its [message], if any, is
+         * filed as a processed copy's is.
+         */
+        fun appliedEarly(id: Long, message: com.wanderwildwood.kotozute.signal.BridgeMessage?, target: String)
 
         /** Processed: the envelope goes, and its message (if any) takes its place. */
         fun processed(id: Long, message: com.wanderwildwood.kotozute.signal.BridgeMessage?)
 
-        /** Failed again: tried [attempts] times, next at [nextAt]. The first reason stays. */
+        /**
+         * Failed again: tried [attempts] times, next at [nextAt]. The first reason stays. An
+         * event that was waiting stops waiting: from here it is an ordinary kept copy.
+         */
         fun failedAgain(id: Long, attempts: Int, nextAt: Long)
 
         /**
@@ -85,8 +93,13 @@ internal class KeptCopies(
         val copy: ByteArray,
         /** Tries so far, counting the one that first failed. */
         val attempts: Int,
-        /** The id of the kept message this event waits for, or null. See [targetOf]. */
-        val waitsFor: String? = null
+        /**
+         * The id of the kept message this event waits for, or null. See [targetOf]. Prefixed
+         * [APPLIED] once it has been applied to that message's note; see [Store.appliedEarly].
+         */
+        val waitsFor: String? = null,
+        /** Whether the conversation has been told this message is missing (`placeholder_at`). */
+        val noted: Boolean = false
     )
 
     /**
@@ -120,12 +133,54 @@ internal class KeptCopies(
     /**
      * Tries every due copy once. Returns what was processed, for the caller to file with the
      * rest of the batch.
+     *
+     * ⚠ A message that somebody has withdrawn is processed and not filed. The withdrawal is
+     * waiting for it (or already ran against its note); filing it first would put it back in
+     * the conversation, with a notification, until the withdrawal caught up.
      */
-    fun run(now: Long, process: (Kept, SignalServiceCipherResult) -> Outcome): List<Outcome.Processed> {
+    fun run(
+        now: Long,
+        process: (Kept, SignalServiceCipherResult) -> Outcome
+    ): List<Outcome.Processed> {
         val done = mutableListOf<Outcome.Processed>()
         store.freshTries(build, now)
-        store.due(now).forEach { attempt(it, now, process, done) }
+        val due = store.due(now)
+        if (due.isEmpty()) return done
+        val withdrawn = withdrawalsByTarget()
+        for (kept in due) {
+            attempt(kept, now, process, done) { k, decoded, outcome ->
+                if (isWithdrawn(decoded, withdrawn)) {
+                    Timber.i("signal receive: a kept message was withdrawn before it landed; not filed")
+                    store.processed(k.id, null)
+                    done += Outcome.Processed(outcome.sender, null)
+                } else {
+                    store.processed(k.id, outcome.message)
+                    done += outcome
+                }
+            }
+        }
         return done
+    }
+
+    /** Withdrawals waiting for a message, or already run against its note: when each was sent. */
+    private fun withdrawalsByTarget(): Map<String, List<Long>> = store.all()
+        .filter { it.waitsFor != null }
+        .mapNotNull { event ->
+            val decoded = SignalReceiver.decodeUnprocessed(event.copy) ?: return@mapNotNull null
+            val m = decoded.content.syncMessage?.sent?.message ?: decoded.content.dataMessage
+            if (m?.delete == null) return@mapNotNull null
+            event.waitsFor!!.removePrefix(APPLIED) to
+                (event.envelope.serverTimestamp ?: event.envelope.clientTimestamp ?: 0L)
+        }
+        .groupBy({ it.first }, { it.second })
+
+    /** The rule `applyWithdrawal` applies: our own always, anybody else's within the window. */
+    private fun isWithdrawn(decoded: SignalServiceCipherResult, withdrawn: Map<String, List<Long>>): Boolean {
+        val target = landsAs(decoded) ?: return false
+        val at = withdrawn[target] ?: return false
+        val ours = decoded.content.syncMessage?.sent?.message != null
+        val sentAt = (decoded.content.syncMessage?.sent?.message ?: decoded.content.dataMessage)?.timestamp ?: 0L
+        return at.any { ours || it - sentAt < ContentNormalizer.WITHDRAWAL_WINDOW_MS }
     }
 
     /**
@@ -146,31 +201,40 @@ internal class KeptCopies(
      * remembered from [run], so a restart in between loses nothing.
      *
      * - Still being tried: the event keeps waiting.
-     * - Given up: released, and tried by the next drain -- after this one has written the
-     *   message's note, so an edit then replaces the note rather than the note the edit.
-     * - Landed, or gone: tried now.
+     * - Given up, and its note written (by the drain before): applied to the note -- an edit
+     *   replaces it, a withdrawal removes it -- and kept as applied ([Store.appliedEarly]).
+     *   Given up and not yet noted: it waits for the note, so the note does not undo it.
+     * - Landed, or gone: applied now. One applied earlier is applied once more, because its
+     *   message has now arrived after all and the note it changed has been replaced.
      */
-    fun afterFiled(now: Long, process: (Kept, SignalServiceCipherResult) -> Outcome): List<Outcome.Processed> {
+    fun afterFiled(
+        now: Long,
+        process: (Kept, SignalServiceCipherResult) -> Outcome
+    ): List<Outcome.Processed> {
         val rows = store.all()
         val waiting = rows.filter { it.waitsFor != null }
         if (waiting.isEmpty()) return emptyList()
         val landing = rows.filter { it.waitsFor == null }.mapNotNull { kept ->
-            SignalReceiver.decodeUnprocessed(kept.copy)?.let { landsAs(it) }?.let { it to kept.attempts }
+            SignalReceiver.decodeUnprocessed(kept.copy)?.let { landsAs(it) }?.let { it to kept }
         }
-        val trying = landing.filter { it.second < MAX_ATTEMPTS }.mapTo(mutableSetOf()) { it.first }
-        val givenUp = landing.filter { it.second >= MAX_ATTEMPTS }.mapTo(mutableSetOf()) { it.first }
+        val trying = landing.filter { it.second.attempts < MAX_ATTEMPTS }.mapTo(mutableSetOf()) { it.first }
+        val givenUp = landing.filter { it.second.attempts >= MAX_ATTEMPTS }
+            .associate { it.first to it.second.noted }
         val done = mutableListOf<Outcome.Processed>()
-        waiting.forEach { event ->
-            when (event.waitsFor) {
-                in trying -> Unit
-                in givenUp -> store.release(event.id, now)
-                else -> {
-                    store.release(event.id, now)
-                    attempt(
-                        Kept(event.id, event.envelope, event.deliveredAt, event.copy, 0),
-                        now, process, done
-                    )
+        for (event in waiting) {
+            val waitsFor = event.waitsFor!!
+            val applied = waitsFor.startsWith(APPLIED)
+            val target = waitsFor.removePrefix(APPLIED)
+            val fresh = Kept(event.id, event.envelope, event.deliveredAt, event.copy, 0)
+            when {
+                target in trying -> Unit
+                target in givenUp -> if (!applied && givenUp[target] == true) {
+                    attempt(fresh, now, process, done) { k, _, outcome ->
+                        store.appliedEarly(k.id, outcome.message, target)
+                        done += outcome
+                    }
                 }
+                else -> attempt(fresh, now, process, done)
             }
         }
         return done
@@ -180,7 +244,11 @@ internal class KeptCopies(
         kept: Kept,
         now: Long,
         process: (Kept, SignalServiceCipherResult) -> Outcome,
-        done: MutableList<Outcome.Processed>
+        done: MutableList<Outcome.Processed>,
+        succeeded: (Kept, SignalServiceCipherResult, Outcome.Processed) -> Unit = { k, _, outcome ->
+            store.processed(k.id, outcome.message)
+            done += outcome
+        }
     ) {
         val decoded = SignalReceiver.decodeUnprocessed(kept.copy)
         if (decoded == null) {
@@ -192,10 +260,7 @@ internal class KeptCopies(
         val replay = SignalServiceCipherResult(forReplay(decoded.content), decoded.metadata)
         val outcome = runCatching { process(kept, replay) }.getOrElse { Outcome.Failed }
         when (outcome) {
-            is Outcome.Processed -> {
-                store.processed(kept.id, outcome.message)
-                done += outcome
-            }
+            is Outcome.Processed -> succeeded(kept, decoded, outcome)
             Outcome.Failed -> {
                 val attempts = kept.attempts + 1
                 if (attempts >= MAX_ATTEMPTS) {
@@ -209,6 +274,9 @@ internal class KeptCopies(
     }
 
     companion object {
+        /** How [Kept.waitsFor] marks an event already applied to its message's note. */
+        const val APPLIED = "applied:"
+
         /** Tries in all, the first included. About five and a half hours from first to last. */
         const val MAX_ATTEMPTS = 6
 
@@ -289,6 +357,7 @@ internal class KeptCopies(
         internal fun landsAs(decoded: SignalServiceCipherResult): String? {
             val content = decoded.content
             if (targetOf(content, decoded.metadata) != null) return null
+            if (content.syncMessage?.sent?.isRecipientUpdate == true) return null
             val m = content.syncMessage?.sent?.message ?: content.dataMessage ?: return null
             val at = m.timestamp?.takeIf { it != 0L } ?: return null
             return ContentNormalizer.messageIdFor(decoded.metadata.sourceServiceId.toString(), "", at)

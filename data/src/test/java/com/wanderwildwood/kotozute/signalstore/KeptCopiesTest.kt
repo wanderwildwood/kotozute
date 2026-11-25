@@ -41,7 +41,15 @@ class KeptCopiesTest {
         var build: Int = 0,
         /** Notes written for it, as `announceGivenUpEnvelopes` writes them: once. */
         var notes: Int = 0,
-        var waitsFor: String? = null
+        var waitsFor: String? = null,
+        /** What it was filed as, when it was processed: the message, or null for nothing. */
+        var filed: com.wanderwildwood.kotozute.signal.BridgeMessage? = null,
+        /** Applied against its message's note, and kept; see `appliedEarly`. */
+        var appliedTimes: Int = 0,
+        /** The envelope's own timestamp. */
+        val envelopeAt: Long = 1L,
+        /** `placeholder_at` is set: the note has been written, by the end of a drain. */
+        var noted: Boolean = false
     )
 
     private class FakeStore(val rows: MutableList<Row>) : KeptCopies.Store {
@@ -50,23 +58,23 @@ class KeptCopiesTest {
             .map { KeptCopies.Kept(it.id, Envelope(clientTimestamp = 1L), 0L, it.copy, it.attempts) }
 
         override fun all() = rows.filter { !it.gone }
-            .map { KeptCopies.Kept(it.id, Envelope(clientTimestamp = 1L), 0L, it.copy, it.attempts, it.waitsFor) }
+            .map { KeptCopies.Kept(it.id, Envelope(clientTimestamp = it.envelopeAt), 0L, it.copy, it.attempts, it.waitsFor, it.noted) }
 
-        override fun release(id: Long, now: Long) {
-            rows.single { it.id == id }.apply { waitsFor = null; attempts = 0; nextAt = now }
+        override fun appliedEarly(id: Long, message: com.wanderwildwood.kotozute.signal.BridgeMessage?, target: String) {
+            rows.single { it.id == id }.apply { waitsFor = KeptCopies.APPLIED + target; attempts = 0; appliedTimes++ }
         }
 
         override fun processed(id: Long, message: com.wanderwildwood.kotozute.signal.BridgeMessage?) {
-            rows.single { it.id == id }.gone = true
+            rows.single { it.id == id }.apply { gone = true; filed = message }
         }
 
         override fun failedAgain(id: Long, attempts: Int, nextAt: Long) {
-            rows.single { it.id == id }.apply { this.attempts = attempts; this.nextAt = nextAt }
+            rows.single { it.id == id }.apply { this.attempts = attempts; this.nextAt = nextAt; waitsFor = null }
         }
 
         override fun gaveUp(id: Long, attempts: Int, note: KeptCopies.Note?, build: Int) {
             rows.single { it.id == id }.apply {
-                this.attempts = attempts; this.note = note; gaveUp = true; this.build = build
+                this.attempts = attempts; this.note = note; gaveUp = true; this.build = build; waitsFor = null
                 // `placeholder_at`: set by the first note and never cleared.
                 if (note != null && notes == 0) notes = 1
             }
@@ -476,18 +484,73 @@ class KeptCopiesTest {
     }
 
     @Test
-    fun `when their message is given up they are released, and run on the next drain after its note`() {
+    fun `when their message is given up they wait for its note, then are applied to it and kept`() {
         val store = waitingStore(targetAttempts = KeptCopies.MAX_ATTEMPTS - 1)
         val copies = KeptCopies(store, BUILD)
         val seen = mutableListOf<String>()
+        val ok: (KeptCopies.Kept, SignalServiceCipherResult) -> KeptCopies.Outcome = { _, replay ->
+            seen += describe(replay); KeptCopies.Outcome.Processed(theirs.toString(), null)
+        }
         copies.run(start) { _, replay -> seen += describe(replay); KeptCopies.Outcome.Failed }
         assertTrue(store.rows[0].gaveUp)
-        copies.afterFiled(start) { _, _ -> error("not in the drain that writes the note") }
-        assertTrue(store.rows.drop(1).all { it.waitsFor == null && it.attempts == 0 })
-        // Next drain: ordinary copies now, tried in the order they came.
-        copies.run(start + 1) { _, replay -> seen += describe(replay); KeptCopies.Outcome.Processed(theirs.toString(), null) }
+        // The note is written at the end of this drain; nothing is applied before it.
+        copies.afterFiled(start) { _, _ -> error("applied before the note") }
+        assertEquals(listOf(originalId, originalId, originalId), store.rows.drop(1).map { it.waitsFor })
+        // Next drain: noted, so applied to the note in the order they came -- and kept.
+        store.rows[0].noted = true
+        copies.run(start + 1, ok)
+        copies.afterFiled(start + 1, ok)
         assertEquals(listOf("message", "delete", "edit", "reaction"), seen)
-        assertTrue(store.rows.drop(1).all { it.gone })
+        assertTrue(store.rows.drop(1).all { !it.gone && it.waitsFor == KeptCopies.APPLIED + originalId })
+        // Not again while the message stays given up.
+        copies.afterFiled(start + 2) { _, _ -> error("applied twice to the note") }
+    }
+
+    @Test
+    fun `if a later build lands the message after all, they are applied again after it, and a withdrawn one stays withdrawn`() {
+        val store = waitingStore(targetAttempts = KeptCopies.MAX_ATTEMPTS)
+        store.rows[0].apply { gaveUp = true; notes = 1; noted = true; build = BUILD }
+        store.rows.drop(1).forEach { it.waitsFor = KeptCopies.APPLIED + originalId }
+        val message = ContentNormalizer.normalize(original, metadataFrom(theirs), self.toString(), null)
+        val seen = mutableListOf<String>()
+        val ok: (KeptCopies.Kept, SignalServiceCipherResult) -> KeptCopies.Outcome = { _, replay ->
+            seen += describe(replay)
+            KeptCopies.Outcome.Processed(theirs.toString(), if (describe(replay) == "message") message else null)
+        }
+        val update = KeptCopies(store, BUILD + 1)
+        val done = update.run(start, ok)
+        // Processed, and not filed: it was withdrawn, so it never shows again, not even briefly.
+        assertTrue(store.rows[0].gone)
+        assertNull(store.rows[0].filed)
+        assertNull(done.single().message)
+        // Then everything that pointed at it, again, in order, and done with.
+        assertEquals(3, update.afterFiled(start, ok).size)
+        assertEquals(listOf("message", "delete", "edit", "reaction"), seen)
+        assertTrue(store.rows.all { it.gone })
+        assertEquals(0, update.afterFiled(start + 1, ok).size)
+    }
+
+    @Test
+    fun `a message nobody withdrew is filed as ever when its events wait for it`() {
+        val store = FakeStore(mutableListOf(
+            Row(1, keptCopyFrom(theirs, original), attempts = 1, nextAt = start),
+            Row(3, keptCopyFrom(theirs, edit), attempts = 0, waitsFor = originalId)
+        ))
+        val message = ContentNormalizer.normalize(original, metadataFrom(theirs), self.toString(), null)
+        KeptCopies(store, BUILD).run(start) { _, _ -> KeptCopies.Outcome.Processed(theirs.toString(), message) }
+        assertEquals(message, store.rows[0].filed)
+    }
+
+    @Test
+    fun `a withdrawal too late to honour does not keep somebody else's message out`() {
+        val store = FakeStore(mutableListOf(
+            Row(1, keptCopyFrom(theirs, original), attempts = 1, nextAt = start),
+            Row(2, keptCopyFrom(theirs, withdrawal), attempts = 0, waitsFor = originalId,
+                envelopeAt = at + ContentNormalizer.WITHDRAWAL_WINDOW_MS + 1)
+        ))
+        val message = ContentNormalizer.normalize(original, metadataFrom(theirs), self.toString(), null)
+        KeptCopies(store, BUILD).run(start) { _, _ -> KeptCopies.Outcome.Processed(theirs.toString(), message) }
+        assertEquals(message, store.rows[0].filed)
     }
 
     @Test

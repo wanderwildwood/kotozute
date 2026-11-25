@@ -795,14 +795,15 @@ internal class SignalReceiver(
         override fun all(): List<KeptCopies.Kept> = withStoreLock(db) {
             db.readableDatabase.rawQuery(
                 "SELECT _id, serialized, server_delivered_timestamp, unprocessed, unprocessed_attempts, " +
-                    "unprocessed_waits_for FROM envelope WHERE unprocessed IS NOT NULL ORDER BY _id",
+                    "unprocessed_waits_for, placeholder_at FROM envelope WHERE unprocessed IS NOT NULL ORDER BY _id",
                 null
             ).use { c ->
                 generateSequence {
                     if (c.moveToNext()) {
                         KeptCopies.Kept(
                             c.getLong(0), Envelope.ADAPTER.decode(c.getBlob(1)), c.getLong(2),
-                            c.getBlob(3), c.getInt(4), if (c.isNull(5)) null else c.getString(5)
+                            c.getBlob(3), c.getInt(4), if (c.isNull(5)) null else c.getString(5),
+                            noted = !c.isNull(6)
                         )
                     } else {
                         null
@@ -811,12 +812,22 @@ internal class SignalReceiver(
             }
         }
 
-        override fun release(id: Long, now: Long) = withStoreLock(db) {
-            db.writableDatabase.execSQL(
-                "UPDATE envelope SET unprocessed_waits_for = NULL, unprocessed_attempts = 0, " +
-                    "unprocessed_next_at = ? WHERE _id = ?",
-                arrayOf<Any?>(now, id)
-            )
+        override fun appliedEarly(
+            id: Long,
+            message: com.wanderwildwood.kotozute.signal.BridgeMessage?,
+            target: String
+        ) {
+            val mark = KeptCopies.APPLIED + target
+            if (message != null) {
+                unfiledStore.keepBeside(id, message, mark)
+            } else {
+                withStoreLock(db) {
+                    db.writableDatabase.execSQL(
+                        "UPDATE envelope SET unprocessed_waits_for = ?, unprocessed_attempts = 0 WHERE _id = ?",
+                        arrayOf<Any?>(mark, id)
+                    )
+                }
+            }
         }
 
         override fun processed(id: Long, message: com.wanderwildwood.kotozute.signal.BridgeMessage?) {
@@ -826,7 +837,8 @@ internal class SignalReceiver(
 
         override fun failedAgain(id: Long, attempts: Int, nextAt: Long) = withStoreLock(db) {
             db.writableDatabase.execSQL(
-                "UPDATE envelope SET unprocessed_attempts = ?, unprocessed_next_at = ? WHERE _id = ?",
+                "UPDATE envelope SET unprocessed_attempts = ?, unprocessed_next_at = ?, " +
+                    "unprocessed_waits_for = NULL WHERE _id = ?",
                 arrayOf<Any?>(attempts, nextAt, id)
             )
         }
@@ -837,13 +849,14 @@ internal class SignalReceiver(
         override fun gaveUp(id: Long, attempts: Int, note: KeptCopies.Note?, build: Int) = withStoreLock(db) {
             if (note == null) {
                 db.writableDatabase.execSQL(
-                    "UPDATE envelope SET unprocessed_attempts = ?, unprocessed_build = ? WHERE _id = ?",
+                    "UPDATE envelope SET unprocessed_attempts = ?, unprocessed_build = ?, " +
+                        "unprocessed_waits_for = NULL WHERE _id = ?",
                     arrayOf<Any?>(attempts, build, id)
                 )
             } else {
                 db.writableDatabase.execSQL(
                     "UPDATE envelope SET unprocessed_attempts = ?, unprocessed_build = ?, retry_requested = 1, " +
-                        "retry_sender = ?, retry_device = ?, retry_group = ? WHERE _id = ?",
+                        "retry_sender = ?, retry_device = ?, retry_group = ?, unprocessed_waits_for = NULL WHERE _id = ?",
                     arrayOf<Any?>(attempts, build, note.sender, note.deviceId, note.groupId, id)
                 )
             }

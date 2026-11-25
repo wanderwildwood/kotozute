@@ -629,7 +629,7 @@ internal class SignalReceiver(
         val giveUp = withStoreLock(db) {
             db.readableDatabase.rawQuery(
                 """
-                SELECT _id, serialized, retry_sender, retry_group FROM envelope
+                SELECT _id, serialized, retry_sender, retry_group, unprocessed FROM envelope
                 WHERE retry_requested = 1
                   AND retry_sender IS NOT NULL
                   AND placeholder_at IS NULL
@@ -641,7 +641,10 @@ internal class SignalReceiver(
             ).use { c ->
                 generateSequence {
                     if (c.moveToNext()) {
-                        Triple(c.getLong(0), Envelope.ADAPTER.decode(c.getBlob(1)), c.getString(2) to c.getBlob(3))
+                        GivenUp(
+                            c.getLong(0), Envelope.ADAPTER.decode(c.getBlob(1)), c.getString(2), c.getBlob(3),
+                            if (c.isNull(4)) null else c.getBlob(4)
+                        )
                     } else {
                         null
                     }
@@ -650,13 +653,22 @@ internal class SignalReceiver(
         }
         if (giveUp.isEmpty()) return
 
-        giveUp.forEach { (id, envelope, who) ->
-            val (sender, groupId) = who
+        giveUp.forEach { (id, envelope, sender, groupId, copy) ->
+            // A kept copy says what the message was, and so where it goes: our own message
+            // synced from another device belongs in the conversation it was sent to, not under
+            // its sender, who is ourselves. See [KeptCopies.noteFor].
+            val note = copy?.let { decodeUnprocessed(it) }?.let { KeptCopies.noteFor(it) }
             // The sender's own timestamp, not ours: it is half of the pair that identifies the
             // message everywhere, and the half a resend will arrive carrying.
-            val sentTimestamp = envelope.clientTimestamp ?: return@forEach
-            runCatching { events.undecryptableGaveUp(sender, sentTimestamp, groupId) }
-                .onFailure { Timber.w(it, "signal receive: could not say a message was missed") }
+            val sentTimestamp = note?.sentAt ?: envelope.clientTimestamp ?: return@forEach
+            runCatching {
+                val sentTo = note?.sentTo
+                if (sentTo != null) {
+                    events.sentElsewhereGaveUp(note.sender, sentTimestamp, sentTo, note.sentToNumber, note.groupId)
+                } else {
+                    events.undecryptableGaveUp(sender, sentTimestamp, groupId)
+                }
+            }.onFailure { Timber.w(it, "signal receive: could not say a message was missed") }
             withStoreLock(db) {
                 db.writableDatabase.execSQL(
                     "UPDATE envelope SET placeholder_at = ? WHERE _id = ?",
@@ -669,6 +681,16 @@ internal class SignalReceiver(
             giveUp.size
         )
     }
+
+    /** A row [announceGivenUpEnvelopes] owes a note for. */
+    private data class GivenUp(
+        val id: Long,
+        val envelope: Envelope,
+        val sender: String,
+        val groupId: ByteArray?,
+        /** The kept copy, when it decrypted and then failed to process. */
+        val copy: ByteArray?
+    )
 
     private fun sweepUndecryptable() = withStoreLock(db) {
         val cutoff = System.currentTimeMillis() - UNDECRYPTABLE_RETENTION_MS

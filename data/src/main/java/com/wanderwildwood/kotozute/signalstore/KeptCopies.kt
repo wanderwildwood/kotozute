@@ -42,7 +42,8 @@ internal class KeptCopies(private val store: Store) {
         /**
          * Given up after [attempts]. With a [note], the conversation is told a message is
          * missing, the same way as for one that never decrypted; without one (the copy itself
-         * could not be read, so nobody is known to have sent it) the row just waits to be swept.
+         * could not be read, so nobody is known to have sent it, or it was not a message) the
+         * row just waits to be swept.
          */
         fun gaveUp(id: Long, attempts: Int, note: Note?)
     }
@@ -56,8 +57,24 @@ internal class KeptCopies(private val store: Store) {
         val attempts: Int
     )
 
-    /** Who a missing-message note is filed under; see `announceGivenUpEnvelopes`. */
-    class Note(val sender: String, val deviceId: Int, val groupId: ByteArray?)
+    /**
+     * Who a missing-message note is filed under, and where it goes; see
+     * `announceGivenUpEnvelopes`.
+     *
+     * [sender] is the message's author, half of the id the note is filed under so the message
+     * replaces it if it ever lands. For our own message synced from another device the author is
+     * this account, and the conversation is the one it was sent *to*: [sentTo] (a service id,
+     * else [sentToNumber]), blank for a group or Note to Self. Null for anybody else's message.
+     */
+    class Note(
+        val sender: String,
+        val deviceId: Int,
+        val groupId: ByteArray?,
+        val sentTo: String? = null,
+        val sentToNumber: String = "",
+        /** The message's own timestamp, where it is not the envelope's. */
+        val sentAt: Long? = null
+    )
 
     sealed interface Outcome {
         class Processed(
@@ -148,18 +165,41 @@ internal class KeptCopies(private val store: Store) {
             )
         }
 
-        /** Filed under whoever sent it, in the group it was sent to, as the old path files it. */
-        internal fun noteFor(decoded: SignalServiceCipherResult): Note {
+        /**
+         * Filed where the message itself would have gone, under the id it would have had.
+         *
+         * Somebody else's message: under them, in the group it was sent to. Our own, synced from
+         * another device: under this account, in the conversation it was sent to -- filed under
+         * the sender alone, a one-to-one send went to Note to Self, and the message landing
+         * later could not replace the note, because a row never changes conversation. Upstream
+         * keys the same transcript by its destination (`PushProcessMessageJob.processOrDefer`).
+         *
+         * Null for what is not a message -- a receipt, a read sync, typing, a recipient update:
+         * a note saying a message is missing would be a note about nothing.
+         */
+        internal fun noteFor(decoded: SignalServiceCipherResult): Note? {
             val content = decoded.content
-            val master = (content.dataMessage?.groupV2 ?: content.syncMessage?.sent?.message?.groupV2
-                ?: content.editMessage?.dataMessage?.groupV2
-                ?: content.syncMessage?.sent?.editMessage?.dataMessage?.groupV2)
-                ?.masterKey?.toByteArray()
+            val sent = content.syncMessage?.sent
+            // In the order [ContentNormalizer.normalize] reads them, so the note and the message
+            // agree about whose it is.
+            val carrier = sent?.message ?: content.dataMessage ?: sent?.editMessage?.dataMessage
+                ?: content.editMessage?.dataMessage ?: return null
+            if (sent?.isRecipientUpdate == true) return null
+            val own = carrier === sent?.message || carrier === sent?.editMessage?.dataMessage
+            val master = carrier.groupV2?.masterKey?.toByteArray()
             val group = master?.let { key ->
                 runCatching { java.util.Base64.getDecoder().decode(ContentNormalizer.groupIdForCheck(key)) }
                     .getOrNull()
             } ?: decoded.metadata.groupId
-            return Note(decoded.metadata.sourceServiceId.toString(), decoded.metadata.sourceDeviceId, group)
+            val sender = decoded.metadata.sourceServiceId.toString()
+            val device = decoded.metadata.sourceDeviceId
+            if (!own) return Note(sender, device, group)
+            return Note(
+                sender, device, group,
+                sentTo = ContentNormalizer.destinationServiceIdOf(sent!!),
+                sentToNumber = sent.destinationE164.orEmpty(),
+                sentAt = carrier.timestamp ?: sent.timestamp
+            )
         }
     }
 }

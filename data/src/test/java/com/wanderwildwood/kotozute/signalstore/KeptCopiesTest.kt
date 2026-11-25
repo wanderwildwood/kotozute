@@ -119,10 +119,11 @@ class KeptCopiesTest {
         assertEquals(waits.sorted(), waits)
         assertTrue(waits.first() < waits.last())
 
-        // The note goes where the old path puts one: under whoever sent it.
+        // Our own message, so filed under this account, in the conversation it went to.
         assertNotNull(row.note)
         assertEquals(self.toString(), row.note!!.sender)
         assertEquals(3, row.note!!.deviceId)
+        assertEquals(theirs.toString(), row.note!!.sentTo)
 
         // And once given up it is never tried again.
         copies.run(now + 365L * 24 * 3600 * 1000) { _, _ -> error("tried after giving up") }
@@ -190,6 +191,99 @@ class KeptCopiesTest {
         val incoming = Content(dataMessage = DataMessage(body = "hello", profileKey = ByteArray(32).toByteString()))
         assertNull(KeptCopies.forReplay(incoming).dataMessage!!.profileKey)
         assertEquals("hello", KeptCopies.forReplay(incoming).dataMessage!!.body)
+    }
+
+    private fun metadataFrom(who: ServiceId) = EnvelopeMetadata(
+        who, null, 2, false, null, self, CiphertextMessageType
+    )
+
+    /** The note's conversation and id, and the message's, for the same content. */
+    private fun noteAndMessage(content: Content, from: ServiceId = self): Pair<Pair<String?, String>, Pair<String, String>> {
+        val metadata = metadataFrom(from)
+        val note = KeptCopies.noteFor(SignalServiceCipherResult(content, metadata))!!
+        val group = note.groupId?.let { java.util.Base64.getEncoder().encodeToString(it) }.orEmpty()
+        val noteKey = ContentNormalizer.noteThreadKey(
+            note.sender, group, note.sentTo, note.sentToNumber, self.toString(), null
+        )
+        val noteId = ContentNormalizer.messageIdFor(note.sender, "", note.sentAt ?: at)
+        val message = ContentNormalizer.normalize(content, metadata, self.toString(), null)!!
+        return (noteKey to noteId) to (message.threadKey to message.id)
+    }
+
+    @Test
+    fun `a one-to-one message sent from another device is noted in the conversation it went to`() {
+        val (note, message) = noteAndMessage(transcript())
+        assertEquals("direct:$theirs", note.first)
+        // The same conversation and the same id, so the message replaces the note if it lands.
+        assertEquals(message, note.first!! to note.second)
+    }
+
+    @Test
+    fun `a note to self sent from another device stays in Note to Self`() {
+        val toSelf = Content(
+            syncMessage = SyncMessage(
+                sent = SyncMessage.Sent(
+                    destinationServiceIdBinary = self.toByteString(),
+                    timestamp = at,
+                    message = DataMessage(body = "Buy bread", timestamp = at)
+                )
+            )
+        )
+        val (note, message) = noteAndMessage(toSelf)
+        assertEquals("direct:$self", note.first)
+        assertEquals(message, note.first!! to note.second)
+    }
+
+    @Test
+    fun `a group message sent from another device is noted in the group`() {
+        val group = org.whispersystems.signalservice.internal.push.GroupContextV2(
+            masterKey = ByteArray(32) { (it + 1).toByte() }.toByteString(), revision = 0
+        )
+        val inGroup = Content(
+            syncMessage = SyncMessage(
+                sent = SyncMessage.Sent(
+                    timestamp = at,
+                    message = DataMessage(body = "Running late", timestamp = at, groupV2 = group)
+                )
+            )
+        )
+        val (note, message) = noteAndMessage(inGroup)
+        assertTrue(note.first!!.startsWith("group:"))
+        assertEquals(message, note.first!! to note.second)
+    }
+
+    @Test
+    fun `somebody else's message is noted under them, as before`() {
+        val incoming = Content(dataMessage = DataMessage(body = "On my way", timestamp = at))
+        val decoded = SignalServiceCipherResult(incoming, metadataFrom(theirs))
+        val note = KeptCopies.noteFor(decoded)!!
+        assertNull(note.sentTo)
+        assertEquals(theirs.toString(), note.sender)
+        val (keyAndId, message) = noteAndMessage(incoming, from = theirs)
+        assertEquals("direct:$theirs", keyAndId.first)
+        assertEquals(message, keyAndId.first!! to keyAndId.second)
+    }
+
+    @Test
+    fun `what is not a message is given up without a note`() {
+        val readSync = Content(
+            syncMessage = SyncMessage(read = listOf(SyncMessage.Read(senderAciBinary = theirs.toByteString(), timestamp = at)))
+        )
+        assertNull(KeptCopies.noteFor(SignalServiceCipherResult(readSync, metadata())))
+        val update = Content(
+            syncMessage = SyncMessage(
+                sent = SyncMessage.Sent(
+                    timestamp = at, isRecipientUpdate = true,
+                    message = DataMessage(timestamp = at)
+                )
+            )
+        )
+        assertNull(KeptCopies.noteFor(SignalServiceCipherResult(update, metadata())))
+
+        val row = Row(1, kept(readSync), attempts = KeptCopies.MAX_ATTEMPTS - 1)
+        KeptCopies(FakeStore(mutableListOf(row))).run(start) { _, _ -> KeptCopies.Outcome.Failed }
+        assertTrue(row.gaveUp)
+        assertNull(row.note)
     }
 
     private companion object {

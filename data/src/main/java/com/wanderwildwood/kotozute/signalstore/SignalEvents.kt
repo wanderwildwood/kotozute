@@ -173,6 +173,25 @@ interface SignalEvents {
     ) {}
 
     /**
+     * Says in the conversation that a message this account sent from another device arrived
+     * here and could not be shown. The same note as [undecryptableGaveUp], filed on our side of
+     * the conversation it was sent to rather than under its sender, which is ourselves.
+     *
+     * @param sender this account's id, the author half of the message's identity.
+     * @param sentTimestamp the message's own timestamp.
+     * @param sentTo who it was sent to (a service id), blank for a group or Note to Self.
+     * @param sentToNumber their number, where the service id is missing.
+     * @param groupId the group it was sent to, or null for a one-to-one message.
+     */
+    fun sentElsewhereGaveUp(
+        sender: String,
+        sentTimestamp: Long,
+        sentTo: String,
+        sentToNumber: String,
+        groupId: ByteArray?
+    ) {}
+
+    /**
      * Says in the conversation that a message arrived and cannot be shown, and why.
      *
      * Three causes, one row, because what the reader needs is the same in each: a marker where

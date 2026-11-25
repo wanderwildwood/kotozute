@@ -759,6 +759,30 @@ internal object ContentNormalizer {
     /** One row per group call, whoever's update arrives. */
     internal fun groupCallIdFor(groupId: String, eraId: String): String = "groupcall:$groupId:$eraId"
 
+    /**
+     * The conversation a missing-message note goes in: the one the message itself would have
+     * gone in, by the same rule as [normalize].
+     *
+     * [sentTo] is set only for our own message synced from another device -- who it was sent
+     * to, blank for a group or Note to Self -- and then the note is outgoing and filed by its
+     * destination. Otherwise it is [sender]'s message, in their conversation or [groupId].
+     */
+    internal fun noteThreadKey(
+        sender: String,
+        groupId: String,
+        sentTo: String?,
+        sentToNumber: String,
+        selfAci: String?,
+        selfE164: String?
+    ): String? = threadKeyFor(
+        outgoing = sentTo != null,
+        counterpartUuid = sentTo ?: sender,
+        counterpartNumber = if (sentTo != null) sentToNumber else "",
+        groupId = groupId,
+        selfAci = selfAci,
+        selfE164 = selfE164
+    )
+
     internal fun messageIdFor(authorUuid: String, authorNumber: String, timestamp: Long): String =
         "${authorUuid.ifBlank { authorNumber }}:$timestamp"
 

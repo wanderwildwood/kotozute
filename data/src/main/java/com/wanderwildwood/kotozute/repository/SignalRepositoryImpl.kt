@@ -1125,7 +1125,14 @@ class SignalRepositoryImpl @Inject constructor(
         sender: String,
         sentTimestamp: Long,
         groupId: ByteArray?,
-        @androidx.annotation.StringRes body: Int
+        @androidx.annotation.StringRes body: Int,
+        /**
+         * For our own message synced from another device: who it went to, blank for a group or
+         * Note to Self. The note is then ours, in their conversation. See
+         * `ContentNormalizer.noteThreadKey`.
+         */
+        sentTo: String? = null,
+        sentToNumber: String = ""
     ) {
         val group = groupId
             ?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
@@ -1134,11 +1141,11 @@ class SignalRepositoryImpl @Inject constructor(
         // message belongs to do not fail loudly -- they quietly produce a second thread for a
         // conversation that already has one, and the only symptom is a duplicate in the inbox
         // a long time later. That is what `ThreadKeyTest` exists for.
-        val threadKey = com.wanderwildwood.kotozute.signalstore.ContentNormalizer.threadKeyFor(
-            outgoing = false,
-            counterpartUuid = sender,
-            counterpartNumber = "",
+        val threadKey = com.wanderwildwood.kotozute.signalstore.ContentNormalizer.noteThreadKey(
+            sender = sender,
             groupId = group,
+            sentTo = sentTo,
+            sentToNumber = sentToNumber,
             selfAci = signalStore.selfAciOrNull(),
             selfE164 = runCatching { signalStore.selfNumberOrNull() }.getOrNull()
         ) ?: run {
@@ -1153,7 +1160,9 @@ class SignalRepositoryImpl @Inject constructor(
                     ts = sentTimestamp,
                     senderUuid = sender,
                     senderNumber = "",
-                    outgoing = false,
+                    // Ours when it was ours: the message replacing it is outgoing, and a row's
+                    // side should not flip when it does.
+                    outgoing = sentTo != null,
                     body = context.getString(body),
                     // Upstream's BAD_DECRYPT row is an update row. If the message itself turns
                     // up later under this id, it is stored as a message and this flag goes.
@@ -3613,6 +3622,19 @@ class SignalRepositoryImpl @Inject constructor(
             sentTimestamp: Long,
             groupId: ByteArray?
         ) = noteUndecryptable(sender, sentTimestamp, groupId)
+
+        override fun sentElsewhereGaveUp(
+            sender: String,
+            sentTimestamp: Long,
+            sentTo: String,
+            sentToNumber: String,
+            groupId: ByteArray?
+        ) = notePlaceholder(
+            sender, sentTimestamp, groupId,
+            com.wanderwildwood.kotozute.data.R.string.signal_message_sent_elsewhere_unshown,
+            sentTo = sentTo,
+            sentToNumber = sentToNumber
+        )
 
         override fun cannotShow(
             sender: String,

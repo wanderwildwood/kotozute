@@ -29,7 +29,7 @@ import java.util.UUID
  */
 class OversizeSyncBodyTest {
 
-    private val self = UUID.fromString("26960253-cf31-4b8b-8f1c-bb1c14f62b32")
+    private val self = UUID.fromString("0d0d0d0d-1e1e-4f2f-8a3a-4b4b4b4b4b4b")
     private val timestamp = 1789646040389L
 
     private fun aciBytes(id: UUID) = ByteBuffer.allocate(16)

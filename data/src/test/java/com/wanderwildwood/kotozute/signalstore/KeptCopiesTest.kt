@@ -25,7 +25,7 @@ import java.util.UUID
  */
 class KeptCopiesTest {
 
-    private val self = ServiceId.ACI.from(UUID.fromString("26960253-cf31-4b8b-8f1c-bb1c14f62b32"))
+    private val self = ServiceId.ACI.from(UUID.fromString("0d0d0d0d-1e1e-4f2f-8a3a-4b4b4b4b4b4b"))
     private val theirs = ServiceId.ACI.from(UUID.fromString("11111111-2222-4333-8444-555555555555"))
     private val at = 1789646040389L
     private val start = 1_800_000_000_000L

@@ -192,13 +192,34 @@ internal class KeptCopies(
     }
 
     /**
-     * The ids the copies still being tried would land under: what an arriving event has to
-     * wait for. Asked once per batch, and empty -- one query, nothing decoded -- when nothing
-     * is kept.
+     * What an arriving edit, withdrawal, reaction, pin or vote does about a kept message it
+     * points at, by that message's id.
+     *
+     * - [wait]: the message is still being tried, or given up and its note not yet written.
+     *   The event is kept, waiting, and applied once the message lands (or to its note).
+     * - [applyAndKeep]: the message was given up and its note written. The event is applied
+     *   now, to the note, and kept as [APPLIED], so that if a later build's fresh tries land
+     *   the message after all it is applied again after it -- as for one that waited.
+     *
+     * Anything else is processed as it always was.
      */
-    fun waitingIds(): MutableSet<String> = store.all()
-        .filter { it.waitsFor == null && it.attempts < MAX_ATTEMPTS }
-        .mapNotNullTo(mutableSetOf()) { kept -> SignalReceiver.decodeUnprocessed(kept.copy)?.let { landsAs(it) } }
+    class Targets(val wait: MutableSet<String>, val applyAndKeep: Set<String>) {
+        fun isEmpty() = wait.isEmpty() && applyAndKeep.isEmpty()
+    }
+
+    /**
+     * The [Targets] for this batch. Asked once per batch, and empty -- one query, nothing
+     * decoded -- when nothing is kept.
+     */
+    fun targets(): Targets {
+        val wait = mutableSetOf<String>()
+        val applyAndKeep = mutableSetOf<String>()
+        store.all().filter { it.waitsFor == null }.forEach { kept ->
+            val id = SignalReceiver.decodeUnprocessed(kept.copy)?.let { landsAs(it) } ?: return@forEach
+            if (kept.attempts < MAX_ATTEMPTS || !kept.noted) wait += id else applyAndKeep += id
+        }
+        return Targets(wait, applyAndKeep)
+    }
 
     /**
      * Once the batch is filed: processes the events whose message has now landed, in the order
@@ -286,6 +307,11 @@ internal class KeptCopies(
     companion object {
         /** How [Kept.waitsFor] marks an event already applied to its message's note. */
         const val APPLIED = "applied:"
+
+        /** The [APPLIED] marks of events kept for these copies' messages, which go with them. */
+        internal fun appliedFor(copies: List<ByteArray>): List<String> = copies.mapNotNull { copy ->
+            SignalReceiver.decodeUnprocessed(copy)?.let { landsAs(it) }?.let { APPLIED + it }
+        }
 
         /** Tries in all, the first included. About five and a half hours from first to last. */
         const val MAX_ATTEMPTS = 6

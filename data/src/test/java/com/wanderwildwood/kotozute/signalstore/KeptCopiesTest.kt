@@ -470,10 +470,56 @@ class KeptCopiesTest {
     ))
 
     @Test
-    fun `only a kept message still being tried is waited for`() {
-        assertEquals(setOf(originalId), KeptCopies(waitingStore(), BUILD).waitingIds())
-        assertTrue(KeptCopies(waitingStore(KeptCopies.MAX_ATTEMPTS), BUILD).waitingIds().isEmpty())
-        assertTrue(KeptCopies(FakeStore(mutableListOf()), BUILD).waitingIds().isEmpty())
+    fun `what an arriving event does depends on where its message is`() {
+        // Still being tried: wait.
+        KeptCopies(waitingStore(), BUILD).targets().let {
+            assertEquals(setOf(originalId), it.wait)
+            assertTrue(it.applyAndKeep.isEmpty())
+        }
+        // Given up, note not written yet: still wait, so the note does not undo it.
+        val unnoted = waitingStore(KeptCopies.MAX_ATTEMPTS)
+        KeptCopies(unnoted, BUILD).targets().let {
+            assertEquals(setOf(originalId), it.wait)
+            assertTrue(it.applyAndKeep.isEmpty())
+        }
+        // Given up and noted: apply to the note now, and keep it for the message.
+        val noted = waitingStore(KeptCopies.MAX_ATTEMPTS).also { it.rows[0].noted = true }
+        KeptCopies(noted, BUILD).targets().let {
+            assertTrue(it.wait.isEmpty())
+            assertEquals(setOf(originalId), it.applyAndKeep)
+        }
+        // Nothing kept: nothing to check, which is the ordinary case.
+        assertTrue(KeptCopies(FakeStore(mutableListOf()), BUILD).targets().isEmpty())
+        // The events themselves are never targets.
+        assertTrue(KeptCopies(FakeStore(waitingStore().rows.drop(1).toMutableList()), BUILD).targets().isEmpty())
+    }
+
+    @Test
+    fun `a live event kept for a given-up message runs again if it lands, and goes when it is swept`() {
+        // As the receiver leaves it: applied to the note, kept as applied, never tried.
+        val store = waitingStore(KeptCopies.MAX_ATTEMPTS)
+        store.rows[0].apply { gaveUp = true; notes = 1; noted = true; build = BUILD }
+        store.rows.drop(1).forEach { it.waitsFor = KeptCopies.APPLIED + originalId }
+        val copies = KeptCopies(store, BUILD)
+        // While the message stays given up, nothing more.
+        copies.afterFiled(start) { _, _ -> error("applied again while still given up") }
+        // Swept with the message's copy: the marks the sweep deletes are exactly theirs.
+        assertEquals(listOf(KeptCopies.APPLIED + originalId), KeptCopies.appliedFor(listOf(store.rows[0].copy)))
+        assertTrue(KeptCopies.appliedFor(listOf(byteArrayOf(9, 9))).isEmpty())
+        // A later build lands it instead: then they run after it, in order, and the withdrawn
+        // message is not filed.
+        val message = ContentNormalizer.normalize(original, metadataFrom(theirs), self.toString(), null)
+        val seen = mutableListOf<String>()
+        val ok: (KeptCopies.Kept, SignalServiceCipherResult) -> KeptCopies.Outcome = { _, replay ->
+            seen += describe(replay)
+            KeptCopies.Outcome.Processed(theirs.toString(), if (describe(replay) == "message") message else null)
+        }
+        val update = KeptCopies(store, BUILD + 1)
+        update.run(start + 1, process = ok)
+        assertNull(store.rows[0].filed)
+        update.afterFiled(start + 1, process = ok)
+        assertEquals(listOf("message", "delete", "edit", "reaction"), seen)
+        assertTrue(store.rows.all { it.gone })
     }
 
     @Test

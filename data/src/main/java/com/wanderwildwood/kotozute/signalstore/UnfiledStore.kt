@@ -26,17 +26,27 @@ internal class UnfiledStore(private val db: ProtocolDatabase) {
     }
 
     /**
-     * Files [message] as [swap] does but keeps the envelope, marked as waiting for [waitsFor]:
-     * an event applied to a message's note that must be applied again if the message lands.
+     * Files [message] (if any) as [swap] does but keeps the envelope, marked as waiting for
+     * [waitsFor]: an event applied to a message's note that must be applied again if the
+     * message lands. With a [copy], that is written too -- an event that arrived live, which
+     * had none kept yet.
      */
-    fun keepBeside(envelopeId: Long, message: BridgeMessage, waitsFor: String) = withStoreLock(db) {
+    fun keepBeside(envelopeId: Long, message: BridgeMessage?, waitsFor: String, copy: ByteArray? = null) = withStoreLock(db) {
         val w = db.writableDatabase
         w.beginTransaction()
         try {
-            w.execSQL(
-                "INSERT OR REPLACE INTO unfiled (id, message, stored_timestamp) VALUES (?, ?, ?)",
-                arrayOf<Any?>(message.id, UnfiledMessage.encode(message), System.currentTimeMillis())
-            )
+            if (message != null) {
+                w.execSQL(
+                    "INSERT OR REPLACE INTO unfiled (id, message, stored_timestamp) VALUES (?, ?, ?)",
+                    arrayOf<Any?>(message.id, UnfiledMessage.encode(message), System.currentTimeMillis())
+                )
+            }
+            if (copy != null) {
+                w.execSQL(
+                    "UPDATE envelope SET unprocessed = ?, unprocessed_next_at = 0, retry_requested = 0 WHERE _id = ?",
+                    arrayOf<Any?>(copy, envelopeId)
+                )
+            }
             w.execSQL(
                 "UPDATE envelope SET unprocessed_waits_for = ?, unprocessed_attempts = 0 WHERE _id = ?",
                 arrayOf<Any?>(waitsFor, envelopeId)

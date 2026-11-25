@@ -136,9 +136,9 @@ internal class SignalReceiver(
             Timber.w("signal receive: filing %d message(s) decrypted before and never filed", messages.size)
         }
         // Once per batch. One query, and nothing more when nothing is kept.
-        waitingTargets = runCatching { keptCopies.waitingIds() }
+        liveTargets = runCatching { keptCopies.targets() }
             .onFailure { Timber.w(it, "signal receive: could not read the kept copies; nothing waits this batch") }
-            .getOrDefault(mutableSetOf())
+            .getOrDefault(KeptCopies.Targets(mutableSetOf(), emptySet()))
         pending().forEach { (id, envelope, serverDeliveredTimestamp, alreadyAsked) ->
             // Left where it is, to be read by the next batch on the new connection. Signal
             // breaks the batch at exactly this point and lets the server redeliver the rest;
@@ -224,7 +224,7 @@ internal class SignalReceiver(
                         lastUnprocessed?.let { copy ->
                             keepUnprocessed(id, copy)
                             // So what points at it later in this batch waits for it too.
-                            KeptCopies.landsAs(copy)?.let { waitingTargets += it }
+                            KeptCopies.landsAs(copy)?.let { liveTargets.wait += it }
                         }
                         recordFailure(id, why)
                         // So the next batch does not ask this person again for the same
@@ -236,7 +236,13 @@ internal class SignalReceiver(
                     decrypted++
                     senders += result.first
                     val message = result.second
-                    if (message == null) {
+                    val early = lastAppliedEarly
+                    if (early != null) {
+                        // Applied to a given-up message's note, and kept to be applied again
+                        // if that message lands after all. See [KeptCopies.Targets].
+                        message?.let { messages += it }
+                        unfiledStore.keepBeside(id, message, KeptCopies.APPLIED + early.second, encodeUnprocessed(early.first))
+                    } else if (message == null) {
                         delete(id)
                     } else {
                         // ⚠ Not a plain delete. The envelope is the last copy of this message
@@ -730,6 +736,17 @@ internal class SignalReceiver(
 
     private fun sweepUndecryptable() = withStoreLock(db) {
         val cutoff = System.currentTimeMillis() - UNDECRYPTABLE_RETENTION_MS
+        // What was applied to a given-up message's note and kept for that message goes with
+        // the message's copy: there is nothing left that could land and need it again.
+        db.readableDatabase.rawQuery(
+            "SELECT unprocessed FROM envelope WHERE stored_timestamp < ? AND unprocessed IS NOT NULL " +
+                "AND unprocessed_waits_for IS NULL",
+            arrayOf(cutoff.toString())
+        ).use { c -> generateSequence { if (c.moveToNext()) c.getBlob(0) else null }.toList() }
+            .let { KeptCopies.appliedFor(it) }
+            .forEach { mark ->
+                db.writableDatabase.execSQL("DELETE FROM envelope WHERE unprocessed_waits_for = ?", arrayOf<Any?>(mark))
+            }
         db.writableDatabase.execSQL(
             "DELETE FROM envelope WHERE stored_timestamp < ?", arrayOf<Any?>(cutoff)
         )
@@ -996,7 +1013,13 @@ internal class SignalReceiver(
      * The ids kept messages still being tried will land under, for this batch. Empty when
      * nothing is kept, which leaves [decrypt] exactly as it was.
      */
-    private var waitingTargets: MutableSet<String> = mutableSetOf()
+    private var liveTargets = KeptCopies.Targets(mutableSetOf(), emptySet())
+
+    /**
+     * What decrypted, was applied to a given-up message's note, and is to be kept for that
+     * message; and the message's id. Set by [decrypt]. See [KeptCopies.Targets].
+     */
+    private var lastAppliedEarly: Pair<org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult, String>? = null
 
     /** Set by [decrypt] when it asked the sender to send it again, so the row can remember. */
     private var askedForRetry: Boolean = false
@@ -1047,6 +1070,7 @@ internal class SignalReceiver(
         lastAskedAbout = null
         lastUnprocessed = null
         lastHeld = null
+        lastAppliedEarly = null
         val credentials = accounts.credentials()
         val aci = ServiceId.ACI.parseOrNull(credentials.aci) ?: return null
 
@@ -1235,10 +1259,13 @@ internal class SignalReceiver(
         val result = decrypted ?: return null
         // Pointing at a message that decrypted and is still waiting to be processed: applied
         // now it would find nothing and be lost, so it waits beside it. See [KeptCopies].
-        if (waitingTargets.isNotEmpty()) {
-            KeptCopies.targetOf(result.content, result.metadata)?.takeIf { it in waitingTargets }?.let { target ->
-                lastHeld = result to target
-                return null
+        if (!liveTargets.isEmpty()) {
+            KeptCopies.targetOf(result.content, result.metadata)?.let { target ->
+                if (target in liveTargets.wait) {
+                    lastHeld = result to target
+                    return null
+                }
+                if (target in liveTargets.applyAndKeep) lastAppliedEarly = result to target
             }
         }
         return processDecrypted(envelope, serverDeliveredTimestamp, result)

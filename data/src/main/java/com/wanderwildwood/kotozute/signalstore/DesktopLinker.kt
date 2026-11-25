@@ -6,7 +6,6 @@ import org.signal.core.models.AccountEntropyPool
 import org.signal.core.models.ServiceId
 import org.signal.core.models.backup.MediaRootBackupKey
 import org.signal.core.util.Base64
-import org.signal.libsignal.protocol.ecc.ECPublicKey
 import org.signal.libsignal.zkgroup.profiles.ProfileKey
 import org.signal.network.NetworkResult
 import timber.log.Timber
@@ -40,12 +39,13 @@ internal class DesktopLinker(
 
     fun isValid(link: String): Boolean = runCatching { parse(link) != null }.getOrDefault(false)
 
-    private fun parse(link: String): Pair<String, ECPublicKey>? {
+    private fun parse(link: String): Pair<String, org.signal.libsignal.provisioning.ProvisioningPublicKey>? {
         val uri = Uri.parse(link.trim())
         if (!uri.isHierarchical || uri.scheme != "sgnl" || uri.host != "linkdevice") return null
         val id = uri.getQueryParameter("uuid")?.takeIf { it.isNotBlank() } ?: return null
         val encoded = uri.getQueryParameter("pub_key")?.takeIf { it.isNotBlank() } ?: return null
-        val key = runCatching { ECPublicKey(Base64.decode(encoded)) }.getOrNull() ?: return null
+        // libsignal's own key type since upstream 07761fa0e1 (`LinkDeviceRepository.parsePublicKey`).
+        val key = runCatching { org.signal.libsignal.provisioning.ProvisioningPublicKey(Base64.decode(encoded)) }.getOrNull() ?: return null
         return id to key
     }
 
@@ -70,7 +70,7 @@ internal class DesktopLinker(
             is NetworkResult.ApplicationError -> return Outcome.Failed("application")
         }
 
-        val result = connection.linkDevice.linkDevice(
+        val result = try { connection.linkDevice.linkDevice(
             e164 = creds.e164,
             aci = aci,
             pni = pni,
@@ -85,7 +85,11 @@ internal class DesktopLinker(
             code = code.verificationCode,
             ephemeralMessageBackupKey = null,
             authCredentialSalt = accounts.authCredentialSalt()
-        )
+        ) } catch (e: org.signal.libsignal.protocol.InvalidKeyException) {
+            // Upstream's answer to the same throw: the code was not a usable key.
+            Timber.w(e, "signal link: the code's key could not be used")
+            return Outcome.BadCode
+        }
         return when (result) {
             is NetworkResult.Success -> Outcome.Linked
             is NetworkResult.StatusCodeError -> when (result.code) {

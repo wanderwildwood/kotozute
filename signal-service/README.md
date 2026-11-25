@@ -1,7 +1,7 @@
 # Signal's service layer, built from Signal's source
 
 Five modules, copied verbatim from [Signal-Android](https://github.com/signalapp/Signal-Android)
-at **`90a6ddce46` (2026-11-15, the commit of release tag `v8.36.2`)** and compiled here:
+at **`2dd5703875` (2026-11-24, the commit of release tag `v8.37.3`)** and compiled here:
 
 | here | upstream | what the app imports from it |
 |---|---|---|
@@ -126,6 +126,7 @@ RingRTC (2.74.0), OkHttp (5.3.2) and libphonenumber (9.0.41). Checksums in
 | 2026-09-16 | `b92917acdb` (2026-09-10) | first copy, six modules, replacing the prebuilt fork |
 | 2026-09-16 | `d555580a46` (2026-09-16) | re-vendored the same day, 75 commits on |
 | 2026-11-16 | `90a6ddce46` (2026-11-15, `v8.36.2`) | re-vendored, 54 commits on in these modules; five modules |
+| 2026-11-24 | `2dd5703875` (2026-11-24, `v8.37.3`) | re-copied, 3 commits on in these modules: libsignal 0.108.0 (c5ff562e2d, hand-ported 11-22, now byte-identical), a log-scrubber pattern (e8a6f2d81b), provisioning crypto delegated to libsignal (07761fa0e1). The six departures below unchanged upstream and kept. Signal's suite: 1,337 pass (libsignal-service 714, util-jvm 338, lib-network 251, network 34 with our SOCKS tests). |
 
 Between the second and third copies, single upstream fixes were ported by hand: thirteen whole
 files taken from later upstream commits and six files edited here. That stopped scaling — the

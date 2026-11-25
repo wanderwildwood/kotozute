@@ -8,7 +8,6 @@ import org.junit.Test
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.whispersystems.signalservice.internal.crypto.PrimaryProvisioningCipher
 import org.whispersystems.signalservice.internal.crypto.SecondaryProvisioningCipher
-import org.whispersystems.signalservice.internal.push.ProvisionEnvelope
 import org.whispersystems.signalservice.internal.push.ProvisionMessage
 import org.whispersystems.signalservice.internal.push.ProvisioningVersion
 
@@ -34,8 +33,7 @@ class ProvisioningSaltTest {
     private val salt = ByteArray(16) { (it + 1).toByte() }
 
     private fun roundTrip(authCredentialSalt: ByteString?): ProvisionMessage {
-        val secondary = SecondaryProvisioningCipher.generate(IdentityKeyPair.generate())
-        val primary = PrimaryProvisioningCipher(secondary.secondaryDevicePublicKey.publicKey)
+        val secondary = SecondaryProvisioningCipher.generate()
         val primaryIdentity = IdentityKeyPair.generate()
 
         val sent = ProvisionMessage(
@@ -47,8 +45,8 @@ class ProvisioningSaltTest {
             authCredentialSalt = authCredentialSalt
         )
 
-        val envelope = ProvisionEnvelope.ADAPTER.decode(primary.encrypt(sent))
-        val result = secondary.decrypt(envelope)
+        val envelope = PrimaryProvisioningCipher.encrypt(secondary.secondaryDevicePublicKey, sent)
+        val result = secondary.decryptProvisionEnvelope(envelope)
         return (result as SecondaryProvisioningCipher.ProvisioningDecryptResult.Success).message
     }
 

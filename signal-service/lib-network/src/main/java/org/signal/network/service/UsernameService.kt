@@ -10,10 +10,10 @@ import org.signal.core.util.censor
 import org.signal.core.util.logging.Log
 import org.signal.libsignal.net.BadRequestError
 import org.signal.libsignal.net.RequestResult
-import org.signal.libsignal.usernames.UsernameHash
 import org.signal.libsignal.net.RetryLaterException
 import org.signal.libsignal.usernames.BaseUsernameException
 import org.signal.libsignal.usernames.Username
+import org.signal.libsignal.usernames.UsernameHash
 import org.signal.network.api.AccountApiV2
 import org.whispersystems.signalservice.api.push.UsernameLinkComponents
 import org.whispersystems.signalservice.api.util.Usernames

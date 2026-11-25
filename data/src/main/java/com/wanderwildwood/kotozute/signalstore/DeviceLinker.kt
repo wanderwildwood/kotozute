@@ -95,11 +95,10 @@ class DeviceLinker internal constructor(
      * therefore held and closed once, at the end, and on cancellation.
      */
     suspend fun link(deviceName: String, onUrl: UrlListener): Result {
-        val provisioningKeys = IdentityKeyPair.generate()
         val password = generatePassword()
 
         val provision = try {
-            awaitProvisionMessage(provisioningKeys, onUrl)
+            awaitProvisionMessage(onUrl)
         } catch (t: Throwable) {
             return Result.Failed(
                 if (t is NobodyScanned) LinkFailure.NotScanned
@@ -135,7 +134,6 @@ class DeviceLinker internal constructor(
      * code expiring, which is the ordinary case and now says nothing at all.
      */
     private suspend fun awaitProvisionMessage(
-        provisioningKeys: IdentityKeyPair,
         onUrl: UrlListener
     ): ProvisionMessage? = suspendCancellableCoroutine { continuation ->
         // The socket resumes this from its own coroutine and the exception handler resumes it
@@ -177,7 +175,9 @@ class DeviceLinker internal constructor(
             val closeable = runCatching {
                 ProvisioningSocket.start<ProvisionMessage>(
                     ProvisioningSocket.Mode.Link(false),
-                    provisioningKeys,
+                    // No key of ours any more: since 07761fa0e1 each socket makes its own with
+                    // libsignal's `RecvProvisionCiphertextState`, as upstream's
+                    // `LinkDeviceRepository` and `AppRegistrationNetworkController` now do.
                     configuration,
                     { id, t ->
                         // Only when nothing is left to scan. An earlier socket timing out

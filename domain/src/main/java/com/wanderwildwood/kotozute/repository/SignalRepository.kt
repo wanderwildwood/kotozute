@@ -377,6 +377,15 @@ interface SignalRepository {
     /** Removes one of our own messages that did not go. Does nothing to one that did. */
     fun discardUnsent(messageId: String)
 
+    /**
+     * Answers Signal's proof-of-person challenge with a solved captcha ([challenge] from a
+     * [SendFailure.ProofRequired], [captcha] from the captcha page), then sends again every
+     * message the challenge stopped. Blocking.
+     *
+     * @return whether the server took the answer; when it did not, nothing is sent.
+     */
+    fun answerProof(challenge: String, captcha: String): Boolean
+
     /** A group's members by ACI, with the names to mention them by. Blocking. */
     fun mentionableNames(threadKey: String): Map<String, String>
 

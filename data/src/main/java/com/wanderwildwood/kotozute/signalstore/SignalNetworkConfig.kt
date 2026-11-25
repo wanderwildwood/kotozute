@@ -361,6 +361,18 @@ object SignalNetworkConfig {
     fun currentCaptchaUrl(): String = captchaUrl(environment)
 
     /**
+     * The captcha page that answers a proof-of-person challenge on a send: upstream's
+     * `RECAPTCHA_PROOF_URL`, a different page from registration's `SIGNAL_CAPTCHA_URL`.
+     */
+    fun proofCaptchaUrl(environment: Environment): String = when (environment) {
+        Environment.PRODUCTION -> "https://signalcaptchas.org/challenge/generate.html"
+        Environment.STAGING -> "https://signalcaptchas.org/staging/challenge/generate.html"
+    }
+
+    /** The proof captcha page for whatever [environment] says. */
+    fun currentProofCaptchaUrl(): String = proofCaptchaUrl(environment)
+
+    /**
      * The SVR2 enclaves a PIN's data may be held in, current first, then legacy -- the order
      * upstream's `SvrRepository.restoreMasterKeyPreRegistration` tries them, moving on only when
      * one has no data. Copied from upstream's `app/build.gradle.kts` (`SVR2_MRENCLAVE`,

@@ -283,6 +283,23 @@ class SignalStore(private val context: Context) {
             org.signal.libsignal.net.RequestResult.Success
     }
 
+    /**
+     * Answers the server's proof-of-person challenge with a solved captcha, as upstream's
+     * `RecaptchaProofActivity.handleToken` does: `RateLimitChallengeApi.submitCaptchaChallenge`
+     * with the challenge token the 428 carried and the token the captcha page gave back.
+     *
+     * @return whether the server took it. Neither token is logged.
+     */
+    fun submitProofCaptcha(challenge: String, captcha: String): Boolean {
+        connection.connect()
+        val result = org.signal.network.api.RateLimitChallengeApi(connection.authenticated)
+            .submitCaptchaChallenge(challenge, captcha)
+        if (result !is org.signal.network.NetworkResult.Success) {
+            Timber.w("signal proof: the server did not take the captcha (%s)", result::class.java.simpleName)
+        }
+        return result is org.signal.network.NetworkResult.Success
+    }
+
     private fun runPreKeys(maintenanceOnly: Boolean): String {
         connection.connect()
         return try {

@@ -63,13 +63,25 @@ class SignalRegisterActivity : QkThemedActivity() {
      */
     private var askedForACall = false
 
+    /**
+     * The server's proof-of-person challenge, when this screen was opened from a message Signal
+     * held up rather than to register. Then it is only the captcha: the same page and the same
+     * web view, answered with [SignalRepository.answerProof] instead of a registration step.
+     */
+    private val proofChallenge: String? by lazy { intent.getStringExtra(EXTRA_PROOF_CHALLENGE) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
         super.onCreate(savedInstanceState)
         binding = SignalRegisterActivityBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        title = getString(R.string.signal_register_title)
         showBackButton(true)
+        if (proofChallenge != null) {
+            title = getString(R.string.signal_proof_title)
+            startProof()
+            return
+        }
+        title = getString(R.string.signal_register_title)
 
         binding.send.setOnClickListener {
             askedForACall = false
@@ -329,7 +341,9 @@ class SignalRegisterActivity : QkThemedActivity() {
      * cannot turn this into a general browser pointed wherever a page fancies.
      */
     @Suppress("SetJavaScriptEnabled")
-    private fun showCaptcha() {
+    private fun showCaptcha(
+        url: String = com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.currentCaptchaUrl()
+    ) {
         // ⚠ **The step above has to go, or the captcha lands below the fold.**
         //
         // This screen is one scrolling column and the captcha sits under the number step, so
@@ -379,12 +393,39 @@ class SignalRegisterActivity : QkThemedActivity() {
         // ⚠ Follows the environment. A production captcha token is refused by staging and
         // the reverse is true too, and the refusal reads as "solve it again" -- which never
         // succeeds, however many times it is tried.
-        binding.captcha.loadUrl(
-            com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.currentCaptchaUrl()
-        )
+        binding.captcha.loadUrl(url)
+    }
+
+    /**
+     * Upstream's `RecaptchaProofActivity`: its own captcha page (`RECAPTCHA_PROOF_URL`), and the
+     * answer goes back with the challenge. Leaving without solving it changes nothing; the
+     * message stays not sent, with the tap still on it.
+     */
+    private fun startProof() {
+        binding.warning.setVisible(false)
+        binding.numberStep.setVisible(false)
+        if (com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.proxyOn()) {
+            binding.status.setText(R.string.signal_register_captcha_proxy)
+            return
+        }
+        binding.status.setText(R.string.signal_register_captcha)
+        showCaptcha(com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.currentProofCaptchaUrl())
+    }
+
+    private fun onProofSolved(challenge: String, token: String) {
+        binding.captcha.setVisible(false)
+        binding.status.setText(R.string.signal_register_working)
+        CoroutineScope(Dispatchers.IO).launch {
+            val taken = runCatching { signalRepo.answerProof(challenge, token) }.getOrDefault(false)
+            withContext(Dispatchers.Main) {
+                if (isFinishing || isDestroyed) return@withContext
+                if (taken) finish() else binding.status.setText(R.string.signal_proof_failed)
+            }
+        }
     }
 
     private fun onCaptchaSolved(token: String) {
+        proofChallenge?.let { onProofSolved(it, token); return }
         val id = sessionId ?: return
         binding.captcha.setVisible(false)
         // The token is single-use and short-lived, and it is not ours to keep: it goes
@@ -401,6 +442,12 @@ class SignalRegisterActivity : QkThemedActivity() {
         private const val CAPTCHA_HOST = "signalcaptchas.org"
         private const val CAPTCHA_SCHEME = "signalcaptcha://"
 
+        private const val EXTRA_PROOF_CHALLENGE = "proofChallenge"
+
         fun intent(context: Context) = Intent(context, SignalRegisterActivity::class.java)
+
+        /** Only the captcha, answering the proof-of-person [challenge] a send was refused with. */
+        fun proofIntent(context: Context, challenge: String) =
+            intent(context).putExtra(EXTRA_PROOF_CHALLENGE, challenge)
     }
 }

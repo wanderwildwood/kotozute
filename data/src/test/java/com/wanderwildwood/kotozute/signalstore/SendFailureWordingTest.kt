@@ -3,6 +3,7 @@ package com.wanderwildwood.kotozute.signalstore
 import com.wanderwildwood.kotozute.repository.SendFailure
 import com.wanderwildwood.kotozute.repository.SendRefused
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException
 import org.whispersystems.signalservice.api.push.exceptions.DeprecatedVersionException
@@ -26,23 +27,56 @@ import java.util.Optional
  */
 class SendFailureWordingTest {
 
-    private fun proofRequired(retryAfterSeconds: Long): ProofRequiredException {
+    private fun proofRequired(
+        retryAfterSeconds: Long,
+        options: List<String> = listOf("captcha")
+    ): ProofRequiredException {
         // ⚠ Constructed, not mutated. Upstream turned `ProofRequiredResponse` from a Java bean
         // into a Kotlin `data class` with `val`s, so the `apply { token = ... }` this used to do
         // no longer compiles. Caught by this test the moment the service layer was re-vendored,
         // which is the whole reason the copy is in the tree rather than resolved as a jar.
-        val response = ProofRequiredResponse(token = "a-token", options = listOf("captcha"))
+        val response = ProofRequiredResponse(token = "a-token", options = options)
         return ProofRequiredException(response, retryAfterSeconds)
     }
 
     @Test
     fun `being asked to prove it is a person is its own kind`() {
-        assertEquals(SendFailure.ProofRequired(0), SignalSender.explain(proofRequired(0)))
+        assertEquals(SendFailure.ProofRequired(0, "a-token"), SignalSender.explain(proofRequired(0)))
     }
 
     @Test
     fun `a retry-after is passed on when the server gave one`() {
-        assertEquals(SendFailure.ProofRequired(600), SignalSender.explain(proofRequired(600)))
+        assertEquals(SendFailure.ProofRequired(600, "a-token"), SignalSender.explain(proofRequired(600)))
+    }
+
+    // -- the challenge: kept when a captcha can answer it, and only on a primary --------------
+
+    @Test
+    fun `a 428 offering a captcha keeps the challenge token`() {
+        val f = SignalSender.explain(proofRequired(0, listOf("pushChallenge", "captcha")))
+        assertEquals("a-token", (f as SendFailure.ProofRequired).challenge)
+    }
+
+    @Test
+    fun `a 428 offering only a push challenge keeps no token, since this phone has no push`() {
+        assertEquals(
+            SendFailure.ProofRequired(0, null),
+            SignalSender.explain(proofRequired(0, listOf("pushChallenge")))
+        )
+    }
+
+    @Test
+    fun `the token stays on the account's own primary and goes on a linked device`() {
+        val kept = SendFailure.ProofRequired(30, "a-token")
+        assertEquals(kept, SignalSender.forDevice(kept, primary = true))
+        assertEquals(SendFailure.ProofRequired(30, null), SignalSender.forDevice(kept, primary = false))
+    }
+
+    @Test
+    fun `the token is never in the failure's log text`() {
+        val f = SendFailure.ProofRequired(30, "a-token")
+        assertFalse(f.toString().contains("a-token"))
+        assertFalse(SendRefused(f).message.orEmpty().contains("a-token"))
     }
 
     @Test

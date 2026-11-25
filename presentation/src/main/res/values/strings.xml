@@ -435,6 +435,9 @@
     <string name="signal_register_call_instead">Call me with the code instead</string>
     <string name="signal_register_working">Working…</string>
     <string name="signal_register_captcha">Signal wants a puzzle solved first.</string>
+    <!-- The captcha screen opened from a message Signal held up until this phone proves it is a person -->
+    <string name="signal_proof_title">Prove you are a person</string>
+    <string name="signal_proof_failed">Signal did not take the answer, so nothing was sent. Go back and tap the message to try again.</string>
     <string name="signal_register_captcha_proxy">Signal wants a puzzle solved first, and the puzzle is a web page that cannot go through the SOCKS proxy. Turn the proxy off in Settings to solve it, or try again later.</string>
     <string name="signal_register_code_sent">Code sent by text. It can take a minute.</string>
     <string name="signal_register_calling">Calling you with the code. Answer and write it down.</string>
@@ -1349,6 +1352,8 @@
          is the person's name as this phone holds it, or signal_send_them where it holds only
          an id. -->
     <string name="signal_send_proof_required">Signal has asked this account to prove it is a person before it will take more messages. That has to be answered in Signal on your other phone. Nothing was sent.%1$s</string>
+    <!-- The same, on a phone registered as the account's own, which can answer it itself -->
+    <string name="signal_send_proof_here">Signal wants this phone to prove it is a person. Tap to answer, then the message is sent again.</string>
     <string name="signal_send_rate_limited">Signal is limiting how fast this account can send. Nothing was sent.%1$s</string>
     <string name="signal_send_unlinked">This phone is no longer linked to Signal. Link it again to send.</string>
     <string name="signal_send_unregistered">Signal has signed this phone out, most likely because your number was registered on another phone. Register it here again to send.</string>

@@ -15,8 +15,18 @@ package com.wanderwildwood.kotozute.repository
  */
 sealed interface SendFailure {
 
-    /** The server wants the account to prove it is a person (a 428). */
-    data class ProofRequired(val retryAfterSeconds: Long) : SendFailure
+    /**
+     * The server wants the account to prove it is a person (a 428).
+     *
+     * [challenge] is the server's token for it, kept only where this phone may answer it
+     * itself: the server offered a captcha and this phone is the account's own primary, not a
+     * linked device. Upstream keeps the same token (`SignalStore.rateLimit.markNeedsRecaptcha`)
+     * and sends it back with the solved captcha. Left out of [toString], which reaches logs.
+     */
+    data class ProofRequired(val retryAfterSeconds: Long, val challenge: String? = null) : SendFailure {
+        override fun toString(): String =
+            "ProofRequired(retryAfterSeconds=$retryAfterSeconds, answerable=${challenge != null})"
+    }
 
     /** The server is limiting how fast this account sends, as a thrown refusal. */
     data class RateLimited(val retryAfterSeconds: Long) : SendFailure

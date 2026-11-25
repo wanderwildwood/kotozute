@@ -5,7 +5,8 @@ package com.wanderwildwood.kotozute.repository
  *
  * The kind is stored rather than the sentence, so the reason reads in whatever language the
  * screen is in when it is drawn, not the one it was in when the send failed. One line: the
- * kind's name, then a newline and the one value it carries, if any.
+ * kind's name, then a newline and the one value it carries, if any (a proof-required
+ * failure carries two: the wait, and the challenge where one was kept).
  *
  * Anything that will not decode -- a kind a later build added, then a downgrade -- reads as no
  * reason, and the message still says it was not sent.
@@ -23,7 +24,8 @@ object SendFailureCodec {
     }
 
     fun encode(f: SendFailure): String = when (f) {
-        is SendFailure.ProofRequired -> "ProofRequired$SEP${f.retryAfterSeconds}"
+        is SendFailure.ProofRequired ->
+            "ProofRequired$SEP${f.retryAfterSeconds}" + (f.challenge?.let { "$SEP$it" } ?: "")
         is SendFailure.RateLimited -> "RateLimited$SEP${f.retryAfterSeconds}"
         SendFailure.Unlinked -> "Unlinked"
         SendFailure.Unregistered -> "Unregistered"
@@ -62,7 +64,10 @@ object SendFailureCodec {
         val kind = stored.substringBefore(SEP)
         val value: String? = if (SEP in stored) stored.substringAfter(SEP) else null
         return when (kind) {
-            "ProofRequired" -> value?.toLongOrNull()?.let { SendFailure.ProofRequired(it) }
+            // The wait, then the challenge where one was kept.
+            "ProofRequired" -> value?.substringBefore(SEP)?.toLongOrNull()?.let {
+                SendFailure.ProofRequired(it, value.substringAfter(SEP, "").ifEmpty { null })
+            }
             "RateLimited" -> value?.toLongOrNull()?.let { SendFailure.RateLimited(it) }
             "Unlinked" -> SendFailure.Unlinked
             "Unregistered" -> SendFailure.Unregistered

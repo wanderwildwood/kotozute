@@ -46,6 +46,19 @@ class SignalWordingTest {
     }
 
     @Test
+    fun `on the account's own primary the challenge is offered here, not on another phone`() {
+        // The sender keeps the challenge only on a primary offered a captcha.
+        val primary = send(SendFailure.ProofRequired(600, "a-challenge"))
+        assertEquals(
+            "Signal wants this phone to prove it is a person. Tap to answer, then the message is sent again.",
+            primary
+        )
+        assertFalse(primary.contains("other phone"))
+        // A linked device keeps today's words.
+        assertTrue(send(SendFailure.ProofRequired(600)).contains("your other phone"))
+    }
+
+    @Test
     fun `a retry-after is passed on when the server gave one`() {
         assertTrue(send(SendFailure.ProofRequired(600)).endsWith("Nothing was sent. Try again in about 10 minutes."))
         // And is silent when it did not. An invented interval is worse than none.

@@ -1402,9 +1402,13 @@ internal class SignalSender(
         result.rateLimitFailure != null -> SendFailure.TooFast(
             result.rateLimitFailure?.retryAfterMilliseconds?.orElse(null)?.takeIf { it > 0 }
         )
-        // 428. The server wants the app to prove it is a person, and this build has no way to
-        // answer -- upstream opens a captcha. Said as the wall it is, rather than as jargon.
-        result.proofRequiredFailure != null -> SendFailure.ProofNeeded
+        // 428. The server wants the app to prove it is a person. A primary offered a captcha
+        // keeps the challenge, so the failed message can open one (upstream's
+        // `ProofRequiredExceptionHandler`); anywhere else it is said as the wall it is.
+        result.proofRequiredFailure != null ->
+            forThisPhone(proofOf(result.proofRequiredFailure!!))
+                .takeIf { it is SendFailure.ProofRequired && it.challenge != null }
+                ?: SendFailure.ProofNeeded
         else -> SendFailure.ServerSilent
     }
 
@@ -1442,6 +1446,12 @@ internal class SignalSender(
     private fun sharesProfileWith(recipient: ServiceId): Boolean =
         sharesProfile { contacts.isWhitelisted(recipient.toString()) }
 
+    private fun isPrimary(): Boolean =
+        runCatching { credentials.deviceId == SignalSessionStore.PRIMARY_DEVICE_ID }.getOrDefault(false)
+
+    /** A failure as it applies to this phone; see [forDevice]. */
+    private fun forThisPhone(f: SendFailure): SendFailure = forDevice(f, isPrimary())
+
     /**
      * What a *thrown* failure means, the way [failed] does for a returned one.
      *
@@ -1464,12 +1474,6 @@ internal class SignalSender(
      * `destination`, built from `recipient.getIdentifier()` -- a service id. Reading it as a
      * phone number would look right and mark nobody.
      */
-    /** [SendFailure.Unlinked] on the account's own primary is [SendFailure.Unregistered] (t/15210). */
-    private fun forThisPhone(f: SendFailure): SendFailure =
-        if (f == SendFailure.Unlinked && runCatching { credentials.deviceId == SignalSessionStore.PRIMARY_DEVICE_ID }.getOrDefault(false)) {
-            SendFailure.Unregistered
-        } else f
-
     private fun failed(t: Throwable): Result.Failed {
         if (t !is org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserException) {
             return Result.Failed(forThisPhone(explain(t)), network = isNetwork(t))
@@ -2332,12 +2336,12 @@ internal class SignalSender(
          * a bare failure invites.
          *
          * The one that matters most is `ProofRequiredException` -- a 428, the server asking the
-         * *account* to prove it is a person before it will take more messages. It cannot be
-         * answered from here: upstream's `ProofRequiredExceptionHandler` either solves a push
-         * challenge over FCM, which this phone has no part in, or raises a captcha, which is a
-         * whole screen this app does not have. So what is ported is the sentence, not the
-         * handler -- and its wording names where the challenge *can* be answered rather than
-         * pretending this phone can do it.
+         * *account* to prove it is a person before it will take more messages. Upstream's
+         * `ProofRequiredExceptionHandler` either solves a push challenge over FCM, which this
+         * phone has no part in, or keeps the challenge token and raises a captcha
+         * (`RecaptchaProofActivity`). The token is kept here when the server offers a captcha;
+         * [forDevice] drops it again on a linked device, whose wording sends the person to the
+         * primary, and keeps it on a primary, which has no other phone to answer on.
          *
          * A kind, not a sentence: `SignalWording` in the presentation module words it, in the
          * reader's language. The unlinked and deprecated wordings deliberately match
@@ -2349,8 +2353,7 @@ internal class SignalSender(
             // Already decided, by the gate in front of the sender; see [sender].
             is SendRefused -> t.failure
 
-            is org.whispersystems.signalservice.api.push.exceptions.ProofRequiredException ->
-                SendFailure.ProofRequired(t.retryAfterSeconds)
+            is org.whispersystems.signalservice.api.push.exceptions.ProofRequiredException -> proofOf(t)
 
             is org.whispersystems.signalservice.api.push.exceptions.RateLimitException ->
                 SendFailure.RateLimited(t.retryAfterMilliseconds.orElse(0L) / 1000)
@@ -2380,6 +2383,34 @@ internal class SignalSender(
                 SendFailure.SafetyNumberChanged(null)
 
             else -> SendFailure.Unexplained(t.message ?: t::class.java.simpleName)
+        }
+
+        /**
+         * A 428 as a [SendFailure.ProofRequired], with the server's challenge token kept where
+         * the server will take a captcha for it -- the option upstream answers with
+         * `RecaptchaProofActivity`. A push challenge alone is not answerable here (no FCM).
+         */
+        internal fun proofOf(
+            t: org.whispersystems.signalservice.api.push.exceptions.ProofRequiredException
+        ): SendFailure.ProofRequired = SendFailure.ProofRequired(
+            t.retryAfterSeconds,
+            t.token?.takeIf {
+                it.isNotBlank() &&
+                    org.whispersystems.signalservice.api.push.exceptions.ProofRequiredException.Option.CAPTCHA in t.options
+            }
+        )
+
+        /**
+         * A failure as it applies to this phone, [primary] or linked.
+         *
+         * [SendFailure.Unlinked] on the account's own primary is [SendFailure.Unregistered]
+         * (t/15210). A proof challenge is kept only on a primary: a linked device is told to
+         * answer it on the primary, as before.
+         */
+        internal fun forDevice(f: SendFailure, primary: Boolean): SendFailure = when {
+            f == SendFailure.Unlinked && primary -> SendFailure.Unregistered
+            f is SendFailure.ProofRequired && f.challenge != null && !primary -> f.copy(challenge = null)
+            else -> f
         }
 
         /**

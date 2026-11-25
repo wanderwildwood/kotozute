@@ -17,6 +17,7 @@ class SendFailureCodecTest {
      */
     private val every: List<SendFailure> = listOf(
         SendFailure.ProofRequired(30),
+        SendFailure.ProofRequired(30, "a-challenge"),
         SendFailure.RateLimited(3600),
         SendFailure.Unlinked,
         SendFailure.Unregistered,
@@ -52,6 +53,11 @@ class SendFailureCodecTest {
         SendFailure.NotSetUp,
         SendFailure.SignalOff,
     )
+
+    @Test
+    fun `a proof failure stored before the challenge was kept still reads`() {
+        assertEquals(SendFailure.ProofRequired(600), SendFailureCodec.decode("ProofRequired\n600"))
+    }
 
     @Test
     fun `every kind comes back as itself`() {

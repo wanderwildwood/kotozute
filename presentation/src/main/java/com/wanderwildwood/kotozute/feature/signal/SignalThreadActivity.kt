@@ -3034,15 +3034,24 @@ class SignalThreadActivity : QkThemedActivity() {
                     // Why, where the send said: on a phone with no working account this is the
                     // only lasting place that says so. A reason this build cannot read is left
                     // out rather than guessed.
-                    val why = com.wanderwildwood.kotozute.repository.SendFailureCodec.decode(m.sendFailure)
-                        ?.let { say(SignalWording.send(it)) }
+                    val reason = com.wanderwildwood.kotozute.repository.SendFailureCodec.decode(m.sendFailure)
+                    val why = reason?.let { say(SignalWording.send(it)) }
                     if (why.isNullOrBlank()) {
                         b.status.setText(R.string.signal_message_not_sent)
                     } else {
                         b.status.text = getString(R.string.signal_message_not_sent_because, why)
                     }
                     val unsentId = m.id
-                    b.status.setOnClickListener { sendAgain(unsentId) }
+                    // Signal wants this phone, the account's own, to prove it is a person: the
+                    // tap opens the captcha, and answering it sends this message again.
+                    val challenge = (reason as? com.wanderwildwood.kotozute.repository.SendFailure.ProofRequired)?.challenge
+                    if (challenge != null) {
+                        b.status.setOnClickListener {
+                            startActivity(SignalRegisterActivity.proofIntent(this@SignalThreadActivity, challenge))
+                        }
+                    } else {
+                        b.status.setOnClickListener { sendAgain(unsentId) }
+                    }
                 }
                 else -> {
                     // "Edited" as Signal marks it, on either side: somebody reading a changed

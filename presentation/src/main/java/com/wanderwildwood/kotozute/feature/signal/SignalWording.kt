@@ -88,8 +88,12 @@ object SignalWording {
 
     /** Why a send did not happen. */
     fun send(failure: SendFailure): Words = when (failure) {
-        is SendFailure.ProofRequired ->
+        // A challenge is kept only on the account's own primary, which can answer it here.
+        is SendFailure.ProofRequired -> if (failure.challenge != null) {
+            Words.Res(R.string.signal_send_proof_here)
+        } else {
             Words.Res(R.string.signal_send_proof_required, listOf(afterWards(failure.retryAfterSeconds)))
+        }
         is SendFailure.RateLimited ->
             Words.Res(R.string.signal_send_rate_limited, listOf(afterWards(failure.retryAfterSeconds)))
         SendFailure.Unlinked -> Words.Res(R.string.signal_send_unlinked)

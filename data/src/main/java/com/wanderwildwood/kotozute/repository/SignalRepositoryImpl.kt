@@ -2167,6 +2167,26 @@ class SignalRepositoryImpl @Inject constructor(
         return sendDirect(m.threadKey, body, attachments, quoteFor(m.threadKey, m.quoteTs), resending = m.date, stylesJson = m.styles, viewOnce = m.viewOnce)
     }
 
+    override fun answerProof(challenge: String, captcha: String): Boolean =
+        com.wanderwildwood.kotozute.signalstore.ProofAnswer.answer(
+            challenge,
+            captcha,
+            submit = { c, t -> runCatching { signalStore.submitProofCaptcha(c, t) }.getOrDefault(false) },
+            unsent = {
+                Realm.getDefaultInstance().use { realm ->
+                    realm.where(SignalMessage::class.java)
+                        .equalTo("outgoing", true)
+                        .equalTo("sendState", SignalMessage.SEND_FAILED)
+                        .findAll()
+                        .map { it.id to it.sendFailure }
+                }
+            },
+            resend = { id ->
+                runCatching { resend(id) }
+                    .onFailure { Timber.w("signal proof: a held-up message did not go again (%s)", it::class.java.simpleName) }
+            }
+        )
+
     /**
      * Sends again whatever a previous process left on its way out.
      *

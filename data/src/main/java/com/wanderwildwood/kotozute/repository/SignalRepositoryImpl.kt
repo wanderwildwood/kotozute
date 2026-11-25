@@ -3039,6 +3039,15 @@ class SignalRepositoryImpl @Inject constructor(
             return false
         }
 
+        // ⚠ Nor does an older version of it take back text an edit has set. Without this the
+        // original, arriving after its edit, rewrote the row with what the edit replaced.
+        if (existing != null &&
+            com.wanderwildwood.kotozute.signalstore.ContentNormalizer.keepsLaterEdit(existing.revisionTs, m.revisionTs)
+        ) {
+            Timber.i("signal: an older version of an edited message arrived after the edit; kept the edit")
+            return false
+        }
+
         // ⚠ A view-once message is never edited, and an edit never decides what is view-once
         // (upstream 3cf0efa904, "Ignore the view-once flag on incoming message edits"). An edit
         // brings its own flag and its own attachments: taken as they came, an edit of a spent

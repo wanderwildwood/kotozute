@@ -252,7 +252,10 @@ internal object ProtocolStoreSchema {
           -- What it decrypted to, when it decrypted and then could not be processed. The
           -- ciphertext cannot be decrypted twice, so this is what a later pass works from.
           -- See v43 and SignalReceiver.processDecrypted.
-          unprocessed BLOB
+          unprocessed BLOB,
+          -- How many times it has been processed and failed, and when to try next. See KeptCopies.
+          unprocessed_attempts INTEGER NOT NULL DEFAULT 0,
+          unprocessed_next_at INTEGER NOT NULL DEFAULT 0
         ) STRICT;
     """
 
@@ -1026,17 +1029,22 @@ internal object ProtocolStoreSchema {
          * marks the address book again, and the storage record answers for the rest meanwhile.
          */
         /**
+         * What an envelope decrypted to, kept when processing it then threw, and how often it
+         * has been tried since. Upstream rolls the session back in the same transaction and
+         * processes again; this store's messages are in Realm, so the decrypted content is kept
+         * instead. See SignalReceiver.processDecrypted and [KeptCopies].
+         */
+        43 to listOf(
+            "ALTER TABLE envelope ADD COLUMN unprocessed BLOB;",
+            "ALTER TABLE envelope ADD COLUMN unprocessed_attempts INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE envelope ADD COLUMN unprocessed_next_at INTEGER NOT NULL DEFAULT 0;"
+        ),
+
+        /**
          * The media root backup key, moved in from a plain preferences file. The column only;
          * the value is carried over by [MediaRootKeyMove], which needs the old file and so
          * cannot be SQL.
          */
-        /**
-         * What an envelope decrypted to, kept when processing it then threw. Upstream rolls the
-         * session back in the same transaction and processes again; this store's messages are
-         * in Realm, so the decrypted content is kept instead. See SignalReceiver.processDecrypted.
-         */
-        43 to listOf("ALTER TABLE envelope ADD COLUMN unprocessed BLOB;"),
-
         42 to listOf("ALTER TABLE account_keys ADD COLUMN media_root_key BLOB;"),
 
         41 to listOf("ALTER TABLE recipient ADD COLUMN system_contact INTEGER NOT NULL DEFAULT 0;"),

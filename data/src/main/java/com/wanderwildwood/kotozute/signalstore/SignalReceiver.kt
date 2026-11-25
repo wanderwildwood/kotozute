@@ -133,7 +133,7 @@ internal class SignalReceiver(
         if (messages.isNotEmpty()) {
             Timber.w("signal receive: filing %d message(s) decrypted before and never filed", messages.size)
         }
-        pending().forEach { (id, envelope, serverDeliveredTimestamp, alreadyAsked, unprocessed) ->
+        pending().forEach { (id, envelope, serverDeliveredTimestamp, alreadyAsked) ->
             // Left where it is, to be read by the next batch on the new connection. Signal
             // breaks the batch at exactly this point and lets the server redeliver the rest;
             // here the envelopes are already on disk, so leaving the row alone is the same
@@ -190,15 +190,9 @@ internal class SignalReceiver(
             // On the envelope's type and before decryption, which is where Signal does it:
             // `MessageDecryptor` adds a `PreKeysSyncJob` follow-up on
             // `envelope.type == PREKEY_MESSAGE` whatever the decryption then does.
-            // Decrypted by an earlier pass and then not processed: processed again from the
-            // copy, never decrypted a second time. See [processDecrypted].
-            val result = if (unprocessed != null) {
-                reprocess(envelope, serverDeliveredTimestamp, unprocessed)
-            } else {
-                if (envelope.type == Envelope.Type.PREKEY_MESSAGE) usedAPreKey = true
-                decrypt(envelope, serverDeliveredTimestamp, alreadyAsked)
-            }
-            when (result) {
+            if (envelope.type == Envelope.Type.PREKEY_MESSAGE) usedAPreKey = true
+
+            when (val result = decrypt(envelope, serverDeliveredTimestamp, alreadyAsked)) {
                 // Kept, not deleted. The envelope was acknowledged on the way past -- the
                 // server has forgotten it and will never send it again -- so deleting a row
                 // we failed to decrypt destroys the message permanently. A decryption that
@@ -214,7 +208,7 @@ internal class SignalReceiver(
                     } else {
                         failed++
                         // Before the failure, so a row that says why is never without the copy
-                        // that lets it be processed again.
+                        // that lets it be processed again. From here on it is [KeptCopies]'s.
                         lastUnprocessed?.let { keepUnprocessed(id, it) }
                         recordFailure(id, why)
                         // So the next batch does not ask this person again for the same
@@ -239,6 +233,27 @@ internal class SignalReceiver(
                 }
             }
         }
+        // What an earlier pass decrypted and could not process, tried again from its copy, on
+        // its own schedule. Not after an identity change: like the envelopes above, it waits
+        // for the new connection.
+        if (!identityChangedMidBatch) {
+            keptCopies.run(System.currentTimeMillis()) { kept, replay ->
+                lastFailure = null
+                lastUnprocessed = null
+                val result = processDecrypted(kept.envelope, kept.deliveredAt, replay)
+                if (lastFailure != null) {
+                    failed++
+                    KeptCopies.Outcome.Failed
+                } else {
+                    KeptCopies.Outcome.Processed(replay.metadata.sourceServiceId.toString(), result?.second)
+                }
+            }.forEach { done ->
+                decrypted++
+                senders += done.sender
+                done.message?.let { messages += it }
+            }
+        }
+
         // Filed in one transaction after the whole batch, not one at a time. The rail
         // announces what it stored, and a notification per message would be a notification
         // per message on a device catching up after a day offline.
@@ -432,14 +447,14 @@ internal class SignalReceiver(
         val id: Long,
         val envelope: Envelope,
         val deliveredAt: Long,
-        val alreadyAsked: Boolean,
-        /** What an earlier pass decrypted and could not process; see [processDecrypted]. */
-        val unprocessed: ByteArray?
+        val alreadyAsked: Boolean
     )
 
     private fun pending(): List<Stored> = withStoreLock(db) {
         db.readableDatabase.rawQuery(
-            "SELECT _id, serialized, server_delivered_timestamp, retry_requested, unprocessed FROM envelope ORDER BY _id",
+            // A kept copy is never decrypted again; [KeptCopies] has those.
+            "SELECT _id, serialized, server_delivered_timestamp, retry_requested FROM envelope " +
+                "WHERE unprocessed IS NULL ORDER BY _id",
             null
         ).use { c ->
             generateSequence {
@@ -448,8 +463,7 @@ internal class SignalReceiver(
                         c.getLong(0),
                         Envelope.ADAPTER.decode(c.getBlob(1)),
                         c.getLong(2),
-                        c.getInt(3) != 0,
-                        if (c.isNull(4)) null else c.getBlob(4)
+                        c.getInt(3) != 0
                     )
                 } else {
                     null
@@ -665,7 +679,8 @@ internal class SignalReceiver(
         // it sits in the connection line for the whole retention window, reporting a problem
         // that was never one.
         db.writableDatabase.execSQL(
-            "DELETE FROM envelope WHERE failure LIKE '%DuplicateMessage%'"
+            // Never a kept copy: that decrypted, and its failure is its processing's.
+            "DELETE FROM envelope WHERE failure LIKE '%DuplicateMessage%' AND unprocessed IS NULL"
         )
         db.readableDatabase.rawQuery("SELECT count(*) FROM envelope", null).use { c ->
             val stuck = if (c.moveToFirst()) c.getInt(0) else 0
@@ -679,10 +694,63 @@ internal class SignalReceiver(
         decrypted: org.whispersystems.signalservice.api.crypto.SignalServiceCipherResult
     ) = withStoreLock(db) {
         db.writableDatabase.execSQL(
-            "UPDATE envelope SET unprocessed = ? WHERE _id = ?",
-            arrayOf<Any?>(encodeUnprocessed(decrypted), id)
+            "UPDATE envelope SET unprocessed = ?, unprocessed_attempts = 1, unprocessed_next_at = ? WHERE _id = ?",
+            arrayOf<Any?>(encodeUnprocessed(decrypted), System.currentTimeMillis() + KeptCopies.backoff(1), id)
         )
     }
+
+    /** The envelope table's kept copies, for [KeptCopies]. */
+    private val keptCopies = KeptCopies(object : KeptCopies.Store {
+        override fun due(now: Long): List<KeptCopies.Kept> = withStoreLock(db) {
+            db.readableDatabase.rawQuery(
+                "SELECT _id, serialized, server_delivered_timestamp, unprocessed, unprocessed_attempts " +
+                    "FROM envelope WHERE unprocessed IS NOT NULL AND unprocessed_attempts < ? " +
+                    "AND unprocessed_next_at <= ? ORDER BY _id",
+                arrayOf(KeptCopies.MAX_ATTEMPTS.toString(), now.toString())
+            ).use { c ->
+                generateSequence {
+                    if (c.moveToNext()) {
+                        KeptCopies.Kept(
+                            c.getLong(0), Envelope.ADAPTER.decode(c.getBlob(1)), c.getLong(2),
+                            c.getBlob(3), c.getInt(4)
+                        )
+                    } else {
+                        null
+                    }
+                }.toList()
+            }
+        }
+
+        override fun processed(id: Long, message: com.wanderwildwood.kotozute.signal.BridgeMessage?) {
+            // As for a fresh envelope: the message takes the envelope's place in one step.
+            if (message == null) delete(id) else unfiledStore.swap(id, message)
+        }
+
+        override fun failedAgain(id: Long, attempts: Int, nextAt: Long) = withStoreLock(db) {
+            db.writableDatabase.execSQL(
+                "UPDATE envelope SET unprocessed_attempts = ?, unprocessed_next_at = ? WHERE _id = ?",
+                arrayOf<Any?>(attempts, nextAt, id)
+            )
+        }
+
+        // ⚠ Surfaced the way a message that never decrypted is: [announceGivenUpEnvelopes]
+        // reads exactly these columns, an hour after the envelope was stored, and leaves a note
+        // where the message should be. The copy itself stays until the sweep.
+        override fun gaveUp(id: Long, attempts: Int, note: KeptCopies.Note?) = withStoreLock(db) {
+            if (note == null) {
+                db.writableDatabase.execSQL(
+                    "UPDATE envelope SET unprocessed_attempts = ? WHERE _id = ?",
+                    arrayOf<Any?>(attempts, id)
+                )
+            } else {
+                db.writableDatabase.execSQL(
+                    "UPDATE envelope SET unprocessed_attempts = ?, retry_requested = 1, retry_sender = ?, " +
+                        "retry_device = ?, retry_group = ? WHERE _id = ?",
+                    arrayOf<Any?>(attempts, note.sender, note.deviceId, note.groupId, id)
+                )
+            }
+        }
+    })
 
     private fun recordFailure(id: Long, reason: String) = withStoreLock(db) {
         db.writableDatabase.execSQL(
@@ -1010,13 +1078,16 @@ internal class SignalReceiver(
      * The session is not archived, nobody is asked to resend, and the envelope is not left to
      * be decrypted again (it cannot be: the ratchet has moved, and a second attempt comes back
      * as a duplicate, which is dropped as routine). What was decrypted is kept beside the
-     * envelope instead, as [lastUnprocessed], and the next pass runs it through here again --
+     * envelope instead, as [lastUnprocessed], and [KeptCopies] runs it through here again --
      * upstream's rollback-and-redo, by the only route open to a store whose messages are not
-     * in the same database as its sessions. Kept for the same fortnight as an undecryptable
-     * envelope, and counted and named in the connection line the same way, so it is seen.
+     * in the same database as its sessions. Its first reason is counted and named in the
+     * connection line like an undecryptable envelope's. It is tried a bounded number of times,
+     * backing off, and then given up with a note where the message should be -- the same note
+     * a message that never decrypted gets -- and swept with the rest after a fortnight.
      *
-     * Not undone: whatever the failed pass had already applied before the throw -- a receipt,
-     * a profile key -- is applied again on the next. Each of those is idempotent here.
+     * Not undone: events the failed pass had already applied before the throw -- a receipt, a
+     * read -- are applied again on the next, and each is idempotent here. State that would
+     * overwrite something newer is not reprocessed at all; see [KeptCopies.forReplay].
      */
     private fun processDecrypted(
         envelope: Envelope,
@@ -1723,30 +1794,6 @@ internal class SignalReceiver(
             Timber.w(t, "signal receive: decrypted, then could not be processed; kept to process again, session left alone")
             null
         }
-    }
-
-    /**
-     * A kept envelope's decrypted content, run through [processDecrypted] again.
-     *
-     * No decryption, so no duplicate: the copy is what the first pass decrypted.
-     */
-    private fun reprocess(
-        envelope: Envelope,
-        serverDeliveredTimestamp: Long,
-        kept: ByteArray
-    ): Pair<String, com.wanderwildwood.kotozute.signal.BridgeMessage?>? {
-        lastFailure = null
-        askedForRetry = false
-        lastAskedAbout = null
-        lastUnprocessed = null
-        val decrypted = decodeUnprocessed(kept) ?: run {
-            // Not readable as what this build writes. Left as it is, to be swept with the rest.
-            lastFailure = "processing: the kept copy could not be read"
-            Timber.w("signal receive: a kept copy of a decrypted message could not be read")
-            return null
-        }
-        Timber.i("signal receive: processing a message kept from an earlier pass")
-        return processDecrypted(envelope, serverDeliveredTimestamp, decrypted)
     }
 
     /**

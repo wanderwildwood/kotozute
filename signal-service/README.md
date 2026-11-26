@@ -121,6 +121,10 @@ RingRTC (2.74.0), OkHttp (5.3.2) and libphonenumber (9.0.41). Checksums in
 
 ## How it got here: three copies
 
+Every re-copy also moves `LIBRARIES_UPDATED` in `SignalNetworkConfig.kt` to the date named at
+the top of this file. The Signal status line in Settings counts sixty days from it before it says
+an update is due, and `SignalLibrariesDateTest` fails while the two dates disagree.
+
 | date | upstream commit | what |
 |---|---|---|
 | 2026-09-16 | `b92917acdb` (2026-09-10) | first copy, six modules, replacing the prebuilt fork |

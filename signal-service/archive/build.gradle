@@ -1,0 +1,33 @@
+// Signal-Android `lib/archive`, the backup format only: `Backup.proto`, copied byte for byte from
+// upstream at 2dd5703875 (v8.37.3, 2026-11-24) and generated here by wire.
+//
+// Upstream's module is an Android library and also holds the readers and writers for its own
+// backups; those depend on guava and androidx and are not copied. This app reads exactly one
+// kind of archive -- the one a primary uploads for a newly linked device -- and its reader is
+// in the data module (`TransferArchiveReader`), following upstream's `EncryptedBackupReader`.
+// So this module is a JVM library holding the generated classes and nothing else.
+plugins {
+    id 'java-library'
+    id 'org.jetbrains.kotlin.jvm'
+    id 'com.squareup.wire'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+// Upstream's `wire { }` block for lib/archive, unchanged.
+wire {
+    kotlin {
+        javaInterop = true
+    }
+
+    sourcePath {
+        srcDir('src/main/protowire')
+    }
+}

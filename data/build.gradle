@@ -129,6 +129,8 @@ dependencies {
     api project(':signal-service:libsignal-service')
     api project(':signal-service:network')
     api project(':signal-service:util-jvm')
+    // Signal's backup format (`Backup.proto`), for the history a primary transfers at linking.
+    api project(':signal-service:archive')
 
     implementation 'net.zetetic:sqlcipher-android:4.9.0'
     implementation 'androidx.sqlite:sqlite:2.4.0'

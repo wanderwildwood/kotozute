@@ -11,6 +11,7 @@ at **`2dd5703875` (2026-11-24, the commit of release tag `v8.37.3`)** and compil
 | `util-jvm/` | `core/util-jvm` | `org.signal.core.models`, `org.signal.core.util` — 8 |
 | `serialization/` | `core/serialization` | nothing directly; the other modules need it |
 | `wire-handler/` | `wire-handler/lib` | not a dependency — a build tool, see below |
+| `archive/` | `lib/archive` (**`Backup.proto` only**) | `org.signal.archive.proto` — the backup format a primary transfers history to a new linked device in |
 
 (Imports counted in the app's main source on 2026-11-16; names the app spells out in full at
 the call site are not in these numbers.)
@@ -25,6 +26,13 @@ took from jitpack until now.
 `org.signal:libsignal-client` is **not** built here: it is the Rust library with a JNI shim,
 published by Signal, and the app already declares `org.signal:libsignal-android` for the native
 side.
+
+`archive/` (added 2026-11-26) is not one of the five copied modules and is counted apart from
+them. It holds exactly one upstream file, `lib/archive/src/main/protowire/Backup.proto` at
+`2dd5703875`, byte for byte, and wire generates its classes as upstream's `wire { }` block does.
+Upstream's module also has its readers and writers, which need guava and androidx; they are not
+copied. The one reader this app needs is in the data module (`TransferArchiveReader`) and follows
+upstream's `EncryptedBackupReader` step for step, saying where it departs.
 
 ## Signal's tests are here and they run
 

@@ -71,7 +71,9 @@ internal class HistoryTransfer(
         val pending = store.pending() ?: return
         val archive = archiveFor(pending)
         val partial = File(dir, archive.name + ".part")
-        val self = aci() ?: run {
+        // Not `?: run { }`: inside this class `run` is this method, not the standard one.
+        val self = aci()
+        if (self == null) {
             Timber.w("signal history: no ACI yet; trying again at the next start")
             return onState(SignalRepository.HistoryTransfer.Later)
         }

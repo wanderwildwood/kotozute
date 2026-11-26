@@ -30,6 +30,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.squareup.moshi.Moshi
 import com.wanderwildwood.kotozute.common.util.extensions.now
 import com.wanderwildwood.kotozute.model.BackupFile
+import com.wanderwildwood.kotozute.model.Conversation
 import com.wanderwildwood.kotozute.model.Message
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Observable
@@ -134,8 +135,19 @@ class BackupRepositoryImpl @Inject constructor(
             // SMS only. A picture message (MMS) has its text and pictures in parts this format
             // cannot carry, and an older backup that took them anyway brought each one back as an
             // empty text message.
+            // Not what is in Deleted: a backup is one more place a deleted conversation would
+            // outlive its 30 days, and restoring it would bring it back with no say.
+            val deleted = realm.where(Conversation::class.java)
+                    .greaterThan("deletedAt", 0L)
+                    .findAll()
+                    .map { it.id }
+                    .toTypedArray()
             val messages = realm.where(Message::class.java)
                     .equalTo("type", Message.TYPE_SMS)
+                    .let { query ->
+                        // `in` with nothing in it is refused.
+                        if (deleted.isEmpty()) query else query.not().`in`("threadId", deleted)
+                    }
                     .sort("date").findAll().createSnapshot()
             messageCount = messages.size
 

@@ -80,6 +80,7 @@ class InjectionWorkerFactory @Inject constructor(
                 instance.prefs = prefs
             }
             is ReceiveSmsWorker -> {
+                instance.signalRepo = signalRepo
                 instance.conversationRepo  = conversationRepo
                 instance.blockingClient = blockingClient
                 instance.prefs = prefs
@@ -91,6 +92,7 @@ class InjectionWorkerFactory @Inject constructor(
                 instance.contactsRepo = contactRepo
             }
             is ReceiveMmsWorker -> {
+                instance.signalRepo = signalRepo
                 instance.syncRepo = syncRepo
                 instance.activeConversationManager = activeConversationManager
                 instance.conversationRepo = conversationRepo

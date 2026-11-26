@@ -174,6 +174,14 @@ class NotificationManagerImpl @Inject constructor(
 
         val conversation = conversationRepo.getConversation(threadId) ?: return
 
+        // In Deleted: whatever was showing goes with it. A new message takes it out of Deleted
+        // before this is asked (the receive workers), so this does not hide anything new.
+        if (conversation.deletedAt > 0) {
+            notificationManager.cancel(threadId.toInt())
+            notificationManager.cancel(threadId.toInt() + 100000)
+            return
+        }
+
         // "Silence unknown senders": a text that is still a message request raises nothing,
         // and takes down anything raised before the switch was turned on. The moment the
         // number is a contact, or is answered or accepted, it is no longer a request.

@@ -26,6 +26,7 @@ import com.wanderwildwood.kotozute.feature.signal.SignalStreamService
 import com.wanderwildwood.kotozute.injection.scope.ActivityScope
 import com.wanderwildwood.kotozute.service.HeadlessSmsSendService
 import com.wanderwildwood.kotozute.service.AutoDeleteService
+import com.wanderwildwood.kotozute.service.DeletedFolderService
 
 @Module
 abstract class ServiceBuilderModule {
@@ -33,6 +34,10 @@ abstract class ServiceBuilderModule {
     @ActivityScope
     @ContributesAndroidInjector
     abstract fun bindAutoDeleteService(): AutoDeleteService
+
+    @ActivityScope
+    @ContributesAndroidInjector
+    abstract fun bindDeletedFolderService(): DeletedFolderService
 
     @ActivityScope
     @ContributesAndroidInjector

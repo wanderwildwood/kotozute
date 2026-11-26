@@ -20,18 +20,32 @@ package com.wanderwildwood.kotozute.interactor
 
 import com.wanderwildwood.kotozute.manager.NotificationManager
 import com.wanderwildwood.kotozute.repository.ConversationRepository
+import com.wanderwildwood.kotozute.util.DeletedFolder
+import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Flowable
 import javax.inject.Inject
 
+/**
+ * Delete, as the person asks for it: into Deleted while "Keep deleted conversations" is on,
+ * gone at once while it is off (see [DeletedFolder.holdsDelete]). The final delete on its own
+ * is [DeleteConversationsNow].
+ */
 class DeleteConversations @Inject constructor(
     private val conversationRepo: ConversationRepository,
     private val notificationManager: NotificationManager,
+    private val prefs: Preferences,
     private val updateBadge: UpdateBadge
 ) : Interactor<List<Long>>() {
 
     override fun buildObservable(params: List<Long>): Flowable<*> {
         return Flowable.just(params.toLongArray())
-                .doOnNext { threadIds -> conversationRepo.deleteConversations(*threadIds) }
+                .doOnNext { threadIds ->
+                    if (DeletedFolder.holdsDelete(prefs.keepDeleted.get())) {
+                        conversationRepo.markDeleted(threadIds.toList())
+                    } else {
+                        conversationRepo.deleteConversations(*threadIds)
+                    }
+                }
                 .doOnNext { threadIds -> threadIds.forEach(notificationManager::update) }
                 .flatMap { updateBadge.buildObservable(Unit) } // Update the badge
     }

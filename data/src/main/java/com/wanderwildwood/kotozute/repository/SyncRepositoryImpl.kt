@@ -104,6 +104,10 @@ class SyncRepositoryImpl @Inject constructor(
                         .isNotNull("blockingClient")
                         .or()
                         .isNotEmpty("blockReason")
+                        .or()
+                        // In Deleted. Without this a re-sync put every deleted conversation back
+                        // in the inbox: the phone's SMS store still holds all of it.
+                        .greaterThan("deletedAt", 0L)
                         .endGroup()
                         .findAll()
                 ).associateBy { conversation -> conversation.id }.toMutableMap()
@@ -191,6 +195,7 @@ class SyncRepositoryImpl @Inject constructor(
                                     blockingClient = persistedConversation.blockingClient
                                     blockReason = persistedConversation.blockReason
                                     sendAsGroup = persistedConversation.sendAsGroup
+                                    deletedAt = persistedConversation.deletedAt
                                 }
                                 lastMessage = lastShownMessage(realm, id)
                             }

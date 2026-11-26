@@ -225,6 +225,7 @@ open class MessageRepositoryImpl @Inject constructor(
             realm.where(Conversation::class.java)
                 .equalTo("archived", false)
                 .equalTo("blocked", false)
+                .equalTo("deletedAt", 0L)
                 .equalTo("lastMessage.read", false)
                 .count()
         }

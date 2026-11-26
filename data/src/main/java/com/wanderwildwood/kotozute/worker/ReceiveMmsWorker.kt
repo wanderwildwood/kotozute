@@ -53,6 +53,8 @@ import com.wanderwildwood.kotozute.repository.ContactRepository
 import com.wanderwildwood.kotozute.repository.ConversationRepository
 import com.wanderwildwood.kotozute.repository.MessageContentFilterRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
+import com.wanderwildwood.kotozute.repository.SignalRepository
+import com.wanderwildwood.kotozute.util.DeletedFolderArrival
 import com.wanderwildwood.kotozute.repository.SyncRepository
 import com.wanderwildwood.kotozute.util.Preferences
 import timber.log.Timber
@@ -79,6 +81,7 @@ class ReceiveMmsWorker(appContext: Context, workerParams: WorkerParameters)
 
     @Inject lateinit var activeConversationManager: ActiveConversationManager
     @Inject lateinit var conversationRepo: ConversationRepository
+    @Inject lateinit var signalRepo: SignalRepository
     @Inject lateinit var blockingClient: BlockingClient
     @Inject lateinit var prefs: Preferences
     @Inject lateinit var syncRepo: SyncRepository
@@ -204,6 +207,12 @@ class ReceiveMmsWorker(appContext: Context, workerParams: WorkerParameters)
                         val conversation =
                             conversationRepo.getOrCreateConversation(message.threadId)
                                 ?: return Result.failure(inputData)
+
+                        // See ReceiveSmsWorker: a message brings it out of Deleted.
+                        if (conversation.deletedAt > 0) {
+                            Timber.v("conversation taken out of Deleted")
+                            DeletedFolderArrival.putBack(conversation.id, conversationRepo, signalRepo)
+                        }
 
                         // don't notify (continue) for blocked conversations
                         if (conversation.blocked) {

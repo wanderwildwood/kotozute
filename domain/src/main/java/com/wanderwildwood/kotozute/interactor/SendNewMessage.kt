@@ -23,6 +23,8 @@ import com.wanderwildwood.kotozute.extensions.mapNotNull
 import com.wanderwildwood.kotozute.model.Attachment
 import com.wanderwildwood.kotozute.repository.ConversationRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
+import com.wanderwildwood.kotozute.repository.SignalRepository
+import com.wanderwildwood.kotozute.util.DeletedFolderArrival
 import io.reactivex.Flowable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import timber.log.Timber
@@ -31,6 +33,7 @@ import javax.inject.Inject
 class SendNewMessage @Inject constructor(
     private val conversationRepo: ConversationRepository,
     private val messageRepo: MessageRepository,
+    private val signalRepo: SignalRepository,
     private val updateBadge: UpdateBadge,
     private val shortcutManager: ShortcutManager
 ) : Interactor<SendNewMessage.Params>() {
@@ -70,6 +73,8 @@ class SendNewMessage @Inject constructor(
         .doOnNext { threadIds ->
             conversationRepo.updateConversations(threadIds)
             conversationRepo.markUnarchived(threadIds)
+            // Writing into a conversation in Deleted takes it out, as a message arriving does.
+            threadIds.forEach { DeletedFolderArrival.putBack(it, conversationRepo, signalRepo) }
 
             // doOnNext runs on io, and ShortcutManager expects the main thread.
             // (Ported from QUIK 1eddae81. QUIK also added an observeOn(mainThread)

@@ -108,6 +108,18 @@ interface ConversationRepository {
 
     fun markUnblocked(vararg threadIds: Long)
 
+    /** The final delete: Realm rows and the phone's SMS store. Nothing brings it back. */
     fun deleteConversations(vararg threadIds: Long)
+
+    /** Into Deleted, stamped [at]; nothing is removed. See DeletedFolder. */
+    fun markDeleted(threadIds: Collection<Long>, at: Long = System.currentTimeMillis())
+
+    /** Out of Deleted, back where it was (inbox, archive or blocked). */
+    fun markUndeleted(threadIds: Collection<Long>)
+
+    /** The conversations in Deleted, newest delete first. */
+    fun getDeletedConversations(): RealmResults<Conversation>
+
+    fun getDeletedConversationsSnapshot(): List<Conversation>
 
 }

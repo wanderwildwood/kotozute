@@ -105,6 +105,8 @@ class SignalNotifications @Inject constructor(
                 realm.where(SignalThread::class.java)
                     .greaterThan("unread", 0)
                     .equalTo("muted", false)
+                    // Nothing in Deleted comes back as a notification after a restart.
+                    .equalTo("deletedAt", 0L)
                     .findAll()
                     .mapNotNull { thread ->
                         realm.where(SignalMessage::class.java)

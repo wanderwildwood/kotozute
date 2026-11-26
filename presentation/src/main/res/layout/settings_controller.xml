@@ -359,7 +359,7 @@
                 android:paddingTop="24dp"
                 android:paddingEnd="24dp"
                 android:paddingBottom="4dp"
-                android:tag="settingsHeading"
+                android:tag="keepWithNext"
                 android:text="@string/settings_signal_heading_account"
                 android:textStyle="bold" />
 
@@ -428,7 +428,7 @@
                 android:paddingTop="24dp"
                 android:paddingEnd="24dp"
                 android:paddingBottom="4dp"
-                android:tag="settingsHeading"
+                android:tag="keepWithNext"
                 android:text="@string/settings_signal_heading_conversations"
                 android:textStyle="bold" />
 
@@ -488,7 +488,7 @@
                 android:paddingTop="24dp"
                 android:paddingEnd="24dp"
                 android:paddingBottom="4dp"
-                android:tag="settingsHeading"
+                android:tag="keepWithNext"
                 android:text="@string/settings_signal_heading_privacy"
                 android:textStyle="bold" />
 
@@ -518,7 +518,7 @@
                 android:paddingTop="24dp"
                 android:paddingEnd="24dp"
                 android:paddingBottom="4dp"
-                android:tag="settingsHeading"
+                android:tag="keepWithNext"
                 android:text="@string/settings_signal_heading_calls"
                 android:textStyle="bold" />
 
@@ -555,7 +555,7 @@
                 android:paddingTop="24dp"
                 android:paddingEnd="24dp"
                 android:paddingBottom="4dp"
-                android:tag="settingsHeading"
+                android:tag="keepWithNext"
                 android:text="@string/settings_signal_heading_contacts"
                 android:textStyle="bold" />
 
@@ -583,7 +583,7 @@
                 android:paddingTop="24dp"
                 android:paddingEnd="24dp"
                 android:paddingBottom="4dp"
-                android:tag="settingsHeading"
+                android:tag="keepWithNext"
                 android:text="@string/settings_signal_heading_history"
                 android:textStyle="bold" />
 
@@ -611,7 +611,7 @@
                 android:paddingTop="24dp"
                 android:paddingEnd="24dp"
                 android:paddingBottom="4dp"
-                android:tag="settingsHeading"
+                android:tag="keepWithNext"
                 android:text="@string/settings_signal_heading_network"
                 android:textStyle="bold" />
 
@@ -641,7 +641,7 @@
                 android:paddingTop="24dp"
                 android:paddingEnd="24dp"
                 android:paddingBottom="4dp"
-                android:tag="settingsHeading"
+                android:tag="keepWithNext"
                 android:textStyle="bold" />
 
             

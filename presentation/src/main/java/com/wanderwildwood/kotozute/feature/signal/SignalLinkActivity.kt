@@ -16,7 +16,10 @@ import com.wanderwildwood.kotozute.databinding.SignalLinkActivityBinding
 import com.wanderwildwood.kotozute.repository.SignalRepository
 import com.wanderwildwood.kotozute.feature.desktopsync.DesktopSyncService
 import com.wanderwildwood.kotozute.feature.desktopsync.SignalLinkOffer
+import com.uber.autodispose.android.lifecycle.scope
+import com.uber.autodispose.autoDisposable
 import dagger.android.AndroidInjection
+import io.reactivex.android.schedulers.AndroidSchedulers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -63,8 +66,42 @@ class SignalLinkActivity : QkThemedActivity() {
                     is SignalRepository.Link.Failed ->
                         getString(R.string.signal_link_failed, say(SignalWording.link(result.failure)))
                 }
+                if (result is SignalRepository.Link.Linked) followHistory()
             }
         }
+    }
+
+    /**
+     * The same line, from here on, says how the message history is coming across -- when the
+     * other phone was asked to send it. With no transfer it stays at "Linked". The transfer
+     * itself does not depend on this screen: leaving it changes nothing but who is watching.
+     */
+    private fun followHistory() {
+        signalRepo.historyTransfer()
+            .observeOn(AndroidSchedulers.mainThread())
+            .autoDisposable(scope())
+            .subscribe { state -> historyLine(state)?.let { binding.status.text = it } }
+    }
+
+    private fun historyLine(state: SignalRepository.HistoryTransfer): String? = when (state) {
+        SignalRepository.HistoryTransfer.None -> null
+        SignalRepository.HistoryTransfer.Waiting -> getString(R.string.signal_link_history_waiting)
+        is SignalRepository.HistoryTransfer.Downloading ->
+            getString(R.string.signal_link_history_downloading, state.percent)
+        is SignalRepository.HistoryTransfer.Importing ->
+            getString(R.string.signal_link_history_importing, state.messages)
+        is SignalRepository.HistoryTransfer.Done -> {
+            val count = state.stats.messages
+            val plural = if (state.stats.attachmentsLost > 0) {
+                R.plurals.signal_link_history_done_without_files
+            } else {
+                R.plurals.signal_link_history_done
+            }
+            resources.getQuantityString(plural, count, count)
+        }
+        SignalRepository.HistoryTransfer.Declined -> getString(R.string.signal_link_history_declined)
+        SignalRepository.HistoryTransfer.Unusable -> getString(R.string.signal_link_history_unusable)
+        SignalRepository.HistoryTransfer.Later -> getString(R.string.signal_link_history_later)
     }
 
     private fun show(url: String) {

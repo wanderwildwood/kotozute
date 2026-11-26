@@ -309,8 +309,11 @@ interface SignalEvents {
      */
     fun withdrawn(author: String, sentAt: Long, withdrawnAt: Long) {}
 
-    /** What the account has deleted elsewhere, for itself: messages, and whole conversations. */
-    fun deletedElsewhere(messages: List<Pair<String, Long>>, threads: List<String>) {}
+    /**
+     * What the account has deleted elsewhere, for itself: messages, and conversations deleted
+     * or trimmed. A conversation loses only what [ConversationDeleteSync.doomed] says.
+     */
+    fun deletedElsewhere(messages: List<Pair<String, Long>>, threads: List<ConversationDeleteSync.Request>) {}
 
     /** The account's own settings, as its primary holds them. */
     fun configuration(readReceipts: Boolean?, typingIndicators: Boolean? = null) {}

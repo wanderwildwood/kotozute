@@ -109,6 +109,9 @@ instead of Signal turns that around.
   nothing is sent before you accept. Compare the number with them first if the message is private
 - Pin, mute, mark unread, archive, block, and a details screen with the pictures a conversation
   has carried
+- A deleted conversation, text or Signal, waits in Deleted for 30 days and can be put back; a new
+  message from that person brings it back too. A switch in Settings turns this off, and Delete is
+  then final at once
 - Bring old messages across from a Signal Desktop export
 
 ### What it needs

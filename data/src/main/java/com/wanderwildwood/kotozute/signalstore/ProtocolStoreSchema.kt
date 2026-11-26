@@ -22,7 +22,7 @@ package com.wanderwildwood.kotozute.signalstore
  */
 internal object ProtocolStoreSchema {
 
-    const val VERSION = 44
+    const val VERSION = 45
 
     /**
      * One row, enforced. The account is a singleton and a second row would mean two identities
@@ -320,6 +320,25 @@ internal object ProtocolStoreSchema {
         ) STRICT;
     """
 
+    /**
+     * The message history a primary is sending this device, while it is on its way. At most one
+     * row, and only between a link whose provisioning message carried an ephemeral backup key and
+     * the end of the import (or proof that the archive cannot be used). See [HistoryTransfer].
+     *
+     * The key is the only thing that opens the archive, and the primary never sends it again,
+     * so it is kept here -- the encrypted store -- rather than in preferences. `cdn` and
+     * `cdn_key` say where the archive is once the primary has said; null until then.
+     */
+    const val HISTORY_TRANSFER = """
+        CREATE TABLE history_transfer (
+          _id INTEGER PRIMARY KEY CHECK (_id = 1),
+          ephemeral_key BLOB NOT NULL,
+          linked_at INTEGER NOT NULL,
+          cdn INTEGER,
+          cdn_key TEXT
+        ) STRICT;
+    """
+
     /** Order matters only in that account_identity is seeded after account exists. */
     val ALL = listOf(
         ACCOUNT,
@@ -348,7 +367,8 @@ internal object ProtocolStoreSchema {
         MESSAGE_LOG_INDEX,
         RECEIPT_OWED,
         UNFILED,
-        CALL_OFFER
+        CALL_OFFER,
+        HISTORY_TRANSFER
     )
 
     /**
@@ -1051,6 +1071,9 @@ internal object ProtocolStoreSchema {
          * `KeptCopies.afterFiled`). Its own step, not part of v43: a v43 store is already out
          * on a phone, and v43 will not run there again.
          */
+        /** The history a primary is transferring at linking. See [HISTORY_TRANSFER]. */
+        45 to listOf(HISTORY_TRANSFER),
+
         44 to listOf(
             "ALTER TABLE envelope ADD COLUMN unprocessed_build INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE envelope ADD COLUMN unprocessed_waits_for TEXT;"

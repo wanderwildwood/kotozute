@@ -2765,6 +2765,36 @@ class SignalStore(private val context: Context) {
      */
     internal fun desktopLinker(): DesktopLinker = DesktopLinker(context, connection, account, keys)
 
+    /**
+     * The history transfer a link may have left to fetch, wired to this device's own
+     * connection. [import] is the repository's import path, so a transferred message and a
+     * Desktop-imported one are filed by the same rules.
+     */
+    internal fun historyTransfer(
+        import: (SignalExportSource, (Int) -> Unit) -> SignalRepository.ImportStats
+    ): HistoryTransfer = HistoryTransfer(
+        store = object : HistoryTransfer.Store {
+            override fun pending() = account.historyTransfer()
+            override fun saveLocation(linkedAt: Long, cdn: Int, cdnKey: String) =
+                account.saveHistoryTransferLocation(linkedAt, cdn, cdnKey)
+            override fun finish(linkedAt: Long) = account.finishHistoryTransfer(linkedAt)
+        },
+        aci = { org.signal.core.models.ServiceId.ACI.parseOrNull(account.credentials().aci) },
+        waitForPrimary = {
+            // The long poll rides the authenticated socket, so it has to be up. connect() is
+            // idempotent; the stream that called this has usually opened it already.
+            connection.connect()
+            connection.linkDevice.waitForPrimaryDevice()
+        },
+        download = { cdn, key, into, listener ->
+            connection.messageReceiver.retrieveLinkAndSyncBackup(cdn, key, into, listener)
+        },
+        // No-backup: the file is encrypted, but it is a copy of the whole history and is
+        // gone once filed; it has no business in a device backup.
+        dir = java.io.File(context.noBackupFilesDir, "history-transfer"),
+        import = import
+    )
+
     fun linker(onReadReceipts: (Boolean) -> Unit = {}): DeviceLinker = DeviceLinker(
         SignalNetworkConfig.configuration(),
         SignalNetworkConfig.USER_AGENT,

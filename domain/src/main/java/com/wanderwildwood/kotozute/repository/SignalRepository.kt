@@ -112,6 +112,40 @@ interface SignalRepository {
         data class Failed(val failure: LinkFailure) : Link
     }
 
+    /**
+     * The message history the primary transfers after a link, when its owner chose "Transfer
+     * message history" on it. Runs by itself after linking and again at each start until it
+     * finishes; this is only for saying where it has got to.
+     */
+    sealed interface HistoryTransfer {
+        /** Nothing to transfer: the primary was not asked to, or it is long finished. */
+        data object None : HistoryTransfer
+
+        /** Waiting for the other phone to say where it put the history. */
+        data object Waiting : HistoryTransfer
+
+        /** Fetching it. [percent] is 0 to 100. */
+        data class Downloading(val percent: Int) : HistoryTransfer
+
+        /** Filing it. [messages] is how many have been taken in so far. */
+        data class Importing(val messages: Int) : HistoryTransfer
+
+        /** Finished; [stats] in the same terms as a Desktop import's. */
+        data class Done(val stats: ImportStats) : HistoryTransfer
+
+        /** The other phone decided not to send it after all. */
+        data object Declined : HistoryTransfer
+
+        /** It came, and it cannot be read; or it never came and will not now. Nothing kept. */
+        data object Unusable : HistoryTransfer
+
+        /** Interrupted (usually the network); it carries on at the next start. */
+        data object Later : HistoryTransfer
+    }
+
+    /** Where the history transfer is, and again whenever that changes. */
+    fun historyTransfer(): Observable<HistoryTransfer>
+
     /** Why linking failed, as a kind the screen words in the reader's language. */
     sealed interface LinkFailure {
         /** Every code expired with nobody having scanned one. */

@@ -1507,8 +1507,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         /** Glance's door, through the exported alias LockScreenSetting in the manifest. */
         const val ACTION_LOCK_SCREEN_SETTING = "com.wanderwildwood.kotozute.action.LOCK_SCREEN_SETTING"
 
-        /** android:tag of a group heading in settings_controller.xml. */
-        private const val HEADING_TAG = "settingsHeading"
+        /** android:tag of a group heading in settings_controller.xml; it also pages with its first row. */
+        private const val HEADING_TAG = com.wanderwildwood.kotozute.common.widget.PagingScrollView.KEEP_WITH_NEXT
     }
 
 }

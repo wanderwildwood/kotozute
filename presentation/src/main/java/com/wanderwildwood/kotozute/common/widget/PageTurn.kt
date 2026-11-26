@@ -18,6 +18,31 @@ internal object PageTurn {
     data class Row(val top: Int, val height: Int)
 
     /**
+     * Joins each row marked [keepWithNext] to the row after it, so the pair turns as one.
+     *
+     * For a heading: on its own it is a row like any other, and a page could end on it with
+     * the rows it heads all on the next page -- then show it again at the top of that page.
+     * Joined, a page that cannot fit the heading and its first row starts at the heading.
+     * A marked row with nothing after it stays as it is.
+     */
+    fun keepWithNext(rows: List<Row>, keepWithNext: List<Boolean>): List<Row> {
+        require(rows.size == keepWithNext.size)
+        val out = ArrayList<Row>(rows.size)
+        var i = 0
+        while (i < rows.size) {
+            val top = rows[i].top
+            var end = rows[i].top + rows[i].height
+            while (keepWithNext[i] && i + 1 < rows.size) {
+                i++
+                end = rows[i].top + rows[i].height
+            }
+            out += Row(top, end - top)
+            i++
+        }
+        return out
+    }
+
+    /**
      * @param current      where the column is scrolled to now
      * @param page         one screen of content
      * @param maxScroll    the furthest the view can scroll, including any slack past the end

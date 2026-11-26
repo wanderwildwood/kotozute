@@ -137,10 +137,13 @@ class PagingScrollView @JvmOverloads constructor(
         val column = getChildAt(0) ?: return
         val (container, offset) = rowContainer() ?: return
 
-        val rows = (0 until container.childCount)
+        val visible = (0 until container.childCount)
             .map { container.getChildAt(it) }
             .filter { it.visibility != GONE }
-            .map { PageTurn.Row(top = offset + it.top, height = it.height) }
+        val rows = PageTurn.keepWithNext(
+            visible.map { PageTurn.Row(top = offset + it.top, height = it.height) },
+            visible.map { it.tag == KEEP_WITH_NEXT }
+        )
 
         val target = PageTurn.target(
             current = scrollY,
@@ -177,8 +180,11 @@ class PagingScrollView @JvmOverloads constructor(
         }
     }
 
-    private companion object {
+    companion object {
         /** See [slack]: must clear the tallest row, and stay well short of a page. */
-        const val SLACK_DP = 144f
+        private const val SLACK_DP = 144f
+
+        /** android:tag for a row that turns with the one after it: a heading. */
+        const val KEEP_WITH_NEXT = "keepWithNext"
     }
 }

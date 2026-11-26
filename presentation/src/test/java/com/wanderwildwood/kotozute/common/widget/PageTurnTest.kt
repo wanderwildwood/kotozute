@@ -96,4 +96,17 @@ class PageTurnTest {
         // Asked before the view has been measured, which happens.
         assertNull(PageTurn.target(0, 0, maxScroll, contentHeight, rows, forward = true))
     }
+
+    @Test
+    fun `a heading joins the row after it`() {
+        val rows = listOf(PageTurn.Row(0, 80), PageTurn.Row(80, 30), PageTurn.Row(110, 80))
+        val joined = PageTurn.keepWithNext(rows, listOf(false, true, false))
+        org.junit.Assert.assertEquals(listOf(PageTurn.Row(0, 80), PageTurn.Row(80, 110)), joined)
+    }
+
+    @Test
+    fun `a heading with nothing after it stays alone`() {
+        val rows = listOf(PageTurn.Row(0, 80), PageTurn.Row(80, 30))
+        org.junit.Assert.assertEquals(rows, PageTurn.keepWithNext(rows, listOf(false, true)))
+    }
 }

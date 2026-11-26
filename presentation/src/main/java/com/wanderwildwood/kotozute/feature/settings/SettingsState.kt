@@ -36,6 +36,9 @@ data class SettingsState(
     val keepMutedArchived: Boolean = false,
     val allOnlyPeopleEnabled: Boolean = false,
     val silenceUnknownSenders: Boolean = false,
+    val keepDeleted: Boolean = true,
+    /** Anything in Deleted. Its row shows while the switch is on, or while this is true. */
+    val deletedHasAny: Boolean = false,
     val darkMode: Boolean = false,
     val lockScreenEnabled: Boolean = true,
     val signature: String = "",

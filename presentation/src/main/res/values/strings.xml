@@ -25,6 +25,7 @@
     <string name="shortcut_compose_disabled_message">Shortcut disabled</string>
 
     <string name="title_archived">Archived</string>
+    <string name="title_deleted">Deleted</string>
     <string name="title_settings">Settings</string>
     <string name="title_notification_prefs">Notifications</string>
     <string name="title_conversations">Conversations</string>
@@ -53,6 +54,8 @@
     <string name="main_menu_select_all">Select all</string>
     <string name="main_menu_archive">Archive</string>
     <string name="main_menu_unarchive">Unarchive</string>
+    <string name="main_menu_put_back">Put back</string>
+    <string name="main_menu_delete_now">Delete now</string>
     <string name="main_menu_delete">Delete</string>
     <string name="main_menu_add_contact">Add to contacts</string>
     <string name="main_menu_pin">Pin to top</string>
@@ -76,6 +79,8 @@
     <string name="inbox_empty_text">Your conversations will appear here</string>
     <string name="inbox_search_empty_text">No results</string>
     <string name="archived_empty_text">Your archived conversations will appear here</string>
+    <string name="deleted_empty_text">Nothing in Deleted</string>
+    <string name="deleted_note">Conversations here are removed for good after 30 days.</string>
     <string name="main_fab_cd">Start new conversation</string>
     <string name="main_default_sms_title">Set as default</string>
     <string name="main_default_sms_message">Messaging needs to be your default SMS app to send and receive texts</string>
@@ -91,6 +96,7 @@
     <string name="scheduled_menu_edit_message">Edit message</string>
 
     <string name="drawer_archived">Archived</string>
+    <string name="drawer_deleted">Deleted</string>
     <string name="drawer_scheduled">Scheduled</string>
     <string name="drawer_blocking">Blocking</string>
     <string name="drawer_settings">Settings</string>
@@ -100,6 +106,15 @@
     <plurals name="dialog_delete_message">
         <item quantity="one">Are you sure you would like to delete this conversation?</item>
         <item quantity="other">Are you sure you would like to delete %d conversations?</item>
+    </plurals>
+    <!-- While "Keep deleted conversations" is on: nothing is removed yet, so no "cannot be undone". -->
+    <plurals name="dialog_delete_to_folder">
+        <item quantity="one">Move this conversation to Deleted? It can be put back from there for 30 days.</item>
+        <item quantity="other">Move %d conversations to Deleted? They can be put back from there for 30 days.</item>
+    </plurals>
+    <plurals name="dialog_delete_now">
+        <item quantity="one">Delete this conversation for good? This cannot be undone.</item>
+        <item quantity="other">Delete %d conversations for good? This cannot be undone.</item>
     </plurals>
     <plurals name="dialog_delete_chat">
         <item quantity="one">Are you sure you would like to delete this message?</item>
@@ -322,6 +337,8 @@
     <!-- Settings: texts from numbers that are not contacts, and were never answered, arrive without a notification -->
     <string name="settings_silence_unknown_title">Silence unknown senders</string>
     <string name="settings_silence_unknown_summary">No notification for a text from a number that is not in your contacts. It waits under Unknown.</string>
+    <string name="settings_keep_deleted_title">Keep deleted conversations for 30 days</string>
+    <string name="settings_keep_deleted_summary">Deleted conversations wait in Deleted and can be put back. Off: Delete removes them at once.</string>
     <string name="settings_dark">Dark mode</string>
     <!-- Settings: whether the unread count shows on the lock screen, through the Glance app -->
     <string name="settings_lock_screen_title">Unread on the lock screen</string>
@@ -534,6 +551,8 @@
     <string name="settings_signal_fetch_contacts_title">Fetch contacts from Signal</string>
     <string name="settings_signal_fetch_contacts_failed">Signal would not answer. Nothing was changed.</string>
     <string name="info_delete_summary">Removes it here and from your other Signal devices. Nothing can bring it back</string>
+    <string name="info_delete_to_folder_summary">Moves it to Deleted, where it can be put back for 30 days</string>
+    <string name="info_moved_to_deleted_toast">Moved to Deleted</string>
     <string name="info_delete_armed_summary">This phone holds the only copy. Write a copy out first if you want to keep it</string>
     <string name="info_delete_both">Their texts go too, since the two are one conversation here</string>
     <string name="info_deleted_toast">Deleted %1$d message(s)</string>

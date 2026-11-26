@@ -39,6 +39,12 @@ open class Conversation(
     var name: String = "", // custom title
 
     var sendAsGroup: Boolean = true,
+
+    /**
+     * When this conversation was put in Deleted, or 0. Nothing is removed until it has been
+     * there 30 days (see DeletedFolder); until then it is left out of every list and count.
+     */
+    var deletedAt: Long = 0,
 ) : RealmObject() {
 
     val date: Long get() = lastMessage?.date ?: if (draft.isNotEmpty()) draftDate else 0

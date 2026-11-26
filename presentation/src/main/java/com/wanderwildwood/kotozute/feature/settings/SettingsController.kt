@@ -605,6 +605,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         binding.keepMutedArchived.checkbox.isChecked = state.keepMutedArchived
         binding.allOnlyPeople.checkbox.isChecked = state.allOnlyPeopleEnabled
         binding.silenceUnknownSenders.checkbox.isChecked = state.silenceUnknownSenders
+        binding.keepDeleted.checkbox.isChecked = state.keepDeleted
+        binding.deleted.setVisible(state.keepDeleted || state.deletedHasAny)
         binding.darkMode.checkbox.isChecked = state.darkMode
         binding.lockScreen.checkbox.isChecked = state.lockScreenEnabled
         // Shown when Glance is installed, or when somebody set the switch on (so it can still be

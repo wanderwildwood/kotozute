@@ -53,6 +53,7 @@ import javax.inject.Inject
 class SettingsPresenter @Inject constructor(
     syncRepo: SyncRepository,
     private val context: Context,
+    private val conversationRepo: com.wanderwildwood.kotozute.repository.ConversationRepository,
     private val deleteOldMessages: DeleteOldMessages,
     private val messageRepo: MessageRepository,
     private val navigator: Navigator,
@@ -180,6 +181,9 @@ class SettingsPresenter @Inject constructor(
         disposables += prefs.silenceUnknownSenders.asObservable()
             .subscribe { on -> newState { copy(silenceUnknownSenders = on) } }
 
+        disposables += prefs.keepDeleted.asObservable()
+            .subscribe { on -> newState { copy(keepDeleted = on) } }
+
         disposables += prefs.lockScreen.asObservable()
             .subscribe { enabled -> newState { copy(lockScreenEnabled = enabled) } }
 
@@ -247,6 +251,14 @@ class SettingsPresenter @Inject constructor(
         // Home's switch may have changed it while this screen was away.
         newState { copy(darkMode = DarkMode.on) }
 
+        // Whether Deleted still holds anything, so its row stays reachable with the switch
+        // off until what was already in it has been put back, deleted or timed out.
+        val deletedHasAny = runCatching {
+            conversationRepo.getDeletedConversationsSnapshot().isNotEmpty() ||
+                signalRepo.getDeletedThreadsSnapshot().isNotEmpty()
+        }.getOrDefault(true)
+        newState { copy(deletedHasAny = deletedHasAny) }
+
         view.preferenceClicks()
                 .autoDisposable(view.scope())
                 .subscribe {
@@ -277,6 +289,8 @@ class SettingsPresenter @Inject constructor(
                         }
 
                         R.id.archived -> navigator.showArchived()
+
+                        R.id.deleted -> navigator.showDeleted()
 
                         R.id.scheduled -> navigator.showScheduled(null)
 
@@ -457,6 +471,10 @@ class SettingsPresenter @Inject constructor(
 
                         R.id.silenceUnknownSenders ->
                             prefs.silenceUnknownSenders.set(!prefs.silenceUnknownSenders.get())
+
+                        // Off does not empty Deleted: what is there stays until put back,
+                        // deleted now, or its 30 days are up.
+                        R.id.keepDeleted -> prefs.keepDeleted.set(!prefs.keepDeleted.get())
 
                         R.id.darkMode -> {
                             val dark = !DarkMode.on

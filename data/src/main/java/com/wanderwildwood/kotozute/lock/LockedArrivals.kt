@@ -87,6 +87,9 @@ object LockedArrivals {
             runCatching {
                 conversationRepo.updateConversations(threads)
                 threads.forEach { conversationRepo.getOrCreateConversation(it) }
+                // As the receive workers do: a text arriving takes its conversation out of
+                // Deleted. The text half only; the Signal half follows its own arrivals.
+                conversationRepo.markUndeleted(threads)
             }.onFailure { Timber.w(it, "lock: could not update conversations after bringing texts in") }
         }
         p.edit().remove(PREF_URIS).commit()

@@ -1548,19 +1548,45 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeThreadMenu(); });
 window.addEventListener('resize', closeThreadMenu);
 
+/**
+ * Whether the phone puts a deleted conversation in its Deleted folder (true) or removes it at
+ * once (false); null when the phone did not say. Asked at the moment of deleting rather than
+ * remembered: the switch is on the phone and can change while this page is open. Unknown is
+ * worded as the final delete, the warning that is never wrong to have given.
+ */
+async function deleteKeepsOnPhone() {
+  try {
+    const res = await api('/api/settings');
+    if (!res.ok) return null;
+    const s = await res.json();
+    return typeof s.keepDeleted === 'boolean' ? s.keepDeleted : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function runThreadAction(t, action, label) {
   closeThreadMenu();
   // Not a state change, so it does not go down the action route.
   if (action === '@info') return showSafetyNumber(t);
-  // The two that cannot be taken back ask first. Everything else is a toggle the same
-  // menu will undo.
-  if (action === 'delete' && !confirm('Delete this conversation? This cannot be undone.')) return;
+  // Block, and a delete, ask first. Everything else is a toggle the same menu will undo.
+  // Which delete it is depends on the phone's "Keep deleted conversations" switch, so the
+  // page asks the phone first and words the question to match. The answer goes back with the
+  // request, and the phone refuses it if the switch has changed in between.
+  const request = { action };
+  if (action === 'delete') {
+    const kept = await deleteKeepsOnPhone();
+    if (!confirm(kept
+        ? 'Move this conversation to Deleted on the phone? It can be put back there, and is removed for good after 30 days.'
+        : 'Delete this conversation? This cannot be undone.')) return;
+    if (kept !== null) request.toFolder = kept;
+  }
   if (action === 'block' && !confirm('Block ' + (t.title || 'this sender') + '?')) return;
   try {
     const res = await api('/api/threads/' + t.id + '/action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ action })
+      body: JSON.stringify(request)
     });
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));

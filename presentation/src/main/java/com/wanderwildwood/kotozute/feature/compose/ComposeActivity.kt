@@ -121,7 +121,9 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     @Inject lateinit var messageAdapter: MessagesAdapter
     @Inject lateinit var navigator: Navigator
     @Inject lateinit var blockingDialog: com.wanderwildwood.kotozute.feature.blocking.BlockingDialog
-    @Inject lateinit var deleteConversations: com.wanderwildwood.kotozute.interactor.DeleteConversations
+    // Final, not to Deleted: turning down a message request is not a delete to think over,
+    // and a Signal request's own delete is final the same way.
+    @Inject lateinit var deleteConversations: com.wanderwildwood.kotozute.interactor.DeleteConversationsNow
 
     /** The Signal thread this conversation's contact also has, if any; drives the badge. */
     private var signalThreadKey: String? = null

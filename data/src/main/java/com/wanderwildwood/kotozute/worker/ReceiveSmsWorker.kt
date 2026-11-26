@@ -30,6 +30,8 @@ import com.wanderwildwood.kotozute.repository.ContactRepository
 import com.wanderwildwood.kotozute.repository.ConversationRepository
 import com.wanderwildwood.kotozute.repository.MessageContentFilterRepository
 import com.wanderwildwood.kotozute.repository.MessageRepository
+import com.wanderwildwood.kotozute.repository.SignalRepository
+import com.wanderwildwood.kotozute.util.DeletedFolderArrival
 import com.wanderwildwood.kotozute.util.Preferences
 import timber.log.Timber
 import javax.inject.Inject
@@ -41,6 +43,7 @@ class ReceiveSmsWorker(appContext: Context, workerParams: WorkerParameters)
     }
 
     @Inject lateinit var conversationRepo: ConversationRepository
+    @Inject lateinit var signalRepo: SignalRepository
     @Inject lateinit var blockingClient: BlockingClient
     @Inject lateinit var prefs: Preferences
     @Inject lateinit var messageRepo: MessageRepository
@@ -101,6 +104,13 @@ class ReceiveSmsWorker(appContext: Context, workerParams: WorkerParameters)
         conversationRepo.updateConversations(listOf(message.threadId))
         val conversation = conversationRepo.getOrCreateConversation(message.threadId)
             ?: return Result.failure(inputData)
+
+        // A conversation in Deleted comes back whole when a message arrives in it -- before
+        // the notification below, which says nothing for one still in Deleted.
+        if (conversation.deletedAt > 0) {
+            Timber.v("conversation taken out of Deleted")
+            DeletedFolderArrival.putBack(conversation.id, conversationRepo, signalRepo)
+        }
 
         // don't notify (continue) for blocked conversations
         if (conversation.blocked) {

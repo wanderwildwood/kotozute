@@ -508,6 +508,19 @@ interface SignalRepository {
      */
     fun getThreadsSnapshot(archived: Boolean = false): List<SignalThread>
 
+    /** The conversations in Deleted, newest delete first. Live, like [getThreads]. */
+    fun getDeletedThreads(): RealmResults<SignalThread>
+
+    /** The same, as detached copies. */
+    fun getDeletedThreadsSnapshot(): List<SignalThread>
+
+    /**
+     * Removes for good the conversations that have been in Deleted for 30 days, through
+     * [deleteThread] -- which is also when the other devices are told. Only while Signal is on:
+     * telling them needs the account. @return how many went.
+     */
+    fun purgeDeletedThreads(now: Long = System.currentTimeMillis()): Int
+
     /**
      * What an import of a Signal export did, in terms a person can check against what they
      * expected to get back.
@@ -736,7 +749,15 @@ interface SignalRepository {
      * menu, and the browser. Three copies of the rule is three chances for them to disagree
      * about what one row means.
      */
-    enum class PersonAction { ARCHIVE, UNARCHIVE, PIN, UNPIN, MUTE, UNMUTE, UNREAD, BLOCK, UNBLOCK, DELETE }
+    enum class PersonAction {
+        ARCHIVE, UNARCHIVE, PIN, UNPIN, MUTE, UNMUTE, UNREAD, BLOCK, UNBLOCK,
+        /** To Deleted, or at once when the setting is off: [DeletedFolder.holdsDelete]. */
+        DELETE,
+        /** Out of Deleted, back to the list whole. */
+        PUT_BACK,
+        /** The final delete, whatever the setting: "Delete now", or 30 days in Deleted. */
+        DELETE_NOW
+    }
 
     /** @return true where it was done; false where nothing could be. */
     fun actOnPerson(threadKey: String, action: PersonAction): Boolean

@@ -69,3 +69,13 @@ data class Archived(
     val data: List<InboxItem>? = null,
     val selected: Int = 0
 ) : MainPage()
+
+/**
+ * The conversations in Deleted, both rails. Rows are chosen, not opened: what can be done here
+ * is Put back and Delete now, and a conversation read from here would be marked read on the
+ * way out of a folder it is meant to be leaving.
+ */
+data class Deleted(
+    val data: List<InboxItem>? = null,
+    val selected: Int = 0
+) : MainPage()

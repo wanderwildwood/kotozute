@@ -85,4 +85,11 @@ open class SignalThread : RealmObject() {
      * what the mark covered -- a message that arrived after it is still unread.
      */
     var markedUnreadAt: Long = 0
+
+    /**
+     * When this conversation was put in Deleted on this phone, or 0. Local only: nothing is
+     * told to the account or the other devices until the delete becomes final (see
+     * DeletedFolder), because a delete sync cannot be taken back.
+     */
+    var deletedAt: Long = 0
 }

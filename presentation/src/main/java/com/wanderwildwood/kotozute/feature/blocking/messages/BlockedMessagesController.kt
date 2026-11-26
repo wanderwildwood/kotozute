@@ -52,6 +52,7 @@ class BlockedMessagesController : QkController<BlockedMessagesView, BlockedMessa
     @Inject lateinit var blockingDialog: BlockingDialog
     @Inject lateinit var colors: Colors
     @Inject lateinit var context: Context
+    @Inject lateinit var prefs: com.wanderwildwood.kotozute.util.Preferences
     @Inject override lateinit var presenter: BlockedMessagesPresenter
 
     init {
@@ -113,7 +114,11 @@ class BlockedMessagesController : QkController<BlockedMessagesView, BlockedMessa
         val count = conversations.size
         activity!!.einkDialog()
                 .setTitle(R.string.dialog_delete_title)
-                .setMessage(resources?.getQuantityString(R.plurals.dialog_delete_message, count, count))
+                .setMessage(resources?.getQuantityString(
+                        if (com.wanderwildwood.kotozute.util.DeletedFolder.holdsDelete(prefs.keepDeleted.get()))
+                            R.plurals.dialog_delete_to_folder
+                        else R.plurals.dialog_delete_message,
+                        count, count))
                 .setPositiveButton(R.string.button_delete) { _, _ -> confirmDeleteIntent.onNext(conversations) }
                 .setNegativeButton(R.string.button_cancel, null)
                 .show()

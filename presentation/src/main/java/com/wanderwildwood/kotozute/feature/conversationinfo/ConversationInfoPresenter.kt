@@ -187,7 +187,13 @@ class ConversationInfoPresenter @Inject constructor(
                 .filter { permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() } }
                 .withLatestFrom(conversation) { _, conversation -> conversation }
                 .autoDisposable(view.scope())
-                .subscribe { conversation -> deleteConversations.execute(listOf(conversation.id)) }
+                // Back to the list either way. Moved to Deleted the conversation is still there,
+                // and this screen and the one under it would stay open on it as if nothing
+                // had been done; deleted at once they closed by themselves.
+                .subscribe { conversation ->
+                    deleteConversations.execute(listOf(conversation.id))
+                    navigator.showMainActivity()
+                }
 
         // Media
         view.mediaClicks()

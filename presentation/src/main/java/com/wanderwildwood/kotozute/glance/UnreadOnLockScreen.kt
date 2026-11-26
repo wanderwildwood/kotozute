@@ -39,6 +39,7 @@ class UnreadOnLockScreen : GlanceProvider() {
             val threads = realm.where(Conversation::class.java)
                 .equalTo("archived", false)
                 .equalTo("blocked", false)
+                .equalTo("deletedAt", 0L)
                 .findAll()
                 .map { it.id }
                 .toTypedArray()
@@ -52,6 +53,7 @@ class UnreadOnLockScreen : GlanceProvider() {
 
             val signalThreads = realm.where(SignalThread::class.java)
                 .equalTo("archived", false)
+                .equalTo("deletedAt", 0L)
                 .greaterThan("unread", 0)
                 .findAll()
             val muted = signalThreads.filter { it.muted }.map { it.threadKey }.toSet()

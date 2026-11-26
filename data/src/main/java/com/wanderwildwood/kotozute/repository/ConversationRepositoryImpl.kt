@@ -72,6 +72,8 @@ class ConversationRepositoryImpl @Inject constructor(
             .notEqualTo("id", 0L)
             .equalTo("archived", archived)
             .equalTo("blocked", false)
+            // In Deleted: in no list but its own (see DeletedFolder).
+            .equalTo("deletedAt", 0L)
             .isNotEmpty("recipients")
             .beginGroup()
             .isNotNull("lastMessage")
@@ -129,6 +131,7 @@ class ConversationRepositoryImpl @Inject constructor(
                 .endGroup()
                 .equalTo("archived", false)
                 .equalTo("blocked", false)
+                .equalTo("deletedAt", 0L)
                 .isNotEmpty("recipients")
                 .findAll()
                 .let(realm::copyFromRealm)
@@ -170,6 +173,7 @@ class ConversationRepositoryImpl @Inject constructor(
             .notEqualTo("id", 0L)
             .isNotNull("lastMessage")
             .equalTo("blocked", false)
+            .equalTo("deletedAt", 0L)
             .isNotEmpty("recipients")
             .sort("pinned", Sort.DESCENDING, "lastMessage.date", Sort.DESCENDING)
             .findAll())
@@ -203,6 +207,7 @@ class ConversationRepositoryImpl @Inject constructor(
             realm.copyFromRealm(
                 realm.where(Conversation::class.java)
                     .equalTo("blocked", true)
+                    .equalTo("deletedAt", 0L)
                     .sort(arrayOf("lastMessage.date"), arrayOf(Sort.DESCENDING))
                     .findAll()
             )
@@ -212,6 +217,7 @@ class ConversationRepositoryImpl @Inject constructor(
         Realm.getDefaultInstance()
             .where(Conversation::class.java)
             .equalTo("blocked", true)
+            .equalTo("deletedAt", 0L)
             .sort(
                 arrayOf("lastMessage.date"),
                 arrayOf(Sort.DESCENDING)
@@ -222,6 +228,7 @@ class ConversationRepositoryImpl @Inject constructor(
         Realm.getDefaultInstance()
             .where(Conversation::class.java)
             .equalTo("blocked", true)
+            .equalTo("deletedAt", 0L)
             .sort(
                 arrayOf("lastMessage.date"),
                 arrayOf(Sort.DESCENDING)
@@ -262,6 +269,7 @@ class ConversationRepositoryImpl @Inject constructor(
                 .notEqualTo("id", 0L)
                 .equalTo("archived", archived)
                 .equalTo("blocked", false)
+                .equalTo("deletedAt", 0L)
                 .equalTo("lastMessage.seen", false)
                 .sort(
                     arrayOf("lastMessage.date"),
@@ -282,6 +290,7 @@ class ConversationRepositoryImpl @Inject constructor(
                 .notEqualTo("id", 0L)
                 .equalTo("archived", archived)
                 .equalTo("blocked", false)
+                .equalTo("deletedAt", 0L)
                 .equalTo("lastMessage.read", false)
                 .sort(
                     arrayOf("lastMessage.date"),
@@ -319,6 +328,7 @@ class ConversationRepositoryImpl @Inject constructor(
                 .isNotNull("lastMessage")
                 .equalTo("archived", false)
                 .equalTo("blocked", false)
+                .equalTo("deletedAt", 0L)
                 .isNotEmpty("recipients")
                 .limit(5)
                 .findAllAsync()
@@ -509,6 +519,48 @@ class ConversationRepositoryImpl @Inject constructor(
             )
         }
     }
+
+    override fun markDeleted(threadIds: Collection<Long>, at: Long) =
+        Realm.getDefaultInstance().use { realm ->
+            val conversations = realm.where(Conversation::class.java)
+                .anyOf("id", threadIds.toLongArray())
+                .findAll()
+
+            realm.executeTransaction { conversations.forEach { it.deletedAt = at } }
+        }
+
+    override fun markUndeleted(threadIds: Collection<Long>) {
+        if (threadIds.isEmpty()) return
+        Realm.getDefaultInstance().use { realm ->
+            // Only what is in Deleted: this runs on every arrival and every send, and a write
+            // that changes nothing still wakes every list watching the table.
+            val conversations = realm.where(Conversation::class.java)
+                .anyOf("id", threadIds.toLongArray())
+                .greaterThan("deletedAt", 0L)
+                .findAll()
+            if (conversations.isEmpty()) return
+
+            realm.executeTransaction { conversations.forEach { it.deletedAt = 0 } }
+        }
+    }
+
+    /**
+     * Blocked ones too, unlike the other lists: Deleted is the only place a deleted
+     * conversation can be seen, whatever else it was, and put back returns it to that.
+     */
+    private fun deletedBase(realm: Realm): RealmQuery<Conversation> =
+        realm.where(Conversation::class.java)
+            .notEqualTo("id", 0L)
+            .greaterThan("deletedAt", 0L)
+            .sort("deletedAt", Sort.DESCENDING)
+
+    override fun getDeletedConversations(): RealmResults<Conversation> =
+        deletedBase(Realm.getDefaultInstance()).findAllAsync()
+
+    override fun getDeletedConversationsSnapshot(): List<Conversation> =
+        Realm.getDefaultInstance().use { realm ->
+            deletedBase(realm).findAll().let(realm::copyFromRealm)
+        }
 
     /**
      * Returns a [Conversation] from the system SMS ContentProvider, based on the [threadId]

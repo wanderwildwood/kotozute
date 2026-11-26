@@ -46,6 +46,13 @@
                 android:layout_height="wrap_content"
                 app:title="@string/drawer_archived" />
 
+            <!-- Shown while the switch under Privacy is on, or while anything is still in it. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/deleted"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/drawer_deleted" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/scheduled"
                 android:layout_width="match_parent"
@@ -296,6 +303,14 @@
                 android:layout_height="wrap_content"
                 app:summary="@string/settings_keep_muted_archived_summary"
                 app:title="@string/settings_keep_muted_archived_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/keepDeleted"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_keep_deleted_summary"
+                app:title="@string/settings_keep_deleted_title"
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView

@@ -5,6 +5,7 @@ import com.wanderwildwood.kotozute.model.Contact
 import com.wanderwildwood.kotozute.model.SignalMessage
 import com.wanderwildwood.kotozute.model.SignalThread
 import com.wanderwildwood.kotozute.signal.BridgeMessage
+import com.wanderwildwood.kotozute.util.DeletedFolder
 import com.wanderwildwood.kotozute.util.PhoneNumberUtils
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.Observable
@@ -1905,6 +1906,8 @@ class SignalRepositoryImpl @Inject constructor(
                     ?.sendState = SignalMessage.SEND_SENDING
             }
         }
+        // Sending into a conversation in Deleted brought it back; its text half too.
+        flushRestoredByArrival()
         // What [ingest] does after filing, for a first message to somebody new.
         renameThreadsFromContacts()
         runCatching { nameGroupThreads() }.onFailure { Timber.w(it, "signal groups: naming failed; the next pass renames") }
@@ -3070,11 +3073,31 @@ class SignalRepositoryImpl @Inject constructor(
      * off the receive thread.
      */
     private fun flushUnarchivedByArrival() {
+        flushRestoredByArrival()
         if (unarchivedByArrival.isEmpty()) return
         val keys = unarchivedByArrival.toList()
         unarchivedByArrival.removeAll(keys.toSet())
         keys.forEach(::markNeedsSync)
         runOffThread { pushStorageNow() }
+    }
+
+    /** Conversations [store] took out of Deleted, whose text half is still to follow. */
+    private val restoredByArrival: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /**
+     * The text half of a conversation brought back by a message comes back with it, as it went
+     * with it ([actOnPerson]). Outside the Realm write that brought the Signal half back.
+     */
+    private fun flushRestoredByArrival() {
+        if (restoredByArrival.isEmpty()) return
+        val keys = restoredByArrival.toList()
+        restoredByArrival.removeAll(keys.toSet())
+        keys.forEach { key ->
+            runCatching {
+                linkedConversationId(key)?.takeIf { it != 0L }
+                    ?.let { conversations.markUndeleted(listOf(it)) }
+            }.onFailure { Timber.w(it, "signal: could not bring a text half back out of Deleted") }
+        }
     }
 
     private fun store(realm: Realm, m: BridgeMessage): Boolean {
@@ -3221,6 +3244,14 @@ class SignalRepositoryImpl @Inject constructor(
         ) {
             thread.archived = false
             unarchivedByArrival += m.threadKey
+        }
+        // A conversation in Deleted comes back whole when somebody writes into it -- they, or
+        // we, from this phone or another device. Never a line about the conversation (a
+        // changed safety number, a call), and never a backup or history being read in: none
+        // of those is anybody writing.
+        if (isNew && m.source == "live" && !m.update && thread.deletedAt > 0) {
+            thread.deletedAt = 0
+            restoredByArrival += m.threadKey
         }
         // Only the newest message speaks for the thread. Messages can arrive out of
         // order -- a reconnect replays by cursor, and an imported backup arrives
@@ -5101,6 +5132,8 @@ class SignalRepositoryImpl @Inject constructor(
         Realm.getDefaultInstance()
             .where(SignalThread::class.java)
             .equalTo("archived", archived)
+            // In Deleted: in no list but its own.
+            .equalTo("deletedAt", 0L)
             // A conversation list lists conversations. Signal's directory gives a row for
             // every contact it knows, which on this account was 53 people never messaged
             // against 2 who had been; undated, they piled up at the bottom of the inbox and
@@ -5128,6 +5161,7 @@ class SignalRepositoryImpl @Inject constructor(
             // and offering "no messages" rows as search results would bury the real hits.
             val threads = realm.where(SignalThread::class.java)
                 .greaterThan("lastTs", 0L)
+                .equalTo("deletedAt", 0L)
                 .findAll()
 
             val matches = threads.mapNotNull { thread ->
@@ -5261,7 +5295,11 @@ class SignalRepositoryImpl @Inject constructor(
             SignalRepository.PersonAction.UNREAD -> markUnread(threadKey)
             SignalRepository.PersonAction.BLOCK -> setBlocked(threadKey, true)
             SignalRepository.PersonAction.UNBLOCK -> setBlocked(threadKey, false)
-            SignalRepository.PersonAction.DELETE -> deleteThread(threadKey)
+            SignalRepository.PersonAction.DELETE ->
+                if (DeletedFolder.holdsDelete(prefs.keepDeleted.get())) moveThreadToDeleted(threadKey)
+                else deleteThread(threadKey)
+            SignalRepository.PersonAction.PUT_BACK -> putThreadBack(threadKey)
+            SignalRepository.PersonAction.DELETE_NOW -> deleteThread(threadKey)
         }
         // And the same to the text half, where the row stands for both. Reading is the one
         // thing deliberately left apart -- the two are separate screens and reading one is
@@ -5278,11 +5316,57 @@ class SignalRepositoryImpl @Inject constructor(
                 SignalRepository.PersonAction.BLOCK ->
                     conversations.markBlocked(listOf(id), prefs.blockingManager.get(), null)
                 SignalRepository.PersonAction.UNBLOCK -> conversations.markUnblocked(id)
-                SignalRepository.PersonAction.DELETE -> conversations.deleteConversations(id)
+                SignalRepository.PersonAction.DELETE ->
+                    if (DeletedFolder.holdsDelete(prefs.keepDeleted.get())) conversations.markDeleted(listOf(id))
+                    else conversations.deleteConversations(id)
+                SignalRepository.PersonAction.PUT_BACK -> conversations.markUndeleted(listOf(id))
+                SignalRepository.PersonAction.DELETE_NOW -> conversations.deleteConversations(id)
             }
         }
         true
     }.onFailure { Timber.w(it, "signal: %s on a person failed", action) }.getOrDefault(false)
+
+    /**
+     * Into Deleted. Nothing is removed and nothing is told to the other devices: a delete sync
+     * cannot be taken back, so it waits for the final delete ([deleteThread]).
+     */
+    private fun moveThreadToDeleted(threadKey: String) {
+        editThread(threadKey) { it.deletedAt = System.currentTimeMillis() }
+        // Its notification goes with it, as when it is read on another device.
+        readElsewhere.onNext(threadKey)
+    }
+
+    private fun putThreadBack(threadKey: String) = editThread(threadKey) { it.deletedAt = 0 }
+
+    override fun getDeletedThreads(): RealmResults<SignalThread> =
+        Realm.getDefaultInstance()
+            .where(SignalThread::class.java)
+            .greaterThan("deletedAt", 0L)
+            .sort("deletedAt", Sort.DESCENDING)
+            .findAllAsync()
+
+    override fun getDeletedThreadsSnapshot(): List<SignalThread> =
+        Realm.getDefaultInstance().use { realm ->
+            realm.copyFromRealm(
+                realm.where(SignalThread::class.java)
+                    .greaterThan("deletedAt", 0L)
+                    .sort("deletedAt", Sort.DESCENDING)
+                    .findAll()
+            )
+        }
+
+    override fun purgeDeletedThreads(now: Long): Int {
+        // Without Signal on there is no account to tell, and telling the other devices is
+        // part of what this delete is. They wait; nothing shows them meanwhile.
+        if (!prefs.signalEnabled.get()) return 0
+        val due = getDeletedThreadsSnapshot().filter { DeletedFolder.isDue(it.deletedAt, now) }
+        due.forEach { thread ->
+            runCatching { deleteThread(thread.threadKey) }
+                .onFailure { Timber.w(it, "signal: a conversation due out of Deleted stays for the next pass") }
+        }
+        if (due.isNotEmpty()) Timber.i("signal: %d conversation(s) removed after 30 days in Deleted", due.size)
+        return due.size
+    }
 
     override fun deleteThread(threadKey: String): Int {
         // Told to our other devices, as upstream's `deleteConversations(syncThreadDelete =
@@ -5576,6 +5660,9 @@ class SignalRepositoryImpl @Inject constructor(
         override fun threads(): List<com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Thread> =
             Realm.getDefaultInstance().use { realm ->
                 realm.where(SignalThread::class.java)
+                    // Not what is in Deleted: a copy written out is one more place a deleted
+                    // conversation would outlive its 30 days.
+                    .equalTo("deletedAt", 0L)
                     .findAll()
                     .map { thread ->
                         com.wanderwildwood.kotozute.signalstore.SignalHistoryExporter.Source.Thread(
@@ -6523,6 +6610,7 @@ class SignalRepositoryImpl @Inject constructor(
             realm.copyFromRealm(
                 realm.where(SignalThread::class.java)
                     .equalTo("archived", archived)
+                    .equalTo("deletedAt", 0L)
                     .greaterThan("lastTs", 0L)
                     // The same order as [getThreads]; a snapshot that sorted differently from
                     // the live list is a list that reorders itself when it refreshes.

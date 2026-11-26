@@ -86,6 +86,7 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
     @Inject lateinit var syncRepo: com.wanderwildwood.kotozute.repository.SyncRepository
     @Inject lateinit var conversationRepo: com.wanderwildwood.kotozute.repository.ConversationRepository
     @Inject lateinit var updateScheduledMessageAlarms: com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
+    @Inject lateinit var purgeDeleted: com.wanderwildwood.kotozute.interactor.PurgeDeleted
 
     /**
      * The message database is not being opened. Everything [onCreate] would have done after
@@ -435,6 +436,17 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
         }.onFailure { Timber.w(it, "signal: startup failed, carrying on without it") } }
             .also { it.isDaemon = true }.start()
 
+        // What has had its 30 days in Deleted goes now, and once a day after (the job). A short
+        // pause first, as the attachment pass below takes: a Signal conversation's final delete
+        // tells the other devices, and that wants the socket this start is still opening.
+        runCatching { com.wanderwildwood.kotozute.service.DeletedFolderService.scheduleJob(this) }
+            .onFailure { Timber.w(it, "Deleted: could not schedule the daily sweep") }
+        GlobalScope.launch(Dispatchers.IO) {
+            delay(DELETED_SWEEP_DELAY_MS)
+            runCatching { purgeDeleted.execute(Unit) }
+                .onFailure { Timber.w(it, "Deleted: the sweep at start failed; the daily one sweeps again") }
+        }
+
         // Disappearing messages have to be swept here, because the phone's copy is the only
         // one there is -- and without this it is the copy that outlives the timer. Reads
         // already hide an expired message, so this is about not keeping it on disk after it
@@ -630,3 +642,6 @@ class QKApplication : Application(), HasActivityInjector, HasBroadcastReceiverIn
 
 /** Past the stuck-send wait by this much on the second look, so a send cut off just before start is old enough by then. */
 private const val STUCK_SEND_RECHECK_SLACK_MS = 30_000L
+
+/** How long after start the Deleted folder is swept, so Signal has had time to connect. */
+private const val DELETED_SWEEP_DELAY_MS = 2 * 60_000L

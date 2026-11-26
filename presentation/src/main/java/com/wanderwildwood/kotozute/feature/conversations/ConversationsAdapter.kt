@@ -103,6 +103,12 @@ class ConversationsAdapter @Inject constructor(
             }
         }
 
+    /**
+     * A tap chooses the row instead of opening it -- Deleted, where what can be done is done to
+     * the chosen rows. Opening one from there would read it, marking it read on its way out.
+     */
+    var chooseOnTap: Boolean = false
+
     private var source: List<InboxItem> = emptyList()
     private var items: List<InboxItem> = emptyList()
 
@@ -236,6 +242,13 @@ class ConversationsAdapter @Inject constructor(
 
         return QkBindingViewHolder(binding).apply {
             view.setOnClickListener {
+                if (chooseOnTap) {
+                    getItem(adapterPosition)?.takeIf { it.isValid }?.let { item ->
+                        toggleSelection(item.stableId)
+                        view.isActivated = isSelected(item.stableId)
+                    }
+                    return@setOnClickListener
+                }
                 when (val item = getItem(adapterPosition)?.takeIf { it.isValid }) {
                     is InboxItem.Sms -> {
                         val conversation = item.conversation

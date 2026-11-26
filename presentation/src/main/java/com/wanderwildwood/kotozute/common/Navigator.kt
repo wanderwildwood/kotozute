@@ -173,6 +173,14 @@ class Navigator @Inject constructor(
         startActivity(intent)
     }
 
+    /** Deleted, a page of the conversation list as Archived is; reached the same way. */
+    fun showDeleted() {
+        val intent = Intent(context, MainActivity::class.java)
+        intent.putExtra("showDeleted", true)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        startActivity(intent)
+    }
+
     fun showCompose(body: String? = null, attachments: List<Uri>? = null, mode: String? = null) {
         val intent = Intent(context, ComposeActivity::class.java)
         intent.putExtra(Intent.EXTRA_TEXT, body)

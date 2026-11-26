@@ -35,6 +35,8 @@ interface MainView : QkView<MainState> {
     val filterChangedIntent: Observable<Int>
     val conversationsSelectedIntent: Observable<List<Long>>
     val confirmDeleteIntent: Observable<List<Long>>
+    /** "Delete now" confirmed, in Deleted: the final delete. */
+    val confirmDeleteNowIntent: Observable<List<Long>>
     val renameConversationIntent: Observable<String>
     val swipeConversationIntent: Observable<Pair<Long, Int>>
     val undoArchiveIntent: Observable<Unit>
@@ -49,8 +51,13 @@ interface MainView : QkView<MainState> {
     fun toggleSelectAll()
     fun themeChanged()
     fun showBlockingDialog(conversations: List<Long>, block: Boolean)
-    /** [signal]: Signal rows are among them, whose deletion reaches the other devices too. */
-    fun showDeleteDialog(conversations: List<Long>, signal: Boolean = false)
+    /**
+     * [signal]: Signal rows are among them, whose deletion reaches the other devices too.
+     * [toFolder]: they go to Deleted rather than at once, so the prompt says that instead.
+     */
+    fun showDeleteDialog(conversations: List<Long>, signal: Boolean = false, toFolder: Boolean = false)
+    /** Asks before "Delete now" in Deleted; that one is final. */
+    fun showDeleteNowDialog(conversations: List<Long>, signal: Boolean)
     /** Asks before blocking [count] people on Signal; [onConfirm] runs only on yes. */
     fun confirmSignalBlock(count: Int, onConfirm: () -> Unit)
     fun showSignalActionFailed()

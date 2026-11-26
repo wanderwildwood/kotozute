@@ -104,6 +104,7 @@ class MainActivity : QkThemedActivity(), MainView {
     override val filterChangedIntent: Subject<Int> = PublishSubject.create()
     override val conversationsSelectedIntent by lazy { conversationsAdapter.selectionChanges }
     override val confirmDeleteIntent: Subject<List<Long>> = PublishSubject.create()
+    override val confirmDeleteNowIntent: Subject<List<Long>> = PublishSubject.create()
     override val renameConversationIntent: Subject<String> = PublishSubject.create()
     override val swipeConversationIntent by lazy { itemTouchCallback.swipes }
     override val undoArchiveIntent: Subject<Unit> = PublishSubject.create()
@@ -311,8 +312,13 @@ class MainActivity : QkThemedActivity(), MainView {
         val selectedConversations = when (state.page) {
             is Inbox -> state.page.selected
             is Archived -> state.page.selected
+            is Deleted -> state.page.selected
             else -> 0
         }
+        // Deleted offers its own two actions and nothing else: archiving, pinning or blocking
+        // a conversation on its way out would be acting on one that is not in any list.
+        val inDeleted = state.page is Deleted
+        val acting = selectedConversations != 0 && !inDeleted
 
         // Only show search when in Searching state
         val searchVisible = state.page is Searching
@@ -350,23 +356,27 @@ class MainActivity : QkThemedActivity(), MainView {
                 state.page is Inbox && selectedConversations != 0
             findItem(R.id.unarchive)?.isVisible =
                 state.page is Archived && selectedConversations != 0
-            findItem(R.id.delete)?.isVisible = selectedConversations != 0
-            findItem(R.id.add)?.isVisible = addContact && selectedConversations != 0
-            findItem(R.id.pin)?.isVisible = markPinned && selectedConversations != 0
-            findItem(R.id.unpin)?.isVisible = !markPinned && selectedConversations != 0
-            findItem(R.id.mute)?.isVisible = markMuted && selectedConversations != 0
-            findItem(R.id.unmute)?.isVisible = !markMuted && selectedConversations != 0
-            findItem(R.id.read)?.isVisible = ( markRead && selectedConversations != 0 ) ||
-                    selectedConversations > 1
-            findItem(R.id.unread)?.isVisible = ( !markRead && selectedConversations != 0 ) ||
-                    selectedConversations > 1
-            findItem(R.id.block)?.isVisible = selectedConversations != 0
-            findItem(R.id.rename)?.isVisible = rename && selectedConversations == 1
+            findItem(R.id.putBack)?.isVisible = inDeleted && selectedConversations != 0
+            findItem(R.id.deleteNow)?.isVisible = inDeleted && selectedConversations != 0
+            findItem(R.id.delete)?.isVisible = acting
+            findItem(R.id.add)?.isVisible = addContact && acting
+            findItem(R.id.pin)?.isVisible = markPinned && acting
+            findItem(R.id.unpin)?.isVisible = !markPinned && acting
+            findItem(R.id.mute)?.isVisible = markMuted && acting
+            findItem(R.id.unmute)?.isVisible = !markMuted && acting
+            findItem(R.id.read)?.isVisible = ( markRead && acting ) ||
+                    (selectedConversations > 1 && !inDeleted)
+            findItem(R.id.unread)?.isVisible = ( !markRead && acting ) ||
+                    (selectedConversations > 1 && !inDeleted)
+            findItem(R.id.block)?.isVisible = acting
+            findItem(R.id.rename)?.isVisible = rename && acting && selectedConversations == 1
         }
 
         conversationsAdapter.emptyView = binding.empty.takeIf {
-            state.page is Inbox || state.page is Archived
+            state.page is Inbox || state.page is Archived || state.page is Deleted
         }
+        conversationsAdapter.chooseOnTap = inDeleted
+        binding.deletedNote.setVisible(inDeleted)
         searchAdapter.emptyView = binding.empty.takeIf { state.page is Searching }
 
         when (state.page) {
@@ -415,6 +425,22 @@ class MainActivity : QkThemedActivity(), MainView {
                 binding.empty.setText(R.string.archived_empty_text)
             }
 
+            // Archived's page in every respect but what a row does: no swipe, no compose,
+            // and the line under the bar saying how long things stay.
+            is Deleted -> {
+                showBackButton(state.page.selected > 0)
+                title = when (state.page.selected != 0) {
+                    true -> getString(R.string.main_title_selected, state.page.selected)
+                    false -> getString(R.string.title_deleted)
+                }
+                if (binding.recyclerView.adapter !== conversationsAdapter)
+                    binding.recyclerView.adapter = conversationsAdapter
+                conversationsAdapter.inbox = false
+                conversationsAdapter.updateData(state.page.data)
+                itemTouchHelper.attachToRecyclerView(null)
+                binding.empty.setText(R.string.deleted_empty_text)
+            }
+
             else -> {}
         }
 
@@ -428,7 +454,7 @@ class MainActivity : QkThemedActivity(), MainView {
         // Settings instead, on the reasoning that Settings is where Archived is reached
         // from -- and since Settings opens Archived, the two screens shut behind you with
         // no way to the messages from either.
-        val archived = state.page is Archived
+        val archived = state.page is Archived || inDeleted
         binding.toolbar.navigationIcon = when {
             archived -> ContextCompat.getDrawable(this, R.drawable.ic_arrow_back_black_24dp)
                 ?.apply { setTint(Color.BLACK) }
@@ -442,7 +468,8 @@ class MainActivity : QkThemedActivity(), MainView {
         // stays is only what acts on the selection.
         val selecting = selectedConversations > 0
         binding.settingsIcon.setVisible(!archived && !selecting)
-        binding.searchIcon.setVisible(!selecting)
+        // Not from Deleted: search finds the lists' conversations, which Deleted's are not.
+        binding.searchIcon.setVisible(!selecting && !inDeleted)
 
         when (state.syncing) {
             is SyncRepository.SyncProgress.Idle -> {
@@ -562,18 +589,31 @@ class MainActivity : QkThemedActivity(), MainView {
         blockingDialog.show(this, conversations, block)
     }
 
-    override fun showDeleteDialog(conversations: List<Long>, signal: Boolean) {
+    override fun showDeleteDialog(conversations: List<Long>, signal: Boolean, toFolder: Boolean) {
         val message = resources.getQuantityString(
-            R.plurals.dialog_delete_message,
+            if (toFolder) R.plurals.dialog_delete_to_folder else R.plurals.dialog_delete_message,
             conversations.size,
             conversations.size
         )
         einkDialog()
             .setTitle(R.string.dialog_delete_title)
             // A Signal conversation goes from the other devices as well, and nothing brings
-            // it back: said here, where the row's own menu used to say it.
-            .setMessage(if (signal) message + "\n\n" + getString(R.string.info_delete_summary) else message)
+            // it back: said here, where the row's own menu used to say it. Not on the way to
+            // Deleted, which tells the other devices nothing until the delete is final.
+            .setMessage(if (signal && !toFolder) message + "\n\n" + getString(R.string.info_delete_summary) else message)
             .setPositiveButton(R.string.button_delete) { _, _ -> confirmDeleteIntent.onNext(conversations) }
+            .setNegativeButton(R.string.button_cancel, null)
+            .show()
+    }
+
+    override fun showDeleteNowDialog(conversations: List<Long>, signal: Boolean) {
+        val message = resources.getQuantityString(
+            R.plurals.dialog_delete_now, conversations.size, conversations.size
+        )
+        einkDialog()
+            .setTitle(R.string.main_menu_delete_now)
+            .setMessage(if (signal) message + "\n\n" + getString(R.string.info_delete_summary) else message)
+            .setPositiveButton(R.string.button_delete) { _, _ -> confirmDeleteNowIntent.onNext(conversations) }
             .setNegativeButton(R.string.button_cancel, null)
             .show()
     }

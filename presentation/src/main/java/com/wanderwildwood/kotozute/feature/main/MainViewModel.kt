@@ -51,6 +51,7 @@ import com.wanderwildwood.kotozute.feature.conversations.InboxItem
 import com.wanderwildwood.kotozute.feature.conversations.InboxSelection
 import com.wanderwildwood.kotozute.model.SignalThread
 import com.wanderwildwood.kotozute.repository.SignalRepository
+import com.wanderwildwood.kotozute.util.DeletedFolder
 import com.wanderwildwood.kotozute.util.Preferences
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.plusAssign
@@ -67,6 +68,8 @@ class MainViewModel @Inject constructor(
     private val conversationRepo: ConversationRepository,
     private val messageRepo: MessageRepository,
     private val deleteConversations: DeleteConversations,
+    private val deleteConversationsNow: com.wanderwildwood.kotozute.interactor.DeleteConversationsNow,
+    private val putBackConversations: com.wanderwildwood.kotozute.interactor.PutBackConversations,
     private val markArchived: MarkArchived,
     private val markPinned: MarkPinned,
     private val markRead: MarkRead,
@@ -98,6 +101,8 @@ class MainViewModel @Inject constructor(
     private var smsResults: RealmResults<Conversation>? = null
     private var signalResults: RealmResults<SignalThread>? = null
     private var showingArchived = false
+    /** Deleted is bound, rather than the inbox or the archive. See [bindDeleted]. */
+    private var showingDeleted = false
 
     private val smsListener =
         io.realm.RealmChangeListener<RealmResults<Conversation>> { refreshInbox() }
@@ -106,6 +111,7 @@ class MainViewModel @Inject constructor(
 
     private fun bindInbox(archived: Boolean): List<InboxItem> {
         showingArchived = archived
+        showingDeleted = false
         smsResults?.removeAllChangeListeners()
         smsResults = conversationRepo.getConversations(prefs.unreadAtTop.get(), archived)
             .also { it.addChangeListener(smsListener) }
@@ -117,6 +123,26 @@ class MainViewModel @Inject constructor(
             when (val p = page) {
                 is Inbox -> copy(page = p.copy(data = items))
                 is Archived -> copy(page = p.copy(data = items))
+                else -> this
+            }
+        }
+        return items
+    }
+
+    /** The same two rails as [bindInbox], from Deleted. */
+    private fun bindDeleted(): List<InboxItem> {
+        showingArchived = false
+        showingDeleted = true
+        smsResults?.removeAllChangeListeners()
+        smsResults = conversationRepo.getDeletedConversations()
+            .also { it.addChangeListener(smsListener) }
+        signalResults?.removeAllChangeListeners()
+        signalResults = signalRepo.getDeletedThreads()
+            .also { it.addChangeListener(signalListener) }
+        val items = mergedInbox()
+        newState {
+            when (val p = page) {
+                is Deleted -> copy(page = p.copy(data = items))
                 else -> this
             }
         }
@@ -225,7 +251,8 @@ class MainViewModel @Inject constructor(
         val signal = when {
             !prefs.signalEnabled.get() -> emptyList()
             // Kept out of this list on purpose; they have their own, reached by the badge.
-            !prefs.signalWeave.get() -> emptyList()
+            // Not out of Deleted, which is the only place a deleted one can be seen at all.
+            !prefs.signalWeave.get() && !showingDeleted -> emptyList()
             else -> signalResults
                 ?.takeIf { it.isValid && it.isLoaded }
                 ?.map { InboxItem.Signal(it) }
@@ -297,7 +324,11 @@ class MainViewModel @Inject constructor(
                 val byNumber = byHand ?: numberFor(thread)?.let { number ->
                     runCatching { conversationRepo.getConversation(listOf(number)) }.getOrNull()
                 }
-                byNumber?.takeIf { it.isValid }?.let { put(item.stableId, it) }
+                // Only a half on the same shelf. A text conversation in Deleted is not the text
+                // half of a Signal row in the inbox -- its snippet and unread would show through
+                // a row it is meant to be out of -- and the other way round in Deleted.
+                byNumber?.takeIf { it.isValid && (it.deletedAt > 0) == showingDeleted }
+                    ?.let { put(item.stableId, it) }
             }
         }
 
@@ -318,6 +349,8 @@ class MainViewModel @Inject constructor(
             when (val p = page) {
                 is Inbox -> copy(hasUnread = anyUnread, page = p.copy(data = items))
                 is Archived -> copy(hasUnread = anyUnread, page = p.copy(data = items))
+                // Deleted's unread is not the inbox's: Mark all read is not offered there.
+                is Deleted -> copy(page = p.copy(data = items))
                 else -> copy(hasUnread = anyUnread)
             }
         }
@@ -347,8 +380,19 @@ class MainViewModel @Inject constructor(
                 .map { it.page is Archived }
                 .distinctUntilChanged()
                 .subscribe { archived -> if (archived != showingArchived) bindInbox(archived) }
+        disposables += state
+                .map { it.page is Deleted }
+                .distinctUntilChanged()
+                // Out of Deleted is back to the inbox: Archived is only reached by its own
+                // intent, which binds the archive itself before this runs.
+                .subscribe { deleted ->
+                    if (deleted && !showingDeleted) bindDeleted()
+                    else if (!deleted && showingDeleted) bindInbox(false)
+                }
 
         disposables += deleteConversations
+        disposables += deleteConversationsNow
+        disposables += putBackConversations
         disposables += markAllSeen
         disposables += markArchived
         disposables += markUnarchived
@@ -511,6 +555,9 @@ class MainViewModel @Inject constructor(
                         intent.getBooleanExtra("showArchived", false) -> {
                             newState { copy(page = Archived(data = bindInbox(true))) }
                         }
+                        intent.getBooleanExtra("showDeleted", false) -> {
+                            newState { copy(page = Deleted(data = bindDeleted())) }
+                        }
                         intent.getStringExtra("screen") == "compose" -> {
                             navigator.showConversation(intent.getLongExtra("threadId", 0))
                         }
@@ -593,6 +640,8 @@ class MainViewModel @Inject constructor(
                         state.page is Searching -> view.clearSearch()
                         state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
                         state.page is Archived && state.page.selected > 0 -> view.clearSelection()
+                        state.page is Deleted && state.page.selected > 0 -> view.clearSelection()
+                        state.page is Deleted -> showInbox()
                         // The back arrow Archived draws in its corner, and it goes to the
                         // inbox. It used to go to Settings, on the reasoning that Settings is
                         // where Archived is reached from — which is true and still made a trap:
@@ -614,6 +663,7 @@ class MainViewModel @Inject constructor(
                         state.page is Searching -> view.clearSearch()
                         state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
                         state.page is Archived && state.page.selected > 0 -> view.clearSelection()
+                        state.page is Deleted && state.page.selected > 0 -> view.clearSelection()
                         // Archived included: the same place the arrow in the corner goes. A
                         // screen whose two backs disagree is a defect, and one whose two backs
                         // agree on somewhere you cannot leave is a worse one.
@@ -699,7 +749,48 @@ class MainViewModel @Inject constructor(
                         permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() }
                 }
                 .autoDisposable(view.scope())
-                .subscribe { ids -> view.showDeleteDialog(ids, ids.any(InboxItem::isSignalId)) }
+                .subscribe { ids ->
+                    view.showDeleteDialog(
+                        ids, ids.any(InboxItem::isSignalId), DeletedFolder.holdsDelete(prefs.keepDeleted.get())
+                    )
+                }
+
+        // Deleted's two actions. Put back returns each conversation whole, both halves of a
+        // joined row; Delete now is the final delete, and asks first because it is.
+        view.optionsItemIntent
+                .filter { itemId -> itemId == R.id.putBack }
+                .withLatestFrom(view.conversationsSelectedIntent) { _, ids ->
+                    val chosen = InboxSelection.split(ids, selectedRows)
+                    val texts = chosen.sms + chosen.joined
+                    if (texts.isNotEmpty()) putBackConversations.execute(texts)
+                    actOnSignal(view, chosen.signal, SignalRepository.PersonAction.PUT_BACK)
+                    view.clearSelection()
+                }
+                .autoDisposable(view.scope())
+                .subscribe()
+
+        view.optionsItemIntent
+                .filter { itemId -> itemId == R.id.deleteNow }
+                .withLatestFrom(view.conversationsSelectedIntent) { _, ids -> ids }
+                // As Delete: a text conversation leaves the phone's SMS store only for the
+                // default SMS app, and any other app's delete there is ignored without a word.
+                .filter { ids ->
+                    val chosen = InboxSelection.split(ids, selectedRows)
+                    (chosen.sms + chosen.joined).isEmpty() ||
+                        permissionManager.isDefaultSms().also { if (!it) view.requestDefaultSms() }
+                }
+                .autoDisposable(view.scope())
+                .subscribe { ids -> view.showDeleteNowDialog(ids, ids.any(InboxItem::isSignalId)) }
+
+        view.confirmDeleteNowIntent
+                .autoDisposable(view.scope())
+                .subscribe { ids ->
+                    val chosen = InboxSelection.split(ids, selectedRows)
+                    val texts = chosen.sms + chosen.joined
+                    if (texts.isNotEmpty()) deleteConversationsNow.execute(texts)
+                    actOnSignal(view, chosen.signal, SignalRepository.PersonAction.DELETE_NOW)
+                    view.clearSelection()
+                }
 
         view.optionsItemIntent
                 .filter { itemId -> itemId == R.id.add }
@@ -823,6 +914,7 @@ class MainViewModel @Inject constructor(
                     val shown = when (state.page) {
                         is Inbox -> state.page.data
                         is Archived -> state.page.data
+                        is Deleted -> state.page.data
                         else -> null
                     }.orEmpty()
                     selectedRows = selection.mapNotNull { id ->
@@ -845,6 +937,8 @@ class MainViewModel @Inject constructor(
                                 markMuted = offer.mute, markRead = offer.read, rename = offer.rename, selected = selected)
                             newState { copy(page = page) }
                         }
+
+                        is Deleted -> newState { copy(page = state.page.copy(selected = selected)) }
 
                         is Searching -> {} // Ignore
                         else -> {}
@@ -895,7 +989,9 @@ class MainViewModel @Inject constructor(
                                 view.showArchivedSnackbar(1, true)
                             }
                         Preferences.SWIPE_ACTION_DELETE ->
-                            view.showDeleteDialog(listOf(threadId))
+                            view.showDeleteDialog(
+                                listOf(threadId), toFolder = DeletedFolder.holdsDelete(prefs.keepDeleted.get())
+                            )
                         Preferences.SWIPE_ACTION_BLOCK ->
                             view.showBlockingDialog(listOf(threadId), true)
                         Preferences.SWIPE_ACTION_CALL -> {

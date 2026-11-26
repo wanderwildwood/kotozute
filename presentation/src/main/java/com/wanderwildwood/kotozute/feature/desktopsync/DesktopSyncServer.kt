@@ -21,6 +21,7 @@ import android.webkit.MimeTypeMap
 import com.wanderwildwood.kotozute.interactor.SyncMessages
 import com.wanderwildwood.kotozute.repository.ScheduledMessageRepository
 import com.wanderwildwood.kotozute.interactor.UpdateScheduledMessageAlarms
+import com.wanderwildwood.kotozute.util.DeletedFolder
 import com.wanderwildwood.kotozute.util.Preferences
 import kotlin.concurrent.thread
 import java.io.InputStream
@@ -1083,10 +1084,16 @@ class DesktopSyncServer(
      * see. The joining rule is the phone's: a shared number, or a link made by hand.
      */
     private fun joinedConversationId(thread: SignalThread): Long? =
-        runCatching { signalRepository.linkedConversationId(thread.threadKey) }.getOrNull()
+        (runCatching { signalRepository.linkedConversationId(thread.threadKey) }.getOrNull()
             ?: numberFor(thread)?.let { number ->
                 runCatching { conversationRepository.getConversation(listOf(number))?.id }
                     .getOrNull()
+            })
+            // Not a text half that is in Deleted: the phone does not join one to a row in the
+            // lists either, and its snippet would show through a row it is meant to be out of.
+            ?.takeUnless { id ->
+                runCatching { conversationRepository.getConversation(id)?.deletedAt ?: 0L }
+                    .getOrDefault(0L) > 0L
             }
 
     /**
@@ -1485,7 +1492,8 @@ class DesktopSyncServer(
      * copy -- so each rail answers for the actions it actually has.
      */
     private fun handleThreadAction(threadId: Long, session: IHTTPSession): Response {
-        val action = readSmallJsonField(session, "action", MAX_ACTION_BODY_BYTES)?.trim().orEmpty()
+        val body = readSmallJson(session, MAX_ACTION_BODY_BYTES)
+        val action = body?.optString("action")?.trim().orEmpty()
         if (action.isEmpty()) {
             return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "no action"))
         }
@@ -1542,7 +1550,20 @@ class DesktopSyncServer(
                 "unread" -> messageRepository.markUnread(listOf(threadId))
                 "block" -> conversationRepository.markBlocked(listOf(threadId), blockingManager(), null)
                 "unblock" -> conversationRepository.markUnblocked(threadId)
-                "delete" -> conversationRepository.deleteConversations(threadId)
+                // The phone's own rule: to Deleted while the switch is on, at once while it is
+                // off. The page asked in the words of the setting it read; if the setting has
+                // changed since, what it asked is not what would happen, so nothing is done.
+                "delete" -> {
+                    val toFolder = DeletedFolder.holdsDelete(prefs.keepDeleted.get())
+                    if (body?.has("toFolder") == true && body.optBoolean("toFolder") != toFolder) {
+                        return jsonResponse(
+                            Response.Status.CONFLICT,
+                            JSONObject().put("error", "the phone's delete setting changed; try again")
+                        )
+                    }
+                    if (toFolder) conversationRepository.markDeleted(listOf(threadId))
+                    else conversationRepository.deleteConversations(threadId)
+                }
                 else -> return jsonResponse(
                     Response.Status.BAD_REQUEST,
                     JSONObject().put("error", "no such action")
@@ -1810,6 +1831,8 @@ class DesktopSyncServer(
         put("signalEnabled", prefs.signalEnabled.get())
         put("signalWeave", prefs.signalWeave.get())
         put("signalReadReceipts", prefs.signalReadReceipts.get())
+        // Read-only here: which way Delete goes, so the page can ask in the right words.
+        put("keepDeleted", prefs.keepDeleted.get())
         put("vpnOnly", prefs.desktopSyncVpnOnly.get())
         // Read-only, so the settings screen can say what it is talking to.
         put("signalConfigured", signalRepository.isConfigured())

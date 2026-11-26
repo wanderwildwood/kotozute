@@ -367,8 +367,16 @@ class SignalThreadInfoActivity : QkThemedActivity() {
 
     /** What the delete row says it will take, which depends on whether the rails are joined. */
     private fun deleteSummary(): String = getString(
-        if (linkedConversation != null) R.string.info_delete_both else R.string.info_delete_summary
+        when {
+            toFolder() -> R.string.info_delete_to_folder_summary
+            linkedConversation != null -> R.string.info_delete_both
+            else -> R.string.info_delete_summary
+        }
     )
+
+    /** Delete goes to Deleted rather than at once; see DeletedFolder. */
+    private fun toFolder(): Boolean =
+        com.wanderwildwood.kotozute.util.DeletedFolder.holdsDelete(prefs.keepDeleted.get())
 
     /**
      * Deletes this phone's copy of the conversation.
@@ -387,12 +395,15 @@ class SignalThreadInfoActivity : QkThemedActivity() {
             if (!deleteArmed) {
                 deleteArmed = true
                 binding.deleteThread.title = getString(R.string.info_delete_confirm)
-                binding.deleteThread.summary = getString(R.string.info_delete_armed_summary)
+                // "The only copy" is the final delete's warning; on the way to Deleted it is not.
+                binding.deleteThread.summary =
+                    if (toFolder()) deleteSummary() else getString(R.string.info_delete_armed_summary)
                 watch.arm(disarmDelete)
                 return@setOnClickListener
             }
             watch.done(disarmDelete)
             deleteArmed = false
+            val movedToFolder = toFolder()
             thread {
                 val result = runCatching {
                     val gone = signalRepo.countMessages(threadKey)
@@ -410,7 +421,10 @@ class SignalThreadInfoActivity : QkThemedActivity() {
                     Toast.makeText(
                         this,
                         result.getOrNull()
-                            ?.let { getString(R.string.info_deleted_toast, it) }
+                            ?.let {
+                                if (movedToFolder) getString(R.string.info_moved_to_deleted_toast)
+                                else getString(R.string.info_deleted_toast, it)
+                            }
                             ?: getString(R.string.info_delete_failed),
                         Toast.LENGTH_LONG
                     ).show()

@@ -174,7 +174,13 @@ class DeviceLinker internal constructor(
             if (done.get()) return
             val closeable = runCatching {
                 ProvisioningSocket.start<ProvisionMessage>(
-                    ProvisioningSocket.Mode.Link(false),
+                    // True: the code says `backup5`, which is what makes the primary offer
+                    // "Transfer message history" at all (`LinkDeviceViewModel`: the capability
+                    // in the scanned URL decides between VALID_WITH_SYNC and
+                    // VALID_WITHOUT_SYNC). Nothing else is advertised for it -- not at
+                    // registration, not in the device attributes. Accepting the offer puts an
+                    // ephemeral backup key in the provisioning message; see [HistoryTransfer].
+                    ProvisioningSocket.Mode.Link(true),
                     // No key of ours any more: since 07761fa0e1 each socket makes its own with
                     // libsignal's `RecvProvisionCiphertextState`, as upstream's
                     // `LinkDeviceRepository` and `AppRegistrationNetworkController` now do.
@@ -403,6 +409,17 @@ class DeviceLinker internal constructor(
                 provision.authCredentialSaltOrNull()?.let { accounts.saveAuthCredentialSalt(it) }
                 provision.profileKey?.let { accounts.saveProfileKey(it.toByteArray()) }
 
+                // The key to the message history the primary is about to upload, when the
+                // person chose to transfer it. Like the salt, it arrives once and only here,
+                // so it is written while failing still means "not linked". Written (or
+                // cleared) every time: a key left by an earlier link opens an archive made
+                // for a device that no longer exists. Upstream keeps it in the same place in
+                // its flow, `LinkedDeviceInfo.ephemeralBackupKey`.
+                accounts.startHistoryTransfer(
+                    provision.ephemeralBackupKeyOrNull(),
+                    System.currentTimeMillis()
+                )
+
                 accounts.saveCredentials(
                     provision.number,
                     aci.toString(),
@@ -575,3 +592,12 @@ private fun ProvisionMessage.pniIdentityKeyPair() =
         org.signal.libsignal.protocol.IdentityKey(pniIdentityKeyPublic!!.toByteArray()),
         org.signal.libsignal.protocol.ecc.ECPrivateKey(pniIdentityKeyPrivate!!.toByteArray())
     )
+
+/**
+ * The ephemeral backup key (field 14), or null when the primary is not transferring history.
+ *
+ * Only a 32-byte value is a key: `MessageBackupKey` refuses anything else with a `require`,
+ * and refusing it here instead keeps a malformed field from failing the link itself.
+ */
+internal fun ProvisionMessage.ephemeralBackupKeyOrNull(): ByteArray? =
+    ephemeralBackupKey?.takeIf { it.size == 32 }?.toByteArray()

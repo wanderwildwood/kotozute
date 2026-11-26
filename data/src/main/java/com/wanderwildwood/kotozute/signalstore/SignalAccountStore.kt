@@ -300,6 +300,57 @@ internal class SignalAccountStore(private val db: ProtocolDatabase) {
         )
     }
 
+    // --- history transfer --------------------------------------------------------------
+
+    /**
+     * What a link left for [HistoryTransfer] to fetch: the primary's ephemeral backup key, or
+     * nothing. Replaces whatever an earlier link left, because that key opens an archive made
+     * for a device that no longer exists; null clears it.
+     */
+    fun startHistoryTransfer(ephemeralKey: ByteArray?, linkedAt: Long) = inTransaction {
+        db.writableDatabase.execSQL("DELETE FROM history_transfer")
+        if (ephemeralKey != null) {
+            db.writableDatabase.execSQL(
+                "INSERT INTO history_transfer (_id, ephemeral_key, linked_at) VALUES (1, ?, ?)",
+                arrayOf(ephemeralKey, linkedAt)
+            )
+        }
+    }
+
+    fun historyTransfer(): HistoryTransfer.Pending? = withLock {
+        db.readableDatabase.rawQuery(
+            "SELECT ephemeral_key, linked_at, cdn, cdn_key FROM history_transfer WHERE _id = 1", null
+        ).use { c ->
+            if (!c.moveToFirst()) return@use null
+            HistoryTransfer.Pending(
+                ephemeralKey = c.getBlob(0),
+                linkedAt = c.getLong(1),
+                cdn = if (c.isNull(2)) null else c.getInt(2),
+                cdnKey = if (c.isNull(3)) null else c.getString(3)
+            )
+        }
+    }
+
+    /** Where the primary put the archive. Kept so a restart downloads rather than waits again. */
+    fun saveHistoryTransferLocation(linkedAt: Long, cdn: Int, cdnKey: String) = inTransaction {
+        db.writableDatabase.execSQL(
+            "UPDATE history_transfer SET cdn = ?, cdn_key = ? WHERE _id = 1 AND linked_at = ?",
+            arrayOf(cdn, cdnKey, linkedAt)
+        )
+    }
+
+    /**
+     * The import finished, or the archive was proven unusable: the key has done its work.
+     *
+     * Only the row of the link that run started from, by [linkedAt]: a run still going when
+     * the phone is linked again must not throw away the new link's key on its way out.
+     */
+    fun finishHistoryTransfer(linkedAt: Long) = inTransaction {
+        db.writableDatabase.execSQL(
+            "DELETE FROM history_transfer WHERE linked_at = ?", arrayOf(linkedAt)
+        )
+    }
+
     // --- plumbing ----------------------------------------------------------------------
 
     /**

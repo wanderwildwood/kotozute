@@ -10,3 +10,5 @@ includeBuild 'signal-service/wire-handler'
 include ':presentation', ':android-smsmms', ':domain', ':data', ':common'
 include ':signal-service:util-jvm', ':signal-service:network'
 include ':signal-service:serialization', ':signal-service:libsignal-service', ':signal-service:lib-network'
+// The backup format a primary sends a newly linked device its history in. See its build file.
+include ':signal-service:archive'

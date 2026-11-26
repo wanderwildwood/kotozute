@@ -186,4 +186,5 @@
 # adapters that look up their generated companions reflectively.
 -keep class org.whispersystems.signalservice.** { *; }
 -keep class org.signal.network.** { *; }
+-keep class org.signal.archive.proto.** { *; }
 -keepclassmembers class * extends com.squareup.wire.Message { *; }

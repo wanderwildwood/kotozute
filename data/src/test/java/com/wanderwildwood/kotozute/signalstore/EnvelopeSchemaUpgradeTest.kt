@@ -60,7 +60,7 @@ class EnvelopeSchemaUpgradeTest {
 
     @Test
     fun `v44 adds the build stamp, and v43 is left as it shipped`() {
-        assertEquals(44, ProtocolStoreSchema.VERSION)
+        assertEquals(true, ProtocolStoreSchema.VERSION >= 44)
         assertEquals(listOf("unprocessed_build", "unprocessed_waits_for"), addedAt(44))
         assertEquals(
             listOf(
@@ -70,6 +70,14 @@ class EnvelopeSchemaUpgradeTest {
             ),
             ProtocolStoreSchema.MIGRATIONS[43]
         )
+    }
+
+    @Test
+    fun `v45 only adds the history transfer table, and touches no envelope`() {
+        assertEquals(45, ProtocolStoreSchema.VERSION)
+        assertEquals(listOf(ProtocolStoreSchema.HISTORY_TRANSFER), ProtocolStoreSchema.MIGRATIONS[45])
+        assertEquals(true, ProtocolStoreSchema.HISTORY_TRANSFER in ProtocolStoreSchema.ALL)
+        assertEquals(emptyList<String>(), addedAt(45))
     }
 
     @Test

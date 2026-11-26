@@ -141,9 +141,23 @@ On a Kompakt, switch Messaging on in **DuraSpeed** as well ([how](#on-a-mudita-k
 background apps a few minutes after the screen goes off, and that stops both the connection and
 the catch-ups.
 
-**Threads start empty.** Signal's servers do not hold history and a newly linked device is not
-sent any, so conversations fill from the day you pair. Importing a Signal Desktop export is how
-you get the rest.
+**History can come across when you link.** Signal's servers do not hold it, but the phone you
+link from can send it: after scanning the code it asks whether to **Transfer message history**.
+Choose that and it sends an encrypted copy of your conversations, which this phone files into
+its threads once the link is done. The link screen says how far it has got; leave it, or lose
+the network, and it carries on the next time Messaging starts.
+
+What comes across is the text: one-to-one and group messages, who wrote each one and when,
+which way it went, whether you had read it, what it quoted, and the latest text of an edited
+one. Messages whose disappearing timer has already run out stay gone. Pictures, voice notes and
+files come across as placeholders, the way a Desktop import shows a file its export did not
+include; the files themselves stay on the other phone. Reactions are not carried over. Stickers,
+view-once messages, contact cards, polls, payments, story replies, group and call notices, and
+any old SMS the other phone still holds are left out.
+
+Choose **Don't transfer** and threads start empty, filling from the day you pair. Importing a
+Signal Desktop export is then how you get the rest, and an import after a transfer leaves alone
+every message the transfer already brought.
 
 #### The bridge, which used to be the way in
 
@@ -178,9 +192,11 @@ Worth saying plainly, so nobody goes looking:
 - **A linked device dies with its primary.** If the phone holding the Signal account is ever
   unregistered, this one stops with it. That does not apply if this phone registered the number
   itself, because then it is the primary.
-- **History does not arrive by itself.** Signal's servers do not hold it and a newly linked device
-  is not sent any, so threads start empty and fill from the day you pair. Importing an export is
-  how you get the rest.
+- **History comes across only at linking, and only as text.** Signal's servers do not hold it. The
+  phone you link from can send it once, when you link, if you choose **Transfer message
+  history** there (see above); without that, threads start empty and fill from the day you pair,
+  and importing an export is how you get the rest. A phone that registered its own number has no
+  other phone to send it.
 
 ### Calls
 

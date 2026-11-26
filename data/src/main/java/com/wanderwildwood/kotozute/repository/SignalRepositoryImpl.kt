@@ -166,6 +166,14 @@ class SignalRepositoryImpl @Inject constructor(
     /** Threads read on another of the account's devices; see [conversationsRead]. */
     private val readElsewhere = io.reactivex.subjects.PublishSubject.create<String>()
 
+    /** Where the history transfer after a link has got to; see [historyTransfer]. */
+    private val historyState = BehaviorSubject.createDefault<SignalRepository.HistoryTransfer>(
+        SignalRepository.HistoryTransfer.None
+    )
+
+    /** One transfer run at a time: the link and a start can both ask for one. */
+    private val historyRunning = AtomicBoolean(false)
+
     private var stream: Closeable? = null
     private val streamWanted = AtomicBoolean(false)
 
@@ -1672,6 +1680,12 @@ class SignalRepositoryImpl @Inject constructor(
                 // And start receiving. Without this the first messages wait for the next
                 // launch, which reads as linking not having worked.
                 startStream()
+                // Whatever an earlier link's transfer last said is not about this one.
+                historyState.onNext(SignalRepository.HistoryTransfer.None)
+                // The history the primary may be sending, if its owner chose to. Asked for
+                // here as well as in startStream, which returns early when the stream was
+                // already wanted -- a phone linked again while running.
+                resumeHistoryTransfer()
                 SignalRepository.Link.Linked(result.deviceId)
             }
             is com.wanderwildwood.kotozute.signalstore.DeviceLinker.Result.Failed ->
@@ -1682,6 +1696,19 @@ class SignalRepositoryImpl @Inject constructor(
         SignalRepository.Link.Failed(
             SignalRepository.LinkFailure.Unexplained(t.message ?: t::class.java.simpleName)
         )
+    }
+
+    /**
+     * Fetches and files the history the primary is transferring, if a link left one to fetch.
+     * Off the main thread, one run at a time; see [com.wanderwildwood.kotozute.signalstore.HistoryTransfer].
+     */
+    private fun resumeHistoryTransfer() = runOffThread {
+        if (!historyRunning.compareAndSet(false, true)) return@runOffThread
+        try {
+            signalStore.historyTransfer(::importFrom).run { historyState.onNext(it) }
+        } finally {
+            historyRunning.set(false)
+        }
     }
 
     override fun refresh() = runOffThread {
@@ -2662,6 +2689,9 @@ class SignalRepositoryImpl @Inject constructor(
 
         run {
             Timber.i("signal: holding our own socket")
+            // A history transfer a link began and something interrupted. Nothing at all
+            // when there is none, which is every start but the few after a link.
+            resumeHistoryTransfer()
             // ⚠ Not once per start, which is what this was. A linked device knows nobody
             // until the primary answers, so the ask has to happen before the loop -- but the
             // answer costs the *other* phone a full contact upload every single time, because
@@ -5386,14 +5416,8 @@ class SignalRepositoryImpl @Inject constructor(
         // carries a profile and settings but no identifier for the account itself -- and it
         // is the reason importing needed an operator at a keyboard. On the phone they are
         // simply known: this device is the account.
-        val importer = com.wanderwildwood.kotozute.signalstore.SignalHistoryImporter(
-            source = source,
-            sink = RealmImportSink(),
-            selfUuid = signalStore.selfAciOrNull().orEmpty(),
-            selfNumber = signalStore.selfNumberOrNull().orEmpty()
-        )
-        val stats = try {
-            importer.run(onProgress)
+        return try {
+            importFrom(source, onProgress)
         } catch (e: com.wanderwildwood.kotozute.signalstore.SignalHistoryImporter.NotAnExport) {
             throw SignalRepository.NotAnExport()
         } catch (e: javax.crypto.AEADBadTagException) {
@@ -5404,6 +5428,24 @@ class SignalRepositoryImpl @Inject constructor(
         } catch (e: java.io.EOFException) {
             throw SignalRepository.WrongBackupKey()
         }
+    }
+
+    /**
+     * The one import path, for a Desktop export and for the history a primary transfers at
+     * linking alike: the same importer over the same insert-only sink, so a message brought in
+     * by either is found -- not doubled -- by the other.
+     */
+    private fun importFrom(
+        source: com.wanderwildwood.kotozute.signalstore.SignalExportSource,
+        onProgress: (Int) -> Unit
+    ): SignalRepository.ImportStats {
+        val importer = com.wanderwildwood.kotozute.signalstore.SignalHistoryImporter(
+            source = source,
+            sink = RealmImportSink(),
+            selfUuid = signalStore.selfAciOrNull().orEmpty(),
+            selfNumber = signalStore.selfNumberOrNull().orEmpty()
+        )
+        val stats = importer.run(onProgress)
         // The same two passes a sync ends with: a thread named from this phone's own address
         // book beats one named from the export, and a group that arrived nameless can be
         // asked about now that it has messages in it.
@@ -6501,6 +6543,8 @@ class SignalRepositoryImpl @Inject constructor(
     override fun lastSyncCaughtUp(): Boolean = syncCaughtUp
 
     override fun connectionState(): Observable<SignalRepository.ConnectionState> = state
+
+    override fun historyTransfer(): Observable<SignalRepository.HistoryTransfer> = historyState
 
     override fun typing(threadKey: String): Observable<List<String>> =
         typingIndicators.typing(threadKey).map { ids ->

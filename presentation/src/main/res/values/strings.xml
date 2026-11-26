@@ -492,6 +492,22 @@
     <string name="signal_link_expired">The code expired. Close this and try again.</string>
     <string name="signal_link_success">Linked. Your Signal conversations will start arriving.</string>
     <string name="signal_link_failed">Could not link: %s</string>
+    <!-- The history your other phone sends when "Transfer message history" is chosen on it.
+         One line, replacing the "Linked" line above while it runs. -->
+    <string name="signal_link_history_waiting">Linked. Waiting for your other phone to send your message history\u2026</string>
+    <string name="signal_link_history_downloading">Linked. Fetching your message history: %d%%</string>
+    <string name="signal_link_history_importing">Linked. Filing your message history: %d so far</string>
+    <plurals name="signal_link_history_done">
+        <item quantity="one">Linked. %d earlier message came across.</item>
+        <item quantity="other">Linked. %d earlier messages came across.</item>
+    </plurals>
+    <plurals name="signal_link_history_done_without_files">
+        <item quantity="one">Linked. %d earlier message came across. Pictures and files stay on your other phone.</item>
+        <item quantity="other">Linked. %d earlier messages came across. Pictures and files stay on your other phone.</item>
+    </plurals>
+    <string name="signal_link_history_declined">Linked. Your other phone did not send your message history.</string>
+    <string name="signal_link_history_unusable">Linked. Your message history could not be brought across.</string>
+    <string name="signal_link_history_later">Linked. Your message history will carry on coming across the next time Messaging starts.</string>
     <!-- The answer to "Signal is already on this phone, so I cannot scan my own screen".
          The code goes on the page this phone serves to the reader's own computer, and the
          phone's own Signal reads it off the monitor. See SignalLinkOffer. -->

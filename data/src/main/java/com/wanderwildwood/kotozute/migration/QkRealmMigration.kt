@@ -38,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 39
+        const val SCHEMA_VERSION: Long = 40
     }
 
     @SuppressLint("ApplySharedPref")
@@ -619,6 +619,19 @@ class QkRealmMigration @Inject constructor(
             realm.schema.get("SignalMessage")
                 ?.takeIf { !it.hasField("sendFailure") }
                 ?.addField("sendFailure", String::class.java, FieldAttribute.REQUIRED)
+
+            version++
+        }
+
+        if (version == 39L) {
+            // When a conversation was put in Deleted, 0 for none. See DeletedFolder. Every
+            // conversation already here starts at 0: nothing is in Deleted until someone deletes.
+            realm.schema.get("Conversation")
+                ?.takeIf { !it.hasField("deletedAt") }
+                ?.addField("deletedAt", Long::class.java, FieldAttribute.REQUIRED)
+            realm.schema.get("SignalThread")
+                ?.takeIf { !it.hasField("deletedAt") }
+                ?.addField("deletedAt", Long::class.java, FieldAttribute.REQUIRED)
 
             version++
         }

@@ -498,6 +498,11 @@ class Preferences @Inject constructor(
      * kept, under Unknown.
      */
     val silenceUnknownSenders = rxPrefs.getBoolean("silenceUnknownSenders", false)
+    /**
+     * Delete puts a conversation in Deleted for 30 days instead of removing it at once.
+     * On by default: a conversation deleted by mistake was gone with nothing to bring it back.
+     */
+    val keepDeleted = rxPrefs.getBoolean("keepDeleted", true)
     /** Whether the unread count is handed to Glance for the lock screen. */
     val lockScreen = rxPrefs.getBoolean("lockScreen", true)
     val conversationFilter = rxPrefs.getInteger("conversationFilter", CONVERSATION_FILTER_ALL)

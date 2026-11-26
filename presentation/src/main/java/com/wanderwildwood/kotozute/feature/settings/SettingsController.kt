@@ -261,6 +261,9 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         openTitle = title
         // Sections swap in place, so this controller outlives any one of them and the
         sectionContainers().forEach { section -> section.isVisible = section.id == container }
+        // Every section opens at its first page. The scroll view is shared, so without this a
+        // section opened from the main list's second page began part way down, on a cut row.
+        binding.contentView.scrollTo(0, 0)
         setTitle(title)
         setAboutVisible(themedActivity?.toolbar?.menu)
     }

@@ -129,6 +129,15 @@ needs a number that can receive a text from a short code — Google Voice and mo
 internet numbers cannot, and neither can they take the call — and there is a "call me with the
 code instead" option for when the text does not come.
 
+**Make this the main device**, for a phone that is already linked and should take the account
+over: Settings → Signal → Signal account → **Make main device**. No text code is needed: Signal
+accepts a password made from the account key the main phone sent when this one was linked. The
+identity keys stay, so nobody's safety number changes, and whether your number can find you
+stays as the account had it. The old main phone and every linked device, Signal Desktop
+included, are signed out; the messages already on them stay there. If Signal refuses, nothing on
+this phone changes and it stays linked. To go back, register Signal on the other phone again
+with your number.
+
 **There is no push, so the app collects its own messages.** Signal does not send notifications
 to anything but its own clients, so how quickly a message arrives is decided by **Keep Signal
 connected**. On, a foreground service holds the connection open and messages arrive as they are
@@ -191,7 +200,7 @@ Worth saying plainly, so nobody goes looking:
   needs a client that supports it.
 - **A linked device dies with its primary.** If the phone holding the Signal account is ever
   unregistered, this one stops with it. That does not apply if this phone registered the number
-  itself, because then it is the primary.
+  itself or was made the main device, because then it is the primary.
 - **History comes across only at linking, and only as text.** Signal's servers do not hold it. The
   phone you link from can send it once, when you link, if you choose **Transfer message
   history** there (see above); without that, threads start empty and fill from the day you pair,

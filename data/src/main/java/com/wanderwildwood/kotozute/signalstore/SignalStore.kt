@@ -2724,7 +2724,8 @@ class SignalStore(private val context: Context) {
                 Timber.w("signal register: the recovered key would not keep")
             }
         },
-        accountEntropyPool = { keys.entropyPool() }
+        accountEntropyPool = { keys.entropyPool() },
+        findableByNumber = { privacy()?.findableByNumber }
     )
 
     /**

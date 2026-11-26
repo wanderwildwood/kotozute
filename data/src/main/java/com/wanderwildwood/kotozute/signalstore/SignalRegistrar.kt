@@ -76,7 +76,9 @@ class SignalRegistrar internal constructor(
     /** Keeps a master key recovered with the PIN, in place of a fresh pool. */
     private val onMasterKey: (org.signal.core.models.MasterKey) -> Unit = {},
     /** The pool this account already has: the one a primary sent at linking. */
-    private val accountEntropyPool: () -> String? = { null }
+    private val accountEntropyPool: () -> String? = { null },
+    /** Whether the account's own record lets its number find it; null when unreadable. */
+    private val findableByNumber: () -> Boolean? = { null }
 ) {
 
     /**
@@ -542,6 +544,7 @@ class SignalRegistrar internal constructor(
             ?: return Step.Failed(RegistrationFailure.MainNeedsRelink)
         val profileKey = accounts.profileKey() ?: return Step.Failed(RegistrationFailure.MainNeedsRelink)
 
+        val findable = runCatching { findableByNumber() }.getOrNull() ?: true
         val masterKey = pool.deriveMasterKey()
         val recoveryPassword = masterKey.deriveRegistrationRecoveryPassword()
         val password = randomPassword()
@@ -561,7 +564,10 @@ class SignalRegistrar internal constructor(
             registrationLock = registrationLock,
             unidentifiedAccessKey = UnidentifiedAccess.deriveAccessKeyFrom(ProfileKey(profileKey)),
             unrestrictedUnidentifiedAccess = false,
-            discoverableByPhoneNumber = true,
+            // The account's own choice, from its storage record: an account that had made its
+            // number unfindable must not become findable because it moved. Unreadable, the
+            // default Signal ships.
+            discoverableByPhoneNumber = findable,
             capabilities = SignalCapabilities.forRegistering(),
             name = null,
             pniRegistrationId = pniRegistrationId,

@@ -855,7 +855,7 @@
          here, and the reason losing the primary would take this device with it. -->
     <string name="signal_become_main">Make main device</string>
     <string name="signal_become_main_title">Make this the main device?</string>
-    <string name="signal_become_main_message">This phone becomes the main device for your Signal account. No code is needed, and nobody\'s safety number changes.\n\nSignal on your other phone is signed out, and so is every linked device, Signal Desktop included. The messages already on them stay there.\n\nTo go back, register Signal on the other phone again with your number.</string>
+    <string name="signal_become_main_message">This phone becomes the main device for your Signal account. No code is needed, and nobody\'s safety number changes.\n\nWhatever holds your account now is signed out: another phone, or a computer or server running Signal. So is every linked device, Signal Desktop included. The messages already on them stay there.\n\nTo go back, register Signal there again with your number.</string>
     <string name="signal_become_main_confirm">Make main</string>
     <string name="signal_become_main_title_done">Main device</string>
     <string name="signal_become_main_done">This phone is now the main device for your Signal account.</string>

@@ -133,10 +133,10 @@ code instead" option for when the text does not come.
 over: Settings → Signal → Signal account → **Make main device**. No text code is needed: Signal
 accepts a password made from the account key the main phone sent when this one was linked. The
 identity keys stay, so nobody's safety number changes, and whether your number can find you
-stays as the account had it. The old main phone and every linked device, Signal Desktop
-included, are signed out; the messages already on them stay there. If Signal refuses, nothing on
-this phone changes and it stays linked. To go back, register Signal on the other phone again
-with your number.
+stays as the account had it. Whatever held the account before is signed out, whether a phone or
+a computer or server running Signal, and so is every linked device, Signal Desktop included; the
+messages already on them stay there. If Signal refuses, nothing on this phone changes and it
+stays linked. To go back, register Signal there again with your number.
 
 **There is no push, so the app collects its own messages.** Signal does not send notifications
 to anything but its own clients, so how quickly a message arrives is decided by **Keep Signal

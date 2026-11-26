@@ -1634,17 +1634,36 @@ internal class SignalReceiver(
                     // derived from its master key (`GroupId.v2`) -- which is exactly what a group
                     // thread here is keyed on. Anything not 32 bytes is not a V2 group and is
                     // left alone.
+                    //
+                    // ⚠ With the messages each one names. A conversation delete is also how a
+                    // trim on the main device ("Keep messages") arrives, and it covers only
+                    // what is as old as those messages: see [ConversationDeleteSync].
                     val threads = deletes.conversationDeletes.mapNotNull { conversation ->
-                        conversation.conversation?.let { id ->
+                        val key = conversation.conversation?.let { id ->
                             val group = id.threadGroupId
                             if (group != null && group.size > 0) {
-                                return@mapNotNull if (group.size == 32) {
+                                if (group.size == 32) {
                                     "group:" + android.util.Base64.encodeToString(group.toByteArray(), android.util.Base64.NO_WRAP)
                                 } else null
+                            } else {
+                                ServiceId.parseOrNull(id.threadServiceId, id.threadServiceIdBinary)
+                                    ?.toString()?.let { "direct:$it" }
                             }
-                            ServiceId.parseOrNull(id.threadServiceId, id.threadServiceIdBinary)
-                                ?.toString()?.let { "direct:$it" }
-                        }
+                        } ?: return@mapNotNull null
+                        fun named(list: List<org.whispersystems.signalservice.internal.push.AddressableMessage>) =
+                            list.mapNotNull { message ->
+                                val author = ServiceId.parseOrNull(
+                                    message.authorServiceId, message.authorServiceIdBinary
+                                )?.toString() ?: return@mapNotNull null
+                                val at = message.sentTimestamp ?: return@mapNotNull null
+                                author to at
+                            }
+                        ConversationDeleteSync.Request(
+                            threadKey = key,
+                            recent = named(conversation.mostRecentMessages),
+                            recentNonExpiring = named(conversation.mostRecentNonExpiringMessages),
+                            full = conversation.isFullDelete == true
+                        )
                     }
 
                     if (messages.isNotEmpty() || threads.isNotEmpty()) {
@@ -1699,7 +1718,10 @@ internal class SignalReceiver(
                         aci == null ->
                             Timber.i("signal delete sync: a message request was deleted for a group; not guessing which")
                         else -> runCatching {
-                            events.deletedElsewhere(emptyList(), listOf("direct:$aci"))
+                            events.deletedElsewhere(
+                                emptyList(),
+                                listOf(ConversationDeleteSync.Request("direct:$aci", whole = true))
+                            )
                         }.onFailure { Timber.w(it, "signal delete sync: could not apply a message request delete") }
                     }
                 }

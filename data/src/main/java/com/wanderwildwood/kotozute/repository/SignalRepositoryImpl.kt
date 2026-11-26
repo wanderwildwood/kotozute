@@ -3416,10 +3416,12 @@ class SignalRepositoryImpl @Inject constructor(
      */
     private fun applyDeletedElsewhere(
         messages: List<Pair<String, Long>>,
-        threads: List<String>
+        threads: List<com.wanderwildwood.kotozute.signalstore.ConversationDeleteSync.Request>
     ) = runOffThread {
         if (messages.isEmpty() && threads.isEmpty()) return@runOffThread
+        val sync = com.wanderwildwood.kotozute.signalstore.ConversationDeleteSync
         val touched = mutableSetOf<String>()
+        var trimmed = 0
         val removedFiles = mutableListOf<String>()
         // See [forgetFromResendLog]. A delete that arrived from another device is still a
         // delete: the message must stop being resendable here too.
@@ -3434,17 +3436,33 @@ class SignalRepositoryImpl @Inject constructor(
                     if (row.outgoing) removedSentAt += row.date
                     row.deleteFromRealm()
                 }
-                threads.forEach { key ->
+                threads.forEach { request ->
+                    val key = request.threadKey
+                    // A snapshot, for the same reason every other bulk change here takes
+                    // one: deleting from live results takes rows out from under the walk.
                     val all = r.where(SignalMessage::class.java)
                         .equalTo("threadKey", key)
-                        .findAll()
-                    if (all.isNotEmpty()) {
-                        touched += key
-                        removedFiles += all.flatMap { attachmentIdsOf(it.attachments).orEmpty() }
-                        removedSentAt += all.filter { it.outgoing }.map { it.date }
-                        // A snapshot, for the same reason every other bulk change here takes
-                        // one: deleting from live results takes rows out from under the walk.
-                        all.createSnapshot().forEach { it.deleteFromRealm() }
+                        .findAll().createSnapshot()
+                    // ⚠ Only what the delete covers: up to the newest message it names that
+                    // is here, and nothing when none is. See [ConversationDeleteSync].
+                    val doomed = sync.doomed(
+                        request,
+                        all.map {
+                            com.wanderwildwood.kotozute.signalstore.ConversationDeleteSync.Row(
+                                it.id, it.date, sync.isLocal(it.id, it.update)
+                            )
+                        }
+                    )
+                    if (doomed.isEmpty()) {
+                        if (all.isNotEmpty()) Timber.i("signal delete sync: a conversation delete named nothing held here; nothing removed")
+                        return@forEach
+                    }
+                    touched += key
+                    trimmed += doomed.size
+                    all.filter { it.id in doomed }.forEach { row ->
+                        removedFiles += attachmentIdsOf(row.attachments).orEmpty()
+                        if (row.outgoing) removedSentAt += row.date
+                        row.deleteFromRealm()
                     }
                 }
                 touched.forEach { key ->
@@ -3470,8 +3488,8 @@ class SignalRepositoryImpl @Inject constructor(
         }
         if (touched.isNotEmpty()) {
             Timber.i(
-                "signal delete sync: removed %d message(s) and emptied %d conversation(s)",
-                messages.size, threads.size
+                "signal delete sync: removed %d message(s), and %d from %d conversation(s) deleted or trimmed",
+                messages.size, trimmed, threads.size
             )
             touched.forEach { removed.onNext(it) }
             contactsChanged()
@@ -3612,7 +3630,7 @@ class SignalRepositoryImpl @Inject constructor(
 
         override fun deletedElsewhere(
             messages: List<Pair<String, Long>>,
-            threads: List<String>
+            threads: List<com.wanderwildwood.kotozute.signalstore.ConversationDeleteSync.Request>
         ) = applyDeletedElsewhere(messages, threads)
 
         override fun configuration(readReceipts: Boolean?, typingIndicators: Boolean?) =

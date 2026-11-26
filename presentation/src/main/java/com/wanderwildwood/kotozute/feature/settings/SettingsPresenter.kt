@@ -603,6 +603,22 @@ class SettingsPresenter @Inject constructor(
             .autoDisposable(view.scope())
             .subscribe { signalRepo.unpair() }
 
+        view.signalBecomeMainConfirmed()
+            .autoDisposable(view.scope())
+            .subscribe {
+                // A registration request: off the main thread, and always answered, because
+                // the two outcomes look the same from every other screen for a while.
+                Thread {
+                    val result = kotlinx.coroutines.runBlocking { signalRepo.becomeMainDevice() }
+                    val failure = when (result) {
+                        is com.wanderwildwood.kotozute.repository.SignalRepository.Registration.Registered -> null
+                        is com.wanderwildwood.kotozute.repository.SignalRepository.Registration.Failed -> result.failure
+                        else -> com.wanderwildwood.kotozute.repository.SignalRepository.RegistrationFailure.Unexpected
+                    }
+                    view.showSignalBecomeMainResult(failure?.let { context.say(SignalWording.registration(it)) })
+                }.apply { isDaemon = true }.start()
+            }
+
         view.signalProxyAddressEntered()
             .autoDisposable(view.scope())
             .subscribe { (host, port) ->

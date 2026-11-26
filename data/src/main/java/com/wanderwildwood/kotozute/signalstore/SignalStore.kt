@@ -2723,7 +2723,8 @@ class SignalStore(private val context: Context) {
             if (!keys.storeMasterKey(masterKey)) {
                 Timber.w("signal register: the recovered key would not keep")
             }
-        }
+        },
+        accountEntropyPool = { keys.entropyPool() }
     )
 
     /**

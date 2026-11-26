@@ -135,6 +135,25 @@ object SignalNetworkConfig {
 
     const val USER_AGENT = "kotozute/1.11.2"
 
+    /**
+     * The day Signal's own code in this build was last brought up to date: the date of the
+     * Signal-Android commit `signal-service/` was copied from (its README says which). Raise
+     * it with every re-copy; SignalLibrariesDateTest fails while the two disagree.
+     *
+     * Signal changes its service often enough that a client left alone for a few months
+     * starts being refused, and nothing on the phone can see that coming. So, after
+     * [UPDATE_DUE_AFTER_DAYS], the Signal status line says an update is due. A guess on
+     * purpose: early enough to get a new build out before the refusals, and it says nothing
+     * worse than that.
+     */
+    val LIBRARIES_UPDATED: java.time.LocalDate = java.time.LocalDate.of(2026, 11, 24)
+
+    const val UPDATE_DUE_AFTER_DAYS = 60L
+
+    /** Whether [LIBRARIES_UPDATED] is more than [UPDATE_DUE_AFTER_DAYS] behind [today]. */
+    fun updateDue(today: java.time.LocalDate = java.time.LocalDate.now()): Boolean =
+        today.isAfter(LIBRARIES_UPDATED.plusDays(UPDATE_DUE_AFTER_DAYS))
+
     // --- SOCKS proxy ----------------------------------------------------------------------
     //
     // See [SocksSetting]. Held here, beside the environment, because this is the one place

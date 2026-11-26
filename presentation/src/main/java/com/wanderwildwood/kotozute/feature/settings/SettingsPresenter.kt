@@ -768,6 +768,14 @@ class SettingsPresenter @Inject constructor(
             ""
         }
 
+        // Ahead of the rest of the line: the one part only a new build can fix. Never shown
+        // with a refusal, which already says the app needs updating.
+        val due = if (com.wanderwildwood.kotozute.signalstore.SignalNetworkConfig.updateDue()) {
+            context.getString(R.string.settings_signal_status_update_due) + " · "
+        } else {
+            ""
+        }
+
         return when {
             // A refusal is the one status that is not going to fix itself, so it replaces the
             // line rather than decorating it. Saying "offline" here would be true and useless:
@@ -778,11 +786,11 @@ class SettingsPresenter @Inject constructor(
             // Before "offline", because it says whose fault the offline is. Only ever set by
             // Signal's own status check, never guessed from a failure here.
             !conn.signalConnected && conn.serviceOutage ->
-                idle + context.getString(R.string.settings_signal_status_outage) + received + stuck + who
+                due + idle + context.getString(R.string.settings_signal_status_outage) + received + stuck + who
             !conn.signalConnected ->
-                idle + context.getString(R.string.settings_signal_status_direct_offline) + received + stuck + who
+                due + idle + context.getString(R.string.settings_signal_status_direct_offline) + received + stuck + who
             else ->
-                idle + context.getString(R.string.settings_signal_status_direct_ok) + received + stuck + who
+                due + idle + context.getString(R.string.settings_signal_status_direct_ok) + received + stuck + who
         }
     }
 

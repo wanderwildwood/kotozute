@@ -136,6 +136,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
         Pair<com.wanderwildwood.kotozute.repository.SignalRepository.ImportStats?, Throwable?>? = null
     private var pendingBackupFolder: String? = null
     private val signalUnpairSubject: Subject<Unit> = PublishSubject.create()
+    private val signalBecomeMainSubject: Subject<Unit> = PublishSubject.create()
 
     /** The account's own name, as two parts. See [askSignalProfileName]. */
     private val signalProfileNameSubject: Subject<Pair<String, String>> = PublishSubject.create()
@@ -323,6 +324,7 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     override fun signalBackupKeyEntered(): Observable<Pair<String, String>> = signalBackupKeySubject
 
     override fun signalUnpairConfirmed(): Observable<*> = signalUnpairSubject
+    override fun signalBecomeMainConfirmed(): Observable<*> = signalBecomeMainSubject
 
     override fun signalProfileNameEntered(): Observable<Pair<String, String>> = signalProfileNameSubject
     override fun signalProxyAddressEntered(): Observable<Pair<String, Int>> = signalProxyAddressSubject
@@ -1176,13 +1178,44 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                     append(activity.getString(R.string.signal_account_linked_note))
                 }
             }
-            val dialog = activity.einkDialog()
+            val builder = activity.einkDialog()
                 .setTitle(R.string.settings_signal_account_title)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
-                .show()
+            // Only on a linked phone that knows which device it is: a primary has nothing to
+            // become, and 0 means the account could not be read well enough to act on.
+            if (account != null && account.thisDeviceId > 1) {
+                builder.setNeutralButton(R.string.signal_become_main) { _, _ -> askSignalBecomeMain() }
+            }
+            val dialog = builder.show()
             dialog.findViewById<android.widget.TextView>(android.R.id.message)
                 ?.setTextIsSelectable(true)
+        }
+    }
+
+    /** Says what it signs out before anything is sent; nothing happens without the second tap. */
+    private fun askSignalBecomeMain() {
+        val activity = activity ?: return
+        activity.einkDialog()
+            .setTitle(R.string.signal_become_main_title)
+            .setMessage(R.string.signal_become_main_message)
+            .setPositiveButton(R.string.signal_become_main_confirm) { _, _ -> signalBecomeMainSubject.onNext(Unit) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    override fun showSignalBecomeMainResult(failure: String?) {
+        // Called from the presenter's network thread, as the profile-name result is.
+        activity?.runOnUiThread {
+            val context = activity ?: return@runOnUiThread
+            context.einkDialog()
+                .setTitle(R.string.signal_become_main_title_done)
+                .setMessage(
+                    if (failure == null) context.getString(R.string.signal_become_main_done)
+                    else context.getString(R.string.signal_become_main_failed, failure)
+                )
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
         }
     }
 

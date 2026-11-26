@@ -203,6 +203,10 @@ object SignalWording {
             ?: Words.Res(R.string.signal_register_code_refused)
         SignalRepository.RegistrationFailure.NoKeyMaterial ->
             Words.Res(R.string.signal_register_no_key_material)
+        SignalRepository.RegistrationFailure.MainNeedsRelink ->
+            Words.Res(R.string.signal_register_main_needs_relink)
+        SignalRepository.RegistrationFailure.AccountKeyRefused ->
+            Words.Res(R.string.signal_register_account_key_refused)
         // Singular and plural as their own sentences, as the retry wording does, rather
         // than "day(s)".
         is SignalRepository.RegistrationFailure.Locked -> when {

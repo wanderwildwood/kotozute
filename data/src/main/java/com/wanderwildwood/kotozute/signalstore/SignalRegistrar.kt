@@ -74,7 +74,9 @@ class SignalRegistrar internal constructor(
     private val svr2: (String) -> org.whispersystems.signalservice.api.svr.SecureValueRecovery =
         { error("no SVR2 client") },
     /** Keeps a master key recovered with the PIN, in place of a fresh pool. */
-    private val onMasterKey: (org.signal.core.models.MasterKey) -> Unit = {}
+    private val onMasterKey: (org.signal.core.models.MasterKey) -> Unit = {},
+    /** The pool this account already has: the one a primary sent at linking. */
+    private val accountEntropyPool: () -> String? = { null }
 ) {
 
     /**
@@ -508,6 +510,148 @@ class SignalRegistrar internal constructor(
             }
             else -> Step.Failed(RegistrationFailure.Refused("$result"))
         }
+    }
+
+    /**
+     * Turns this linked device into the account's main device, keeping its identity.
+     *
+     * The pool the primary sent at linking yields the registration recovery password, which
+     * the server takes in place of a verified session. It is the path signal-cli's
+     * `recoverAccount` takes and the one Signal itself takes when it re-registers with a
+     * recovered master key (`RegistrationViewModel`, `setRecoveryPassword`). The identity key
+     * pairs are the ones already held, so contacts see no safety-number change; the server
+     * signs out the old primary and drops every linked device, this one's old self included.
+     *
+     * ⚠ Nothing local is touched before the server says yes, so a refusal leaves this phone
+     * linked exactly as it was.
+     *
+     * The registration lock is sent only when the server asks for it, as signal-cli does:
+     * sending it unasked would switch a lock on for an account that never had one. Sent, it
+     * stays on, for the reason [register] gives.
+     */
+    suspend fun becomeMain(): Step {
+        val creds = runCatching { accounts.credentials() }.getOrNull()
+            ?: return Step.Failed(RegistrationFailure.Unexpected)
+        if (creds.deviceId == PRIMARY_DEVICE_ID) return Step.Failed(RegistrationFailure.Unexpected)
+        val e164 = creds.e164?.takeIf { it.isNotBlank() } ?: return Step.Failed(RegistrationFailure.MainNeedsRelink)
+        val pool = accountEntropyPool()?.let { org.signal.core.models.AccountEntropyPool.parseOrNull(it) }
+            ?: return Step.Failed(RegistrationFailure.MainNeedsRelink)
+        val aciIdentity = accounts.identityKeyPair(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI)
+            ?: return Step.Failed(RegistrationFailure.MainNeedsRelink)
+        val pniIdentity = accounts.identityKeyPair(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI)
+            ?: return Step.Failed(RegistrationFailure.MainNeedsRelink)
+        val profileKey = accounts.profileKey() ?: return Step.Failed(RegistrationFailure.MainNeedsRelink)
+
+        val masterKey = pool.deriveMasterKey()
+        val recoveryPassword = masterKey.deriveRegistrationRecoveryPassword()
+        val password = randomPassword()
+        val aciRegistrationId = KeyHelper.generateRegistrationId(false)
+        val pniRegistrationId = KeyHelper.generateRegistrationId(false)
+        // Stored but not yet recorded as active: until the server says yes, this phone is still
+        // the linked device it was, and its active keys are the ones the server holds.
+        val aciKeys = unrecordedPreKeys(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, aciIdentity)
+        val pniKeys = unrecordedPreKeys(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, pniIdentity)
+
+        fun attributes(registrationLock: String?) = RegistrationApiV2.AccountAttributes(
+            signalingKey = null,
+            registrationId = aciRegistrationId,
+            voice = true,
+            video = false,
+            fetchesMessages = true,
+            registrationLock = registrationLock,
+            unidentifiedAccessKey = UnidentifiedAccess.deriveAccessKeyFrom(ProfileKey(profileKey)),
+            unrestrictedUnidentifiedAccess = false,
+            discoverableByPhoneNumber = true,
+            capabilities = SignalCapabilities.forRegistering(),
+            name = null,
+            pniRegistrationId = pniRegistrationId,
+            // Kept on the account, as Signal does, so the next re-registration can use it too.
+            recoveryPassword = recoveryPassword
+        )
+
+        val api = registeringApi(e164, password)
+        suspend fun attempt(registrationLock: String?) = api.registerAccount(
+            e164 = e164,
+            password = password,
+            sessionId = null,
+            recoveryPassword = recoveryPassword,
+            receiptCredentialPresentation = null,
+            attributes = attributes(registrationLock),
+            aciPreKeys = aciKeys.collection,
+            pniPreKeys = pniKeys.collection,
+            fcmToken = null,
+            // The old primary is the device that would be transferred from, and it is being
+            // replaced, not copied.
+            skipDeviceTransfer = true
+        )
+
+        var result = attempt(null)
+        if (result is org.signal.libsignal.net.RequestResult.NonSuccess &&
+            result.error is RegistrationApiV2.RegisterAccountError.RegistrationLock
+        ) {
+            result = attempt(masterKey.deriveRegistrationLock())
+        }
+
+        return when (result) {
+            is org.signal.libsignal.net.RequestResult.Success -> {
+                val response = result.result
+                // Every session was built to device ${creds.deviceId}, which is gone; contacts
+                // start fresh ones to device 1 under the same identity. As in [register].
+                accounts.forgetSessionsFromPreviousAccount()
+                SealedSender.forgetCertificate()
+                aciKeys.record(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI)
+                pniKeys.record(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI)
+                // Same identities, new registration ids: the ids are per device.
+                accounts.saveIdentity(ProtocolDatabase.ACCOUNT_ID_TYPE_ACI, aciIdentity, aciRegistrationId)
+                accounts.saveIdentity(ProtocolDatabase.ACCOUNT_ID_TYPE_PNI, pniIdentity, pniRegistrationId)
+                accounts.saveCredentials(
+                    response.e164 ?: e164,
+                    response.aci,
+                    response.pni,
+                    PRIMARY_DEVICE_ID,
+                    password
+                )
+                // The pool is the one already kept: the account's own, and what its storage
+                // records are encrypted under. Nothing to write.
+                Timber.i("signal register: this linked device is now the main device")
+                Step.Registered(response.aci, response.e164 ?: e164)
+            }
+            is org.signal.libsignal.net.RequestResult.NonSuccess -> when (val error = result.error) {
+                is RegistrationApiV2.RegisterAccountError.RegistrationRecoveryPasswordIncorrect ->
+                    Step.Failed(RegistrationFailure.AccountKeyRefused)
+                is RegistrationApiV2.RegisterAccountError.RegistrationLock -> {
+                    val day = TimeUnit.DAYS.toMillis(1)
+                    Step.Failed(RegistrationFailure.Locked((error.data.timeRemaining + day - 1) / day))
+                }
+                else -> Step.Failed(RegistrationFailure.Refused("$result"))
+            }
+            else -> Step.Failed(RegistrationFailure.Refused("$result"))
+        }
+    }
+
+    /** Pre keys made and stored for a request that may yet be refused. */
+    private inner class UnrecordedPreKeys(
+        val collection: RegistrationApiV2.PreKeyCollection,
+        private val signedId: Int,
+        private val kyberId: Int
+    ) {
+        fun record(accountIdType: Int) {
+            accounts.recordActiveSignedPreKey(accountIdType, signedId)
+            accounts.recordActiveLastResortKyberPreKey(accountIdType, kyberId)
+        }
+    }
+
+    /** [preKeyCollection] without marking the keys active; see [becomeMain]. */
+    private fun unrecordedPreKeys(accountIdType: Int, identity: IdentityKeyPair): UnrecordedPreKeys {
+        val signedId = accounts.nextSignedPreKeyId(accountIdType)
+        val kyberId = accounts.nextKyberPreKeyId(accountIdType)
+        val signed = KeyUtilsForCheck.signedPreKey(signedId, identity.privateKey)
+        val kyber = KeyUtilsForCheck.kyberPreKey(kyberId, identity.privateKey)
+        signedPreKeys(accountIdType).storeSignedPreKey(signedId, signed)
+        kyberPreKeys(accountIdType).storeLastResortKyberPreKey(kyberId, kyber)
+        return UnrecordedPreKeys(
+            RegistrationApiV2.PreKeyCollection(identity.publicKey, signed, kyber), signedId, kyberId
+        )
     }
 
     /**

@@ -134,6 +134,12 @@ interface SettingsView : QkViewContract<SettingsState> {
     /** Null on success, or a reason to show. */
     fun showSignalProfileNameResult(failure: String?)
 
+    /** Confirmed on the account dialog: make this linked phone the main device. */
+    fun signalBecomeMainConfirmed(): Observable<*>
+
+    /** How making this the main device went: null when it worked, else why not, in words. */
+    fun showSignalBecomeMainResult(failure: String?)
+
     /** Ask for the SOCKS proxy's host and port, starting from what is stored. */
     fun askSignalProxyAddress(host: String, port: Int)
 

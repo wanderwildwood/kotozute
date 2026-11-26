@@ -1591,6 +1591,20 @@ class SignalRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun becomeMainDevice(): SignalRepository.Registration {
+        if (!signalStore.isLinked() || isPrimaryDevice()) {
+            return SignalRepository.Registration.Failed(SignalRepository.RegistrationFailure.Unexpected)
+        }
+        // The running socket is authenticated as the device this is about to stop being, and
+        // startStream() is a no-op while one is wanted. Stopped first, so registrationStep's
+        // start comes up on the new credentials; started again here if nothing changed.
+        stopStream()
+        val step = registrationStep { it.becomeMain() }
+        if (step !is SignalRepository.Registration.Registered) startStream()
+        else prefs.signalPrimaryIdle.set(false)
+        return step
+    }
+
     override suspend fun linkedDevices(): List<SignalDevice>? =
         if (!isPrimaryDevice()) null
         else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

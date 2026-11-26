@@ -853,6 +853,13 @@
     <string name="signal_find_username_failed">Could not look it up: %s</string>
     <!-- Said plainly, because it is the reason several settings people look for are not
          here, and the reason losing the primary would take this device with it. -->
+    <string name="signal_become_main">Make main device</string>
+    <string name="signal_become_main_title">Make this the main device?</string>
+    <string name="signal_become_main_message">This phone becomes the main device for your Signal account. No code is needed, and nobody\'s safety number changes.\n\nSignal on your other phone is signed out, and so is every linked device, Signal Desktop included. The messages already on them stay there.\n\nTo go back, register Signal on the other phone again with your number.</string>
+    <string name="signal_become_main_confirm">Make main</string>
+    <string name="signal_become_main_title_done">Main device</string>
+    <string name="signal_become_main_done">This phone is now the main device for your Signal account.</string>
+    <string name="signal_become_main_failed">Nothing changed: %1$s</string>
     <string name="signal_account_linked_note">Registering the number, changing it, the registration-lock PIN and transferring the account all belong to the primary device. If the primary is unregistered, every other device on the account stops working.</string>
     <string name="signal_message_delivered">Delivered</string>
     <string name="signal_message_read">Read</string>
@@ -1447,6 +1454,8 @@
     <string name="signal_register_code_not_sent">could not send a code: %1$s</string>
     <string name="signal_register_code_refused_because">that code was not accepted: %1$s</string>
     <string name="signal_register_code_refused">that code was not accepted</string>
+    <string name="signal_register_main_needs_relink">this link did not bring the keys it needs. Link this phone again, then try once more</string>
+    <string name="signal_register_account_key_refused">Signal did not accept this phone\'s account key</string>
     <string name="signal_register_no_key_material">could not generate this account\'s key material</string>
     <string name="signal_register_pin_hint">Your Signal PIN</string>
     <string name="signal_register_unlock">Unlock</string>

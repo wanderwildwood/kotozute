@@ -218,6 +218,15 @@ interface SignalRepository {
         data class Locked(val days: Long) : RegistrationFailure
 
         /**
+         * Becoming the main device needs keys this link never received -- the account key or
+         * the phone-number identity, which older primaries did not send. Linking again fixes it.
+         */
+        data object MainNeedsRelink : RegistrationFailure
+
+        /** Signal did not accept the password made from this link's account key. */
+        data object AccountKeyRefused : RegistrationFailure
+
+        /**
          * Signal holds no PIN data for this number -- never set, or deleted after too many
          * wrong guesses -- so only waiting out the lock is left.
          */
@@ -255,6 +264,16 @@ interface SignalRepository {
 
     /** Lifts a registration lock with the number's Signal [pin], then registers. */
     suspend fun registerPin(sessionId: String, pin: String, e164: String): Registration
+
+    /**
+     * Makes this linked phone the account's main device, with no code: Signal accepts a
+     * password made from the account key the primary sent at linking. The identity keys stay,
+     * so nobody's safety number changes; the old main device and every other linked device are
+     * signed out. Upstream: signal-cli `RegistrationManagerImpl.recoverAccount`, and Signal's
+     * own re-registration with `deriveRegistrationRecoveryPassword()`.
+     */
+    suspend fun becomeMainDevice(): Registration =
+        Registration.Failed(RegistrationFailure.Unexpected)
 
     /**
      * Gives the newly registered account its own profile name.

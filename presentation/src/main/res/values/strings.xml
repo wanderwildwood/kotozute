@@ -801,7 +801,7 @@
     <string name="setup_calls_screen">Let calls wake the screen</string>
     <string name="setup_calls_done">Nothing more is needed for calls.</string>
     <string name="setup_done_heading">Done</string>
-    <string name="setup_done_body">Everything here is in Settings, and so is this guide, under Setup guide.</string>
+    <string name="setup_done_body">Everything here is in Settings, and so is this guide, under Help, Setup guide.</string>
     <string name="setup_done_finish">Finish</string>
     <string name="settings_ask_default_sms_title">Ask to be the texting app</string>
     <string name="settings_ask_default_sms_summary">A line along the bottom of the SMS list while another app handles texts</string>
@@ -1076,7 +1076,17 @@
     <!-- Settings categories: the loose options are grouped behind these.
          general and desktop_sync already exist above and are reused. -->
     <string name="settings_category_sending">Sending</string>
-    <string name="settings_category_storage">Storage and privacy</string>
+    <string name="settings_category_privacy">Privacy and security</string>
+    <string name="settings_category_backup">Backup and sync</string>
+    <string name="settings_category_help">Help</string>
+    <!-- Bold headings that group the rows of the Signal page. -->
+    <string name="settings_signal_heading_account">Account</string>
+    <string name="settings_signal_heading_conversations">Conversations</string>
+    <string name="settings_signal_heading_privacy">Privacy</string>
+    <string name="settings_signal_heading_calls">Calls and background</string>
+    <string name="settings_signal_heading_contacts">Contacts</string>
+    <string name="settings_signal_heading_history">History</string>
+    <string name="settings_signal_heading_network">Network</string>
 
     <string name="settings_logging_enabled">Debug logging enabled</string>
     <string name="settings_logging_disabled">Debug logging disabled</string>

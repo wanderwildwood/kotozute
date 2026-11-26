@@ -259,8 +259,14 @@ class SettingsPresenter @Inject constructor(
                         R.id.categorySending ->
                             view.showSection(R.id.sectionSending, R.string.settings_category_sending)
 
-                        R.id.categoryStorage ->
-                            view.showSection(R.id.sectionStorage, R.string.settings_category_storage)
+                        R.id.categoryPrivacy ->
+                            view.showSection(R.id.sectionPrivacy, R.string.settings_category_privacy)
+
+                        R.id.categoryBackup ->
+                            view.showSection(R.id.sectionStorage, R.string.settings_category_backup)
+
+                        R.id.categoryHelp ->
+                            view.showSection(R.id.sectionHelp, R.string.settings_category_help)
 
                         R.id.categoryDesktopSync ->
                             view.showSection(R.id.sectionDesktop, R.string.settings_category_desktop_sync)

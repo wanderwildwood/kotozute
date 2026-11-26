@@ -267,8 +267,31 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
 
     private fun sectionContainers() = listOf(
             binding.sectionRoot, binding.sectionDisplay,
-            binding.sectionSending, binding.sectionStorage, binding.sectionDesktop,
-            binding.sectionSignal)
+            binding.sectionSending, binding.sectionPrivacy, binding.sectionStorage,
+            binding.sectionDesktop, binding.sectionSignal, binding.sectionHelp)
+
+    /**
+     * A heading shows only while a row under it does (STYLE.md: no heading over an empty
+     * group). Rows come and go with the account's state -- most of the Signal page is hidden
+     * until a phone is linked -- so this runs after every render rather than once.
+     */
+    private fun syncHeadings() {
+        sectionContainers().forEach { section ->
+            var heading: View? = null
+            var anyVisible = false
+            for (i in 0 until section.childCount) {
+                val child = section.getChildAt(i)
+                if (child.tag == HEADING_TAG) {
+                    heading?.isVisible = anyVisible
+                    heading = child
+                    anyVisible = false
+                } else if (child is PreferenceView && child.isVisible) {
+                    anyVisible = true
+                }
+            }
+            heading?.isVisible = anyVisible
+        }
+    }
 
     override fun handleBack(): Boolean {
         // Back with a row armed only disarms it; the next Back leaves (STYLE.md).
@@ -635,6 +658,8 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
                 )
             }
         }
+
+        syncHeadings()
     }
 
     override fun showTextSizePicker() = textSizeDialog.show(activity!!)
@@ -1478,6 +1503,9 @@ class SettingsController : QkController<SettingsView, SettingsState, SettingsPre
     companion object {
         /** Glance's door, through the exported alias LockScreenSetting in the manifest. */
         const val ACTION_LOCK_SCREEN_SETTING = "com.wanderwildwood.kotozute.action.LOCK_SCREEN_SETTING"
+
+        /** android:tag of a group heading in settings_controller.xml. */
+        private const val HEADING_TAG = "settingsHeading"
     }
 
 }

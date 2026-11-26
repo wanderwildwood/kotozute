@@ -57,6 +57,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:title="@string/drawer_blocking" />
+
+            <!-- Space, not a line: the places above, the settings below (STYLE.md). -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="16dp" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/notifications"
                 android:layout_width="match_parent"
@@ -76,10 +82,16 @@
                 app:title="@string/settings_category_sending" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/categoryStorage"
+                android:id="@+id/categoryPrivacy"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:title="@string/settings_category_storage" />
+                app:title="@string/settings_category_privacy" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/categorySignal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_category_signal" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/categoryDesktopSync"
@@ -88,29 +100,16 @@
                 app:title="@string/settings_category_desktop_sync" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/categorySignal"
+                android:id="@+id/categoryBackup"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:title="@string/settings_category_signal" />
-
-            <!--
-              ~ Last on the root list: it is about the app itself rather than about anything the
-              ~ app does, which is the same reason About sits off in the menu.
-              -->
-            <!-- Brings back the texting line that the SMS list's Hide put away. -->
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/askDefaultSms"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:summary="@string/settings_ask_default_sms_summary"
-                app:title="@string/settings_ask_default_sms_title"
-                app:widget="@layout/settings_switch_widget" />
+                app:title="@string/settings_category_backup" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/setupGuide"
+                android:id="@+id/categoryHelp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:title="@string/settings_setup_title" />
+                app:title="@string/settings_category_help" />
 
         </LinearLayout>
 
@@ -128,6 +127,13 @@
                 app:title="@string/settings_text_size_title" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/darkMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_dark"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/unreadAtTop"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -143,27 +149,11 @@
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/silenceUnknownSenders"
+                android:id="@+id/swipeActions"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:summary="@string/settings_silence_unknown_summary"
-                app:title="@string/settings_silence_unknown_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/keepMutedArchived"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:summary="@string/settings_keep_muted_archived_summary"
-                app:title="@string/settings_keep_muted_archived_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/appLock"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:summary="@string/settings_app_lock_summary"
-                app:title="@string/settings_app_lock_title" />
+                android:visibility="visible"
+                app:title="@string/settings_swipe_actions" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/lockScreen"
@@ -173,18 +163,12 @@
                 app:widget="@layout/settings_switch_widget" />
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/darkMode"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:title="@string/settings_dark"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/swipeActions"
+                android:id="@+id/messageLinkHandling"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="visible"
-                app:title="@string/settings_swipe_actions" />
+                app:title="@string/settings_mms_weblink_title"
+                tools:summary="100KB" />
 
         </LinearLayout>
 
@@ -222,12 +206,14 @@
                 android:layout_height="wrap_content"
                 app:title="@string/settings_group_messages_title"
                 tools:summary="One group chat" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/delivery"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:title="@string/settings_delivery_title"
                 app:widget="@layout/settings_switch_widget" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/readReceipts"
                 android:layout_width="match_parent"
@@ -276,64 +262,397 @@
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/sectionStorage"
+            android:id="@+id/sectionPrivacy"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:visibility="gone">
 
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/backup"
+                android:id="@+id/appLock"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:title="@string/backup_title" />
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/crashLog"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:summary="@string/settings_crash_log_summary"
-                app:title="@string/settings_crash_log_title" />
-            <!-- Only when a message database was set aside as unreadable; see SetAsideDatabases. -->
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/setAsideDatabases"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:title="@string/settings_set_aside_title" />
-            <!-- Only while Signal attachments cannot be opened; see SignalRepository.attachmentsLocked. -->
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/attachmentsLocked"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_attachments_locked_summary"
-                app:title="@string/settings_attachments_locked_title" />
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/sync"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:summary="@string/settings_sync_summary"
-                app:title="@string/settings_sync_title" />
+                app:summary="@string/settings_app_lock_summary"
+                app:title="@string/settings_app_lock_title" />
 
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/messageLinkHandling"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="visible"
-                app:title="@string/settings_mms_weblink_title"
-                tools:summary="100KB" />
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/disableScreenshots"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:title="@string/settings_disable_screenshots_title"
                 app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/silenceUnknownSenders"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_silence_unknown_summary"
+                app:title="@string/settings_silence_unknown_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/keepMutedArchived"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_keep_muted_archived_summary"
+                app:title="@string/settings_keep_muted_archived_title"
+                app:widget="@layout/settings_switch_widget" />
+
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
                 android:id="@+id/autoDelete"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:title="@string/settings_auto_delete"
                 tools:summary="Never" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/sectionSignal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!--
+              Above the bridge row on purpose. Linking directly is the route that needs no
+              second computer, so it is the one to meet first; the bridge stays for anyone
+              already using one.
+            -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalLink"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_signal_link_summary"
+                app:title="@string/settings_signal_link_title" />
+
+            <!-- The second way in, for someone with no other phone to link to. Below linking
+                 because almost everyone has the other phone, and above the bridge because
+                 this one is a real answer rather than a legacy path. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalRegister"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/signal_register_setting_summary"
+                app:title="@string/signal_register_setting_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:title="@string/settings_signal_status_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalNotificationsOff"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_notifications_off_summary"
+                app:title="@string/settings_signal_notifications_off_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="4dp"
+                android:tag="settingsHeading"
+                android:text="@string/settings_signal_heading_account"
+                android:textStyle="bold" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalAccount"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_account_summary"
+                app:title="@string/settings_signal_account_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalDevices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_devices_summary"
+                app:title="@string/settings_signal_devices_title" />
+
+            <!--
+                Only a phone that REGISTERED its own account has anything to do here. A linked
+                device inherits the primary's profile and must not write over it.
+
+                It exists because the name was otherwise settable only during registration, in
+                one step of one flow: miss it, or close the app on it, and the account stayed
+                nameless for ever with nothing on this screen to say so, while everybody it
+                wrote to saw a bare service id.
+            -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalProfileName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_profile_name_summary"
+                app:title="@string/settings_signal_profile_name_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalUsername"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_username_summary"
+                app:title="@string/settings_signal_username_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalNumberPrivacy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_number_summary"
+                app:title="@string/settings_signal_number_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalAbout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_about_summary"
+                app:title="@string/settings_signal_about_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="4dp"
+                android:tag="settingsHeading"
+                android:text="@string/settings_signal_heading_conversations"
+                android:textStyle="bold" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalOpen"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_open_summary"
+                app:title="@string/settings_signal_open_title" />
+
+            
+
+            
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalEnabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_enabled_summary"
+                app:title="@string/settings_signal_enabled_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalWeave"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_weave_summary"
+                app:title="@string/settings_signal_weave_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalOpensFirst"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_opens_first_summary"
+                app:title="@string/settings_signal_opens_first_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/markSmsRows"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_mark_sms_rows_summary"
+                app:title="@string/settings_mark_sms_rows_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="4dp"
+                android:tag="settingsHeading"
+                android:text="@string/settings_signal_heading_privacy"
+                android:textStyle="bold" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalReceipts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_receipts_summary"
+                app:title="@string/settings_signal_receipts_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalTyping"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_typing_summary"
+                app:title="@string/settings_signal_typing_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="4dp"
+                android:tag="settingsHeading"
+                android:text="@string/settings_signal_heading_calls"
+                android:textStyle="bold" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalKeepConnected"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_keep_summary"
+                app:title="@string/settings_signal_keep_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalFullScreenCalls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_fullscreen_summary"
+                app:title="@string/settings_signal_fullscreen_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalBackground"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_background_summary"
+                app:title="@string/settings_signal_background_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="4dp"
+                android:tag="settingsHeading"
+                android:text="@string/settings_signal_heading_contacts"
+                android:textStyle="bold" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalFetchContacts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_fetch_contacts_summary"
+                app:title="@string/settings_signal_fetch_contacts_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalDiscoverContacts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_discover_contacts_summary"
+                app:title="@string/settings_signal_discover_contacts_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="4dp"
+                android:tag="settingsHeading"
+                android:text="@string/settings_signal_heading_history"
+                android:textStyle="bold" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalHistoryImport"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_import_summary"
+                app:title="@string/settings_signal_import_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalHistoryExport"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_export_summary"
+                app:title="@string/settings_signal_export_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="4dp"
+                android:tag="settingsHeading"
+                android:text="@string/settings_signal_heading_network"
+                android:textStyle="bold" />
+
+            <!--
+                A SOCKS5 proxy for everything said to Signal (Orbot, for Tor). Shown whatever the
+                state of the account, because linking and registering are traffic too, and the
+                proxy has to be on before either for them to go through it.
+            -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalProxy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_signal_proxy_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalProxyAddress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_signal_proxy_address_title" />
+
+            <com.wanderwildwood.kotozute.common.widget.QkTextView
+                style="@style/TextPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="4dp"
+                android:tag="settingsHeading"
+                android:textStyle="bold" />
+
+            
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/signalUnpair"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:summary="@string/settings_signal_unpair_summary"
+                app:title="@string/settings_signal_unpair_title" />
 
         </LinearLayout>
 
@@ -401,259 +720,74 @@
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/sectionSignal"
+            android:id="@+id/sectionStorage"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:visibility="gone">
 
-            <!--
-              Above the bridge row on purpose. Linking directly is the route that needs no
-              second computer, so it is the one to meet first; the bridge stays for anyone
-              already using one.
-            -->
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalLink"
+                android:id="@+id/backup"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:summary="@string/settings_signal_link_summary"
-                app:title="@string/settings_signal_link_title" />
+                app:title="@string/backup_title" />
 
-            <!-- The second way in, for someone with no other phone to link to. Below linking
-                 because almost everyone has the other phone, and above the bridge because
-                 this one is a real answer rather than a legacy path. -->
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalRegister"
+                android:id="@+id/sync"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:summary="@string/signal_register_setting_summary"
-                app:title="@string/signal_register_setting_title" />
+                app:summary="@string/settings_sync_summary"
+                app:title="@string/settings_sync_title" />
 
-            
-
-            
-
+            <!-- Only when a message database was set aside as unreadable; see SetAsideDatabases. -->
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalEnabled"
+                android:id="@+id/setAsideDatabases"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="gone"
-                app:summary="@string/settings_signal_enabled_summary"
-                app:title="@string/settings_signal_enabled_title"
-                app:widget="@layout/settings_switch_widget" />
+                app:title="@string/settings_set_aside_title" />
 
+            <!-- Only while Signal attachments cannot be opened; see SignalRepository.attachmentsLocked. -->
             <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalOpen"
+                android:id="@+id/attachmentsLocked"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="gone"
-                app:summary="@string/settings_signal_open_summary"
-                app:title="@string/settings_signal_open_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalHistoryImport"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_import_summary"
-                app:title="@string/settings_signal_import_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalHistoryExport"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_export_summary"
-                app:title="@string/settings_signal_export_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalAccount"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_account_summary"
-                app:title="@string/settings_signal_account_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalDevices"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_devices_summary"
-                app:title="@string/settings_signal_devices_title" />
-
-            <!--
-                Only a phone that REGISTERED its own account has anything to do here. A linked
-                device inherits the primary's profile and must not write over it.
-
-                It exists because the name was otherwise settable only during registration, in
-                one step of one flow: miss it, or close the app on it, and the account stayed
-                nameless for ever with nothing on this screen to say so, while everybody it
-                wrote to saw a bare service id.
-            -->
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalProfileName"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_profile_name_summary"
-                app:title="@string/settings_signal_profile_name_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalKeepConnected"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_keep_summary"
-                app:title="@string/settings_signal_keep_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalWeave"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_weave_summary"
-                app:title="@string/settings_signal_weave_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalOpensFirst"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_opens_first_summary"
-                app:title="@string/settings_signal_opens_first_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/markSmsRows"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_mark_sms_rows_summary"
-                app:title="@string/settings_mark_sms_rows_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalReceipts"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_receipts_summary"
-                app:title="@string/settings_signal_receipts_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalTyping"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_typing_summary"
-                app:title="@string/settings_signal_typing_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalAbout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_about_summary"
-                app:title="@string/settings_signal_about_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalUsername"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_username_summary"
-                app:title="@string/settings_signal_username_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalNumberPrivacy"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_number_summary"
-                app:title="@string/settings_signal_number_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalNotificationsOff"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_notifications_off_summary"
-                app:title="@string/settings_signal_notifications_off_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalFullScreenCalls"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_fullscreen_summary"
-                app:title="@string/settings_signal_fullscreen_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalBackground"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_background_summary"
-                app:title="@string/settings_signal_background_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalFetchContacts"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_fetch_contacts_summary"
-                app:title="@string/settings_signal_fetch_contacts_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalDiscoverContacts"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_discover_contacts_summary"
-                app:title="@string/settings_signal_discover_contacts_title" />
-
-            <!--
-                A SOCKS5 proxy for everything said to Signal (Orbot, for Tor). Shown whatever the
-                state of the account, because linking and registering are traffic too, and the
-                proxy has to be on before either for them to go through it.
-            -->
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalProxy"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:title="@string/settings_signal_proxy_title"
-                app:widget="@layout/settings_switch_widget" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalProxyAddress"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:title="@string/settings_signal_proxy_address_title" />
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:title="@string/settings_signal_status_title" />
-
-            
-
-            <com.wanderwildwood.kotozute.common.widget.PreferenceView
-                android:id="@+id/signalUnpair"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:summary="@string/settings_signal_unpair_summary"
-                app:title="@string/settings_signal_unpair_title" />
+                app:summary="@string/settings_attachments_locked_summary"
+                app:title="@string/settings_attachments_locked_title" />
 
         </LinearLayout>
 
+        <LinearLayout
+            android:id="@+id/sectionHelp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/setupGuide"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:title="@string/settings_setup_title" />
+
+            <!-- Brings back the texting line that the SMS list's Hide put away. -->
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/askDefaultSms"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_ask_default_sms_summary"
+                app:title="@string/settings_ask_default_sms_title"
+                app:widget="@layout/settings_switch_widget" />
+
+            <com.wanderwildwood.kotozute.common.widget.PreferenceView
+                android:id="@+id/crashLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:summary="@string/settings_crash_log_summary"
+                app:title="@string/settings_crash_log_title" />
+
+        </LinearLayout>
     </LinearLayout>
 
 </com.wanderwildwood.kotozute.common.widget.PagingScrollView>

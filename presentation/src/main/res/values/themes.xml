@@ -51,6 +51,16 @@
         <item name="android:textColorPrimary">@color/black</item>
         <item name="android:textColorSecondary">@color/textSecondary</item>
         <item name="android:textColorTertiary">@color/textTertiary</item>
+        <!-- Selected and composing text: no band and no dotted rule. On this panel a
+             highlight is a grey smear, and a word being corrected is marked by the
+             keyboard's own suggestion strip. Mudita's apps draw it the same way: the
+             handles show where the selection is, the text keeps its ink.
+
+             The rule under the composing word is not the highlight: BaseInputConnection
+             takes it from candidatesTextStyleSpans, whose default is the styled string
+             <u>candidates</u>. An unstyled one draws nothing. -->
+        <item name="android:textColorHighlight">@android:color/white</item>
+        <item name="android:candidatesTextStyleSpans">candidates</item>
         <item name="android:windowBackground">@color/white</item>
         <item name="actionBarPopupTheme">@style/PopupTheme</item>
         <item name="actionOverflowMenuStyle">@style/PopupMenuNoAnimation</item>
@@ -76,6 +86,8 @@
         <item name="android:textColorPrimary">@color/black</item>
         <item name="android:textColorSecondary">@color/textSecondary</item>
         <item name="android:textColorTertiary">@color/textTertiary</item>
+        <item name="android:textColorHighlight">@android:color/white</item>
+        <item name="android:candidatesTextStyleSpans">candidates</item>
         <item name="android:windowBackground">@color/white</item>
         <item name="actionBarPopupTheme">@style/PopupTheme</item>
         <item name="actionOverflowMenuStyle">@style/PopupMenuNoAnimation</item>
@@ -101,6 +113,8 @@
         <item name="android:windowElevation">0dp</item>
         <item name="android:windowBackground">@drawable/dialog_eink</item>
         <item name="android:textColorPrimary">@color/black</item>
+        <item name="android:textColorHighlight">@android:color/white</item>
+        <item name="android:candidatesTextStyleSpans">candidates</item>
         <item name="colorAccent">@color/black</item>
         <item name="colorControlActivated">@color/black</item>
         <item name="buttonBarButtonStyle">@style/ButtonBarButton</item>

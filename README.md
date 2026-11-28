@@ -2,6 +2,8 @@
 
 # 言伝 kotozute — Messaging
 
+[![build](https://github.com/baud-9600/kotozute/actions/workflows/build.yml/badge.svg)](https://github.com/baud-9600/kotozute/actions/workflows/build.yml)
+
 An SMS and MMS app for the [Mudita Kompakt](https://mudita.com/products/kompakt/), restyled for the phone's e-ink screen, with two things bolted on that the phone cannot otherwise have: **Desktop Sync**, reading and replying from a browser on a computer, and **Signal**, in the same inbox as your texts.
 
 *Kotozute* is 言伝 — word left with someone to carry the rest of the way. The 伝 is the one in
